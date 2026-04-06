@@ -18,7 +18,11 @@ impl MemoryRetrieval for KeywordRetrieval {
             if memory.content.to_ascii_lowercase().contains(&q) {
                 score -= 2;
             }
-            if memory.tags.iter().any(|tag| tag.to_ascii_lowercase().contains(&q)) {
+            if memory
+                .tags
+                .iter()
+                .any(|tag| tag.to_ascii_lowercase().contains(&q))
+            {
                 score -= 1;
             }
             score
@@ -55,7 +59,12 @@ mod tests {
     #[test]
     fn keyword_retrieval_prefers_title_then_content_then_tags() {
         let memories = vec![
-            memory("misc", "contains alpha in content", &[], MemoryType::Project),
+            memory(
+                "misc",
+                "contains alpha in content",
+                &[],
+                MemoryType::Project,
+            ),
             memory("alpha title", "other", &[], MemoryType::Project),
             memory("misc2", "other", &["alpha"], MemoryType::Project),
         ];

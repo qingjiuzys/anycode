@@ -97,7 +97,11 @@ pub async fn run_tui(
 
     // 主缓冲模式：清屏并归零光标，避免启动阶段 stderr 日志与 ratatui 首帧叠在同一视口。
     if !used_alternate_screen {
-        use crossterm::{cursor::MoveTo, execute, terminal::{Clear, ClearType}};
+        use crossterm::{
+            cursor::MoveTo,
+            execute,
+            terminal::{Clear, ClearType},
+        };
         let mut out = stdout();
         let _ = execute!(out, Clear(ClearType::All), MoveTo(0, 0));
     }
@@ -292,7 +296,10 @@ pub async fn run_tui(
         .unwrap_or(false);
     // 主缓冲模式下会话已在滚动区，不再整段 echo（避免重复）。
     if used_alternate_screen && !skip_dump && !transcript.is_empty() {
-        println!("{}", crate::tui::transcript::transcript_dump_plain_text(&transcript));
+        println!(
+            "{}",
+            crate::tui::transcript::transcript_dump_plain_text(&transcript)
+        );
     }
 
     Ok(())

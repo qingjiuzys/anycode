@@ -1,9 +1,8 @@
 //! 单帧 TUI 绘制（ratatui），与事件循环解耦以便阅读与单测。
 
+use crate::i18n::{tr, tr_args};
 use crate::md_tui::{text_display_width, wrap_ratatui_line, wrap_string_to_width};
 use crate::tui::approval::PendingApproval;
-use crate::i18n::{tr, tr_args};
-use fluent_bundle::FluentArgs;
 use crate::tui::chrome::{sidebar_help_text, welcome_lines};
 use crate::tui::input::{
     format_cwd_header, prompt_multiline_lines_and_cursor, InputState, RevSearchState,
@@ -13,6 +12,7 @@ use crate::tui::styles::*;
 use crate::tui::transcript::{layout_workspace, TranscriptEntry, WorkspaceLiveLayout};
 use crate::tui::util::{transcript_first_visible, truncate_preview};
 use anycode_core::AgentType;
+use fluent_bundle::FluentArgs;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -359,7 +359,8 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
 
         let avail = available_height.max(1);
         let body: Text = if transcript.is_empty() {
-            let start = transcript_first_visible(welcome_wrapped.len(), avail, transcript_scroll_up);
+            let start =
+                transcript_first_visible(welcome_wrapped.len(), avail, transcript_scroll_up);
             let end = (start + avail).min(welcome_wrapped.len());
             Text::from(welcome_wrapped[start..end].to_vec())
         } else {
@@ -382,10 +383,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         );
 
         f.render_widget(workspace_block, main_rect);
-        f.render_widget(
-            Paragraph::new(body).wrap(Wrap { trim: false }),
-            chunks[0],
-        );
+        f.render_widget(Paragraph::new(body).wrap(Wrap { trim: false }), chunks[0]);
         f.render_widget(Paragraph::new(scroll_body), chunks[1]);
     }
 
@@ -420,28 +418,27 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
     let body_rect = dock_inner;
 
     let show_buddy_here = show_buddy && pending_approval.is_none() && rev_search.is_none();
-    let (prompt_cell, buddy_cell) = if show_buddy_here
-        && body_rect.width >= DOCK_BUDDY_AREA_WIDTH.saturating_add(14)
-    {
-        let prompt_w = body_rect.width.saturating_sub(DOCK_BUDDY_AREA_WIDTH);
-        let buddy_x = body_rect.x.saturating_add(prompt_w);
-        (
-            Rect {
-                x: body_rect.x,
-                y: body_rect.y,
-                width: prompt_w,
-                height: body_rect.height,
-            },
-            Some(Rect {
-                x: buddy_x,
-                y: body_rect.y,
-                width: DOCK_BUDDY_AREA_WIDTH,
-                height: body_rect.height,
-            }),
-        )
-    } else {
-        (body_rect, None)
-    };
+    let (prompt_cell, buddy_cell) =
+        if show_buddy_here && body_rect.width >= DOCK_BUDDY_AREA_WIDTH.saturating_add(14) {
+            let prompt_w = body_rect.width.saturating_sub(DOCK_BUDDY_AREA_WIDTH);
+            let buddy_x = body_rect.x.saturating_add(prompt_w);
+            (
+                Rect {
+                    x: body_rect.x,
+                    y: body_rect.y,
+                    width: prompt_w,
+                    height: body_rect.height,
+                },
+                Some(Rect {
+                    x: buddy_x,
+                    y: body_rect.y,
+                    width: DOCK_BUDDY_AREA_WIDTH,
+                    height: body_rect.height,
+                }),
+            )
+        } else {
+            (body_rect, None)
+        };
 
     let input_inner_w = prompt_cell.width.max(1);
 

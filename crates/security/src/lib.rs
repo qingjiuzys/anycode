@@ -6,13 +6,13 @@ pub mod approval_presenter;
 
 pub use anycode_core::SecurityPolicy;
 
+use crate::approval_presenter::{render_approval_request, ApprovalSurface};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
-use crate::approval_presenter::{render_approval_request, ApprovalSurface};
 
 // ============================================================================
 // 预编译策略（避免每条工具调用重复 Regex::new）
@@ -186,7 +186,10 @@ impl ApprovalSystem {
         {
             Ok(true) => Ok(()),
             Ok(false) => Err(CoreError::PermissionDenied("User denied".to_string())),
-            Err(e) => Err(CoreError::PermissionDenied(format!("Approval error: {}", e))),
+            Err(e) => Err(CoreError::PermissionDenied(format!(
+                "Approval error: {}",
+                e
+            ))),
         }
     }
 

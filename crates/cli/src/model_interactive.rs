@@ -1,18 +1,18 @@
 //! `anycode model` 交互（全量提供方目录 + anyCode 按任务路由）。
 
-use crate::i18n::{tr, tr_args};
-use fluent_bundle::FluentArgs;
 use super::{
     default_base_url_for, load_anycode_config_resolved, prompt_api_key_and_base_url, prompt_line,
     prompt_model_for_anthropic, prompt_model_for_zai, resolve_config_path,
     save_anycode_config_resolved, save_merged_config, validate_llm_provider, ModelProfile,
 };
+use crate::i18n::{tr, tr_args};
 use anycode_llm::{
     normalize_provider_id, transport_for_provider_id, LlmTransport, PROVIDER_CATALOG,
     ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
 };
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
+use fluent_bundle::FluentArgs;
 use std::path::PathBuf;
 
 fn accent_title(line: &str) {
@@ -337,12 +337,11 @@ async fn run_routing_agents_flow(
     path: &std::path::Path,
     is_tty: bool,
 ) -> anyhow::Result<()> {
-    let mut existing = load_anycode_config_resolved(config_file.clone())?
-        .ok_or_else(|| {
-            let mut a = FluentArgs::new();
-            a.set("path", path.display().to_string());
-            anyhow::anyhow!("{}", tr_args("wizard-no-config", &a))
-        })?;
+    let mut existing = load_anycode_config_resolved(config_file.clone())?.ok_or_else(|| {
+        let mut a = FluentArgs::new();
+        a.set("path", path.display().to_string());
+        anyhow::anyhow!("{}", tr_args("wizard-no-config", &a))
+    })?;
 
     accent_title(&tr("model-routing-title"));
     let preset_labels: Vec<String> = ROUTING_AGENT_PRESETS

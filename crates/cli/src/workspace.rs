@@ -23,10 +23,7 @@ pub fn root() -> PathBuf {
 pub fn canonical_root_string() -> String {
     let r = root();
     let _ = fs::create_dir_all(&r);
-    r.canonicalize()
-        .unwrap_or(r)
-        .to_string_lossy()
-        .to_string()
+    r.canonicalize().unwrap_or(r).to_string_lossy().to_string()
 }
 
 /// 创建 `workspace`、`projects/`，并写入 `README.md`（若不存在）。
@@ -131,7 +128,10 @@ pub fn project_for_directory(working_dir: &Path) -> Option<WorkspaceProject> {
     best_project_match(&load_index().projects, &wd)
 }
 
-fn best_project_match(projects: &[WorkspaceProject], working_dir: &Path) -> Option<WorkspaceProject> {
+fn best_project_match(
+    projects: &[WorkspaceProject],
+    working_dir: &Path,
+) -> Option<WorkspaceProject> {
     let mut best: Option<(usize, WorkspaceProject)> = None;
     for p in projects {
         let base = Path::new(&p.path);
@@ -262,10 +262,7 @@ mod tests {
         let wd = Path::new("/a/b/c");
         let m = best_project_match(&projects, wd);
         assert_eq!(m.as_ref().map(|p| p.path.as_str()), Some("/a/b"));
-        assert_eq!(
-            m.as_ref().and_then(|p| p.label.as_deref()),
-            Some("inner")
-        );
+        assert_eq!(m.as_ref().and_then(|p| p.label.as_deref()), Some("inner"));
     }
 
     #[test]

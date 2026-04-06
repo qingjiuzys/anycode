@@ -29,7 +29,9 @@ fn pick_mcp_session(
     match want {
         Some(w) => {
             let wn = normalize_name_for_mcp(w);
-            Ok(sessions.into_iter().find(|s| s.server_slug() == wn.as_str()))
+            Ok(sessions
+                .into_iter()
+                .find(|s| s.server_slug() == wn.as_str()))
         }
         None => Err(ToolOutput {
             result: serde_json::json!({
@@ -354,7 +356,9 @@ pub struct McpAuthTool {
 
 impl McpAuthTool {
     pub fn new(
-        #[cfg_attr(not(feature = "tools-mcp"), allow(unused_variables))] services: Arc<ToolServices>,
+        #[cfg_attr(not(feature = "tools-mcp"), allow(unused_variables))] services: Arc<
+            ToolServices,
+        >,
     ) -> Self {
         Self {
             #[cfg(feature = "tools-mcp")]

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::{oneshot, Mutex};
 
 /// 登录选项（`mcp_url` 为 MCP 端点，如 `https://example.com/mcp`）。
 #[derive(Debug, Clone)]
@@ -198,6 +198,9 @@ mod tests {
         assert_eq!(normalize_callback_path(""), "/callback");
         assert_eq!(normalize_callback_path("  "), "/callback");
         assert_eq!(normalize_callback_path("cb"), "/cb");
-        assert_eq!(normalize_callback_path("/oauth/callback"), "/oauth/callback");
+        assert_eq!(
+            normalize_callback_path("/oauth/callback"),
+            "/oauth/callback"
+        );
     }
 }

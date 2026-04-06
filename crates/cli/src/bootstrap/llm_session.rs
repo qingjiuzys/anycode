@@ -124,7 +124,9 @@ pub(crate) fn resolve_bedrock_primary_config(config: &Config) -> ProviderConfig 
     }
 }
 
-pub(crate) fn resolve_github_copilot_primary_config(config: &Config) -> anyhow::Result<ProviderConfig> {
+pub(crate) fn resolve_github_copilot_primary_config(
+    config: &Config,
+) -> anyhow::Result<ProviderConfig> {
     use crate::i18n::tr;
 
     let g = normalize_provider_id(&config.llm.provider);

@@ -18,11 +18,7 @@ pub fn resolve_context_window_tokens(normalized_provider_id: &str, model_id: &st
     if m.contains("gemini") {
         return 1_000_000;
     }
-    if m.contains("claude")
-        || m.contains("opus")
-        || m.contains("sonnet")
-        || m.contains("haiku")
-    {
+    if m.contains("claude") || m.contains("opus") || m.contains("sonnet") || m.contains("haiku") {
         return 200_000;
     }
     if m.contains("gpt-4")
@@ -86,7 +82,10 @@ mod tests {
 
     #[test]
     fn unknown_model_falls_back_to_provider_or_default() {
-        assert_eq!(resolve_context_window_tokens("anthropic", "custom-model"), 200_000);
+        assert_eq!(
+            resolve_context_window_tokens("anthropic", "custom-model"),
+            200_000
+        );
         assert_eq!(resolve_context_window_tokens("acme_unknown", "x"), 128_000);
     }
 }

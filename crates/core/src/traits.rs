@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use crate::agent_type::AgentType;
 use crate::channel::{ChannelMessage, ChannelType};
 use crate::error::CoreError;
+use crate::ids::ToolName;
 use crate::llm_types::{
     LLMResponse, ModelConfig, PermissionMode, StreamEvent, ToolInput, ToolOutput, ToolSchema,
 };
@@ -12,7 +13,6 @@ use crate::memory_model::{Memory, MemoryType};
 use crate::message::Message;
 use crate::security_policy::SecurityPolicy;
 use crate::task::{Task, TaskResult};
-use crate::ids::ToolName;
 
 /// Agent 抽象（类型、工具子集、说明与可选独立执行路径）
 ///

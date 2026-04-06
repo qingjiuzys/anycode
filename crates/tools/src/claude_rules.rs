@@ -27,11 +27,7 @@ pub struct CompiledClaudePermissionRules {
 }
 
 impl CompiledClaudePermissionRules {
-    pub fn compile(
-        deny: &[String],
-        allow: &[String],
-        ask: &[String],
-    ) -> Arc<Self> {
+    pub fn compile(deny: &[String], allow: &[String], ask: &[String]) -> Arc<Self> {
         let mut out = Self::default();
         for s in deny {
             out.push_rule(s, RuleKind::Deny);
@@ -93,14 +89,16 @@ impl CompiledClaudePermissionRules {
     /// 执行前：content 级 deny（Bash(command) 等）。
     pub fn content_denies(&self, tool_api_name: &str, args_json: &str) -> bool {
         self.deny_content.iter().any(|e| {
-            e.tool_name == tool_api_name && content_matches(&e.rule_content, tool_api_name, args_json)
+            e.tool_name == tool_api_name
+                && content_matches(&e.rule_content, tool_api_name, args_json)
         })
     }
 
     /// 执行前：content 级 allow（覆盖 deny）。
     pub fn content_allows(&self, tool_api_name: &str, args_json: &str) -> bool {
         self.allow_content.iter().any(|e| {
-            e.tool_name == tool_api_name && content_matches(&e.rule_content, tool_api_name, args_json)
+            e.tool_name == tool_api_name
+                && content_matches(&e.rule_content, tool_api_name, args_json)
         })
     }
 
@@ -112,7 +110,10 @@ impl CompiledClaudePermissionRules {
 
     /// 是否需要用户确认（ask 命中且未被 allow 覆盖）。
     pub fn needs_ask(&self, tool_api_name: &str, args_json: &str) -> bool {
-        let ask_hit = self.ask_blanket.iter().any(|e| blanket_rule_matches_tool(e, tool_api_name))
+        let ask_hit = self
+            .ask_blanket
+            .iter()
+            .any(|e| blanket_rule_matches_tool(e, tool_api_name))
             || self.ask_content.iter().any(|e| {
                 e.tool_name == tool_api_name
                     && content_matches(&e.rule_content, tool_api_name, args_json)

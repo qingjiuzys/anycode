@@ -4,12 +4,12 @@ pub mod catalog;
 pub mod claude_rules;
 mod limits;
 pub mod mcp_normalization;
-pub mod permission_rule_parser;
-pub mod shell_rule_match;
 mod paths;
+pub mod permission_rule_parser;
 mod registry;
 mod sandbox;
 pub mod services;
+pub mod shell_rule_match;
 pub mod skills;
 pub mod workflows;
 
@@ -20,12 +20,15 @@ mod file_read;
 mod file_write;
 mod glob;
 mod grep;
-mod lsp_tool;
 #[cfg(feature = "tools-lsp")]
 mod lsp_stdio;
-mod mcp_tools;
+mod lsp_tool;
 #[cfg(feature = "tools-mcp")]
 pub mod mcp_connected;
+#[cfg(feature = "tools-mcp-oauth")]
+mod mcp_oauth_login;
+#[cfg(feature = "tools-mcp")]
+mod mcp_oauth_store;
 #[cfg(feature = "tools-mcp")]
 mod mcp_proxied_tool;
 #[cfg(feature = "tools-mcp")]
@@ -33,11 +36,8 @@ pub mod mcp_rmcp_session;
 #[cfg(feature = "tools-mcp")]
 pub mod mcp_session;
 #[cfg(feature = "tools-mcp")]
-mod mcp_oauth_store;
-#[cfg(feature = "tools-mcp-oauth")]
-mod mcp_oauth_login;
-#[cfg(feature = "tools-mcp")]
 mod mcp_stdio;
+mod mcp_tools;
 mod mode_tools;
 mod notebook_edit;
 mod orchestration;
@@ -55,13 +55,16 @@ pub use catalog::{
 pub use claude_rules::CompiledClaudePermissionRules;
 #[cfg(feature = "tools-mcp")]
 pub use mcp_connected::McpListedTool;
-#[cfg(feature = "tools-mcp")]
-pub use mcp_rmcp_session::McpRmcpSession;
+pub use mcp_normalization::{
+    blanket_deny_rule_matches_tool, build_mcp_tool_name, mcp_info_from_string,
+    normalize_name_for_mcp,
+};
 #[cfg(feature = "tools-mcp-oauth")]
 pub use mcp_oauth_login::{mcp_oauth_login, McpOAuthLoginError, McpOAuthLoginOptions};
-pub use mcp_normalization::{
-    blanket_deny_rule_matches_tool, build_mcp_tool_name, mcp_info_from_string, normalize_name_for_mcp,
-};
+#[cfg(feature = "tools-mcp")]
+pub use mcp_rmcp_session::McpRmcpSession;
 pub use registry::build_registry;
 pub use services::{ToolRegistryDeps, ToolServices};
-pub use skills::{default_skill_roots, truncate_skill_output, SkillCatalog, SkillMeta, MAX_SKILL_OUTPUT_BYTES};
+pub use skills::{
+    default_skill_roots, truncate_skill_output, SkillCatalog, SkillMeta, MAX_SKILL_OUTPUT_BYTES,
+};

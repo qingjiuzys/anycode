@@ -129,15 +129,7 @@ pub(super) async fn dispatch_crossterm_event(
                 return Ok(handle_rev_search_key(key, ctx));
             }
 
-            handle_main_key(
-                key,
-                ctx,
-                runtime,
-                messages,
-                agent_type,
-                working_dir_str,
-            )
-            .await
+            handle_main_key(key, ctx, runtime, messages, agent_type, working_dir_str).await
         }
         _ => Ok(TuiLoopCtl::Ok),
     }
@@ -608,9 +600,11 @@ async fn handle_main_key(
                 let mut ha = FluentArgs::new();
                 ha.set("id", id);
                 let hint = tr_args("tui-agent-switched", &ha);
-                ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
-                    Span::styled(hint, style_dim()),
-                )]));
+                ctx.transcript
+                    .push(TranscriptEntry::Plain(vec![Line::from(Span::styled(
+                        hint,
+                        style_dim(),
+                    ))]));
                 *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
                 *ctx.last_turn_error = None;
                 return Ok(TuiLoopCtl::Continue);
@@ -663,8 +657,7 @@ async fn handle_main_key(
                         Err(e) => {
                             let mut a = FluentArgs::new();
                             a.set("err", e.to_string());
-                            *ctx.last_turn_error =
-                                Some(tr_args("tui-err-autocompact-failed", &a));
+                            *ctx.last_turn_error = Some(tr_args("tui-err-autocompact-failed", &a));
                         }
                     }
                     *ctx.executing = false;

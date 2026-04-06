@@ -57,10 +57,14 @@ struct LspToolIn {
     params: Value,
 }
 
-pub async fn lsp_forward_shell(input: &Value, command_shell: &str) -> Result<ToolOutput, CoreError> {
+pub async fn lsp_forward_shell(
+    input: &Value,
+    command_shell: &str,
+) -> Result<ToolOutput, CoreError> {
     let start = std::time::Instant::now();
-    let req: LspToolIn = serde_json::from_value(input.clone())
-        .map_err(|_| CoreError::LLMError("LSP 工具输入需要字段 method（字符串），可选 params（对象）".into()))?;
+    let req: LspToolIn = serde_json::from_value(input.clone()).map_err(|_| {
+        CoreError::LLMError("LSP 工具输入需要字段 method（字符串），可选 params（对象）".into())
+    })?;
     if req.method.trim().is_empty() {
         return Err(CoreError::LLMError("LSP method 不能为空".into()));
     }

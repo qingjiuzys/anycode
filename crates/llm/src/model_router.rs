@@ -41,7 +41,9 @@ impl ModelRouter {
     pub fn resolve_for_mode(&self, mode: &RuntimeMode) -> ModelConfig {
         match mode {
             RuntimeMode::Plan => self.resolve_named("plan", "plan"),
-            RuntimeMode::Code | RuntimeMode::General => self.resolve_named("general-purpose", "code"),
+            RuntimeMode::Code | RuntimeMode::General => {
+                self.resolve_named("general-purpose", "code")
+            }
             RuntimeMode::Explore => self.resolve_named("explore", "fast"),
             RuntimeMode::Channel => self.resolve_named("workspace-assistant", "channel"),
             RuntimeMode::Goal => self.resolve_named("goal", "best"),

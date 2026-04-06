@@ -2,12 +2,12 @@
 
 use crate::app_config::{apply_optional_repl_model, Config};
 use crate::bootstrap::initialize_runtime;
-use crate::cli_args::SkillsCommands;
 use crate::builtin_agents::parse_agent_slash_command;
-use crate::slash_commands::{self, ParsedSlashCommand};
+use crate::cli_args::SkillsCommands;
 use crate::daemon_http;
 use crate::i18n::{tr, tr_args};
 use crate::repl_banner;
+use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
@@ -97,7 +97,14 @@ pub(crate) async fn run_interactive(
                             .map(PathBuf::from)
                     });
                     if let Some(path) = maybe_path {
-                        run_workflow_path(&runtime, &disk, &working_dir, &path, Some(trimmed.to_string())).await?;
+                        run_workflow_path(
+                            &runtime,
+                            &disk,
+                            &working_dir,
+                            &path,
+                            Some(trimmed.to_string()),
+                        )
+                        .await?;
                     } else {
                         match workflows::discover_workflow(&working_dir) {
                             Ok(Some((path, workflow))) => {
@@ -190,23 +197,18 @@ pub(crate) async fn run_task(
     let runtime = initialize_runtime(&config, None).await?;
     let disk = DiskTaskOutput::new_default()?;
     if let Some(workflow_path) = workflow {
-        return run_workflow_path(&runtime, &disk, &working_dir, &workflow_path, Some(prompt)).await;
+        return run_workflow_path(&runtime, &disk, &working_dir, &workflow_path, Some(prompt))
+            .await;
     }
     let resolved_mode = mode
         .as_deref()
         .and_then(RuntimeMode::parse)
         .unwrap_or(config.runtime.default_mode);
-    let resolved_agent = agent_type.unwrap_or_else(|| resolved_mode.default_agent().as_str().to_string());
+    let resolved_agent =
+        agent_type.unwrap_or_else(|| resolved_mode.default_agent().as_str().to_string());
     if let Some(goal) = goal {
-        return run_goal_task_with_tail(
-            &runtime,
-            &disk,
-            resolved_agent,
-            prompt,
-            working_dir,
-            goal,
-        )
-        .await;
+        return run_goal_task_with_tail(&runtime, &disk, resolved_agent, prompt, working_dir, goal)
+            .await;
     }
     run_single_task_with_tail(&runtime, &disk, resolved_agent, prompt, working_dir).await
 }
@@ -352,7 +354,15 @@ async fn run_workflow_path(
     user_prompt: Option<String>,
 ) -> anyhow::Result<()> {
     let workflow = workflows::load_workflow_from_file(workflow_path)?;
-    run_workflow_definition(runtime, disk, working_dir, &workflow, workflow_path, user_prompt).await
+    run_workflow_definition(
+        runtime,
+        disk,
+        working_dir,
+        &workflow,
+        workflow_path,
+        user_prompt,
+    )
+    .await
 }
 
 pub(crate) async fn execute_workflow_runtime(
@@ -362,7 +372,11 @@ pub(crate) async fn execute_workflow_runtime(
     user_prompt: Option<String>,
 ) -> anyhow::Result<TaskResult> {
     let workflow = workflows::load_workflow_from_file(workflow_path)?;
-    let retry_max = workflow.retry.as_ref().map(|r| r.max_attempts.max(1)).unwrap_or(1);
+    let retry_max = workflow
+        .retry
+        .as_ref()
+        .map(|r| r.max_attempts.max(1))
+        .unwrap_or(1);
     let retry_backoff_ms = workflow.retry.as_ref().map(|r| r.backoff_ms).unwrap_or(0);
     let mut current_mode = workflow
         .mode
@@ -388,14 +402,17 @@ pub(crate) async fn execute_workflow_runtime(
             user_prompt.clone().unwrap_or_default(),
             workflow.name.as_str(),
             step,
-            step.done_when
-                .as_deref()
-                .or(workflow.done_when.as_deref()),
+            step.done_when.as_deref().or(workflow.done_when.as_deref()),
         );
         let mut attempt = 0;
         loop {
             attempt += 1;
-            let task = build_task(agent.clone(), prompt.clone(), working_dir.to_path_buf(), None);
+            let task = build_task(
+                agent.clone(),
+                prompt.clone(),
+                working_dir.to_path_buf(),
+                None,
+            );
             let result = if mode == RuntimeMode::Goal {
                 runtime
                     .execute_goal_task(
@@ -421,8 +438,10 @@ pub(crate) async fn execute_workflow_runtime(
                     last_result = r;
                     if failed && attempt < retry_max {
                         if retry_backoff_ms > 0 {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(retry_backoff_ms))
-                                .await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(
+                                retry_backoff_ms,
+                            ))
+                            .await;
                         }
                         continue;
                     }
@@ -455,7 +474,13 @@ pub(crate) async fn execute_workflow_runtime(
             context_text.push('\n');
             context_text.push_str(message);
         }
-        if handoff.message.as_deref().map(str::trim).filter(|s| !s.is_empty()).is_some() {
+        if handoff
+            .message
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .is_some()
+        {
             let agent = current_mode.default_agent().as_str().to_string();
             let handoff_prompt = format!(
                 "{}\n\n## Workflow Handoff\nnext_mode={}\nmessage={}",
@@ -494,7 +519,11 @@ async fn run_workflow_definition(
     user_prompt: Option<String>,
 ) -> anyhow::Result<()> {
     println!("workflow: {} ({})", workflow.name, workflow_path.display());
-    let retry_max = workflow.retry.as_ref().map(|r| r.max_attempts.max(1)).unwrap_or(1);
+    let retry_max = workflow
+        .retry
+        .as_ref()
+        .map(|r| r.max_attempts.max(1))
+        .unwrap_or(1);
     let retry_backoff_ms = workflow.retry.as_ref().map(|r| r.backoff_ms).unwrap_or(0);
     let mut current_mode = workflow
         .mode
@@ -521,9 +550,7 @@ async fn run_workflow_definition(
             user_prompt.clone().unwrap_or_default(),
             workflow.name.as_str(),
             step,
-            step.done_when
-                .as_deref()
-                .or(workflow.done_when.as_deref()),
+            step.done_when.as_deref().or(workflow.done_when.as_deref()),
         );
         let mut attempt = 0;
         loop {
@@ -535,8 +562,7 @@ async fn run_workflow_definition(
                     agent.clone(),
                     prompt.clone(),
                     working_dir.to_path_buf(),
-                    step
-                        .done_when
+                    step.done_when
                         .clone()
                         .or_else(|| workflow.done_when.clone())
                         .unwrap_or_else(|| step.prompt.clone()),
@@ -596,18 +622,15 @@ async fn run_workflow_definition(
                     agent,
                     prompt,
                     working_dir.to_path_buf(),
-                    workflow.done_when.clone().unwrap_or_else(|| message.clone()),
+                    workflow
+                        .done_when
+                        .clone()
+                        .unwrap_or_else(|| message.clone()),
                 )
                 .await?;
             } else {
-                run_single_task_with_tail(
-                    runtime,
-                    disk,
-                    agent,
-                    prompt,
-                    working_dir.to_path_buf(),
-                )
-                .await?;
+                run_single_task_with_tail(runtime, disk, agent, prompt, working_dir.to_path_buf())
+                    .await?;
             }
         }
     }
@@ -765,10 +788,7 @@ pub(crate) async fn run_daemon(config: Config, bind: String) -> anyhow::Result<(
 
 fn build_skill_catalog_for_cli(config: &Config) -> SkillCatalog {
     if config.skills.enabled {
-        let roots = default_skill_roots(
-            &config.skills.extra_dirs,
-            dirs::home_dir().as_deref(),
-        );
+        let roots = default_skill_roots(&config.skills.extra_dirs, dirs::home_dir().as_deref());
         SkillCatalog::scan(
             &roots,
             config.skills.allowlist.as_deref(),
@@ -811,10 +831,7 @@ pub(crate) fn run_skills_command(config: &Config, sub: SkillsCommands) -> anyhow
             Ok(())
         }
         SkillsCommands::Path => {
-            let roots = default_skill_roots(
-                &config.skills.extra_dirs,
-                dirs::home_dir().as_deref(),
-            );
+            let roots = default_skill_roots(&config.skills.extra_dirs, dirs::home_dir().as_deref());
             println!("skills.enabled: {}", config.skills.enabled);
             for r in roots {
                 println!("{}", r.display());
@@ -948,7 +965,8 @@ mod workflow_runtime_tests {
             done_when: Some("done".to_string()),
             vars,
         };
-        let rendered = render_workflow_prompt("ctx".to_string(), "wf", &step, step.done_when.as_deref());
+        let rendered =
+            render_workflow_prompt("ctx".to_string(), "wf", &step, step.done_when.as_deref());
         assert!(rendered.contains("hello anycode"));
         assert!(rendered.contains("done_when: done"));
     }

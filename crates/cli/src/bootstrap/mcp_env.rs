@@ -20,7 +20,10 @@ fn expand_tilde_path(raw: &str) -> PathBuf {
 #[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
 #[derive(Debug, Clone)]
 pub(crate) enum McpServerEntry {
-    Stdio { slug: String, command: String },
+    Stdio {
+        slug: String,
+        command: String,
+    },
     Http {
         slug: String,
         url: String,
@@ -117,8 +120,12 @@ fn parse_mcp_servers_json(raw: &str) -> Vec<McpServerEntry> {
             .and_then(|x| x.as_str())
             .unwrap_or("")
             .trim();
-        let is_http_ty = matches!(ty.as_str(), "http" | "sse" | "streamable" | "streamablehttp");
-        let looks_like_url = url.is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"));
+        let is_http_ty = matches!(
+            ty.as_str(),
+            "http" | "sse" | "streamable" | "streamablehttp"
+        );
+        let looks_like_url =
+            url.is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"));
         let use_http = looks_like_url && (is_http_ty || cmd.is_empty());
         if use_http {
             out.push(http_entry_from_object(i, &item));

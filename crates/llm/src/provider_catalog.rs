@@ -81,7 +81,9 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
     ProviderCatalogEntry {
         id: "amazon_bedrock",
         label: "Amazon Bedrock",
-        hint: Some("Converse API；模型填 foundation model id；凭证走 AWS 默认链，区域见 AWS_REGION"),
+        hint: Some(
+            "Converse API；模型填 foundation model id；凭证走 AWS 默认链，区域见 AWS_REGION",
+        ),
         transport: LlmTransport::BedrockConverse,
         suggested_openai_base: None,
         placeholder_only: false,
@@ -145,7 +147,9 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
     ProviderCatalogEntry {
         id: "github_copilot",
         label: "GitHub Copilot",
-        hint: Some("GitHub PAT 或 `anycode model auth copilot`；模型请选含 claude 的 Copilot 模型 id"),
+        hint: Some(
+            "GitHub PAT 或 `anycode model auth copilot`；模型请选含 claude 的 Copilot 模型 id",
+        ),
         transport: LlmTransport::GithubCopilot,
         suggested_openai_base: None,
         placeholder_only: false,
@@ -421,8 +425,14 @@ mod tests {
 
     #[test]
     fn normalize_kebab_to_snake_matches_catalog() {
-        assert_eq!(normalize_provider_id("cloudflare-ai-gateway"), "cloudflare_ai_gateway");
-        assert_eq!(normalize_provider_id("vercel-ai-gateway"), "vercel_ai_gateway");
+        assert_eq!(
+            normalize_provider_id("cloudflare-ai-gateway"),
+            "cloudflare_ai_gateway"
+        );
+        assert_eq!(
+            normalize_provider_id("vercel-ai-gateway"),
+            "vercel_ai_gateway"
+        );
         assert_eq!(normalize_provider_id("opencode-go"), "opencode_go");
         assert!(catalog_lookup("cloudflare-ai-gateway").is_some());
     }
@@ -443,6 +453,9 @@ mod tests {
         let labels: Vec<_> = PROVIDER_CATALOG.iter().map(|e| e.label).collect();
         let mut sorted = labels.clone();
         sorted.sort_unstable();
-        assert_eq!(labels, sorted, "PROVIDER_CATALOG must stay sorted by label for OpenClaw parity");
+        assert_eq!(
+            labels, sorted,
+            "PROVIDER_CATALOG must stay sorted by label for OpenClaw parity"
+        );
     }
 }

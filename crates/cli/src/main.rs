@@ -1,33 +1,33 @@
 //! anyCode CLI entry (see `cli_args`, `app_config`, `bootstrap`, `tasks`).
 
 mod app_config;
-mod copilot_auth;
 mod artifact_summary;
-mod builtin_agents;
 mod bootstrap;
+mod builtin_agents;
 mod cli_args;
 mod commands;
-mod i18n;
+mod copilot_auth;
 mod daemon_http;
+mod i18n;
 mod md_tui;
 mod repl_banner;
 mod slash_commands;
 mod tasks;
 mod tui;
-mod workspace;
 mod wechat;
 mod wechat_ilink;
 mod wechat_service;
+mod workspace;
 mod wx;
 
 use app_config::{load_config_for_session, run_onboard_flow};
 use cli_args::Commands;
 #[cfg(feature = "mcp-oauth")]
+use cli_args::McpCommands;
+#[cfg(feature = "mcp-oauth")]
 use fluent_bundle::FluentArgs;
 #[cfg(feature = "mcp-oauth")]
 use i18n::{tr, tr_args};
-#[cfg(feature = "mcp-oauth")]
-use cli_args::McpCommands;
 use tracing::info;
 use tracing_subscriber::fmt;
 use tracing_subscriber::EnvFilter;
@@ -185,14 +185,7 @@ async fn main() -> anyhow::Result<()> {
                 .clone()
                 .unwrap_or_else(|| std::env::current_dir().unwrap());
             workspace::touch_project_dir(touch_dir);
-            tasks::run_interactive(
-                config,
-                agent,
-                directory,
-                model,
-                ignore_approval,
-            )
-            .await?;
+            tasks::run_interactive(config, agent, directory, model, ignore_approval).await?;
         }
         Some(Commands::Repl {
             agent,
@@ -204,14 +197,7 @@ async fn main() -> anyhow::Result<()> {
                 .clone()
                 .unwrap_or_else(|| std::env::current_dir().unwrap());
             workspace::touch_project_dir(touch_dir);
-            tasks::run_interactive(
-                config,
-                agent,
-                directory,
-                model,
-                ignore_approval,
-            )
-            .await?;
+            tasks::run_interactive(config, agent, directory, model, ignore_approval).await?;
         }
         Some(Commands::ListAgents) => {
             tasks::list_agents();
@@ -246,20 +232,18 @@ async fn main() -> anyhow::Result<()> {
                 use anycode_tools::{mcp_oauth_login, McpOAuthLoginOptions};
                 use std::time::Duration;
                 let cred_path = credentials_store.clone();
-                let token = mcp_oauth_login(
-                    McpOAuthLoginOptions {
-                        mcp_url: url,
-                        redirect_host: host,
-                        redirect_port: port,
-                        callback_path,
-                        client_metadata_url,
-                        scopes,
-                        client_name: Some("anycode".to_string()),
-                        open_browser: !no_browser,
-                        callback_timeout: Duration::from_secs(15 * 60),
-                        credentials_store,
-                    },
-                )
+                let token = mcp_oauth_login(McpOAuthLoginOptions {
+                    mcp_url: url,
+                    redirect_host: host,
+                    redirect_port: port,
+                    callback_path,
+                    client_metadata_url,
+                    scopes,
+                    client_name: Some("anycode".to_string()),
+                    open_browser: !no_browser,
+                    callback_timeout: Duration::from_secs(15 * 60),
+                    credentials_store,
+                })
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
                 println!("{}\n{token}", tr("oauth-access-token-label"));
@@ -298,15 +282,13 @@ async fn main() -> anyhow::Result<()> {
             if let Ok(cwd) = std::env::current_dir() {
                 workspace::touch_project_dir(cwd);
             }
-            let default_agent = config.runtime.default_mode.default_agent().as_str().to_string();
-            tui::run_tui(
-                config,
-                default_agent,
-                None,
-                args.model.clone(),
-                args.debug,
-            )
-            .await?;
+            let default_agent = config
+                .runtime
+                .default_mode
+                .default_agent()
+                .as_str()
+                .to_string();
+            tui::run_tui(config, default_agent, None, args.model.clone(), args.debug).await?;
         }
     }
 

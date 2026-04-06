@@ -85,9 +85,9 @@ fn document_to_json_value(d: &Document) -> serde_json::Value {
                 .unwrap_or(serde_json::Value::Null),
         },
         Document::String(s) => serde_json::Value::String(s.clone()),
-        Document::Array(items) => serde_json::Value::Array(
-            items.iter().map(document_to_json_value).collect(),
-        ),
+        Document::Array(items) => {
+            serde_json::Value::Array(items.iter().map(document_to_json_value).collect())
+        }
         Document::Object(map) => {
             let mut o = serde_json::Map::new();
             for (k, v) in map {
@@ -271,7 +271,9 @@ impl LLMClient for BedrockClient {
         let (system, msgs) = convert_anycode_messages(messages)?;
         let model_id = config.model.clone();
         if model_id.trim().is_empty() {
-            return Err(CoreError::LLMError("Bedrock 须配置 model（foundation model id）".into()));
+            return Err(CoreError::LLMError(
+                "Bedrock 须配置 model（foundation model id）".into(),
+            ));
         }
 
         let mut inf = InferenceConfiguration::builder();
@@ -379,9 +381,7 @@ impl LLMClient for BedrockClient {
             loop {
                 match stream.recv().await {
                     Ok(Some(
-                        aws_sdk_bedrockruntime::types::ConverseStreamOutput::ContentBlockStart(
-                            ev,
-                        ),
+                        aws_sdk_bedrockruntime::types::ConverseStreamOutput::ContentBlockStart(ev),
                     )) => {
                         if let Some(start) = ev.start() {
                             let idx = ev.content_block_index();
@@ -419,9 +419,7 @@ impl LLMClient for BedrockClient {
                         }
                     }
                     Ok(Some(
-                        aws_sdk_bedrockruntime::types::ConverseStreamOutput::ContentBlockStop(
-                            ev,
-                        ),
+                        aws_sdk_bedrockruntime::types::ConverseStreamOutput::ContentBlockStop(ev),
                     )) => {
                         let idx = ev.content_block_index();
                         if let Some(acc) = tool_by_index.remove(&idx) {
@@ -444,7 +442,9 @@ impl LLMClient for BedrockClient {
                             }
                         }
                     }
-                    Ok(Some(aws_sdk_bedrockruntime::types::ConverseStreamOutput::MessageStop(_))) => {
+                    Ok(Some(aws_sdk_bedrockruntime::types::ConverseStreamOutput::MessageStop(
+                        _,
+                    ))) => {
                         let _ = tx.send(StreamEvent::Done).await;
                         break;
                     }

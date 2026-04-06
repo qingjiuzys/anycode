@@ -44,24 +44,25 @@ impl CredentialStore for JsonFileCredentialStore {
                 AuthError::InternalError(format!("create_dir_all {}: {e}", parent.display()))
             })?;
         }
-        let json = serde_json::to_string_pretty(&credentials).map_err(|e| {
-            AuthError::InternalError(format!("serialize StoredCredentials: {e}"))
-        })?;
+        let json = serde_json::to_string_pretty(&credentials)
+            .map_err(|e| AuthError::InternalError(format!("serialize StoredCredentials: {e}")))?;
         let tmp = self.path.with_extension("json.tmp");
         tokio::fs::write(&tmp, json.as_bytes())
             .await
             .map_err(|e| AuthError::InternalError(format!("write {}: {e}", tmp.display())))?;
-        tokio::fs::rename(&tmp, &self.path)
-            .await
-            .map_err(|e| AuthError::InternalError(format!("rename to {}: {e}", self.path.display())))?;
+        tokio::fs::rename(&tmp, &self.path).await.map_err(|e| {
+            AuthError::InternalError(format!("rename to {}: {e}", self.path.display()))
+        })?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let perms = std::fs::Permissions::from_mode(0o600);
-            tokio::fs::set_permissions(&self.path, perms).await.map_err(|e| {
-                AuthError::InternalError(format!("chmod {}: {e}", self.path.display()))
-            })?;
+            tokio::fs::set_permissions(&self.path, perms)
+                .await
+                .map_err(|e| {
+                    AuthError::InternalError(format!("chmod {}: {e}", self.path.display()))
+                })?;
         }
 
         Ok(())

@@ -1,8 +1,8 @@
 //! Workspace-first assistant profile for channel mode.
 
 use anycode_core::prelude::*;
-use async_trait::async_trait;
 use anycode_tools::workspace_assistant_tool_names;
+use async_trait::async_trait;
 
 pub struct WorkspaceAssistantAgent {
     model_config: ModelConfig,

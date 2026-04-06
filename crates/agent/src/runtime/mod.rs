@@ -11,23 +11,23 @@ mod tool_surface;
 use crate::compact::{CompactionHooks, DefaultCompactionHooks};
 use crate::goal_engine::GoalEngine;
 use crate::system_prompt::{compose_effective_system_prompt, RuntimePromptConfig};
+use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAssistantAgent};
+use anycode_core::prelude::*;
+use anycode_core::Artifact;
+use anycode_security::SecurityLayer;
+use anycode_tools::CompiledClaudePermissionRules;
 use artifacts::{extract_artifacts, truncate_text};
+use async_trait::async_trait;
 use limits::{
     MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL, TOOL_INPUT_LOG_MAX_BYTES, TOOL_RESULT_MAX_BYTES,
 };
-use task_summary::{last_assistant_plain_text, llm_summary_receipt};
-use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAssistantAgent};
-use anycode_core::prelude::*;
-use anycode_tools::CompiledClaudePermissionRules;
-use async_trait::async_trait;
-use anycode_core::Artifact;
-use anycode_security::SecurityLayer;
 use logging::RunLogger;
 use receipt::ReceiptGenerator;
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex as StdMutex};
+use task_summary::{last_assistant_plain_text, llm_summary_receipt};
 use tokio::sync::{Mutex, RwLock};
-use regex::Regex;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -35,17 +35,19 @@ const MEMORY_AUTOSAVE_TITLE_MAX_CHARS: usize = 200;
 const MEMORY_AUTOSAVE_CONTENT_MAX_BYTES: usize = 64 * 1024;
 
 fn last_user_plain_text_for_autosave(msgs: &[Message]) -> String {
-    msgs.iter().rev().find_map(|m| {
-        if m.role == MessageRole::User {
-            match &m.content {
-                MessageContent::Text(t) if !t.trim().is_empty() => Some(t.clone()),
-                _ => None,
+    msgs.iter()
+        .rev()
+        .find_map(|m| {
+            if m.role == MessageRole::User {
+                match &m.content {
+                    MessageContent::Text(t) if !t.trim().is_empty() => Some(t.clone()),
+                    _ => None,
+                }
+            } else {
+                None
             }
-        } else {
-            None
-        }
-    })
-    .unwrap_or_default()
+        })
+        .unwrap_or_default()
 }
 
 /// 工具权限门控（deny/allow/ask 编译规则 + 可选 MCP 首轮隐藏）。
@@ -120,8 +122,7 @@ impl AgentRuntime {
         )) as Box<dyn Agent>;
         agents.insert(AgentType::new("workspace-assistant"), workspace_agent);
 
-        let goal_agent =
-            Box::new(GoalAgent::new(default_model_config.clone())) as Box<dyn Agent>;
+        let goal_agent = Box::new(GoalAgent::new(default_model_config.clone())) as Box<dyn Agent>;
         agents.insert(AgentType::new("goal"), goal_agent);
 
         Self {
@@ -519,11 +520,8 @@ impl AgentRuntime {
 
         // 4. 工具名与 schema（与 TUI turn 共用 tool_surface）
         let tools = self.tools.read().await;
-        let raw = tool_surface::resolve_agent_tool_names(
-            task.agent_type.as_str(),
-            agent.tools(),
-            &tools,
-        );
+        let raw =
+            tool_surface::resolve_agent_tool_names(task.agent_type.as_str(), agent.tools(), &tools);
         let names = tool_surface::prepare_tool_names_for_llm(
             raw,
             &self.tool_name_deny,
@@ -724,7 +722,8 @@ impl AgentRuntime {
             for line in fast.lines() {
                 logger.line(task.id, line);
             }
-            self.maybe_autosave_memory(task.id, &task.prompt, &fast).await;
+            self.maybe_autosave_memory(task.id, &task.prompt, &fast)
+                .await;
             return Ok(TaskResult::Success {
                 output: fast,
                 artifacts,
@@ -842,7 +841,8 @@ impl AgentRuntime {
 
         if !self.security.is_bypass_permissions().await {
             if let Some(rules) = &self.claude_gating.rules {
-                let args_json = serde_json::to_string(&tool_call.input).unwrap_or_else(|_| "{}".into());
+                let args_json =
+                    serde_json::to_string(&tool_call.input).unwrap_or_else(|_| "{}".into());
                 if rules.content_denies(&tool_call.name, &args_json)
                     && !rules.content_allows(&tool_call.name, &args_json)
                 {

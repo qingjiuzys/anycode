@@ -48,10 +48,7 @@ async fn fetch_qr(client: &reqwest::Client, base: &str) -> anyhow::Result<(Strin
         a.set("status", res.status().to_string());
         anyhow::bail!("{}", tr_args("wx-ilink-err-qr-http", &a));
     }
-    let v: serde_json::Value = res
-        .json()
-        .await
-        .context(tr("wx-ilink-ctx-parse-qr-json"))?;
+    let v: serde_json::Value = res.json().await.context(tr("wx-ilink-ctx-parse-qr-json"))?;
     let ret = v.get("ret").and_then(|x| x.as_i64()).unwrap_or(-1);
     let qrcode_id = json_str(&v, &["qrcode"]).map(str::to_string);
     let content = json_str(&v, &["qrcode_img_content", "qrcodeImgContent"]).map(str::to_string);
@@ -103,11 +100,12 @@ fn validate_account_id(id: &str) -> anyhow::Result<()> {
 }
 
 fn save_account(data_root: &Path, v: &serde_json::Value) -> anyhow::Result<()> {
-    let bot_token = json_str(v, &["bot_token", "botToken"]).context(tr("wx-ilink-err-missing-bot-token"))?;
-    let account_id =
-        json_str(v, &["ilink_bot_id", "ilinkBotId"]).context(tr("wx-ilink-err-missing-ilink-bot-id"))?;
-    let user_id =
-        json_str(v, &["ilink_user_id", "ilinkUserId"]).context(tr("wx-ilink-err-missing-ilink-user-id"))?;
+    let bot_token =
+        json_str(v, &["bot_token", "botToken"]).context(tr("wx-ilink-err-missing-bot-token"))?;
+    let account_id = json_str(v, &["ilink_bot_id", "ilinkBotId"])
+        .context(tr("wx-ilink-err-missing-ilink-bot-id"))?;
+    let user_id = json_str(v, &["ilink_user_id", "ilinkUserId"])
+        .context(tr("wx-ilink-err-missing-ilink-user-id"))?;
     validate_account_id(account_id)?;
 
     let base_url = json_str(v, &["baseurl", "baseUrl"])
@@ -129,9 +127,8 @@ fn save_account(data_root: &Path, v: &serde_json::Value) -> anyhow::Result<()> {
         tr_args("wx-ilink-ctx-mkdir", &a)
     })?;
     let path = dir.join(format!("{}.json", account_id));
-    let raw = serde_json::to_string_pretty(&acc)
-        .context(tr("wx-ilink-ctx-serialize-account"))?
-        + "\n";
+    let raw =
+        serde_json::to_string_pretty(&acc).context(tr("wx-ilink-ctx-serialize-account"))? + "\n";
     std::fs::write(&path, raw.as_bytes()).with_context(|| {
         let mut a = FluentArgs::new();
         a.set("path", path.display().to_string());
@@ -235,12 +232,10 @@ fn write_config_env(data_root: &Path, working_dir: &str) -> anyhow::Result<()> {
 
 /// Interactive QR setup: refresh expired codes like Node `runSetup`; QR only in terminal + optional URL hint.
 pub async fn run_interactive_setup(data_dir: Option<PathBuf>) -> anyhow::Result<()> {
-    crate::workspace::ensure_layout()
-        .context(tr("wx-ilink-ctx-workspace-init"))?;
+    crate::workspace::ensure_layout().context(tr("wx-ilink-ctx-workspace-init"))?;
     let base = std::env::var("WCC_ILINK_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let data_root = wcc_data_dir(data_dir);
-    std::fs::create_dir_all(&data_root)
-        .context(tr("wx-ilink-ctx-create-data-root"))?;
+    std::fs::create_dir_all(&data_root).context(tr("wx-ilink-ctx-create-data-root"))?;
 
     let client = reqwest::Client::builder()
         .user_agent("anycode-wechat-ilink/0.1")

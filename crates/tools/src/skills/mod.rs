@@ -63,9 +63,9 @@ impl SkillCatalog {
     /// Skill id: letters, digits, `.`, `_`, `-` only.
     pub fn is_valid_skill_id(id: &str) -> bool {
         !id.is_empty()
-            && id.chars().all(|c| {
-                c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-'
-            })
+            && id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
     }
 
     /// Merge order: iterate `roots` in order; **later** roots overwrite same `id` (user dir should come last).
@@ -75,8 +75,12 @@ impl SkillCatalog {
         run_timeout_ms: u64,
         minimal_env: bool,
     ) -> Self {
-        let allow: Option<std::collections::HashSet<&str>> =
-            allowlist.map(|v| v.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).collect());
+        let allow: Option<std::collections::HashSet<&str>> = allowlist.map(|v| {
+            v.iter()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect()
+        });
 
         let mut map: HashMap<String, SkillMeta> = HashMap::new();
         let mut roots_scanned = Vec::new();
@@ -138,15 +142,24 @@ impl SkillCatalog {
                         description: fm.description.trim().to_string(),
                         root_dir: skill_dir,
                         has_run,
-                        model: fm.model.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
-                        mode: fm.mode.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
+                        model: fm
+                            .model
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
+                        mode: fm
+                            .mode
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
                         channel_capabilities: fm
                             .channel_capabilities
                             .into_iter()
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty())
                             .collect(),
-                        approval: fm.approval.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
+                        approval: fm
+                            .approval
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
                     },
                 );
             }

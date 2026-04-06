@@ -5,30 +5,30 @@ mod mcp_env;
 
 use crate::app_config::{default_base_url_for, Config};
 use crate::i18n::tr_args;
-use fluent_bundle::FluentArgs;
 use anycode_agent::{AgentClaudeToolGating, AgentRuntime};
 use anycode_core::prelude::*;
 use anycode_llm::{build_multi_llm_stack, known_model_aliases, normalize_provider_id, ModelRouter};
+use anycode_memory::{FileMemoryStore, HybridMemoryStore};
 use anycode_security::{
     ApprovalCallback, InteractiveApprovalCallback, PromptFormat, SecurityLayer, SecurityPolicy,
 };
-use anycode_memory::{FileMemoryStore, HybridMemoryStore};
 use anycode_tools::{
     build_registry_with_services, catalog, default_skill_roots, validate_default_registry,
     CompiledClaudePermissionRules, SkillCatalog, ToolServices,
 };
-use std::collections::HashSet;
 use async_trait::async_trait;
-use std::path::Path;
-use tracing::info;
+use fluent_bundle::FluentArgs;
 use llm_session::{
     effective_provider, resolve_agent_base_url, resolve_anthropic_primary_config,
     resolve_bedrock_primary_config, resolve_github_copilot_primary_config,
     resolve_openai_shell_config, resolve_profile_api_key, scan_session_llm_needs,
 };
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::{stdout, IsTerminal};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
+use tracing::info;
 
 fn compile_tool_name_deny_regexes(patterns: &[String]) -> Vec<regex::Regex> {
     patterns
@@ -82,9 +82,7 @@ fn sibling_sled_path(file_memory_root: &Path) -> std::path::PathBuf {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("memory");
-    let parent = file_memory_root
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let parent = file_memory_root.parent().unwrap_or_else(|| Path::new("."));
     parent.join(format!("{}.sled", name))
 }
 
@@ -150,14 +148,10 @@ pub(crate) async fn initialize_runtime(
         None
     };
 
-    let llm_client: Arc<dyn anycode_core::LLMClient> = build_multi_llm_stack(
-        openai_cfg,
-        anthropic_cfg,
-        bedrock_cfg,
-        copilot_cfg,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    let llm_client: Arc<dyn anycode_core::LLMClient> =
+        build_multi_llm_stack(openai_cfg, anthropic_cfg, bedrock_cfg, copilot_cfg)
+            .await
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
     let mut ls = FluentArgs::new();
     ls.set("openai", format!("{need_openai}"));
@@ -180,20 +174,19 @@ pub(crate) async fn initialize_runtime(
         "bypass" => PermissionMode::BypassPermissions,
         _ => PermissionMode::Default,
     };
-    let approval_callback: Option<Box<dyn ApprovalCallback>> =
-        if let Some(cb) = approval_override {
-            Some(cb)
-        } else if !crate::app_config::security_wants_interactive_approval_callback(config) {
-            None
-        } else if stdout().is_terminal() {
-            Some(Box::new(InteractiveApprovalCallback::new(
-                PromptFormat::CLI,
-            )))
-        } else {
-            Some(Box::new(InteractiveApprovalCallback::new(
-                PromptFormat::Silent,
-            )))
-        };
+    let approval_callback: Option<Box<dyn ApprovalCallback>> = if let Some(cb) = approval_override {
+        Some(cb)
+    } else if !crate::app_config::security_wants_interactive_approval_callback(config) {
+        None
+    } else if stdout().is_terminal() {
+        Some(Box::new(InteractiveApprovalCallback::new(
+            PromptFormat::CLI,
+        )))
+    } else {
+        Some(Box::new(InteractiveApprovalCallback::new(
+            PromptFormat::Silent,
+        )))
+    };
     let security = Arc::new(SecurityLayer::new_with_optional_callback(
         permission_mode,
         approval_callback,
@@ -224,10 +217,7 @@ pub(crate) async fn initialize_runtime(
     };
 
     let skill_catalog: Arc<SkillCatalog> = Arc::new(if config.skills.enabled {
-        let roots = default_skill_roots(
-            &config.skills.extra_dirs,
-            dirs::home_dir().as_deref(),
-        );
+        let roots = default_skill_roots(&config.skills.extra_dirs, dirs::home_dir().as_deref());
         SkillCatalog::scan(
             &roots,
             config.skills.allowlist.as_deref(),
@@ -275,7 +265,8 @@ pub(crate) async fn initialize_runtime(
         for entry in mcp_env::mcp_server_entries_from_env() {
             match entry {
                 McpServerEntry::Stdio { slug, command } => {
-                    match anycode_tools::mcp_session::McpStdioSession::connect(&command, &slug).await
+                    match anycode_tools::mcp_session::McpStdioSession::connect(&command, &slug)
+                        .await
                     {
                         Ok(sess) => {
                             tool_services.attach_mcp_stdio(Arc::new(sess));
@@ -305,10 +296,7 @@ pub(crate) async fn initialize_runtime(
                     let connect = async {
                         if let Some(ref cred_path) = oauth_credentials_path {
                             McpRmcpSession::connect_streamable_http_oauth(
-                                &url,
-                                &slug,
-                                cred_path,
-                                &headers,
+                                &url, &slug, cred_path, &headers,
                             )
                             .await
                         } else {
@@ -321,8 +309,7 @@ pub(crate) async fn initialize_runtime(
                             .await
                         }
                     };
-                    match connect.await
-                    {
+                    match connect.await {
                         Ok(sess) => {
                             let s: Arc<dyn McpConnected> = Arc::new(sess);
                             tool_services.attach_mcp_session(s);

@@ -62,11 +62,7 @@ fn print_box_line(a: &Style, dim: &Style, inner: usize, plain: &str) {
 }
 
 /// 打印带框欢迎信息；无 TTY 或 `NO_COLOR` 时 `console` 会降级为无 ANSI。
-pub(crate) fn print_repl_welcome(
-    working_dir: &Path,
-    agent: &str,
-    session_skips_approval: bool,
-) {
+pub(crate) fn print_repl_welcome(working_dir: &Path, agent: &str, session_skips_approval: bool) {
     let term = Term::stdout();
     let cols = term.size().1 as usize;
     let inner = cols.saturating_sub(4).clamp(36, 92);
@@ -80,18 +76,8 @@ pub(crate) fn print_repl_welcome(
     let dim = Style::new().dim();
 
     println!("{}", a.apply_to(top));
-    print_box_line(
-        &a,
-        &dim,
-        inner,
-        &format!("  {}", tr("repl-welcome-line1")),
-    );
-    print_box_line(
-        &a,
-        &dim,
-        inner,
-        &format!("  {}", tr("repl-welcome-line2")),
-    );
+    print_box_line(&a, &dim, inner, &format!("  {}", tr("repl-welcome-line1")));
+    print_box_line(&a, &dim, inner, &format!("  {}", tr("repl-welcome-line2")));
     println!("{}", a.apply_to(sep.clone()));
     print_box_line(
         &a,
@@ -110,20 +96,10 @@ pub(crate) fn print_repl_welcome(
         &format!("  {} {agent}", tr("repl-row-agent")),
     );
     if session_skips_approval {
-        print_box_line(
-            &a,
-            &dim,
-            inner,
-            &format!("  {}", tr("repl-row-approval")),
-        );
+        print_box_line(&a, &dim, inner, &format!("  {}", tr("repl-row-approval")));
     }
     println!("{}", a.apply_to(sep));
-    print_box_line(
-        &a,
-        &dim,
-        inner,
-        &format!("  {}", tr("repl-row-commands")),
-    );
+    print_box_line(&a, &dim, inner, &format!("  {}", tr("repl-row-commands")));
     println!("{}", a.apply_to(bottom));
     println!("{}", style(tr("repl-hint-line")).dim());
     println!("{}", style(tr("repl-hint-debug")).dim());
@@ -131,11 +107,7 @@ pub(crate) fn print_repl_welcome(
 }
 
 pub(crate) fn print_repl_prompt() {
-    print!(
-        "{}{}",
-        style("anycode").cyan().bold(),
-        style("> ").bold()
-    );
+    print!("{}{}", style("anycode").cyan().bold(), style("> ").bold());
 }
 
 pub(crate) fn print_repl_goodbye() {

@@ -75,15 +75,13 @@ mod tests {
 
     #[test]
     fn last_assistant_detects_trailing_text() {
-        let messages = vec![
-            Message {
-                id: uuid::Uuid::new_v4(),
-                role: MessageRole::Assistant,
-                content: MessageContent::Text("  done  ".to_string()),
-                timestamp: chrono::Utc::now(),
-                metadata: std::collections::HashMap::new(),
-            },
-        ];
+        let messages = vec![Message {
+            id: uuid::Uuid::new_v4(),
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("  done  ".to_string()),
+            timestamp: chrono::Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        }];
         assert_eq!(
             last_assistant_plain_text(&messages).as_deref(),
             Some("done")

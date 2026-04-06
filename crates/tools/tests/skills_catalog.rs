@@ -32,12 +32,7 @@ fn scan_skips_mismatched_directory_and_frontmatter_name() {
 fn scan_allowlist_filters() {
     let low = fixture_root("low");
     let high = fixture_root("high");
-    let cat = SkillCatalog::scan(
-        &[low, high],
-        Some(&["foo".to_string()]),
-        60_000,
-        false,
-    );
+    let cat = SkillCatalog::scan(&[low, high], Some(&["foo".to_string()]), 60_000, false);
     assert_eq!(cat.metas().len(), 1);
     assert_eq!(cat.metas()[0].id, "foo");
 }

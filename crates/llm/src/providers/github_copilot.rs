@@ -31,10 +31,7 @@ impl GithubCopilotClient {
     }
 
     fn anthropic_url(api_base: &str) -> String {
-        format!(
-            "{}/anthropic/v1/messages",
-            api_base.trim_end_matches('/')
-        )
+        format!("{}/anthropic/v1/messages", api_base.trim_end_matches('/'))
     }
 
     fn is_claude_model(model: &str) -> bool {
@@ -188,7 +185,8 @@ impl LLMClient for GithubCopilotClient {
                                     let data = &line[6..];
                                     if data == "[DONE]" {
                                         let _ = tx.send(StreamEvent::Done).await;
-                                    } else if let Ok(ev) = serde_json::from_str::<StreamEvent>(data) {
+                                    } else if let Ok(ev) = serde_json::from_str::<StreamEvent>(data)
+                                    {
                                         let _ = tx.send(ev).await;
                                     }
                                 }

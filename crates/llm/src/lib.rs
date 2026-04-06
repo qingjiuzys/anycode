@@ -8,8 +8,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod copilot_token;
-mod model_context;
 mod model_catalog;
+mod model_context;
 mod model_router;
 mod multi_client;
 mod provider_catalog;
@@ -19,10 +19,13 @@ pub use copilot_token::{
     anycode_credentials_dir, copilot_token_cache_path, github_oauth_token_path,
     read_github_oauth_access_token, resolve_copilot_api_token,
 };
-pub use multi_client::MultiProviderLlmClient;
+pub use model_catalog::{
+    clone_with_model, is_known_model_alias, known_model_aliases, ModelAliasDescriptor,
+    MODEL_ALIASES,
+};
 pub use model_context::{resolve_context_window_tokens, DEFAULT_CONTEXT_WINDOW_TOKENS};
-pub use model_catalog::{clone_with_model, is_known_model_alias, known_model_aliases, ModelAliasDescriptor, MODEL_ALIASES};
 pub use model_router::ModelRouter;
+pub use multi_client::MultiProviderLlmClient;
 pub use provider_catalog::{
     catalog_lookup, is_known_provider_id, normalize_provider_id, transport_for_provider_id,
     LlmTransport, ProviderCatalogEntry, PROVIDER_CATALOG, ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,

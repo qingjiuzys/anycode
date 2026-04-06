@@ -125,10 +125,22 @@ mod tests {
 
     #[test]
     fn blanket_deny_server_level() {
-        assert!(blanket_deny_rule_matches_tool("mcp__slack", "mcp__slack__send"));
-        assert!(blanket_deny_rule_matches_tool("mcp__slack__*", "mcp__slack__send"));
-        assert!(blanket_deny_rule_matches_tool("mcp__slack__send", "mcp__slack__send"));
-        assert!(!blanket_deny_rule_matches_tool("mcp__slack__send", "mcp__slack__other"));
+        assert!(blanket_deny_rule_matches_tool(
+            "mcp__slack",
+            "mcp__slack__send"
+        ));
+        assert!(blanket_deny_rule_matches_tool(
+            "mcp__slack__*",
+            "mcp__slack__send"
+        ));
+        assert!(blanket_deny_rule_matches_tool(
+            "mcp__slack__send",
+            "mcp__slack__send"
+        ));
+        assert!(!blanket_deny_rule_matches_tool(
+            "mcp__slack__send",
+            "mcp__slack__other"
+        ));
     }
 
     #[test]

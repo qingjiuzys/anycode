@@ -166,14 +166,10 @@ pub(crate) enum Commands {
     },
 
     /// ✅  Enable a runtime feature
-    Enable {
-        feature: String,
-    },
+    Enable { feature: String },
 
     /// 🚫  Disable a runtime feature
-    Disable {
-        feature: String,
-    },
+    Disable { feature: String },
 
     /// 📊  Show current model / mode / feature status
     Status {
@@ -293,14 +289,9 @@ pub(crate) enum WorkspaceCommands {
     /// Show current workspace status
     Status,
     /// Register a workspace path or refresh last_seen
-    Touch {
-        path: Option<PathBuf>,
-    },
+    Touch { path: Option<PathBuf> },
     /// Set default mode for a workspace
-    SetMode {
-        mode: String,
-        path: Option<PathBuf>,
-    },
+    SetMode { mode: String, path: Option<PathBuf> },
     /// Set default channel profile for a workspace
     SetChannel {
         channel: String,
@@ -450,15 +441,8 @@ mod clap_tests {
 
     #[test]
     fn repl_subcommand_parses() {
-        let a = Args::try_parse_from([
-            "anycode",
-            "repl",
-            "--agent",
-            "explore",
-            "-C",
-            "/tmp",
-        ])
-        .unwrap();
+        let a =
+            Args::try_parse_from(["anycode", "repl", "--agent", "explore", "-C", "/tmp"]).unwrap();
         match a.command {
             Some(Commands::Repl {
                 agent,

@@ -10,9 +10,9 @@ use crate::md_tui::{
 use anycode_core::{
     Message, MessageContent, MessageRole, ToolCall, ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
+use fluent_bundle::FluentArgs;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use fluent_bundle::FluentArgs;
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::path::Path;
@@ -36,7 +36,10 @@ fn push_lines_truncated(
     }
     let keep = max_lines.saturating_sub(1);
     out.extend(block.drain(..keep));
-    out.push(Line::from(Span::styled(tr("tui-block-truncated"), style_dim())));
+    out.push(Line::from(Span::styled(
+        tr("tui-block-truncated"),
+        style_dim(),
+    )));
 }
 
 /// 剥离 `ERROR: …` / `RESULT: …` 包装后尝试解析 JSON。
@@ -435,13 +438,8 @@ fn layout_tool_turn_block(
     } else {
         summary.clone()
     };
-    let mut header = wrap_plain_bullet_prefixed(
-        "⏺ ",
-        bullet_style,
-        header_text.as_str(),
-        text_style,
-        w,
-    );
+    let mut header =
+        wrap_plain_bullet_prefixed("⏺ ", bullet_style, header_text.as_str(), text_style, w);
 
     // 对齐 Claude：未展开时**不**渲染工具输出正文（省算力 + 避免挡掉文末总结）。
     if !expanded {
@@ -955,10 +953,7 @@ fn turn_status_line(live: WorkspaceLiveLayout) -> Line<'static> {
     };
     Line::from(vec![
         Span::styled("⏺ ", pulse_dim_assistant_bold(live, true)),
-        Span::styled(
-            label,
-            style_assistant().add_modifier(Modifier::ITALIC),
-        ),
+        Span::styled(label, style_assistant().add_modifier(Modifier::ITALIC)),
     ])
 }
 
@@ -1011,11 +1006,7 @@ fn build_collapsed_summary_line(
         a.set("n", search as i64);
         a.set(
             "unit",
-            col_unit_key(
-                search,
-                "tui-col-unit-pattern",
-                "tui-col-unit-patterns",
-            ),
+            col_unit_key(search, "tui-col-unit-pattern", "tui-col-unit-patterns"),
         );
         fragments.push(tr_args(
             if active {
@@ -1158,13 +1149,8 @@ fn layout_collapsed_tool_group(
     }
     let summary_line = format!("{} {}", summary, tr("tui-expand-hint"));
     let (bullet_style, text_style) = assistant_tool_header_styles(!is_active, is_active, live);
-    let mut out = wrap_plain_bullet_prefixed(
-        "⏺ ",
-        bullet_style,
-        summary_line.as_str(),
-        text_style,
-        w,
-    );
+    let mut out =
+        wrap_plain_bullet_prefixed("⏺ ", bullet_style, summary_line.as_str(), text_style, w);
 
     let paths = collect_read_paths_from_blocks(blocks);
     if !paths.is_empty() {

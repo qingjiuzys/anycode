@@ -8,7 +8,7 @@ mod web_envelope;
 mod wechat;
 
 pub use profile::{profile_for_channel_type, ChannelProfile};
-pub use web_envelope::{AnycodeWsEnvelopeV1, outbound_channel_message_json};
+pub use web_envelope::{outbound_channel_message_json, AnycodeWsEnvelopeV1};
 pub use wechat::WeChatChannel;
 
 use anycode_core::prelude::*;
@@ -18,8 +18,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, warn};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
+use tracing::{info, warn};
 
 // ============================================================================
 // CLI Channel
@@ -207,8 +207,8 @@ impl ChannelHandler for WebChannel {
     async fn send_message(&self, msg: ChannelMessage) -> Result<(), CoreError> {
         self.ensure_listener_started().await?;
         let connections = self.connections.read().await;
-        let payload = outbound_channel_message_json(&msg)
-            .map_err(|e| CoreError::SerializationError(e))?;
+        let payload =
+            outbound_channel_message_json(&msg).map_err(|e| CoreError::SerializationError(e))?;
         for (_, sender) in connections.iter() {
             let _ = sender.send(WsMessage::Text(payload.clone().into())).await;
         }
@@ -257,10 +257,14 @@ impl ChannelRouter {
     }
 
     pub async fn register_default_profiles(&self) {
-        self.register_profile(ChannelType::CLI, ChannelProfile::cli()).await;
-        self.register_profile(ChannelType::IDE, ChannelProfile::ide()).await;
-        self.register_profile(ChannelType::Web, ChannelProfile::web()).await;
-        self.register_profile(ChannelType::WeChat, ChannelProfile::wechat()).await;
+        self.register_profile(ChannelType::CLI, ChannelProfile::cli())
+            .await;
+        self.register_profile(ChannelType::IDE, ChannelProfile::ide())
+            .await;
+        self.register_profile(ChannelType::Web, ChannelProfile::web())
+            .await;
+        self.register_profile(ChannelType::WeChat, ChannelProfile::wechat())
+            .await;
     }
 
     pub async fn profile_for(&self, channel_type: &ChannelType) -> Option<ChannelProfile> {

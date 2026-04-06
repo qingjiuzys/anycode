@@ -461,8 +461,7 @@ fn zai_tool_choice(
             .as_deref(),
         Some("1") | Some("true") | Some("yes")
     );
-    let first_turn_required =
-        client_wants_first_turn_required || env_first_turn;
+    let first_turn_required = client_wants_first_turn_required || env_first_turn;
     if first_turn_required && is_zai_first_agent_turn(messages) {
         return Some("required".to_string());
     }
@@ -657,8 +656,7 @@ impl LLMClient for ZaiClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<LLMResponse, CoreError> {
-        let tool_choice =
-            zai_tool_choice(&messages, tools.is_empty(), self.tool_choice_first_turn);
+        let tool_choice = zai_tool_choice(&messages, tools.is_empty(), self.tool_choice_first_turn);
         let openai_messages = messages_to_openai_json(messages)?;
 
         let model = if config.model.trim().is_empty() {

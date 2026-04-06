@@ -32,11 +32,7 @@ impl GoalEngine {
                     .unwrap_or(true);
             }
             TaskResult::Failure { error, details } => {
-                progress.last_error = Some(
-                    details
-                        .clone()
-                        .unwrap_or_else(|| error.clone()),
-                );
+                progress.last_error = Some(details.clone().unwrap_or_else(|| error.clone()));
             }
             TaskResult::Partial { success, remaining } => {
                 progress.last_output = Some(success.clone());

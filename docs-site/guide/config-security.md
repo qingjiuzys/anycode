@@ -1,13 +1,11 @@
 ---
-
-## title: Config & security
-
+title: Config & security
 description: ~/.anycode/config.json, security fields, environment variables, and UI locale.
 summary: Where settings live, how approval and permission_mode interact, and ANYCODE_* highlights.
 read_when:
-
-- You are tuning security, sandbox, or MCP deny rules.
-- You need locale / env var behavior for the CLI.
+  - You are tuning security, sandbox, or MCP deny rules.
+  - You need locale / env var behavior for the CLI.
+---
 
 # Config & security
 

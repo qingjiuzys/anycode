@@ -150,5 +150,4 @@ mod tests {
         assert_eq!(arts[0].name, "bash");
         assert!(arts[0].metadata.get("command").is_some());
     }
-
 }

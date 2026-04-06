@@ -284,11 +284,7 @@ async fn handle_message(
         if matches!(lower.as_str(), "y" | "yes" | "n" | "no") {
             st.broker.clear_timed_out().await;
             st.sender
-                .send_text(
-                    &from_user_id,
-                    &context_token,
-                    &tr("wx-perm-timeout"),
-                )
+                .send_text(&from_user_id, &context_token, &tr("wx-perm-timeout"))
                 .await?;
         }
         drop(session);
@@ -300,11 +296,7 @@ async fn handle_message(
             session.state = SessionState::Idle;
             let _ = save_session(&st.data_root, &st.account.account_id, &*session);
             st.sender
-                .send_text(
-                    &from_user_id,
-                    &context_token,
-                    &tr("wx-perm-stale"),
-                )
+                .send_text(&from_user_id, &context_token, &tr("wx-perm-stale"))
                 .await?;
             drop(session);
             return Ok(());
@@ -364,11 +356,7 @@ async fn handle_message(
     if user_text.is_empty() && image_item.is_none() {
         drop(session);
         st.sender
-            .send_text(
-                &from_user_id,
-                &context_token,
-                &tr("wx-unsupported-msg"),
-            )
+            .send_text(&from_user_id, &context_token, &tr("wx-unsupported-msg"))
             .await?;
         return Ok(());
     }
@@ -463,7 +451,11 @@ async fn run_agent_pipeline(
     };
 
     let rt = st.runtime.clone();
-    let agent = resolve_channel_agent(&runtime_mode, &st.agent_type, channel_profile.assistant_agent);
+    let agent = resolve_channel_agent(
+        &runtime_mode,
+        &st.agent_type,
+        channel_profile.assistant_agent,
+    );
     let data_root = st.data_root.clone();
     let account_id = st.account.account_id.clone();
     let sender = st.sender.clone();
@@ -532,7 +524,11 @@ async fn run_agent_pipeline(
     Ok(())
 }
 
-fn resolve_channel_agent(runtime_mode: &str, bridge_agent: &str, channel_default_agent: &str) -> String {
+fn resolve_channel_agent(
+    runtime_mode: &str,
+    bridge_agent: &str,
+    channel_default_agent: &str,
+) -> String {
     match RuntimeMode::parse(runtime_mode) {
         Some(RuntimeMode::Plan) => "plan".to_string(),
         Some(RuntimeMode::Explore) => "explore".to_string(),

@@ -104,10 +104,7 @@ fn merged_config_for_cwd(base: &Arc<Config>, working_dir: &std::path::Path) -> C
     cfg
 }
 
-async fn handle(
-    req: Request<Body>,
-    state: Arc<DaemonState>,
-) -> Result<Response<Body>, Infallible> {
+async fn handle(req: Request<Body>, state: Arc<DaemonState>) -> Result<Response<Body>, Infallible> {
     if req.method() == &Method::POST && req.uri().path() == "/v1/tasks" {
         if let Some(ref tok) = optional_daemon_token() {
             if !daemon_auth_ok(req.headers(), tok) {
@@ -354,8 +351,13 @@ async fn handle_post_task(req: Request<Body>, state: Arc<DaemonState>) -> Respon
                 working_dir.join(raw)
             }
         };
-        match execute_workflow_runtime(&state.runtime, &working_dir, &wf_path, Some(task.prompt.clone()))
-            .await
+        match execute_workflow_runtime(
+            &state.runtime,
+            &working_dir,
+            &wf_path,
+            Some(task.prompt.clone()),
+        )
+        .await
         {
             Ok(r) => r,
             Err(e) => {
@@ -455,7 +457,10 @@ async fn handle_post_task(req: Request<Body>, state: Arc<DaemonState>) -> Respon
         }
     };
 
-    let result_ok = matches!(result, TaskResult::Success { .. } | TaskResult::Partial { .. });
+    let result_ok = matches!(
+        result,
+        TaskResult::Success { .. } | TaskResult::Partial { .. }
+    );
     let err_text = match &result {
         TaskResult::Failure { error, .. } => Some(error.clone()),
         _ => None,

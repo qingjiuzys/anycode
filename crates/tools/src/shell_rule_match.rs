@@ -52,15 +52,9 @@ pub fn match_wildcard_pattern(pattern: &str, text: &str, case_insensitive: bool)
         }
     }
     re.push('$');
-    let flags = if case_insensitive {
-        "(?i)"
-    } else {
-        ""
-    };
+    let flags = if case_insensitive { "(?i)" } else { "" };
     let full = format!("{flags}{re}");
-    Regex::new(&full)
-        .map(|r| r.is_match(text))
-        .unwrap_or(false)
+    Regex::new(&full).map(|r| r.is_match(text)).unwrap_or(false)
 }
 
 /// `command` 是否匹配一条 Shell 规则内容（Bash 等）。

@@ -64,9 +64,7 @@ mod tests {
 
     #[test]
     fn ping_detection() {
-        assert!(is_ping_json(
-            r#"{"v":1,"type":"ping","payload":{}}"#
-        ));
+        assert!(is_ping_json(r#"{"v":1,"type":"ping","payload":{}}"#));
         assert!(!is_ping_json(r#"{"hello":1}"#));
     }
 

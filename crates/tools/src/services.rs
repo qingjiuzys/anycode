@@ -1,9 +1,9 @@
 //! 跨工具共享的运行时状态与 HTTP 客户端（装配自 `bootstrap` / `build_registry`）。
 
+use crate::skills::SkillCatalog;
+use anycode_core::SubAgentExecutor;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use anycode_core::SubAgentExecutor;
-use crate::skills::SkillCatalog;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -171,11 +171,7 @@ impl ToolServices {
 
     /// 绑定 `orchestration.json` 路径；若文件已存在则恢复编排状态（P6 持久化 v1）。
     pub fn load_or_new(orchestration_file: PathBuf) -> anyhow::Result<Self> {
-        Self::load_or_new_with_mcp_defer(
-            orchestration_file,
-            None,
-            Arc::new(SkillCatalog::empty()),
-        )
+        Self::load_or_new_with_mcp_defer(orchestration_file, None, Arc::new(SkillCatalog::empty()))
     }
 
     pub fn load_or_new_with_mcp_defer(
@@ -308,7 +304,11 @@ impl ToolServices {
             remote_hooks: self.remote_hooks.lock().expect("remote mutex").clone(),
             inter_messages: self.inter_messages.lock().expect("msg mutex").clone(),
             mode: self.mode.lock().expect("mode mutex").clone(),
-            deferred_tool_names: self.deferred_tool_names.lock().expect("defer mutex").clone(),
+            deferred_tool_names: self
+                .deferred_tool_names
+                .lock()
+                .expect("defer mutex")
+                .clone(),
             config_overrides: self.config_overrides.lock().expect("cfg mutex").clone(),
         }
     }

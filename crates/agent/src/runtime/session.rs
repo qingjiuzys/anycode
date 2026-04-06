@@ -1,9 +1,7 @@
 //! 会话级压缩 API（`/compact`）；与 `mod.rs` 中其它 `AgentRuntime` 方法分文件以降低体量。
 
-use crate::compact::{
-    self, CompactionPostContext, CompactionPreContext, SessionCompactionState,
-};
 use super::AgentRuntime;
+use crate::compact::{self, CompactionPostContext, CompactionPreContext, SessionCompactionState};
 use anycode_core::prelude::*;
 
 impl AgentRuntime {
@@ -20,8 +18,7 @@ impl AgentRuntime {
         let fresh_system = self
             .build_system_message(agent_type, working_directory)
             .await?;
-        let mut api_msgs =
-            compact::build_compact_api_messages(fresh_system.clone(), session)?;
+        let mut api_msgs = compact::build_compact_api_messages(fresh_system.clone(), session)?;
         let microcompact_cleared = {
             let mut pre_ctx = CompactionPreContext {
                 session,
@@ -53,11 +50,12 @@ impl AgentRuntime {
             transcript_path,
         )?;
         let mut compaction_state = SessionCompactionState::default();
-        self.compaction_hooks.post_compact(&mut CompactionPostContext {
-            session_before: session,
-            compacted_messages: &mut out,
-            state: &mut compaction_state,
-        })?;
+        self.compaction_hooks
+            .post_compact(&mut CompactionPostContext {
+                session_before: session,
+                compacted_messages: &mut out,
+                state: &mut compaction_state,
+            })?;
         Ok((out, usage))
     }
 }

@@ -60,18 +60,16 @@ fn mcp_name_and_args(input: &Value) -> Result<(String, Value), CoreError> {
         .filter(|s| !s.is_empty())
         .map(String::from)
         .ok_or_else(|| {
-            CoreError::LLMError(
-                "MCP tools/call 需要 JSON 字段 name 或 tool（非空字符串）".into(),
-            )
+            CoreError::LLMError("MCP tools/call 需要 JSON 字段 name 或 tool（非空字符串）".into())
         })?;
-    let arguments = input
-        .get("arguments")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
+    let arguments = input.get("arguments").cloned().unwrap_or_else(|| json!({}));
     Ok((name, arguments))
 }
 
-pub async fn mcp_tools_call_shell(input: &Value, command_shell: &str) -> Result<ToolOutput, CoreError> {
+pub async fn mcp_tools_call_shell(
+    input: &Value,
+    command_shell: &str,
+) -> Result<ToolOutput, CoreError> {
     let start = std::time::Instant::now();
     let (tool_name, arguments) = mcp_name_and_args(input)?;
 

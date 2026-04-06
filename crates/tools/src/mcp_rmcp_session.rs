@@ -8,12 +8,13 @@ use async_trait::async_trait;
 use http::{HeaderName, HeaderValue};
 use rmcp::{
     model::{
-        CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation, ReadResourceRequestParams,
+        CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation,
+        ReadResourceRequestParams,
     },
     service::{RoleClient, RunningService, ServiceExt},
     transport::{
-        streamable_http_client::StreamableHttpClientTransportConfig, AuthClient, AuthorizationManager,
-        StreamableHttpClientTransport,
+        streamable_http_client::StreamableHttpClientTransportConfig, AuthClient,
+        AuthorizationManager, StreamableHttpClientTransport,
     },
 };
 use serde_json::{json, Value};
@@ -37,10 +38,7 @@ impl McpRmcpSession {
         running: RunningService<RoleClient, ClientInfo>,
         server_slug: String,
     ) -> Result<Self, CoreError> {
-        let tools = running
-            .list_all_tools()
-            .await
-            .map_err(map_service_err)?;
+        let tools = running.list_all_tools().await.map_err(map_service_err)?;
 
         let mut listed_tools = Vec::new();
         for t in tools {
@@ -49,9 +47,8 @@ impl McpRmcpSession {
                 .as_ref()
                 .map(|c| c.to_string())
                 .unwrap_or_default();
-            let input_schema = serde_json::to_value(t.input_schema.as_ref()).unwrap_or_else(|_| {
-                json!({"type": "object", "additionalProperties": true})
-            });
+            let input_schema = serde_json::to_value(t.input_schema.as_ref())
+                .unwrap_or_else(|_| json!({"type": "object", "additionalProperties": true}));
             listed_tools.push(McpListedTool {
                 name: t.name.to_string(),
                 description,
@@ -116,7 +113,9 @@ impl McpRmcpSession {
         headers: &HashMap<String, String>,
     ) -> Result<Self, CoreError> {
         let server_slug = normalize_name_for_mcp(server_slug);
-        let store = crate::mcp_oauth_store::JsonFileCredentialStore::new(oauth_credentials_path.to_path_buf());
+        let store = crate::mcp_oauth_store::JsonFileCredentialStore::new(
+            oauth_credentials_path.to_path_buf(),
+        );
         let mut manager = AuthorizationManager::new(url.trim())
             .await
             .map_err(|e| CoreError::LLMError(format!("MCP OAuth: {e}")))?;
@@ -200,10 +199,7 @@ impl McpConnected for McpRmcpSession {
 
     async fn resources_list(&self, _server: Option<&str>) -> Result<Value, CoreError> {
         let g = self.client.lock().await;
-        let all = g
-            .list_all_resources()
-            .await
-            .map_err(map_service_err)?;
+        let all = g.list_all_resources().await.map_err(map_service_err)?;
         serde_json::to_value(&all).map_err(|e| CoreError::LLMError(e.to_string()))
     }
 

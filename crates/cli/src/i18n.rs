@@ -50,7 +50,11 @@ fn with_bundle<R>(f: impl FnOnce(&FluentBundle<FluentResource>) -> R) -> R {
     })
 }
 
-fn format_msg(bundle: &FluentBundle<FluentResource>, id: &str, args: Option<&FluentArgs>) -> String {
+fn format_msg(
+    bundle: &FluentBundle<FluentResource>,
+    id: &str,
+    args: Option<&FluentArgs>,
+) -> String {
     let mut errs = vec![];
     let Some(msg) = bundle.get_message(id) else {
         return format!("[missing:{id}]");
@@ -137,11 +141,15 @@ fn localize_mcp(m: &mut clap::Command) {
             .mut_arg("host", |a| a.help(tr("mcp-oauth-host")))
             .mut_arg("port", |a| a.help(tr("mcp-oauth-port")))
             .mut_arg("callback_path", |a| a.help(tr("mcp-oauth-callback")))
-            .mut_arg("client_metadata_url", |a| a.help(tr("mcp-oauth-client-metadata")))
+            .mut_arg("client_metadata_url", |a| {
+                a.help(tr("mcp-oauth-client-metadata"))
+            })
             .mut_arg("scopes", |a| a.help(tr("mcp-oauth-scope")))
             .mut_arg("no_browser", |a| a.help(tr("mcp-oauth-no-browser")))
             .mut_arg("write_token", |a| a.help(tr("mcp-oauth-write-token")))
-            .mut_arg("credentials_store", |a| a.help(tr("mcp-oauth-credentials-store")));
+            .mut_arg("credentials_store", |a| {
+                a.help(tr("mcp-oauth-credentials-store"))
+            });
         *sub = n;
     }
     *m = root;

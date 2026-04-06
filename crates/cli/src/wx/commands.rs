@@ -67,11 +67,7 @@ pub fn route_command(text: &str, ctx: &mut CmdCtx<'_>) -> Result<CmdOut> {
                 SessionState::Processing => "processing",
                 SessionState::WaitingPermission => "waiting_permission",
             };
-            let sid = ctx
-                .session
-                .sdk_session_id
-                .as_deref()
-                .unwrap_or("(none)");
+            let sid = ctx.session.sdk_session_id.as_deref().unwrap_or("(none)");
             let mut a = FluentArgs::new();
             a.set("cwd", ctx.session.working_directory.clone());
             a.set("model", format!("{:?}", ctx.session.model));

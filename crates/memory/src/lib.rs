@@ -4,6 +4,7 @@
 
 pub mod retrieval;
 
+use crate::retrieval::{KeywordRetrieval, MemoryRetrieval};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use moka::future::Cache;
@@ -13,7 +14,6 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, info};
 use uuid::Uuid;
-use crate::retrieval::{KeywordRetrieval, MemoryRetrieval};
 
 // ============================================================================
 // Memory Store Implementation

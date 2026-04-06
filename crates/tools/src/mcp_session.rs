@@ -209,7 +209,11 @@ impl McpStdioSession {
         read_until_id(&mut io.reader, id).await
     }
 
-    pub async fn call_tool_named(&self, name: &str, arguments: Value) -> Result<ToolOutput, CoreError> {
+    pub async fn call_tool_named(
+        &self,
+        name: &str,
+        arguments: Value,
+    ) -> Result<ToolOutput, CoreError> {
         let start = std::time::Instant::now();
         let resp = self
             .rpc(
@@ -244,9 +248,7 @@ impl McpStdioSession {
     }
 
     pub async fn resources_read(&self, uri: &str) -> Result<Value, CoreError> {
-        let resp = self
-            .rpc("resources/read", json!({ "uri": uri }))
-            .await?;
+        let resp = self.rpc("resources/read", json!({ "uri": uri })).await?;
         if let Some(err) = resp.get("error") {
             return Err(CoreError::LLMError(format!("resources/read: {}", err)));
         }
@@ -276,4 +278,3 @@ impl crate::mcp_connected::McpConnected for McpStdioSession {
         McpStdioSession::resources_read(self, uri).await
     }
 }
-

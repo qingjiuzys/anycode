@@ -5,18 +5,18 @@
 
 #![allow(unused_imports)] // barrel `pub use`，供 `crate::compact::` / `anycode_agent::` 与 `hooks` 子模块使用
 
+mod hooks;
+mod microcompact;
+mod policy;
+mod post_compact;
 mod snippets;
 mod state;
-mod microcompact;
-mod post_compact;
-mod hooks;
-mod policy;
 
 pub use hooks::{
     CompactionHooks, CompactionPostContext, CompactionPreContext, DefaultCompactionHooks,
 };
-pub use policy::CompactPolicy;
 pub use microcompact::{apply_microcompact, default_keep_recent};
+pub use policy::CompactPolicy;
 pub use post_compact::{
     inject_file_read_snippets, inject_file_snippets_from_state, run_post_compact_cleanup,
 };
@@ -41,7 +41,8 @@ const NO_TOOLS_PREAMBLE: &str = "CRITICAL: Respond with TEXT ONLY. Do NOT call a
 
 ";
 
-const NO_TOOLS_TRAILER: &str = "\n\nREMINDER: Do NOT call any tools. Respond with plain text only — \
+const NO_TOOLS_TRAILER: &str =
+    "\n\nREMINDER: Do NOT call any tools. Respond with plain text only — \
 an <analysis> block followed by a <summary> block. \
 Tool calls will be rejected and you will fail the task.";
 
@@ -52,12 +53,10 @@ const MAX_COMPACT_PTL_RETRIES: usize = 3;
 /// 摘要模型 `max_tokens` 上限（与 Claude `COMPACT_MAX_OUTPUT_TOKENS` 同量级）。
 pub const COMPACT_MAX_OUTPUT_TOKENS: u32 = 20_000;
 
-static RE_ANALYSIS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)<analysis>.*?</analysis>").expect("analysis regex")
-});
-static RE_SUMMARY: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)<summary>(.*?)</summary>").expect("summary regex")
-});
+static RE_ANALYSIS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<analysis>.*?</analysis>").expect("analysis regex"));
+static RE_SUMMARY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<summary>(.*?)</summary>").expect("summary regex"));
 
 /// 与 Claude `formatCompactSummary` 一致。
 pub fn format_compact_summary(summary: &str) -> String {
@@ -127,7 +126,10 @@ pub fn summarization_start_index(msgs: &[Message]) -> usize {
 }
 
 /// `[system] + 自上次压缩摘要起的尾部`，用于摘要 API。
-pub fn build_compact_api_messages(fresh_system: Message, session: &[Message]) -> Result<Vec<Message>, CoreError> {
+pub fn build_compact_api_messages(
+    fresh_system: Message,
+    session: &[Message],
+) -> Result<Vec<Message>, CoreError> {
     if session.is_empty() {
         return Err(CoreError::LLMError("compact: empty session".into()));
     }
@@ -197,7 +199,8 @@ pub async fn run_compact_llm(
 
         if text.trim_start().starts_with(PROMPT_TOO_LONG_PREFIX) {
             ptl_attempts += 1;
-            if ptl_attempts > MAX_COMPACT_PTL_RETRIES || !truncate_head_after_system(&mut messages) {
+            if ptl_attempts > MAX_COMPACT_PTL_RETRIES || !truncate_head_after_system(&mut messages)
+            {
                 return Err(CoreError::LLMError(
                     "compact: prompt too long after retries".into(),
                 ));

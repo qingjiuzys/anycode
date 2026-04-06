@@ -169,13 +169,11 @@ pub fn load_latest_account(data_root: &Path) -> Result<AccountData> {
             best = Some((mt, p));
         }
     }
-    let path = best
-        .map(|(_, p)| p)
-        .with_context(|| {
-            let mut a = FluentArgs::new();
-            a.set("path", dir.display().to_string());
-            tr_args("wx-err-no-account-json", &a)
-        })?;
+    let path = best.map(|(_, p)| p).with_context(|| {
+        let mut a = FluentArgs::new();
+        a.set("path", dir.display().to_string());
+        tr_args("wx-err-no-account-json", &a)
+    })?;
     let raw = fs::read_to_string(&path).with_context(|| {
         let mut a = FluentArgs::new();
         a.set("path", path.display().to_string());

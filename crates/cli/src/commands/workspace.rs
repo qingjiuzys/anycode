@@ -32,19 +32,23 @@ pub(crate) async fn handle_status() -> anyhow::Result<()> {
 }
 
 pub(crate) async fn handle_touch(path: Option<PathBuf>) -> anyhow::Result<()> {
-    let path = path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let path =
+        path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     workspace::touch_project_dir(path.clone());
-    println!("{}", std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(".")) .display());
+    println!(
+        "{}",
+        std::fs::canonicalize(path)
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .display()
+    );
     Ok(())
 }
 
-pub(crate) async fn handle_set_mode(
-    mode: String,
-    path: Option<PathBuf>,
-) -> anyhow::Result<()> {
+pub(crate) async fn handle_set_mode(mode: String, path: Option<PathBuf>) -> anyhow::Result<()> {
     let parsed = RuntimeMode::parse(&mode)
         .ok_or_else(|| anyhow::anyhow!("unknown workspace mode: {}", mode))?;
-    let path = path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let path =
+        path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     workspace::update_project_metadata(path, None, Some(parsed.as_str().to_string()), None)?;
     println!("workspace default mode: {}", parsed.as_str());
     Ok(())
@@ -54,17 +58,16 @@ pub(crate) async fn handle_set_channel(
     channel: String,
     path: Option<PathBuf>,
 ) -> anyhow::Result<()> {
-    let path = path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let path =
+        path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     workspace::update_project_metadata(path, None, None, Some(channel.clone()))?;
     println!("workspace channel profile: {}", channel);
     Ok(())
 }
 
-pub(crate) async fn handle_label(
-    label: String,
-    path: Option<PathBuf>,
-) -> anyhow::Result<()> {
-    let path = path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+pub(crate) async fn handle_label(label: String, path: Option<PathBuf>) -> anyhow::Result<()> {
+    let path =
+        path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     workspace::update_project_metadata(path, Some(label.clone()), None, None)?;
     println!("workspace label: {}", label);
     Ok(())

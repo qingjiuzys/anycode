@@ -275,7 +275,11 @@ mod tests {
         let n = s.len();
         s.sort_unstable();
         s.dedup();
-        assert_eq!(s.len(), n, "SECURITY_SENSITIVE_TOOL_IDS must not repeat entries");
+        assert_eq!(
+            s.len(),
+            n,
+            "SECURITY_SENSITIVE_TOOL_IDS must not repeat entries"
+        );
     }
 
     #[test]

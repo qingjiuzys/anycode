@@ -733,7 +733,10 @@ pub fn render_markdown_styled(
 
     let mut lines = writer.finish();
     if lines.len() >= MAX_MD_OUTPUT_LINES {
-        lines.push(Line::from(Span::styled(tr("tui-md-truncated"), style_dim())));
+        lines.push(Line::from(Span::styled(
+            tr("tui-md-truncated"),
+            style_dim(),
+        )));
     }
     lines
 }
@@ -773,8 +776,7 @@ pub fn wrap_plain_bullet_prefixed(
     }
     let rows = wrap_string_to_width(t, text_w);
     let pad = " ".repeat(bw);
-    rows
-        .into_iter()
+    rows.into_iter()
         .enumerate()
         .map(|(i, row)| {
             if i == 0 {

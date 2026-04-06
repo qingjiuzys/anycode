@@ -3,7 +3,6 @@
 use crate::cli_args::{ModelAuthCommands, ModelCommands};
 use crate::copilot_auth;
 use crate::i18n::{tr, tr_args};
-use fluent_bundle::FluentArgs;
 use anycode_agent::{CompactPolicy, RuntimePromptConfig};
 use anycode_core::{FeatureFlag, FeatureRegistry, ModelRouteProfile, RuntimeMode};
 use anycode_llm::{
@@ -11,6 +10,7 @@ use anycode_llm::{
     transport_for_provider_id, LlmTransport, ZAI_MODEL_CATALOG,
 };
 use anyhow::Context;
+use fluent_bundle::FluentArgs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -399,7 +399,9 @@ pub(crate) async fn run_model_command(
     match command {
         ModelCommands::Auth { sub } => {
             match sub {
-                ModelAuthCommands::Copilot => copilot_auth::run_github_copilot_device_login().await?,
+                ModelAuthCommands::Copilot => {
+                    copilot_auth::run_github_copilot_device_login().await?
+                }
             }
             Ok(())
         }
@@ -450,7 +452,10 @@ pub(crate) async fn run_model_command(
                     println!("temperature: {}", c.temperature);
                     println!("max_tokens: {}", c.max_tokens);
                     println!("runtime.default_mode: {}", c.runtime.default_mode);
-                    println!("runtime.features: {}", c.runtime.enabled_features.join(", "));
+                    println!(
+                        "runtime.features: {}",
+                        c.runtime.enabled_features.join(", ")
+                    );
                     println!("security.permission_mode: {}", c.security.permission_mode);
                     println!("security.require_approval: {}", c.security.require_approval);
                     println!("security.sandbox_mode: {}", c.security.sandbox_mode);
@@ -1115,8 +1120,7 @@ fn anycode_config_path() -> anyhow::Result<PathBuf> {
 }
 
 fn resolve_memory_directory(path_opt: Option<PathBuf>) -> anyhow::Result<PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| anyhow::anyhow!("{}", tr("err-no-home-memory")))?;
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("{}", tr("err-no-home-memory")))?;
     match path_opt {
         None => Ok(home.join(".anycode/memory")),
         Some(p) if p.is_absolute() => Ok(p),
@@ -1205,25 +1209,27 @@ fn save_anycode_config(cfg: &AnyCodeConfig) -> anyhow::Result<()> {
 }
 
 fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Result<AnyCodeConfig> {
-    Ok(load_anycode_config_resolved(config_file.clone())?.unwrap_or(AnyCodeConfig {
-        provider: "z.ai".to_string(),
-        plan: "coding".to_string(),
-        api_key: String::new(),
-        provider_credentials: HashMap::new(),
-        base_url: None,
-        model: "glm-5".to_string(),
-        temperature: 0.7,
-        max_tokens: 8192,
-        routing: RoutingConfig::default(),
-        runtime: RuntimeSettingsFile::default(),
-        security: SecurityConfigFile::default(),
-        system_prompt_override: None,
-        system_prompt_append: None,
-        memory: MemoryConfigFile::default(),
-        zai_tool_choice_first_turn: false,
-        skills: SkillsConfigFile::default(),
-        session: SessionConfigFile::default(),
-    }))
+    Ok(
+        load_anycode_config_resolved(config_file.clone())?.unwrap_or(AnyCodeConfig {
+            provider: "z.ai".to_string(),
+            plan: "coding".to_string(),
+            api_key: String::new(),
+            provider_credentials: HashMap::new(),
+            base_url: None,
+            model: "glm-5".to_string(),
+            temperature: 0.7,
+            max_tokens: 8192,
+            routing: RoutingConfig::default(),
+            runtime: RuntimeSettingsFile::default(),
+            security: SecurityConfigFile::default(),
+            system_prompt_override: None,
+            system_prompt_append: None,
+            memory: MemoryConfigFile::default(),
+            zai_tool_choice_first_turn: false,
+            skills: SkillsConfigFile::default(),
+            session: SessionConfigFile::default(),
+        }),
+    )
 }
 
 pub(crate) fn enable_feature_flag(
@@ -1233,7 +1239,12 @@ pub(crate) fn enable_feature_flag(
     let flag = FeatureFlag::parse(feature)
         .ok_or_else(|| anyhow::anyhow!("unknown feature: {}", feature))?;
     let mut cfg = load_or_default_anycode_config(config_file.clone())?;
-    if !cfg.runtime.enabled_features.iter().any(|item| item == flag.as_str()) {
+    if !cfg
+        .runtime
+        .enabled_features
+        .iter()
+        .any(|item| item == flag.as_str())
+    {
         cfg.runtime.enabled_features.push(flag.as_str().to_string());
         cfg.runtime.enabled_features.sort();
         cfg.runtime.enabled_features.dedup();
@@ -1713,8 +1724,12 @@ mod serde_config_tests {
         s.context_window_auto = false;
         s.context_window_tokens = 128_000;
         assert!(!should_auto_compact_before_send(&s, "z.ai", "glm-5", 0));
-        assert!(!should_auto_compact_before_send(&s, "z.ai", "glm-5", 100_000));
-        assert!(should_auto_compact_before_send(&s, "z.ai", "glm-5", 120_000));
+        assert!(!should_auto_compact_before_send(
+            &s, "z.ai", "glm-5", 100_000
+        ));
+        assert!(should_auto_compact_before_send(
+            &s, "z.ai", "glm-5", 120_000
+        ));
     }
 
     #[test]

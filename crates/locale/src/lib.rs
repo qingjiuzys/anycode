@@ -151,10 +151,7 @@ mod tests {
     fn anycode_lang_wins() {
         let _g = ENV_LOCK.lock().unwrap();
         with_env(
-            &[
-                ("ANYCODE_LANG", Some("en")),
-                ("LANG", Some("zh_CN.UTF-8")),
-            ],
+            &[("ANYCODE_LANG", Some("en")), ("LANG", Some("zh_CN.UTF-8"))],
             || assert_eq!(resolve_locale_from_env(), AppLocale::En),
         );
     }

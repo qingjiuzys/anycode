@@ -1,8 +1,8 @@
 //! 系统提示多段合成（override / append / 默认段与记忆的优先级）。
 
 use crate::prompt_assembler::PromptAssembler;
-use anycode_core::{Agent, Memory};
 use anycode_core::RuntimeMode;
+use anycode_core::{Agent, Memory};
 
 /// 运行时系统提示配置（通常来自 `config.json` + 解析后的 `@path` 文件内容）。
 #[derive(Debug, Clone, Default)]
@@ -216,14 +216,8 @@ mod tests {
             ..Default::default()
         };
         let agent = stub(vec!["Skill".into()]);
-        let out = compose_effective_system_prompt(
-            &cfg,
-            &agent,
-            &[],
-            "/w",
-            None,
-            RuntimeMode::General,
-        );
+        let out =
+            compose_effective_system_prompt(&cfg, &agent, &[], "/w", None, RuntimeMode::General);
         let pos_tools = out.find("Skill").unwrap();
         let pos_sk = out.find("Available skills").unwrap();
         assert!(pos_sk > pos_tools);
@@ -239,14 +233,8 @@ mod tests {
         };
         let mut agent = stub(vec!["Z".into()]);
         agent.replace = Some("CUSTOM_BODY");
-        let out = compose_effective_system_prompt(
-            &cfg,
-            &agent,
-            &[],
-            "/w",
-            None,
-            RuntimeMode::General,
-        );
+        let out =
+            compose_effective_system_prompt(&cfg, &agent, &[], "/w", None, RuntimeMode::General);
         assert!(out.starts_with("CUSTOM_BODY"));
         assert!(!out.contains("# Tone"));
         assert!(out.contains("TAIL"));

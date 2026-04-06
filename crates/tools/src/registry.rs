@@ -131,7 +131,8 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
                     mcp.clone(),
                     auth_logical.clone(),
                     "authenticate".to_string(),
-                    "MCP OAuth or session authentication for this server (if supported).".to_string(),
+                    "MCP OAuth or session authentication for this server (if supported)."
+                        .to_string(),
                     serde_json::json!({
                         "type": "object",
                         "additionalProperties": true

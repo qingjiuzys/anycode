@@ -37,7 +37,10 @@ pub fn collect_from_session(session: &[Message]) -> Vec<FileReadSnippet> {
 }
 
 /// 与 [`collect_from_session`] 相同，但可指定保留的最大文件数。
-pub fn collect_from_session_with_max(session: &[Message], max_files: usize) -> Vec<FileReadSnippet> {
+pub fn collect_from_session_with_max(
+    session: &[Message],
+    max_files: usize,
+) -> Vec<FileReadSnippet> {
     let mut by_path: Vec<FileReadSnippet> = Vec::new();
     for msg in session {
         if msg.role != MessageRole::Tool {
@@ -51,7 +54,10 @@ pub fn collect_from_session_with_max(session: &[Message], max_files: usize) -> V
         if name != TOOL_FILE_READ {
             continue;
         }
-        let MessageContent::ToolResult { content, is_error, .. } = &msg.content else {
+        let MessageContent::ToolResult {
+            content, is_error, ..
+        } = &msg.content
+        else {
             continue;
         };
         if *is_error {

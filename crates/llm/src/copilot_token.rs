@@ -64,11 +64,7 @@ fn parse_expires_at(v: &serde_json::Value) -> Result<i64, CoreError> {
         _ => None,
     }
     .ok_or_else(|| CoreError::LLMError("copilot token: invalid expires_at".to_string()))?;
-    Ok(if n < 100_000_000_000 {
-        n * 1000
-    } else {
-        n
-    })
+    Ok(if n < 100_000_000_000 { n * 1000 } else { n })
 }
 
 /// 从 Copilot JWT 的 `proxy-ep=` 推导 API base（与 OpenClaw `deriveCopilotApiBaseUrlFromToken` 一致）。
@@ -105,10 +101,7 @@ fn copilot_ide_headers_for_github_api() -> reqwest::header::HeaderMap {
         "Editor-Version",
         COPILOT_EDITOR_VERSION.parse().expect("header"),
     );
-    let _ = m.insert(
-        "User-Agent",
-        COPILOT_USER_AGENT.parse().expect("header"),
-    );
+    let _ = m.insert("User-Agent", COPILOT_USER_AGENT.parse().expect("header"));
     let _ = m.insert(
         "X-Github-Api-Version",
         COPILOT_GITHUB_API_VERSION.parse().expect("header"),

@@ -54,9 +54,7 @@ fn mcp_tool_visible_to_llm(name: &str, gating: &AgentClaudeToolGating) -> bool {
     let Some(g) = &gating.mcp_defer_allowlist else {
         return true;
     };
-    g.lock()
-        .map(|set| set.contains(name))
-        .unwrap_or(false)
+    g.lock().map(|set| set.contains(name)).unwrap_or(false)
 }
 
 /// Apply deny regexes, Claude blanket deny, MCP defer allowlist, then stable ordering.

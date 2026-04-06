@@ -95,11 +95,7 @@ impl AgentTool {
             .unwrap_or_else(|| ".".to_string());
 
         match exe
-            .run_nested_task(
-                AgentType::new(agent_type.to_string()),
-                prompt,
-                wd,
-            )
+            .run_nested_task(AgentType::new(agent_type.to_string()), prompt, wd)
             .await?
         {
             TaskResult::Success { output, artifacts } => Ok(ToolOutput {

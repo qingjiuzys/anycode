@@ -43,8 +43,7 @@ pub async fn run_github_copilot_device_login() -> anyhow::Result<()> {
     println!("输入代码: {}", device.user_code);
     println!();
 
-    let expires_at =
-        std::time::Instant::now() + Duration::from_secs(device.expires_in.max(1));
+    let expires_at = std::time::Instant::now() + Duration::from_secs(device.expires_in.max(1));
     let mut interval_ms = (device.interval.max(1)) * 1000;
 
     let access_token = loop {
@@ -59,10 +58,7 @@ pub async fn run_github_copilot_device_login() -> anyhow::Result<()> {
             .form(&[
                 ("client_id", CLIENT_ID),
                 ("device_code", device.device_code.as_str()),
-                (
-                    "grant_type",
-                    "urn:ietf:params:oauth:grant-type:device_code",
-                ),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
             ])
             .send()
             .await
@@ -71,16 +67,17 @@ pub async fn run_github_copilot_device_login() -> anyhow::Result<()> {
             .await
             .context("read token body")?;
 
-        let v: serde_json::Value = serde_json::from_str(&text)
-            .with_context(|| format!("parse token JSON: {}", text.chars().take(120).collect::<String>()))?;
+        let v: serde_json::Value = serde_json::from_str(&text).with_context(|| {
+            format!(
+                "parse token JSON: {}",
+                text.chars().take(120).collect::<String>()
+            )
+        })?;
 
         if let Some(tok) = v.get("access_token").and_then(|x| x.as_str()) {
             break tok.to_string();
         }
-        let err = v
-            .get("error")
-            .and_then(|x| x.as_str())
-            .unwrap_or("unknown");
+        let err = v.get("error").and_then(|x| x.as_str()).unwrap_or("unknown");
         match err {
             "authorization_pending" => continue,
             "slow_down" => {
@@ -94,7 +91,11 @@ pub async fn run_github_copilot_device_login() -> anyhow::Result<()> {
                 anyhow::bail!("已取消授权");
             }
             other => {
-                anyhow::bail!("GitHub OAuth: {} — {}", other, text.chars().take(200).collect::<String>());
+                anyhow::bail!(
+                    "GitHub OAuth: {} — {}",
+                    other,
+                    text.chars().take(200).collect::<String>()
+                );
             }
         }
     };
