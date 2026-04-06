@@ -1,0 +1,17 @@
+anycode/
+├── Cargo.toml                 # Workspace
+├── .github/workflows/ci.yml   # fmt / clippy / test
+├── README.md
+├── docs/                      # 架构、CLI、模型、路由等（见 docs/architecture.md）
+│
+└── crates/
+    ├── core/                  # 领域与 trait：子模块 ids/message/task/llm_types/traits 等，lib.rs 聚合
+    ├── agent/                 # AgentRuntime；runtime/session.rs 为任务/会话编排，余见 runtime/* 子模块
+    ├── tools/                 # FileRead/Write、Bash、Glob、Grep、sandbox 路径
+    ├── llm/                   # build_llm_client：z.ai（OpenAI tools）、Anthropic
+    ├── security/              # SecurityLayer、审批、策略
+    ├── channels/              # 多通道（预留；CLI 当前未依赖）
+    ├── onboard/               # 配置向导等
+    └── cli/                   # anycode 二进制：main / app_config / bootstrap / tasks / tui/… / md_tui / daemon_http
+
+说明：历史文档若提到独立 memory crate，以本仓库实际 members 为准。

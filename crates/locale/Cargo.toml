@@ -1,0 +1,10 @@
+[package]
+name = "anycode-locale"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Locale resolution (zh-Hans / en) for anyCode CLI"
+
+[dependencies]
+sys-locale = "0.3.1"

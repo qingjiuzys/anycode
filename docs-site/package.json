@@ -1,0 +1,15 @@
+{
+  "name": "anycode-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "build:gh-pages": "VITEPRESS_BASE=/anycode/ vitepress build",
+    "preview": "vitepress preview",
+    "check:docs": "vitepress build"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}

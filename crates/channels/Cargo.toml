@@ -1,0 +1,21 @@
+[package]
+name = "anycode-channels"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anycode-core = { path = "../core" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+futures-util = "0.3"
+
+# Channel implementations
+telnet = "0.2.4"  # CLI
+tokio-tungstenite = { workspace = true }  # WebSocket

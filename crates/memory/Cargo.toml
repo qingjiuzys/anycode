@@ -1,0 +1,33 @@
+[package]
+name = "anycode-memory"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anycode-core = { path = "../core" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Database
+sled = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+
+# File I/O
+walkdir = "2.4"
+ignore = "0.4"
+
+# Caching
+moka = { workspace = true, features = ["future"] }
+
+[features]
+default = ["sled"]
+sled = ["dep:sled"]
+sqlite = ["dep:sqlx"]

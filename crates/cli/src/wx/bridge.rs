@@ -1,0 +1,605 @@
+//! Polling loop, message state machine, and embedded `AgentRuntime`.
+
+use crate::app_config::Config;
+use crate::bootstrap::initialize_runtime;
+use crate::i18n::{tr, tr_args};
+use crate::wx::approval::{ActiveChat, WechatApprovalGate};
+use crate::wx::cdn_media::{download_image_from_item, extract_user_text_and_image_item};
+use crate::wx::commands::{route_command, CmdCtx, CmdOut};
+use crate::wx::fields::{i64_snake_camel, msgs_array, str_snake_camel, sync_buf_from_response};
+use crate::wx::ilink::{load_sync_buf, save_sync_buf, WeChatApi, WxSender};
+use crate::wx::permission::PermissionBroker;
+use crate::wx::store::{
+    add_chat_message, chat_history_text, load_latest_account, load_session, load_wcc_config,
+    save_session, wcc_data_dir, AccountData, SessionState, WcSession, WccConfig,
+};
+use anycode_agent::AgentRuntime;
+use anycode_channels::profile_for_channel_type;
+use anycode_core::prelude::*;
+use anyhow::{Context, Result};
+use fluent_bundle::FluentArgs;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use uuid::Uuid;
+
+const SESSION_EXPIRED: i64 = -14;
+const MAX_MSG_IDS: usize = 1000;
+const CHUNK_MAX: usize = 2048;
+
+pub async fn run_wechat_daemon(
+    app_config: &Config,
+    data_dir: Option<PathBuf>,
+    agent_type: String,
+    ignore_approval_cli: bool,
+) -> Result<()> {
+    let data_root = wcc_data_dir(data_dir);
+    std::fs::create_dir_all(&data_root)?;
+
+    let account = load_latest_account(&data_root)?;
+    let wcc = load_wcc_config(&data_root);
+    let session = load_session(&data_root, &account.account_id)?;
+
+    let api = Arc::new(WeChatApi::new(
+        account.bot_token.clone(),
+        account.base_url.clone(),
+    ));
+    let sender = Arc::new(WxSender::new(api.clone(), account.account_id.clone()));
+    let broker = PermissionBroker::new(account.account_id.clone());
+
+    let session_arc = Arc::new(Mutex::new(session));
+    let wcc_arc = Arc::new(Mutex::new(wcc.clone()));
+    let active_chat = Arc::new(Mutex::new(None::<ActiveChat>));
+    let active_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(None));
+
+    let gate = WechatApprovalGate::new(
+        data_root.clone(),
+        account.account_id.clone(),
+        session_arc.clone(),
+        active_chat.clone(),
+        sender.clone(),
+        broker.clone(),
+    );
+
+    let approval: Option<Box<dyn anycode_security::ApprovalCallback>> = if ignore_approval_cli {
+        None
+    } else {
+        Some(Box::new(gate.clone()))
+    };
+
+    let runtime = initialize_runtime(app_config, approval)
+        .await
+        .context("initialize_runtime")?;
+
+    let mut sa = FluentArgs::new();
+    sa.set("id", account.account_id.clone());
+    println!("{}", tr_args("wx-bridge-started", &sa));
+
+    let broker_for_state = gate.permission_broker();
+    let st = BridgeState {
+        data_root: data_root.clone(),
+        account,
+        wcc_arc,
+        session_arc,
+        active_chat,
+        active_task,
+        gate,
+        broker: broker_for_state,
+        runtime,
+        sender,
+        api,
+        agent_type,
+    };
+
+    run_monitor(st).await
+}
+
+#[derive(Clone)]
+struct BridgeState {
+    data_root: PathBuf,
+    account: AccountData,
+    wcc_arc: Arc<Mutex<WccConfig>>,
+    session_arc: Arc<Mutex<WcSession>>,
+    active_chat: Arc<Mutex<Option<ActiveChat>>>,
+    active_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    gate: WechatApprovalGate,
+    broker: crate::wx::permission::PermissionBroker,
+    runtime: Arc<AgentRuntime>,
+    sender: Arc<WxSender>,
+    api: Arc<WeChatApi>,
+    agent_type: String,
+}
+
+async fn run_monitor(st: BridgeState) -> Result<()> {
+    let mut recent_ids: HashSet<i64> = HashSet::new();
+    let mut fail_streak: u32 = 0;
+
+    loop {
+        let buf = load_sync_buf(&st.data_root);
+        let resp = match st
+            .api
+            .get_updates(if buf.is_empty() { None } else { Some(&buf) })
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                fail_streak += 1;
+                tracing::error!(error = %e, fail_streak, "{}", tr("wx-log-getupdates-fail"));
+                let ms = if fail_streak >= 3 {
+                    30_000u64
+                } else {
+                    3_000u64
+                };
+                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                continue;
+            }
+        };
+
+        fail_streak = 0;
+
+        if resp.get("ret").and_then(|x| x.as_i64()) == Some(SESSION_EXPIRED) {
+            eprintln!("{}", tr("wx-session-expired"));
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            continue;
+        }
+
+        if let Some(b) = sync_buf_from_response(&resp) {
+            let _ = save_sync_buf(&st.data_root, b);
+        }
+
+        if let Some(r) = resp.get("ret").and_then(|x| x.as_i64()) {
+            if r != 0 && r != SESSION_EXPIRED {
+                tracing::debug!(
+                    ret = r,
+                    retmsg = ?resp.get("retmsg").or_else(|| resp.get("retMsg")),
+                    "{}",
+                    tr("wx-log-getupdates-ret")
+                );
+            }
+        }
+
+        let msgs = msgs_array(&resp);
+
+        if !msgs.is_empty() {
+            tracing::info!(count = msgs.len(), "{}", tr("wx-log-msgs"));
+        }
+
+        for msg in msgs {
+            let msg_type = i64_snake_camel(&msg, "message_type", "messageType").unwrap_or(0);
+            if msg_type != 1 {
+                tracing::debug!(msg_type, "{}", tr("wx-log-skip-non-user"));
+                continue;
+            }
+            let from = match str_snake_camel(&msg, "from_user_id", "fromUserId") {
+                Some(f) => f.to_string(),
+                None => {
+                    tracing::debug!("{}", tr("wx-log-skip-no-from"));
+                    continue;
+                }
+            };
+            let items: Vec<_> = msg
+                .get("item_list")
+                .and_then(|x| x.as_array())
+                .or_else(|| msg.get("itemList").and_then(|x| x.as_array()))
+                .cloned()
+                .unwrap_or_default();
+            if items.is_empty() {
+                tracing::debug!(?from, "{}", tr("wx-log-skip-empty-items"));
+                continue;
+            }
+            let items_ref: Vec<_> = items.iter().cloned().collect();
+            let ctx_tok = str_snake_camel(&msg, "context_token", "contextToken")
+                .unwrap_or("")
+                .to_string();
+            let mid = i64_snake_camel(&msg, "message_id", "messageId");
+
+            if let Some(id) = mid {
+                if recent_ids.contains(&id) {
+                    continue;
+                }
+                recent_ids.insert(id);
+                if recent_ids.len() > MAX_MSG_IDS {
+                    let v: Vec<i64> = recent_ids.iter().copied().collect();
+                    let drop = v.len() / 2;
+                    for x in v.into_iter().take(drop) {
+                        recent_ids.remove(&x);
+                    }
+                }
+            }
+
+            let st2 = BridgeState {
+                data_root: st.data_root.clone(),
+                account: AccountData {
+                    bot_token: st.account.bot_token.clone(),
+                    account_id: st.account.account_id.clone(),
+                    base_url: st.account.base_url.clone(),
+                    user_id: st.account.user_id.clone(),
+                    created_at: st.account.created_at.clone(),
+                },
+                wcc_arc: st.wcc_arc.clone(),
+                session_arc: st.session_arc.clone(),
+                active_chat: st.active_chat.clone(),
+                active_task: st.active_task.clone(),
+                gate: st.gate.clone(),
+                broker: st.broker.clone(),
+                runtime: st.runtime.clone(),
+                sender: st.sender.clone(),
+                api: st.api.clone(),
+                agent_type: st.agent_type.clone(),
+            };
+
+            tokio::spawn(async move {
+                if let Err(e) = handle_message(st2, from, ctx_tok, items_ref).await {
+                    tracing::error!(error = %e, "{}", tr("wx-log-handle-msg-fail"));
+                }
+            });
+        }
+    }
+}
+
+async fn handle_message(
+    st: BridgeState,
+    from_user_id: String,
+    context_token: String,
+    items: Vec<serde_json::Value>,
+) -> Result<()> {
+    let (user_text, image_item) = extract_user_text_and_image_item(&items);
+
+    let mut session = st.session_arc.lock().await;
+    let wcc = st.wcc_arc.lock().await.clone();
+
+    if !wcc.working_directory.is_empty()
+        && session.working_directory
+            == std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+    {
+        session.working_directory = wcc.working_directory.clone();
+        let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+    }
+
+    if session.state == SessionState::Processing {
+        if user_text.trim_start().starts_with("/clear") {
+            if let Some(h) = st.active_task.lock().await.take() {
+                h.abort();
+            }
+            session.state = SessionState::Idle;
+            let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+        } else if !user_text.trim_start().starts_with('/') {
+            if let Some(h) = st.active_task.lock().await.take() {
+                h.abort();
+            }
+            session.state = SessionState::Idle;
+            let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+        } else if !user_text.starts_with("/status") && !user_text.starts_with("/help") {
+            drop(session);
+            return Ok(());
+        }
+    }
+
+    if session.state == SessionState::Idle && st.broker.is_timed_out().await {
+        let lower = user_text.to_lowercase();
+        if matches!(lower.as_str(), "y" | "yes" | "n" | "no") {
+            st.broker.clear_timed_out().await;
+            st.sender
+                .send_text(
+                    &from_user_id,
+                    &context_token,
+                    &tr("wx-perm-timeout"),
+                )
+                .await?;
+        }
+        drop(session);
+        return Ok(());
+    }
+
+    if session.state == SessionState::WaitingPermission {
+        if st.broker.get_pending().await.is_none() {
+            session.state = SessionState::Idle;
+            let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+            st.sender
+                .send_text(
+                    &from_user_id,
+                    &context_token,
+                    &tr("wx-perm-stale"),
+                )
+                .await?;
+            drop(session);
+            return Ok(());
+        }
+        let lower = user_text.to_lowercase();
+        let reply = if matches!(lower.as_str(), "y" | "yes") {
+            let ok = st.broker.resolve(true).await;
+            if ok {
+                tr("wx-perm-allowed")
+            } else {
+                tr("wx-perm-fail")
+            }
+        } else if matches!(lower.as_str(), "n" | "no") {
+            let ok = st.broker.resolve(false).await;
+            if ok {
+                tr("wx-perm-denied")
+            } else {
+                tr("wx-perm-fail")
+            }
+        } else {
+            tr("wx-perm-wait")
+        };
+        st.sender
+            .send_text(&from_user_id, &context_token, &reply)
+            .await?;
+        drop(session);
+        return Ok(());
+    }
+
+    if user_text.starts_with('/') {
+        if user_text.trim_start().starts_with("/clear") {
+            let _ = st.broker.reject_pending().await;
+        }
+        let mut wcc_mut = st.wcc_arc.lock().await.clone();
+        let mut ctx = CmdCtx {
+            data_root: &st.data_root,
+            account_id: &st.account.account_id,
+            session: &mut *session,
+            wcc: &mut wcc_mut,
+        };
+        match route_command(&user_text, &mut ctx)? {
+            CmdOut::Reply(s) => {
+                let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+                *st.wcc_arc.lock().await = wcc_mut.clone();
+                drop(session);
+                st.sender
+                    .send_text(&from_user_id, &context_token, &s)
+                    .await?;
+                return Ok(());
+            }
+            CmdOut::Nothing => {
+                *st.wcc_arc.lock().await = wcc_mut;
+            }
+        }
+    }
+
+    if user_text.is_empty() && image_item.is_none() {
+        drop(session);
+        st.sender
+            .send_text(
+                &from_user_id,
+                &context_token,
+                &tr("wx-unsupported-msg"),
+            )
+            .await?;
+        return Ok(());
+    }
+
+    let user_line = if user_text.is_empty() {
+        tr("wx-analyze-image")
+    } else {
+        user_text.clone()
+    };
+    drop(session);
+    run_agent_pipeline(
+        st,
+        from_user_id,
+        context_token,
+        user_line,
+        image_item.cloned(),
+    )
+    .await
+}
+
+async fn run_agent_pipeline(
+    st: BridgeState,
+    from_user_id: String,
+    context_token: String,
+    user_line: String,
+    image_item: Option<serde_json::Value>,
+) -> Result<()> {
+    let chat = ActiveChat {
+        from_user_id: from_user_id.clone(),
+        context_token: context_token.clone(),
+    };
+    st.gate.set_active_chat(Some(chat)).await;
+
+    {
+        let mut session = st.session_arc.lock().await;
+        session.state = SessionState::Processing;
+        let analyze = tr("wx-analyze-image");
+        let content = if user_line == analyze && image_item.is_some() {
+            tr("wx-chat-image-marker")
+        } else {
+            user_line.clone()
+        };
+        add_chat_message(&mut session, "user", &content);
+        let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+    }
+
+    let image_note = if let Some(ref it) = image_item {
+        match download_image_from_item(st.api.http_client(), it).await {
+            Some((mime, b64)) => {
+                let mut ia = FluentArgs::new();
+                ia.set("mime", mime);
+                ia.set("len", b64.len() as i64);
+                Some(tr_args("wx-llm-image-note", &ia))
+            }
+            None => Some(tr("wx-llm-image-fail")),
+        }
+    } else {
+        None
+    };
+
+    let wcc = st.wcc_arc.lock().await.clone();
+    let channel_profile = profile_for_channel_type(&ChannelType::WeChat);
+    let prompt_body = {
+        let session = st.session_arc.lock().await;
+        let mut hist = session.clone();
+        if !hist.chat_history.is_empty() {
+            hist.chat_history.pop();
+        }
+        let hist_txt = chat_history_text(&hist, Some(40));
+        let mut ha = FluentArgs::new();
+        ha.set("hist", hist_txt);
+        ha.set("user", user_line.clone());
+        let mut p = tr_args("wx-llm-history-wrap", &ha);
+        if let Some(note) = image_note {
+            p.push_str(&note);
+        }
+        p
+    };
+
+    let wx_system_append = wcc.system_prompt.clone().filter(|s| !s.trim().is_empty());
+
+    let (cwd, runtime_mode) = {
+        let session = st.session_arc.lock().await;
+        (
+            resolve_cwd(&session, &wcc),
+            session
+                .runtime_mode
+                .clone()
+                .or_else(|| wcc.runtime_mode.clone())
+                .unwrap_or_else(|| channel_profile.default_mode.as_str().to_string()),
+        )
+    };
+
+    let rt = st.runtime.clone();
+    let agent = resolve_channel_agent(&runtime_mode, &st.agent_type, channel_profile.assistant_agent);
+    let data_root = st.data_root.clone();
+    let account_id = st.account.account_id.clone();
+    let sender = st.sender.clone();
+    let session_arc = st.session_arc.clone();
+    let gate = st.gate.clone();
+    let active_task = st.active_task.clone();
+
+    let h = tokio::spawn(async move {
+        let task = Task {
+            id: Uuid::new_v4(),
+            agent_type: AgentType::new(agent),
+            prompt: prompt_body,
+            context: TaskContext {
+                session_id: Uuid::new_v4(),
+                working_directory: cwd.to_string_lossy().to_string(),
+                environment: HashMap::new(),
+                user_id: None,
+                system_prompt_append: Some(build_wechat_system_append(
+                    wx_system_append.as_deref(),
+                    &runtime_mode,
+                    channel_profile.id,
+                    channel_profile.assistant_agent,
+                )),
+            },
+            created_at: chrono::Utc::now(),
+        };
+
+        let result = rt.execute_task(task).await;
+        gate.set_active_chat(None).await;
+
+        let mut session = session_arc.lock().await;
+        let reply = match result {
+            Ok(TaskResult::Success { output, .. }) => {
+                add_chat_message(&mut session, "assistant", &output);
+                output
+            }
+            Ok(TaskResult::Failure { error, .. }) => {
+                let mut ea = FluentArgs::new();
+                ea.set("err", error.to_string());
+                tr_args("wx-task-fail", &ea)
+            }
+            Ok(TaskResult::Partial { success, remaining }) => {
+                let t = format!("{}\n{}", success, remaining);
+                add_chat_message(&mut session, "assistant", &t);
+                t
+            }
+            Err(e) => {
+                let mut ea = FluentArgs::new();
+                ea.set("err", e.to_string());
+                tr_args("wx-exec-error", &ea)
+            }
+        };
+        session.state = SessionState::Idle;
+        let _ = save_session(&data_root, &account_id, &*session);
+        drop(session);
+
+        for chunk in split_message(&reply, CHUNK_MAX) {
+            let _ = sender
+                .send_text(&from_user_id, &context_token, &chunk)
+                .await;
+        }
+        let _ = active_task.lock().await.take();
+    });
+
+    *st.active_task.lock().await = Some(h);
+    Ok(())
+}
+
+fn resolve_channel_agent(runtime_mode: &str, bridge_agent: &str, channel_default_agent: &str) -> String {
+    match RuntimeMode::parse(runtime_mode) {
+        Some(RuntimeMode::Plan) => "plan".to_string(),
+        Some(RuntimeMode::Explore) => "explore".to_string(),
+        Some(RuntimeMode::Goal) => "goal".to_string(),
+        Some(RuntimeMode::Code) => "general-purpose".to_string(),
+        Some(RuntimeMode::Channel) => channel_default_agent.to_string(),
+        Some(RuntimeMode::General) | None => {
+            if bridge_agent.trim().is_empty() {
+                channel_default_agent.to_string()
+            } else {
+                bridge_agent.to_string()
+            }
+        }
+    }
+}
+
+fn build_wechat_system_append(
+    existing: Option<&str>,
+    runtime_mode: &str,
+    channel_id: &str,
+    channel_default_agent: &str,
+) -> String {
+    let mut sections = vec![format!(
+        "## Channel Runtime\nchannel={channel_id}\nruntime_mode={runtime_mode}\ndefault_channel_agent={channel_default_agent}\nFor WeChat channel mode, default to workspace-assistant behavior. Only perform direct coding when the user explicitly asks to modify code."
+    )];
+    if let Some(existing) = existing {
+        if !existing.trim().is_empty() {
+            sections.push(existing.trim().to_string());
+        }
+    }
+    sections.join("\n\n")
+}
+
+fn resolve_cwd(session: &WcSession, wcc: &WccConfig) -> PathBuf {
+    let raw = if session.working_directory.is_empty() {
+        wcc.working_directory.clone()
+    } else {
+        session.working_directory.clone()
+    };
+    let raw = if let Some(rest) = raw.strip_prefix("~/") {
+        dirs::home_dir()
+            .map(|h| h.join(rest))
+            .unwrap_or_else(|| PathBuf::from(&raw))
+    } else {
+        PathBuf::from(&raw)
+    };
+    std::fs::canonicalize(&raw).unwrap_or(raw)
+}
+
+fn split_message(text: &str, max_chars: usize) -> Vec<String> {
+    if text.is_empty() {
+        return vec![];
+    }
+    if text.chars().count() <= max_chars {
+        return vec![text.to_string()];
+    }
+    let mut out = Vec::new();
+    let mut buf = String::new();
+    for ch in text.chars() {
+        buf.push(ch);
+        if buf.chars().count() >= max_chars {
+            out.push(buf.trim_end().to_string());
+            buf.clear();
+        }
+    }
+    if !buf.trim().is_empty() {
+        out.push(buf.trim_end().to_string());
+    }
+    out
+}

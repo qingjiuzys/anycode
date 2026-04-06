@@ -1,0 +1,517 @@
+//! `anycode model` 交互（全量提供方目录 + anyCode 按任务路由）。
+
+use crate::i18n::{tr, tr_args};
+use fluent_bundle::FluentArgs;
+use super::{
+    default_base_url_for, load_anycode_config_resolved, prompt_api_key_and_base_url, prompt_line,
+    prompt_model_for_anthropic, prompt_model_for_zai, resolve_config_path,
+    save_anycode_config_resolved, save_merged_config, validate_llm_provider, ModelProfile,
+};
+use anycode_llm::{
+    normalize_provider_id, transport_for_provider_id, LlmTransport, PROVIDER_CATALOG,
+    ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
+};
+use dialoguer::theme::ColorfulTheme;
+use dialoguer::{Input, Select};
+use std::path::PathBuf;
+
+fn accent_title(line: &str) {
+    println!("{}", console::Style::new().cyan().bold().apply_to(line));
+}
+
+pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
+    let is_tty = console::Term::stdout().is_term();
+    let path = resolve_config_path(config_file.clone())?;
+
+    println!("{}", tr("model-banner"));
+    println!("{} {}", tr("model-config-path"), path.display());
+    println!();
+
+    loop {
+        accent_title(&tr("model-main-menu-title"));
+        let hub_idx = if is_tty {
+            let items = vec![
+                tr("model-menu-global"),
+                tr("model-menu-routing"),
+                tr("model-menu-exit"),
+            ];
+            Select::with_theme(&ColorfulTheme::default())
+                .with_prompt(&tr("model-pick-prompt"))
+                .default(0)
+                .items(&items)
+                .interact()?
+        } else {
+            println!("{}", tr("model-menu-fallback-1"));
+            println!("{}", tr("model-menu-fallback-2"));
+            println!("{}", tr("model-menu-fallback-0"));
+            loop {
+                let v = prompt_line(&tr("model-pick-number"))?;
+                match v.trim() {
+                    "1" => break 0,
+                    "2" => break 1,
+                    "0" => return Ok(()),
+                    _ => println!("{}", tr("model-invalid")),
+                }
+            }
+        };
+
+        match hub_idx {
+            0 => run_global_provider_flow(config_file.clone(), &path, is_tty).await?,
+            1 => run_routing_agents_flow(config_file.clone(), &path, is_tty).await?,
+            _ => return Ok(()),
+        }
+        println!();
+    }
+}
+
+async fn run_global_provider_flow(
+    config_file: Option<PathBuf>,
+    path: &std::path::Path,
+    is_tty: bool,
+) -> anyhow::Result<()> {
+    let existing = load_anycode_config_resolved(config_file.clone())?;
+    if let Some(ref c) = existing {
+        let mut a = FluentArgs::new();
+        a.set("p", c.provider.clone());
+        a.set("l", c.plan.clone());
+        a.set("m", c.model.clone());
+        println!("{}", tr_args("model-current-global", &a));
+        println!();
+    }
+
+    'outer: loop {
+        accent_title(&tr("model-provider-title"));
+        let labels: Vec<String> = PROVIDER_CATALOG
+            .iter()
+            .map(|e| {
+                let hint = e.hint.map(|h| format!(" ({})", h)).unwrap_or_default();
+                if e.placeholder_only {
+                    let mut a = FluentArgs::new();
+                    a.set("label", e.label);
+                    a.set("hint", hint);
+                    tr_args("model-catalog-placeholder", &a)
+                } else {
+                    format!("{}{}", e.label, hint)
+                }
+            })
+            .chain(std::iter::once(tr("model-back-menu")))
+            .collect();
+
+        let idx = if is_tty {
+            Select::with_theme(&ColorfulTheme::default())
+                .with_prompt(&tr("model-pick-provider"))
+                .default(0)
+                .items(&labels)
+                .interact()?
+        } else {
+            println!("{}", tr("model-provider-list"));
+            for (i, l) in labels.iter().enumerate() {
+                println!("  {}) {}", i + 1, l);
+            }
+            println!("  0) {}", tr("model-back-menu"));
+            loop {
+                let v = prompt_line(&tr("model-pick-number"))?;
+                if v.trim() == "0" {
+                    return Ok(());
+                }
+                if let Ok(n) = v.trim().parse::<usize>() {
+                    if n >= 1 && n <= labels.len() {
+                        break n - 1;
+                    }
+                }
+                println!("{}", tr("model-invalid"));
+            }
+        };
+
+        if idx >= PROVIDER_CATALOG.len() {
+            return Ok(());
+        }
+
+        let entry = &PROVIDER_CATALOG[idx];
+        if entry.placeholder_only {
+            let mut ah = FluentArgs::new();
+            ah.set("label", entry.label.to_string());
+            let hint_str = entry
+                .hint
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| tr("model-placeholder-default-hint"));
+            ah.set("hint", hint_str);
+            println!("ℹ️ {}", tr_args("model-placeholder-hint", &ah));
+            continue 'outer;
+        }
+
+        let id = entry.id.to_string();
+        if id == "z.ai" {
+            accent_title(&tr("model-zai-auth-title"));
+            let zai_labels: Vec<String> = ZAI_AUTH_METHODS
+                .iter()
+                .map(|z| {
+                    z.hint
+                        .map(|h| format!("{} ({})", z.label, h))
+                        .unwrap_or_else(|| z.label.to_string())
+                })
+                .chain(std::iter::once(tr("model-back")))
+                .collect();
+
+            let zi = if is_tty {
+                Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt(&tr("model-pick-prompt"))
+                    .default(0)
+                    .items(&zai_labels)
+                    .interact()?
+            } else {
+                for (i, l) in zai_labels.iter().enumerate() {
+                    println!("  {}) {}", i + 1, l);
+                }
+                println!("  0) {}", tr("model-back"));
+                loop {
+                    let v = prompt_line(&tr("model-pick-number"))?;
+                    match v.trim() {
+                        "0" => continue 'outer,
+                        s => {
+                            if let Ok(n) = s.parse::<usize>() {
+                                if n >= 1 && n <= zai_labels.len() {
+                                    break n - 1;
+                                }
+                            }
+                            println!("{}", tr("model-invalid"));
+                        }
+                    }
+                }
+            };
+
+            if zi >= ZAI_AUTH_METHODS.len() {
+                continue 'outer;
+            }
+            let plan = ZAI_AUTH_METHODS[zi].plan.to_string();
+            let model = prompt_model_for_zai(is_tty, &existing)?;
+            let (api_key, base_url) = prompt_api_key_and_base_url(
+                is_tty,
+                &existing,
+                "z.ai",
+                &plan,
+                default_base_url_for(ZAI_AUTH_METHODS[zi].plan),
+            )?;
+            save_merged_config(
+                config_file.clone(),
+                &existing,
+                "z.ai",
+                &plan,
+                &model,
+                &api_key,
+                base_url,
+            )?;
+            let mut sa = FluentArgs::new();
+            sa.set("path", path.display().to_string());
+            println!("✅ {}", tr_args("wizard-saved", &sa));
+            return Ok(());
+        }
+
+        if transport_for_provider_id(&id) == LlmTransport::AnthropicMessages {
+            let model = prompt_model_for_anthropic(is_tty, &existing)?;
+            let (api_key, base_url) = prompt_api_key_and_base_url(
+                is_tty,
+                &existing,
+                "anthropic",
+                "general",
+                "https://api.anthropic.com/v1/messages",
+            )?;
+            save_merged_config(
+                config_file.clone(),
+                &existing,
+                "anthropic",
+                "general",
+                &model,
+                &api_key,
+                base_url,
+            )?;
+            let mut sa = FluentArgs::new();
+            sa.set("path", path.display().to_string());
+            println!("✅ {}", tr_args("wizard-saved", &sa));
+            return Ok(());
+        }
+
+        if transport_for_provider_id(&id) == LlmTransport::BedrockConverse {
+            let model: String = if is_tty {
+                Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt(&tr("wizard-prompt-model-id"))
+                    .interact_text()?
+            } else {
+                prompt_line(&format!("{} ", tr("wizard-prompt-model-id")))?
+            };
+            let base_url: Option<String> = if is_tty {
+                let raw: String = Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt(&tr("wizard-bedrock-endpoint-prompt"))
+                    .allow_empty(true)
+                    .interact_text()?;
+                let t = raw.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            } else {
+                let v = prompt_line(&format!("{} ", tr("wizard-bedrock-endpoint-prompt")))?;
+                let t = v.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            };
+            save_merged_config(
+                config_file.clone(),
+                &existing,
+                "amazon_bedrock",
+                "general",
+                &model,
+                "",
+                base_url,
+            )?;
+            let mut sa = FluentArgs::new();
+            sa.set("path", path.display().to_string());
+            println!("✅ {}", tr_args("wizard-saved", &sa));
+            return Ok(());
+        }
+
+        if transport_for_provider_id(&id) == LlmTransport::GithubCopilot {
+            let model: String = if is_tty {
+                Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt(&tr("wizard-copilot-model-prompt"))
+                    .interact_text()?
+            } else {
+                prompt_line(&format!("{} ", tr("wizard-copilot-model-prompt")))?
+            };
+            let (api_key, base_url) = prompt_api_key_and_base_url(
+                is_tty,
+                &existing,
+                "github_copilot",
+                "general",
+                "https://api.individual.githubcopilot.com",
+            )?;
+            save_merged_config(
+                config_file.clone(),
+                &existing,
+                "github_copilot",
+                "general",
+                &model,
+                &api_key,
+                base_url,
+            )?;
+            let mut sa = FluentArgs::new();
+            sa.set("path", path.display().to_string());
+            println!("✅ {}", tr_args("wizard-saved", &sa));
+            return Ok(());
+        }
+
+        let default_url = entry
+            .suggested_openai_base
+            .unwrap_or("https://api.openai.com/v1/chat/completions");
+        let model: String = if is_tty {
+            Input::with_theme(&ColorfulTheme::default())
+                .with_prompt(&tr("wizard-prompt-model-id"))
+                .interact_text()?
+        } else {
+            prompt_line(&format!("{} ", tr("wizard-prompt-model-id")))?
+        };
+        let (api_key, base_url) =
+            prompt_api_key_and_base_url(is_tty, &existing, &id, "general", default_url)?;
+        save_merged_config(
+            config_file.clone(),
+            &existing,
+            &id,
+            "general",
+            &model,
+            &api_key,
+            base_url,
+        )?;
+        let mut sa = FluentArgs::new();
+        sa.set("path", path.display().to_string());
+        println!("✅ {}", tr_args("wizard-saved", &sa));
+        return Ok(());
+    }
+}
+
+async fn run_routing_agents_flow(
+    config_file: Option<PathBuf>,
+    path: &std::path::Path,
+    is_tty: bool,
+) -> anyhow::Result<()> {
+    let mut existing = load_anycode_config_resolved(config_file.clone())?
+        .ok_or_else(|| {
+            let mut a = FluentArgs::new();
+            a.set("path", path.display().to_string());
+            anyhow::anyhow!("{}", tr_args("wizard-no-config", &a))
+        })?;
+
+    accent_title(&tr("model-routing-title"));
+    let preset_labels: Vec<String> = ROUTING_AGENT_PRESETS
+        .iter()
+        .map(|(id, desc)| format!("{} — {}", id, desc))
+        .chain(std::iter::once(tr("model-custom-agent")))
+        .chain(std::iter::once(tr("model-back-menu")))
+        .collect();
+
+    let pi = if is_tty {
+        Select::with_theme(&ColorfulTheme::default())
+            .with_prompt(&tr("model-pick-agent-type"))
+            .default(0)
+            .items(&preset_labels)
+            .interact()?
+    } else {
+        for (i, l) in preset_labels.iter().enumerate() {
+            println!("  {}) {}", i + 1, l);
+        }
+        println!("  0) {}", tr("model-back"));
+        loop {
+            let v = prompt_line(&tr("model-enter-number"))?;
+            if v.trim() == "0" {
+                return Ok(());
+            }
+            if let Ok(n) = v.trim().parse::<usize>() {
+                if n >= 1 && n <= preset_labels.len() {
+                    break n - 1;
+                }
+            }
+            println!("{}", tr("model-invalid"));
+        }
+    };
+
+    if pi >= preset_labels.len() - 1 {
+        return Ok(());
+    }
+
+    let agent_key = if pi < ROUTING_AGENT_PRESETS.len() {
+        ROUTING_AGENT_PRESETS[pi].0.to_string()
+    } else if is_tty {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("agent_type")
+            .interact_text()?
+    } else {
+        prompt_line("agent_type: ")?
+    };
+
+    let mut ek = FluentArgs::new();
+    ek.set("key", agent_key.clone());
+    println!("{}", tr_args("model-edit-routing", &ek));
+
+    let cur = existing
+        .routing
+        .agents
+        .get(&agent_key)
+        .cloned()
+        .unwrap_or_default();
+
+    let def_p = existing.provider.clone();
+    let mut kp = FluentArgs::new();
+    kp.set("p", def_p.clone());
+    println!("{}", tr_args("model-keep-global", &kp));
+    let prov_in = if is_tty {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt(&tr("model-prompt-provider"))
+            .default(cur.provider.clone().unwrap_or_default())
+            .allow_empty(true)
+            .interact_text()?
+    } else {
+        let mut a = FluentArgs::new();
+        a.set("p", def_p.clone());
+        prompt_line(&tr_args("model-prompt-provider-fallback", &a))?
+    };
+    let provider = if prov_in.trim().is_empty() {
+        None
+    } else {
+        let n = normalize_provider_id(prov_in.trim());
+        validate_llm_provider(&n)?;
+        Some(n)
+    };
+
+    let model_in = if is_tty {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("model")
+            .default(cur.model.clone().unwrap_or_default())
+            .allow_empty(true)
+            .interact_text()?
+    } else {
+        prompt_line(&tr("model-prompt-model-skip"))?
+    };
+    let model = if model_in.trim().is_empty() {
+        None
+    } else {
+        Some(model_in.trim().to_string())
+    };
+
+    let plan_in = if is_tty {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("plan（coding|general）")
+            .default(cur.plan.clone().unwrap_or_default())
+            .allow_empty(true)
+            .interact_text()?
+    } else {
+        prompt_line(&tr("model-prompt-plan-skip"))?
+    };
+    let plan = if plan_in.trim().is_empty() {
+        None
+    } else {
+        Some(plan_in.trim().to_string())
+    };
+
+    let ak_in = if is_tty {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt(&tr("model-prompt-api-key-profile"))
+            .default(cur.api_key.clone().unwrap_or_default())
+            .allow_empty(true)
+            .interact_text()?
+    } else {
+        prompt_line(&tr("model-prompt-api-key-skip"))?
+    };
+    let api_key = if ak_in.trim().is_empty() {
+        None
+    } else {
+        Some(ak_in.trim().to_string())
+    };
+
+    let bu_in = if is_tty {
+        Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("base_url")
+            .default(cur.base_url.clone().unwrap_or_default())
+            .allow_empty(true)
+            .interact_text()?
+    } else {
+        prompt_line(&tr("model-prompt-base-url-skip"))?
+    };
+    let base_url = if bu_in.trim().is_empty() {
+        None
+    } else {
+        Some(bu_in.trim().to_string())
+    };
+
+    let profile = ModelProfile {
+        provider,
+        api_key,
+        plan,
+        model,
+        temperature: cur.temperature,
+        max_tokens: cur.max_tokens,
+        base_url,
+    };
+
+    let empty_profile = profile.provider.is_none()
+        && profile.api_key.is_none()
+        && profile.plan.is_none()
+        && profile.model.is_none()
+        && profile.base_url.is_none()
+        && profile.temperature.is_none()
+        && profile.max_tokens.is_none();
+
+    if empty_profile {
+        existing.routing.agents.remove(&agent_key);
+    } else {
+        existing.routing.agents.insert(agent_key, profile);
+    }
+
+    save_anycode_config_resolved(config_file, &existing)?;
+    let mut ru = FluentArgs::new();
+    ru.set("path", path.display().to_string());
+    println!("{}", tr_args("model-routing-updated", &ru));
+    Ok(())
+}

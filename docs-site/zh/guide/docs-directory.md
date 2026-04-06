@@ -1,0 +1,29 @@
+---
+title: 文档地图
+description: anyCode 说明文档精选索引：按目标快速找到对应页面。
+summary: 新手、安装、CLI、模型、微信与排错的一站式入口。
+read_when:
+  - 想找「该读哪一篇」。
+  - 需要中英文文档站的对照入口。
+---
+
+# 文档地图
+
+| 目标 | 页面 |
+|------|------|
+| 五分钟跑通 | [快速开始](./getting-started) |
+| Release / 脚本 / cargo 安装 | [安装](./install) |
+| 子命令、TUI、REPL、守护进程 | [CLI 总览](./cli) 及各子页 |
+| 提供商、`config.json`、模型 | [模型与端点](./models) |
+| crate、运行时、工具装配 | [架构](./architecture) |
+| 按 Agent 覆盖模型 | [路由](./routing) |
+| `security.*`、环境变量、审批 | [配置与安全](./config-security) |
+| Skill 目录、`SKILL.md`、`anycode skills` | [Agent skills](./skills) |
+| 无 TTY、微信扫码、MCP | [排错](./troubleshooting) |
+| 微信桥与 `onboard` | [微信与 onboard](./wechat) |
+| 贡献、测试、工具注册门禁 | [开发与贡献](./development) |
+| MVP、工具矩阵、后续里程碑 | [路线图](./roadmap) |
+
+**站内全部指南链接**：[全量索引](./hubs)。
+
+English: [Docs directory](/guide/docs-directory).

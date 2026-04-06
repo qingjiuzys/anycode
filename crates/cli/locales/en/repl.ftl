@@ -1,0 +1,47 @@
+repl-welcome-line1 = Welcome · line mode · scroll in terminal buffer
+repl-welcome-line2 = Fullscreen TUI: run `anycode` (no subcommand)
+repl-row-cwd = Working dir
+repl-row-agent = Agent
+repl-row-approval = Approvals: skipped for this process (-I etc.; config unchanged)
+repl-row-commands = Commands: /help · /agents · /tools · /exit · /general-purpose · /explore · /plan
+repl-hint-line = Each line = one task (same path as `run`)
+repl-hint-debug = Verbose logs: `anycode --debug repl` or `RUST_LOG=info`
+repl-goodbye = Goodbye.
+repl-agent-switched = Switched Agent → {$id}
+repl-help-equiv = Each line is sent as a prompt to `execute_task`, same as:\n  anycode run -C {$cwd} --agent {$agent} "…"
+repl-help-cmds = Commands: /help · /agents · /tools · /exit · /general-purpose · /explore · /plan
+repl-list-agents-title = 🤖 Available Agents:
+repl-agent-desc-gp =     General-purpose agent for complex tasks
+repl-agent-desc-explore =     Fast codebase exploration agent
+repl-agent-desc-plan =     Software architect for planning
+repl-list-switch = Session switch (REPL / TUI): /general-purpose  ·  /explore  ·  /plan
+repl-list-usage = Usage:
+repl-list-usage-line =   anycode run --agent general-purpose "Your task"
+repl-list-tools-title = 🔧 Available Tools:
+repl-security-title = Security:
+repl-security-read =   • FileRead, Glob, Grep: Auto-approved (read-only)
+repl-security-approval =   • FileWrite, Bash: Requires approval
+repl-security-sandbox =   • security.sandbox_mode=true: paths stay under task cwd; Bash uses that cwd
+repl-task-out = 📝 Task output: {$path}
+repl-task-run = ⏳ Executing task...
+repl-task-ok = ✅ Task completed successfully!
+repl-output-header = Output:
+repl-written-header = Written:
+repl-written-line =   • {$line}
+repl-task-fail = ❌ Task failed: {$err}
+repl-task-details = Details: {$details}
+repl-task-partial = ⚠️  Partial success:
+repl-task-partial-done =   Done: {$done}
+repl-task-partial-rem =   Remaining: {$rem}
+repl-daemon-http = 🌐 Daemon HTTP http://{$addr}
+repl-daemon-get =   GET  /health
+repl-daemon-post =   POST /v1/tasks  Content-Type: application/json
+repl-daemon-token-hint = 🔐 ANYCODE_DAEMON_TOKEN is set: POST /v1/tasks needs Authorization: Bearer … or X-Anycode-Token
+repl-daemon-stop-hint = Press Ctrl+C to stop
+repl-daemon-shutdown = 🛑 Shutting down…
+repl-err-invalid-bind = Invalid bind address {$bind}: {$err}
+repl-test-checking = 🔍 Checking tool call: {$tool}
+repl-test-input =    Input: {$input}
+repl-test-approved = ✅ Tool call approved
+repl-test-denied = ❌ Tool call denied
+repl-test-error = ❌ Error: {$err}

@@ -1,0 +1,22 @@
+[package]
+name = "anycode-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anycode-core = { path = "../core" }
+anycode-security = { path = "../security" }
+anycode-tools = { path = "../tools" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+regex = "1.10"
+
+[dev-dependencies]
+tempfile = "3.10"

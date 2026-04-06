@@ -1,0 +1,66 @@
+[package]
+name = "anycode"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "anycode"
+path = "src/main.rs"
+
+[features]
+default = []
+openai = ["anycode-llm/openai"]
+tools-mcp = ["anycode-tools/tools-mcp"]
+mcp-oauth = ["anycode-tools/tools-mcp-oauth"]
+tools-lsp = ["anycode-tools/tools-lsp"]
+
+[dependencies]
+anycode-locale = { path = "../locale" }
+anycode-core = { path = "../core" }
+anycode-agent = { path = "../agent" }
+anycode-tools = { path = "../tools" }
+anycode-llm = { path = "../llm" }
+anycode-security = { path = "../security" }
+anycode-memory = { path = "../memory" }
+anycode-channels = { path = "../channels" }
+
+aes = "0.8"
+cipher = { version = "0.4", features = ["block-padding"] }
+base64 = "0.22"
+hex = "0.4"
+
+hyper = { workspace = true }
+reqwest = { workspace = true }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env"] }
+ratatui = { workspace = true }
+# bracketed-paste：Event::Paste（终端支持时整段粘贴，含多行）
+crossterm = { workspace = true, features = ["bracketed-paste"] }
+dialoguer = "0.12"
+console = "0.16"
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+pulldown-cmark = "0.13"
+unicode-width = { version = "0.2", features = ["cjk"] }
+
+# 微信 iLink 扫码（终端 Unicode 渲染）
+qrcode = "0.14"
+dirs = "5"
+urlencoding = "2.1"
+rand = "0.8"
+url = "2.5"
+regex = "1.10"
+fluent-bundle = "0.15.2"
+unic-langid = "0.9.4"

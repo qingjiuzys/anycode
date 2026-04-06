@@ -1,0 +1,61 @@
+//! anyCode Core - 核心抽象层
+//!
+//! 任务、消息、工具、Agent、记忆与安全策略等领域类型与 trait。
+//! 实现按子模块拆分；本文件仅做聚合与 `prelude` 导出。
+
+mod agent_type;
+mod channel;
+mod error;
+mod feature_flags;
+mod goal;
+mod ids;
+mod llm_types;
+mod memory_model;
+mod message;
+mod model_profile;
+mod runtime_profile;
+mod security_policy;
+mod slash_command;
+mod task;
+mod task_output;
+mod traits;
+mod workflow;
+
+pub use agent_type::AgentType;
+pub use channel::{ChannelMessage, ChannelType};
+pub use error::CoreError;
+pub use feature_flags::{FeatureFlag, FeatureRegistry};
+pub use goal::{GoalProgress, GoalSpec};
+pub use ids::{
+    AgentId, SessionId, TaskId, ToolName, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
+    ANYCODE_TOOL_CALLS_METADATA_KEY,
+};
+pub use llm_types::{
+    LLMProvider, LLMResponse, ModelConfig, PermissionMode, StreamEvent, ToolCall, ToolInput,
+    ToolOutput, ToolSchema, Usage,
+};
+pub use memory_model::{Memory, MemoryScope, MemoryType};
+pub use message::{Message, MessageContent, MessageRole};
+pub use model_profile::ModelRouteProfile;
+pub use runtime_profile::{RuntimeMode, RuntimeProfile};
+pub use security_policy::SecurityPolicy;
+pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
+pub use task::{Artifact, Task, TaskContext, TaskResult, TurnOutput};
+pub use task_output::DiskTaskOutput;
+pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor, Tool};
+pub use workflow::{WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep};
+
+pub mod prelude {
+    pub use super::CoreError;
+    pub use super::{
+        Agent, AgentType, BUILTIN_SLASH_COMMANDS, ChannelHandler, ChannelMessage, ChannelType,
+        DiskTaskOutput, FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient,
+        LLMProvider, LLMResponse, Memory, MemoryScope, MemoryStore, MemoryType, Message,
+        MessageContent, MessageRole, ModelConfig, ModelRouteProfile, PermissionMode, RuntimeMode,
+        RuntimeProfile, SecurityPolicy, SlashCommand, SlashCommandScope, StreamEvent,
+        SubAgentExecutor, Task, TaskContext, TaskId, TaskResult, Tool, ToolCall, ToolInput,
+        ToolName, ToolOutput, ToolSchema, TurnOutput, Usage, WorkflowDefinition,
+        WorkflowHandoff, WorkflowRetry, WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
+        ANYCODE_TOOL_CALLS_METADATA_KEY,
+    };
+}

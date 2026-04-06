@@ -1,0 +1,8 @@
+target/
+docs-site/node_modules/
+docs-site/.vitepress/dist/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+.DS_Store
+.anycode/

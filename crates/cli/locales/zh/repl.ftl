@@ -1,0 +1,47 @@
+repl-welcome-line1 = Welcome · 行式交互 · 终端主缓冲可滚动
+repl-welcome-line2 = 全屏 TUI：运行 `anycode`（无子命令）
+repl-row-cwd = 目录
+repl-row-agent = Agent
+repl-row-approval = 审批 本进程已跳过工具 y/n（-I 等；配置未改写）
+repl-row-commands = 命令  /help · /agents · /tools · /exit · /general-purpose · /explore · /plan
+repl-hint-line = 每行输入 = 一次任务（与 `run` 相同执行路径）
+repl-hint-debug = 详细日志：`anycode --debug repl` 或 `RUST_LOG=info`
+repl-goodbye = 再见。
+repl-agent-switched = 已切换 Agent → {$id}
+repl-help-equiv = 每行文本会作为 prompt 调用 `execute_task`，等价于:\n  anycode run -C {$cwd} --agent {$agent} "…"
+repl-help-cmds = 命令：/help · /agents · /tools · /exit · /general-purpose · /explore · /plan
+repl-list-agents-title = 🤖 可用 Agents：
+repl-agent-desc-gp =     通用复杂任务
+repl-agent-desc-explore =     快速浏览代码库
+repl-agent-desc-plan =     架构与方案规划
+repl-list-switch = 会话切换（REPL / TUI）：/general-purpose  ·  /explore  ·  /plan
+repl-list-usage = 用法：
+repl-list-usage-line =   anycode run --agent general-purpose "你的任务"
+repl-list-tools-title = 🔧 可用工具：
+repl-security-title = 安全：
+repl-security-read =   • FileRead、Glob、Grep：只读，自动通过
+repl-security-approval =   • FileWrite、Bash：需审批
+repl-security-sandbox =   • security.sandbox_mode=true：读写/Glob/Grep 路径限制在任务 cwd；Bash 亦使用该 cwd
+repl-task-out = 📝 任务日志：{$path}
+repl-task-run = ⏳ 执行任务中…
+repl-task-ok = ✅ 任务完成
+repl-output-header = 输出：
+repl-written-header = 已写入：
+repl-written-line =   • {$line}
+repl-task-fail = ❌ 任务失败：{$err}
+repl-task-details = 详情：{$details}
+repl-task-partial = ⚠️  部分成功：
+repl-task-partial-done =   已完成：{$done}
+repl-task-partial-rem =   未完成：{$rem}
+repl-daemon-http = 🌐 Daemon HTTP http://{$addr}
+repl-daemon-get =   GET  /health
+repl-daemon-post =   POST /v1/tasks  Content-Type: application/json
+repl-daemon-token-hint = 🔐 已设置 ANYCODE_DAEMON_TOKEN：POST /v1/tasks 需 Authorization: Bearer … 或 X-Anycode-Token
+repl-daemon-stop-hint = 按 Ctrl+C 停止
+repl-daemon-shutdown = 🛑 正在关闭…
+repl-err-invalid-bind = 无效绑定地址 {$bind}: {$err}
+repl-test-checking = 🔍 检查工具调用：{$tool}
+repl-test-input =    输入：{$input}
+repl-test-approved = ✅ 工具调用已批准
+repl-test-denied = ❌ 工具调用已拒绝
+repl-test-error = ❌ 错误：{$err}
