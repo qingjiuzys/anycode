@@ -13,8 +13,8 @@ read_when:
 
 | 方式 | 适合 |
 |------|------|
-| **`scripts/install.sh`** | macOS / Linux 一条命令装好；优先下 Release，失败回退 `cargo install --git` |
-| **`scripts/install.ps1`** | Windows PowerShell 安装器；优先下 Release，失败回退 `cargo install --git` |
+| **`scripts/install.sh`** | macOS / Linux 一条命令装好；默认**仅二进制安装** |
+| **`scripts/install.ps1`** | Windows PowerShell 安装器；默认**仅二进制安装** |
 | **GitHub Releases 手动下载** | 只信浏览器 / 企业代理 |
 | **`cargo install --git`** | 已装 Rust，跟分支或 tag |
 | **本地 clone + `cargo build`** | 贡献者、改 feature |
@@ -41,7 +41,7 @@ export ANYCODE_GITHUB_REPO="qingjiuzys/anycode"
 bash scripts/install.sh
 ```
 
-常用选项：`--version v0.1.0` 或 `latest`；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；装完加 `--onboard`。完整说明：
+常用选项：`--version v0.1.0` 或 `latest`；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；装完加 `--onboard`；`--method auto`（允许回退源码安装）。完整说明：
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help

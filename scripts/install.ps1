@@ -10,8 +10,8 @@ param(
   [string]$Repo = $env:ANYCODE_GITHUB_REPO,
   [string]$Version = $(if ($env:ANYCODE_VERSION) { $env:ANYCODE_VERSION } else { "latest" }),
   [string]$BinDir = $env:ANYCODE_INSTALL_BIN,
-  [ValidateSet("auto", "binary", "source")]
-  [string]$Method = "auto",
+  [ValidateSet("binary", "auto", "source")]
+  [string]$Method = "binary",
   [string]$SourceDir = "",
   [switch]$DryRun,
   [switch]$Onboard
@@ -130,11 +130,11 @@ function Install-FromGit([string]$repo) {
   }
   $url = "https://github.com/$repo.git"
   if ($DryRun) {
-    Write-Info "[dry-run] cargo install --locked --git $url --package anycode --root `"$script:BinDir\..`" --force"
+    Write-Info "[dry-run] cargo install --locked --git $url anycode --root `"$script:BinDir\..`" --force"
     return
   }
   $root = Split-Path -Parent $script:BinDir
-  cargo install --locked --git $url --package anycode --root $root --force
+  cargo install --locked --git $url anycode --root $root --force
   Write-Info "Installed: $(Join-Path $script:BinDir "anycode.exe")"
 }
 

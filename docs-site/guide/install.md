@@ -13,8 +13,8 @@ read_when:
 
 | Method | Best for |
 |--------|----------|
-| **`scripts/install.sh`** | macOS / Linux one-command installer; tries Release assets first, then `cargo install --git` |
-| **`scripts/install.ps1`** | Windows PowerShell installer; tries Release assets first, then `cargo install --git` |
+| **`scripts/install.sh`** | macOS / Linux one-command installer; **binary-only by default** |
+| **`scripts/install.ps1`** | Windows PowerShell installer; **binary-only by default** |
 | **GitHub Releases** | Air-gapped or browser-only download |
 | **`cargo install --git`** | You already have Rust and want a specific branch/tag |
 | **`git clone` + `cargo build`** | Contributors and feature flags |
@@ -49,7 +49,7 @@ export ANYCODE_GITHUB_REPO="qingjiuzys/anycode"
 bash scripts/install.sh
 ```
 
-Useful flags: `--version v0.1.0` or `latest`; `--bin-dir "$HOME/.local/bin"`; `--dry-run`; `--onboard` after install. Help:
+Useful flags: `--version v0.1.0` or `latest`; `--bin-dir "$HOME/.local/bin"`; `--dry-run`; `--onboard` after install; `--method auto` to allow source fallback. Help:
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help

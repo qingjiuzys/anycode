@@ -41,7 +41,7 @@ download() {
   local url="$1" out="$2"
   [[ -n "$DOWNLOADER" ]] || detect_downloader
   if [[ "$DOWNLOADER" == curl ]]; then
-    curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 -o "$out" "$url"
+    curl -fsSL --http1.1 --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 -o "$out" "$url"
   else
     wget -q --https-only --secure-protocol=TLSv1_2 --tries=3 -O "$out" "$url"
   fi
@@ -63,7 +63,7 @@ detect_target_triple() {
 resolve_latest_tag() {
   local repo="$1"
   local final
-  final="$(curl -fsSL -L -o /dev/null -w '%{url_effective}' --proto '=https' --tlsv1.2 \
+  final="$(curl -fsSL --http1.1 -L -o /dev/null -w '%{url_effective}' --proto '=https' --tlsv1.2 \
     "https://github.com/${repo}/releases/latest")" || return 1
   [[ "$final" == *"/tag/"* ]] || return 1
   printf '%s\n' "${final##*/}"
@@ -89,8 +89,9 @@ Usage: install.sh [options]
   --repo OWNER/REPO     GitHub repository (default: $ANYCODE_GITHUB_REPO; canonical: qingjiuzys/anycode)
   --version TAG         Release tag: v0.1.0, 0.1.0, or latest (default: latest or $ANYCODE_VERSION)
   --bin-dir DIR         Install directory for `anycode` (default: $ANYCODE_INSTALL_BIN, else first writable PATH dir, else $HOME/.local/bin)
-  --method MODE         auto | binary | source (default: auto)
-                          auto: try GitHub Release tarball, then cargo install --git
+  --method MODE         binary | auto | source (default: binary)
+                         binary: only install GitHub Release tarball (no cargo fallback)
+                         auto: try GitHub Release tarball, then cargo install --git
   --source-dir PATH     Use `cargo install --path PATH/crates/cli` instead of git (for local dev clone)
   --dry-run             Print actions only
   --onboard             After install, run `anycode onboard` (interactive)
@@ -113,7 +114,7 @@ VERSION_INPUT="${ANYCODE_VERSION:-latest}"
 BIN_DIR="${ANYCODE_INSTALL_BIN:-}"
 BIN_DIR_EXPLICIT=0
 [[ -n "${ANYCODE_INSTALL_BIN:-}" ]] && BIN_DIR_EXPLICIT=1
-METHOD=auto
+METHOD=binary
 SOURCE_DIR=""
 DRY_RUN=0
 RUN_ONBOARD=0
@@ -265,7 +266,7 @@ install_from_git() {
   local url="https://github.com/${repo}.git"
   warn "Installing from source via cargo (needs Rust toolchain)..."
   command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs then retry."
-  cargo_install_copy install --locked --git "$url" --package anycode
+  cargo_install_copy install --locked --git "$url" anycode
 }
 
 install_from_source_dir() {
