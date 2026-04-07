@@ -74,10 +74,10 @@ export default defineConfig({
       title: 'anyCode',
       description: 'Terminal AI agent for developers',
       themeConfig: {
+        logo: '/anycode-logo.png',
         nav: [
           { text: 'Docs directory', link: '/guide/docs-directory' },
-          { text: 'Guide', link: '/guide/getting-started' },
-          { text: '中文', link: '/zh/' }
+          { text: 'Guide', link: '/guide/getting-started' }
         ],
         sidebar: {
           '/guide/': guideSidebarEn
@@ -96,10 +96,10 @@ export default defineConfig({
       title: 'anyCode',
       description: '终端 AI 编程助手',
       themeConfig: {
+        logo: '/anycode-logo.png',
         nav: [
           { text: '文档地图', link: '/zh/guide/docs-directory' },
-          { text: '文档', link: '/zh/guide/getting-started' },
-          { text: 'English', link: '/' }
+          { text: '文档', link: '/zh/guide/getting-started' }
         ],
         sidebar: {
           '/zh/guide/': guideSidebarZh

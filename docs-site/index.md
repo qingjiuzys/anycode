@@ -3,24 +3,31 @@ layout: home
 
 hero:
   name: anyCode
-  text: Terminal AI agent for developers
-  tagline: TUI, REPL, tool-using agents, optional WeChat bridge
+  text: Code Anything, Build Everything.
+  tagline: Simple install, long memory, progressive workflow for real development
   actions:
     - theme: brand
       text: Get started
       link: /guide/getting-started
     - theme: alt
-      text: Docs directory
-      link: /guide/docs-directory
-    - theme: alt
-      text: 中文文档
-      link: /zh/guide/getting-started
+      text: Install
+      link: /guide/install
 
 features:
-  - title: Fast onboarding
-    details: One command for workspace, API wizard, and optional WeChat bind.
-  - title: Rust CLI
-    details: Single binary, local-first, MCP-ready.
-  - title: Docs
-    details: Symmetric EN/zh guides — install, CLI, routing, roadmap, and more.
+  - icon:
+      src: /icons/install.svg
+    title: Simple install
+    details: Install with one command and finish setup in minutes.
+  - icon:
+      src: /icons/memory.svg
+    title: Long memory
+    details: Keep long-running task context and execution history without constant restarts.
+  - icon:
+      src: /icons/progressive.svg
+    title: Progressive workflow
+    details: Start from quick Q&A, then scale up to multi-step agent collaboration.
+  - icon:
+      src: /icons/terminal.svg
+    title: Terminal-native
+    details: Unified TUI, REPL, and tool calls that fit existing CLI workflows.
 ---
