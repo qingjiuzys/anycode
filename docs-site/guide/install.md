@@ -58,12 +58,12 @@ Release page: <https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
 ## Release asset naming
 
-Assets should be named `anycode-<rust-target>.tar.gz` with `anycode` at the **root** of the archive. Typical targets:
+Assets should be named `anycode-<asset-target>.tar.gz` with `anycode` at the **root** of the archive. For Linux assets, we omit `unknown` from the Rust triple for readability. Typical asset targets:
 
 - `aarch64-apple-darwin`
 - `x86_64-apple-darwin`
-- `x86_64-unknown-linux-gnu`
-- `aarch64-unknown-linux-gnu`
+- `x86_64-linux-gnu`
+- `aarch64-linux-gnu`
 
 ## From source
 

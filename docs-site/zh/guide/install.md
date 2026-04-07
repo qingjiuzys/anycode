@@ -58,7 +58,7 @@ Release 页面：<https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
 ## Release 附件命名
 
-与脚本一致：`anycode-<rust-target>.tar.gz`，压缩包**根目录**含可执行文件 `anycode`。常见 target：`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`。
+与脚本一致：`anycode-<asset-target>.tar.gz`，压缩包**根目录**含可执行文件 `anycode`。Linux 包名为便于阅读，会去掉 Rust 三元组中的 `unknown`。常见 asset target：`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-linux-gnu`、`aarch64-linux-gnu`。
 
 ## 从源码
 

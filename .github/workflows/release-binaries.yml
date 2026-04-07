@@ -1,4 +1,4 @@
-# 打 tag（如 v0.1.0）时构建并上传 anycode-<target>.tar.gz，与 scripts/install.sh 约定一致。
+# 打 tag（如 v0.1.0）时构建并上传 anycode-<asset-target>.tar.gz（对外包名去掉 linux 三元组里的 unknown），与 scripts/install.sh 约定一致。
 name: Release binaries
 
 on:
@@ -39,7 +39,9 @@ jobs:
       - name: Package tarball
         id: pack
         run: |
-          ASSET="anycode-${{ matrix.target }}.tar.gz"
+          ASSET_TARGET="${{ matrix.target }}"
+          ASSET_TARGET="${ASSET_TARGET/-unknown-/-}"
+          ASSET="anycode-${ASSET_TARGET}.tar.gz"
           tar -C "target/${{ matrix.target }}/release" -czvf "$ASSET" anycode
           echo "path=$ASSET" >> "$GITHUB_OUTPUT"
 

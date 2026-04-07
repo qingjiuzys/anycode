@@ -6,7 +6,8 @@
 #   curl -fsSL --proto '=https' --tlsv1.2 \
 #     https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh | bash -s -- --repo qingjiuzys/anycode
 #
-# After you publish releases with asset names: anycode-<rust-target>.tar.gz (binary "anycode" at archive root),
+# After you publish releases with asset names: anycode-<asset-target>.tar.gz (binary "anycode" at archive root),
+# where linux asset-target omits "-unknown-" for readability (e.g. x86_64-linux-gnu),
 # the script downloads from https://github.com/qingjiuzys/anycode/releases
 #
 # Env:
@@ -96,7 +97,8 @@ Usage: install.sh [options]
   -h, --help            This help
 
 Release asset layout (for --method binary):
-  https://github.com/qingjiuzys/anycode/releases/download/<tag>/anycode-<rust-target>.tar.gz
+  https://github.com/qingjiuzys/anycode/releases/download/<tag>/anycode-<asset-target>.tar.gz
+  linux asset-target omits "-unknown-" (x86_64-linux-gnu / aarch64-linux-gnu)
   Archive must contain executable `anycode` at the top level.
 
 Examples:
@@ -155,25 +157,39 @@ ensure_bin_dir() {
 
 install_from_binary() {
   local repo="$1" version_arg="$2" target="$3"
-  local tag url tmpdir tf dest
+  local tag url tmpdir tf dest asset_target compat_target
   if [[ "$version_arg" == "latest" ]]; then
     tag="$(resolve_latest_tag "$repo")" || return 1
   else
     tag="$(normalize_version "$version_arg")"
   fi
-  url="https://github.com/${repo}/releases/download/${tag}/anycode-${target}.tar.gz"
   tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/anycode-install.XXXXXX")"
   tf="${tmpdir}/anycode.tgz"
+  asset_target="${target/-unknown-/-}"
+  compat_target="${target}"
 
+  url="https://github.com/${repo}/releases/download/${tag}/anycode-${asset_target}.tar.gz"
   warn "Downloading: $url"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     info "[dry-run] download $url -> $tf"
+    if [[ "$asset_target" != "$compat_target" ]]; then
+      info "[dry-run] fallback if missing: https://github.com/${repo}/releases/download/${tag}/anycode-${compat_target}.tar.gz"
+    fi
     rm -rf "$tmpdir"
     return 0
   fi
   if ! download "$url" "$tf"; then
-    rm -rf "$tmpdir"
-    return 1
+    if [[ "$asset_target" != "$compat_target" ]]; then
+      url="https://github.com/${repo}/releases/download/${tag}/anycode-${compat_target}.tar.gz"
+      warn "Primary asset missing; trying legacy name: $url"
+      if ! download "$url" "$tf"; then
+        rm -rf "$tmpdir"
+        return 1
+      fi
+    else
+      rm -rf "$tmpdir"
+      return 1
+    fi
   fi
   tar -xzf "$tf" -C "$tmpdir"
   [[ -f "$tmpdir/anycode" ]] || {
@@ -245,7 +261,7 @@ main() {
   else
     case "$METHOD" in
       binary)
-        install_from_binary "$REPO" "$VERSION_INPUT" "$target" || die "Binary install failed. Check release assets: anycode-${target}.tar.gz for tag."
+        install_from_binary "$REPO" "$VERSION_INPUT" "$target" || die "Binary install failed. Check release assets for tag (new: anycode-${target/-unknown-/-}.tar.gz, legacy: anycode-${target}.tar.gz)."
         ;;
       source)
         install_from_git "$REPO"
