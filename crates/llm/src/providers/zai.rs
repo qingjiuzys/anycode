@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -25,6 +26,9 @@ pub(crate) fn retry_delay_ms(attempt: u32) -> u64 {
 /// z.ai Coding 套餐默认 endpoint（与 `ZaiClient` 默认一致）
 pub const ZAI_DEFAULT_CODING_ENDPOINT: &str =
     "https://api.z.ai/api/coding/paas/v4/chat/completions";
+
+const DEFAULT_API_TIMEOUT_MS: u64 = 600_000;
+const DEFAULT_MAX_RETRIES: u32 = 10;
 
 /// 向导 / CLI 展示用的模型目录（单一事实来源）
 #[derive(Debug, Clone, Copy)]
@@ -146,7 +150,7 @@ impl ZaiClient {
     pub fn new(api_key: String, model: Option<String>) -> Self {
         let model = model.unwrap_or_else(|| "glm-5".to_string());
         Self {
-            client: Client::new(),
+            client: build_http_client(),
             api_key,
             base_url: ZAI_DEFAULT_CODING_ENDPOINT.to_string(),
             model,
@@ -163,6 +167,21 @@ impl ZaiClient {
         self.tool_choice_first_turn = enabled;
         self
     }
+}
+
+fn configured_api_timeout_ms() -> u64 {
+    std::env::var("API_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| *v >= 1_000)
+        .unwrap_or(DEFAULT_API_TIMEOUT_MS)
+}
+
+fn build_http_client() -> Client {
+    Client::builder()
+        .timeout(Duration::from_millis(configured_api_timeout_ms()))
+        .build()
+        .unwrap_or_else(|_| Client::new())
 }
 
 fn sanitize_header_token(raw: &str, provider_name: &str) -> Result<String, CoreError> {
@@ -749,7 +768,7 @@ impl LLMClient for ZaiClient {
             .unwrap_or(self.api_key.as_str());
         let auth_key = sanitize_header_token(auth_key, "z.ai")?;
 
-        let max_retries: u32 = 5;
+        let max_retries: u32 = DEFAULT_MAX_RETRIES;
         let mut last_err: Option<String> = None;
         let mut response: Option<reqwest::Response> = None;
         for attempt in 1..=max_retries + 1 {
@@ -802,9 +821,30 @@ impl LLMClient for ZaiClient {
                     break;
                 }
                 Err(e) => {
-                    last_err = Some(e.to_string());
+                    let mut msg = e.to_string();
+                    if e.is_timeout() {
+                        msg = format!(
+                            "{msg} · API_TIMEOUT_MS={}ms, try increasing it",
+                            configured_api_timeout_ms()
+                        );
+                    }
+                    last_err = Some(msg);
                     if attempt <= max_retries {
                         let delay = retry_delay_ms(attempt);
+                        warn!(
+                            "Retrying in {} seconds… (attempt {}/{}){}",
+                            delay / 1000,
+                            attempt,
+                            max_retries,
+                            if std::env::var("API_TIMEOUT_MS").is_ok() {
+                                format!(
+                                    " · API_TIMEOUT_MS={}ms, try increasing it",
+                                    configured_api_timeout_ms()
+                                )
+                            } else {
+                                String::new()
+                            }
+                        );
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                         continue;
                     }

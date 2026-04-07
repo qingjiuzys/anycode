@@ -13,18 +13,33 @@ read_when:
 
 | Method | Best for |
 |--------|----------|
-| **`scripts/install.sh`** | One command; tries Release assets first, then `cargo install --git` if needed |
+| **`scripts/install.sh`** | macOS / Linux one-command installer; tries Release assets first, then `cargo install --git` |
+| **`scripts/install.ps1`** | Windows PowerShell installer; tries Release assets first, then `cargo install --git` |
 | **GitHub Releases** | Air-gapped or browser-only download |
 | **`cargo install --git`** | You already have Rust and want a specific branch/tag |
 | **`git clone` + `cargo build`** | Contributors and feature flags |
 
-## One-line installer
+## One-line installer (macOS / Linux)
 
 This project’s GitHub repo is **`qingjiuzys/anycode`**:
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
+```
+
+## One-line installer (Windows PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
+```
+
+With explicit repo / version (save then execute):
+
+```powershell
+$tmp = Join-Path $env:TEMP "anycode-install.ps1"
+irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 -OutFile $tmp
+& $tmp -Repo qingjiuzys/anycode -Version v0.1.0
 ```
 
 Or:
@@ -58,12 +73,19 @@ Release page: <https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
 ## Release asset naming
 
-Assets should be named `anycode-<asset-target>.tar.gz` with `anycode` at the **root** of the archive. For Linux assets, we omit `unknown` from the Rust triple for readability. Typical asset targets:
+Assets should be named:
+
+- Unix: `anycode-<asset-target>.tar.gz` (archive root contains `anycode`)
+- Windows: `anycode-<target>.zip` (archive root contains `anycode.exe`)
+
+For Linux assets, we omit `unknown` from the Rust triple for readability. Typical targets:
 
 - `aarch64-apple-darwin`
 - `x86_64-apple-darwin`
 - `x86_64-linux-gnu`
 - `aarch64-linux-gnu`
+- `x86_64-pc-windows-msvc`
+- `aarch64-pc-windows-msvc`
 
 ## From source
 
@@ -71,13 +93,13 @@ Assets should be named `anycode-<asset-target>.tar.gz` with `anycode` at the **r
 git clone https://github.com/qingjiuzys/anycode.git
 cd anycode
 cargo build --release
-# ./target/release/anycode
+# run directly: ./target/release/anycode --help
 ```
 
-Install into `PATH`:
+Install into `PATH` (recommended, avoids `command not found`):
 
 ```bash
-cargo install --path crates/cli --force
+./scripts/install.sh --source-dir "$(pwd)"
 anycode --help
 ```
 

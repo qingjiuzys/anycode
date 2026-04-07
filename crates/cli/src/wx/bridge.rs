@@ -479,6 +479,7 @@ async fn run_agent_pipeline(
                     channel_profile.id,
                     channel_profile.assistant_agent,
                 )),
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };

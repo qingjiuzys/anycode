@@ -1,4 +1,7 @@
-# 打 tag（如 v0.1.0）时构建并上传 anycode-<asset-target>.tar.gz（对外包名去掉 linux 三元组里的 unknown），与 scripts/install.sh 约定一致。
+# 打 tag（如 v0.1.0）时构建并上传：
+# - Unix: anycode-<asset-target>.tar.gz（linux 包名去掉三元组中的 unknown）
+# - Windows: anycode-<target>.zip
+# 与 scripts/install.sh / scripts/install.ps1 约定一致。
 name: Release binaries
 
 on:
@@ -21,6 +24,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +43,9 @@ jobs:
       - name: cargo build
         run: cargo build -p anycode --release --target ${{ matrix.target }}
 
-      - name: Package tarball
-        id: pack
+      - name: Package tarball (unix)
+        if: runner.os != 'Windows'
+        id: pack_unix
         run: |
           ASSET_TARGET="${{ matrix.target }}"
           ASSET_TARGET="${ASSET_TARGET/-unknown-/-}"
@@ -45,7 +53,16 @@ jobs:
           tar -C "target/${{ matrix.target }}/release" -czvf "$ASSET" anycode
           echo "path=$ASSET" >> "$GITHUB_OUTPUT"
 
+      - name: Package zip (windows)
+        if: runner.os == 'Windows'
+        id: pack_windows
+        shell: pwsh
+        run: |
+          $asset = "anycode-${{ matrix.target }}.zip"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/anycode.exe" -DestinationPath $asset -Force
+          "path=$asset" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.pack.outputs.path }}
+          files: ${{ steps.pack_unix.outputs.path || steps.pack_windows.outputs.path }}

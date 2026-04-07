@@ -10,6 +10,9 @@ mod tool_surface;
 
 use crate::compact::{CompactionHooks, DefaultCompactionHooks};
 use crate::goal_engine::GoalEngine;
+use crate::prompt_assembler::{
+    relevant_memories_context_section, runtime_mode_context_section, slash_commands_context_section,
+};
 use crate::system_prompt::{compose_effective_system_prompt, RuntimePromptConfig};
 use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAssistantAgent};
 use anycode_core::prelude::*;
@@ -82,6 +85,69 @@ pub struct AgentRuntime {
 }
 
 impl AgentRuntime {
+    fn context_messages_from_sections(&self, sections: Vec<String>) -> Vec<Message> {
+        sections
+            .into_iter()
+            .filter(|section| !section.trim().is_empty())
+            .map(|section| Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text(section),
+                timestamp: chrono::Utc::now(),
+                metadata: HashMap::new(),
+            })
+            .collect()
+    }
+
+    fn build_context_sections(
+        &self,
+        mode: RuntimeMode,
+        memories: &[Memory],
+        extra_sections: &[String],
+    ) -> Vec<String> {
+        let mut sections = vec![
+            runtime_mode_context_section(mode),
+            slash_commands_context_section(),
+        ];
+        if let Some(section) = self.prompt_config.workspace_section.as_deref() {
+            let t = section.trim();
+            if !t.is_empty() {
+                sections.push(t.to_string());
+            }
+        }
+        if let Some(section) = self.prompt_config.channel_section.as_deref() {
+            let t = section.trim();
+            if !t.is_empty() {
+                sections.push(t.to_string());
+            }
+        }
+        if let Some(section) = self.prompt_config.workflow_section.as_deref() {
+            let t = section.trim();
+            if !t.is_empty() {
+                sections.push(t.to_string());
+            }
+        }
+        if let Some(section) = self.prompt_config.goal_section.as_deref() {
+            let t = section.trim();
+            if !t.is_empty() {
+                sections.push(t.to_string());
+            }
+        }
+        if let Some(section) = relevant_memories_context_section(memories) {
+            sections.push(section);
+        }
+        if !self.prompt_config.prompt_fragments.is_empty() {
+            sections.push(self.prompt_config.prompt_fragments.join("\n\n"));
+        }
+        sections.extend(
+            extra_sections
+                .iter()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+        );
+        sections
+    }
+
     pub fn new(
         llm_client: Arc<dyn LLMClient>,
         tools: HashMap<ToolName, Box<dyn Tool>>,
@@ -223,7 +289,7 @@ impl AgentRuntime {
             .get(agent_type)
             .ok_or_else(|| CoreError::AgentNotFound(Uuid::new_v4()))?;
 
-        let prompt = self.build_system_prompt(agent, &[], working_directory, None)?;
+        let prompt = self.build_system_prompt(agent, working_directory, None)?;
 
         Ok(Message {
             id: Uuid::new_v4(),
@@ -232,6 +298,23 @@ impl AgentRuntime {
             timestamp: chrono::Utc::now(),
             metadata: HashMap::new(),
         })
+    }
+
+    /// 构建 TUI 会话初始消息（system + 上下文状态消息；不注入 memory）。
+    pub async fn build_session_messages(
+        &self,
+        agent_type: &AgentType,
+        working_directory: &str,
+    ) -> Result<Vec<Message>, CoreError> {
+        let system = self
+            .build_system_message(agent_type, working_directory)
+            .await?;
+        let mode = Self::runtime_mode_for_agent(agent_type);
+        let mut messages = vec![system];
+        messages.extend(
+            self.context_messages_from_sections(self.build_context_sections(mode, &[], &[])),
+        );
+        Ok(messages)
     }
 
     /// 注册自定义 Agent
@@ -246,7 +329,7 @@ impl AgentRuntime {
     /// 关键点：
     /// - 不重建 system/user：由调用方（TUI）维护 messages 历史。
     /// - 工具循环与 `execute_task` 相同：assistant → tool_calls → 执行工具 → tool_result 回注。
-    /// - 不生成 summary：TUI 直接展示最终 assistant 文本，避免用户误解。
+    /// - 优先展示最终 assistant 文本；若收尾无可用正文，则退化为 summary 回执，避免 TUI 出现“无总结”空白。
     /// - `messages` 使用 `Arc<Mutex<_>>`：仅在快照/追加时短暂加锁，便于 UI 在 LLM/工具执行中读取增量。
     pub async fn execute_turn_from_messages(
         &self,
@@ -466,9 +549,43 @@ impl AgentRuntime {
             let g = messages.lock().await;
             last_user_plain_text_for_autosave(&g)
         };
-        self.maybe_autosave_memory(task_id, &user_line, &last_assistant_text)
+        if !last_assistant_text.trim().is_empty() {
+            self.maybe_autosave_memory(task_id, &user_line, &last_assistant_text)
+                .await;
+            return Ok((last_assistant_text, artifacts, max_input_tokens));
+        }
+
+        let output_tail = logger.tail(task_id, 24 * 1024);
+        let artifacts_brief = ReceiptGenerator::artifacts_brief(&artifacts);
+        let summary_model = self.model_for_summary().clone();
+        let summary_task = Task {
+            id: task_id,
+            agent_type: agent_type.clone(),
+            prompt: user_line.clone(),
+            context: TaskContext {
+                session_id: Uuid::new_v4(),
+                working_directory: working_directory.to_string(),
+                environment: HashMap::new(),
+                user_id: None,
+                system_prompt_append: None,
+                context_injections: vec![],
+            },
+            created_at: chrono::Utc::now(),
+        };
+        let summary_text = llm_summary_receipt(
+            &self.llm_client,
+            &summary_model,
+            &summary_task,
+            total_tool_calls,
+            MAX_AGENT_TURNS,
+            MAX_TOOL_CALLS_TOTAL,
+            &artifacts_brief,
+            &output_tail,
+        )
+        .await;
+        self.maybe_autosave_memory(task_id, &user_line, &summary_text)
             .await;
-        Ok((last_assistant_text, artifacts, max_input_tokens))
+        Ok((summary_text, artifacts, max_input_tokens))
     }
 
     /// 执行任务
@@ -492,22 +609,26 @@ impl AgentRuntime {
             .recall(&task.prompt, MemoryType::Project)
             .await?;
 
-        // 3. 构建消息
-        let mut messages: Vec<Message> = vec![];
-
-        // 系统提示词
-        messages.push(Message {
+        // 3. 构建消息（system + context status + user）
+        let mode = Self::runtime_mode_for_agent(agent.agent_type());
+        let mut messages: Vec<Message> = vec![Message {
             id: Uuid::new_v4(),
             role: MessageRole::System,
             content: MessageContent::Text(self.build_system_prompt(
                 agent,
-                &memories,
                 task.context.working_directory.as_str(),
                 task.context.system_prompt_append.as_deref(),
             )?),
             timestamp: chrono::Utc::now(),
             metadata: HashMap::new(),
-        });
+        }];
+        messages.extend(
+            self.context_messages_from_sections(self.build_context_sections(
+                mode,
+                &memories,
+                &task.context.context_injections,
+            )),
+        );
 
         // 用户消息
         messages.push(Message {
@@ -782,10 +903,10 @@ impl AgentRuntime {
             if progress.completed {
                 break;
             }
-            current_task.context.system_prompt_append = Some(format!(
-                "Previous attempt count: {}. Last error/output: {:?} {:?}",
+            current_task.context.context_injections = vec![format!(
+                "## Goal Retry Context\nPrevious attempt count: {}.\nLast error: {:?}\nLast output: {:?}",
                 progress.attempts, progress.last_error, progress.last_output
-            ));
+            )];
         }
 
         Ok((last_result, progress))
@@ -794,17 +915,14 @@ impl AgentRuntime {
     fn build_system_prompt(
         &self,
         agent: &Box<dyn Agent>,
-        memories: &[Memory],
         working_directory: &str,
         task_append: Option<&str>,
     ) -> Result<String, CoreError> {
         Ok(compose_effective_system_prompt(
             &self.prompt_config,
             agent.as_ref(),
-            memories,
             working_directory,
             task_append,
-            Self::runtime_mode_for_agent(agent.agent_type()),
         ))
     }
 
@@ -925,6 +1043,7 @@ impl SubAgentExecutor for AgentRuntime {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };

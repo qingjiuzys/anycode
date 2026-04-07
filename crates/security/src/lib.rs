@@ -10,8 +10,9 @@ use crate::approval_presenter::{render_approval_request, ApprovalSurface};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use regex::Regex;
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tokio::sync::RwLock;
 
 // ============================================================================
@@ -350,11 +351,46 @@ fn is_readonly_tool(tool: &str) -> bool {
 
 pub struct InteractiveApprovalCallback {
     prompt_format: PromptFormat,
+    session_read_allow_dirs: Arc<StdMutex<HashSet<String>>>,
 }
 
 impl InteractiveApprovalCallback {
     pub fn new(prompt_format: PromptFormat) -> Self {
-        Self { prompt_format }
+        Self {
+            prompt_format,
+            session_read_allow_dirs: Arc::new(StdMutex::new(HashSet::new())),
+        }
+    }
+
+    fn extract_read_path(input: &serde_json::Value) -> Option<String> {
+        for k in ["path", "file_path", "target_directory", "directory"] {
+            if let Some(v) = input.get(k).and_then(|v| v.as_str()) {
+                let t = v.trim();
+                if !t.is_empty() {
+                    return Some(t.to_string());
+                }
+            }
+        }
+        None
+    }
+
+    fn read_scope_dir(path: &str) -> Option<String> {
+        let p = Path::new(path);
+        if p.is_dir() {
+            return Some(path.trim_end_matches('/').to_string());
+        }
+        p.parent()
+            .map(|d| d.to_string_lossy().trim_end_matches('/').to_string())
+    }
+
+    fn path_allowed_for_session(&self, path: &str) -> bool {
+        let Ok(guard) = self.session_read_allow_dirs.lock() else {
+            return false;
+        };
+        let p = path.trim_end_matches('/');
+        guard
+            .iter()
+            .any(|dir| p == dir || p.starts_with(&format!("{dir}/")))
     }
 }
 
@@ -374,6 +410,42 @@ impl ApprovalCallback for InteractiveApprovalCallback {
     ) -> anyhow::Result<bool> {
         match self.prompt_format {
             PromptFormat::CLI => {
+                let read_like = is_readonly_tool(tool);
+                if read_like {
+                    if let Some(path) = Self::extract_read_path(input) {
+                        if self.path_allowed_for_session(&path) {
+                            return Ok(true);
+                        }
+                        let dir_name = Self::read_scope_dir(&path).unwrap_or(path.clone());
+                        println!("\n⚠️  Tool Execution Request");
+                        println!(
+                            "{}",
+                            render_approval_request(ApprovalSurface::Cli, tool, input)
+                        );
+                        println!("\nDo you want to proceed?");
+                        println!("❯ 1. Yes");
+                        println!("  2. Yes, allow reading from {dir_name}/ during this session");
+                        println!("  3. No");
+                        print!("Select [1-3] (default: 3): ");
+                        use std::io::Write;
+                        let _ = std::io::stdout().flush();
+
+                        let mut line = String::new();
+                        std::io::stdin().read_line(&mut line)?;
+                        let choice = line.trim();
+                        match choice {
+                            "1" | "y" | "Y" => return Ok(true),
+                            "2" => {
+                                if let Ok(mut g) = self.session_read_allow_dirs.lock() {
+                                    g.insert(dir_name);
+                                }
+                                return Ok(true);
+                            }
+                            _ => return Ok(false),
+                        }
+                    }
+                }
+
                 println!("\n⚠️  Tool Execution Request");
                 println!(
                     "{}",

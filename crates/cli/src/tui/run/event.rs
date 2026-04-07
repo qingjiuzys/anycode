@@ -11,7 +11,8 @@ use crate::tui::styles::*;
 use crate::tui::transcript::{apply_tool_transcript_pipeline, ctrl_o_fold_cycle, TranscriptEntry};
 use crate::tui::util::{sanitize_paste, trim_or_default, MAX_PASTE_CHARS};
 use anycode_agent::AgentRuntime;
-use anycode_core::{Artifact, Message, MessageContent, MessageRole};
+use anycode_core::{Artifact, Message, MessageContent, MessageRole, RuntimeMode};
+use anycode_tools::workflows;
 use crossterm::event::{Event, KeyCode, KeyModifiers, MouseEventKind};
 use fluent_bundle::FluentArgs;
 use ratatui::text::{Line, Span};
@@ -122,7 +123,7 @@ pub(super) async fn dispatch_crossterm_event(
         }
         Event::Paste(text) => {
             *ctx.last_key = Some(format!("Paste({} chars)", text.chars().count()));
-            if *ctx.executing || ctx.pending_approval.is_some() {
+            if ctx.pending_approval.is_some() {
                 return Ok(TuiLoopCtl::Continue);
             }
             let (clean, truncated) = sanitize_paste(text);
@@ -308,12 +309,12 @@ async fn handle_main_key(
                 *ctx.last_turn_error = Some(tr("tui-err-clear-during-task"));
                 return Ok(TuiLoopCtl::Continue);
             }
-            let sys = runtime
-                .build_system_message(agent_type, working_dir_str)
+            let fresh = runtime
+                .build_session_messages(agent_type, working_dir_str)
                 .await?;
             {
                 let mut g = messages.lock().await;
-                *g = vec![sys];
+                *g = fresh;
             }
             ctx.transcript.clear();
             *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
@@ -340,7 +341,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if !*ctx.executing {
+            if ctx.rev_search.is_none() {
                 ctx.input.clear();
                 *ctx.history_idx = None;
                 reset_slash_state(ctx);
@@ -366,7 +367,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_line_up();
                 *ctx.history_idx = None;
                 reset_slash_state(ctx);
@@ -374,7 +375,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Down if key.modifiers.contains(KeyModifiers::ALT) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_line_down();
                 *ctx.history_idx = None;
                 reset_slash_state(ctx);
@@ -382,7 +383,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Up => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 let cands = slash_suggestions_for_ctx(ctx);
                 if !cands.is_empty() && cursor_on_first_line(ctx.input) {
                     let len = cands.len();
@@ -396,7 +397,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Down => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 let cands = slash_suggestions_for_ctx(ctx);
                 if !cands.is_empty() && cursor_on_first_line(ctx.input) {
                     let len = cands.len();
@@ -410,52 +411,52 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_word_left();
                 *ctx.history_idx = None;
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Right if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_word_right();
                 *ctx.history_idx = None;
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Left => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_left();
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Right => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_right();
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Home => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_home();
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::End => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.move_end();
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Delete => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.delete_forward();
                 reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Backspace if key.modifiers.contains(KeyModifiers::ALT) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.delete_word_backward();
                 *ctx.history_idx = None;
                 reset_slash_state(ctx);
@@ -463,14 +464,14 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Backspace => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.backspace();
                 reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char('w') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.delete_word_backward();
                 *ctx.history_idx = None;
                 reset_slash_state(ctx);
@@ -478,7 +479,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if ctx.rev_search.is_none() {
                 ctx.input.delete_to_end_of_line();
                 *ctx.history_idx = None;
                 reset_slash_state(ctx);
@@ -486,7 +487,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::BackTab => {
-            if *ctx.executing || ctx.rev_search.is_some() {
+            if ctx.rev_search.is_some() {
                 return Ok(TuiLoopCtl::Ok);
             }
             let cands = slash_suggestions_for_ctx(ctx);
@@ -497,7 +498,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Tab => {
-            if *ctx.executing || ctx.rev_search.is_some() {
+            if ctx.rev_search.is_some() {
                 return Ok(TuiLoopCtl::Ok);
             }
             let cands = slash_suggestions_for_ctx(ctx);
@@ -506,17 +507,15 @@ async fn handle_main_key(
                 *ctx.slash_suggest_suppress = true;
                 return Ok(TuiLoopCtl::Ok);
             }
-            if !*ctx.executing {
-                for c in "    ".chars() {
-                    ctx.input.insert(c);
-                }
-                *ctx.history_idx = None;
-                reset_slash_state(ctx);
+            for c in "    ".chars() {
+                ctx.input.insert(c);
             }
+            *ctx.history_idx = None;
+            reset_slash_state(ctx);
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
-            if *ctx.help_open || *ctx.executing || ctx.pending_approval.is_some() {
+            if *ctx.help_open || ctx.pending_approval.is_some() {
                 return Ok(TuiLoopCtl::Continue);
             }
             *ctx.last_turn_error = None;
@@ -566,12 +565,12 @@ async fn handle_main_key(
                     *ctx.last_turn_error = Some(tr("tui-err-clear-during-task"));
                     return Ok(TuiLoopCtl::Continue);
                 }
-                let sys = runtime
-                    .build_system_message(agent_type, working_dir_str)
+                let fresh = runtime
+                    .build_session_messages(agent_type, working_dir_str)
                     .await?;
                 {
                     let mut g = messages.lock().await;
-                    *g = vec![sys];
+                    *g = fresh;
                 }
                 ctx.transcript.clear();
                 *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
@@ -676,16 +675,12 @@ async fn handle_main_key(
                     return Ok(TuiLoopCtl::Continue);
                 }
                 *agent_type = anycode_core::AgentType::new(id.to_string());
-                let sys = runtime
-                    .build_system_message(agent_type, working_dir_str)
+                let fresh = runtime
+                    .build_session_messages(agent_type, working_dir_str)
                     .await?;
                 {
                     let mut g = messages.lock().await;
-                    if g.is_empty() {
-                        g.push(sys);
-                    } else {
-                        g[0] = sys;
-                    }
+                    *g = fresh;
                 }
                 let mut ha = FluentArgs::new();
                 ha.set("id", id);
@@ -698,6 +693,123 @@ async fn handle_main_key(
                 *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
                 *ctx.last_turn_error = None;
                 return Ok(TuiLoopCtl::Continue);
+            }
+            if let Some(cmd) = slash_commands::parse(trimmed.as_str()) {
+                match cmd {
+                    slash_commands::ParsedSlashCommand::Mode(arg) => {
+                        if let Some(mode) = arg {
+                            if let Some(parsed) = RuntimeMode::parse(&mode) {
+                                *agent_type =
+                                    anycode_core::AgentType::new(parsed.default_agent().as_str());
+                                let fresh = runtime
+                                    .build_session_messages(agent_type, working_dir_str)
+                                    .await?;
+                                {
+                                    let mut g = messages.lock().await;
+                                    *g = fresh;
+                                }
+                                let hint = format!(
+                                    "mode -> {} (agent: {})",
+                                    parsed.as_str(),
+                                    agent_type.as_str()
+                                );
+                                ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                    Span::styled(hint, style_dim()),
+                                )]));
+                            } else {
+                                ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                    Span::styled(format!("unknown mode: {}", mode), style_dim()),
+                                )]));
+                            }
+                        } else {
+                            ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                Span::styled(
+                                    format!("current agent: {}", agent_type.as_str()),
+                                    style_dim(),
+                                ),
+                            )]));
+                        }
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Status => {
+                        let lines = vec![
+                            Line::from(Span::styled(
+                                format!("agent: {}", agent_type.as_str()),
+                                style_dim(),
+                            )),
+                            Line::from(Span::styled(
+                                format!("provider: {}", ctx.llm_provider),
+                                style_dim(),
+                            )),
+                            Line::from(Span::styled(
+                                format!("model: {}", ctx.llm_model),
+                                style_dim(),
+                            )),
+                        ];
+                        ctx.transcript.push(TranscriptEntry::Plain(lines));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Workflow(arg) => {
+                        let label = if arg.as_deref().map(str::trim) == Some("run") {
+                            "workflow: run is available in REPL currently".to_string()
+                        } else {
+                            match workflows::discover_workflow(std::path::Path::new(
+                                working_dir_str,
+                            )) {
+                                Ok(Some((path, workflow))) => {
+                                    format!("workflow: {} ({})", workflow.name, path.display())
+                                }
+                                Ok(None) => "workflow: none".to_string(),
+                                Err(e) => format!("workflow error: {}", e),
+                            }
+                        };
+                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                            Span::styled(label, style_dim()),
+                        )]));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Model(arg) => {
+                        let line = if let Some(next) = arg {
+                            format!(
+                                "model switch requires a new session right now; current={} requested={}",
+                                ctx.llm_model, next
+                            )
+                        } else {
+                            format!("model: {}", ctx.llm_model)
+                        };
+                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                            Span::styled(line, style_dim()),
+                        )]));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Memory => {
+                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                            Span::styled(
+                                "memory: use `/status` in REPL for backend details",
+                                style_dim(),
+                            ),
+                        )]));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Approve => {
+                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                            Span::styled(
+                                "approve: approval prompts appear automatically when needed",
+                                style_dim(),
+                            ),
+                        )]));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Compact => {
+                        // handled earlier by /compact block
+                    }
+                }
             }
 
             if should_auto_compact_before_send(
@@ -793,7 +905,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char(c) => {
-            if *ctx.executing || ctx.pending_approval.is_some() {
+            if ctx.pending_approval.is_some() {
                 return Ok(TuiLoopCtl::Continue);
             }
             if c.is_control() {

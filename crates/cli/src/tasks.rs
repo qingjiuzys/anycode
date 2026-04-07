@@ -460,6 +460,7 @@ pub(crate) async fn run_single_task_with_tail(
             environment: HashMap::new(),
             user_id: None,
             system_prompt_append: None,
+            context_injections: vec![],
         },
         created_at: chrono::Utc::now(),
     };
@@ -940,6 +941,7 @@ fn build_task(
             environment: HashMap::new(),
             user_id: None,
             system_prompt_append,
+            context_injections: vec![],
         },
         created_at: chrono::Utc::now(),
     }

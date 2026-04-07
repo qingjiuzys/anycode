@@ -43,9 +43,17 @@ cd docs-site && npm install && npm run build
 
 默认指向本仓库 **`qingjiuzys/anycode`**；详见 [安装文档](docs-site/zh/guide/install.md)。
 
+macOS / Linux:
+
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
 
 Release 附件命名、源码构建、可选 **`tools-mcp`**、Daemon、路由、MVP/路线图等：**以文档站为准**，不再在 README 重复长文。

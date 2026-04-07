@@ -27,6 +27,9 @@ pub struct TaskContext {
     /// 追加到合成后的 system 消息末尾（如微信 `systemPrompt`）；与 `config.json` 的 append 叠加。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system_prompt_append: Option<String>,
+    /// 作为会话状态上下文注入到 system 之后（非 system 规则）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_injections: Vec<String>,
 }
 
 /// 任务结果

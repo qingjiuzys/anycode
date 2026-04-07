@@ -13,7 +13,7 @@
 # Env:
 #   ANYCODE_GITHUB_REPO   default for --repo (e.g. myorg/anycode)
 #   ANYCODE_VERSION       tag or "latest" (default: latest)
-#   ANYCODE_INSTALL_BIN   directory for the binary (default: $HOME/.local/bin)
+#   ANYCODE_INSTALL_BIN   directory for the binary (default: first writable PATH dir, else $HOME/.local/bin)
 #   ANYCODE_NO_ONBOARD    if 1, do not suggest running onboard at the end
 #
 set -euo pipefail
@@ -88,7 +88,7 @@ Usage: install.sh [options]
 
   --repo OWNER/REPO     GitHub repository (default: $ANYCODE_GITHUB_REPO; canonical: qingjiuzys/anycode)
   --version TAG         Release tag: v0.1.0, 0.1.0, or latest (default: latest or $ANYCODE_VERSION)
-  --bin-dir DIR         Install directory for `anycode` (default: $ANYCODE_INSTALL_BIN or $HOME/.local/bin)
+  --bin-dir DIR         Install directory for `anycode` (default: $ANYCODE_INSTALL_BIN, else first writable PATH dir, else $HOME/.local/bin)
   --method MODE         auto | binary | source (default: auto)
                           auto: try GitHub Release tarball, then cargo install --git
   --source-dir PATH     Use `cargo install --path PATH/crates/cli` instead of git (for local dev clone)
@@ -110,7 +110,9 @@ EOF
 
 REPO="${ANYCODE_GITHUB_REPO:-}"
 VERSION_INPUT="${ANYCODE_VERSION:-latest}"
-BIN_DIR="${ANYCODE_INSTALL_BIN:-${HOME}/.local/bin}"
+BIN_DIR="${ANYCODE_INSTALL_BIN:-}"
+BIN_DIR_EXPLICIT=0
+[[ -n "${ANYCODE_INSTALL_BIN:-}" ]] && BIN_DIR_EXPLICIT=1
 METHOD=auto
 SOURCE_DIR=""
 DRY_RUN=0
@@ -120,7 +122,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
     --version) VERSION_INPUT="${2:-}"; shift 2 ;;
-    --bin-dir) BIN_DIR="${2:-}"; shift 2 ;;
+    --bin-dir) BIN_DIR="${2:-}"; BIN_DIR_EXPLICIT=1; shift 2 ;;
     --method) METHOD="${2:-}"; shift 2 ;;
     --source-dir) SOURCE_DIR="${2:-}"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -145,6 +147,31 @@ run() {
     return 0
   fi
   "$@"
+}
+
+choose_default_bin_dir() {
+  [[ "$BIN_DIR_EXPLICIT" -eq 1 ]] && return 0
+  local d parent
+  # Prefer a writable directory that is already on PATH.
+  for d in "${HOME}/.local/bin" "/opt/homebrew/bin" "/usr/local/bin"; do
+    case ":${PATH:-}:" in
+      *":${d}:"*)
+        if [[ -d "$d" ]]; then
+          [[ -w "$d" ]] && {
+            BIN_DIR="$d"
+            return 0
+          }
+        else
+          parent="$(dirname "$d")"
+          [[ -d "$parent" && -w "$parent" ]] && {
+            BIN_DIR="$d"
+            return 0
+          }
+        fi
+        ;;
+    esac
+  done
+  BIN_DIR="${HOME}/.local/bin"
 }
 
 ensure_bin_dir() {
@@ -252,6 +279,8 @@ install_from_source_dir() {
 
 main() {
   detect_downloader
+  choose_default_bin_dir
+  [[ -n "$BIN_DIR" ]] || BIN_DIR="${HOME}/.local/bin"
   ensure_bin_dir
   local target
   target="$(detect_target_triple)"
@@ -279,7 +308,15 @@ main() {
 
   case ":${PATH:-}:" in
     *":${BIN_DIR}:"*) ;;
-    *) warn "Add to PATH (e.g. in ~/.bashrc or ~/.zshrc): export PATH=\"${BIN_DIR}:\$PATH\"" ;;
+    *)
+      warn "anycode installed to ${BIN_DIR}, but this directory is not on PATH."
+      warn "Current shell (one-time): export PATH=\"${BIN_DIR}:\$PATH\""
+      case "$(basename "${SHELL:-}")" in
+        zsh) warn "Persist for zsh: echo 'export PATH=\"${BIN_DIR}:\$PATH\"' >> ~/.zshrc && source ~/.zshrc" ;;
+        bash) warn "Persist for bash: echo 'export PATH=\"${BIN_DIR}:\$PATH\"' >> ~/.bashrc && source ~/.bashrc" ;;
+        *) warn "Persist: add ${BIN_DIR} to your shell rc PATH." ;;
+      esac
+      ;;
   esac
 
   if [[ "$RUN_ONBOARD" -eq 1 ]]; then

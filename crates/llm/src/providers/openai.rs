@@ -14,10 +14,13 @@ use reqwest::Client;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 const DEFAULT_OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
+const DEFAULT_API_TIMEOUT_MS: u64 = 600_000;
+const DEFAULT_MAX_RETRIES: u32 = 10;
 
 #[derive(Debug, Serialize)]
 struct OpenAiChatRequestBody {
@@ -48,13 +51,28 @@ fn openai_tool_choice(tools_empty: bool) -> Option<String> {
     Some("auto".to_string())
 }
 
+fn configured_api_timeout_ms() -> u64 {
+    std::env::var("API_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|v| *v >= 1_000)
+        .unwrap_or(DEFAULT_API_TIMEOUT_MS)
+}
+
+fn build_http_client() -> Client {
+    Client::builder()
+        .timeout(Duration::from_millis(configured_api_timeout_ms()))
+        .build()
+        .unwrap_or_else(|_| Client::new())
+}
+
 async fn send_chat_with_retries(
     client: &Client,
     url: &str,
     auth_key: &str,
     body: &OpenAiChatRequestBody,
 ) -> Result<reqwest::Response, CoreError> {
-    let max_retries: u32 = 5;
+    let max_retries: u32 = DEFAULT_MAX_RETRIES;
     let mut last_err: Option<String> = None;
     let mut response: Option<reqwest::Response> = None;
     for attempt in 1..=max_retries + 1 {
@@ -106,9 +124,30 @@ async fn send_chat_with_retries(
                 break;
             }
             Err(e) => {
-                last_err = Some(e.to_string());
+                let mut msg = e.to_string();
+                if e.is_timeout() {
+                    msg = format!(
+                        "{msg} · API_TIMEOUT_MS={}ms, try increasing it",
+                        configured_api_timeout_ms()
+                    );
+                }
+                last_err = Some(msg);
                 if attempt <= max_retries {
                     let delay = retry_delay_ms(attempt);
+                    warn!(
+                        "Retrying in {} seconds… (attempt {}/{}){}",
+                        delay / 1000,
+                        attempt,
+                        max_retries,
+                        if std::env::var("API_TIMEOUT_MS").is_ok() {
+                            format!(
+                                " · API_TIMEOUT_MS={}ms, try increasing it",
+                                configured_api_timeout_ms()
+                            )
+                        } else {
+                            String::new()
+                        }
+                    );
                     tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                     continue;
                 }
@@ -139,7 +178,7 @@ impl OpenAIClient {
         }
 
         Ok(Self {
-            client: Client::new(),
+            client: build_http_client(),
             api_key,
             base_url: DEFAULT_OPENAI_CHAT_URL.to_string(),
         })

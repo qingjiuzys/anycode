@@ -46,11 +46,11 @@ pub async fn run_tui(
     let runtime = initialize_runtime(&config, approval_override).await?;
 
     let mut agent_type = anycode_core::AgentType::new(agent.clone());
-    let messages = Arc::new(Mutex::new(vec![
+    let messages = Arc::new(Mutex::new(
         runtime
-            .build_system_message(&agent_type, &working_dir_str)
+            .build_session_messages(&agent_type, &working_dir_str)
             .await?,
-    ]));
+    ));
 
     let mut transcript: Vec<TranscriptEntry> = vec![];
     let mut transcript_gen: u64 = 0;

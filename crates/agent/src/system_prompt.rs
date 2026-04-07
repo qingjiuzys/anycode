@@ -1,8 +1,7 @@
 //! 系统提示多段合成（override / append / 默认段与记忆的优先级）。
 
 use crate::prompt_assembler::PromptAssembler;
-use anycode_core::RuntimeMode;
-use anycode_core::{Agent, Memory};
+use anycode_core::Agent;
 
 /// 运行时系统提示配置（通常来自 `config.json` + 解析后的 `@path` 文件内容）。
 #[derive(Debug, Clone, Default)]
@@ -71,10 +70,8 @@ pub(crate) fn compose_default_sections(
 pub fn compose_effective_system_prompt(
     config: &RuntimePromptConfig,
     agent: &dyn Agent,
-    memories: &[Memory],
     cwd: &str,
     task_append: Option<&str>,
-    mode: RuntimeMode,
 ) -> String {
     if let Some(rep) = agent.system_prompt_replaces_default_sections() {
         let t = rep.trim();
@@ -96,10 +93,8 @@ pub fn compose_effective_system_prompt(
     PromptAssembler {
         config,
         agent,
-        memories,
         cwd,
         task_append,
-        mode,
     }
     .compose()
 }
@@ -158,14 +153,7 @@ mod tests {
             ..Default::default()
         };
         let agent = stub(vec!["A".to_string()]);
-        let out = compose_effective_system_prompt(
-            &cfg,
-            &agent,
-            &[],
-            "/tmp",
-            Some("TASK"),
-            RuntimeMode::General,
-        );
+        let out = compose_effective_system_prompt(&cfg, &agent, "/tmp", Some("TASK"));
         assert_eq!(out, "OVERRIDE_ONLY");
     }
 
@@ -178,14 +166,7 @@ mod tests {
             ..Default::default()
         };
         let agent = stub(vec!["T".to_string()]);
-        let out = compose_effective_system_prompt(
-            &cfg,
-            &agent,
-            &[],
-            "/w",
-            Some("FROM_TASK"),
-            RuntimeMode::General,
-        );
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", Some("FROM_TASK"));
         assert!(out.contains("# Custom Agent Instructions"));
         assert!(out.contains("FROM_CONFIG"));
         assert!(out.contains("FROM_TASK"));
@@ -198,14 +179,7 @@ mod tests {
     fn cwd_appears_in_default_stack() {
         let cfg = RuntimePromptConfig::default();
         let agent = stub(vec!["X".into()]);
-        let out = compose_effective_system_prompt(
-            &cfg,
-            &agent,
-            &[],
-            "/my/cwd",
-            None,
-            RuntimeMode::General,
-        );
+        let out = compose_effective_system_prompt(&cfg, &agent, "/my/cwd", None);
         assert!(out.contains("/my/cwd"));
     }
 
@@ -216,8 +190,7 @@ mod tests {
             ..Default::default()
         };
         let agent = stub(vec!["Skill".into()]);
-        let out =
-            compose_effective_system_prompt(&cfg, &agent, &[], "/w", None, RuntimeMode::General);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
         let pos_tools = out.find("Skill").unwrap();
         let pos_sk = out.find("Available skills").unwrap();
         assert!(pos_sk > pos_tools);
@@ -233,8 +206,7 @@ mod tests {
         };
         let mut agent = stub(vec!["Z".into()]);
         agent.replace = Some("CUSTOM_BODY");
-        let out =
-            compose_effective_system_prompt(&cfg, &agent, &[], "/w", None, RuntimeMode::General);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
         assert!(out.starts_with("CUSTOM_BODY"));
         assert!(!out.contains("# Tone"));
         assert!(out.contains("TAIL"));

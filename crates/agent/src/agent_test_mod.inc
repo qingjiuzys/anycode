@@ -221,6 +221,7 @@ mod tests {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -235,9 +236,10 @@ mod tests {
         }
 
         let calls = llm.call_roles().await;
-        // 第 1 次 LLM：system + user
+        // 第 1 次 LLM：system + context messages + user
         assert!(calls.len() >= 2);
-        assert_eq!(calls[0], vec![MessageRole::System, MessageRole::User]);
+        assert_eq!(calls[0].first(), Some(&MessageRole::System));
+        assert_eq!(calls[0].last(), Some(&MessageRole::User));
         // 第 2 次 LLM：应包含 ToolResult（tool_result 回注）
         assert!(calls[1].contains(&MessageRole::Tool));
 
@@ -457,6 +459,7 @@ mod tests {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -601,6 +604,7 @@ mod tests {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -715,6 +719,7 @@ mod tests {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -824,6 +829,7 @@ mod tests {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -921,6 +927,7 @@ mod tests {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
+                context_injections: vec![],
             },
             created_at: chrono::Utc::now(),
         };

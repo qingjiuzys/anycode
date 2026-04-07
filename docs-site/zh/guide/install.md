@@ -13,18 +13,25 @@ read_when:
 
 | 方式 | 适合 |
 |------|------|
-| **`scripts/install.sh`** | 想一条命令装好；优先下 Release，失败可回退 `cargo install --git` |
+| **`scripts/install.sh`** | macOS / Linux 一条命令装好；优先下 Release，失败回退 `cargo install --git` |
+| **`scripts/install.ps1`** | Windows PowerShell 安装器；优先下 Release，失败回退 `cargo install --git` |
 | **GitHub Releases 手动下载** | 只信浏览器 / 企业代理 |
 | **`cargo install --git`** | 已装 Rust，跟分支或 tag |
 | **本地 clone + `cargo build`** | 贡献者、改 feature |
 
-## 一行安装
+## 一行安装（macOS / Linux）
 
 本仓库为 **`qingjiuzys/anycode`**：
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
+```
+
+## 一行安装（Windows PowerShell）
+
+```powershell
+irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
 
 或：
@@ -58,7 +65,12 @@ Release 页面：<https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
 ## Release 附件命名
 
-与脚本一致：`anycode-<asset-target>.tar.gz`，压缩包**根目录**含可执行文件 `anycode`。Linux 包名为便于阅读，会去掉 Rust 三元组中的 `unknown`。常见 asset target：`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-linux-gnu`、`aarch64-linux-gnu`。
+与脚本一致：
+
+- Unix：`anycode-<asset-target>.tar.gz`，压缩包根目录含 `anycode`
+- Windows：`anycode-<target>.zip`，压缩包根目录含 `anycode.exe`
+
+Linux 包名为便于阅读，会去掉 Rust 三元组中的 `unknown`。常见 target：`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-linux-gnu`、`aarch64-linux-gnu`、`x86_64-pc-windows-msvc`、`aarch64-pc-windows-msvc`。
 
 ## 从源码
 
@@ -66,13 +78,13 @@ Release 页面：<https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 git clone https://github.com/qingjiuzys/anycode.git
 cd anycode
 cargo build --release
-# ./target/release/anycode
+# 直接运行：./target/release/anycode --help
 ```
 
-安装到 PATH：
+安装到 PATH（推荐，避免 `command not found`）：
 
 ```bash
-cargo install --path crates/cli --force
+./scripts/install.sh --source-dir "$(pwd)"
 anycode --help
 ```
 

@@ -39,7 +39,7 @@ fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
             if debug {
                 EnvFilter::new("debug")
             } else if repl_quiet {
-                EnvFilter::new("warn")
+                EnvFilter::new("error")
             } else {
                 EnvFilter::new("info")
             }
@@ -48,8 +48,8 @@ fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
     if debug {
         EnvFilter::new("debug")
     } else if repl_quiet {
-        // REPL quiet: hide INFO logs; errors/warnings still show.
-        EnvFilter::new("warn")
+        // Interactive quiet: only errors should reach terminal to avoid polluting prompt area.
+        EnvFilter::new("error")
     } else {
         EnvFilter::new("info")
     }
@@ -59,20 +59,22 @@ fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
 async fn main() -> anyhow::Result<()> {
     let args = cli_args::parse_args();
 
-    let repl_quiet = matches!(
+    // Interactive surfaces (fullscreen TUI / chat / repl) should keep terminal clean by
+    // default; INFO logs easily pollute the prompt/input area.
+    let interactive_quiet = matches!(
         args.command,
-        Some(Commands::Repl { .. }) | Some(Commands::Chat { .. })
+        None | Some(Commands::Repl { .. }) | Some(Commands::Chat { .. })
     );
 
     // Logs on stderr; stdout for ratatui / REPL banner and task output.
     let subscriber = fmt::Subscriber::builder()
-        .with_env_filter(tracing_env_filter(repl_quiet, args.debug))
+        .with_env_filter(tracing_env_filter(interactive_quiet, args.debug))
         .with_writer(std::io::stderr)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set tracing subscriber");
 
-    if !repl_quiet || args.debug {
+    if !interactive_quiet || args.debug {
         info!("🦀 anyCode v0.1.0 starting...");
         info!("anyCode CLI ready");
     }
