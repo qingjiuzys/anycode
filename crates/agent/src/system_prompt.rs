@@ -2,6 +2,7 @@
 
 use crate::prompt_assembler::PromptAssembler;
 use anycode_core::Agent;
+use std::path::Path;
 
 /// 运行时系统提示配置（通常来自 `config.json` + 解析后的 `@path` 文件内容）。
 #[derive(Debug, Clone, Default)]
@@ -18,6 +19,73 @@ pub struct RuntimePromptConfig {
     pub goal_section: Option<String>,
     #[allow(clippy::vec_box)]
     pub prompt_fragments: Vec<String>,
+    /// Path to a model instructions file (e.g., `AGENTS.md`) whose content is injected into the system prompt.
+    /// Supports absolute paths or paths relative to the working directory.
+    pub model_instructions_file: Option<std::path::PathBuf>,
+    /// Cached content of the model instructions file (resolved at runtime).
+    pub model_instructions_content: Option<String>,
+}
+
+impl RuntimePromptConfig {
+    /// Resolve and load the model instructions file content.
+    /// If `model_instructions_file` is set, reads the file and stores content in `model_instructions_content`.
+    /// If the file path is relative, it is resolved relative to `working_dir`.
+    /// Returns `Ok(())` if successful or if no file is configured.
+    /// Returns `Err` only on I/O errors when the file is configured but cannot be read.
+    pub fn resolve_model_instructions_file(
+        &mut self,
+        working_dir: &Path,
+    ) -> Result<(), std::io::Error> {
+        let Some(ref path) = self.model_instructions_file else {
+            return Ok(());
+        };
+
+        let resolved = if path.is_absolute() {
+            path.clone()
+        } else {
+            working_dir.join(path)
+        };
+
+        if !resolved.is_file() {
+            tracing::debug!(
+                target: "anycode_agent",
+                path = %resolved.display(),
+                "model_instructions_file not found, skipping"
+            );
+            return Ok(());
+        }
+
+        match std::fs::read_to_string(&resolved) {
+            Ok(content) => {
+                let trimmed = content.trim();
+                if !trimmed.is_empty() {
+                    tracing::info!(
+                        target: "anycode_agent",
+                        path = %resolved.display(),
+                        len = trimmed.len(),
+                        "loaded model instructions file"
+                    );
+                    self.model_instructions_content = Some(content);
+                }
+                Ok(())
+            }
+            Err(e) => {
+                tracing::warn!(
+                    target: "anycode_agent",
+                    path = %resolved.display(),
+                    error = %e,
+                    "failed to read model_instructions_file"
+                );
+                Err(e)
+            }
+        }
+    }
+
+    /// Create a new RuntimePromptConfig with model instructions file set.
+    pub fn with_model_instructions_file(mut self, path: Option<std::path::PathBuf>) -> Self {
+        self.model_instructions_file = path;
+        self
+    }
 }
 
 fn env_section(cwd: &str) -> String {
@@ -210,5 +278,93 @@ mod tests {
         assert!(out.starts_with("CUSTOM_BODY"));
         assert!(!out.contains("# Tone"));
         assert!(out.contains("TAIL"));
+    }
+
+    #[test]
+    fn model_instructions_content_injected_into_prompt() {
+        let cfg = RuntimePromptConfig {
+            model_instructions_content: Some("You are a helpful assistant.".into()),
+            ..Default::default()
+        };
+        let agent = stub(vec!["T".into()]);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
+        assert!(out.contains("# Model Instructions"));
+        assert!(out.contains("You are a helpful assistant."));
+    }
+
+    #[test]
+    fn model_instructions_not_shown_when_override() {
+        let cfg = RuntimePromptConfig {
+            system_prompt_override: Some("OVERRIDE_ONLY".to_string()),
+            model_instructions_content: Some("Should not appear".into()),
+            ..Default::default()
+        };
+        let agent = stub(vec!["T".into()]);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
+        assert_eq!(out, "OVERRIDE_ONLY");
+        assert!(!out.contains("Should not appear"));
+    }
+
+    #[test]
+    fn resolve_model_instructions_file_absolute() {
+        use std::io::Write;
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        let instructions_path = tmpdir.path().join("AGENTS.md");
+        let mut f = std::fs::File::create(&instructions_path).unwrap();
+        writeln!(f, "# Custom Instructions\nBe helpful.").unwrap();
+
+        let mut cfg = RuntimePromptConfig {
+            model_instructions_file: Some(instructions_path.clone()),
+            ..Default::default()
+        };
+
+        cfg.resolve_model_instructions_file(std::path::Path::new("/some/working/dir"))
+            .unwrap();
+
+        assert!(cfg.model_instructions_content.is_some());
+        assert!(cfg
+            .model_instructions_content
+            .as_ref()
+            .unwrap()
+            .contains("Be helpful."));
+    }
+
+    #[test]
+    fn resolve_model_instructions_file_relative() {
+        use std::io::Write;
+
+        let tmpdir = tempfile::tempdir().unwrap();
+        let instructions_path = tmpdir.path().join("AGENTS.md");
+        let mut f = std::fs::File::create(&instructions_path).unwrap();
+        writeln!(f, "# Relative Instructions\nFollow these rules.").unwrap();
+
+        let mut cfg = RuntimePromptConfig {
+            model_instructions_file: Some(std::path::PathBuf::from("AGENTS.md")),
+            ..Default::default()
+        };
+
+        cfg.resolve_model_instructions_file(tmpdir.path()).unwrap();
+
+        assert!(cfg.model_instructions_content.is_some());
+        assert!(cfg
+            .model_instructions_content
+            .as_ref()
+            .unwrap()
+            .contains("Follow these rules."));
+    }
+
+    #[test]
+    fn resolve_model_instructions_file_missing_is_ok() {
+        let mut cfg = RuntimePromptConfig {
+            model_instructions_file: Some(std::path::PathBuf::from("/nonexistent/AGENTS.md")),
+            ..Default::default()
+        };
+
+        // Should not error, just leaves content as None
+        cfg.resolve_model_instructions_file(std::path::Path::new("/tmp"))
+            .unwrap();
+
+        assert!(cfg.model_instructions_content.is_none());
     }
 }

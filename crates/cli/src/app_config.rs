@@ -1630,6 +1630,14 @@ pub(crate) async fn run_onboard_flow(
     }
 }
 
+/// Resolve the model instructions file path from env var `ANYCODE_MODEL_INSTRUCTIONS_FILE`.
+fn resolve_model_instructions_file_from_env() -> Option<PathBuf> {
+    std::env::var("ANYCODE_MODEL_INSTRUCTIONS_FILE")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(PathBuf::from)
+}
+
 pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config> {
     let default_path = resolve_config_path(None)?;
     let cfg = match load_anycode_config_resolved(config_file.clone())? {
@@ -1699,6 +1707,9 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
     let memory_path = resolve_memory_directory(cfg.memory.path.clone())?;
     let memory_backend = normalize_memory_backend(&cfg.memory.backend)?;
 
+    // Resolve model instructions file from env var (e.g., AGENTS.md)
+    let model_instructions_file = resolve_model_instructions_file_from_env();
+
     Ok(Config {
         llm: LLMConfig {
             provider: cfg.provider,
@@ -1744,6 +1755,8 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             workflow_section: None,
             goal_section: None,
             prompt_fragments: vec![],
+            model_instructions_file,
+            model_instructions_content: None,
         },
         skills: cfg.skills.into(),
         session: cfg.session.into(),
