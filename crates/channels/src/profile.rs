@@ -49,6 +49,26 @@ impl ChannelProfile {
             supports_inline_replies: true,
         }
     }
+
+    pub fn telegram() -> Self {
+        Self {
+            id: "telegram",
+            default_mode: RuntimeMode::Channel,
+            assistant_agent: "workspace-assistant",
+            supports_native_approval: false,
+            supports_inline_replies: true,
+        }
+    }
+
+    pub fn discord() -> Self {
+        Self {
+            id: "discord",
+            default_mode: RuntimeMode::Channel,
+            assistant_agent: "workspace-assistant",
+            supports_native_approval: false,
+            supports_inline_replies: true,
+        }
+    }
 }
 
 pub fn profile_for_channel_type(channel_type: &anycode_core::ChannelType) -> ChannelProfile {
@@ -57,6 +77,8 @@ pub fn profile_for_channel_type(channel_type: &anycode_core::ChannelType) -> Cha
         anycode_core::ChannelType::IDE => ChannelProfile::ide(),
         anycode_core::ChannelType::Web => ChannelProfile::web(),
         anycode_core::ChannelType::WeChat => ChannelProfile::wechat(),
+        anycode_core::ChannelType::Telegram => ChannelProfile::telegram(),
+        anycode_core::ChannelType::Discord => ChannelProfile::discord(),
         _ => ChannelProfile::web(),
     }
 }

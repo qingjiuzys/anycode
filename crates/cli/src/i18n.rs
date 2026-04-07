@@ -176,9 +176,47 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
                 let n = sub
                     .clone()
                     .about(tr("cmd-setup-about"))
-                    .mut_arg("skip_wechat", |a| a.help(tr("cmd-setup-skip-wechat")))
+                    .mut_arg("channel", |a| a.help(tr("cmd-setup-channel")))
                     .mut_arg("data_dir", |a| a.help(tr("cmd-setup-data-dir")));
                 *sub = n;
+            }
+            "channel" => {
+                let mut root = sub.clone().about(tr("cmd-channel-about"));
+                for nested in root.get_subcommands_mut() {
+                    match nested.get_name() {
+                        "wechat" => {
+                            let n = nested
+                                .clone()
+                                .about(tr("cmd-wechat-about"))
+                                .mut_arg("data_dir", |a| a.help(tr("cmd-wechat-data-dir")))
+                                .mut_arg("run_as_bridge", |a| a.help(tr("cmd-wechat-bridge-hint")))
+                                .mut_arg("agent", |a| a.help(tr("cmd-wechat-agent")));
+                            *nested = n;
+                        }
+                        "telegram" => {
+                            let n = nested
+                                .clone()
+                                .about(tr("cmd-telegram-about"))
+                                .mut_arg("bot_token", |a| a.help(tr("cmd-telegram-bot-token")))
+                                .mut_arg("chat_id", |a| a.help(tr("cmd-telegram-chat-id")))
+                                .mut_arg("agent", |a| a.help(tr("cmd-telegram-agent")))
+                                .mut_arg("directory", |a| a.help(tr("cmd-telegram-directory")));
+                            *nested = n;
+                        }
+                        "discord" => {
+                            let n = nested
+                                .clone()
+                                .about(tr("cmd-discord-about"))
+                                .mut_arg("bot_token", |a| a.help(tr("cmd-discord-bot-token")))
+                                .mut_arg("channel_id", |a| a.help(tr("cmd-discord-channel-id")))
+                                .mut_arg("agent", |a| a.help(tr("cmd-discord-agent")))
+                                .mut_arg("directory", |a| a.help(tr("cmd-discord-directory")));
+                            *nested = n;
+                        }
+                        _ => {}
+                    }
+                }
+                *sub = root;
             }
             "model" => localize_model(sub),
             "test-security" => {
@@ -187,15 +225,6 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
                     .about(tr("cmd-test-security-about"))
                     .mut_arg("tool", |a| a.help(tr("cmd-test-security-tool")))
                     .mut_arg("input", |a| a.help(tr("cmd-test-security-input")));
-                *sub = n;
-            }
-            "wechat" => {
-                let n = sub
-                    .clone()
-                    .about(tr("cmd-wechat-about"))
-                    .mut_arg("data_dir", |a| a.help(tr("cmd-wechat-data-dir")))
-                    .mut_arg("run_as_bridge", |a| a.help(tr("cmd-wechat-bridge-hint")))
-                    .mut_arg("agent", |a| a.help(tr("cmd-wechat-agent")));
                 *sub = n;
             }
             #[cfg(feature = "mcp-oauth")]

@@ -12,12 +12,12 @@ read_when:
 ## 无 TTY / SSH / CI
 
 - **`anycode config`**、**`setup`** 在非 TTY 下可能无法交互，请在本机**真实终端**执行，或事先写好 **`~/.anycode/config.json`**。
-- **微信扫码**需要能弹出浏览器或展示二维码的环境；若用了 **`setup --skip-wechat`**，可在有图形界面的机器上再执行 **`anycode wechat`**。
+- **微信扫码**需要能弹出浏览器或展示二维码的环境；可在有图形界面的机器上再执行 **`anycode channel wechat`**。
 - **`run` / `repl`** 在 `require_approval=true` 时需要连着终端用 stdin 确认；**`--ignore-approval`** 仅在你清楚风险时使用。
 
 ## 微信桥
 
-- 若向导提示运行 **`anycode wechat`**，请在桥接能完成扫码的环境执行。
+- 若向导提示运行 **`anycode channel wechat`**，请在桥接能完成扫码的环境执行。
 - 微信任务默认工作目录常为 **`~/.anycode/workspace`**；可在微信内用 **`/cwd`** 切到项目（见 [微信与 setup](./wechat)）。
 
 ## MCP 与 OAuth

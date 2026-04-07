@@ -24,7 +24,7 @@ read_when:
 
 ```bash
 ./target/release/anycode setup
-./target/release/anycode setup --skip-wechat
+./target/release/anycode setup --channel wechat
 ```
 
 ## 验证

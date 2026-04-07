@@ -1,4 +1,4 @@
-//! 微信 / IM 类通道：与 `anycode wechat`、Node 桥配合时，入站消息可映射为 `ChannelType::WeChat`。
+//! 微信 / IM 类通道：与 `anycode channel wechat`、Node 桥配合时，入站消息可映射为 `ChannelType::WeChat`。
 
 use anycode_core::prelude::*;
 use async_trait::async_trait;

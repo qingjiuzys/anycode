@@ -1,7 +1,7 @@
 ---
 title: WeChat & setup
 description: First-time setup flow and the optional WeChat iLink bridge for anyCode.
-summary: setup sequence, skip-wechat, and how the bridge shares the same agent runtime.
+summary: setup sequence, channel selection, and how the bridge shares the same agent runtime.
 read_when:
   - You want phone-driven tasks alongside the CLI.
   - You are setting up WeChat after a headless install.
@@ -15,21 +15,21 @@ One-shot first setup:
 
 1. Ensures **user workspace** layout under **`~/.anycode/workspace`** (alongside WeChat data under **`~/.anycode/wechat`**).
 2. Runs the **config wizard** if API settings are missing or invalid.
-3. On a TTY, optionally starts the **WeChat bind** flow and login autostart bridge (same as `anycode wechat`).
+3. On a TTY, asks you to choose a channel (`wechat` / `telegram` / `discord`), then runs the selected setup flow.
 
 ```bash
 anycode setup
-anycode setup --skip-wechat
+anycode setup --channel wechat
 ```
 
-Global flags **`--debug`**, **`-c/--config`**, and env vars such as **`WCC_DATA_DIR`** follow the same rules as **`anycode wechat`**.
+Global flags **`--debug`**, **`-c/--config`**, and env vars such as **`WCC_DATA_DIR`** follow the same rules as **`anycode channel wechat`**.
 
-## `wechat`
+## `channel wechat`
 
-Use when you skipped WeChat during setup or need to re-bind:
+Use when you need to bind or re-bind WeChat:
 
 ```bash
-anycode wechat
+anycode channel wechat
 ```
 
 Requires an environment where **QR login** can complete (browser / GUI). For narrative detail in Chinese, see the historical **[简体中文 CLI](/zh/guide/cli)** page until localized copy fully moves here.

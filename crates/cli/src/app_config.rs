@@ -57,6 +57,13 @@ pub(crate) async fn run_model_interactive(config_file: Option<PathBuf>) -> anyho
     model_interactive::run(config_file).await
 }
 
+/// `anycode setup` 场景：精简模型配置（仅 provider/model/key），不进入 routing 菜单。
+pub(crate) async fn run_model_onboard_interactive(
+    config_file: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    model_interactive::run_onboard(config_file).await
+}
+
 fn prompt_model_for_zai(is_tty: bool, existing: &Option<AnyCodeConfig>) -> anyhow::Result<String> {
     use dialoguer::theme::ColorfulTheme;
     use dialoguer::{Input, Select};
@@ -197,6 +204,7 @@ fn prompt_api_key_and_base_url(
     provider_for_merge: &str,
     _plan: &str,
     recommended_url: &str,
+    prompt_base_url: bool,
 ) -> anyhow::Result<(String, Option<String>)> {
     use dialoguer::theme::ColorfulTheme;
     use dialoguer::{Input, Password};
@@ -245,31 +253,38 @@ fn prompt_api_key_and_base_url(
         anyhow::bail!("{}", tr("cfg-api-empty"));
     }
 
-    accent_line_base_url_prompt();
-    let recommended_default = recommended_url.to_string();
-    let shown_default = if default_base_url.is_empty() {
-        recommended_default.clone()
-    } else {
-        default_base_url.clone()
-    };
-
-    let base_url_in: String = if is_tty {
-        Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-base-url-merge-pty"))
-            .default(shown_default.clone())
-            .interact_text()?
-    } else {
-        let mut bu = FluentArgs::new();
-        bu.set("url", shown_default.clone());
-        let v = prompt_line(&tr_args("wizard-base-url-merge-fallback", &bu))?;
-        if v.is_empty() {
-            shown_default.clone()
+    let base_url = if prompt_base_url {
+        accent_line_base_url_prompt();
+        let recommended_default = recommended_url.to_string();
+        let shown_default = if default_base_url.is_empty() {
+            recommended_default.clone()
         } else {
-            v
-        }
-    };
+            default_base_url.clone()
+        };
 
-    let base_url = normalize_base_url_input(&base_url_in, &shown_default, recommended_url);
+        let base_url_in: String = if is_tty {
+            Input::with_theme(&ColorfulTheme::default())
+                .with_prompt(&tr("wizard-base-url-merge-pty"))
+                .default(shown_default.clone())
+                .interact_text()?
+        } else {
+            let mut bu = FluentArgs::new();
+            bu.set("url", shown_default.clone());
+            let v = prompt_line(&tr_args("wizard-base-url-merge-fallback", &bu))?;
+            if v.is_empty() {
+                shown_default.clone()
+            } else {
+                v
+            }
+        };
+        normalize_base_url_input(&base_url_in, provider_for_merge, recommended_url)
+    } else if !default_base_url.trim().is_empty() {
+        normalize_base_url_input(&default_base_url, provider_for_merge, recommended_url)
+    } else if !recommended_url.trim().is_empty() {
+        normalize_base_url_input(recommended_url, provider_for_merge, recommended_url)
+    } else {
+        None
+    };
     Ok((api_key, base_url))
 }
 
@@ -298,14 +313,18 @@ fn accent_line_base_url_prompt() {
 /// 与推荐默认一致则存 `None`，由 LLM 层使用官方默认。
 fn normalize_base_url_input(
     base_url_in: &str,
-    _shown_default: &str,
+    provider_for_merge: &str,
     recommended_url: &str,
 ) -> Option<String> {
     let v = base_url_in.trim();
     if v.is_empty() {
         return None;
     }
-    if v == recommended_url {
+    let norm_provider = normalize_provider_id(provider_for_merge);
+    let requires_explicit_openai_endpoint = transport_for_provider_id(&norm_provider)
+        == LlmTransport::OpenAiChatCompletions
+        && norm_provider != "z.ai";
+    if v == recommended_url && !requires_explicit_openai_endpoint {
         return None;
     }
     Some(v.to_string())
@@ -1506,11 +1525,6 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
     Ok(())
 }
 
-/// 配置向导（不提示微信；供 `setup` 聚合命令在向导后再统一走 `wechat`）。
-pub(crate) async fn run_config_wizard_without_wechat_prompt() -> anyhow::Result<()> {
-    run_config_wizard_inner(false).await
-}
-
 async fn maybe_offer_wechat_binding() -> anyhow::Result<()> {
     use console::Term;
     use dialoguer::theme::ColorfulTheme;
@@ -1531,27 +1545,89 @@ async fn maybe_offer_wechat_binding() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 首次安装聚合：确保 workspace → 缺 API 配置则向导（不重复问微信）→ 可选微信扫码与自启。
+fn has_non_empty_secret(v: &str) -> bool {
+    !v.trim().is_empty()
+}
+
+fn has_usable_model_config(cfg: &AnyCodeConfig) -> bool {
+    if cfg.provider.trim().is_empty() || cfg.model.trim().is_empty() {
+        return false;
+    }
+    if validate_llm_provider(&cfg.provider).is_err() {
+        return false;
+    }
+    if has_non_empty_secret(&cfg.api_key) {
+        return true;
+    }
+    cfg.provider_credentials
+        .values()
+        .any(|v| has_non_empty_secret(v))
+}
+
+/// 首次安装聚合：先模型配置，再选择 channel（wechat/telegram/discord）。
 pub(crate) async fn run_onboard_flow(
     config_file: Option<PathBuf>,
     data_dir: Option<PathBuf>,
-    skip_wechat: bool,
+    channel: Option<String>,
     debug: bool,
 ) -> anyhow::Result<()> {
     crate::workspace::ensure_layout()?;
-    let cfg = load_anycode_config_resolved(config_file.clone())?;
-    let need_wizard = match &cfg {
-        None => true,
-        Some(c) => c.api_key.trim().is_empty(),
+    let existing = load_anycode_config_resolved(config_file.clone())?;
+    let already_configured = existing.as_ref().is_some_and(has_usable_model_config);
+    let mut reconfigure_model = !already_configured;
+    if already_configured {
+        println!("检测到已存在可用模型配置，将默认跳过模型配置。");
+        println!("如需单独重配，可运行：anycode model");
+        let term = console::Term::stdout();
+        if term.is_term() {
+            use dialoguer::{theme::ColorfulTheme, Confirm};
+            reconfigure_model = Confirm::with_theme(&ColorfulTheme::default())
+                .with_prompt("是否现在重新配置模型？")
+                .default(false)
+                .interact()?;
+        } else {
+            reconfigure_model = false;
+        }
+    }
+    if reconfigure_model {
+        run_model_onboard_interactive(config_file.clone()).await?;
+    }
+
+    let selected = match channel
+        .as_deref()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("wechat") => "wechat",
+        Some("telegram") => "telegram",
+        Some("discord") => "discord",
+        Some(other) => {
+            anyhow::bail!("unsupported setup channel: {other} (expected wechat/telegram/discord)")
+        }
+        None => {
+            use dialoguer::{theme::ColorfulTheme, Select};
+            let term = console::Term::stdout();
+            if !term.is_term() {
+                println!("setup 未指定 channel，默认选择 wechat（可用 --channel 覆盖）");
+                "wechat"
+            } else {
+                let options = ["wechat", "telegram", "discord"];
+                let idx = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("选择要接入的 channel")
+                    .items(options)
+                    .default(0)
+                    .interact()?;
+                options[idx]
+            }
+        }
     };
-    if need_wizard {
-        run_config_wizard_without_wechat_prompt().await?;
+
+    match selected {
+        "wechat" => crate::wechat::run_onboard(data_dir, config_file, debug).await,
+        "telegram" => crate::tg::run_telegram_setup().await,
+        "discord" => crate::discord_channel::run_discord_setup().await,
+        _ => unreachable!(),
     }
-    if skip_wechat {
-        println!("{}", tr("cfg-skip-wechat"));
-        return Ok(());
-    }
-    crate::wechat::run_onboard(data_dir, config_file, debug).await
 }
 
 pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config> {

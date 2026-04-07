@@ -1,4 +1,4 @@
-//! `anycode wechat`：扫码绑定并安装后台服务；`--run-as-bridge` 仅供系统服务调用。
+//! `anycode channel wechat`：扫码绑定并安装后台服务；`--run-as-bridge` 仅供系统服务调用。
 
 use anyhow::Context;
 

@@ -11,13 +11,99 @@ use anycode_llm::{
     ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
 };
 use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Input, Select};
+use dialoguer::{Input, Password, Select};
 use fluent_bundle::FluentArgs;
 use std::path::PathBuf;
 
 fn accent_title(line: &str) {
     println!("{}", console::Style::new().cyan().bold().apply_to(line));
 }
+
+#[derive(Clone, Copy)]
+struct AuthChoice {
+    id: &'static str,
+    label: &'static str,
+    provider: &'static str,
+    plan: &'static str,
+    default_model: &'static str,
+    base_url: &'static str,
+    key_envs: &'static [&'static str],
+}
+
+const QUICK_AUTH_CHOICES: &[AuthChoice] = &[
+    AuthChoice {
+        id: "zai-coding",
+        label: "z.ai Coding Plan (API Key)",
+        provider: "z.ai",
+        plan: "coding",
+        default_model: "glm-5",
+        base_url: "https://api.z.ai/api/coding/paas/v4/chat/completions",
+        key_envs: &["ZAI_API_KEY"],
+    },
+    AuthChoice {
+        id: "zai-general",
+        label: "z.ai General (API Key)",
+        provider: "z.ai",
+        plan: "general",
+        default_model: "glm-5-air",
+        base_url: "https://api.z.ai/api/paas/v4/chat/completions",
+        key_envs: &["ZAI_API_KEY"],
+    },
+    AuthChoice {
+        id: "deepseek-api-key",
+        label: "DeepSeek API Key",
+        provider: "deepseek",
+        plan: "general",
+        default_model: "deepseek-chat",
+        base_url: "https://api.deepseek.com/v1/chat/completions",
+        key_envs: &["DEEPSEEK_API_KEY"],
+    },
+    AuthChoice {
+        id: "gemini-api-key",
+        label: "Google Gemini API Key",
+        provider: "google",
+        plan: "general",
+        default_model: "gemini-2.5-pro",
+        base_url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        key_envs: &["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+    },
+    AuthChoice {
+        id: "qwen-api-key",
+        label: "Qwen API Key (Global Coding Plan)",
+        provider: "qwen",
+        plan: "general",
+        default_model: "qwen3-coder-plus",
+        base_url: "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
+        key_envs: &["QWEN_API_KEY", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY"],
+    },
+    AuthChoice {
+        id: "qwen-api-key-cn",
+        label: "Qwen API Key (China Coding Plan)",
+        provider: "qwen",
+        plan: "general",
+        default_model: "qwen3-coder-plus",
+        base_url: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
+        key_envs: &["QWEN_API_KEY", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY"],
+    },
+    AuthChoice {
+        id: "anthropic-api-key",
+        label: "Anthropic API Key",
+        provider: "anthropic",
+        plan: "general",
+        default_model: "claude-sonnet-4-20250514",
+        base_url: "https://api.anthropic.com/v1/messages",
+        key_envs: &["ANTHROPIC_API_KEY"],
+    },
+    AuthChoice {
+        id: "openai-api-key",
+        label: "OpenAI API Key",
+        provider: "openai",
+        plan: "general",
+        default_model: "gpt-4.1",
+        base_url: "https://api.openai.com/v1/chat/completions",
+        key_envs: &["OPENAI_API_KEY"],
+    },
+];
 
 pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
     let is_tty = console::Term::stdout().is_term();
@@ -56,7 +142,7 @@ pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
         };
 
         match hub_idx {
-            0 => run_global_provider_flow(config_file.clone(), &path, is_tty).await?,
+            0 => run_global_provider_flow(config_file.clone(), &path, is_tty, false).await?,
             1 => run_routing_agents_flow(config_file.clone(), &path, is_tty).await?,
             _ => return Ok(()),
         }
@@ -64,10 +150,167 @@ pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
     }
 }
 
+/// setup 场景的精简模型向导：直接进入 provider 配置，不展示 routing 菜单。
+pub(super) async fn run_onboard(config_file: Option<PathBuf>) -> anyhow::Result<()> {
+    let is_tty = console::Term::stdout().is_term();
+    let path = resolve_config_path(config_file.clone())?;
+    let existing = load_anycode_config_resolved(config_file.clone())?;
+
+    println!("模型配置（OpenClaw 风格）");
+    if let Some(ref c) = existing {
+        println!("当前：provider={} model={}", c.provider, c.model);
+    }
+
+    let mode_items = vec![
+        "快速配置（常用 auth-choice）".to_string(),
+        "完整提供商目录（全量 provider）".to_string(),
+    ];
+    let mode_idx = if is_tty {
+        Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("请选择配置模式")
+            .default(0)
+            .items(&mode_items)
+            .interact()?
+    } else {
+        println!("请选择配置模式：");
+        for (i, l) in mode_items.iter().enumerate() {
+            println!("  {}) {}", i + 1, l);
+        }
+        loop {
+            let v = prompt_line("输入序号")?;
+            if let Ok(n) = v.trim().parse::<usize>() {
+                if n >= 1 && n <= mode_items.len() {
+                    break n - 1;
+                }
+            }
+            println!("{}", tr("model-invalid"));
+        }
+    };
+
+    if mode_idx == 1 {
+        return run_global_provider_flow(config_file, &path, is_tty, true).await;
+    }
+
+    let mut items: Vec<String> = QUICK_AUTH_CHOICES
+        .iter()
+        .map(|c| format!("{}  ({})", c.label, c.id))
+        .collect();
+    items.push("切换到完整提供商目录（全量）".to_string());
+
+    let idx = if is_tty {
+        Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("请选择 auth-choice")
+            .default(0)
+            .items(&items)
+            .interact()?
+    } else {
+        println!("请选择 auth-choice：");
+        for (i, l) in items.iter().enumerate() {
+            println!("  {}) {}", i + 1, l);
+        }
+        loop {
+            let v = prompt_line("输入序号")?;
+            if let Ok(n) = v.trim().parse::<usize>() {
+                if n >= 1 && n <= items.len() {
+                    break n - 1;
+                }
+            }
+            println!("{}", tr("model-invalid"));
+        }
+    };
+
+    if idx >= QUICK_AUTH_CHOICES.len() {
+        return run_global_provider_flow(config_file, &path, is_tty, true).await;
+    }
+    apply_quick_auth_choice(
+        config_file,
+        &path,
+        is_tty,
+        &existing,
+        QUICK_AUTH_CHOICES[idx],
+    )
+    .await
+}
+
+fn lookup_env_first(envs: &[&str]) -> Option<String> {
+    for k in envs {
+        if let Ok(v) = std::env::var(k) {
+            let t = v.trim();
+            if !t.is_empty() {
+                return Some(t.to_string());
+            }
+        }
+    }
+    None
+}
+
+async fn apply_quick_auth_choice(
+    config_file: Option<PathBuf>,
+    path: &std::path::Path,
+    is_tty: bool,
+    existing: &Option<super::AnyCodeConfig>,
+    choice: AuthChoice,
+) -> anyhow::Result<()> {
+    let existing_key = existing
+        .as_ref()
+        .filter(|c| normalize_provider_id(&c.provider) == normalize_provider_id(choice.provider))
+        .map(|c| c.api_key.clone())
+        .unwrap_or_default();
+    let default_key = lookup_env_first(choice.key_envs).unwrap_or(existing_key);
+
+    println!("已选择：{} ({})", choice.label, choice.id);
+    let key_prompt = format!("{} API Key", choice.provider);
+    let api_key = if is_tty {
+        let input = Password::with_theme(&ColorfulTheme::default())
+            .with_prompt(key_prompt)
+            .allow_empty_password(!default_key.trim().is_empty())
+            .interact()?;
+        if input.trim().is_empty() {
+            default_key
+        } else {
+            input
+        }
+    } else {
+        let input = prompt_line("请输入 API Key（回车保留已有值）")?;
+        if input.trim().is_empty() {
+            default_key
+        } else {
+            input
+        }
+    };
+    let api_key = api_key.trim().to_string();
+    if api_key.is_empty() {
+        anyhow::bail!("API Key 不能为空");
+    }
+
+    let model = existing
+        .as_ref()
+        .filter(|c| normalize_provider_id(&c.provider) == normalize_provider_id(choice.provider))
+        .map(|c| c.model.clone())
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| choice.default_model.to_string());
+    let base_url = Some(choice.base_url.to_string());
+
+    save_merged_config(
+        config_file,
+        existing,
+        choice.provider,
+        choice.plan,
+        &model,
+        &api_key,
+        base_url,
+    )?;
+    let mut sa = FluentArgs::new();
+    sa.set("path", path.display().to_string());
+    println!("✅ {}", tr_args("wizard-saved", &sa));
+    Ok(())
+}
+
 async fn run_global_provider_flow(
     config_file: Option<PathBuf>,
     path: &std::path::Path,
     is_tty: bool,
+    quick_mode: bool,
 ) -> anyhow::Result<()> {
     let existing = load_anycode_config_resolved(config_file.clone())?;
     if let Some(ref c) = existing {
@@ -84,6 +327,9 @@ async fn run_global_provider_flow(
         let labels: Vec<String> = PROVIDER_CATALOG
             .iter()
             .map(|e| {
+                if quick_mode {
+                    return e.label.to_string();
+                }
                 let hint = e.hint.map(|h| format!(" ({})", h)).unwrap_or_default();
                 if e.placeholder_only {
                     let mut a = FluentArgs::new();
@@ -191,6 +437,7 @@ async fn run_global_provider_flow(
                 "z.ai",
                 &plan,
                 default_base_url_for(ZAI_AUTH_METHODS[zi].plan),
+                true,
             )?;
             save_merged_config(
                 config_file.clone(),
@@ -215,6 +462,7 @@ async fn run_global_provider_flow(
                 "anthropic",
                 "general",
                 "https://api.anthropic.com/v1/messages",
+                true,
             )?;
             save_merged_config(
                 config_file.clone(),
@@ -288,6 +536,7 @@ async fn run_global_provider_flow(
                 "github_copilot",
                 "general",
                 "https://api.individual.githubcopilot.com",
+                true,
             )?;
             save_merged_config(
                 config_file.clone(),
@@ -304,18 +553,46 @@ async fn run_global_provider_flow(
             return Ok(());
         }
 
-        let default_url = entry
-            .suggested_openai_base
-            .unwrap_or("https://api.openai.com/v1/chat/completions");
+        let default_url = entry.suggested_openai_base.unwrap_or("");
+        let default_model = existing
+            .as_ref()
+            .filter(|c| normalize_provider_id(&c.provider) == id)
+            .map(|c| c.model.clone())
+            .unwrap_or_else(|| provider_default_model(&id).to_string());
         let model: String = if is_tty {
             Input::with_theme(&ColorfulTheme::default())
                 .with_prompt(&tr("wizard-prompt-model-id"))
+                .default(default_model.clone())
                 .interact_text()?
         } else {
-            prompt_line(&format!("{} ", tr("wizard-prompt-model-id")))?
+            let v = prompt_line(&format!("{} ", tr("wizard-prompt-model-id")))?;
+            if v.trim().is_empty() {
+                default_model.clone()
+            } else {
+                v
+            }
         };
-        let (api_key, base_url) =
-            prompt_api_key_and_base_url(is_tty, &existing, &id, "general", default_url)?;
+        let prompt_base_url = if quick_mode && !default_url.is_empty() {
+            if is_tty {
+                use dialoguer::Confirm;
+                !Confirm::with_theme(&ColorfulTheme::default())
+                    .with_prompt(format!("使用推荐 endpoint：{} ？", default_url))
+                    .default(true)
+                    .interact()?
+            } else {
+                false
+            }
+        } else {
+            true
+        };
+        let (api_key, base_url) = prompt_api_key_and_base_url(
+            is_tty,
+            &existing,
+            &id,
+            "general",
+            default_url,
+            prompt_base_url,
+        )?;
         save_merged_config(
             config_file.clone(),
             &existing,
@@ -329,6 +606,19 @@ async fn run_global_provider_flow(
         sa.set("path", path.display().to_string());
         println!("✅ {}", tr_args("wizard-saved", &sa));
         return Ok(());
+    }
+}
+
+fn provider_default_model(provider: &str) -> &'static str {
+    match provider {
+        "deepseek" => "deepseek-chat",
+        "anthropic" => "claude-sonnet-4-20250514",
+        "google" => "gemini-3.1-pro-preview",
+        "openai" => "gpt-4.1",
+        "qwen" => "qwen3.5-plus",
+        "moonshot" | "kimi_code" => "kimi-k2-0711-preview",
+        "groq" => "llama-3.3-70b-versatile",
+        _ => "gpt-4o",
     }
 }
 

@@ -75,7 +75,9 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         label: "Alibaba Model Studio",
         hint: Some("阿里云百炼等 OpenAI 兼容 URL（与 qwen 并存，按账号选）"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: None,
+        suggested_openai_base: Some(
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+        ),
         placeholder_only: false,
     },
     ProviderCatalogEntry {
@@ -159,7 +161,9 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         label: "Google",
         hint: Some("Gemini OpenAI 兼容层或自建代理 URL"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: None,
+        suggested_openai_base: Some(
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        ),
         placeholder_only: false,
     },
     ProviderCatalogEntry {
@@ -287,7 +291,7 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         label: "Qianfan",
         hint: Some("百度千帆 OpenAI 兼容 URL"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: None,
+        suggested_openai_base: Some("https://qianfan.baidubce.com/v2/chat/completions"),
         placeholder_only: false,
     },
     ProviderCatalogEntry {
@@ -295,7 +299,9 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         label: "Qwen",
         hint: Some("DashScope 等 OpenAI 兼容 endpoint"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: None,
+        suggested_openai_base: Some(
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+        ),
         placeholder_only: false,
     },
     ProviderCatalogEntry {
@@ -311,7 +317,7 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         label: "StepFun",
         hint: Some("阶跃星辰 OpenAI 兼容 URL（按控制台填写 base_url）"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: None,
+        suggested_openai_base: Some("https://api.stepfun.ai/v1/chat/completions"),
         placeholder_only: false,
     },
     ProviderCatalogEntry {
@@ -351,7 +357,7 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         label: "Volcano Engine",
         hint: Some("火山方舟 OpenAI 兼容 URL"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: None,
+        suggested_openai_base: Some("https://ark.cn-beijing.volces.com/api/v3/chat/completions"),
         placeholder_only: false,
     },
     ProviderCatalogEntry {

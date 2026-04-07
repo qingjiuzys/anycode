@@ -4,15 +4,18 @@ mod app_config;
 mod artifact_summary;
 mod bootstrap;
 mod builtin_agents;
+mod channel_task;
 mod cli_args;
 mod commands;
 mod copilot_auth;
+mod discord_channel;
 mod i18n;
 mod md_tui;
 mod repl_banner;
 mod repl_inline;
 mod slash_commands;
 mod tasks;
+mod tg;
 mod tui;
 mod wechat;
 mod wechat_ilink;
@@ -23,9 +26,9 @@ mod wx;
 use anycode_tools::iter_cli_tool_help;
 use app_config::{load_config_for_session, run_onboard_flow};
 use builtin_agents::BUILTIN_AGENT_IDS;
-use cli_args::Commands;
 #[cfg(feature = "mcp-oauth")]
 use cli_args::McpCommands;
+use cli_args::{ChannelCommands, Commands};
 #[cfg(feature = "mcp-oauth")]
 use fluent_bundle::FluentArgs;
 #[cfg(feature = "mcp-oauth")]
@@ -62,7 +65,16 @@ async fn main() -> anyhow::Result<()> {
 
     // Interactive surfaces (fullscreen TUI / repl) should keep terminal clean by
     // default; INFO logs easily pollute the prompt/input area.
-    let interactive_quiet = matches!(args.command, None | Some(Commands::Repl { .. }));
+    let interactive_quiet = matches!(
+        args.command,
+        None | Some(Commands::Repl { .. })
+            | Some(Commands::Channel {
+                sub: ChannelCommands::Telegram { .. },
+            })
+            | Some(Commands::Channel {
+                sub: ChannelCommands::Discord { .. },
+            })
+    );
 
     // Logs on stderr; stdout for ratatui / REPL banner and task output.
     let subscriber = fmt::Subscriber::builder()
@@ -73,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set tracing subscriber");
 
     if !interactive_quiet || args.debug {
-        info!("🦀 anyCode v0.1.0 starting...");
+        info!("anyCode v0.1.0 starting...");
         info!("anyCode CLI ready");
     }
 
@@ -139,12 +151,64 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
         }
-        Some(Commands::Setup {
-            skip_wechat,
-            data_dir,
-        }) => {
-            run_onboard_flow(args.config.clone(), data_dir, skip_wechat, args.debug).await?;
+        Some(Commands::Setup { channel, data_dir }) => {
+            run_onboard_flow(args.config.clone(), data_dir, channel, args.debug).await?;
         }
+        Some(Commands::Channel { sub }) => match sub {
+            ChannelCommands::Wechat {
+                data_dir,
+                run_as_bridge,
+                agent,
+            } => {
+                if run_as_bridge {
+                    wechat::run_bridged_start(
+                        args.config.clone(),
+                        agent,
+                        data_dir,
+                        ignore_approval,
+                    )
+                    .await?;
+                } else {
+                    wechat::run_onboard(data_dir, args.config.clone(), args.debug).await?;
+                }
+            }
+            ChannelCommands::Telegram {
+                bot_token,
+                chat_id,
+                agent,
+                directory,
+            } => {
+                let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
+                tg::run_telegram_polling(
+                    config,
+                    tg::TelegramRunArgs {
+                        bot_token,
+                        chat_id,
+                        agent,
+                        directory,
+                    },
+                )
+                .await?;
+            }
+            ChannelCommands::Discord {
+                bot_token,
+                channel_id,
+                agent,
+                directory,
+            } => {
+                let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
+                discord_channel::run_discord_polling(
+                    config,
+                    discord_channel::DiscordRunArgs {
+                        bot_token,
+                        channel_id,
+                        agent,
+                        directory,
+                    },
+                )
+                .await?;
+            }
+        },
         Some(Commands::Workspace { sub }) => match sub {
             cli_args::WorkspaceCommands::List { json } => {
                 commands::workspace::handle_list(json).await?;
@@ -254,18 +318,6 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         },
-        Some(Commands::Wechat {
-            data_dir,
-            run_as_bridge,
-            agent,
-        }) => {
-            if run_as_bridge {
-                wechat::run_bridged_start(args.config.clone(), agent, data_dir, ignore_approval)
-                    .await?;
-            } else {
-                wechat::run_onboard(data_dir, args.config.clone(), args.debug).await?;
-            }
-        }
         None => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
             if let Ok(cwd) = std::env::current_dir() {

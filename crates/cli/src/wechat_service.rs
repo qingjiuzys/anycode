@@ -1,5 +1,5 @@
 //! WeChat bridge user autostart: macOS LaunchAgent (RunAtLoad + KeepAlive); Linux systemd --user.
-//! Installed after `anycode wechat` bind success; service uses hidden `--run-as-bridge`.
+//! Installed after `anycode channel wechat` bind success; service uses hidden `--run-as-bridge`.
 
 use crate::i18n::{tr, tr_args};
 use anyhow::{Context, Result};
@@ -61,6 +61,7 @@ fn build_argv(spec: &WechatServiceSpec) -> Result<Vec<String>> {
         v.push("-c".into());
         v.push(c.to_string_lossy().to_string());
     }
+    v.push("channel".into());
     v.push("wechat".into());
     v.push("--run-as-bridge".into());
     v.push("--agent".into());
@@ -374,7 +375,7 @@ pub fn install(_spec: WechatServiceSpec) -> Result<()> {
     anyhow::bail!("{}", tr("wx-svc-err-unsupported"));
 }
 
-/// After `anycode wechat` scan success: install autostart for current exe + data root.
+/// After `anycode channel wechat` scan success: install autostart for current exe + data root.
 pub fn install_autostart_after_setup(
     data_root: PathBuf,
     config: Option<PathBuf>,

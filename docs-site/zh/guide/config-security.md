@@ -15,7 +15,7 @@ read_when:
 anycode config
 ```
 
-向导会保留已有 **`routing`** 与 **`security`** 段。保存成功后，在 TTY 下可能询问是否绑定微信（与 `anycode wechat` 一致，见 [微信与 setup](./wechat)）。
+向导会保留已有 **`routing`** 与 **`security`** 段。保存成功后，在 TTY 下可能询问是否绑定微信（与 `anycode channel wechat` 一致，见 [微信与 setup](./wechat)）。
 
 ## 安全与审批
 

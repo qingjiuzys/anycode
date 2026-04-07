@@ -356,7 +356,7 @@ main() {
       "${BIN_DIR}/anycode" setup
     fi
   else
-    info "Next: run  anycode setup  (API 向导 + 可选微信扫码)。跳过微信:  anycode setup --skip-wechat"
+    info "Next: run  anycode setup  (先配置模型，再选择 channel：wechat/telegram/discord)"
   fi
 }
 

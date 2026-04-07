@@ -2,6 +2,7 @@
 //!
 //! OpenAI 兼容 `chat/completions`：支持 `tools` / `tool_calls`（与 OpenAI Chat Completions 对齐）。
 
+use crate::normalize_provider_id;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -228,6 +229,42 @@ fn normalize_zai_base_url(raw: &str) -> String {
         return s;
     }
     s
+}
+
+fn provider_label_from_config(config: &ModelConfig) -> String {
+    match &config.provider {
+        LLMProvider::Custom(s) => {
+            let n = normalize_provider_id(s);
+            if n.is_empty() {
+                "openai-compatible".to_string()
+            } else {
+                n
+            }
+        }
+        LLMProvider::OpenAI => "openai".to_string(),
+        LLMProvider::Anthropic => "anthropic".to_string(),
+        LLMProvider::Local => "local".to_string(),
+    }
+}
+
+fn normalize_openai_compatible_base_url(raw: &str, provider_label: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return normalize_zai_base_url(trimmed);
+    }
+    // Google 常见误填为原生 Gemini 路径（/v1beta/models/...），这里自动归一到 OpenAI 兼容入口。
+    if provider_label == "google" && trimmed.contains("generativelanguage.googleapis.com") {
+        let s = trimmed.trim_end_matches('/');
+        if s.ends_with("/v1beta/openai/chat/completions") {
+            return s.to_string();
+        }
+        if s.contains("/v1beta/models/") || s.ends_with("/v1beta") || s.ends_with("/v1beta/openai")
+        {
+            return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+                .to_string();
+        }
+    }
+    normalize_zai_base_url(trimmed)
 }
 
 #[derive(Debug, Serialize)]
@@ -506,6 +543,13 @@ fn zai_thinking_body() -> Option<Value> {
     }
 }
 
+fn openai_compatible_thinking_body(provider_label: &str) -> Option<Value> {
+    if provider_label == "z.ai" {
+        return zai_thinking_body();
+    }
+    None
+}
+
 fn zai_tool_choice(
     messages: &[Message],
     tools_empty: bool,
@@ -736,9 +780,11 @@ impl LLMClient for ZaiClient {
             Some(openai_tools_from_schemas(&tools))
         };
 
+        let provider_label = provider_label_from_config(config);
         if tools_json.is_some() {
             debug!(
-                "z.ai request includes {} tools, tool_choice={:?}",
+                "{} request includes {} tools, tool_choice={:?}",
+                provider_label,
                 tools.len(),
                 tool_choice
             );
@@ -752,21 +798,21 @@ impl LLMClient for ZaiClient {
             stream: Some(false),
             tools: tools_json,
             tool_choice,
-            thinking: zai_thinking_body(),
+            thinking: openai_compatible_thinking_body(&provider_label),
         };
 
         let base_url = config
             .base_url
             .clone()
             .unwrap_or_else(|| self.base_url.clone());
-        let base_url = normalize_zai_base_url(&base_url);
+        let base_url = normalize_openai_compatible_base_url(&base_url, &provider_label);
 
         let auth_key = config
             .api_key
             .as_deref()
             .filter(|s| !s.is_empty())
             .unwrap_or(self.api_key.as_str());
-        let auth_key = sanitize_header_token(auth_key, "z.ai")?;
+        let auth_key = sanitize_header_token(auth_key, &provider_label)?;
 
         let max_retries: u32 = DEFAULT_MAX_RETRIES;
         let mut last_err: Option<String> = None;
@@ -803,7 +849,8 @@ impl LLMClient for ZaiClient {
                         snippet.push_str("...<truncated>");
                     }
                     last_err = Some(format!(
-                        "z.ai API error: status={} url={} body={}",
+                        "{} API error: status={} url={} body={}",
+                        provider_label,
                         status.as_u16(),
                         base_url,
                         if snippet.is_empty() {
@@ -855,7 +902,8 @@ impl LLMClient for ZaiClient {
 
         let response = response.ok_or_else(|| {
             CoreError::LLMError(format!(
-                "z.ai request failed after retries: {}",
+                "{} request failed after retries: {}",
+                provider_label,
                 last_err.unwrap_or_else(|| "unknown error".to_string())
             ))
         })?;
@@ -864,7 +912,8 @@ impl LLMClient for ZaiClient {
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
             return Err(CoreError::LLMError(format!(
-                "z.ai API error (no retry): status={} url={} body={}",
+                "{} API error (no retry): status={} url={} body={}",
+                provider_label,
                 status.as_u16(),
                 base_url,
                 if error_text.is_empty() {

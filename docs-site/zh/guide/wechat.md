@@ -1,7 +1,7 @@
 ---
 title: 微信与 setup
 description: 首次 setup 与可选的微信 iLink 桥接说明。
-summary: 工作区初始化、API 向导、可选扫码绑定与自启桥。
+summary: 工作区初始化、模型配置、channel 选择与扫码绑定自启桥。
 read_when:
   - 要用手机微信驱动同一套 Agent。
   - 在无界面环境装好后补绑微信。
@@ -15,21 +15,21 @@ read_when:
 
 1. 初始化 **`~/.anycode/workspace`** 等用户目录（与 **`~/.anycode/wechat`** 并列）。
 2. 若缺少有效 LLM 配置，进入 **config 向导**（写入 `~/.anycode/config.json`）。
-3. 在 TTY 下一般会询问是否 **绑定微信并安装登录自启后台桥**（与 `anycode wechat` 相同流程）。
+3. 在 TTY 下会先选择 channel（`wechat` / `telegram` / `discord`），再进入对应流程。
 
 ```bash
 ./target/release/anycode setup
-./target/release/anycode setup --skip-wechat
+./target/release/anycode setup --channel wechat
 ```
 
-**`--debug`**、**`-c/--config`**、**`WCC_DATA_DIR`** 等与 **`wechat`** 子命令一致。
+**`--debug`**、**`-c/--config`**、**`WCC_DATA_DIR`** 等与 **`channel wechat`** 子命令一致。
 
-## `wechat`
+## `channel wechat`
 
 跳过 setup 里的微信后，或需要重新绑定时：
 
 ```bash
-anycode wechat
+anycode channel wechat
 ```
 
 需在能完成 **扫码登录** 的环境（浏览器/图形界面）。

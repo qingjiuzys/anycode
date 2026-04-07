@@ -47,7 +47,7 @@ pub(crate) fn session_ignore_approval(cli_ignore_approval: bool) -> bool {
     cli_ignore_approval || argv_requests_ignore_approval() || env_ignore_approval()
 }
 
-/// 🦀 anyCode - Integrated AI Agent System
+/// anyCode - Integrated AI Agent System
 ///
 /// - **No subcommand**: fullscreen TUI (ratatui).
 /// - **`repl`**: line REPL; output in the main terminal buffer (no fullscreen UI).
@@ -160,14 +160,20 @@ pub(crate) enum Commands {
         sub: WorkspaceCommands,
     },
 
-    /// 🚀  First-time setup: workspace → API wizard if needed → optional WeChat scan and login autostart (`--skip-wechat` to skip WeChat)
+    /// 🚀  First-time setup: model first, then choose channel (wechat / telegram / discord)
     Setup {
-        /// Skip WeChat binding (wizard + workspace only)
-        #[arg(long, default_value_t = false)]
-        skip_wechat: bool,
-        /// WeChat data directory (default ~/.anycode/wechat; same as `wechat` subcommand)
+        /// Preferred channel: wechat / telegram / discord (optional)
+        #[arg(long)]
+        channel: Option<String>,
+        /// WeChat data directory (default ~/.anycode/wechat; used when channel=wechat)
         #[arg(long, env = "WCC_DATA_DIR")]
         data_dir: Option<PathBuf>,
+    },
+
+    /// 📡 Channel bridge commands (wechat / telegram / discord)
+    Channel {
+        #[command(subcommand)]
+        sub: ChannelCommands,
     },
 
     /// 🤖  Models and credentials (interactive when no nested subcommand; aligned with openclaw-style flow)
@@ -193,8 +199,11 @@ pub(crate) enum Commands {
         #[command(subcommand)]
         sub: McpCommands,
     },
+}
 
-    /// 💬  WeChat: scan to bind; installs login autostart bridge on success
+#[derive(Subcommand, Debug)]
+pub(crate) enum ChannelCommands {
+    /// WeChat: scan to bind; installs login autostart bridge on success
     Wechat {
         /// Data directory (default ~/.anycode/wechat; `WCC_DATA_DIR` for legacy wechat-claude-code paths)
         #[arg(long, env = "WCC_DATA_DIR")]
@@ -205,6 +214,36 @@ pub(crate) enum Commands {
         /// Same as `anycode run --agent` (only with `--run-as-bridge`)
         #[arg(long, default_value = "workspace-assistant", hide = true)]
         agent: String,
+    },
+    /// Telegram bridge (Bot Token + polling)
+    Telegram {
+        /// Telegram bot token (fallback: TELEGRAM_BOT_TOKEN)
+        #[arg(long)]
+        bot_token: Option<String>,
+        /// Limit processing to one chat id (optional)
+        #[arg(long)]
+        chat_id: Option<String>,
+        /// Agent type
+        #[arg(short, long, default_value = "workspace-assistant")]
+        agent: String,
+        /// Working directory
+        #[arg(short = 'C', long)]
+        directory: Option<PathBuf>,
+    },
+    /// Discord bridge (Bot Token + channel polling)
+    Discord {
+        /// Discord bot token (fallback: DISCORD_BOT_TOKEN)
+        #[arg(long)]
+        bot_token: Option<String>,
+        /// Discord channel id (fallback: DISCORD_CHANNEL_ID)
+        #[arg(long)]
+        channel_id: Option<String>,
+        /// Agent type
+        #[arg(short, long, default_value = "workspace-assistant")]
+        agent: String,
+        /// Working directory
+        #[arg(short = 'C', long)]
+        directory: Option<PathBuf>,
     },
 }
 
@@ -333,7 +372,7 @@ pub fn parse_args() -> Args {
 
 #[cfg(test)]
 mod clap_tests {
-    use super::{session_ignore_approval, Args, Commands};
+    use super::{session_ignore_approval, Args, ChannelCommands, Commands};
     use clap::Parser;
     use std::sync::{Mutex, OnceLock};
 
@@ -476,13 +515,10 @@ mod clap_tests {
 
     #[test]
     fn setup_subcommand_parses() {
-        let a = Args::try_parse_from(["anycode", "setup", "--skip-wechat"]).unwrap();
+        let a = Args::try_parse_from(["anycode", "setup", "--channel", "telegram"]).unwrap();
         match a.command {
-            Some(Commands::Setup {
-                skip_wechat,
-                data_dir,
-            }) => {
-                assert!(skip_wechat);
+            Some(Commands::Setup { channel, data_dir }) => {
+                assert_eq!(channel.as_deref(), Some("telegram"));
                 assert!(data_dir.is_none());
             }
             _ => panic!("expected setup"),
@@ -517,6 +553,45 @@ mod clap_tests {
                 assert!(matches!(sub, super::WorkspaceCommands::List { json: true }));
             }
             _ => panic!("expected workspace list"),
+        }
+    }
+
+    #[test]
+    fn telegram_subcommand_parses() {
+        let a = Args::try_parse_from([
+            "anycode",
+            "channel",
+            "telegram",
+            "--chat-id",
+            "123",
+            "--agent",
+            "workspace-assistant",
+        ])
+        .unwrap();
+        match a.command {
+            Some(Commands::Channel { sub }) => match sub {
+                ChannelCommands::Telegram { chat_id, agent, .. } => {
+                    assert_eq!(chat_id.as_deref(), Some("123"));
+                    assert_eq!(agent, "workspace-assistant");
+                }
+                _ => panic!("expected telegram subcommand"),
+            },
+            _ => panic!("expected channel command"),
+        }
+    }
+
+    #[test]
+    fn discord_subcommand_parses() {
+        let a =
+            Args::try_parse_from(["anycode", "channel", "discord", "--channel-id", "999"]).unwrap();
+        match a.command {
+            Some(Commands::Channel { sub }) => match sub {
+                ChannelCommands::Discord { channel_id, .. } => {
+                    assert_eq!(channel_id.as_deref(), Some("999"));
+                }
+                _ => panic!("expected discord subcommand"),
+            },
+            _ => panic!("expected channel command"),
         }
     }
 }

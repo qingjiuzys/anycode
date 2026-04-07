@@ -26,7 +26,7 @@ anyCode is a **Rust terminal AI coding assistant**: fullscreen TUI, line-based R
 
 ```bash
 ./target/release/anycode setup
-./target/release/anycode setup --skip-wechat
+./target/release/anycode setup --channel wechat
 ```
 
 ## Verify
