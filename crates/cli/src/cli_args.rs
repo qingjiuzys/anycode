@@ -91,16 +91,6 @@ pub(crate) struct Args {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
-    /// 💬  Unified chat entry (line REPL for now)
-    Chat {
-        #[arg(short, long, default_value = "general-purpose")]
-        agent: String,
-        #[arg(short = 'C', long)]
-        directory: Option<PathBuf>,
-        #[arg(short, long)]
-        model: Option<String>,
-    },
-
     /// ▶️  Run a single task
     Run {
         /// Agent type
@@ -137,23 +127,10 @@ pub(crate) enum Commands {
         model: Option<String>,
     },
 
-    /// 📋  List available agents
-    ListAgents,
-
-    /// 🔧  List available tools
-    ListTools,
-
     /// 🧩  Agent Skills (SKILL.md discovery under configured roots)
     Skills {
         #[command(subcommand)]
         sub: SkillsCommands,
-    },
-
-    /// 🌐  HTTP daemon (long-running)
-    Daemon {
-        /// Bind address
-        #[arg(short, long, default_value = "127.0.0.1:8080")]
-        bind: String,
     },
 
     /// ⚙️  Interactive configuration wizard
@@ -519,6 +496,17 @@ mod clap_tests {
             err.to_string().contains("unrecognized subcommand"),
             "expected onboard to be removed, got: {err}"
         );
+    }
+
+    #[test]
+    fn removed_commands_are_rejected() {
+        for sub in ["chat", "daemon", "list-agents", "list-tools"] {
+            let err = Args::try_parse_from(["anycode", sub]).unwrap_err();
+            assert!(
+                err.to_string().contains("unrecognized subcommand"),
+                "expected removed subcommand `{sub}` to be rejected, got: {err}"
+            );
+        }
     }
 
     #[test]

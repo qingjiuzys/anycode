@@ -1,10 +1,9 @@
-//! Task entrypoints: `run`, REPL, `daemon`, listings, `test-security`, etc.
+//! Task entrypoints: `run`, REPL, listings, `test-security`, etc.
 
 use crate::app_config::{apply_optional_repl_model, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::cli_args::SkillsCommands;
-use crate::daemon_http;
 use crate::i18n::{tr, tr_args};
 use crate::repl_banner;
 use crate::slash_commands::{self, ParsedSlashCommand};
@@ -16,7 +15,6 @@ use anycode_tools::{default_skill_roots, iter_cli_tool_help, workflows, SkillCat
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tracing::info;
@@ -984,43 +982,6 @@ pub(crate) fn list_tools(sink: &mut ReplSink) {
     sink.line(tr("repl-security-read"));
     sink.line(tr("repl-security-approval"));
     sink.line(tr("repl-security-sandbox"));
-}
-
-pub(crate) async fn run_daemon(config: Config, bind: String) -> anyhow::Result<()> {
-    info!("Starting daemon mode on {}", bind);
-
-    let runtime = initialize_runtime(&config, None).await?;
-    let addr: SocketAddr = bind.parse().map_err(|e: std::net::AddrParseError| {
-        let mut a = FluentArgs::new();
-        a.set("bind", bind.clone());
-        a.set("err", e.to_string());
-        anyhow::anyhow!("{}", tr_args("repl-err-invalid-bind", &a))
-    })?;
-
-    let mut da = FluentArgs::new();
-    da.set("addr", addr.to_string());
-    println!("{}", tr_args("repl-daemon-http", &da));
-    println!("{}", tr("repl-daemon-get"));
-    println!("{}", tr("repl-daemon-post"));
-    println!(
-        "       {}",
-        r#"{"agent":"general-purpose","prompt":"…","working_directory":null}"#
-    );
-    if std::env::var("ANYCODE_DAEMON_TOKEN")
-        .map(|s| !s.trim().is_empty())
-        .unwrap_or(false)
-    {
-        println!("{}", tr("repl-daemon-token-hint"));
-    }
-    println!("{}", tr("repl-daemon-stop-hint"));
-
-    tokio::select! {
-        res = daemon_http::serve(addr, runtime, std::sync::Arc::new(config)) => res,
-        _ = tokio::signal::ctrl_c() => {
-            println!("\n{}", tr("repl-daemon-shutdown"));
-            Ok(())
-        }
-    }
 }
 
 fn build_skill_catalog_for_cli(config: &Config) -> SkillCatalog {

@@ -171,15 +171,6 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
         match sub.get_name() {
             "run" => localize_run(sub),
             "repl" => localize_repl(sub),
-            "list-agents" => *sub = sub.clone().about(tr("cmd-list-agents-about")),
-            "list-tools" => *sub = sub.clone().about(tr("cmd-list-tools-about")),
-            "daemon" => {
-                let n = sub
-                    .clone()
-                    .about(tr("cmd-daemon-about"))
-                    .mut_arg("bind", |a| a.help(tr("cmd-daemon-bind")));
-                *sub = n;
-            }
             "config" => *sub = sub.clone().about(tr("cmd-config-about")),
             "setup" => {
                 let n = sub

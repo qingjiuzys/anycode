@@ -7,7 +7,6 @@ mod builtin_agents;
 mod cli_args;
 mod commands;
 mod copilot_auth;
-mod daemon_http;
 mod i18n;
 mod md_tui;
 mod repl_banner;
@@ -21,7 +20,9 @@ mod wechat_service;
 mod workspace;
 mod wx;
 
+use anycode_tools::iter_cli_tool_help;
 use app_config::{load_config_for_session, run_onboard_flow};
+use builtin_agents::BUILTIN_AGENT_IDS;
 use cli_args::Commands;
 #[cfg(feature = "mcp-oauth")]
 use cli_args::McpCommands;
@@ -59,12 +60,9 @@ fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
 async fn main() -> anyhow::Result<()> {
     let args = cli_args::parse_args();
 
-    // Interactive surfaces (fullscreen TUI / chat / repl) should keep terminal clean by
+    // Interactive surfaces (fullscreen TUI / repl) should keep terminal clean by
     // default; INFO logs easily pollute the prompt/input area.
-    let interactive_quiet = matches!(
-        args.command,
-        None | Some(Commands::Repl { .. }) | Some(Commands::Chat { .. })
-    );
+    let interactive_quiet = matches!(args.command, None | Some(Commands::Repl { .. }));
 
     // Logs on stderr; stdout for ratatui / REPL banner and task output.
     let subscriber = fmt::Subscriber::builder()
@@ -109,6 +107,8 @@ async fn main() -> anyhow::Result<()> {
                         "default_mode": config.runtime.default_mode.as_str(),
                         "features": config.runtime.features.enabled(),
                         "routing_agents": config.routing.agents.keys().collect::<Vec<_>>(),
+                        "agents": BUILTIN_AGENT_IDS,
+                        "tools": iter_cli_tool_help().map(|(n, _)| n).collect::<Vec<_>>(),
                         "workspace_label": config.runtime.workspace_project_label,
                         "workspace_channel_profile": config.runtime.workspace_channel_profile,
                     })
@@ -128,6 +128,14 @@ async fn main() -> anyhow::Result<()> {
                 println!(
                     "slash_commands: {}",
                     slash_commands::help_lines().join(" | ")
+                );
+                println!("agents: {}", BUILTIN_AGENT_IDS.join(", "));
+                println!(
+                    "tools: {}",
+                    iter_cli_tool_help()
+                        .map(|(name, _)| name)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 );
             }
         }
@@ -178,18 +186,6 @@ async fn main() -> anyhow::Result<()> {
             workspace::touch_project_dir(working_dir.clone());
             tasks::run_task(config, agent, mode, workflow, goal, prompt, working_dir).await?;
         }
-        Some(Commands::Chat {
-            agent,
-            directory,
-            model,
-        }) => {
-            let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            let touch_dir = directory
-                .clone()
-                .unwrap_or_else(|| std::env::current_dir().unwrap());
-            workspace::touch_project_dir(touch_dir);
-            tasks::run_interactive(config, agent, directory, model, ignore_approval).await?;
-        }
         Some(Commands::Repl {
             agent,
             directory,
@@ -202,21 +198,9 @@ async fn main() -> anyhow::Result<()> {
             workspace::touch_project_dir(touch_dir);
             tasks::run_interactive(config, agent, directory, model, ignore_approval).await?;
         }
-        Some(Commands::ListAgents) => {
-            let mut sink = tasks::ReplSink::Stdio;
-            tasks::list_agents(&mut sink);
-        }
-        Some(Commands::ListTools) => {
-            let mut sink = tasks::ReplSink::Stdio;
-            tasks::list_tools(&mut sink);
-        }
         Some(Commands::Skills { sub }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
             tasks::run_skills_command(&config, sub)?;
-        }
-        Some(Commands::Daemon { bind }) => {
-            let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            tasks::run_daemon(config, bind).await?;
         }
         Some(Commands::TestSecurity { tool, input }) => {
             tasks::test_security_system(tool, input).await?;
