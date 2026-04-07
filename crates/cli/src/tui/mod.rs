@@ -4,11 +4,11 @@
 
 mod approval;
 mod chrome;
-mod input;
+pub(crate) mod input;
 mod pet;
 mod run;
-mod styles;
+pub(crate) mod styles;
 mod transcript;
-mod util;
+pub(crate) mod util;
 
 pub use run::run_tui;

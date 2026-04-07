@@ -203,6 +203,8 @@ impl RevSearchState {
 pub(crate) fn prompt_multiline_lines_and_cursor(
     input: &InputState,
     inner_width: u16,
+    // 首行 `/` 命令名后的 ghost 后缀（对齐 Claude 行内补全提示）。
+    slash_ghost: Option<String>,
 ) -> (Vec<Line<'static>>, Option<(usize, u16)>) {
     let iw = inner_width as usize;
     let full: String = input.as_string();
@@ -258,13 +260,23 @@ pub(crate) fn prompt_multiline_lines_and_cursor(
                 let local = col.saturating_sub(char_offset);
                 let left: String = seg.chars().take(local).collect();
                 let right: String = seg.chars().skip(local).collect();
+                let ghost = if i == 0 && si == 0 {
+                    slash_ghost.as_ref().filter(|g| !g.is_empty())
+                } else {
+                    None
+                };
+                // 硬件光标在已输入末尾；ghost 为其后灰色提示，不计入光标列。
                 let ox_usize = text_display_width(prefix) + text_display_width(left.as_str());
                 let ox = u16::try_from(ox_usize).unwrap_or(u16::MAX);
-                out.push(Line::from(vec![
+                let mut spans = vec![
                     Span::styled(prefix, style_pfx),
                     Span::styled(left, style_txt),
-                    Span::styled(right, style_txt),
-                ]));
+                ];
+                if let Some(g) = ghost {
+                    spans.push(Span::styled(g.clone(), style_dim()));
+                }
+                spans.push(Span::styled(right, style_txt));
+                out.push(Line::from(spans));
                 let line_idx = out.len() - 1;
                 cursor_cell = Some((line_idx, ox));
                 cursor_done = true;

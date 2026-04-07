@@ -15,11 +15,67 @@ use anycode_security::SecurityLayer;
 use anycode_tools::{default_skill_roots, iter_cli_tool_help, workflows, SkillCatalog};
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tracing::info;
 use uuid::Uuid;
+
+/// REPL 输出目标：管道/工作流走真实终端；TTY 全屏写入 transcript 并在每次增量后重绘。
+pub(crate) enum ReplSink {
+    Stdio,
+    Tui {
+        transcript: Arc<Mutex<String>>,
+        on_flush: Arc<dyn Fn() + Send + Sync>,
+    },
+}
+
+impl ReplSink {
+    pub(crate) fn line(&mut self, line: impl AsRef<str>) {
+        let s = line.as_ref();
+        match self {
+            ReplSink::Stdio => println!("{s}"),
+            ReplSink::Tui { transcript, on_flush } => {
+                let mut t = transcript.lock().unwrap_or_else(|e| e.into_inner());
+                t.push_str(s);
+                t.push('\n');
+                drop(t);
+                on_flush();
+            }
+        }
+    }
+
+    /// 与 `eprintln!` 对齐的 stderr 行；TTY 下仍进入 transcript（与原先一致）。
+    pub(crate) fn eprint_line(&mut self, line: impl AsRef<str>) {
+        let s = line.as_ref();
+        match self {
+            ReplSink::Stdio => eprintln!("{s}"),
+            ReplSink::Tui { transcript, on_flush } => {
+                let mut t = transcript.lock().unwrap_or_else(|e| e.into_inner());
+                t.push_str(s);
+                t.push('\n');
+                drop(t);
+                on_flush();
+            }
+        }
+    }
+
+    pub(crate) fn push_stdout_str(&mut self, s: &str) {
+        match self {
+            ReplSink::Stdio => {
+                print!("{s}");
+                let _ = std::io::stdout().flush();
+            }
+            ReplSink::Tui { transcript, on_flush } => {
+                let mut t = transcript.lock().unwrap_or_else(|e| e.into_inner());
+                t.push_str(s);
+                drop(t);
+                on_flush();
+            }
+        }
+    }
+}
 
 pub(crate) async fn run_interactive(
     mut config: Config,
@@ -36,151 +92,318 @@ pub(crate) async fn run_interactive(
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
     workspace::apply_project_overlays(&mut config, &working_dir);
 
-    repl_banner::print_repl_welcome(&working_dir, &agent, session_skip_approval);
-
     let runtime = initialize_runtime(&config, None).await?;
     let disk = DiskTaskOutput::new_default()?;
 
-    let stdin = BufReader::new(tokio::io::stdin());
-    let mut lines = stdin.lines();
     let mut agent = agent;
 
-    loop {
-        repl_banner::print_repl_prompt();
-        let _ = std::io::stdout().flush();
+    if std::io::stdin().is_terminal() {
+        run_interactive_tty(&runtime, &disk, &working_dir, &mut agent, &mut config).await?;
+    } else {
+        repl_banner::print_repl_welcome(&working_dir, &agent, session_skip_approval);
+        let stdin = BufReader::new(tokio::io::stdin());
+        let mut lines = stdin.lines();
+        loop {
+            repl_banner::print_repl_prompt();
+            let _ = std::io::stdout().flush();
 
-        let line = match lines.next_line().await? {
-            None => break,
-            Some(l) => l,
-        };
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        if let Some(id) = parse_agent_slash_command(trimmed) {
-            agent = id.to_string();
-            let mut a = FluentArgs::new();
-            a.set("id", id);
-            println!("{}", tr_args("repl-agent-switched", &a));
-            println!();
-            continue;
-        }
-
-        if let Some(cmd) = slash_commands::parse(trimmed) {
-            match cmd {
-                ParsedSlashCommand::Mode(arg) => {
-                    if let Some(mode) = arg {
-                        if let Some(parsed) = RuntimeMode::parse(&mode) {
-                            agent = parsed.default_agent().as_str().to_string();
-                            println!("mode -> {} (agent: {})", parsed.as_str(), agent);
-                        } else {
-                            println!("unknown mode: {}", mode);
-                        }
-                    } else {
-                        println!("current agent: {}", agent);
-                    }
-                }
-                ParsedSlashCommand::Status => {
-                    println!("agent: {}", agent);
-                    println!("provider: {}", config.llm.provider);
-                    println!("model: {}", config.llm.model);
-                    println!("default_mode: {}", config.runtime.default_mode.as_str());
-                }
-                ParsedSlashCommand::Workflow(arg) => {
-                    let maybe_path = arg.as_deref().and_then(|raw| {
-                        let trimmed = raw.trim();
-                        trimmed
-                            .strip_prefix("run ")
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty())
-                            .map(PathBuf::from)
-                    });
-                    if let Some(path) = maybe_path {
-                        run_workflow_path(
-                            &runtime,
-                            &disk,
-                            &working_dir,
-                            &path,
-                            Some(trimmed.to_string()),
-                        )
-                        .await?;
-                    } else {
-                        match workflows::discover_workflow(&working_dir) {
-                            Ok(Some((path, workflow))) => {
-                                if arg.as_deref().map(|s| s.trim()) == Some("run") {
-                                    run_workflow_definition(
-                                        &runtime,
-                                        &disk,
-                                        &working_dir,
-                                        &workflow,
-                                        &path,
-                                        Some(trimmed.to_string()),
-                                    )
-                                    .await?;
-                                } else {
-                                    println!("workflow: {} ({})", workflow.name, path.display());
-                                }
-                            }
-                            Ok(None) => println!("workflow: none"),
-                            Err(e) => println!("workflow error: {}", e),
-                        }
-                    }
-                }
-                ParsedSlashCommand::Model(arg) => {
-                    if let Some(next) = arg {
-                        println!(
-                            "model switch requires a new session right now; current={} requested={}",
-                            config.llm.model, next
-                        );
-                    } else {
-                        println!("model: {}", config.llm.model);
-                    }
-                }
-                ParsedSlashCommand::Compact => {
-                    println!("compact is available in TUI/session runtime; use session auto-compact or the compact flow.");
-                }
-                ParsedSlashCommand::Memory => {
-                    println!("memory backend: {}", config.memory.backend);
-                }
-                ParsedSlashCommand::Approve => {
-                    println!("approval is handled by the active channel/runtime when required.");
-                }
+            let line = match lines.next_line().await? {
+                None => break,
+                Some(l) => l,
+            };
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
             }
-            println!();
-            continue;
-        }
-
-        match trimmed {
-            "exit" | "quit" | ":q" | "/exit" => break,
-            "help" | "?" | "/help" => {
-                let mut h = FluentArgs::new();
-                h.set("cwd", format!("{:?}", working_dir));
-                h.set("agent", agent.clone());
-                println!("{}", tr_args("repl-help-equiv", &h));
-                println!("{}", tr("repl-help-cmds"));
-                for line in slash_commands::help_lines() {
-                    println!("{}", line);
-                }
-            }
-            "agents" | "list-agents" | "/agents" => list_agents(),
-            "tools" | "list-tools" | "/tools" => list_tools(),
-            prompt => {
-                run_single_task_with_tail(
-                    &runtime,
-                    &disk,
-                    agent.clone(),
-                    prompt.to_string(),
-                    working_dir.clone(),
-                )
-                .await?;
+            let mut sink = ReplSink::Stdio;
+            if repl_dispatch_one_line(
+                &runtime,
+                &disk,
+                &working_dir,
+                &mut agent,
+                &mut config,
+                trimmed,
+                &mut sink,
+            )
+            .await?
+            {
+                break;
             }
         }
-        println!();
     }
 
     repl_banner::print_repl_goodbye();
     Ok(())
+}
+
+async fn run_interactive_tty(
+    runtime: &AgentRuntime,
+    disk: &DiskTaskOutput,
+    working_dir: &PathBuf,
+    agent: &mut String,
+    config: &mut Config,
+) -> anyhow::Result<()> {
+    use crate::repl_inline::{handle_event, ReplCtl, ReplLineState, ReplTerminalGuard};
+    use crossterm::event;
+
+    let guard = Arc::new(Mutex::new(ReplTerminalGuard::new()?));
+    let state = Arc::new(Mutex::new(ReplLineState::default()));
+    let mut head = FluentArgs::new();
+    head.set("version", env!("CARGO_PKG_VERSION"));
+    head.set("cwd", working_dir.display().to_string());
+    head.set("agent", agent.as_str());
+    {
+        let st = state.lock().unwrap_or_else(|e| e.into_inner());
+        let mut buf = st.transcript.lock().unwrap_or_else(|e| e.into_inner());
+        buf.push_str(&tr_args("repl-tty-title", &head));
+        buf.push('\n');
+        buf.push_str(&tr_args("repl-tty-sub", &head));
+        buf.push_str("\n\n");
+        buf.push_str(&tr("repl-hint-completion"));
+        buf.push_str("\n\n");
+    }
+
+    let redraw: Arc<dyn Fn() + Send + Sync> = {
+        let state = state.clone();
+        let guard = guard.clone();
+        Arc::new(move || {
+            let Ok(st) = state.lock() else {
+                return;
+            };
+            let Ok(mut g) = guard.lock() else {
+                return;
+            };
+            let _ = g.draw(&*st);
+        })
+    };
+
+    loop {
+        {
+            let st = state.lock().unwrap_or_else(|e| e.into_inner());
+            let mut g = guard.lock().unwrap_or_else(|e| e.into_inner());
+            g.draw(&*st)?;
+        }
+        let ev = tokio::task::spawn_blocking(|| event::read()).await??;
+        let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
+        match handle_event(ev, &mut *s)? {
+            ReplCtl::Continue => {}
+            ReplCtl::Submit(text) => {
+                let t = crate::tui::util::trim_or_default(text.as_str());
+                if t.is_empty() {
+                    continue;
+                }
+                let workflow_esc = t.trim_start().starts_with("/workflow");
+                drop(s);
+                let done = if workflow_esc {
+                    guard
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .suspend_for_output()?;
+                    let mut sink = ReplSink::Stdio;
+                    let d = repl_dispatch_one_line(
+                        runtime,
+                        disk,
+                        working_dir,
+                        agent,
+                        config,
+                        t,
+                        &mut sink,
+                    )
+                    .await?;
+                    guard
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .resume_after_output()?;
+                    if !d {
+                        let st = state.lock().unwrap_or_else(|e| e.into_inner());
+                        let mut buf = st.transcript.lock().unwrap_or_else(|e| e.into_inner());
+                        buf.push_str(&tr("repl-tty-workflow-note"));
+                        buf.push_str("\n\n");
+                    }
+                    d
+                } else {
+                    let tr = {
+                        let st = state.lock().unwrap_or_else(|e| e.into_inner());
+                        st.transcript.clone()
+                    };
+                    let mut sink = ReplSink::Tui {
+                        transcript: tr,
+                        on_flush: redraw.clone(),
+                    };
+                    repl_dispatch_one_line(
+                        runtime,
+                        disk,
+                        working_dir,
+                        agent,
+                        config,
+                        t,
+                        &mut sink,
+                    )
+                    .await?
+                };
+                {
+                    let st = state.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut g = guard.lock().unwrap_or_else(|e| e.into_inner());
+                    g.draw(&*st)?;
+                }
+                if done {
+                    break;
+                }
+            }
+            ReplCtl::Eof => break,
+        }
+    }
+
+    Ok(())
+}
+
+/// 处理单行 REPL 输入；返回 `true` 表示应退出循环。
+/// `ReplSink::Tui` 写入内嵌 transcript 并在增量后重绘；`Stdio` 走真实终端。
+async fn repl_dispatch_one_line(
+    runtime: &AgentRuntime,
+    disk: &DiskTaskOutput,
+    working_dir: &PathBuf,
+    agent: &mut String,
+    config: &mut Config,
+    trimmed: &str,
+    sink: &mut ReplSink,
+) -> anyhow::Result<bool> {
+    if let Some(id) = parse_agent_slash_command(trimmed) {
+        *agent = id.to_string();
+        let mut a = FluentArgs::new();
+        a.set("id", id);
+        sink.line(tr_args("repl-agent-switched", &a));
+        sink.line("");
+        return Ok(false);
+    }
+
+    if let Some(cmd) = slash_commands::parse(trimmed) {
+        match cmd {
+            ParsedSlashCommand::Mode(arg) => {
+                if let Some(mode) = arg {
+                    if let Some(parsed) = RuntimeMode::parse(&mode) {
+                        *agent = parsed.default_agent().as_str().to_string();
+                        sink.line(format!(
+                            "mode -> {} (agent: {})",
+                            parsed.as_str(),
+                            agent
+                        ));
+                    } else {
+                        sink.line( format!("unknown mode: {}", mode));
+                    }
+                } else {
+                    sink.line( format!("current agent: {}", agent));
+                }
+            }
+            ParsedSlashCommand::Status => {
+                sink.line( format!("agent: {}", agent));
+                sink.line( format!("provider: {}", config.llm.provider));
+                sink.line( format!("model: {}", config.llm.model));
+                sink.line(format!(
+                    "default_mode: {}",
+                    config.runtime.default_mode.as_str()
+                ));
+            }
+            ParsedSlashCommand::Workflow(arg) => {
+                let maybe_path = arg.as_deref().and_then(|raw| {
+                    let trimmed = raw.trim();
+                    trimmed
+                        .strip_prefix("run ")
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(PathBuf::from)
+                });
+                if let Some(path) = maybe_path {
+                    run_workflow_path(
+                        runtime,
+                        disk,
+                        working_dir,
+                        &path,
+                        Some(trimmed.to_string()),
+                    )
+                    .await?;
+                } else {
+                    match workflows::discover_workflow(working_dir) {
+                        Ok(Some((path, workflow))) => {
+                            if arg.as_deref().map(|s| s.trim()) == Some("run") {
+                                run_workflow_definition(
+                                    runtime,
+                                    disk,
+                                    working_dir,
+                                    &workflow,
+                                    &path,
+                                    Some(trimmed.to_string()),
+                                )
+                                .await?;
+                            } else {
+                                sink.line(format!(
+                                    "workflow: {} ({})",
+                                    workflow.name,
+                                    path.display()
+                                ));
+                            }
+                        }
+                        Ok(None) => sink.line( "workflow: none"),
+                        Err(e) => sink.line( format!("workflow error: {}", e)),
+                    }
+                }
+            }
+            ParsedSlashCommand::Model(arg) => {
+                if let Some(next) = arg {
+                    sink.line(format!(
+                        "model switch requires a new session right now; current={} requested={}",
+                        config.llm.model, next
+                    ));
+                } else {
+                    sink.line( format!("model: {}", config.llm.model));
+                }
+            }
+            ParsedSlashCommand::Compact => {
+                sink.line(
+                    "compact is available in TUI/session runtime; use session auto-compact or the compact flow.",
+                );
+            }
+            ParsedSlashCommand::Memory => {
+                sink.line( format!("memory backend: {}", config.memory.backend));
+            }
+            ParsedSlashCommand::Approve => {
+                sink.line(
+                    "approval is handled by the active channel/runtime when required.",
+                );
+            }
+        }
+        sink.line( "");
+        return Ok(false);
+    }
+
+    match trimmed {
+        "exit" | "quit" | ":q" | "/exit" => return Ok(true),
+        "help" | "?" | "/help" => {
+            let mut h = FluentArgs::new();
+            h.set("cwd", format!("{:?}", working_dir));
+            h.set("agent", agent.clone());
+            sink.line( tr_args("repl-help-equiv", &h));
+            sink.line( tr("repl-help-cmds"));
+            for line in slash_commands::help_lines() {
+                sink.line( line);
+            }
+        }
+        "agents" | "list-agents" | "/agents" => list_agents(sink),
+        "tools" | "list-tools" | "/tools" => list_tools(sink),
+        prompt => {
+            run_single_task_with_tail(
+                runtime,
+                disk,
+                agent.clone(),
+                prompt.to_string(),
+                working_dir.clone(),
+                sink,
+            )
+            .await?;
+        }
+    }
+    sink.line( "");
+    Ok(false)
 }
 
 pub(crate) async fn run_task(
@@ -210,16 +433,27 @@ pub(crate) async fn run_task(
         return run_goal_task_with_tail(&runtime, &disk, resolved_agent, prompt, working_dir, goal)
             .await;
     }
-    run_single_task_with_tail(&runtime, &disk, resolved_agent, prompt, working_dir).await
+    let mut sink = ReplSink::Stdio;
+    run_single_task_with_tail(
+        &runtime,
+        &disk,
+        resolved_agent,
+        prompt,
+        working_dir,
+        &mut sink,
+    )
+    .await
 }
 
-/// Single task execution shared by `run` / `repl` (disk tail + result printing).
+/// Single task execution shared by `run` / `repl` (disk tail + result printing)。
+/// `ReplSink::Tui` 写入 transcript 并在 tail 增量时刷新界面。
 pub(crate) async fn run_single_task_with_tail(
     runtime: &AgentRuntime,
     disk: &DiskTaskOutput,
     agent_type: String,
     prompt: String,
     working_dir: PathBuf,
+    sink: &mut ReplSink,
 ) -> anyhow::Result<()> {
     info!("Running task with agent: {}", agent_type);
     info!("Working directory: {:?}", working_dir);
@@ -244,9 +478,9 @@ pub(crate) async fn run_single_task_with_tail(
     let output_path = disk.ensure_initialized(task.id)?;
     let mut po = FluentArgs::new();
     po.set("path", output_path.display().to_string());
-    eprintln!("{}", tr_args("repl-task-out", &po));
+    sink.eprint_line(tr_args("repl-task-out", &po));
 
-    eprintln!("{}", tr("repl-task-run"));
+    sink.eprint_line(tr("repl-task-run"));
     let exec = runtime.execute_task(task.clone());
 
     let mut offset: u64 = 0;
@@ -257,8 +491,7 @@ pub(crate) async fn run_single_task_with_tail(
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(300)) => {
                 let (delta, new_offset) = disk.read_delta(task.id, offset, 16 * 1024).unwrap_or_default();
                 if !delta.is_empty() {
-                    print!("{}", delta);
-                    let _ = std::io::stdout().flush();
+                    sink.push_stdout_str(&delta);
                     offset = new_offset;
                 }
             }
@@ -267,36 +500,39 @@ pub(crate) async fn run_single_task_with_tail(
 
     match result {
         TaskResult::Success { output, artifacts } => {
-            eprintln!("{}", tr("repl-task-ok"));
-            println!("\n{}\n{}", tr("repl-output-header"), output);
+            sink.eprint_line(tr("repl-task-ok"));
+            sink.line("");
+            sink.line(tr("repl-output-header"));
+            sink.line(output);
             let written = crate::artifact_summary::claude_turn_written_lines(&artifacts);
             if !written.is_empty() {
-                eprintln!("\n{}", tr("repl-written-header"));
+                sink.line("");
+                sink.eprint_line(tr("repl-written-header"));
                 for line in written {
                     let mut wl = FluentArgs::new();
                     wl.set("line", line);
-                    eprintln!("{}", tr_args("repl-written-line", &wl));
+                    sink.eprint_line(tr_args("repl-written-line", &wl));
                 }
             }
         }
         TaskResult::Failure { error, details } => {
             let mut fe = FluentArgs::new();
             fe.set("err", error.to_string());
-            eprintln!("{}", tr_args("repl-task-fail", &fe));
+            sink.eprint_line(tr_args("repl-task-fail", &fe));
             if let Some(details) = details {
                 let mut fd = FluentArgs::new();
                 fd.set("details", details.to_string());
-                eprintln!("{}", tr_args("repl-task-details", &fd));
+                sink.eprint_line(tr_args("repl-task-details", &fd));
             }
         }
         TaskResult::Partial { success, remaining } => {
-            eprintln!("{}", tr("repl-task-partial"));
+            sink.eprint_line(tr("repl-task-partial"));
             let mut ps = FluentArgs::new();
             ps.set("done", success.to_string());
-            eprintln!("{}", tr_args("repl-task-partial-done", &ps));
+            sink.eprint_line(tr_args("repl-task-partial-done", &ps));
             let mut pr = FluentArgs::new();
             pr.set("rem", remaining.to_string());
-            eprintln!("{}", tr_args("repl-task-partial-rem", &pr));
+            sink.eprint_line(tr_args("repl-task-partial-rem", &pr));
         }
     }
 
@@ -569,12 +805,14 @@ async fn run_workflow_definition(
                 )
                 .await
             } else {
+                let mut sink = ReplSink::Stdio;
                 run_single_task_with_tail(
                     runtime,
                     disk,
                     agent.clone(),
                     prompt.clone(),
                     working_dir.to_path_buf(),
+                    &mut sink,
                 )
                 .await
             };
@@ -629,8 +867,16 @@ async fn run_workflow_definition(
                 )
                 .await?;
             } else {
-                run_single_task_with_tail(runtime, disk, agent, prompt, working_dir.to_path_buf())
-                    .await?;
+                let mut sink = ReplSink::Stdio;
+                run_single_task_with_tail(
+                    runtime,
+                    disk,
+                    agent,
+                    prompt,
+                    working_dir.to_path_buf(),
+                    &mut sink,
+                )
+                .await?;
             }
         }
     }
@@ -710,10 +956,10 @@ fn build_task(
     }
 }
 
-pub(crate) fn list_agents() {
+pub(crate) fn list_agents(sink: &mut ReplSink) {
     use crate::builtin_agents::BUILTIN_AGENT_IDS;
-    println!("{}", tr("repl-list-agents-title"));
-    println!();
+    sink.line( tr("repl-list-agents-title"));
+    sink.line( "");
     for id in BUILTIN_AGENT_IDS {
         let desc = match id {
             "general-purpose" => tr("repl-agent-desc-gp"),
@@ -723,30 +969,30 @@ pub(crate) fn list_agents() {
             "goal" => "Goal loop agent with retries and progress tracking.".to_string(),
             _ => String::new(),
         };
-        println!("  • {}", id);
+        sink.line( format!("  • {}", id));
         if !desc.is_empty() {
-            println!("{}", desc);
+            sink.line( desc);
         }
-        println!();
+        sink.line( "");
     }
-    println!("{}", tr("repl-list-switch"));
-    println!();
-    println!("{}", tr("repl-list-usage"));
-    println!("{}", tr("repl-list-usage-line"));
+    sink.line( tr("repl-list-switch"));
+    sink.line( "");
+    sink.line( tr("repl-list-usage"));
+    sink.line( tr("repl-list-usage-line"));
 }
 
-pub(crate) fn list_tools() {
-    println!("{}", tr("repl-list-tools-title"));
-    println!();
+pub(crate) fn list_tools(sink: &mut ReplSink) {
+    sink.line( tr("repl-list-tools-title"));
+    sink.line( "");
     for (name, desc) in iter_cli_tool_help() {
-        println!("  • {}", name);
-        println!("    {}", desc);
-        println!();
+        sink.line( format!("  • {}", name));
+        sink.line( format!("    {}", desc));
+        sink.line( "");
     }
-    println!("{}", tr("repl-security-title"));
-    println!("{}", tr("repl-security-read"));
-    println!("{}", tr("repl-security-approval"));
-    println!("{}", tr("repl-security-sandbox"));
+    sink.line( tr("repl-security-title"));
+    sink.line( tr("repl-security-read"));
+    sink.line( tr("repl-security-approval"));
+    sink.line( tr("repl-security-sandbox"));
 }
 
 pub(crate) async fn run_daemon(config: Config, bind: String) -> anyhow::Result<()> {

@@ -489,8 +489,9 @@ async fn run_agent_pipeline(
         let mut session = session_arc.lock().await;
         let reply = match result {
             Ok(TaskResult::Success { output, .. }) => {
-                add_chat_message(&mut session, "assistant", &output);
-                output
+                let cleaned = sanitize_wechat_reply_output(&output);
+                add_chat_message(&mut session, "assistant", &cleaned);
+                cleaned
             }
             Ok(TaskResult::Failure { error, .. }) => {
                 let mut ea = FluentArgs::new();
@@ -498,7 +499,7 @@ async fn run_agent_pipeline(
                 tr_args("wx-task-fail", &ea)
             }
             Ok(TaskResult::Partial { success, remaining }) => {
-                let t = format!("{}\n{}", success, remaining);
+                let t = sanitize_wechat_reply_output(&format!("{}\n{}", success, remaining));
                 add_chat_message(&mut session, "assistant", &t);
                 t
             }
@@ -554,12 +555,81 @@ fn build_wechat_system_append(
     let mut sections = vec![format!(
         "## Channel Runtime\nchannel={channel_id}\nruntime_mode={runtime_mode}\ndefault_channel_agent={channel_default_agent}\nFor WeChat channel mode, default to workspace-assistant behavior. Only perform direct coding when the user explicitly asks to modify code."
     )];
+    sections.push(
+        "## WeChat 输出契约（必须遵守）\n\
+         - 用户只看到你这一条最终回复。禁止输出：思考过程、自我解说（如「太好了」「我需要…」「从页面中可以提取」「根据系统提示我应该…」）、工具调用是否成功的说明、同一段数据的重复粘贴。\n\
+         - 工具/Web 结果只内化进答案：用一小段话或一层列表给出结论即可；不要先写长段再抄一遍字段。\n\
+         - 天气/事实类：几句带关键数字即可，不要「摘要 + 再列一遍同样指标」。\n\
+         - English: Reply with the final answer only. No narration of your plan, no 'Great, fetch succeeded', no duplicate blocks."
+            .to_string(),
+    );
     if let Some(existing) = existing {
         if !existing.trim().is_empty() {
             sections.push(existing.trim().to_string());
         }
     }
     sections.join("\n\n")
+}
+
+/// 去掉常见「废话」行（模型仍可能漏网，主要靠 system 约束）。
+fn sanitize_wechat_reply_output(text: &str) -> String {
+    const DROP_LINE_PREFIXES: &[&str] = &[
+        "太好了",
+        "从页面内容",
+        "从页面中",
+        "从页面",
+        "我需要向用户",
+        "我需要",
+        "根据系统提示",
+        "根据系统",
+        "我可以向用户",
+        "我可以简洁",
+        "让我来向",
+        "让我向用户",
+        "让我先",
+        "成功获取了",
+        "成功获取",
+        "Great!",
+        "I need to",
+        "From the page",
+        "According to the system",
+        "WebFetch",
+    ];
+    let mut kept: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let t = line.trim_start();
+        if t.is_empty() {
+            kept.push(String::new());
+            continue;
+        }
+        let drop = DROP_LINE_PREFIXES.iter().any(|p| t.starts_with(p));
+        if !drop {
+            kept.push(line.to_string());
+        }
+    }
+    while kept.last().map(|s| s.trim().is_empty()).unwrap_or(false) {
+        kept.pop();
+    }
+    let mut s = kept.join("\n");
+    while s.contains("\n\n\n") {
+        s = s.replace("\n\n\n", "\n\n");
+    }
+    s.trim().to_string()
+}
+
+#[cfg(test)]
+mod wechat_sanitize_tests {
+    use super::sanitize_wechat_reply_output;
+
+    #[test]
+    fn drops_meta_lines_keeps_weather_body() {
+        let raw =
+            "## 杭州\n阴 29℃\n\n太好了！WebFetch 成功获取了天气。\n\n从页面中可以提取到：\n- 温度";
+        let out = sanitize_wechat_reply_output(raw);
+        assert!(out.contains("杭州"));
+        assert!(!out.contains("太好了"));
+        assert!(!out.contains("从页面"));
+    }
 }
 
 fn resolve_cwd(session: &WcSession, wcc: &WccConfig) -> PathBuf {

@@ -71,6 +71,9 @@ pub async fn run_tui(
     // Workspace 从底部向上滚动的行数（0 = 跟随最新）。
     let mut transcript_scroll_up: usize = 0;
     let mut rev_search: Option<RevSearchState> = None;
+    // `/` 命令补全：候选高亮；采纳后 `suppress` 隐藏列表（对齐 Claude `clearSuggestions`）。
+    let mut slash_suggest_pick: usize = 0;
+    let mut slash_suggest_suppress: bool = false;
     let mut executing = false;
     let mut executing_since: Option<Instant> = None;
     let mut last_turn_error: Option<String> = None;
@@ -114,6 +117,11 @@ pub async fn run_tui(
         // 底栏：横线(1) + Dock（正文区含外框）；快捷键在 `?` 帮助
         let mut bottom_h: u16 = if pending_approval.is_some() { 15 } else { 7 };
         if rev_search.is_some() {
+            bottom_h = bottom_h.max(14);
+        } else if pending_approval.is_none()
+            && !slash_suggest_suppress
+            && !crate::slash_commands::slash_suggestions_for_first_line(&input.as_string()).is_empty()
+        {
             bottom_h = bottom_h.max(14);
         }
         bottom_h = bottom_h.saturating_add(nl_extra as u16);
@@ -161,6 +169,8 @@ pub async fn run_tui(
                     transcript: &transcript,
                     transcript_scroll_up,
                     rev_search: rev_search.as_ref(),
+                    slash_suggest_pick,
+                    slash_suggest_suppress,
                     input: &input,
                     input_history: &input_history,
                     workspace_cache_lines: &mut workspace_cache_lines,
@@ -238,6 +248,8 @@ pub async fn run_tui(
                         transcript_scroll_up: &mut transcript_scroll_up,
                         pending_approval: &mut pending_approval,
                         rev_search: &mut rev_search,
+                        slash_suggest_pick: &mut slash_suggest_pick,
+                        slash_suggest_suppress: &mut slash_suggest_suppress,
                         input: &mut input,
                         input_history: &mut input_history,
                         history_idx: &mut history_idx,

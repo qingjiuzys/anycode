@@ -1,6 +1,7 @@
 //! REPL 首屏欢迎框（stdout），与 stderr 上的 tracing 分离。
 
 use crate::i18n::tr;
+use std::io::IsTerminal;
 use console::{style, Style, Term};
 use std::path::Path;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -103,6 +104,9 @@ pub(crate) fn print_repl_welcome(working_dir: &Path, agent: &str, session_skips_
     println!("{}", a.apply_to(bottom));
     println!("{}", style(tr("repl-hint-line")).dim());
     println!("{}", style(tr("repl-hint-debug")).dim());
+    if std::io::stdin().is_terminal() {
+        println!("{}", style(tr("repl-hint-completion")).dim());
+    }
     println!();
 }
 

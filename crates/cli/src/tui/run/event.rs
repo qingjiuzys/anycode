@@ -1,6 +1,7 @@
 //! crossterm 事件分发（与 ratatui 绘制、exec 轮询解耦）。
 
 use crate::app_config::{should_auto_compact_before_send, SessionConfig};
+use crate::slash_commands;
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
 use crate::tui::approval::PendingApproval;
@@ -29,11 +30,45 @@ pub(super) enum TuiLoopCtl {
     Break,
 }
 
+fn reset_slash_state(ctx: &mut TuiEventCtx<'_>) {
+    *ctx.slash_suggest_pick = 0;
+    *ctx.slash_suggest_suppress = false;
+}
+
+fn cursor_on_first_line(input: &InputState) -> bool {
+    !input.chars[..input.cursor].iter().any(|&c| c == '\n')
+}
+
+fn slash_suggestions_for_ctx(ctx: &TuiEventCtx<'_>) -> Vec<slash_commands::SlashSuggestionItem> {
+    if *ctx.slash_suggest_suppress {
+        return Vec::new();
+    }
+    slash_commands::slash_suggestions_for_first_line(&ctx.input.as_string())
+}
+
+fn apply_slash_pick_to_input(ctx: &mut TuiEventCtx<'_>) {
+    // 始终基于当前缓冲算候选；不因 `slash_suggest_suppress` 跳过（suppress 只影响展示）。
+    let cands = slash_commands::slash_suggestions_for_first_line(&ctx.input.as_string());
+    if cands.is_empty() {
+        return;
+    }
+    let len = cands.len();
+    let pick = *ctx.slash_suggest_pick % len;
+    let new_first = cands[pick].replacement.clone();
+    let new_buf = slash_commands::replace_first_line(&ctx.input.as_string(), &new_first);
+    ctx.input.set_from_str(&new_buf);
+    *ctx.slash_suggest_pick = 0;
+    *ctx.history_idx = None;
+}
+
 pub(super) struct TuiEventCtx<'a> {
     pub last_key: &'a mut Option<String>,
     pub transcript_scroll_up: &'a mut usize,
     pub pending_approval: &'a mut Option<PendingApproval>,
     pub rev_search: &'a mut Option<RevSearchState>,
+    pub slash_suggest_pick: &'a mut usize,
+    /// 采纳 Tab/Enter 补全后隐藏下拉，直到用户再次编辑（对齐 Claude `clearSuggestions`）。
+    pub slash_suggest_suppress: &'a mut bool,
     pub input: &'a mut InputState,
     pub input_history: &'a mut Vec<String>,
     pub history_idx: &'a mut Option<usize>,
@@ -102,6 +137,7 @@ pub(super) async fn dispatch_crossterm_event(
             } else {
                 ctx.input.insert_str(&clean);
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             if !truncated {
                 *ctx.last_turn_error = None;
@@ -175,11 +211,12 @@ fn handle_rev_search_key(key: crossterm::event::KeyEvent, ctx: &mut TuiEventCtx<
         }
         KeyCode::Enter | KeyCode::Char('\n') | KeyCode::Char('\r') => {
             let m = rs.matches(ctx.input_history);
-            if !m.is_empty() {
+                if !m.is_empty() {
                 let pick = rs.pick % m.len();
                 if let Some(f) = m.get(pick) {
                     ctx.input.set_from_str(f);
                     *ctx.history_idx = None;
+                    reset_slash_state(ctx);
                 }
             }
             TuiLoopCtl::Continue
@@ -290,6 +327,7 @@ async fn handle_main_key(
             *ctx.last_turn_error = None;
             *ctx.help_open = false;
             *ctx.rev_search = None;
+            reset_slash_state(ctx);
             *ctx.executing_since = None;
             *ctx.last_max_input_tokens = 0;
             Ok(TuiLoopCtl::Ok)
@@ -305,6 +343,7 @@ async fn handle_main_key(
             if !*ctx.executing {
                 ctx.input.clear();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -318,6 +357,7 @@ async fn handle_main_key(
             } else if !ctx.input.is_empty() {
                 ctx.input.clear();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             } else if ctx.last_turn_error.is_some() {
                 *ctx.last_turn_error = None;
             } else {
@@ -329,6 +369,7 @@ async fn handle_main_key(
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.move_line_up();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -336,18 +377,35 @@ async fn handle_main_key(
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.move_line_down();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Up => {
             if !*ctx.executing && ctx.rev_search.is_none() {
+                let cands = slash_suggestions_for_ctx(ctx);
+                if !cands.is_empty() && cursor_on_first_line(ctx.input) {
+                    let len = cands.len();
+                    *ctx.slash_suggest_pick = (*ctx.slash_suggest_pick + len - 1) % len;
+                    *ctx.history_idx = None;
+                    return Ok(TuiLoopCtl::Ok);
+                }
                 history_apply_up(ctx.input_history, ctx.history_idx, ctx.input);
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Down => {
             if !*ctx.executing && ctx.rev_search.is_none() {
+                let cands = slash_suggestions_for_ctx(ctx);
+                if !cands.is_empty() && cursor_on_first_line(ctx.input) {
+                    let len = cands.len();
+                    *ctx.slash_suggest_pick = (*ctx.slash_suggest_pick + 1) % len;
+                    *ctx.history_idx = None;
+                    return Ok(TuiLoopCtl::Ok);
+                }
                 history_apply_down(ctx.input_history, ctx.history_idx, ctx.input);
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -392,6 +450,7 @@ async fn handle_main_key(
         KeyCode::Delete => {
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.delete_forward();
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -399,12 +458,14 @@ async fn handle_main_key(
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.delete_word_backward();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Backspace => {
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.backspace();
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -412,6 +473,7 @@ async fn handle_main_key(
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.delete_word_backward();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -419,15 +481,37 @@ async fn handle_main_key(
             if !*ctx.executing && ctx.rev_search.is_none() {
                 ctx.input.delete_to_end_of_line();
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
+            }
+            Ok(TuiLoopCtl::Ok)
+        }
+        KeyCode::BackTab => {
+            if *ctx.executing || ctx.rev_search.is_some() {
+                return Ok(TuiLoopCtl::Ok);
+            }
+            let cands = slash_suggestions_for_ctx(ctx);
+            if !cands.is_empty() && cursor_on_first_line(ctx.input) {
+                let len = cands.len();
+                *ctx.slash_suggest_pick = (*ctx.slash_suggest_pick + len - 1) % len;
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Tab => {
-            if !*ctx.executing && ctx.rev_search.is_none() {
+            if *ctx.executing || ctx.rev_search.is_some() {
+                return Ok(TuiLoopCtl::Ok);
+            }
+            let cands = slash_suggestions_for_ctx(ctx);
+            if !cands.is_empty() && cursor_on_first_line(ctx.input) {
+                apply_slash_pick_to_input(ctx);
+                *ctx.slash_suggest_suppress = true;
+                return Ok(TuiLoopCtl::Ok);
+            }
+            if !*ctx.executing {
                 for c in "    ".chars() {
                     ctx.input.insert(c);
                 }
                 *ctx.history_idx = None;
+                reset_slash_state(ctx);
             }
             Ok(TuiLoopCtl::Ok)
         }
@@ -438,6 +522,7 @@ async fn handle_main_key(
             *ctx.last_turn_error = None;
             ctx.input.insert('\n');
             *ctx.history_idx = None;
+            reset_slash_state(ctx);
             Ok(TuiLoopCtl::Continue)
         }
         KeyCode::Enter
@@ -453,9 +538,14 @@ async fn handle_main_key(
             if *ctx.executing || ctx.pending_approval.is_some() {
                 return Ok(TuiLoopCtl::Continue);
             }
+            if !slash_suggestions_for_ctx(ctx).is_empty() {
+                apply_slash_pick_to_input(ctx);
+                *ctx.slash_suggest_suppress = true;
+            }
             let trimmed_owned = trim_or_default(&ctx.input.as_string()).to_string();
             ctx.input.clear();
             *ctx.history_idx = None;
+            reset_slash_state(ctx);
             if trimmed_owned.is_empty() {
                 return Ok(TuiLoopCtl::Continue);
             }
@@ -714,6 +804,7 @@ async fn handle_main_key(
             }
             *ctx.history_idx = None;
             ctx.input.insert(c);
+            reset_slash_state(ctx);
             Ok(TuiLoopCtl::Ok)
         }
         _ => Ok(TuiLoopCtl::Ok),

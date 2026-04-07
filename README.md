@@ -2,6 +2,8 @@
 
 **Rust 终端 AI 编程助手**：全屏 TUI、行式 REPL、多轮工具调用、可选 HTTP Daemon。默认面向本机开发；一条 **`anycode onboard`** 可完成工作区、API 向导与可选 **微信扫码绑定**，与手机共用同一套 Agent。
 
+**在线文档（GitHub Pages）：** https://qingjiuzys.github.io/anycode/
+
 CLI 二进制名：**`anycode`**  
 协议：**MIT** — 见仓库根目录 [`LICENSE`](LICENSE)
 

@@ -9,6 +9,7 @@ use crate::tui::input::{
 };
 use crate::tui::pet;
 use crate::tui::styles::*;
+use crate::slash_commands;
 use crate::tui::transcript::{layout_workspace, TranscriptEntry, WorkspaceLiveLayout};
 use crate::tui::util::{transcript_first_visible, truncate_preview};
 use anycode_core::AgentType;
@@ -101,6 +102,10 @@ pub(super) struct DrawFrameCtx<'a> {
     pub transcript: &'a [TranscriptEntry],
     pub transcript_scroll_up: usize,
     pub rev_search: Option<&'a RevSearchState>,
+    /// 首行 `/` 补全时，候选列表中高亮项（与 `slash_suggestions_for_first_line` 配合）。
+    pub slash_suggest_pick: usize,
+    /// 采纳补全后隐藏列表（对齐 Claude `clearSuggestions`）。
+    pub slash_suggest_suppress: bool,
     pub input: &'a InputState,
     pub input_history: &'a [String],
     pub workspace_cache_lines: &'a mut Vec<Line<'static>>,
@@ -139,6 +144,8 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         transcript,
         transcript_scroll_up,
         rev_search,
+        slash_suggest_pick,
+        slash_suggest_suppress,
         input,
         input_history,
         workspace_cache_lines,
@@ -154,6 +161,13 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         main_avail_cell,
         workspace_line_count,
     } = ctx;
+
+    let slash_candidates = if pending_approval.is_none() && rev_search.is_none() && !slash_suggest_suppress
+    {
+        slash_commands::slash_suggestions_for_first_line(&input.as_string())
+    } else {
+        Vec::new()
+    };
 
     let outer = Layout::default()
         .direction(Direction::Vertical)
@@ -404,6 +418,8 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         tr("tui-dock-approve")
     } else if rev_search.is_some() {
         tr("tui-dock-search")
+    } else if !slash_candidates.is_empty() {
+        tr("tui-dock-slash")
     } else {
         tr("tui-dock-prompt")
     };
@@ -417,7 +433,10 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
 
     let body_rect = dock_inner;
 
-    let show_buddy_here = show_buddy && pending_approval.is_none() && rev_search.is_none();
+    let show_buddy_here = show_buddy
+        && pending_approval.is_none()
+        && rev_search.is_none()
+        && slash_candidates.is_empty();
     let (prompt_cell, buddy_cell) =
         if show_buddy_here && body_rect.width >= DOCK_BUDDY_AREA_WIDTH.saturating_add(14) {
             let prompt_w = body_rect.width.saturating_sub(DOCK_BUDDY_AREA_WIDTH);
@@ -529,12 +548,65 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         }
     } else {
         let lines_before_prompt = input_lines.len();
-        let (pl, cur) = prompt_multiline_lines_and_cursor(input, input_inner_w);
+        let slash_ghost = if slash_suggest_suppress {
+            None
+        } else {
+            slash_commands::slash_ghost_suffix(&input.as_string(), input.cursor)
+        };
+        let (pl, cur) = prompt_multiline_lines_and_cursor(input, input_inner_w, slash_ghost);
         for line in pl {
             input_lines.push(line);
         }
         if let Some((li, ox)) = cur {
             prompt_hw_cursor = Some((lines_before_prompt + li, ox));
+        }
+        if !slash_candidates.is_empty() {
+            let len = slash_candidates.len();
+            let pick = slash_suggest_pick % len;
+            const MAX_SHOW: usize = 8;
+            // 与 Claude `PromptInputFooterSuggestions` 类似：选中项尽量落在窗口中部。
+            let start = if len <= MAX_SHOW {
+                0usize
+            } else {
+                pick
+                    .saturating_sub(MAX_SHOW / 2)
+                    .min(len.saturating_sub(MAX_SHOW))
+            };
+            let end = (start + MAX_SHOW).min(len);
+            for idx in start..end {
+                let item = &slash_candidates[idx];
+                let is_sel = idx == pick;
+                let pfx = if is_sel { "▸ " } else { "  " };
+                let cmd_st = if is_sel {
+                    style_warn()
+                } else {
+                    style_dim()
+                };
+                let cmd_w = text_display_width(item.display.as_str()).max(6).min(14);
+                let desc_max = (input_inner_w as usize)
+                    .saturating_sub(4 + cmd_w + 2)
+                    .max(6);
+                let desc = truncate_preview(&item.description, desc_max);
+                input_lines.push(Line::from(vec![
+                    Span::styled(pfx, style_dim()),
+                    Span::styled(item.display.as_str(), cmd_st),
+                    Span::styled(format!("  {desc}"), style_dim()),
+                ]));
+            }
+            if len > MAX_SHOW {
+                let mut a = FluentArgs::new();
+                a.set("s", (start + 1) as i64);
+                a.set("e", end as i64);
+                a.set("n", len as i64);
+                input_lines.push(Line::from(Span::styled(
+                    tr_args("tui-slash-range", &a),
+                    style_dim(),
+                )));
+            }
+            input_lines.push(Line::from(Span::styled(
+                tr("tui-slash-nav"),
+                style_dim(),
+            )));
         }
     }
 

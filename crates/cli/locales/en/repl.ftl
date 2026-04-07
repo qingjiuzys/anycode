@@ -1,3 +1,6 @@
+repl-tty-title = anyCode REPL · v{$version}
+repl-tty-sub = {$cwd} · Agent {$agent}
+repl-tty-workflow-note = (workflow output was shown on the main buffer)
 repl-welcome-line1 = Welcome · line mode · scroll in terminal buffer
 repl-welcome-line2 = Fullscreen TUI: run `anycode` (no subcommand)
 repl-row-cwd = Working dir
@@ -6,6 +9,7 @@ repl-row-approval = Approvals: skipped for this process (-I etc.; config unchang
 repl-row-commands = Commands: /help · /agents · /tools · /exit · /general-purpose · /explore · /plan
 repl-hint-line = Each line = one task (same path as `run`)
 repl-hint-debug = Verbose logs: `anycode --debug repl` or `RUST_LOG=info`
+repl-hint-completion = After `/`, suggestions appear below (↑↓ select · Tab apply · Enter send); dim text hints the rest of the name
 repl-goodbye = Goodbye.
 repl-agent-switched = Switched Agent → {$id}
 repl-help-equiv = Each line is sent as a prompt to `execute_task`, same as:\n  anycode run -C {$cwd} --agent {$agent} "…"

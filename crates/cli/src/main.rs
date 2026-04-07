@@ -11,6 +11,7 @@ mod daemon_http;
 mod i18n;
 mod md_tui;
 mod repl_banner;
+mod repl_inline;
 mod slash_commands;
 mod tasks;
 mod tui;
@@ -200,10 +201,12 @@ async fn main() -> anyhow::Result<()> {
             tasks::run_interactive(config, agent, directory, model, ignore_approval).await?;
         }
         Some(Commands::ListAgents) => {
-            tasks::list_agents();
+            let mut sink = tasks::ReplSink::Stdio;
+            tasks::list_agents(&mut sink);
         }
         Some(Commands::ListTools) => {
-            tasks::list_tools();
+            let mut sink = tasks::ReplSink::Stdio;
+            tasks::list_tools(&mut sink);
         }
         Some(Commands::Skills { sub }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
