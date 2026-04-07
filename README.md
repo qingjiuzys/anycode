@@ -1,47 +1,16 @@
 # anyCode
 
-**Rust 终端 AI 编程助手**：全屏 TUI、行式 REPL、多轮工具调用、可选 HTTP Daemon。默认面向本机开发；一条 **`anycode setup`** 可完成工作区、API 向导与可选 **微信扫码绑定**，与手机共用同一套 Agent。
+面向终端用户的 AI 助手。装好后可以在命令行里提问、执行任务，也可以接入微信/Telegram/Discord 走同一套能力。
 
-**在线文档（GitHub Pages）：** https://qingjiuzys.github.io/anycode/
+- 在线文档: <https://qingjiuzys.github.io/anycode/>
+- 可执行命令: `anycode`
+- License: [MIT](LICENSE)
 
-CLI 二进制名：**`anycode`**  
-协议：**MIT** — 见仓库根目录 [`LICENSE`](LICENSE)
+## 3 步上手
 
----
-
-## Documentation（说明文档）
-
-完整、中英对称的说明文档在 **`docs-site/`**（VitePress）。在仓库内预览：
-
-```bash
-cd docs-site && npm install && npm run dev
-```
-
-构建（与 CI 一致）：
-
-```bash
-cd docs-site && npm install && npm run build
-```
-
-**入口**
-
-| | |
-|--|--|
-| English | [Docs directory](docs-site/guide/docs-directory.md) · [Getting started](docs-site/guide/getting-started.md) |
-| 简体中文 | [文档地图](docs-site/zh/guide/docs-directory.md) · [快速开始](docs-site/zh/guide/getting-started.md) |
-| 站点维护约定 | [docs-site/README.md](docs-site/README.md) |
-
-**在线文档（GitHub Pages）**：推送 `main`/`master` 且变更 `docs-site/**` 或工作流文件时，Actions **Docs** 会构建并发布。仓库 **Settings → Pages** 中 **Source** 选 **GitHub Actions** 后，项目站地址一般为：
-
-**https://qingjiuzys.github.io/anycode/**
-
-（与仓库 `qingjiuzys/anycode` 同名路径；本地 `npm run dev` 仍用根路径 `/`，生产构建由 CI 设置 `VITEPRESS_BASE=/anycode/`。）
-
----
-
-## 一行安装（可选）
-
-默认指向本仓库 **`qingjiuzys/anycode`**；详见 [安装文档](docs-site/zh/guide/install.md)。
+1. 安装 anyCode
+2. 运行 `anycode setup` 完成模型与 channel 配置
+3. 运行一次任务验证
 
 macOS / Linux:
 
@@ -56,11 +25,33 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
 
-Release 附件命名、源码构建、可选 **`tools-mcp`**、Daemon、路由、MVP/路线图等：**以文档站为准**，不再在 README 重复长文。
+安装后验证:
 
----
+```bash
+anycode --help
+anycode setup
+anycode run --agent general-purpose "Reply with OK only"
+```
 
-## 参与贡献
+如果提示 `command not found`，先看安装文档中的 PATH 说明。
+
+## 文档入口
+
+- 中文:
+  - [快速开始](docs-site/zh/guide/getting-started.md)
+  - [安装](docs-site/zh/guide/install.md)
+  - [排错](docs-site/zh/guide/troubleshooting.md)
+- English:
+  - [Getting started](docs-site/guide/getting-started.md)
+  - [Install](docs-site/guide/install.md)
+  - [Troubleshooting](docs-site/guide/troubleshooting.md)
+- 全量索引:
+  - [中文文档地图](docs-site/zh/guide/docs-directory.md)
+  - [English docs directory](docs-site/guide/docs-directory.md)
+
+## 给开发者
+
+如果你要参与开发或维护文档：
 
 ```bash
 cargo fmt
@@ -68,10 +59,8 @@ cargo clippy
 cargo test --workspace
 ```
 
-修改默认暴露给模型的工具时，遵守 **`crates/tools/src/registry.rs`** 顶部 checklist 与 **`SECURITY_SENSITIVE_TOOL_IDS`**。详见 [开发与贡献](docs-site/zh/guide/development.md)。
+文档本地预览:
 
----
-
-## 许可证
-
-本项目以 **[MIT License](LICENSE)** 开源。
+```bash
+cd docs-site && npm install && npm run dev
+```

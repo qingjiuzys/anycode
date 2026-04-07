@@ -1,7 +1,7 @@
 ---
 title: Install
 description: Install anyCode from GitHub Releases, install.sh, or Cargo.
-summary: Prebuilt tarballs, one-line installer, cargo install, and release naming.
+summary: Recommended install paths for non-technical users first, then advanced options.
 read_when:
   - You are installing anyCode on a new machine.
   - You need to choose between binary and building from source.
@@ -9,30 +9,41 @@ read_when:
 
 # Install
 
-## Choose a path
+For users who want anyCode working fast, without building from source.
 
-| Method | Best for |
-|--------|----------|
-| **`scripts/install.sh`** | macOS / Linux one-command installer; **binary-only by default** |
-| **`scripts/install.ps1`** | Windows PowerShell installer; **binary-only by default** |
-| **GitHub Releases** | Air-gapped or browser-only download |
-| **`cargo install --git`** | You already have Rust and want a specific branch/tag |
-| **`git clone` + `cargo build`** | Contributors and feature flags |
+After this page, you will have:
+
+- `anycode` installed
+- a successful `anycode --help` check
+- a clear fallback path if install fails
+
+## Recommended path
+
+If you just want to use anyCode, use the one-line installer for your OS.
+
+| OS | Command |
+|----|---------|
+| macOS / Linux | `curl ... install.sh | bash` |
+| Windows | `irm ... install.ps1 | iex` |
 
 ## One-line installer (macOS / Linux)
 
-This project’s GitHub repo is **`qingjiuzys/anycode`**:
+Default repo is **`qingjiuzys/anycode`**:
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
+Expected output: installer downloads binary and runs `anycode setup` by default.
+
 ## One-line installer (Windows PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
+
+Expected output: PowerShell installer completes and starts setup unless disabled.
 
 With explicit repo / version (save then execute):
 
@@ -49,11 +60,29 @@ export ANYCODE_GITHUB_REPO="qingjiuzys/anycode"
 bash scripts/install.sh
 ```
 
-Useful flags: `--version v0.1.0` or `latest`; `--bin-dir "$HOME/.local/bin"`; `--dry-run`; `--no-setup` to skip post-install wizard; `--quiet` to reduce download output; `--method auto` to allow source fallback. By default installer runs `anycode setup` after install and shows download progress in interactive terminals. Help:
+Expected output: install script uses the repository from env variable.
+
+By default installer:
+
+- installs from prebuilt binary
+- shows download progress in interactive terminal
+- runs `anycode setup` after install
+
+Useful flags:
+
+- `--version v0.1.0` or `latest`
+- `--bin-dir "$HOME/.local/bin"`
+- `--no-setup` (skip setup after install)
+- `--quiet` (less download output)
+- `--method auto` (allow source fallback)
+
+Help:
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
 ```
+
+Next step: pick the flags you need, then rerun install.
 
 ## Install v0.1.0 (pinned)
 
@@ -63,6 +92,8 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   bash -s -- --repo qingjiuzys/anycode --version v0.1.0
 ```
 
+Expected output: installs pinned version `v0.1.0`.
+
 Or install from Cargo with the release tag:
 
 ```bash
@@ -71,23 +102,20 @@ cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode -
 
 Release page: <https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
-## Release asset naming
+## Verify install
 
-Assets should be named:
+```bash
+anycode --help
+anycode setup
+```
 
-- Unix: `anycode-<asset-target>.tar.gz` (archive root contains `anycode`)
-- Windows: `anycode-<target>.zip` (archive root contains `anycode.exe`)
+Expected output: `--help` shows command list; `setup` opens onboarding flow.
 
-For Linux assets, we omit `unknown` from the Rust triple for readability. Typical targets:
+If you see `command not found`, check PATH notes from the installer output and retry in a new shell.
 
-- `aarch64-apple-darwin`
-- `x86_64-apple-darwin`
-- `x86_64-linux-gnu`
-- `aarch64-linux-gnu`
-- `x86_64-pc-windows-msvc`
-- `aarch64-pc-windows-msvc`
+## Source build (advanced)
 
-## From source
+For contributors or custom builds:
 
 ```bash
 git clone https://github.com/qingjiuzys/anycode.git
@@ -96,12 +124,16 @@ cargo build --release
 # run directly: ./target/release/anycode --help
 ```
 
+Expected output: release build succeeds and binary is available under `target/release`.
+
 Install into `PATH` (recommended, avoids `command not found`):
 
 ```bash
 ./scripts/install.sh --source-dir "$(pwd)"
 anycode --help
 ```
+
+Next step: run `anycode setup`.
 
 ## Local clone only
 
@@ -111,11 +143,13 @@ anycode --help
 
 ## Optional features
 
-Build with extra capabilities (see root README and [Roadmap](./roadmap)):
+Build with extra capabilities:
 
 ```bash
 cargo build -p anycode --features tools-mcp
 ```
+
+Expected output: binary compiled with MCP capability.
 
 ## Next
 

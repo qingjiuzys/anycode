@@ -1,7 +1,7 @@
 ---
 title: Config & security
 description: ~/.anycode/config.json, security fields, environment variables, and UI locale.
-summary: Where settings live, how approval and permission_mode interact, and ANYCODE_* highlights.
+summary: Basic safe defaults first, then advanced policy fields and environment variables.
 read_when:
   - You are tuning security, sandbox, or MCP deny rules.
   - You need locale / env var behavior for the CLI.
@@ -9,94 +9,100 @@ read_when:
 
 # Config & security
 
-Default config path: `**~/.anycode/config.json`**. If you pass `**-c/--config <PATH>`** and the file is missing, the CLI errors. Subcommands that read/write config use this path.
+For users who want safe defaults first, then optional advanced controls.
+
+After this page, you will know:
+
+- where config is stored
+- which settings are safe for normal daily use
+- where to look when approvals or MCP rules block work
+
+## Basic (recommended for most users)
+
+Config file path:
+
+- default: `~/.anycode/config.json`
+- custom: `-c/--config <PATH>`
 
 ```bash
 anycode config
 ```
 
-The wizard preserves existing `**routing**` and `**security**` sections. After save on a TTY you may be offered the same WeChat bind flow as `anycode channel wechat` (see [WeChat & setup](./wechat)).
+Expected output: interactive config wizard opens and saves to config path.
 
-## Security & approval
+Recommended defaults:
 
-In `config.json`, the `**security**` object commonly includes:
+- keep `require_approval: true`
+- keep `permission_mode: "default"`
+- only use `--ignore-approval` for one-time debugging
 
-
-| Field                 | Default     | Meaning                                                                                                                                                                                                                                 |
-| --------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `require_approval`    | `true`      | If `true`, sensitive tools prompt y/n in TUI or stdin for `run` / REPL. If `false`, those tools skip interactive approval (deny rules still apply), **unless** `always_ask_rules` still requires a prompt (Claude-style **alwaysAsk**). |
-| `permission_mode`     | `"default"` | Layer *before* policy/approval: `default` (no shortcut), `auto` (read-only tools auto-approved in `SecurityLayer`), `plan` (reserved; same as `default` today), `bypass` (**skips** policy checks and deny — local debug only).         |
-| `sandbox_mode`        | `false`     | Path / cwd constraints (see root README).                                                                                                                                                                                               |
-| `mcp_tool_deny_rules` | `[]`        | Blanket **alwaysDeny**-style rules for tools (including `mcp__Server` / `mcp__Server__`*). Also used with allow/ask lists from the same rule string format.                                                                             |
-| `always_allow_rules`  | `[]`        | **alwaysAllow** (blanket or `Tool(content)`); can override content-level denies at execution time.                                                                                                                                      |
-| `always_ask_rules`    | `[]`        | **alwaysAsk**; matching tool calls need interactive approval even when `require_approval` is `false` for sensitive tools.                                                                                                               |
-| `defer_mcp_tools`     | `false`     | Hide all `mcp__`* from the first LLM tool list until registered (Claude defer MCP).                                                                                                                                                     |
-
-
-**Claude Code–style mapping:** `mcp_tool_deny_rules` ≈ alwaysDeny, `always_allow_rules` ≈ alwaysAllow, `always_ask_rules` ≈ alwaysAsk (see roadmap / tools docs for rule string syntax).
-
-`**-I` / `--ignore-approval` / `ANYCODE_IGNORE_APPROVAL`:** skips **all** interactive tool approval for that process, including **alwaysAsk** (`always_ask_rules`), without writing the config file.
-
-**To get “auto approve” without disabling deny rules:** set `"require_approval": false`, leave `**always_ask_rules` empty**, and **do not** rely on `permission_mode: "bypass"`.
-
-**This process only**, without editing the file:
+One-time bypass example:
 
 ```bash
-anycode --ignore
-anycode run --ignore-approval --agent general-purpose "…"
+anycode run --ignore-approval --agent general-purpose "..."
 ```
+
+Expected output: one task run skips approval prompts in current process only.
+
+## Security fields (advanced)
+
+| Field | Default | What it controls |
+|---|---|---|
+| `require_approval` | `true` | Ask before sensitive tools run |
+| `permission_mode` | `"default"` | Shortcut mode (`default` / `auto` / `plan` / `bypass`) |
+| `sandbox_mode` | `false` | Path/cwd constraints |
+| `mcp_tool_deny_rules` | `[]` | Deny MCP tool calls by rule |
+| `always_allow_rules` | `[]` | Always allow matching rules |
+| `always_ask_rules` | `[]` | Always ask even if approval is off |
+| `defer_mcp_tools` | `false` | Hide MCP tools in first model turn |
 
 ## Memory & first-turn tool choice
 
-
-| Field                        | Default                             | Meaning                                                                                                                     |
-| ---------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `memory.backend`             | `"file"`                            | `file` / `hybrid` / `noop` / `none` / `off` — see [CLI sessions](./cli-sessions).                                           |
-| `memory.path`                | (default under `~/.anycode/memory`) | Root for memory files; relative paths are under `$HOME`.                                                                    |
-| `memory.auto_save`           | `true`                              | Auto-save project memory after successful tasks when backend is active.                                                     |
-| `zai_tool_choice_first_turn` | `false`                             | First turn `tool_choice: required` on OpenAI-compatible stack; `**ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` overrides** when set. |
-
+| Field | Default | Meaning |
+|---|---|---|
+| `memory.backend` | `"file"` | `file` / `hybrid` / `noop` |
+| `memory.path` | `~/.anycode/memory` | Memory directory |
+| `memory.auto_save` | `true` | Save memory after successful tasks |
+| `zai_tool_choice_first_turn` | `false` | Prefer tool call on first turn for z.ai stack |
 
 ## System prompt overrides
 
-Optional top-level string fields (or `@path` relative to the config file directory):
+Optional top-level string fields:
 
-- `**system_prompt_override`** — replaces the entire default system message when non-empty.
-- `**system_prompt_append`** — appended after the composed system message.
+- `system_prompt_override`: replace default system prompt
+- `system_prompt_append`: append extra content
 
-WeChat bridge `config.env` `**systemPrompt`** is treated like `**system_prompt_append`**.
+Both support `@path` (relative to config file directory).
 
 ## MCP deny rules
 
-- `**security.mcp_tool_deny_rules`** — blanket rules.  
-- `**security.mcp_tool_deny_patterns**` — regex list to strip tools before the model sees them.
-
-Details: [Roadmap](./roadmap) (tools / MCP sections) and root README.
+- `security.mcp_tool_deny_rules`: deny by rule string
+- `security.mcp_tool_deny_patterns`: deny by regex before tool exposure
 
 ## Locale (CLI UI)
 
-Resolved in order: `**ANYCODE_LANG**` / `**LANGUAGE**`, then `**LC_ALL**` / `**LC_MESSAGES**` / `**LANG**`, then OS locale. Examples:
+Quick language setting:
 
 ```bash
-export ANYCODE_LANG=zh   # or en
+export ANYCODE_LANG=zh
+# or
+export ANYCODE_LANG=en
 ```
 
-Model-facing system prompts and tool descriptions default to **English** for stability.
+Next step: open a new shell or re-run command in current shell, then start `anycode`.
+
+Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 
 ## Environment highlights
 
-
-| Variable                                     | Role                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------- |
-| `ANYCODE_IGNORE_APPROVAL`                    | Process-level approval skip (see CLI help).                               |
-| `ANYCODE_OSC8_LINKS`                         | OSC 8 hyperlinks in terminal output (see [CLI sessions](./cli-sessions)). |
-| `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN`         | First-turn tool calls on z.ai / OpenAI-compatible.                        |
-| `ANYCODE_ZAI_TOOL_CHOICE`                    | `required` / `auto` per-turn (debug).                                     |
-| `ANYCODE_MCP_COMMAND`, `ANYCODE_MCP_SERVERS` | MCP when built with `tools-mcp`.                                          |
-| `ANYCODE_DAEMON_TOKEN`                       | Bearer for daemon `POST /v1/tasks`.                                       |
-
-
-Full tables: root README and [CLI overview](./cli).
+| Variable | Role |
+|---|---|
+| `ANYCODE_IGNORE_APPROVAL` | Process-level approval bypass |
+| `ANYCODE_OSC8_LINKS` | Clickable OSC8 links |
+| `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` | First-turn tool-call preference |
+| `ANYCODE_ZAI_TOOL_CHOICE` | `required` / `auto` for debugging |
+| `ANYCODE_MCP_COMMAND`, `ANYCODE_MCP_SERVERS` | MCP integration |
+| `ANYCODE_DAEMON_TOKEN` | Daemon bearer token |
 
 ## Next
 

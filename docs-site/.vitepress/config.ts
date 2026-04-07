@@ -5,56 +5,92 @@ import { defineConfig } from 'vitepress'
 const base = process.env.VITEPRESS_BASE || '/'
 
 const guideSidebarEn = [
-  { text: 'Docs directory', link: '/guide/docs-directory' },
-  { text: 'Getting started', link: '/guide/getting-started' },
-  { text: 'Install', link: '/guide/install' },
   {
-    text: 'CLI',
+    text: 'First use',
+    collapsed: false,
+    items: [
+      { text: 'Getting started', link: '/guide/getting-started' },
+      { text: 'Install', link: '/guide/install' },
+      { text: 'WeChat & setup', link: '/guide/wechat' }
+    ]
+  },
+  {
+    text: 'Daily use',
     collapsed: false,
     items: [
       { text: 'Overview', link: '/guide/cli' },
       { text: 'Run, REPL & TUI', link: '/guide/cli-sessions' },
-      { text: 'Daemon', link: '/guide/cli-daemon' },
       { text: 'Model commands', link: '/guide/cli-model' },
-      { text: 'Discovery & test-security', link: '/guide/cli-diagnostics' },
-      { text: 'Agent skills', link: '/guide/skills' },
-      { text: 'WeChat & setup', link: '/guide/wechat' }
+      { text: 'Troubleshooting', link: '/guide/troubleshooting' }
     ]
   },
-  { text: 'Models', link: '/guide/models' },
-  { text: 'Architecture', link: '/guide/architecture' },
-  { text: 'Routing', link: '/guide/routing' },
-  { text: 'Config & security', link: '/guide/config-security' },
-  { text: 'Troubleshooting', link: '/guide/troubleshooting' },
-  { text: 'Development', link: '/guide/development' },
-  { text: 'Roadmap', link: '/guide/roadmap' },
+  {
+    text: 'Advanced',
+    collapsed: true,
+    items: [
+      { text: 'Models', link: '/guide/models' },
+      { text: 'Config & security', link: '/guide/config-security' },
+      { text: 'Routing', link: '/guide/routing' },
+      { text: 'Architecture', link: '/guide/architecture' }
+    ]
+  },
+  {
+    text: 'Developer',
+    collapsed: true,
+    items: [
+      { text: 'Development', link: '/guide/development' },
+      { text: 'Agent skills', link: '/guide/skills' },
+      { text: 'Discovery & test-security', link: '/guide/cli-diagnostics' },
+      { text: 'Daemon', link: '/guide/cli-daemon' },
+      { text: 'Roadmap', link: '/guide/roadmap' }
+    ]
+  },
+  { text: 'Docs directory', link: '/guide/docs-directory' },
   { text: 'All pages (hub)', link: '/guide/hubs' }
 ]
 
 const guideSidebarZh = [
-  { text: '文档地图', link: '/zh/guide/docs-directory' },
-  { text: '快速开始', link: '/zh/guide/getting-started' },
-  { text: '安装', link: '/zh/guide/install' },
   {
-    text: '命令行 CLI',
+    text: '首次使用',
+    collapsed: false,
+    items: [
+      { text: '快速开始', link: '/zh/guide/getting-started' },
+      { text: '安装', link: '/zh/guide/install' },
+      { text: '微信与 setup', link: '/zh/guide/wechat' }
+    ]
+  },
+  {
+    text: '日常使用',
     collapsed: false,
     items: [
       { text: '总览', link: '/zh/guide/cli' },
       { text: 'run / REPL / TUI', link: '/zh/guide/cli-sessions' },
-      { text: '守护进程', link: '/zh/guide/cli-daemon' },
       { text: '模型子命令', link: '/zh/guide/cli-model' },
-      { text: '发现与 test-security', link: '/zh/guide/cli-diagnostics' },
-      { text: 'Agent skills', link: '/zh/guide/skills' },
-      { text: '微信与 setup', link: '/zh/guide/wechat' }
+      { text: '排错', link: '/zh/guide/troubleshooting' }
     ]
   },
-  { text: '模型与端点', link: '/zh/guide/models' },
-  { text: '架构', link: '/zh/guide/architecture' },
-  { text: '路由', link: '/zh/guide/routing' },
-  { text: '配置与安全', link: '/zh/guide/config-security' },
-  { text: '排错', link: '/zh/guide/troubleshooting' },
-  { text: '开发与贡献', link: '/zh/guide/development' },
-  { text: '路线图', link: '/zh/guide/roadmap' },
+  {
+    text: '进阶',
+    collapsed: true,
+    items: [
+      { text: '模型与端点', link: '/zh/guide/models' },
+      { text: '配置与安全', link: '/zh/guide/config-security' },
+      { text: '路由', link: '/zh/guide/routing' },
+      { text: '架构', link: '/zh/guide/architecture' }
+    ]
+  },
+  {
+    text: '开发者',
+    collapsed: true,
+    items: [
+      { text: '开发与贡献', link: '/zh/guide/development' },
+      { text: 'Agent skills', link: '/zh/guide/skills' },
+      { text: '发现与 test-security', link: '/zh/guide/cli-diagnostics' },
+      { text: '守护进程', link: '/zh/guide/cli-daemon' },
+      { text: '路线图', link: '/zh/guide/roadmap' }
+    ]
+  },
+  { text: '文档地图', link: '/zh/guide/docs-directory' },
   { text: '全量索引', link: '/zh/guide/hubs' }
 ]
 

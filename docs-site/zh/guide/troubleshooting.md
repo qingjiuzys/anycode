@@ -1,40 +1,79 @@
 ---
 title: 排错
-description: anyCode 常见问题：无 TTY、微信扫码、MCP 与文档链接。
-summary: 非交互环境、桥接登录与 MCP/OAuth 限制的快速处理。
+description: 按“现象”快速定位 anyCode 常见问题，并给出下一步操作。
+summary: 先解决命令、setup、扫码、API 报错，再进入进阶诊断。
 read_when:
-  - setup / wechat / config 失败。
-  - 在 CI 或无图形环境运行。
+  - setup、channel 绑定或命令执行失败。
+  - 需要一个快速可执行的排错清单。
 ---
 
 # 排错
 
-## 无 TTY / SSH / CI
+适合出现报错后，希望先快速恢复可用的用户。
 
-- **`anycode config`**、**`setup`** 在非 TTY 下可能无法交互，请在本机**真实终端**执行，或事先写好 **`~/.anycode/config.json`**。
-- **微信扫码**需要能弹出浏览器或展示二维码的环境；可在有图形界面的机器上再执行 **`anycode channel wechat`**。
-- **`run` / `repl`** 在 `require_approval=true` 时需要连着终端用 stdin 确认；**`--ignore-approval`** 仅在你清楚风险时使用。
+使用方式：
 
-## 微信桥
+1. 先按“现象”找到最接近的一节
+2. 按顺序执行该节里的检查项
+3. 快速检查无效时，再看“进阶诊断”
 
-- 若向导提示运行 **`anycode channel wechat`**，请在桥接能完成扫码的环境执行。
-- 微信任务默认工作目录常为 **`~/.anycode/workspace`**；可在微信内用 **`/cwd`** 切到项目（见 [微信与 setup](./wechat)）。
+## 1）`anycode` 命令找不到
 
-## MCP 与 OAuth
+1. 先执行 `anycode --help`
+2. 如果提示找不到命令，按安装脚本输出修正 PATH
+3. 新开一个终端再试
+4. 仍失败就按 [安装](./install) 重装
 
-- 需 **`cargo build` 带 `tools-mcp`**，并检查 **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`** 与 **`~/.anycode/tasks/<id>/output.log`**。
-- **OAuth / `McpAuth`** 可能依赖 MCP 服务器的 stdio 交互，无头环境可能无法完成；优先使用可配置 token 的服务器。
-- 若模型侧看不到 MCP 工具，检查 **`security.mcp_tool_deny_patterns`**（见 [配置与安全](./config-security)）。
+## 2）`setup` 不能交互 / 卡住
 
-## z.ai 首轮不出 tool_calls
+- 请在本机真实终端运行（不要在 CI / 无头环境中交互）
+- 如果你只想先配某个 channel，可直接指定：
 
-- 可试 **`ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1`** 或配置里 **`zai_tool_choice_first_turn: true`**（见 [run / REPL / TUI](./cli-sessions)）。
+```bash
+anycode setup --channel wechat
+anycode setup --channel telegram
+anycode setup --channel discord
+```
 
-## 文档里的「死链」
+预期输出：setup 会直接进入你指定的 channel 流程。
 
-- 本站对仓库外 **`crates/`** 路径设置了 **`ignoreDeadLinks`**，便于在 GitHub 上点进源码；**`vitepress build`** 若仍报站内死链，请修正路径或在 **`.vitepress/config.ts`** 增加例外。
+## 3）微信扫码失败
+
+- 在有图形界面/浏览器的机器执行：
+
+```bash
+anycode channel wechat
+```
+
+预期输出：出现扫码绑定流程并提示后续确认步骤。
+
+- 如果任务跑到错误目录，在微信里用 `/cwd` 切到项目目录。
+
+## 4）API 调用报错
+
+- 重新执行 `setup`，确认 provider / model / api key
+- 确认 endpoint 与 provider 协议匹配（OpenAI 兼容接口 vs 厂商原生接口）
+- 使用 Google provider 时，优先用 setup 自动填充的默认 endpoint
+
+## 5）审批提示影响使用
+
+- `require_approval=true` 时，敏感工具会要求确认
+- 如果你明确理解风险，且仅本次跳过：
+
+```bash
+anycode run --ignore-approval --agent general-purpose "..."
+```
+
+预期输出：本次进程执行任务时不再弹审批确认。
+
+## 进阶诊断（可选）
+
+- MCP / OAuth 问题：看 [配置与安全](./config-security)
+- 开发者日志与测试：看 [开发与贡献](./development)
 
 ## 仍然无法解决
 
-- 提 Issue 时请带 **系统**、**版本信息**、脱敏后的 **`config.json`**。  
-- 本地测试见 [开发与贡献](./development)。
+- 提 Issue 时请附：
+  - 系统版本
+  - `anycode --version`
+  - 脱敏后的 `~/.anycode/config.json`（去掉 API Key）

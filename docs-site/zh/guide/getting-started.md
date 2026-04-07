@@ -1,31 +1,62 @@
 ---
 title: 快速开始
-description: 约五分钟：安装 → setup → run / TUI / repl 验证。
-summary: 最短上手路径；指向安装、CLI 分册与文档地图。
+description: 安装 anyCode，完成 setup，并在几分钟内跑通第一条任务。
+summary: 面向非技术用户的最短路径，包含失败时下一步动作。
 read_when:
   - 第一次使用 anyCode，想尽快跑通。
 ---
 
 # 快速开始
 
+适合第一次使用 anyCode 的用户。
+
+完成本页后，你会得到：
+
+- anyCode 已安装
+- `setup` 已完成
+- 一条验证任务成功返回
+
 ## 五分钟路径
 
-1. **安装** — 见 [安装](./install)（一行脚本、Release 或源码构建）。  
-2. **`setup`** — 工作区 + API 向导 + TTY 下可选微信。  
-3. **验证** — 跑一次 `run`，或进入默认 TUI / `repl`。
+1. **安装** — 见 [安装](./install)。  
+2. **运行 `setup`** — 选择模型与 channel（`wechat` / `telegram` / `discord`）。  
+3. **验证** — 执行一次任务并检查输出。
 
 ## 环境要求
 
-- **只用预编译**：无需 Rust。  
-- **从源码构建**：需要 **Rust（stable）** 与 **Cargo**。  
-- **微信扫码**：需支持图形界面/浏览器的环境（见 [微信与 setup](./wechat)）。
+- **使用预编译安装**：不需要 Rust。
+- **仅当你从源码构建时**：需要 Rust + Cargo。
+- **微信扫码登录**：需要可打开浏览器/图形界面的机器。
 
-## 首次运行
+## 首次运行（setup）
+
+如果 `anycode` 已经在 PATH 中：
+
+```bash
+anycode setup
+```
+
+预期输出：进入 setup 向导，提示选择模型和 channel。  
+下一步：完成向导后执行下方“验证”命令。
+
+如果你在本地源码目录里直接运行编译产物：
 
 ```bash
 ./target/release/anycode setup
-./target/release/anycode setup --channel wechat
 ```
+
+预期输出：与 `anycode setup` 相同的向导流程。  
+下一步：若 PATH 已配置，后续优先使用 `anycode`。
+
+也可以直接指定 channel：
+
+```bash
+anycode setup --channel wechat
+anycode setup --channel telegram
+anycode setup --channel discord
+```
+
+预期输出：跳过 channel 选择菜单，直接进入对应流程。
 
 ## 验证
 
@@ -34,7 +65,15 @@ anycode run --agent general-purpose "请只回复：OK"
 anycode
 ```
 
-TUI 中：`/help`、`/agents`、`/tools`、`/exit`。需要**原生终端滚动**时用 **`anycode repl`**，见 [run / REPL / TUI](./cli-sessions)。
+预期输出：第一条命令返回 `OK`；第二条命令进入 TUI。
+
+TUI 里可先试：`/help`、`/tools`、`/exit`。
+
+## 失败时下一步
+
+- 提示 `command not found` -> 看 [安装](./install) 里的 PATH 处理
+- `setup` 不能交互 -> 换到本机真实终端执行
+- 微信扫码失败 -> 在有图形界面的机器执行 `anycode channel wechat`
 
 ## 界面语言
 
@@ -47,9 +86,9 @@ export ANYCODE_LANG=zh
 
 ## 下一步
 
-- [文档地图](./docs-directory)  
-- [CLI 总览](./cli)  
-- [模型与端点](./models)  
-- [架构](./architecture)  
+- [安装](./install)
+- [微信与 setup](./wechat)
+- [排错](./troubleshooting)
+- [文档地图](./docs-directory)
 
 English: [Getting started](/guide/getting-started).

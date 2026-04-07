@@ -40,6 +40,12 @@ impl CliChannel {
     }
 }
 
+impl Default for CliChannel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl ChannelHandler for CliChannel {
     fn channel_type(&self) -> ChannelType {
@@ -81,6 +87,12 @@ impl IdeChannel {
             sender,
             receiver: Mutex::new(Some(receiver)),
         }
+    }
+}
+
+impl Default for IdeChannel {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -180,7 +192,7 @@ impl WebChannel {
                             let t = text.to_string();
                             if web_envelope::is_ping_json(&t) {
                                 let _ = pong_out
-                                    .send(WsMessage::Text(web_envelope::pong_json().into()))
+                                    .send(WsMessage::Text(web_envelope::pong_json()))
                                     .await;
                                 continue;
                             }
@@ -208,9 +220,9 @@ impl ChannelHandler for WebChannel {
         self.ensure_listener_started().await?;
         let connections = self.connections.read().await;
         let payload =
-            outbound_channel_message_json(&msg).map_err(|e| CoreError::SerializationError(e))?;
+            outbound_channel_message_json(&msg).map_err(CoreError::SerializationError)?;
         for (_, sender) in connections.iter() {
-            let _ = sender.send(WsMessage::Text(payload.clone().into())).await;
+            let _ = sender.send(WsMessage::Text(payload.clone())).await;
         }
         Ok(())
     }

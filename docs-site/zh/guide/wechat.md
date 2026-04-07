@@ -1,7 +1,7 @@
 ---
 title: 微信与 setup
 description: 首次 setup 与可选的微信 iLink 桥接说明。
-summary: 工作区初始化、模型配置、channel 选择与扫码绑定自启桥。
+summary: 先判断该用哪个命令，再用最短步骤完成微信接入。
 read_when:
   - 要用手机微信驱动同一套 Agent。
   - 在无界面环境装好后补绑微信。
@@ -9,38 +9,63 @@ read_when:
 
 # 微信与 setup
 
+适合希望“在微信里发消息，在 anyCode 里执行任务”的用户。
+
+完成本页后，你会知道：
+
+- 先执行哪个命令
+- 如何最短路径完成微信绑定
+- 扫码失败或目录不对时怎么处理
+
+## 我该用哪个命令？
+
+- 第一次配置 -> `anycode setup`
+- 只绑定/重绑微信 -> `anycode channel wechat`
+- 想用 Telegram/Discord -> `anycode setup --channel telegram|discord`
+
 ## `setup`
 
-一条命令完成：
+推荐首次先执行：
 
-1. 初始化 **`~/.anycode/workspace`** 等用户目录（与 **`~/.anycode/wechat`** 并列）。
-2. 若缺少有效 LLM 配置，进入 **config 向导**（写入 `~/.anycode/config.json`）。
-3. 在 TTY 下会先选择 channel（`wechat` / `telegram` / `discord`），再进入对应流程。
+1. 检查并初始化工作目录
+2. 需要时补齐模型配置
+3. 选择 channel（`wechat` / `telegram` / `discord`）
 
 ```bash
-./target/release/anycode setup
-./target/release/anycode setup --channel wechat
+anycode setup
+anycode setup --channel wechat
 ```
 
-**`--debug`**、**`-c/--config`**、**`WCC_DATA_DIR`** 等与 **`channel wechat`** 子命令一致。
+预期输出：进入 setup 流程并进入模型+channel 配置。
 
 ## `channel wechat`
 
-跳过 setup 里的微信后，或需要重新绑定时：
+以下场景用它：
+
+- setup 里跳过了微信
+- 更换了机器/账号，需要重绑
 
 ```bash
 anycode channel wechat
 ```
 
+预期输出：启动微信扫码绑定流程。
+
 需在能完成 **扫码登录** 的环境（浏览器/图形界面）。
 
-## 用户工作区与微信 `workingDirectory`
+## 常见问题
 
-从各目录运行 TUI / **`repl`** / **`run`** 时，会把有效工作目录登记到 **`~/.anycode/workspace/projects/index.json`**（按 `last_seen`，约 200 条上限）。任务 cwd 仍是当前目录或 **`-C`**。
+如果微信里执行任务不在你的项目目录，先在微信中执行 `/cwd` 指到项目目录。
+预期输出：之后任务会在你指定的项目目录执行。
 
-**微信桥**：`config.env` 里 **`workingDirectory`** 在新绑定或缺省时默认为上述工作区根的规范路径（避免 LaunchAgent/systemd 下 `current_dir` 为 `/`）；可在微信内用 **`/cwd`** 改为项目目录。
+## 进阶说明
+
+- 微信数据目录通常是 `~/.anycode/wechat`
+- 工作区兜底目录通常是 `~/.anycode/workspace`
+- 进阶参数（`--debug`、`-c/--config`、`WCC_DATA_DIR`）按 CLI 全局规则生效
 
 ## 下一步
 
 - [run / REPL / TUI](./cli-sessions)  
-- [排错](./troubleshooting)  
+- [排错](./troubleshooting)
+

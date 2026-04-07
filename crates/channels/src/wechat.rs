@@ -22,6 +22,12 @@ impl WeChatChannel {
     }
 }
 
+impl Default for WeChatChannel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl ChannelHandler for WeChatChannel {
     fn channel_type(&self) -> ChannelType {

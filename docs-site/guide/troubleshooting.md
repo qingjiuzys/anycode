@@ -1,41 +1,81 @@
 ---
 title: Troubleshooting
-description: Common anyCode issues — no TTY, WeChat QR, MCP, and documentation links.
-summary: Quick fixes for non-interactive environments, bridge login, and MCP/OAuth limits.
+description: Fix common anyCode issues by symptom, with clear next actions.
+summary: Start from what failed, apply quick checks, then move to advanced diagnosis only if needed.
 read_when:
-  - Something failed during setup, wechat, or config.
-  - You run anyCode in CI or over SSH without a real TTY.
+  - Setup, channel binding, or command execution failed.
+  - You need a quick “what to do next” list.
 ---
 
 # Troubleshooting
 
-## No TTY / SSH / CI
+For users who need fast recovery steps when something fails.
 
-- **`anycode config`** and **`setup`** may skip interactive prompts when stdin is not a TTY. Run them **in a real terminal**, or prepare **`~/.anycode/config.json`** in advance.
-- **WeChat bind** requires a graphical environment to complete QR login. You can run **`anycode channel wechat`** later from a machine with a display.
-- **`run`** / **`repl`** approval prompts need a connected terminal for stdin when `require_approval` is true. Use **`--ignore-approval`** (or `ANYCODE_IGNORE_APPROVAL`) only when you understand the risk.
+How to use this page:
 
-## WeChat bridge
+1. Find the symptom closest to your error.
+2. Run the listed quick checks in order.
+3. Move to advanced diagnostics only if quick checks fail.
 
-- If the wizard says to run **`anycode channel wechat`**, do that in an environment where the bridge can open a browser or show a QR code.
-- **Working directory** for WeChat tasks defaults to **`~/.anycode/workspace`** when unset; use `/cwd` in WeChat to point at a project (see [WeChat & setup](./wechat)).
+## 1) `anycode` command not found
 
-## MCP and OAuth
+1. Run `anycode --help`.
+2. If not found, check PATH notes from installer output.
+3. Open a new terminal and retry.
+4. If still failing, reinstall from [Install](./install).
 
-- MCP support requires building with **`--features tools-mcp`**. Check **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`** and logs under **`~/.anycode/tasks/<id>/output.log`**.
-- **OAuth / `McpAuth`** may require stdio interaction with the MCP server; headless or sandboxed runners might not complete OAuth. Prefer servers that support non-interactive tokens where possible.
-- If tools disappear from the model, verify **`security.mcp_tool_deny_patterns`** and **`mcp_tool_deny_rules`** in [Config & security](./config-security).
+## 2) `setup` cannot ask questions / freezes
 
-## z.ai / OpenAI-compatible: no tool calls
+- Run in a real terminal (not CI/headless session).
+- For SSH/CI environments, prepare config first or run setup locally.
+- If you only need one channel, use explicit choice:
 
-- Some models return text only on the first turn. Try **`ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1`** or **`zai_tool_choice_first_turn: true`** in config (see [CLI sessions](./cli-sessions)).
+```bash
+anycode setup --channel wechat
+anycode setup --channel telegram
+anycode setup --channel discord
+```
 
-## Broken or “dead” links in docs
+Expected output: setup goes directly to the selected channel path.
 
-- This site sets **`ignoreDeadLinks`** for paths into the repo **`crates/`** tree (outside the VitePress root). Those links are intentional for GitHub browsing.
-- If **`vitepress build`** reports a dead link, fix the path or add an exception in **`.vitepress/config.ts`**.
+## 3) WeChat QR login fails
+
+- Bind on a machine with browser/GUI.
+- Run:
+
+```bash
+anycode channel wechat
+```
+
+Expected output: QR flow appears and asks for confirmation/binding steps.
+
+- If task folder is wrong after binding, set project path via `/cwd` in WeChat.
+
+## 4) API request failed
+
+- Re-run `setup` and confirm provider/model/api key.
+- Check endpoint matches provider protocol (OpenAI-compatible vs provider-native API).
+- For Google provider, prefer setup defaults and avoid custom non-compatible endpoint paths.
+
+## 5) Approval prompts block your workflow
+
+- `require_approval=true` means sensitive tools need confirmation.
+- If you know the risk and need one-time bypass:
+
+```bash
+anycode run --ignore-approval --agent general-purpose "..."
+```
+
+Expected output: task runs without interactive approval prompts in this process.
+
+## Advanced diagnostics (optional)
+
+- MCP/OAuth issues: check [Config & security](./config-security)
+- Developer logs/tests: see [Development](./development)
 
 ## Still stuck
 
-- Open an issue with **OS**, **anycode --version** (if available), and a redacted **`config.json`** (no API keys).  
-- See [Development](./development) for running tests locally.
+- Open an issue with:
+  - OS version
+  - `anycode --version`
+  - redacted `~/.anycode/config.json` (remove API keys)

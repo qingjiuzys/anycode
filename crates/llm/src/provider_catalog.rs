@@ -418,7 +418,7 @@ pub fn is_known_provider_id(id: &str) -> bool {
 }
 
 /// 按任务路由常用 agent_type（与 `routing.md`、CLI `--agent` 一致）。
-pub const ROUTING_AGENT_PRESETS: &[(&'static str, &'static str)] = &[
+pub const ROUTING_AGENT_PRESETS: &[(&str, &str)] = &[
     ("general-purpose", "主对话 / 通用任务"),
     ("plan", "规划 / 拆解"),
     ("explore", "探索 / 轻量"),

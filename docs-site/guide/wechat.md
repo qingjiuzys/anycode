@@ -1,7 +1,7 @@
 ---
 title: WeChat & setup
 description: First-time setup flow and the optional WeChat iLink bridge for anyCode.
-summary: setup sequence, channel selection, and how the bridge shares the same agent runtime.
+summary: Choose the right command quickly, then bind WeChat with minimum steps.
 read_when:
   - You want phone-driven tasks alongside the CLI.
   - You are setting up WeChat after a headless install.
@@ -9,34 +9,60 @@ read_when:
 
 # WeChat & setup
 
+For users who want to send requests from WeChat (mobile) and execute with anyCode.
+
+After this page, you will know:
+
+- which command to run first
+- how to bind WeChat quickly
+- what to check when QR or working directory fails
+
+## Which command should I use?
+
+- First time setup -> `anycode setup`
+- Bind/re-bind WeChat only -> `anycode channel wechat`
+- Configure Telegram/Discord instead -> `anycode setup --channel telegram|discord`
+
 ## `setup`
 
-One-shot first setup:
+`setup` is the recommended first command:
 
-1. Ensures **user workspace** layout under **`~/.anycode/workspace`** (alongside WeChat data under **`~/.anycode/wechat`**).
-2. Runs the **config wizard** if API settings are missing or invalid.
-3. On a TTY, asks you to choose a channel (`wechat` / `telegram` / `discord`), then runs the selected setup flow.
+1. Checks workspace folders
+2. Configures model/provider when needed
+3. Lets you choose channel (`wechat` / `telegram` / `discord`)
 
 ```bash
 anycode setup
 anycode setup --channel wechat
 ```
 
-Global flags **`--debug`**, **`-c/--config`**, and env vars such as **`WCC_DATA_DIR`** follow the same rules as **`anycode channel wechat`**.
+Expected output: setup guides you into model config then channel flow.
 
 ## `channel wechat`
 
-Use when you need to bind or re-bind WeChat:
+Run this when:
+
+- you skipped WeChat in setup
+- you changed machine/account and need to bind again
 
 ```bash
 anycode channel wechat
 ```
 
-Requires an environment where **QR login** can complete (browser / GUI). For narrative detail in Chinese, see the historical **[简体中文 CLI](/zh/guide/cli)** page until localized copy fully moves here.
+Expected output: QR binding flow starts.
 
-## Workspace default
+Needs a machine that can complete QR login (browser/GUI).
 
-The user-level **workspace root** registers recent working directories when you use TUI, **`repl`**, or **`run`**. WeChat **`workingDirectory`** in `config.env` defaults to this root when unset so daemon/LaunchAgent contexts with `cwd=/` still have a sane project root. Change per-task directory via WeChat **`/cwd`** when needed.
+## Common issue
+
+If tasks run in the wrong project folder, set project directory in WeChat with `/cwd`.
+Expected output: following tasks run in the selected project directory.
+
+## Advanced notes
+
+- WeChat data directory is usually `~/.anycode/wechat`
+- Workspace fallback directory is `~/.anycode/workspace`
+- Advanced flags and env (`--debug`, `-c/--config`, `WCC_DATA_DIR`) follow CLI defaults
 
 ## Next
 
