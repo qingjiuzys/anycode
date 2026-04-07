@@ -238,7 +238,9 @@ fn prompt_api_key_and_base_url(
         default_api_key
     } else {
         api_key
-    };
+    }
+    .trim()
+    .to_string();
     if api_key.is_empty() {
         anyhow::bail!("{}", tr("cfg-api-empty"));
     }
@@ -1402,7 +1404,9 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
         default_api_key
     } else {
         api_key
-    };
+    }
+    .trim()
+    .to_string();
     if api_key.is_empty() {
         anyhow::bail!("{}", tr("cfg-api-empty"));
     }

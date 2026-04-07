@@ -165,6 +165,52 @@ impl ZaiClient {
     }
 }
 
+fn sanitize_header_token(raw: &str, provider_name: &str) -> Result<String, CoreError> {
+    let token = raw.trim();
+    if token.is_empty() {
+        return Err(CoreError::LLMError(format!(
+            "{provider_name} api_key is empty after trimming whitespace"
+        )));
+    }
+    if token
+        .chars()
+        .any(|c| c.is_control() || matches!(c, '\u{7f}'))
+    {
+        return Err(CoreError::LLMError(format!(
+            "{provider_name} api_key contains control characters; please reconfigure the key (remove newline/hidden chars)"
+        )));
+    }
+    Ok(token.to_string())
+}
+
+fn normalize_zai_base_url(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return ZAI_DEFAULT_CODING_ENDPOINT.to_string();
+    }
+    if trimmed.ends_with("/chat/completions") {
+        return trimmed.to_string();
+    }
+    let mut s = trimmed.trim_end_matches('/').to_string();
+    if s.ends_with("/v4") {
+        s.push_str("/chat/completions");
+        return s;
+    }
+    if s.ends_with("/coding/paas") {
+        s.push_str("/v4/chat/completions");
+        return s;
+    }
+    if s.ends_with("/api") {
+        s.push_str("/coding/paas/v4/chat/completions");
+        return s;
+    }
+    if s.contains("open.bigmodel.cn") || s.contains("api.z.ai") {
+        s.push_str("/api/coding/paas/v4/chat/completions");
+        return s;
+    }
+    s
+}
+
 #[derive(Debug, Serialize)]
 struct ZaiRequestBody {
     model: String,
@@ -694,12 +740,14 @@ impl LLMClient for ZaiClient {
             .base_url
             .clone()
             .unwrap_or_else(|| self.base_url.clone());
+        let base_url = normalize_zai_base_url(&base_url);
 
         let auth_key = config
             .api_key
             .as_deref()
             .filter(|s| !s.is_empty())
             .unwrap_or(self.api_key.as_str());
+        let auth_key = sanitize_header_token(auth_key, "z.ai")?;
 
         let max_retries: u32 = 5;
         let mut last_err: Option<String> = None;
@@ -708,7 +756,7 @@ impl LLMClient for ZaiClient {
             let send_res = self
                 .client
                 .post(&base_url)
-                .header("Authorization", &format!("Bearer {}", auth_key))
+                .header("Authorization", format!("Bearer {}", auth_key))
                 .json(&body)
                 .send()
                 .await;
@@ -837,6 +885,33 @@ mod tests {
         let obj = out[0].as_object().unwrap();
         assert_eq!(obj.get("role").and_then(|v| v.as_str()), Some("assistant"));
         assert!(obj.get("tool_calls").is_some());
+    }
+
+    #[test]
+    fn sanitize_header_token_trims_whitespace() {
+        let out = sanitize_header_token("  sk-test-123  ", "z.ai").unwrap();
+        assert_eq!(out, "sk-test-123");
+    }
+
+    #[test]
+    fn sanitize_header_token_rejects_control_chars() {
+        let err = sanitize_header_token("sk-test\n123", "z.ai").unwrap_err();
+        assert!(err.to_string().contains("control characters"));
+    }
+
+    #[test]
+    fn normalize_zai_base_url_appends_chat_completions_from_v4() {
+        let got = normalize_zai_base_url("https://open.bigmodel.cn/api/coding/paas/v4");
+        assert_eq!(
+            got,
+            "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions"
+        );
+    }
+
+    #[test]
+    fn normalize_zai_base_url_keeps_full_endpoint() {
+        let got = normalize_zai_base_url("https://api.z.ai/api/coding/paas/v4/chat/completions");
+        assert_eq!(got, "https://api.z.ai/api/coding/paas/v4/chat/completions");
     }
 
     fn test_msg(role: MessageRole, text: &str) -> Message {
