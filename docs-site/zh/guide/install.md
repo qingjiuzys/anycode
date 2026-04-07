@@ -40,6 +40,22 @@ bash scripts/install.sh
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
 ```
 
+## 安装 v0.1.0（固定版本）
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 \
+  "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | \
+  bash -s -- --repo qingjiuzys/anycode --version v0.1.0
+```
+
+或（Cargo 直接按 tag 安装）：
+
+```bash
+cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode --force
+```
+
+Release 页面：<https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
+
 ## Release 附件命名
 
 与脚本一致：`anycode-<rust-target>.tar.gz`，压缩包**根目录**含可执行文件 `anycode`。常见 target：`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`。

@@ -40,6 +40,22 @@ Useful flags: `--version v0.1.0` or `latest`; `--bin-dir "$HOME/.local/bin"`; `-
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
 ```
 
+## Install v0.1.0 (pinned)
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 \
+  "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | \
+  bash -s -- --repo qingjiuzys/anycode --version v0.1.0
+```
+
+Or install from Cargo with the release tag:
+
+```bash
+cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode --force
+```
+
+Release page: <https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
+
 ## Release asset naming
 
 Assets should be named `anycode-<rust-target>.tar.gz` with `anycode` at the **root** of the archive. Typical targets:
@@ -63,6 +79,12 @@ Install into `PATH`:
 ```bash
 cargo install --path crates/cli --force
 anycode --help
+```
+
+## Local clone only
+
+```bash
+./scripts/install.sh --source-dir "$(pwd)" --bin-dir "$HOME/.local/bin"
 ```
 
 ## Optional features
