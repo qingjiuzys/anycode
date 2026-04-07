@@ -92,4 +92,4 @@ ANYCODE_OSC8_LINKS=1 anycode
 ## Related
 
 - [Config & security](./config-security) — **`memory.*`**, approval matrix  
-- [WeChat & onboard](./wechat) — workspace + bridge  
+- [WeChat & setup](./wechat) — workspace + bridge  

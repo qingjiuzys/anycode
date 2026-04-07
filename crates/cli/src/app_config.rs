@@ -1506,7 +1506,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
     Ok(())
 }
 
-/// 配置向导（不提示微信；供 `onboard` 聚合命令在向导后再统一走 `wechat`）。
+/// 配置向导（不提示微信；供 `setup` 聚合命令在向导后再统一走 `wechat`）。
 pub(crate) async fn run_config_wizard_without_wechat_prompt() -> anyhow::Result<()> {
     run_config_wizard_inner(false).await
 }

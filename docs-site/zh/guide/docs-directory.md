@@ -20,7 +20,7 @@ read_when:
 | `security.*`、环境变量、审批 | [配置与安全](./config-security) |
 | Skill 目录、`SKILL.md`、`anycode skills` | [Agent skills](./skills) |
 | 无 TTY、微信扫码、MCP | [排错](./troubleshooting) |
-| 微信桥与 `onboard` | [微信与 onboard](./wechat) |
+| 微信桥与 `setup` | [微信与 setup](./wechat) |
 | 贡献、测试、工具注册门禁 | [开发与贡献](./development) |
 | MVP、工具矩阵、后续里程碑 | [路线图](./roadmap) |
 

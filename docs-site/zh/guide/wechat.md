@@ -1,15 +1,15 @@
 ---
-title: 微信与 onboard
-description: 首次 onboard 与可选的微信 iLink 桥接说明。
+title: 微信与 setup
+description: 首次 setup 与可选的微信 iLink 桥接说明。
 summary: 工作区初始化、API 向导、可选扫码绑定与自启桥。
 read_when:
   - 要用手机微信驱动同一套 Agent。
   - 在无界面环境装好后补绑微信。
 ---
 
-# 微信与 onboard
+# 微信与 setup
 
-## `onboard`
+## `setup`
 
 一条命令完成：
 
@@ -18,15 +18,15 @@ read_when:
 3. 在 TTY 下一般会询问是否 **绑定微信并安装登录自启后台桥**（与 `anycode wechat` 相同流程）。
 
 ```bash
-./target/release/anycode onboard
-./target/release/anycode onboard --skip-wechat
+./target/release/anycode setup
+./target/release/anycode setup --skip-wechat
 ```
 
 **`--debug`**、**`-c/--config`**、**`WCC_DATA_DIR`** 等与 **`wechat`** 子命令一致。
 
 ## `wechat`
 
-跳过 onboard 里的微信后，或需要重新绑定时：
+跳过 setup 里的微信后，或需要重新绑定时：
 
 ```bash
 anycode wechat

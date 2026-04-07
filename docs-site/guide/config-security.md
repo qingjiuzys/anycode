@@ -15,7 +15,7 @@ Default config path: `**~/.anycode/config.json`**. If you pass `**-c/--config <P
 anycode config
 ```
 
-The wizard preserves existing `**routing**` and `**security**` sections. After save on a TTY you may be offered the same WeChat bind flow as `anycode wechat` (see [WeChat & onboard](./wechat)).
+The wizard preserves existing `**routing**` and `**security**` sections. After save on a TTY you may be offered the same WeChat bind flow as `anycode wechat` (see [WeChat & setup](./wechat)).
 
 ## Security & approval
 

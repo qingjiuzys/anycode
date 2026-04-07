@@ -92,6 +92,6 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 ## 相关
 
 - [配置与安全](./config-security) — 记忆、`require_approval` / `permission_mode`  
-- [微信与 onboard](./wechat)  
+- [微信与 setup](./wechat)  
 
 English: [Run, REPL & TUI](/guide/cli-sessions).

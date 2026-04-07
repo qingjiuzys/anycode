@@ -33,7 +33,7 @@ See [Config & security](./config-security) for **`security.*`**, memory fields, 
 | **`daemon`** HTTP API | [Daemon](./cli-daemon) |
 | **`model`*** subcommands | [Model commands](./cli-model) |
 | **`list-agents`**, **`list-tools`**, **`test-security`** | [Discovery & test-security](./cli-diagnostics) |
-| **`onboard`**, **`wechat`** | [WeChat & onboard](./wechat) |
+| **`setup`**, **`wechat`** | [WeChat & setup](./wechat) |
 
 ## Build from source
 

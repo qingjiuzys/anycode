@@ -131,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
         }
-        Some(Commands::Onboard {
+        Some(Commands::Setup {
             skip_wechat,
             data_dir,
         }) => {

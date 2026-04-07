@@ -19,7 +19,7 @@ read_when:
 - [模型子命令](./cli-model)  
 - [发现与 test-security](./cli-diagnostics)  
 - [Agent skills](./skills)  
-- [微信与 onboard](./wechat)  
+- [微信与 setup](./wechat)  
 - [模型与端点](./models)  
 - [架构](./architecture)  
 - [路由](./routing)  

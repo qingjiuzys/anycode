@@ -22,7 +22,7 @@ Short paths for common goals:
 | `security.*`, env vars, approval | [Config & security](./config-security) |
 | Skill 目录、`SKILL.md`、`anycode skills` | [Agent skills](./skills) |
 | No TTY, WeChat QR, MCP quirks | [Troubleshooting](./troubleshooting) |
-| WeChat bridge & `onboard` | [WeChat & onboard](./wechat) |
+| WeChat bridge & `setup` | [WeChat & setup](./wechat) |
 | Contribute, tests, registry checklist | [Development](./development) |
 | MVP scope, tools matrix, future work | [Roadmap](./roadmap) |
 

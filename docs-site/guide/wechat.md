@@ -1,15 +1,15 @@
 ---
-title: WeChat & onboard
-description: First-time onboard flow and the optional WeChat iLink bridge for anyCode.
-summary: onboard sequence, skip-wechat, and how the bridge shares the same agent runtime.
+title: WeChat & setup
+description: First-time setup flow and the optional WeChat iLink bridge for anyCode.
+summary: setup sequence, skip-wechat, and how the bridge shares the same agent runtime.
 read_when:
   - You want phone-driven tasks alongside the CLI.
   - You are setting up WeChat after a headless install.
 ---
 
-# WeChat & onboard
+# WeChat & setup
 
-## `onboard`
+## `setup`
 
 One-shot first setup:
 
@@ -18,15 +18,15 @@ One-shot first setup:
 3. On a TTY, optionally starts the **WeChat bind** flow and login autostart bridge (same as `anycode wechat`).
 
 ```bash
-anycode onboard
-anycode onboard --skip-wechat
+anycode setup
+anycode setup --skip-wechat
 ```
 
 Global flags **`--debug`**, **`-c/--config`**, and env vars such as **`WCC_DATA_DIR`** follow the same rules as **`anycode wechat`**.
 
 ## `wechat`
 
-Use when you skipped WeChat during onboard or need to re-bind:
+Use when you skipped WeChat during setup or need to re-bind:
 
 ```bash
 anycode wechat

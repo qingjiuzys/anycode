@@ -18,7 +18,7 @@ const guideSidebarEn = [
       { text: 'Model commands', link: '/guide/cli-model' },
       { text: 'Discovery & test-security', link: '/guide/cli-diagnostics' },
       { text: 'Agent skills', link: '/guide/skills' },
-      { text: 'WeChat & onboard', link: '/guide/wechat' }
+      { text: 'WeChat & setup', link: '/guide/wechat' }
     ]
   },
   { text: 'Models', link: '/guide/models' },
@@ -45,7 +45,7 @@ const guideSidebarZh = [
       { text: '模型子命令', link: '/zh/guide/cli-model' },
       { text: '发现与 test-security', link: '/zh/guide/cli-diagnostics' },
       { text: 'Agent skills', link: '/zh/guide/skills' },
-      { text: '微信与 onboard', link: '/zh/guide/wechat' }
+      { text: '微信与 setup', link: '/zh/guide/wechat' }
     ]
   },
   { text: '模型与端点', link: '/zh/guide/models' },

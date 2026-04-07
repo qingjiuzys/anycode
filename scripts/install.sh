@@ -14,7 +14,8 @@
 #   ANYCODE_GITHUB_REPO   default for --repo (e.g. myorg/anycode)
 #   ANYCODE_VERSION       tag or "latest" (default: latest)
 #   ANYCODE_INSTALL_BIN   directory for the binary (default: first writable PATH dir, else $HOME/.local/bin)
-#   ANYCODE_NO_ONBOARD    if 1, do not suggest running onboard at the end
+#   ANYCODE_NO_SETUP      if 1, do not run setup wizard after install
+#   ANYCODE_INSTALL_QUIET if 1, reduce downloader output
 #
 set -euo pipefail
 
@@ -23,6 +24,11 @@ readonly PROG="${0##*/}"
 info() { printf '%s\n' "$*"; }
 warn() { printf '[anycode-install] %s\n' "$*" >&2; }
 die() { warn "$*"; exit 1; }
+
+is_truthy() {
+  local v="${1:-}"
+  [[ "$v" == "1" || "$v" == "true" || "$v" == "TRUE" || "$v" == "yes" || "$v" == "YES" ]]
+}
 
 DOWNLOADER=""
 detect_downloader() {
@@ -41,9 +47,21 @@ download() {
   local url="$1" out="$2"
   [[ -n "$DOWNLOADER" ]] || detect_downloader
   if [[ "$DOWNLOADER" == curl ]]; then
-    curl -fsSL --http1.1 --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 -o "$out" "$url"
+    local -a flags=(--fail --location --http1.1 --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 -o "$out")
+    if [[ "$QUIET" -eq 1 || ! -t 2 ]]; then
+      flags+=(--silent --show-error)
+    else
+      flags+=(--progress-bar)
+    fi
+    curl "${flags[@]}" "$url"
   else
-    wget -q --https-only --secure-protocol=TLSv1_2 --tries=3 -O "$out" "$url"
+    local -a wflags=(--https-only --secure-protocol=TLSv1_2 --tries=3 -O "$out")
+    if [[ "$QUIET" -eq 1 || ! -t 2 ]]; then
+      wflags+=(-q)
+    else
+      wflags+=(--show-progress --progress=bar:force:noscroll)
+    fi
+    wget "${wflags[@]}" "$url"
   fi
 }
 
@@ -94,7 +112,9 @@ Usage: install.sh [options]
                          auto: try GitHub Release tarball, then cargo install --git
   --source-dir PATH     Use `cargo install --path PATH/crates/cli` instead of git (for local dev clone)
   --dry-run             Print actions only
-  --onboard             After install, run `anycode onboard` (interactive)
+  --setup               After install, run `anycode setup` (interactive; default)
+  --no-setup            Do not run setup wizard after install
+  --quiet               Reduce downloader output (for CI/log piping)
   -h, --help            This help
 
 Release asset layout (for --method binary):
@@ -117,7 +137,9 @@ BIN_DIR_EXPLICIT=0
 METHOD=binary
 SOURCE_DIR=""
 DRY_RUN=0
-RUN_ONBOARD=0
+RUN_SETUP=1
+QUIET=0
+is_truthy "${ANYCODE_INSTALL_QUIET:-0}" && QUIET=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -127,7 +149,9 @@ while [[ $# -gt 0 ]]; do
     --method) METHOD="${2:-}"; shift 2 ;;
     --source-dir) SOURCE_DIR="${2:-}"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
-    --onboard) RUN_ONBOARD=1; shift ;;
+    --setup) RUN_SETUP=1; shift ;;
+    --no-setup) RUN_SETUP=0; shift ;;
+    --quiet) QUIET=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
   esac
@@ -320,15 +344,19 @@ main() {
       ;;
   esac
 
-  if [[ "$RUN_ONBOARD" -eq 1 ]]; then
+  if [[ "${ANYCODE_NO_SETUP:-0}" == "1" ]]; then
+    RUN_SETUP=0
+  fi
+
+  if [[ "$RUN_SETUP" -eq 1 ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      info "[dry-run] ${BIN_DIR}/anycode onboard"
+      info "[dry-run] ${BIN_DIR}/anycode setup"
     else
       [[ -x "${BIN_DIR}/anycode" ]] || die "Missing ${BIN_DIR}/anycode"
-      "${BIN_DIR}/anycode" onboard
+      "${BIN_DIR}/anycode" setup
     fi
-  elif [[ "${ANYCODE_NO_ONBOARD:-0}" != "1" ]]; then
-    info "Next: run  anycode onboard  (API 向导 + 可选微信扫码)。跳过微信:  anycode onboard --skip-wechat"
+  else
+    info "Next: run  anycode setup  (API 向导 + 可选微信扫码)。跳过微信:  anycode setup --skip-wechat"
   fi
 }
 

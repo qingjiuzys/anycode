@@ -19,7 +19,7 @@ English **`/guide/`** routes:
 - [Model commands](./cli-model)  
 - [Discovery & test-security](./cli-diagnostics)  
 - [Agent skills](./skills)  
-- [WeChat & onboard](./wechat)  
+- [WeChat & setup](./wechat)  
 - [Models](./models)  
 - [Architecture](./architecture)  
 - [Routing](./routing)  

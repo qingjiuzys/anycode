@@ -49,7 +49,7 @@ export ANYCODE_GITHUB_REPO="qingjiuzys/anycode"
 bash scripts/install.sh
 ```
 
-Useful flags: `--version v0.1.0` or `latest`; `--bin-dir "$HOME/.local/bin"`; `--dry-run`; `--onboard` after install; `--method auto` to allow source fallback. Help:
+Useful flags: `--version v0.1.0` or `latest`; `--bin-dir "$HOME/.local/bin"`; `--dry-run`; `--no-setup` to skip post-install wizard; `--quiet` to reduce download output; `--method auto` to allow source fallback. By default installer runs `anycode setup` after install and shows download progress in interactive terminals. Help:
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
@@ -119,5 +119,5 @@ cargo build -p anycode --features tools-mcp
 
 ## Next
 
-- [Getting started](./getting-started) — `onboard` and first task  
+- [Getting started](./getting-started) — `setup` and first task  
 - [Config & security](./config-security) — `~/.anycode/config.json`  

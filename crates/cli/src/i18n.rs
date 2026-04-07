@@ -181,12 +181,12 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
                 *sub = n;
             }
             "config" => *sub = sub.clone().about(tr("cmd-config-about")),
-            "onboard" => {
+            "setup" => {
                 let n = sub
                     .clone()
-                    .about(tr("cmd-onboard-about"))
-                    .mut_arg("skip_wechat", |a| a.help(tr("cmd-onboard-skip-wechat")))
-                    .mut_arg("data_dir", |a| a.help(tr("cmd-onboard-data-dir")));
+                    .about(tr("cmd-setup-about"))
+                    .mut_arg("skip_wechat", |a| a.help(tr("cmd-setup-skip-wechat")))
+                    .mut_arg("data_dir", |a| a.help(tr("cmd-setup-data-dir")));
                 *sub = n;
             }
             "model" => localize_model(sub),

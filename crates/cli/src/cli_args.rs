@@ -184,7 +184,7 @@ pub(crate) enum Commands {
     },
 
     /// 🚀  First-time setup: workspace → API wizard if needed → optional WeChat scan and login autostart (`--skip-wechat` to skip WeChat)
-    Onboard {
+    Setup {
         /// Skip WeChat binding (wizard + workspace only)
         #[arg(long, default_value_t = false)]
         skip_wechat: bool,
@@ -498,18 +498,27 @@ mod clap_tests {
     }
 
     #[test]
-    fn onboard_subcommand_parses() {
-        let a = Args::try_parse_from(["anycode", "onboard", "--skip-wechat"]).unwrap();
+    fn setup_subcommand_parses() {
+        let a = Args::try_parse_from(["anycode", "setup", "--skip-wechat"]).unwrap();
         match a.command {
-            Some(Commands::Onboard {
+            Some(Commands::Setup {
                 skip_wechat,
                 data_dir,
             }) => {
                 assert!(skip_wechat);
                 assert!(data_dir.is_none());
             }
-            _ => panic!("expected onboard"),
+            _ => panic!("expected setup"),
         }
+    }
+
+    #[test]
+    fn onboard_command_removed() {
+        let err = Args::try_parse_from(["anycode", "onboard", "--skip-wechat"]).unwrap_err();
+        assert!(
+            err.to_string().contains("unrecognized subcommand"),
+            "expected onboard to be removed, got: {err}"
+        );
     }
 
     #[test]

@@ -33,7 +33,7 @@ anycode config
 | `daemon` HTTP | [守护进程](./cli-daemon) |
 | `model` 子命令 | [模型子命令](./cli-model) |
 | `list-agents` / `list-tools` / `test-security` | [发现与 test-security](./cli-diagnostics) |
-| `onboard` / `wechat` | [微信与 onboard](./wechat) |
+| `setup` / `wechat` | [微信与 setup](./wechat) |
 
 ## 从源码构建
 

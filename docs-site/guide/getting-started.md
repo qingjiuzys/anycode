@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Install anyCode, run onboard, and verify with run or TUI in about five minutes.
+description: Install anyCode, run setup, and verify with run or TUI in about five minutes.
 summary: Minimal path from binary to first task; links to install, CLI sessions, and docs map.
 read_when:
   - You are new to anyCode and want the shortest path to a working setup.
@@ -13,20 +13,20 @@ anyCode is a **Rust terminal AI coding assistant**: fullscreen TUI, line-based R
 ## Five-minute path
 
 1. **Install** — see [Install](./install) (one-line script, Release tarball, or `cargo build`).  
-2. **`onboard`** — workspace + config wizard + optional WeChat on a TTY.  
+2. **`setup`** — workspace + config wizard + optional WeChat on a TTY.  
 3. **Verify** — `run` once, or open the default TUI / `repl`.
 
 ## Requirements
 
 - **Prebuilt binary**: no Rust required.  
 - **Build from source**: Rust (stable) and Cargo; **`edition = "2021"`**.  
-- **WeChat QR**: needs a GUI-capable environment (see [WeChat & onboard](./wechat)).
+- **WeChat QR**: needs a GUI-capable environment (see [WeChat & setup](./wechat)).
 
 ## First run
 
 ```bash
-./target/release/anycode onboard
-./target/release/anycode onboard --skip-wechat
+./target/release/anycode setup
+./target/release/anycode setup --skip-wechat
 ```
 
 ## Verify

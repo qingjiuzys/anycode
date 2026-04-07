@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Common anyCode issues — no TTY, WeChat QR, MCP, and documentation links.
 summary: Quick fixes for non-interactive environments, bridge login, and MCP/OAuth limits.
 read_when:
-  - Something failed during onboard, wechat, or config.
+  - Something failed during setup, wechat, or config.
   - You run anyCode in CI or over SSH without a real TTY.
 ---
 
@@ -11,14 +11,14 @@ read_when:
 
 ## No TTY / SSH / CI
 
-- **`anycode config`** and **`onboard`** may skip interactive prompts when stdin is not a TTY. Run them **in a real terminal**, or prepare **`~/.anycode/config.json`** in advance.
-- **WeChat bind** requires a graphical environment to complete QR login. If you used **`onboard --skip-wechat`**, run **`anycode wechat`** later from a machine with a display.
+- **`anycode config`** and **`setup`** may skip interactive prompts when stdin is not a TTY. Run them **in a real terminal**, or prepare **`~/.anycode/config.json`** in advance.
+- **WeChat bind** requires a graphical environment to complete QR login. If you used **`setup --skip-wechat`**, run **`anycode wechat`** later from a machine with a display.
 - **`run`** / **`repl`** approval prompts need a connected terminal for stdin when `require_approval` is true. Use **`--ignore-approval`** (or `ANYCODE_IGNORE_APPROVAL`) only when you understand the risk.
 
 ## WeChat bridge
 
 - If the wizard says to run **`anycode wechat`**, do that in an environment where the bridge can open a browser or show a QR code.
-- **Working directory** for WeChat tasks defaults to **`~/.anycode/workspace`** when unset; use `/cwd` in WeChat to point at a project (see [WeChat & onboard](./wechat)).
+- **Working directory** for WeChat tasks defaults to **`~/.anycode/workspace`** when unset; use `/cwd` in WeChat to point at a project (see [WeChat & setup](./wechat)).
 
 ## MCP and OAuth
 

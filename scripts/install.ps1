@@ -14,7 +14,9 @@ param(
   [string]$Method = "binary",
   [string]$SourceDir = "",
   [switch]$DryRun,
-  [switch]$Onboard
+  [switch]$Setup,
+  [switch]$NoSetup,
+  [switch]$Quiet
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,7 +30,19 @@ function Write-Warn([string]$msg) { Write-Warning "[anycode-install] $msg" }
 function Fail([string]$msg) { throw "[anycode-install] $msg" }
 
 function Invoke-Download([string]$url, [string]$outFile) {
-  Invoke-WebRequest -Uri $url -OutFile $outFile -UseBasicParsing
+  $oldPref = $ProgressPreference
+  try {
+    if ($Quiet -or $env:ANYCODE_INSTALL_QUIET -eq "1") {
+      $ProgressPreference = "SilentlyContinue"
+    }
+    else {
+      $ProgressPreference = "Continue"
+    }
+    Invoke-WebRequest -Uri $url -OutFile $outFile -UseBasicParsing
+  }
+  finally {
+    $ProgressPreference = $oldPref
+  }
 }
 
 function Normalize-Version([string]$v) {
@@ -184,15 +198,23 @@ else {
 
 Ensure-PathContains $BinDir
 
-if ($Onboard) {
+$runSetup = $true
+if ($NoSetup -or $env:ANYCODE_NO_SETUP -eq "1") {
+  $runSetup = $false
+}
+if ($Setup) {
+  $runSetup = $true
+}
+
+if ($runSetup) {
   if ($DryRun) {
-    Write-Info "[dry-run] anycode onboard"
+    Write-Info "[dry-run] anycode setup"
   }
   else {
-    & anycode onboard
+    & anycode setup
   }
 }
 else {
-  Write-Info "Next: run anycode onboard"
+  Write-Info "Next: run anycode setup"
 }
 

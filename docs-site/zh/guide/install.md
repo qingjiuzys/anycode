@@ -41,7 +41,7 @@ export ANYCODE_GITHUB_REPO="qingjiuzys/anycode"
 bash scripts/install.sh
 ```
 
-常用选项：`--version v0.1.0` 或 `latest`；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；装完加 `--onboard`；`--method auto`（允许回退源码安装）。完整说明：
+常用选项：`--version v0.1.0` 或 `latest`；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `anycode setup`，且在交互终端默认显示下载进度。完整说明：
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
@@ -104,5 +104,5 @@ cargo build -p anycode --features tools-mcp
 
 ## 下一步
 
-- [快速开始](./getting-started) — `onboard` 与首条任务  
+- [快速开始](./getting-started) — `setup` 与首条任务  
 - [配置与安全](./config-security) — `~/.anycode/config.json`  
