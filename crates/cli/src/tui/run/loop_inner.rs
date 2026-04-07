@@ -313,8 +313,18 @@ pub async fn run_tui(
                         exec_prev_len: &mut exec_prev_len,
                         last_max_input_tokens: &mut last_max_input_tokens,
                         session_cfg: &config.session,
+                        default_mode: config.runtime.default_mode.as_str(),
+                        permission_mode: permission_mode.as_str(),
+                        require_approval,
+                        llm_plan: llm_plan.as_str(),
                         llm_provider: llm_provider.as_str(),
                         llm_model: llm_model.as_str(),
+                        memory_backend: config.memory.backend.as_str(),
+                        workspace_project_label: config.runtime.workspace_project_label.as_deref(),
+                        workspace_channel_profile: config
+                            .runtime
+                            .workspace_channel_profile
+                            .as_deref(),
                         main_avail_cell: &main_avail_cell,
                         workspace_line_count: &workspace_line_count,
                         tool_folds_expanded: &mut tool_folds_expanded,

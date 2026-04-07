@@ -86,8 +86,16 @@ pub(super) struct TuiEventCtx<'a> {
     pub exec_prev_len: &'a mut usize,
     pub last_max_input_tokens: &'a mut u32,
     pub session_cfg: &'a SessionConfig,
+    /// 配置中的 `runtime.default_mode`（与 REPL `/status` 的 `default_mode` 一致）。
+    pub default_mode: &'a str,
+    pub permission_mode: &'a str,
+    pub require_approval: bool,
+    pub llm_plan: &'a str,
     pub llm_provider: &'a str,
     pub llm_model: &'a str,
+    pub memory_backend: &'a str,
+    pub workspace_project_label: Option<&'a str>,
+    pub workspace_channel_profile: Option<&'a str>,
     pub main_avail_cell: &'a Cell<usize>,
     pub workspace_line_count: &'a Cell<usize>,
     /// `ToolTurn` 折叠：已展开块的 `fold_id`（Ctrl+O 循环展开）。
@@ -706,9 +714,17 @@ async fn handle_main_key(
                         return Ok(TuiLoopCtl::Continue);
                     }
                     slash_commands::ParsedSlashCommand::Status => {
-                        let lines = vec![
+                        let mut lines: Vec<Line<'static>> = vec![
+                            Line::from(Span::styled(
+                                format!("workspace: {}", working_dir_str),
+                                style_dim(),
+                            )),
                             Line::from(Span::styled(
                                 format!("agent: {}", agent_type.as_str()),
+                                style_dim(),
+                            )),
+                            Line::from(Span::styled(
+                                format!("default_mode: {}", ctx.default_mode),
                                 style_dim(),
                             )),
                             Line::from(Span::styled(
@@ -716,10 +732,43 @@ async fn handle_main_key(
                                 style_dim(),
                             )),
                             Line::from(Span::styled(
+                                format!("plan: {}", ctx.llm_plan),
+                                style_dim(),
+                            )),
+                            Line::from(Span::styled(
                                 format!("model: {}", ctx.llm_model),
                                 style_dim(),
                             )),
+                            Line::from(Span::styled(
+                                format!(
+                                    "permission: {} (interactive_approval: {})",
+                                    ctx.permission_mode, ctx.require_approval
+                                ),
+                                style_dim(),
+                            )),
+                            Line::from(Span::styled(
+                                format!("memory_backend: {}", ctx.memory_backend),
+                                style_dim(),
+                            )),
                         ];
+                        if let Some(lab) = ctx.workspace_project_label {
+                            lines.push(Line::from(Span::styled(
+                                format!("project_label: {lab}"),
+                                style_dim(),
+                            )));
+                        }
+                        if let Some(ch) = ctx.workspace_channel_profile {
+                            lines.push(Line::from(Span::styled(
+                                format!("channel_profile: {ch}"),
+                                style_dim(),
+                            )));
+                        }
+                        let appr = if let Some(p) = ctx.pending_approval.as_ref() {
+                            format!("approval: pending — {}", p.tool)
+                        } else {
+                            "approval: none".to_string()
+                        };
+                        lines.push(Line::from(Span::styled(appr, style_dim())));
                         ctx.transcript.push(TranscriptEntry::Plain(lines));
                         *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
                         return Ok(TuiLoopCtl::Continue);

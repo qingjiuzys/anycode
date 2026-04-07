@@ -6,3 +6,4 @@ Cargo.lock
 *.pdb
 .DS_Store
 .anycode/
+.omx/
