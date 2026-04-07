@@ -1,8 +1,8 @@
 //! REPL 首屏欢迎框（stdout），与 stderr 上的 tracing 分离。
 
 use crate::i18n::tr;
-use std::io::IsTerminal;
 use console::{style, Style, Term};
+use std::io::IsTerminal;
 use std::path::Path;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 

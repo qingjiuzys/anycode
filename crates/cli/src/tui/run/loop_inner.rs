@@ -120,7 +120,8 @@ pub async fn run_tui(
             bottom_h = bottom_h.max(14);
         } else if pending_approval.is_none()
             && !slash_suggest_suppress
-            && !crate::slash_commands::slash_suggestions_for_first_line(&input.as_string()).is_empty()
+            && !crate::slash_commands::slash_suggestions_for_first_line(&input.as_string())
+                .is_empty()
         {
             bottom_h = bottom_h.max(14);
         }

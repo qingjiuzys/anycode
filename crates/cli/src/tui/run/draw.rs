@@ -2,6 +2,7 @@
 
 use crate::i18n::{tr, tr_args};
 use crate::md_tui::{text_display_width, wrap_ratatui_line, wrap_string_to_width};
+use crate::slash_commands;
 use crate::tui::approval::PendingApproval;
 use crate::tui::chrome::{sidebar_help_text, welcome_lines};
 use crate::tui::input::{
@@ -9,7 +10,6 @@ use crate::tui::input::{
 };
 use crate::tui::pet;
 use crate::tui::styles::*;
-use crate::slash_commands;
 use crate::tui::transcript::{layout_workspace, TranscriptEntry, WorkspaceLiveLayout};
 use crate::tui::util::{transcript_first_visible, truncate_preview};
 use anycode_core::AgentType;
@@ -162,12 +162,12 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         workspace_line_count,
     } = ctx;
 
-    let slash_candidates = if pending_approval.is_none() && rev_search.is_none() && !slash_suggest_suppress
-    {
-        slash_commands::slash_suggestions_for_first_line(&input.as_string())
-    } else {
-        Vec::new()
-    };
+    let slash_candidates =
+        if pending_approval.is_none() && rev_search.is_none() && !slash_suggest_suppress {
+            slash_commands::slash_suggestions_for_first_line(&input.as_string())
+        } else {
+            Vec::new()
+        };
 
     let outer = Layout::default()
         .direction(Direction::Vertical)
@@ -568,8 +568,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
             let start = if len <= MAX_SHOW {
                 0usize
             } else {
-                pick
-                    .saturating_sub(MAX_SHOW / 2)
+                pick.saturating_sub(MAX_SHOW / 2)
                     .min(len.saturating_sub(MAX_SHOW))
             };
             let end = (start + MAX_SHOW).min(len);
@@ -577,11 +576,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
                 let item = &slash_candidates[idx];
                 let is_sel = idx == pick;
                 let pfx = if is_sel { "▸ " } else { "  " };
-                let cmd_st = if is_sel {
-                    style_warn()
-                } else {
-                    style_dim()
-                };
+                let cmd_st = if is_sel { style_warn() } else { style_dim() };
                 let cmd_w = text_display_width(item.display.as_str()).max(6).min(14);
                 let desc_max = (input_inner_w as usize)
                     .saturating_sub(4 + cmd_w + 2)
@@ -603,10 +598,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
                     style_dim(),
                 )));
             }
-            input_lines.push(Line::from(Span::styled(
-                tr("tui-slash-nav"),
-                style_dim(),
-            )));
+            input_lines.push(Line::from(Span::styled(tr("tui-slash-nav"), style_dim())));
         }
     }
 

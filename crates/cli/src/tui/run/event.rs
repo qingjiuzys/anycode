@@ -1,9 +1,9 @@
 //! crossterm 事件分发（与 ratatui 绘制、exec 轮询解耦）。
 
 use crate::app_config::{should_auto_compact_before_send, SessionConfig};
-use crate::slash_commands;
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
+use crate::slash_commands;
 use crate::tui::approval::PendingApproval;
 use crate::tui::chrome::{agents_lines, tools_lines};
 use crate::tui::input::{history_apply_down, history_apply_up, InputState, RevSearchState};
@@ -211,7 +211,7 @@ fn handle_rev_search_key(key: crossterm::event::KeyEvent, ctx: &mut TuiEventCtx<
         }
         KeyCode::Enter | KeyCode::Char('\n') | KeyCode::Char('\r') => {
             let m = rs.matches(ctx.input_history);
-                if !m.is_empty() {
+            if !m.is_empty() {
                 let pick = rs.pick % m.len();
                 if let Some(f) = m.get(pick) {
                     ctx.input.set_from_str(f);

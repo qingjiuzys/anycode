@@ -7,11 +7,13 @@ use crate::tui::input::{
     history_apply_down, history_apply_up, prompt_multiline_lines_and_cursor, InputState,
 };
 use crate::tui::styles::style_dim;
-use crate::tui::util::{sanitize_paste, truncate_preview, trim_or_default, MAX_PASTE_CHARS};
+use crate::tui::util::{sanitize_paste, trim_or_default, truncate_preview, MAX_PASTE_CHARS};
 use crossterm::cursor::Hide;
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use fluent_bundle::FluentArgs;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -134,8 +136,7 @@ impl ReplTerminalGuard {
                 let start = if len <= MAX_SHOW {
                     0usize
                 } else {
-                    pick
-                        .saturating_sub(MAX_SHOW / 2)
+                    pick.saturating_sub(MAX_SHOW / 2)
                         .min(len.saturating_sub(MAX_SHOW))
                 };
                 let end = (start + MAX_SHOW).min(len);
@@ -152,10 +153,7 @@ impl ReplTerminalGuard {
                 .min(area.height.saturating_sub(1));
             let top_bot = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(1),
-                    Constraint::Length(bottom_h),
-                ])
+                .constraints([Constraint::Min(1), Constraint::Length(bottom_h)])
                 .split(area);
             let top_cell = top_bot[0];
             let bottom_outer = top_bot[1];
@@ -172,10 +170,7 @@ impl ReplTerminalGuard {
 
             let sugg_input = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(sugg_h),
-                    Constraint::Min(1),
-                ])
+                .constraints([Constraint::Length(sugg_h), Constraint::Min(1)])
                 .split(bottom_outer);
             let sugg_rect = sugg_input[0];
             let input_rect = sugg_input[1];
@@ -187,8 +182,7 @@ impl ReplTerminalGuard {
                 let start = if len <= MAX_SHOW {
                     0usize
                 } else {
-                    pick
-                        .saturating_sub(MAX_SHOW / 2)
+                    pick.saturating_sub(MAX_SHOW / 2)
                         .min(len.saturating_sub(MAX_SHOW))
                 };
                 let end = (start + MAX_SHOW).min(len);
@@ -210,10 +204,7 @@ impl ReplTerminalGuard {
                         style_dim()
                     };
                     sugg_lines.push(Line::from(vec![
-                        Span::styled(
-                            if is_sel { "▸ " } else { "  " },
-                            style_dim(),
-                        ),
+                        Span::styled(if is_sel { "▸ " } else { "  " }, style_dim()),
                         Span::styled(item.display.as_str(), cmd_style),
                         Span::styled(format!("  {desc}"), style_dim()),
                     ]));
@@ -228,10 +219,7 @@ impl ReplTerminalGuard {
                         style_dim(),
                     )));
                 }
-                sugg_lines.push(Line::from(Span::styled(
-                    tr("tui-slash-nav"),
-                    style_dim(),
-                )));
+                sugg_lines.push(Line::from(Span::styled(tr("tui-slash-nav"), style_dim())));
                 let sugg_par = Paragraph::new(Text::from(sugg_lines)).wrap(Wrap { trim: false });
                 f.render_widget(sugg_par, sugg_rect);
             }
@@ -252,10 +240,7 @@ impl ReplTerminalGuard {
                         let max_x = input_rect
                             .x
                             .saturating_add(input_rect.width.saturating_sub(1));
-                        let xa = input_rect
-                            .x
-                            .saturating_add(ox as u16)
-                            .min(max_x);
+                        let xa = input_rect.x.saturating_add(ox as u16).min(max_x);
                         f.set_cursor(xa, ya);
                     }
                 }
@@ -312,147 +297,149 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
             reset_slash_state(state);
             Ok(ReplCtl::Continue)
         }
-        Event::Key(key) => {
-            match key.code {
-                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    state.input.clear();
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    if state.input.is_empty() {
-                        Ok(ReplCtl::Eof)
-                    } else {
-                        state.input.delete_forward();
-                        reset_slash_state(state);
-                        Ok(ReplCtl::Continue)
-                    }
-                }
-                KeyCode::Esc => {
-                    if !state.input.is_empty() {
-                        state.input.clear();
-                        state.history_idx = None;
-                        reset_slash_state(state);
-                    }
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Up => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + len - 1) % len;
-                        state.history_idx = None;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    history_apply_up(&state.input_history, &mut state.history_idx, &mut state.input);
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Down => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + 1) % len;
-                        state.history_idx = None;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    history_apply_down(
-                        &state.input_history,
-                        &mut state.history_idx,
-                        &mut state.input,
-                    );
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Left => {
-                    state.input.move_left();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Right => {
-                    state.input.move_right();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Home => {
-                    state.input.move_home();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::End => {
-                    state.input.move_end();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Delete => {
+        Event::Key(key) => match key.code {
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                state.input.clear();
+                state.history_idx = None;
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if state.input.is_empty() {
+                    Ok(ReplCtl::Eof)
+                } else {
                     state.input.delete_forward();
                     reset_slash_state(state);
                     Ok(ReplCtl::Continue)
                 }
-                KeyCode::Backspace => {
-                    state.input.backspace();
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::BackTab => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + len - 1) % len;
-                    }
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Tab => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        apply_slash_pick_to_input(state);
-                        state.slash_suppress = true;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    for _ in 0..4 {
-                        state.input.insert(' ');
-                    }
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                    state.input.insert('\n');
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Enter
-                | KeyCode::Char('\n')
-                | KeyCode::Char('\r')
-                | KeyCode::Char('\u{0085}')
-                | KeyCode::Char('\u{2028}')
-                | KeyCode::Char('\u{2029}') => {
-                    if !slash_suggestions_for_ctx(state).is_empty() {
-                        apply_slash_pick_to_input(state);
-                        state.slash_suppress = true;
-                    }
-                    let trimmed_owned = trim_or_default(&state.input.as_string()).to_string();
+            }
+            KeyCode::Esc => {
+                if !state.input.is_empty() {
                     state.input.clear();
                     state.history_idx = None;
                     reset_slash_state(state);
-                    if trimmed_owned.is_empty() {
-                        return Ok(ReplCtl::Continue);
-                    }
-                    if state.input_history.last().map(|s| s.as_str()) != Some(trimmed_owned.as_str()) {
-                        state.input_history.push(trimmed_owned.clone());
-                    }
-                    Ok(ReplCtl::Submit(trimmed_owned))
                 }
-                KeyCode::Char(c) => {
-                    if c.is_control() {
-                        return Ok(ReplCtl::Continue);
-                    }
-                    state.history_idx = None;
-                    state.input.insert(c);
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                _ => Ok(ReplCtl::Continue),
+                Ok(ReplCtl::Continue)
             }
-        }
+            KeyCode::Up => {
+                let cands = slash_suggestions_for_ctx(state);
+                if !cands.is_empty() && cursor_on_first_line(&state.input) {
+                    let len = cands.len();
+                    state.slash_pick = (state.slash_pick + len - 1) % len;
+                    state.history_idx = None;
+                    return Ok(ReplCtl::Continue);
+                }
+                history_apply_up(
+                    &state.input_history,
+                    &mut state.history_idx,
+                    &mut state.input,
+                );
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Down => {
+                let cands = slash_suggestions_for_ctx(state);
+                if !cands.is_empty() && cursor_on_first_line(&state.input) {
+                    let len = cands.len();
+                    state.slash_pick = (state.slash_pick + 1) % len;
+                    state.history_idx = None;
+                    return Ok(ReplCtl::Continue);
+                }
+                history_apply_down(
+                    &state.input_history,
+                    &mut state.history_idx,
+                    &mut state.input,
+                );
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Left => {
+                state.input.move_left();
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Right => {
+                state.input.move_right();
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Home => {
+                state.input.move_home();
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::End => {
+                state.input.move_end();
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Delete => {
+                state.input.delete_forward();
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Backspace => {
+                state.input.backspace();
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::BackTab => {
+                let cands = slash_suggestions_for_ctx(state);
+                if !cands.is_empty() && cursor_on_first_line(&state.input) {
+                    let len = cands.len();
+                    state.slash_pick = (state.slash_pick + len - 1) % len;
+                }
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Tab => {
+                let cands = slash_suggestions_for_ctx(state);
+                if !cands.is_empty() && cursor_on_first_line(&state.input) {
+                    apply_slash_pick_to_input(state);
+                    state.slash_suppress = true;
+                    return Ok(ReplCtl::Continue);
+                }
+                for _ in 0..4 {
+                    state.input.insert(' ');
+                }
+                state.history_idx = None;
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                state.input.insert('\n');
+                state.history_idx = None;
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            KeyCode::Enter
+            | KeyCode::Char('\n')
+            | KeyCode::Char('\r')
+            | KeyCode::Char('\u{0085}')
+            | KeyCode::Char('\u{2028}')
+            | KeyCode::Char('\u{2029}') => {
+                if !slash_suggestions_for_ctx(state).is_empty() {
+                    apply_slash_pick_to_input(state);
+                    state.slash_suppress = true;
+                }
+                let trimmed_owned = trim_or_default(&state.input.as_string()).to_string();
+                state.input.clear();
+                state.history_idx = None;
+                reset_slash_state(state);
+                if trimmed_owned.is_empty() {
+                    return Ok(ReplCtl::Continue);
+                }
+                if state.input_history.last().map(|s| s.as_str()) != Some(trimmed_owned.as_str()) {
+                    state.input_history.push(trimmed_owned.clone());
+                }
+                Ok(ReplCtl::Submit(trimmed_owned))
+            }
+            KeyCode::Char(c) => {
+                if c.is_control() {
+                    return Ok(ReplCtl::Continue);
+                }
+                state.history_idx = None;
+                state.input.insert(c);
+                reset_slash_state(state);
+                Ok(ReplCtl::Continue)
+            }
+            _ => Ok(ReplCtl::Continue),
+        },
         _ => Ok(ReplCtl::Continue),
     }
 }

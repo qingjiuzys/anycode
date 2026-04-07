@@ -62,10 +62,8 @@ pub struct SlashSuggestionItem {
 }
 
 fn catalog_rows() -> Vec<(&'static str, &'static str)> {
-    let mut rows: Vec<(&'static str, &'static str)> = registry()
-        .iter()
-        .map(|c| (c.name, c.summary))
-        .collect();
+    let mut rows: Vec<(&'static str, &'static str)> =
+        registry().iter().map(|c| (c.name, c.summary)).collect();
     for (name, summary) in [
         ("help", "帮助与快捷键"),
         ("agents", "列出可用 Agent"),
@@ -121,10 +119,7 @@ pub fn slash_suggestions_for_first_line(buffer: &str) -> Vec<SlashSuggestionItem
         }
     }
 
-    scored.sort_by(|a, b| {
-        b.0.cmp(&a.0)
-            .then_with(|| a.1.cmp(b.1))
-    });
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(b.1)));
 
     let mut seen = std::collections::HashSet::<String>::new();
     let mut out: Vec<SlashSuggestionItem> = Vec::new();
@@ -252,9 +247,6 @@ mod tests {
 
     #[test]
     fn replace_first_line_keeps_tail() {
-        assert_eq!(
-            replace_first_line("a\nb", "/x"),
-            "/x\nb".to_string()
-        );
+        assert_eq!(replace_first_line("a\nb", "/x"), "/x\nb".to_string());
     }
 }
