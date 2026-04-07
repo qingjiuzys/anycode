@@ -5,6 +5,7 @@
 mod agents;
 mod compact;
 mod goal_engine;
+mod model_instructions;
 mod prompt_assembler;
 mod runtime;
 mod system_prompt;
@@ -16,6 +17,10 @@ pub use compact::{
     DefaultCompactionHooks, FileReadSnippet, SessionCompactionState,
 };
 pub use goal_engine::GoalEngine;
+pub use model_instructions::{
+    discover_model_instructions, ModelInstructionsConfig, ModelInstructionsFile,
+    DEFAULT_MODEL_INSTRUCTIONS_FILENAME, MODEL_INSTRUCTIONS_FILENAMES,
+};
 pub use runtime::{AgentClaudeToolGating, AgentRuntime};
 pub use system_prompt::RuntimePromptConfig;
 pub use workspace_assistant::{GoalAgent, WorkspaceAssistantAgent};
