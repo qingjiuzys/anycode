@@ -2,21 +2,30 @@
 //! 回合末尾只列**落盘产物**（如 FileWrite），避免重复罗列 bash。
 
 use anycode_core::Artifact;
+use std::collections::BTreeMap;
 
 /// TUI / `anycode run` 回合尾展示：仅 **FileWrite** 类落盘项；**不**列出 Bash（已在 transcript）。
 pub fn claude_turn_written_lines(artifacts: &[Artifact]) -> Vec<String> {
-    let mut out = Vec::new();
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for a in artifacts {
         if a.name == "file" {
             if let Some(ref p) = a.path {
                 if !p.is_empty() {
-                    // 与 `tui/transcript.rs` 中 `tool_invocation_one_liner("FileWrite", …)` 一致
-                    out.push(format!("FileWrite(write {p})"));
+                    *counts.entry(p.clone()).or_insert(0) += 1;
                 }
             }
         }
     }
-    out
+    counts
+        .into_iter()
+        .map(|(p, n)| {
+            if n > 1 {
+                format!("FileWrite(write {p}) ×{n}")
+            } else {
+                format!("FileWrite(write {p})")
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -69,6 +78,28 @@ mod tests {
         assert_eq!(
             claude_turn_written_lines(&v),
             vec!["FileWrite(write src/lib.rs)".to_string()]
+        );
+    }
+
+    #[test]
+    fn duplicate_file_writes_are_collapsed_with_count() {
+        let v = vec![
+            Artifact {
+                name: "file".into(),
+                path: Some("src/lib.rs".into()),
+                content: None,
+                metadata: HashMap::new(),
+            },
+            Artifact {
+                name: "file".into(),
+                path: Some("src/lib.rs".into()),
+                content: None,
+                metadata: HashMap::new(),
+            },
+        ];
+        assert_eq!(
+            claude_turn_written_lines(&v),
+            vec!["FileWrite(write src/lib.rs) ×2".to_string()]
         );
     }
 }

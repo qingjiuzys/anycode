@@ -5,11 +5,8 @@ use fuzzy_matcher::FuzzyMatcher;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParsedSlashCommand {
     Mode(Option<String>),
-    Model(Option<String>),
     Status,
     Compact,
-    Memory,
-    Approve,
     Workflow(Option<String>),
 }
 
@@ -61,7 +58,8 @@ pub struct SlashSuggestionItem {
     pub replacement: String,
 }
 
-fn catalog_rows() -> Vec<(&'static str, &'static str)> {
+/// 完整斜杠目录（用于输入了首字母后的模糊/前缀匹配，以及 ghost 补全）。
+fn full_catalog_rows() -> Vec<(&'static str, &'static str)> {
     let mut rows: Vec<(&'static str, &'static str)> =
         registry().iter().map(|c| (c.name, c.summary)).collect();
     for (name, summary) in [
@@ -80,7 +78,19 @@ fn catalog_rows() -> Vec<(&'static str, &'static str)> {
     rows
 }
 
+/// 仅输入 `/`（未输入命令名片段）时展示的常用项，减少列表噪音；其余命令通过输入首字母筛选。
+fn primary_catalog_rows(
+    full: &[(&'static str, &'static str)],
+) -> Vec<(&'static str, &'static str)> {
+    const ORDER: &[&str] = &["help", "clear", "mode", "status", "compact", "exit"];
+    ORDER
+        .iter()
+        .filter_map(|name| full.iter().find(|(n, _)| *n == *name).copied())
+        .collect()
+}
+
 /// 模糊 + 前缀优先级排序（对齐 Claude `commandSuggestions` + Fuse 排序思想）。
+/// 仅 `/` 时用短列表；有查询前缀时在全量目录中匹配（含 `agents` / `tools` / `workflow` 等）。
 pub fn slash_suggestions_for_first_line(buffer: &str) -> Vec<SlashSuggestionItem> {
     let first = first_line(buffer);
     if !first.starts_with('/') {
@@ -98,10 +108,16 @@ pub fn slash_suggestions_for_first_line(buffer: &str) -> Vec<SlashSuggestionItem
         return Vec::new();
     }
     let query = token.to_ascii_lowercase();
+    let full = full_catalog_rows();
+    let rows: Vec<(&'static str, &'static str)> = if query.is_empty() {
+        primary_catalog_rows(&full)
+    } else {
+        full
+    };
     let matcher = SkimMatcherV2::default();
     let mut scored: Vec<(i64, &'static str, &'static str)> = Vec::new();
 
-    for (name, desc) in catalog_rows() {
+    for (name, desc) in rows {
         let name_l = name.to_ascii_lowercase();
         let desc_l = desc.to_ascii_lowercase();
         let score: Option<i64> = if query.is_empty() {
@@ -163,7 +179,7 @@ pub fn slash_ghost_suffix(buffer: &str, cursor: usize) -> Option<String> {
     }
     let partial_l = partial.to_ascii_lowercase();
     let mut best: Option<&'static str> = None;
-    for (name, _) in catalog_rows() {
+    for (name, _) in full_catalog_rows() {
         let nl = name.to_ascii_lowercase();
         if nl.starts_with(&partial_l) && nl.len() > partial_l.len() {
             match best {
@@ -204,11 +220,8 @@ pub fn parse(input: &str) -> Option<ParsedSlashCommand> {
     };
     match cmd.as_str() {
         "mode" => Some(ParsedSlashCommand::Mode(arg)),
-        "model" => Some(ParsedSlashCommand::Model(arg)),
         "status" => Some(ParsedSlashCommand::Status),
         "compact" => Some(ParsedSlashCommand::Compact),
-        "memory" => Some(ParsedSlashCommand::Memory),
-        "approve" => Some(ParsedSlashCommand::Approve),
         "workflow" => Some(ParsedSlashCommand::Workflow(arg)),
         _ => None,
     }
@@ -231,6 +244,23 @@ mod tests {
         assert!(v.iter().any(|s| s.display == "/mode"));
         let st = slash_suggestions_for_first_line("/st");
         assert!(st.iter().any(|s| s.display == "/status"));
+    }
+
+    #[test]
+    fn slash_empty_lists_primary_only() {
+        let v = slash_suggestions_for_first_line("/");
+        assert_eq!(v.len(), 6);
+        let names: Vec<_> = v.iter().map(|s| s.id.as_str()).collect();
+        assert!(names.contains(&"help"));
+        assert!(!names.contains(&"agents"));
+    }
+
+    #[test]
+    fn slash_typed_still_finds_secondary_commands() {
+        let a = slash_suggestions_for_first_line("/a");
+        assert!(a.iter().any(|s| s.id == "agents"));
+        let w = slash_suggestions_for_first_line("/w");
+        assert!(w.iter().any(|s| s.id == "workflow"));
     }
 
     #[test]

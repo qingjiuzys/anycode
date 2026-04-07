@@ -1,10 +1,12 @@
 use super::*;
 
+use super::exec_completion::{consume_finished_compact, CompactFollowup};
 use crate::tui::transcript::TranscriptEntry;
-use anycode_core::Artifact;
+use anycode_core::{Artifact, Message, Usage};
 use ratatui::text::Line;
 use std::collections::HashSet;
 use std::time::Instant;
+use tokio::task::JoinHandle;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -87,6 +89,8 @@ pub async fn run_tui(
     let mut exec_live_tail: Option<(usize, u64)> = None;
     // (messages.len(), last_message_id)：有变化时才重排 transcript，避免每帧整表重算。
     let mut exec_live_sync_fp: Option<(usize, Option<Uuid>)> = None;
+    let mut compact_handle: Option<JoinHandle<anyhow::Result<(Vec<Message>, Usage)>>> = None;
+    let mut compact_followup: Option<CompactFollowup> = None;
 
     let _tui_guard = super::terminal_guard::TuiTerminalGuard::enter()?;
     let used_alternate_screen = _tui_guard.used_alternate_screen();
@@ -242,6 +246,49 @@ pub async fn run_tui(
                     }
                 }
 
+                if let Some(h) = compact_handle.as_ref() {
+                    if h.is_finished() {
+                        let h = compact_handle.take().unwrap();
+                        if let Some(follow) = compact_followup.take() {
+                            let new_turn = consume_finished_compact(
+                                h,
+                                follow,
+                                &messages,
+                                &mut transcript,
+                                &mut transcript_gen,
+                                &mut next_tool_fold_id,
+                                &mut tool_folds_expanded,
+                                &mut fold_layout_rev,
+                                &mut exec_live_tail,
+                                &mut exec_prev_len,
+                                &mut last_turn_error,
+                                &mut last_max_input_tokens,
+                                &mut transcript_scroll_up,
+                                &runtime,
+                                &agent_type,
+                                &working_dir_str,
+                            )
+                            .await;
+                            exec_live_sync_fp = None;
+                            match new_turn {
+                                Some(eh) => {
+                                    exec_handle = Some(eh);
+                                    executing = true;
+                                    executing_since = Some(Instant::now());
+                                }
+                                None => {
+                                    executing = false;
+                                    executing_since = None;
+                                }
+                            }
+                        } else {
+                            executing = false;
+                            executing_since = None;
+                            exec_live_sync_fp = None;
+                        }
+                    }
+                }
+
                 while ct_event::poll(Duration::ZERO)? {
                     let ev = ct_event::read()?;
                     let mut ectx = super::event::TuiEventCtx {
@@ -260,6 +307,8 @@ pub async fn run_tui(
                         transcript: &mut transcript,
                         transcript_gen: &mut transcript_gen,
                         last_turn_error: &mut last_turn_error,
+                        compact_handle: &mut compact_handle,
+                        compact_followup: &mut compact_followup,
                         exec_handle: &mut exec_handle,
                         exec_prev_len: &mut exec_prev_len,
                         last_max_input_tokens: &mut last_max_input_tokens,

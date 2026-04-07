@@ -12,7 +12,6 @@ use std::io::stdout;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tokio::task::JoinHandle;
 use tokio::time::Duration;
 
 mod draw;

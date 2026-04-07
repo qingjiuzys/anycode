@@ -337,26 +337,10 @@ async fn repl_dispatch_one_line(
                     }
                 }
             }
-            ParsedSlashCommand::Model(arg) => {
-                if let Some(next) = arg {
-                    sink.line(format!(
-                        "model switch requires a new session right now; current={} requested={}",
-                        config.llm.model, next
-                    ));
-                } else {
-                    sink.line(format!("model: {}", config.llm.model));
-                }
-            }
             ParsedSlashCommand::Compact => {
                 sink.line(
                     "compact is available in TUI/session runtime; use session auto-compact or the compact flow.",
                 );
-            }
-            ParsedSlashCommand::Memory => {
-                sink.line(format!("memory backend: {}", config.memory.backend));
-            }
-            ParsedSlashCommand::Approve => {
-                sink.line("approval is handled by the active channel/runtime when required.");
             }
         }
         sink.line("");

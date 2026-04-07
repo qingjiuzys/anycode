@@ -1239,11 +1239,18 @@ pub(crate) fn apply_tool_transcript_pipeline(
     collapse_tool_groups(entries, next_fold_id);
 }
 
-/// Ctrl+O：自底部起展开下一个折叠块；已全部展开则全部收起。
+/// Ctrl+O：工具块展示开关。
+/// - 当前存在任一展开块：全部收起（再次按键可快速回到紧凑视图）
+/// - 当前无展开块：自底部起展开一个折叠块
 pub(crate) fn ctrl_o_fold_cycle(
     entries: &[TranscriptEntry],
     expanded: &mut std::collections::HashSet<u64>,
 ) {
+    if !expanded.is_empty() {
+        expanded.clear();
+        return;
+    }
+
     let ids: Vec<u64> = entries
         .iter()
         .filter_map(|e| match e {
@@ -1253,14 +1260,8 @@ pub(crate) fn ctrl_o_fold_cycle(
             _ => None,
         })
         .collect();
-    for id in ids.iter().rev() {
-        if !expanded.contains(id) {
-            expanded.insert(*id);
-            return;
-        }
-    }
-    for id in ids {
-        expanded.remove(&id);
+    if let Some(id) = ids.iter().rev().next() {
+        expanded.insert(*id);
     }
 }
 
@@ -1843,6 +1844,52 @@ mod transcript_tests {
         let mut next = 100u64;
         coalesce_read_tool_batches(&mut entries, &mut next);
         assert_eq!(entries.len(), 3);
+    }
+
+    #[test]
+    fn ctrl_o_first_press_expands_latest_fold() {
+        let entries = vec![
+            TranscriptEntry::ToolTurn {
+                fold_id: 11,
+                name: "Bash".into(),
+                args: "{}".into(),
+                tool_use_id: "u1".into(),
+                tool_name: None,
+                body: "a".into(),
+                is_error: false,
+            },
+            TranscriptEntry::ToolTurn {
+                fold_id: 12,
+                name: "Bash".into(),
+                args: "{}".into(),
+                tool_use_id: "u2".into(),
+                tool_name: None,
+                body: "b".into(),
+                is_error: false,
+            },
+        ];
+        let mut expanded = std::collections::HashSet::new();
+        ctrl_o_fold_cycle(&entries, &mut expanded);
+        assert_eq!(expanded.len(), 1);
+        assert!(expanded.contains(&12));
+    }
+
+    #[test]
+    fn ctrl_o_second_press_collapses_all_expanded_folds() {
+        let entries = vec![TranscriptEntry::ToolTurn {
+            fold_id: 99,
+            name: "Bash".into(),
+            args: "{}".into(),
+            tool_use_id: "u99".into(),
+            tool_name: None,
+            body: "out".into(),
+            is_error: false,
+        }];
+        let mut expanded = std::collections::HashSet::new();
+        ctrl_o_fold_cycle(&entries, &mut expanded);
+        assert!(expanded.contains(&99));
+        ctrl_o_fold_cycle(&entries, &mut expanded);
+        assert!(expanded.is_empty());
     }
 
     #[test]

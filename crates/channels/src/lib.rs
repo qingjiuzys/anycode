@@ -219,8 +219,7 @@ impl ChannelHandler for WebChannel {
     async fn send_message(&self, msg: ChannelMessage) -> Result<(), CoreError> {
         self.ensure_listener_started().await?;
         let connections = self.connections.read().await;
-        let payload =
-            outbound_channel_message_json(&msg).map_err(CoreError::SerializationError)?;
+        let payload = outbound_channel_message_json(&msg).map_err(CoreError::SerializationError)?;
         for (_, sender) in connections.iter() {
             let _ = sender.send(WsMessage::Text(payload.clone())).await;
         }
@@ -251,11 +250,10 @@ pub struct ChannelRouter {
 
 impl ChannelRouter {
     pub fn new() -> Self {
-        let router = Self {
+        Self {
             channels: Arc::new(RwLock::new(HashMap::new())),
             profiles: Arc::new(RwLock::new(HashMap::new())),
-        };
-        router
+        }
     }
 
     pub async fn register_channel(&self, channel: Box<dyn ChannelHandler>) {

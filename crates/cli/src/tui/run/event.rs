@@ -1,5 +1,6 @@
 //! crossterm 事件分发（与 ratatui 绘制、exec 轮询解耦）。
 
+use super::exec_completion::{append_user_line_and_spawn_turn, CompactFollowup};
 use crate::app_config::{should_auto_compact_before_send, SessionConfig};
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
@@ -8,22 +9,20 @@ use crate::tui::approval::PendingApproval;
 use crate::tui::chrome::{agents_lines, tools_lines};
 use crate::tui::input::{history_apply_down, history_apply_up, InputState, RevSearchState};
 use crate::tui::styles::*;
-use crate::tui::transcript::{apply_tool_transcript_pipeline, ctrl_o_fold_cycle, TranscriptEntry};
+use crate::tui::transcript::{ctrl_o_fold_cycle, TranscriptEntry};
 use crate::tui::util::{sanitize_paste, trim_or_default, MAX_PASTE_CHARS};
 use anycode_agent::AgentRuntime;
-use anycode_core::{Artifact, Message, MessageContent, MessageRole, RuntimeMode};
+use anycode_core::{Artifact, Message, RuntimeMode, Usage};
 use anycode_tools::workflows;
 use crossterm::event::{Event, KeyCode, KeyModifiers, MouseEventKind};
 use fluent_bundle::FluentArgs;
 use ratatui::text::{Line, Span};
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use uuid::Uuid;
-
 /// 主 `loop` 内对 `continue` / `break` 的显式结果。
 pub(super) enum TuiLoopCtl {
     Ok,
@@ -64,6 +63,7 @@ fn apply_slash_pick_to_input(ctx: &mut TuiEventCtx<'_>) {
 
 pub(super) struct TuiEventCtx<'a> {
     pub last_key: &'a mut Option<String>,
+    /// 工作区向上滚动（与 `append_user_line_and_spawn_turn` 等共用）。
     pub transcript_scroll_up: &'a mut usize,
     pub pending_approval: &'a mut Option<PendingApproval>,
     pub rev_search: &'a mut Option<RevSearchState>,
@@ -79,6 +79,9 @@ pub(super) struct TuiEventCtx<'a> {
     pub transcript: &'a mut Vec<TranscriptEntry>,
     pub transcript_gen: &'a mut u64,
     pub last_turn_error: &'a mut Option<String>,
+    /// 后台会话压缩（`/compact` 或发送前自动压缩）；勿在事件里 `.await`，否则 TUI 主循环无法重绘。
+    pub compact_handle: &'a mut Option<JoinHandle<anyhow::Result<(Vec<Message>, Usage)>>>,
+    pub compact_followup: &'a mut Option<CompactFollowup>,
     pub exec_handle: &'a mut Option<JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>>>,
     pub exec_prev_len: &'a mut usize,
     pub last_max_input_tokens: &'a mut u32,
@@ -591,6 +594,10 @@ async fn handle_main_key(
                     *ctx.last_turn_error = Some(tr("tui-err-compact-during-task"));
                     return Ok(TuiLoopCtl::Continue);
                 }
+                if ctx.exec_handle.is_some() || ctx.compact_handle.is_some() {
+                    *ctx.last_turn_error = Some(tr("tui-err-compact-during-task"));
+                    return Ok(TuiLoopCtl::Continue);
+                }
                 let rest = trimmed["/compact".len()..].trim();
                 let custom = if rest.is_empty() {
                     None
@@ -602,51 +609,17 @@ async fn handle_main_key(
                     *ctx.last_turn_error = Some(tr("tui-err-compact-empty"));
                     return Ok(TuiLoopCtl::Continue);
                 }
+                let rt = runtime.clone();
+                let at = agent_type.clone();
+                let wd = working_dir_str.to_string();
+                *ctx.compact_followup = Some(CompactFollowup::ManualSlash);
+                *ctx.compact_handle = Some(tokio::spawn(async move {
+                    rt.compact_session_messages(&at, &wd, &snap, custom.as_deref(), false, None)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{}", e))
+                }));
                 *ctx.executing = true;
                 *ctx.executing_since = Some(Instant::now());
-                match runtime
-                    .compact_session_messages(
-                        agent_type,
-                        working_dir_str,
-                        &snap,
-                        custom.as_deref(),
-                        false,
-                        None,
-                    )
-                    .await
-                {
-                    Ok((new_msgs, u)) => {
-                        *ctx.last_max_input_tokens = u.input_tokens;
-                        let frozen = {
-                            let mut g = messages.lock().await;
-                            *g = new_msgs;
-                            *ctx.exec_prev_len = g.len();
-                            g.clone()
-                        };
-                        ctx.tool_folds_expanded.clear();
-                        *ctx.exec_live_tail = None;
-                        *ctx.fold_layout_rev = ctx.fold_layout_rev.wrapping_add(1);
-                        super::exec_completion::rebuild_transcript_from_messages(
-                            ctx.transcript,
-                            &frozen,
-                            ctx.transcript_gen,
-                            ctx.next_tool_fold_id,
-                        );
-                        apply_tool_transcript_pipeline(ctx.transcript, ctx.next_tool_fold_id);
-                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
-                            Span::styled(tr("tui-compact-done"), style_dim()),
-                        )]));
-                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-                        *ctx.last_turn_error = None;
-                    }
-                    Err(e) => {
-                        let mut a = FluentArgs::new();
-                        a.set("err", e.to_string());
-                        *ctx.last_turn_error = Some(tr_args("tui-err-compact-failed", &a));
-                    }
-                }
-                *ctx.executing = false;
-                *ctx.executing_since = None;
                 *ctx.transcript_scroll_up = 0;
                 return Ok(TuiLoopCtl::Continue);
             }
@@ -771,41 +744,6 @@ async fn handle_main_key(
                         *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
                         return Ok(TuiLoopCtl::Continue);
                     }
-                    slash_commands::ParsedSlashCommand::Model(arg) => {
-                        let line = if let Some(next) = arg {
-                            format!(
-                                "model switch requires a new session right now; current={} requested={}",
-                                ctx.llm_model, next
-                            )
-                        } else {
-                            format!("model: {}", ctx.llm_model)
-                        };
-                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
-                            Span::styled(line, style_dim()),
-                        )]));
-                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-                        return Ok(TuiLoopCtl::Continue);
-                    }
-                    slash_commands::ParsedSlashCommand::Memory => {
-                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
-                            Span::styled(
-                                "memory: use `/status` in REPL for backend details",
-                                style_dim(),
-                            ),
-                        )]));
-                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-                        return Ok(TuiLoopCtl::Continue);
-                    }
-                    slash_commands::ParsedSlashCommand::Approve => {
-                        ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
-                            Span::styled(
-                                "approve: approval prompts appear automatically when needed",
-                                style_dim(),
-                            ),
-                        )]));
-                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-                        return Ok(TuiLoopCtl::Continue);
-                    }
                     slash_commands::ParsedSlashCommand::Compact => {
                         // handled earlier by /compact block
                     }
@@ -820,88 +758,47 @@ async fn handle_main_key(
             ) {
                 let snap = messages.lock().await.clone();
                 if snap.len() >= 2 {
+                    if ctx.exec_handle.is_some() || ctx.compact_handle.is_some() {
+                        *ctx.last_turn_error = Some(tr("tui-err-compact-during-task"));
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    let rt = runtime.clone();
+                    let at = agent_type.clone();
+                    let wd = working_dir_str.to_string();
+                    let trimmed_after_compact = trimmed.clone();
+                    *ctx.compact_followup = Some(CompactFollowup::AutoThenUserTurn {
+                        trimmed: trimmed_after_compact,
+                    });
+                    *ctx.compact_handle = Some(tokio::spawn(async move {
+                        rt.compact_session_messages(&at, &wd, &snap, None, true, None)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("{}", e))
+                    }));
                     *ctx.executing = true;
                     *ctx.executing_since = Some(Instant::now());
-                    match runtime
-                        .compact_session_messages(
-                            agent_type,
-                            working_dir_str,
-                            &snap,
-                            None,
-                            true,
-                            None,
-                        )
-                        .await
-                    {
-                        Ok((new_msgs, u)) => {
-                            *ctx.last_max_input_tokens = u.input_tokens;
-                            let frozen = {
-                                let mut g = messages.lock().await;
-                                *g = new_msgs;
-                                g.clone()
-                            };
-                            ctx.tool_folds_expanded.clear();
-                            *ctx.exec_live_tail = None;
-                            *ctx.fold_layout_rev = ctx.fold_layout_rev.wrapping_add(1);
-                            super::exec_completion::rebuild_transcript_from_messages(
-                                ctx.transcript,
-                                &frozen,
-                                ctx.transcript_gen,
-                                ctx.next_tool_fold_id,
-                            );
-                            apply_tool_transcript_pipeline(ctx.transcript, ctx.next_tool_fold_id);
-                            ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
-                                Span::styled(tr("tui-auto-compact-done"), style_dim()),
-                            )]));
-                            *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-                            *ctx.exec_prev_len = frozen.len();
-                        }
-                        Err(e) => {
-                            let mut a = FluentArgs::new();
-                            a.set("err", e.to_string());
-                            *ctx.last_turn_error = Some(tr_args("tui-err-autocompact-failed", &a));
-                        }
-                    }
-                    *ctx.executing = false;
-                    *ctx.executing_since = None;
+                    return Ok(TuiLoopCtl::Continue);
                 }
             }
 
-            let user_line = trimmed.clone();
-            ctx.transcript.push(TranscriptEntry::User(user_line));
-            apply_tool_transcript_pipeline(ctx.transcript, ctx.next_tool_fold_id);
-            *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
             *ctx.last_turn_error = None;
-            *ctx.transcript_scroll_up = 0;
-            *ctx.exec_live_tail = Some((ctx.transcript.len(), *ctx.next_tool_fold_id));
             *ctx.executing = true;
             *ctx.executing_since = Some(Instant::now());
-
-            let user_msg = Message {
-                id: Uuid::new_v4(),
-                role: MessageRole::User,
-                content: MessageContent::Text(trimmed.to_string()),
-                timestamp: chrono::Utc::now(),
-                metadata: HashMap::new(),
-            };
-
-            {
-                let mut g = messages.lock().await;
-                g.push(user_msg);
-                *ctx.exec_prev_len = g.len();
-            }
-
-            let task_id = Uuid::new_v4();
-            let rt = runtime.clone();
-            let at = agent_type.clone();
-            let wd = working_dir_str.to_string();
-            let msgs = messages.clone();
-
-            *ctx.exec_handle = Some(tokio::spawn(async move {
-                rt.execute_turn_from_messages(task_id, &at, msgs, &wd)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))
-            }));
+            *ctx.exec_handle = Some(
+                append_user_line_and_spawn_turn(
+                    trimmed.as_str(),
+                    ctx.transcript,
+                    ctx.transcript_gen,
+                    ctx.transcript_scroll_up,
+                    ctx.exec_live_tail,
+                    ctx.next_tool_fold_id,
+                    ctx.exec_prev_len,
+                    runtime,
+                    agent_type,
+                    messages,
+                    working_dir_str,
+                )
+                .await,
+            );
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char(c) => {
