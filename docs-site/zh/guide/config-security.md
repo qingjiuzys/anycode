@@ -134,10 +134,27 @@ export ANYCODE_MODEL_INSTRUCTIONS_FILE=/绝对或相对路径/说明.md
 
 当项目中存在此文件时，其内容会自动包含在所有 agent 交互的系统提示词中。
 
+## Skills 远程清单与按 agent 列表（v0.2）
+
+| 字段 | 含义 |
+|------|------|
+| `skills.registry_url` | 可选 HTTP JSON，启动时合并。格式：`{"extra_scan_roots":["/绝对路径/技能根"]}`，仅**已存在**的本地目录会加入扫描（自托管站点可把 manifest 与同步目录放一起）。 |
+| `skills.agent_allowlists` | `agent_type` → skill id 列表；对应 agent 的 system 里 **Available skills** 只列这些 id（其余仍在磁盘，不向模型展示）。 |
+| `skills.expose_on_explore_plan` | 为 true 时 explore/plan 也注册 **Skill** 工具（行为不变）。 |
+
+通道 Bot Token 持久化（写入 `~/.anycode/channels/`，不回显日志）：
+
+```bash
+anycode channel telegram-set-token --token "$TELEGRAM_BOT_TOKEN" --chat-id "123456"
+anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "9876543210"
+```
+
 ## MCP 过滤
 
 - `security.mcp_tool_deny_rules`：按规则拒绝
 - `security.mcp_tool_deny_patterns`：按正则在暴露给模型前剔除
+
+自托管 MCP：用 `ANYCODE_MCP_SERVERS` 等接入自有 server，并用上表 deny 规则收敛暴露面；explore/plan 默认不合并 MCP，除非在配置/代码中放宽工具面。
 
 ## 界面语言
 
@@ -169,7 +186,7 @@ export ANYCODE_LANG=en
 | 场景 | 配置入口 | 说明 |
 |---|---|---|
 | TUI / `run` / `repl` | `security.require_approval`、`permission_mode` | TTY 下交互审批；**`--ignore-approval`** 仅当前进程。 |
-| 微信 / Telegram / Discord | 同一 `config.json` | **`RuntimeMode::Channel`** 默认 **`WorkspaceAssistantAgent`**（偏读/查/工作流，非完整编码工具集）。 |
+| 微信 / Telegram / Discord | 同一 `config.json` | **`RuntimeMode::Channel`** 默认 **`WorkspaceAssistantAgent`**（偏读/查/工作流，非完整编码工具集）。桥接进程内工具**不**走交互式审批 UI（与无头通道对齐），会关闭 `require_approval`。 |
 | 目标循环 | 同一 **`SecurityLayer`** | **`GoalSpec.max_attempts_cap`** 可在 **`allow_infinite_retries: true`** 时仍限制轮数。 |
 | 实验 | `anycode enable approval-v2` | 对应 **`FeatureFlag::ApprovalV2`**。 |
 

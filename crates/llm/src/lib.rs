@@ -9,6 +9,7 @@ use thiserror::Error;
 
 mod chat_model_ref;
 pub mod copilot_token;
+mod google_catalog;
 mod model_catalog;
 mod model_context;
 mod model_router;
@@ -24,6 +25,7 @@ pub use copilot_token::{
     anycode_credentials_dir, copilot_token_cache_path, github_oauth_token_path,
     read_github_oauth_access_token, resolve_copilot_api_token,
 };
+pub use google_catalog::{is_known_google_model_id, GoogleModelCatalogEntry, GOOGLE_MODEL_CATALOG};
 pub use model_catalog::{
     clone_with_model, is_known_model_alias, known_model_aliases, ModelAliasDescriptor,
     MODEL_ALIASES,
@@ -229,7 +231,9 @@ pub enum LLMError {
 }
 pub use providers::anthropic::AnthropicClient;
 pub use providers::zai::{
-    ZaiClient, ZaiModel, ZaiModelCatalogEntry, ZAI_DEFAULT_CODING_ENDPOINT, ZAI_MODEL_CATALOG,
+    zai_default_chat_url_for_plan, zai_model_display_name, ZaiClient, ZaiModel,
+    ZaiModelCatalogEntry, ZAI_CN_CODING_URL, ZAI_CN_GENERAL_URL, ZAI_DEFAULT_CODING_ENDPOINT,
+    ZAI_GLOBAL_CODING_URL, ZAI_GLOBAL_GENERAL_URL, ZAI_MODEL_CATALOG,
 };
 
 #[cfg(feature = "openai")]

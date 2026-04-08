@@ -2,13 +2,13 @@
 
 use super::{
     default_base_url_for, load_anycode_config_resolved, prompt_api_key_and_base_url, prompt_line,
-    prompt_model_for_anthropic, prompt_model_for_zai, resolve_config_path,
+    prompt_model_for_anthropic, prompt_model_for_google, prompt_model_for_zai, resolve_config_path,
     save_anycode_config_resolved, save_merged_config, validate_llm_provider, ModelProfile,
 };
 use crate::i18n::{tr, tr_args};
 use anycode_llm::{
-    normalize_provider_id, transport_for_provider_id, LlmTransport, PROVIDER_CATALOG,
-    ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
+    normalize_provider_id, transport_for_provider_id, LlmTransport, ProviderCatalogEntry,
+    PROVIDER_CATALOG, ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
 };
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Password, Select};
@@ -33,7 +33,7 @@ struct AuthChoice {
 const QUICK_AUTH_CHOICES: &[AuthChoice] = &[
     AuthChoice {
         id: "zai-coding",
-        label: "z.ai Coding Plan (API Key)",
+        label: "z.ai Coding Plan — Global (api.z.ai)",
         provider: "z.ai",
         plan: "coding",
         default_model: "glm-5",
@@ -41,11 +41,20 @@ const QUICK_AUTH_CHOICES: &[AuthChoice] = &[
         key_envs: &["ZAI_API_KEY"],
     },
     AuthChoice {
+        id: "zai-coding-cn",
+        label: "z.ai / 智谱 国内编码套餐 (open.bigmodel.cn)",
+        provider: "z.ai",
+        plan: "coding_cn",
+        default_model: "glm-5",
+        base_url: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
+        key_envs: &["ZAI_API_KEY"],
+    },
+    AuthChoice {
         id: "zai-general",
-        label: "z.ai General (API Key)",
+        label: "z.ai General — Global (api.z.ai)",
         provider: "z.ai",
         plan: "general",
-        default_model: "glm-5-air",
+        default_model: "glm-5",
         base_url: "https://api.z.ai/api/paas/v4/chat/completions",
         key_envs: &["ZAI_API_KEY"],
     },
@@ -479,6 +488,32 @@ async fn run_global_provider_flow(
             return Ok(());
         }
 
+        if id == "google" {
+            let model = prompt_model_for_google(is_tty, &existing)?;
+            let default_url = entry.suggested_openai_base.unwrap_or("");
+            let (api_key, base_url) = prompt_api_key_and_base_url(
+                is_tty,
+                &existing,
+                "google",
+                "general",
+                default_url,
+                true,
+            )?;
+            save_merged_config(
+                config_file.clone(),
+                &existing,
+                "google",
+                "general",
+                &model,
+                &api_key,
+                base_url,
+            )?;
+            let mut sa = FluentArgs::new();
+            sa.set("path", path.display().to_string());
+            println!("✅ {}", tr_args("wizard-saved", &sa));
+            return Ok(());
+        }
+
         if transport_for_provider_id(&id) == LlmTransport::BedrockConverse {
             let model: String = if is_tty {
                 Input::with_theme(&ColorfulTheme::default())
@@ -613,7 +648,7 @@ fn provider_default_model(provider: &str) -> &'static str {
     match provider {
         "deepseek" => "deepseek-chat",
         "anthropic" => "claude-sonnet-4-20250514",
-        "google" => "gemini-3.1-pro-preview",
+        "google" => "gemini-2.5-pro",
         "openai" => "gpt-4.1",
         "qwen" => "qwen3.5-plus",
         "moonshot" | "kimi_code" => "kimi-k2-0711-preview",
@@ -695,53 +730,155 @@ async fn run_routing_agents_flow(
     let mut kp = FluentArgs::new();
     kp.set("p", def_p.clone());
     println!("{}", tr_args("model-keep-global", &kp));
-    let prov_in = if is_tty {
-        Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("model-prompt-provider"))
-            .default(cur.provider.clone().unwrap_or_default())
-            .allow_empty(true)
-            .interact_text()?
+
+    let routable: Vec<&ProviderCatalogEntry> = PROVIDER_CATALOG
+        .iter()
+        .filter(|e| !e.placeholder_only)
+        .collect();
+    let mut prov_labels: Vec<String> = routable
+        .iter()
+        .map(|e| format!("{} — {}", e.id, e.label))
+        .collect();
+    prov_labels.push("(inherit global provider)".to_string());
+    prov_labels.push("(type custom provider id)".to_string());
+
+    let p_idx = if is_tty {
+        let def_i = cur
+            .provider
+            .as_deref()
+            .map(normalize_provider_id)
+            .and_then(|id| routable.iter().position(|e| e.id == id))
+            .unwrap_or(prov_labels.len() - 2);
+        Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("provider for this agent (OpenClaw catalog)")
+            .default(def_i.min(prov_labels.len().saturating_sub(1)))
+            .items(&prov_labels)
+            .interact()?
     } else {
-        let mut a = FluentArgs::new();
-        a.set("p", def_p.clone());
-        prompt_line(&tr_args("model-prompt-provider-fallback", &a))?
-    };
-    let provider = if prov_in.trim().is_empty() {
-        None
-    } else {
-        let n = normalize_provider_id(prov_in.trim());
-        validate_llm_provider(&n)?;
-        Some(n)
+        for (i, l) in prov_labels.iter().enumerate() {
+            println!("  {}) {}", i + 1, l);
+        }
+        loop {
+            let v = prompt_line(&tr("model-pick-number"))?;
+            if let Ok(n) = v.trim().parse::<usize>() {
+                if n >= 1 && n <= prov_labels.len() {
+                    break n - 1;
+                }
+            }
+            println!("{}", tr("model-invalid"));
+        }
     };
 
-    let model_in = if is_tty {
-        Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("model")
-            .default(cur.model.clone().unwrap_or_default())
-            .allow_empty(true)
-            .interact_text()?
-    } else {
-        prompt_line(&tr("model-prompt-model-skip"))?
-    };
-    let model = if model_in.trim().is_empty() {
+    let provider = if p_idx < routable.len() {
+        Some(routable[p_idx].id.to_string())
+    } else if p_idx == routable.len() {
         None
     } else {
-        Some(model_in.trim().to_string())
+        let raw = if is_tty {
+            Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("provider id")
+                .interact_text()?
+        } else {
+            prompt_line("provider id: ")?
+        };
+        let t = raw.trim();
+        if t.is_empty() {
+            None
+        } else {
+            let n = normalize_provider_id(t);
+            validate_llm_provider(&n)?;
+            Some(n)
+        }
     };
 
-    let plan_in = if is_tty {
-        Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("plan（coding|general）")
-            .default(cur.plan.clone().unwrap_or_default())
-            .allow_empty(true)
-            .interact_text()?
+    let model = if provider.as_deref() == Some("z.ai") || provider.as_deref() == Some("google") {
+        let synthetic = Some(existing.clone());
+        let m = if provider.as_deref() == Some("z.ai") {
+            prompt_model_for_zai(is_tty, &synthetic)?
+        } else {
+            prompt_model_for_google(is_tty, &synthetic)?
+        };
+        Some(m)
+    } else if provider.is_some() {
+        let def_m = cur.model.clone().unwrap_or_else(|| {
+            provider_default_model(provider.as_deref().unwrap_or("openai")).to_string()
+        });
+        let model_in = if is_tty {
+            Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("model")
+                .default(def_m.clone())
+                .allow_empty(true)
+                .interact_text()?
+        } else {
+            prompt_line(&tr("model-prompt-model-skip"))?
+        };
+        if model_in.trim().is_empty() {
+            None
+        } else {
+            Some(model_in.trim().to_string())
+        }
     } else {
-        prompt_line(&tr("model-prompt-plan-skip"))?
+        let model_in = if is_tty {
+            Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("model")
+                .default(cur.model.clone().unwrap_or_default())
+                .allow_empty(true)
+                .interact_text()?
+        } else {
+            prompt_line(&tr("model-prompt-model-skip"))?
+        };
+        if model_in.trim().is_empty() {
+            None
+        } else {
+            Some(model_in.trim().to_string())
+        }
     };
-    let plan = if plan_in.trim().is_empty() {
-        None
+
+    let plan = if provider.as_deref() == Some("z.ai") {
+        let plan_labels: Vec<String> = ZAI_AUTH_METHODS
+            .iter()
+            .map(|z| {
+                z.hint
+                    .map(|h| format!("{} — {} ({})", z.label, h, z.plan))
+                    .unwrap_or_else(|| format!("{} ({})", z.label, z.plan))
+            })
+            .collect();
+        let zi = if is_tty {
+            Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("z.ai endpoint / plan")
+                .default(0)
+                .items(&plan_labels)
+                .interact()?
+        } else {
+            for (i, l) in plan_labels.iter().enumerate() {
+                println!("  {}) {}", i + 1, l);
+            }
+            loop {
+                let v = prompt_line(&tr("model-pick-number"))?;
+                if let Ok(n) = v.trim().parse::<usize>() {
+                    if n >= 1 && n <= plan_labels.len() {
+                        break n - 1;
+                    }
+                }
+                println!("{}", tr("model-invalid"));
+            }
+        };
+        Some(ZAI_AUTH_METHODS[zi].plan.to_string())
     } else {
-        Some(plan_in.trim().to_string())
+        let plan_in = if is_tty {
+            Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("plan（optional; z.ai: coding|general|coding_cn|general_cn）")
+                .default(cur.plan.clone().unwrap_or_default())
+                .allow_empty(true)
+                .interact_text()?
+        } else {
+            prompt_line(&tr("model-prompt-plan-skip"))?
+        };
+        if plan_in.trim().is_empty() {
+            None
+        } else {
+            Some(plan_in.trim().to_string())
+        }
     };
 
     let ak_in = if is_tty {

@@ -127,6 +127,20 @@ fn save_credentials(cred: &TelegramCredentials) -> Result<()> {
     Ok(())
 }
 
+/// `anycode channel telegram-set-token`：写入凭据，供后续无 `--bot-token` 启动。
+pub(crate) fn persist_credentials(token: String, chat_id: Option<String>) -> Result<()> {
+    let bot_token = token.trim().to_string();
+    if bot_token.is_empty() {
+        anyhow::bail!("token must not be empty");
+    }
+    save_credentials(&TelegramCredentials {
+        bot_token,
+        chat_id: chat_id
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+    })
+}
+
 fn load_state(path: &PathBuf) -> TelegramState {
     match std::fs::read_to_string(path) {
         Ok(s) => serde_json::from_str(&s).unwrap_or_default(),

@@ -263,7 +263,11 @@ mod tests {
                 workspace_channel_profile: None,
             },
             prompt: RuntimePromptConfig::default(),
-            skills: SkillsConfig::default(),
+            skills: SkillsConfig {
+                registry_url: None,
+                agent_allowlists: std::collections::HashMap::new(),
+                ..SkillsConfig::default()
+            },
             session: SessionConfig::default(),
         }
     }

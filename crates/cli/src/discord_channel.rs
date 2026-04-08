@@ -89,6 +89,18 @@ fn save_credentials(cred: &DiscordCredentials) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn persist_credentials(token: String, channel_id: String) -> Result<()> {
+    let bot_token = token.trim().to_string();
+    let channel_id = channel_id.trim().to_string();
+    if bot_token.is_empty() || channel_id.is_empty() {
+        anyhow::bail!("token and channel_id must not be empty");
+    }
+    save_credentials(&DiscordCredentials {
+        bot_token,
+        channel_id,
+    })
+}
+
 fn split_for_discord(s: &str) -> Vec<String> {
     if s.chars().count() <= DISCORD_REPLY_CHUNK {
         return vec![s.to_string()];

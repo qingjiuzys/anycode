@@ -9,6 +9,13 @@ read_when:
 
 # 版本与特性开关
 
+## 0.2.0（工作区）
+
+- **模型**：Z.ai / 智谱 GLM 与 OpenClaw `model-definitions` 对齐；`plan` 的 `coding_cn` / `general_cn` 对应 `open.bigmodel.cn`；Google Gemini 目录；`anycode model` 路由向导用 OpenClaw 风格选厂商与 z.ai 端点。
+- **通道**：`telegram-set-token`、`discord-set-token`；`anycode_channels::hub` 说明统一 `ChannelMessage` → `build_channel_task`；微信桥不再挂交互式工具审批回调。
+- **LLM**：Anthropic 非流式 `chat` 对 429/5xx 与 `Retry-After` 重试（与 z.ai 客户端策略一致）。
+- **Skills**：可选 `skills.registry_url` 合并扫描根、`skills.agent_allowlists` 按 agent 裁剪提示中的技能列表。
+
 ## 版本与发布
 
 - **版本号**：工作区根目录 `Cargo.toml` 的 `version`。

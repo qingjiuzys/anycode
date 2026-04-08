@@ -245,6 +245,20 @@ pub(crate) enum ChannelCommands {
         #[arg(short = 'C', long)]
         directory: Option<PathBuf>,
     },
+    /// Persist Telegram bot token to `~/.anycode/channels/telegram.json` (for later `channel telegram` without flags)
+    TelegramSetToken {
+        #[arg(long)]
+        token: String,
+        #[arg(long)]
+        chat_id: Option<String>,
+    },
+    /// Persist Discord bot token + channel id to `~/.anycode/channels/discord.json`
+    DiscordSetToken {
+        #[arg(long)]
+        token: String,
+        #[arg(long)]
+        channel_id: String,
+    },
 }
 
 #[cfg(feature = "mcp-oauth")]

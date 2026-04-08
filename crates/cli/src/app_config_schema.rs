@@ -317,6 +317,12 @@ pub(crate) struct SkillsConfigFile {
     /// Also register `Skill` for explore/plan agents (default off).
     #[serde(default)]
     pub(crate) expose_on_explore_plan: bool,
+    /// 可选：GET JSON manifest，合并 `extra_scan_roots` 到扫描根（路径须本机存在）；失败仅打日志。
+    #[serde(default)]
+    pub(crate) registry_url: Option<String>,
+    /// 按 `agent_type`（如 `workspace-assistant`）仅在该 agent 的 system 提示中列出这些 skill id。
+    #[serde(default)]
+    pub(crate) agent_allowlists: HashMap<String, Vec<String>>,
 }
 
 impl Default for SkillsConfigFile {
@@ -328,6 +334,8 @@ impl Default for SkillsConfigFile {
             run_timeout_ms: default_skill_run_timeout_ms(),
             minimal_env: false,
             expose_on_explore_plan: false,
+            registry_url: None,
+            agent_allowlists: HashMap::new(),
         }
     }
 }
@@ -340,6 +348,8 @@ pub(crate) struct SkillsConfig {
     pub(crate) run_timeout_ms: u64,
     pub(crate) minimal_env: bool,
     pub(crate) expose_on_explore_plan: bool,
+    pub(crate) registry_url: Option<String>,
+    pub(crate) agent_allowlists: HashMap<String, Vec<String>>,
 }
 
 impl From<SkillsConfigFile> for SkillsConfig {
@@ -351,6 +361,8 @@ impl From<SkillsConfigFile> for SkillsConfig {
             run_timeout_ms: f.run_timeout_ms,
             minimal_env: f.minimal_env,
             expose_on_explore_plan: f.expose_on_explore_plan,
+            registry_url: f.registry_url,
+            agent_allowlists: f.agent_allowlists,
         }
     }
 }

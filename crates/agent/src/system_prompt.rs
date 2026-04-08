@@ -3,6 +3,7 @@
 use crate::model_instructions::ModelInstructionsConfig;
 use crate::prompt_assembler::PromptAssembler;
 use anycode_core::Agent;
+use std::collections::HashMap;
 use std::path::Path;
 
 /// 运行时系统提示配置（通常来自 `config.json` + 解析后的 `@path` 文件内容）。
@@ -14,6 +15,8 @@ pub struct RuntimePromptConfig {
     pub system_prompt_append: Option<String>,
     /// Injected after the tool list when not using override (from discovered `SKILL.md` skills).
     pub skills_section: Option<String>,
+    /// 按 `agent_type` 覆盖 skills 段（仅列出配置允许的技能 id）；未命中则回退 `skills_section`。
+    pub skills_section_by_agent: HashMap<String, String>,
     pub workspace_section: Option<String>,
     pub channel_section: Option<String>,
     pub workflow_section: Option<String>,
@@ -175,6 +178,7 @@ mod tests {
     use super::*;
     use anycode_core::{AgentType, CoreError, Task, TaskResult, ToolName};
     use async_trait::async_trait;
+    use std::collections::HashMap;
 
     struct StubAgent {
         agent_type: AgentType,
@@ -265,6 +269,24 @@ mod tests {
         let pos_tools = out.find("Skill").unwrap();
         let pos_sk = out.find("Available skills").unwrap();
         assert!(pos_sk > pos_tools);
+    }
+
+    #[test]
+    fn skills_section_per_agent_overrides_global() {
+        let mut by_agent = HashMap::new();
+        by_agent.insert(
+            "stub".to_string(),
+            "## Available skills\n\n- **only**: per-agent".to_string(),
+        );
+        let cfg = RuntimePromptConfig {
+            skills_section: Some("## Available skills\n\n- **global**: all".into()),
+            skills_section_by_agent: by_agent,
+            ..Default::default()
+        };
+        let agent = stub(vec!["Skill".into()]);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
+        assert!(out.contains("per-agent"));
+        assert!(!out.contains("global"));
     }
 
     #[test]

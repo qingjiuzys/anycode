@@ -3,6 +3,7 @@
 //! 多通道支持 (来自 OpenClaw)。新增通道：实现 [`ChannelHandler`] 并在 [`ChannelRouter`] 注册
 //! （参考 `wechat` 模块与 OpenClaw 的 Channel Plugin 思路）。
 
+pub mod hub;
 mod profile;
 mod web_envelope;
 mod wechat;

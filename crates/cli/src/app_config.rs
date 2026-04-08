@@ -6,7 +6,8 @@ use crate::i18n::{tr, tr_args};
 use anycode_agent::{ModelInstructionsConfig, RuntimePromptConfig};
 use anycode_core::{FeatureFlag, FeatureRegistry, RuntimeMode};
 use anycode_llm::{
-    normalize_provider_id, transport_for_provider_id, LlmTransport, ZAI_MODEL_CATALOG,
+    normalize_provider_id, transport_for_provider_id, LlmTransport, GOOGLE_MODEL_CATALOG,
+    ZAI_MODEL_CATALOG,
 };
 use fluent_bundle::FluentArgs;
 use serde::{Deserialize, Serialize};
@@ -129,6 +130,70 @@ const ANTHROPIC_MODEL_CHOICES: &[(&str, &str)] = &[
     ("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet"),
     ("claude-3-opus-20240229", "Claude 3 Opus"),
 ];
+
+fn is_google_family_provider(p: &str) -> bool {
+    matches!(p.trim(), "google" | "gemini")
+}
+
+fn prompt_model_for_google(
+    is_tty: bool,
+    existing: &Option<AnyCodeConfig>,
+) -> anyhow::Result<String> {
+    use dialoguer::theme::ColorfulTheme;
+    use dialoguer::{Input, Select};
+
+    let catalog_items: Vec<String> = GOOGLE_MODEL_CATALOG
+        .iter()
+        .map(|e| format!("{} — {}", e.id, e.label))
+        .chain(std::iter::once(tr("zai-model-custom")))
+        .collect();
+
+    let default_model = existing
+        .as_ref()
+        .filter(|c| is_google_family_provider(&c.provider))
+        .map(|c| c.model.clone())
+        .unwrap_or_else(|| "gemini-2.5-pro".to_string());
+
+    let idx = if is_tty {
+        let default_i = GOOGLE_MODEL_CATALOG
+            .iter()
+            .position(|e| e.id == default_model.as_str())
+            .unwrap_or(0);
+        Select::with_theme(&ColorfulTheme::default())
+            .with_prompt(&tr("wizard-pick-model-prompt"))
+            .default(default_i.min(catalog_items.len().saturating_sub(1)))
+            .items(&catalog_items)
+            .interact()?
+    } else {
+        println!("{}", tr("wizard-pick-model-prompt"));
+        for (i, label) in catalog_items.iter().enumerate() {
+            println!("  {}) {}", i + 1, label);
+        }
+        loop {
+            let v = prompt_line(&tr("model-pick-number"))?;
+            if let Ok(n) = v.trim().parse::<usize>() {
+                if n >= 1 && n <= catalog_items.len() {
+                    break n - 1;
+                }
+            }
+            println!("{}", tr("model-invalid"));
+        }
+    };
+
+    if idx < GOOGLE_MODEL_CATALOG.len() {
+        return Ok(GOOGLE_MODEL_CATALOG[idx].id.to_string());
+    }
+
+    if is_tty {
+        Ok(Input::with_theme(&ColorfulTheme::default())
+            .with_prompt(&tr("wizard-prompt-model-id"))
+            .default(default_model)
+            .interact_text()?)
+    } else {
+        let v = prompt_line(&tr("wizard-model-id-non-tty"))?;
+        Ok(if v.is_empty() { default_model } else { v })
+    }
+}
 
 fn prompt_model_for_anthropic(
     is_tty: bool,
@@ -639,13 +704,7 @@ pub(crate) struct AnyCodeConfig {
 }
 
 pub(crate) fn default_base_url_for(plan: &str) -> &'static str {
-    // 参考：docs.z.ai（2026）
-    // - 通用：https://api.z.ai/api/paas/v4/chat/completions
-    // - 编码套餐：https://api.z.ai/api/coding/paas/v4/chat/completions
-    match plan {
-        "coding" => "https://api.z.ai/api/coding/paas/v4/chat/completions",
-        _ => "https://api.z.ai/api/paas/v4/chat/completions",
-    }
+    anycode_llm::zai_default_chat_url_for_plan(plan)
 }
 
 fn anycode_config_path() -> anyhow::Result<PathBuf> {
@@ -1269,6 +1328,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             system_prompt_override,
             system_prompt_append,
             skills_section: None,
+            skills_section_by_agent: std::collections::HashMap::new(),
             workspace_section: None,
             channel_section: None,
             workflow_section: None,
@@ -1522,6 +1582,7 @@ mod serde_config_tests {
     #[test]
     fn session_model_zai_must_be_catalog() {
         validate_session_model_override("z.ai", "glm-5").unwrap();
+        validate_session_model_override("z.ai", "glm-5.1").unwrap();
         assert!(validate_session_model_override("z.ai", "not-a-catalog-model").is_err());
     }
 

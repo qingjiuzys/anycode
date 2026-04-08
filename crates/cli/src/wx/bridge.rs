@@ -33,7 +33,7 @@ pub async fn run_wechat_daemon(
     app_config: &Config,
     data_dir: Option<PathBuf>,
     agent_type: String,
-    ignore_approval_cli: bool,
+    _ignore_approval_cli: bool,
 ) -> Result<()> {
     let data_root = wcc_data_dir(data_dir);
     std::fs::create_dir_all(&data_root)?;
@@ -63,13 +63,9 @@ pub async fn run_wechat_daemon(
         broker.clone(),
     );
 
-    let approval: Option<Box<dyn anycode_security::ApprovalCallback>> = if ignore_approval_cli {
-        None
-    } else {
-        Some(Box::new(gate.clone()))
-    };
-
-    let runtime = initialize_runtime(app_config, approval)
+    // 通道模式与 Telegram/Discord 一致：工具走自动策略（无终端交互审批）。
+    // `WechatApprovalGate` 仍用于会话路由与其它微信侧逻辑。
+    let runtime = initialize_runtime(app_config, None)
         .await
         .context("initialize_runtime")?;
 

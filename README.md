@@ -1,31 +1,33 @@
 # anyCode
 
-面向终端用户的 AI 助手。装好后可以在命令行里提问、执行任务，也可以接入微信/Telegram/Discord 走同一套能力。
+Terminal-first AI assistant: ask questions and run tasks from the CLI, or bridge the same runtime to WeChat, Telegram, or Discord.
 
-- 在线文档: <https://qingjiuzys.github.io/anycode/>
-- 可执行命令: `anycode`
-- License: [MIT](LICENSE)
+**Languages:** [简体中文](README.zh.md)
 
-## 3 步上手
+- **Docs site:** <https://qingjiuzys.github.io/anycode/>
+- **CLI binary:** `anycode`
+- **License:** [MIT](LICENSE)
 
-1. 安装 anyCode
-2. 运行 `anycode setup` 完成模型与 channel 配置
-3. 运行一次任务验证
+## Quick start (3 steps)
 
-macOS / Linux:
+1. Install anyCode
+2. Run `anycode setup` to configure the model and optional channels
+3. Run a task to verify
+
+**macOS / Linux:**
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
-Windows PowerShell:
+**Windows PowerShell:**
 
 ```powershell
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
 
-安装后验证:
+**After install:**
 
 ```bash
 anycode --help
@@ -33,25 +35,18 @@ anycode setup
 anycode run --agent general-purpose "Reply with OK only"
 ```
 
-如果提示 `command not found`，先看安装文档中的 PATH 说明。
+If you see `command not found`, check PATH notes in the install guide.
 
-## 文档入口
+## Documentation
 
-- 中文:
-  - [快速开始](docs-site/zh/guide/getting-started.md)
-  - [安装](docs-site/zh/guide/install.md)
-  - [排错](docs-site/zh/guide/troubleshooting.md)
-- English:
-  - [Getting started](docs-site/guide/getting-started.md)
-  - [Install](docs-site/guide/install.md)
-  - [Troubleshooting](docs-site/guide/troubleshooting.md)
-- 全量索引:
-  - [中文文档地图](docs-site/zh/guide/docs-directory.md)
-  - [English docs directory](docs-site/guide/docs-directory.md)
+- [Getting started](docs-site/guide/getting-started.md)
+- [Install](docs-site/guide/install.md)
+- [Troubleshooting](docs-site/guide/troubleshooting.md)
+- [Full docs directory](docs-site/guide/docs-directory.md)
 
-## 给开发者
+**Chinese (仓库内 Markdown):** [快速开始](docs-site/zh/guide/getting-started.md) · [安装](docs-site/zh/guide/install.md) · [排错](docs-site/zh/guide/troubleshooting.md) · [文档地图](docs-site/zh/guide/docs-directory.md)
 
-如果你要参与开发或维护文档：
+## For developers
 
 ```bash
 cargo fmt
@@ -59,7 +54,7 @@ cargo clippy
 cargo test --workspace
 ```
 
-文档本地预览:
+Preview the docs site locally:
 
 ```bash
 cd docs-site && npm install && npm run dev

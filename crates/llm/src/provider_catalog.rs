@@ -40,30 +40,31 @@ pub struct ZaiAuthMethodEntry {
     pub plan: &'static str,
 }
 
+/// `plan` 与 `zai_default_chat_url_for_plan` / `default_base_url_for` 一致：`coding_cn`、`general_cn` 走 open.bigmodel.cn。
 pub const ZAI_AUTH_METHODS: &[ZaiAuthMethodEntry] = &[
     ZaiAuthMethodEntry {
         label: "CN",
-        hint: Some("国内通用端点"),
-        plan: "general",
+        hint: Some("国内通用 open.bigmodel.cn"),
+        plan: "general_cn",
     },
     ZaiAuthMethodEntry {
         label: "Coding-Plan-CN",
-        hint: Some("国内编码套餐"),
-        plan: "coding",
+        hint: Some("国内编码套餐 open.bigmodel.cn"),
+        plan: "coding_cn",
     },
     ZaiAuthMethodEntry {
         label: "Coding-Plan-Global",
-        hint: Some("编码套餐（与 CN 同端点模型，按 z.ai 账号区域）"),
+        hint: Some("国际编码 api.z.ai"),
         plan: "coding",
     },
     ZaiAuthMethodEntry {
         label: "Global",
-        hint: Some("国际通用端点"),
+        hint: Some("国际通用 api.z.ai"),
         plan: "general",
     },
     ZaiAuthMethodEntry {
         label: "Z.AI API key",
-        hint: Some("API Key，套餐由下方 plan/端点决定"),
+        hint: Some("默认国际编码端点"),
         plan: "coding",
     },
 ];

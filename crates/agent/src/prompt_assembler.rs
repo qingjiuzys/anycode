@@ -69,12 +69,20 @@ impl<'a> PromptAssembler<'a> {
             }
         }
 
+        let agent_key = self.agent.agent_type().as_str();
+        let skills_for_agent = self
+            .config
+            .skills_section_by_agent
+            .get(agent_key)
+            .map(|s| s.as_str())
+            .or(self.config.skills_section.as_deref());
+
         let mut segments = vec![SystemPromptSegment {
             id: "default_stack",
             text: crate::system_prompt::compose_default_sections(
                 self.agent,
                 self.cwd,
-                self.config.skills_section.as_deref(),
+                skills_for_agent,
             ),
         }];
 

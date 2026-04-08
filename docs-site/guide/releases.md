@@ -9,6 +9,13 @@ read_when:
 
 # Releases & feature flags
 
+## 0.2.0 (workspace)
+
+- **Models**: Z.ai / 智谱 GLM catalog aligned with OpenClaw `model-definitions` ids; `plan` values `coding_cn` / `general_cn` map to `open.bigmodel.cn` endpoints; Google Gemini picker catalog; `anycode model` routing wizard uses the OpenClaw provider list + z.ai plan menu.
+- **Channels**: `telegram-set-token` / `discord-set-token` subcommands; `anycode_channels::hub` documents the single `ChannelMessage` → `build_channel_task` flow; WeChat bridge no longer registers an interactive tool-approval callback.
+- **LLM**: Anthropic non-stream `chat` retries on 429/5xx with `Retry-After` (same policy shape as the z.ai client).
+- **Skills**: optional `skills.registry_url` manifest merge, `skills.agent_allowlists` for per-agent prompt sections, `SkillCatalog::render_prompt_subsection_allowlist`.
+
 ## Versioning
 
 - **Library / CLI version** follows the workspace `version` in the root `Cargo.toml`.

@@ -5,9 +5,7 @@
 use anycode_core::prelude::*;
 use anycode_llm::build_llm_client;
 use anycode_llm::ProviderConfig;
-use anycode_llm::{ZAI_DEFAULT_CODING_ENDPOINT, ZAI_MODEL_CATALOG};
-
-pub use anycode_llm::ZaiModel;
+use anycode_llm::{zai_model_display_name, ZAI_DEFAULT_CODING_ENDPOINT, ZAI_MODEL_CATALOG};
 use anyhow::Result;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use dirs::config_dir;
@@ -22,7 +20,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZaiConfig {
     pub api_key: String,
-    pub model: ZaiModel,
+    /// OpenAPI `model` id（与 anyCode `ZAI_MODEL_CATALOG` 对齐，可为任意目录内 id）
+    pub model: String,
     pub base_url: String,
     pub temperature: f32,
     pub max_tokens: u32,
@@ -77,7 +76,7 @@ impl OnboardingWizard {
         let api_key = self.get_api_key().await?;
 
         // 步骤 4: 选择模型
-        let model = self.select_model().await?;
+        let model_str = self.select_model().await?;
 
         // 步骤 5: 配置参数
         let (temperature, max_tokens) = self.configure_parameters().await?;
@@ -85,7 +84,7 @@ impl OnboardingWizard {
         // 步骤 6: 测试连接
         let config = ZaiConfig {
             api_key,
-            model: model.clone(),
+            model: model_str.clone(),
             base_url: ZAI_DEFAULT_CODING_ENDPOINT.to_string(),
             temperature,
             max_tokens,
@@ -97,7 +96,7 @@ impl OnboardingWizard {
         self.save_config(&config).await?;
 
         // 步骤 8: 完成
-        self.show_completion(&model).await?;
+        self.show_completion(model_str.as_str()).await?;
 
         Ok(config)
     }
@@ -179,14 +178,15 @@ impl OnboardingWizard {
         Ok(api_key)
     }
 
-    async fn select_model(&self) -> Result<ZaiModel> {
+    async fn select_model(&self) -> Result<String> {
         println!("🤖 选择模型");
         println!();
 
-        let model_labels: Vec<String> = ZAI_MODEL_CATALOG
+        let mut model_labels: Vec<String> = ZAI_MODEL_CATALOG
             .iter()
             .map(|e| e.wizard_line.to_string())
             .collect();
+        model_labels.push("自定义 model id…".to_string());
 
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("选择一个模型")
@@ -194,9 +194,17 @@ impl OnboardingWizard {
             .default(0)
             .interact()?;
 
-        let api_name = ZAI_MODEL_CATALOG[selection].api_name;
-        ZaiModel::from_api_name(api_name)
-            .ok_or_else(|| anyhow::anyhow!("内部错误：未知模型 api_name={}", api_name))
+        if selection < ZAI_MODEL_CATALOG.len() {
+            return Ok(ZAI_MODEL_CATALOG[selection].api_name.to_string());
+        }
+        let custom: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("model id")
+            .interact_text()?;
+        let t = custom.trim();
+        if t.is_empty() {
+            anyhow::bail!("model id 不能为空");
+        }
+        Ok(t.to_string())
     }
 
     async fn configure_parameters(&self) -> Result<(f32, u32)> {
@@ -257,7 +265,7 @@ impl OnboardingWizard {
             provider: "z.ai".to_string(),
             api_key: config.api_key.clone(),
             base_url: Some(config.base_url.clone()),
-            model: config.model.api_name().to_string(),
+            model: config.model.clone(),
             temperature: Some(config.temperature),
             max_tokens: Some(config.max_tokens),
             zai_tool_choice_first_turn: false,
@@ -334,7 +342,7 @@ impl OnboardingWizard {
         Ok(())
     }
 
-    async fn show_completion(&self, model: &ZaiModel) -> Result<()> {
+    async fn show_completion(&self, model: &str) -> Result<()> {
         println!();
         println!("╔════════════════════════════════════════════════════════════════╗");
         println!("║                  🎉 配置完成！                              ║");
@@ -346,7 +354,7 @@ impl OnboardingWizard {
         println!("║                                                              ║");
         println!(
             "║  当前模型: {}                              ║",
-            model.display_name()
+            zai_model_display_name(model)
         );
         println!("║                                                              ║");
         println!("║  下次启动时，anyCode 会自动加载 z.ai 配置                   ║");

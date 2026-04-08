@@ -134,10 +134,27 @@ If `ANYCODE_MODEL_INSTRUCTIONS_FILE` is set **and** discovery finds a file, the 
 
 When this file exists in your project, the content will be automatically included in the system prompt for all agent interactions.
 
+## Skills registry & per-agent lists (v0.2)
+
+| Field | Meaning |
+|---|---|
+| `skills.registry_url` | Optional URL of a JSON manifest merged at startup. Format: `{"extra_scan_roots":["/absolute/path/to/skill-roots"]}`. Only **local** directories that exist are appended before `SkillCatalog::scan` (host your manifest next to synced skill trees). |
+| `skills.agent_allowlists` | Map of `agent_type` → skill ids. For those agents, the system prompt **Available skills** section lists only matching ids (others stay on disk but are not advertised). |
+| `skills.expose_on_explore_plan` | When true, explore/plan agents also see the **Skill** tool (unchanged). |
+
+Persist channel bot tokens (written under `~/.anycode/channels/`, not logged):
+
+```bash
+anycode channel telegram-set-token --token "$TELEGRAM_BOT_TOKEN" --chat-id "123456"
+anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "9876543210"
+```
+
 ## MCP deny rules
 
 - `security.mcp_tool_deny_rules`: deny by rule string
 - `security.mcp_tool_deny_patterns`: deny by regex before tool exposure
+
+Self-hosted MCP servers: run your server (stdio or HTTP per `ANYCODE_MCP_SERVERS`), register it via env or future config, and tighten exposure with the deny tables above. Explore/plan agents omit MCP merges unless you widen their tool surface in code/config.
 
 ## Locale (CLI UI)
 
@@ -169,7 +186,7 @@ Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 | Surface | Policy entry | Notes |
 |---|---|---|
 | TUI / `run` / `repl` | `security.require_approval` + `permission_mode` | Interactive prompts when stdin is a TTY; **`--ignore-approval`** applies to **this process only**. |
-| Channel bridges (WeChat / Telegram / Discord) | Same config file | Runtime uses **`WorkspaceAssistantAgent`** for **`RuntimeMode::Channel`** — read/search/workflow-first tools; coding tools are not the default set. |
+| Channel bridges (WeChat / Telegram / Discord) | Same config file | Runtime uses **`WorkspaceAssistantAgent`** for **`RuntimeMode::Channel`** — read/search/workflow-first tools; coding tools are not the default set. Tool calls do **not** use interactive approval UIs (aligned with headless bridges); `require_approval` is forced off for those processes. |
 | Goal loops | Same **`SecurityLayer`** as the parent runtime | Use **`GoalSpec.max_attempts_cap`** to bound retries even when **`allow_infinite_retries`** is true. |
 | Feature flags | `anycode enable approval-v2` | Maps to **`FeatureFlag::ApprovalV2`** (experimental tooling). |
 

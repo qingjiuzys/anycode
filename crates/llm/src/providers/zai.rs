@@ -24,9 +24,24 @@ pub(crate) fn retry_delay_ms(attempt: u32) -> u64 {
     std::cmp::min(CAP, BASE.saturating_mul(exp))
 }
 
-/// z.ai Coding 套餐默认 endpoint（与 `ZaiClient` 默认一致）
-pub const ZAI_DEFAULT_CODING_ENDPOINT: &str =
-    "https://api.z.ai/api/coding/paas/v4/chat/completions";
+/// OpenClaw `extensions/zai/model-definitions.ts`：国际 / 国内（智谱 bigmodel.cn）端点。
+pub const ZAI_GLOBAL_CODING_URL: &str = "https://api.z.ai/api/coding/paas/v4/chat/completions";
+pub const ZAI_GLOBAL_GENERAL_URL: &str = "https://api.z.ai/api/paas/v4/chat/completions";
+pub const ZAI_CN_CODING_URL: &str = "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions";
+pub const ZAI_CN_GENERAL_URL: &str = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+
+/// z.ai Coding 国际端点（与 `ZaiClient` 默认一致；历史别名）
+pub const ZAI_DEFAULT_CODING_ENDPOINT: &str = ZAI_GLOBAL_CODING_URL;
+
+/// `plan`：`coding` | `general` | `coding_cn` | `general_cn`（与 `config.json` / OpenClaw endpoint 键对齐）
+pub fn zai_default_chat_url_for_plan(plan: &str) -> &'static str {
+    match plan.trim() {
+        "coding_cn" => ZAI_CN_CODING_URL,
+        "general_cn" => ZAI_CN_GENERAL_URL,
+        "coding" => ZAI_GLOBAL_CODING_URL,
+        _ => ZAI_GLOBAL_GENERAL_URL,
+    }
+}
 
 const DEFAULT_API_TIMEOUT_MS: u64 = 600_000;
 const DEFAULT_MAX_RETRIES: u32 = 10;
@@ -40,44 +55,120 @@ pub struct ZaiModelCatalogEntry {
     pub wizard_line: &'static str,
 }
 
+/// 与 OpenClaw `extensions/zai/model-definitions.ts` 中 `ZAI_MODEL_CATALOG` 的 **model id** 对齐（展示名取自上游 `name`）。
 pub const ZAI_MODEL_CATALOG: &[ZaiModelCatalogEntry] = &[
     ZaiModelCatalogEntry {
+        api_name: "glm-5.1",
+        display_name: "GLM-5.1",
+        description: "OpenClaw z.ai catalog",
+        wizard_line: "GLM-5.1",
+    },
+    ZaiModelCatalogEntry {
         api_name: "glm-5",
-        display_name: "GLM-5 (Coding 默认)",
-        description: "z.ai Coding 套餐常用默认模型",
-        wizard_line: "GLM-5 - Coding 默认，通用编码与对话",
+        display_name: "GLM-5",
+        description: "Coding 常用默认",
+        wizard_line: "GLM-5 — 默认推荐（编码/对话）",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-5-turbo",
+        display_name: "GLM-5 Turbo",
+        description: "OpenClaw z.ai catalog",
+        wizard_line: "GLM-5 Turbo",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-5v-turbo",
+        display_name: "GLM-5V Turbo",
+        description: "多模态",
+        wizard_line: "GLM-5V Turbo（文本+图像）",
     },
     ZaiModelCatalogEntry {
         api_name: "glm-4.7",
         display_name: "GLM-4.7",
-        description: "较强通用能力，适合复杂任务",
-        wizard_line: "GLM-4.7 - 较强通用能力",
+        description: "强通用",
+        wizard_line: "GLM-4.7",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.7-flash",
+        display_name: "GLM-4.7 Flash",
+        description: "快速",
+        wizard_line: "GLM-4.7 Flash",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.7-flashx",
+        display_name: "GLM-4.7 FlashX",
+        description: "OpenClaw z.ai catalog",
+        wizard_line: "GLM-4.7 FlashX",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.6",
+        display_name: "GLM-4.6",
+        description: "OpenClaw z.ai catalog",
+        wizard_line: "GLM-4.6",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.6v",
+        display_name: "GLM-4.6V",
+        description: "多模态",
+        wizard_line: "GLM-4.6V",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.5",
+        display_name: "GLM-4.5",
+        description: "OpenClaw z.ai catalog",
+        wizard_line: "GLM-4.5",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.5-air",
+        display_name: "GLM-4.5 Air",
+        description: "轻量",
+        wizard_line: "GLM-4.5 Air",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.5-flash",
+        display_name: "GLM-4.5 Flash",
+        description: "快速",
+        wizard_line: "GLM-4.5 Flash",
+    },
+    ZaiModelCatalogEntry {
+        api_name: "glm-4.5v",
+        display_name: "GLM-4.5V",
+        description: "多模态",
+        wizard_line: "GLM-4.5V",
     },
     ZaiModelCatalogEntry {
         api_name: "glm-4",
-        display_name: "GLM-4 (最强大)",
-        description: "最强大的模型，适合复杂任务",
-        wizard_line: "GLM-4 - 最强大，128K 上下文，适合复杂任务",
+        display_name: "GLM-4",
+        description: "历史常用",
+        wizard_line: "GLM-4",
     },
     ZaiModelCatalogEntry {
         api_name: "glm-4-air",
-        display_name: "GLM-4-Air (轻量)",
-        description: "轻量级模型，性价比高",
-        wizard_line: "GLM-4-Air - 轻量级，性价比高",
+        display_name: "GLM-4-Air",
+        description: "轻量",
+        wizard_line: "GLM-4-Air",
     },
     ZaiModelCatalogEntry {
         api_name: "glm-4-flash",
-        display_name: "GLM-4-Flash (快速)",
-        description: "极速响应，适合简单任务",
-        wizard_line: "GLM-4-Flash - 极速响应，适合简单任务",
+        display_name: "GLM-4-Flash",
+        description: "快速",
+        wizard_line: "GLM-4-Flash",
     },
     ZaiModelCatalogEntry {
         api_name: "glm-3-turbo",
-        display_name: "GLM-3-Turbo (超快)",
-        description: "超快速度，成本最低",
-        wizard_line: "GLM-3-Turbo - 超快速度，成本最低",
+        display_name: "GLM-3-Turbo",
+        description: "低成本",
+        wizard_line: "GLM-3-Turbo",
     },
 ];
+
+/// 向导 / 完成提示用展示名
+pub fn zai_model_display_name(api_name: &str) -> &'static str {
+    ZAI_MODEL_CATALOG
+        .iter()
+        .find(|e| e.api_name == api_name)
+        .map(|e| e.display_name)
+        .unwrap_or("GLM")
+}
 
 /// 配置文件中可序列化的 z.ai 模型 id（与 OpenAPI `model` 字段一致）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1199,5 +1290,33 @@ mod tests {
             }
             _ => panic!("expected text"),
         }
+    }
+
+    #[test]
+    fn zai_default_chat_url_maps_plans_to_openclaw_endpoints() {
+        assert_eq!(
+            zai_default_chat_url_for_plan("coding_cn"),
+            ZAI_CN_CODING_URL
+        );
+        assert_eq!(
+            zai_default_chat_url_for_plan("general_cn"),
+            ZAI_CN_GENERAL_URL
+        );
+        assert_eq!(
+            zai_default_chat_url_for_plan("coding"),
+            ZAI_GLOBAL_CODING_URL
+        );
+        assert_eq!(
+            zai_default_chat_url_for_plan("general"),
+            ZAI_GLOBAL_GENERAL_URL
+        );
+        assert_eq!(
+            zai_default_chat_url_for_plan("unknown_plan"),
+            ZAI_GLOBAL_GENERAL_URL
+        );
+        assert_eq!(
+            zai_default_chat_url_for_plan("  coding_cn  "),
+            ZAI_CN_CODING_URL
+        );
     }
 }

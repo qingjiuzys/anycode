@@ -194,7 +194,24 @@ impl SkillCatalog {
 
     /// Markdown block for system prompt (no leading `#` title — inserted under agent loop section).
     pub fn render_prompt_subsection(&self) -> Option<String> {
-        if self.skills.is_empty() {
+        self.render_prompt_subsection_allowlist(None)
+    }
+
+    /// 若 `allow` 为 `Some`，仅列出 id 在该集合中的技能（用于按 agent 裁剪提示，避免全量目录灌入）。
+    pub fn render_prompt_subsection_allowlist(&self, allow: Option<&[String]>) -> Option<String> {
+        let allow_set: Option<std::collections::HashSet<&str>> = allow.map(|v| {
+            v.iter()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect()
+        });
+        let iter: Box<dyn Iterator<Item = &SkillMeta>> = if let Some(ref a) = allow_set {
+            Box::new(self.skills.iter().filter(|s| a.contains(s.id.as_str())))
+        } else {
+            Box::new(self.skills.iter())
+        };
+        let filtered: Vec<&SkillMeta> = iter.collect();
+        if filtered.is_empty() {
             return None;
         }
         let mut lines: Vec<String> = vec![
@@ -203,7 +220,7 @@ impl SkillCatalog {
             "These are loaded from your skill directories. To execute a skill that ships a `run` script, call the **Skill** tool with `{\"name\": \"<id>\", \"args\": [...]}`.".to_string(),
             String::new(),
         ];
-        for s in &self.skills {
+        for s in filtered {
             let run_hint = if s.has_run {
                 " — has `run`"
             } else {

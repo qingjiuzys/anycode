@@ -62,31 +62,47 @@ impl LLMClient for AnthropicClient {
             .as_deref()
             .filter(|s| !s.is_empty())
             .unwrap_or(self.api_key.as_str());
-        let response = self
-            .client
-            .post(&base_url)
-            .header("x-api-key", auth_key)
-            .header("anthropic-version", "2023-06-01")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| CoreError::LLMError(e.to_string()))?;
+        const MAX_RETRIES: u32 = 8;
+        let mut attempt: u32 = 0;
+        loop {
+            attempt += 1;
+            let response = self
+                .client
+                .post(&base_url)
+                .header("x-api-key", auth_key)
+                .header("anthropic-version", "2023-06-01")
+                .json(&request)
+                .send()
+                .await
+                .map_err(|e| CoreError::LLMError(e.to_string()))?;
 
-        let status = response.status();
-        if !status.is_success() {
+            let status = response.status();
+            if status.is_success() {
+                let anthropic_response: AnthropicResponse = response
+                    .json()
+                    .await
+                    .map_err(|e| CoreError::LLMError(e.to_string()))?;
+                return Ok(convert_response(anthropic_response));
+            }
+
+            let retry_after_ms = response
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(|s| s.saturating_mul(1000));
+
             let error_text = response.text().await.unwrap_or_default();
+            if attempt <= MAX_RETRIES && super::zai::is_retryable_status(status) {
+                let delay = retry_after_ms.unwrap_or_else(|| super::zai::retry_delay_ms(attempt));
+                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                continue;
+            }
             return Err(CoreError::LLMError(format!(
                 "API error: {} - {}",
                 status, error_text
             )));
         }
-
-        let anthropic_response: AnthropicResponse = response
-            .json()
-            .await
-            .map_err(|e| CoreError::LLMError(e.to_string()))?;
-
-        Ok(convert_response(anthropic_response))
     }
 
     async fn chat_stream(

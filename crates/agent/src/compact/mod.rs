@@ -254,6 +254,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn prompt_too_long_prefix_matches_claude_compact_contract() {
+        assert_eq!(PROMPT_TOO_LONG_PREFIX, "Prompt is too long");
+    }
+
+    #[test]
     fn format_strips_analysis_and_expands_summary() {
         let raw = r#"<analysis>
 x

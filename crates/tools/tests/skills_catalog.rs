@@ -78,3 +78,25 @@ fn truncate_skill_output_appends_marker() {
     assert!(t.len() < s.len());
     assert!(t.contains("truncated"));
 }
+
+#[test]
+fn render_prompt_allowlist_only_lists_matching_ids() {
+    let low = fixture_root("low");
+    let high = fixture_root("high");
+    let cat = SkillCatalog::scan(&[low, high], None, 60_000, false);
+    let s = cat
+        .render_prompt_subsection_allowlist(Some(&["foo".to_string()]))
+        .expect("foo in catalog");
+    assert!(s.contains("**foo**"));
+    assert!(!s.contains("**baz**"));
+}
+
+#[test]
+fn render_prompt_allowlist_empty_ids_yield_none() {
+    let low = fixture_root("low");
+    let cat = SkillCatalog::scan(&[low], None, 60_000, false);
+    assert!(
+        cat.render_prompt_subsection_allowlist(Some(&[String::new(), "  ".to_string()]))
+            .is_none()
+    );
+}

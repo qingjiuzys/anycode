@@ -2,6 +2,7 @@
 
 mod llm_session;
 mod mcp_env;
+mod skills_registry;
 
 use crate::app_config::{default_base_url_for, Config};
 use crate::i18n::tr_args;
@@ -277,8 +278,14 @@ pub(crate) async fn initialize_runtime(
         None
     };
 
+    let mut merged_extra = config.skills.extra_dirs.clone();
+    if let Some(ref ru) = config.skills.registry_url {
+        let more = skills_registry::fetch_extra_skill_roots(ru).await;
+        merged_extra.extend(more);
+    }
+
     let skill_catalog: Arc<SkillCatalog> = Arc::new(if config.skills.enabled {
-        let roots = default_skill_roots(&config.skills.extra_dirs, dirs::home_dir().as_deref());
+        let roots = default_skill_roots(&merged_extra, dirs::home_dir().as_deref());
         SkillCatalog::scan(
             &roots,
             config.skills.allowlist.as_deref(),
@@ -454,6 +461,18 @@ pub(crate) async fn initialize_runtime(
     if config.skills.enabled {
         if let Some(section) = skill_catalog.render_prompt_subsection() {
             prompt_runtime.skills_section = Some(section);
+        }
+        for (agent, ids) in &config.skills.agent_allowlists {
+            if ids.is_empty() {
+                continue;
+            }
+            if let Some(section) =
+                skill_catalog.render_prompt_subsection_allowlist(Some(ids.as_slice()))
+            {
+                prompt_runtime
+                    .skills_section_by_agent
+                    .insert(agent.clone(), section);
+            }
         }
     }
     let ws_extra = match (

@@ -83,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set tracing subscriber");
 
     if !interactive_quiet || args.debug {
-        info!("anyCode v0.1.0 starting...");
+        info!("anyCode v0.2.0 starting...");
         info!("anyCode CLI ready");
     }
 
@@ -166,6 +166,14 @@ async fn main() -> anyhow::Result<()> {
                     },
                 )
                 .await?;
+            }
+            ChannelCommands::TelegramSetToken { token, chat_id } => {
+                tg::persist_credentials(token, chat_id)?;
+                println!("Telegram credentials saved (~/.anycode/channels/telegram.json).");
+            }
+            ChannelCommands::DiscordSetToken { token, channel_id } => {
+                discord_channel::persist_credentials(token, channel_id)?;
+                println!("Discord credentials saved (~/.anycode/channels/discord.json).");
             }
         },
         Some(Commands::Workspace { sub }) => match sub {
