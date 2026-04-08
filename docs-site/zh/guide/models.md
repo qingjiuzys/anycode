@@ -16,7 +16,8 @@ read_when:
 ## 与 OpenClaw 对齐
 
 - **厂商目录**：与 [OpenClaw Provider Directory](https://docs.molt.bot/providers) 对齐的静态表在源码 [`crates/llm/src/provider_catalog.rs`](../../../crates/llm/src/provider_catalog.rs) 的 **`PROVIDER_CATALOG`**；上游 canonical 以 [openclaw/openclaw](https://github.com/openclaw/openclaw) 为准。
-- **模型引用**：OpenClaw 常用 `provider/model`（如 `anthropic/claude-opus-4-6`）；anyCode 在 `config.json` 里拆成 **`provider`** + **`model`** 两字段，语义相同。
+- **模型引用**：OpenClaw 常用 `provider/model`（如 `anthropic/claude-opus-4-6`）；anyCode 在 `config.json` 里拆成 **`provider`** + **`model`** 两字段，语义相同。也可仅在 **`model`** 中写限定名（含 **`/`**），与全局 **`provider`** 分开校验。解析逻辑见 **`anycode_llm`**（`build_qualified_chat_model_value`、`resolve_chat_model_ref`，对齐 OpenClaw `chat-model-ref.ts`）。
+- **`anycode status`**：输出 **`primary_chat_ref`**、**`model_routes`** 与各 **`RuntimeMode`** 下解析到的 **`provider / model`**，便于核对自动路由。
 - **命名**：配置文件里 `provider` 为 **snake_case**（如 `cloudflare_ai_gateway`）。OpenClaw 文档里的 **kebab-case** 会自动规范化（如 `cloudflare-ai-gateway` → `cloudflare_ai_gateway`）。
 - **别名示例**：`claude` → `anthropic`；`zai` / `bigmodel` → `z.ai`；`kimi` → `moonshot`；`github-copilot` → `copilot`；`amazon-bedrock` → `bedrock`；`glm` → `z.ai`。
 - **AWS Bedrock**：`provider` 设为 `amazon_bedrock`（别名 `bedrock`），填写区域下可用模型 id，凭证走 AWS 链（如 `AWS_PROFILE`、实例角色）。运行时使用 **Bedrock Converse**（含流式）。
@@ -32,7 +33,7 @@ read_when:
 - `base_url`：可选。为空时 z.ai 会按 `plan` 使用默认端点；Anthropic 默认为官方 Messages API，也可覆盖
 - `model`：例如 z.ai 的 `glm-5`；其它厂商填对应 API 的模型 id（见厂商文档）
 - `api_key`：对应厂商的密钥
-- `session`（可选）：TUI 会话。`auto_compact`（默认 `true`）：在发送下一条用户消息前，若上一轮 agent turn 上报的 **input tokens** 超过阈值，则先自动执行与 `/compact` 相同的压缩。`context_window_auto`（默认 `true`）：根据 **`provider` + `model`** 自动推断上下文窗口（见 `anycode_llm::resolve_context_window_tokens`，如 Claude 约 200k、GLM/z.ai 约 128k、Gemini 约 1M）。若需固定窗口，设 `context_window_auto: false` 并填写 `context_window_tokens`。另可用 `auto_compact_ratio`（默认 `0.88`）或 `auto_compact_min_input_tokens`（绝对阈值，优先于比例）。`auto_compact: false` 可关闭自动压缩。
+- `session`（可选）：TUI 会话。`auto_compact`（默认 `true`）：在发送下一条用户消息前，若上一轮 agent turn 上报的 **input tokens** 超过阈值，则先自动执行与 `/compact` 相同的压缩。`context_window_auto`（默认 `true`）：根据 **`provider` + `model`** 自动推断上下文窗口（见 `anycode_llm::resolve_context_window_tokens`，如 Claude 约 200k、GLM/z.ai 约 128k、Gemini 约 1M）。若需固定窗口，设 `context_window_auto: false` 并填写 `context_window_tokens`。另可用 `auto_compact_ratio`（默认 `0.88`）或 `auto_compact_min_input_tokens`（绝对阈值，优先于比例）。`auto_compact: false` 可关闭自动压缩。**`anycode enable context-compression`** 会将 **`context-compression`** 记入 **`runtime.features`**（见 [版本与特性开关](./releases)）；具体阈值仍主要由上文 **`session.auto_compact_*`** 控制。
 
 详见 README 中的路由（`routing.agents`）与安全（`security`）字段说明。
 

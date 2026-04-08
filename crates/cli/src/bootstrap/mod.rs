@@ -116,6 +116,67 @@ fn build_memory_store(
     }
 }
 
+/// Default LLM config + per-agent overrides (before summary/workspace-assistant/goal fill-ins).
+pub(crate) fn build_model_routing_parts(
+    config: &Config,
+) -> (ModelConfig, HashMap<AgentType, ModelConfig>) {
+    let g_norm = normalize_provider_id(&config.llm.provider);
+    let default_base_url = if g_norm == "z.ai" {
+        config
+            .llm
+            .base_url
+            .clone()
+            .or_else(|| Some(default_base_url_for(config.llm.plan.as_str()).to_string()))
+    } else {
+        config.llm.base_url.clone()
+    };
+
+    let default_model_config = ModelConfig {
+        provider: LLMProvider::Custom(config.llm.provider.clone()),
+        model: config.llm.model.clone(),
+        base_url: default_base_url.clone(),
+        temperature: Some(config.llm.temperature),
+        max_tokens: Some(config.llm.max_tokens),
+        api_key: None,
+    };
+
+    let mut model_overrides: HashMap<AgentType, ModelConfig> = HashMap::new();
+    for (agent_type, profile) in config.routing.agents.iter() {
+        let eff_p = effective_provider(&config.llm.provider, Some(profile));
+        let resolved_model = profile
+            .model
+            .clone()
+            .unwrap_or_else(|| config.llm.model.clone());
+        let resolved_temperature = profile.temperature.or(Some(config.llm.temperature));
+        let resolved_max_tokens = profile.max_tokens.or(Some(config.llm.max_tokens));
+        let resolved_base_url = resolve_agent_base_url(config, profile, &default_base_url);
+        let api_key = resolve_profile_api_key(config, profile, &eff_p);
+        model_overrides.insert(
+            AgentType::new(agent_type.clone()),
+            ModelConfig {
+                provider: LLMProvider::Custom(eff_p),
+                model: resolved_model,
+                base_url: resolved_base_url,
+                temperature: resolved_temperature,
+                max_tokens: resolved_max_tokens,
+                api_key,
+            },
+        );
+    }
+
+    (default_model_config, model_overrides)
+}
+
+/// Same routing snapshot as runtime (before optional agent fill-ins). For `status` / diagnostics.
+pub(crate) fn build_preview_model_router(config: &Config) -> ModelRouter {
+    let (default_model_config, model_overrides) = build_model_routing_parts(config);
+    ModelRouter::new(
+        default_model_config,
+        model_overrides,
+        config.runtime.model_routes.clone(),
+    )
+}
+
 /// Shared by the WeChat bridge, TUI, and daemon.
 pub(crate) async fn initialize_runtime(
     config: &Config,
@@ -344,50 +405,7 @@ pub(crate) async fn initialize_runtime(
         }
     }
 
-    let g_norm = normalize_provider_id(&config.llm.provider);
-    let default_base_url = if g_norm == "z.ai" {
-        config
-            .llm
-            .base_url
-            .clone()
-            .or_else(|| Some(default_base_url_for(config.llm.plan.as_str()).to_string()))
-    } else {
-        config.llm.base_url.clone()
-    };
-
-    let default_model_config = ModelConfig {
-        provider: LLMProvider::Custom(config.llm.provider.clone()),
-        model: config.llm.model.clone(),
-        base_url: default_base_url.clone(),
-        temperature: Some(config.llm.temperature),
-        max_tokens: Some(config.llm.max_tokens),
-        api_key: None,
-    };
-
-    let mut model_overrides: HashMap<AgentType, ModelConfig> = HashMap::new();
-    for (agent_type, profile) in config.routing.agents.iter() {
-        let eff_p = effective_provider(&config.llm.provider, Some(profile));
-        let resolved_model = profile
-            .model
-            .clone()
-            .unwrap_or_else(|| config.llm.model.clone());
-        let resolved_temperature = profile.temperature.or(Some(config.llm.temperature));
-        let resolved_max_tokens = profile.max_tokens.or(Some(config.llm.max_tokens));
-        let resolved_base_url = resolve_agent_base_url(config, profile, &default_base_url);
-        let api_key = resolve_profile_api_key(config, profile, &eff_p);
-        model_overrides.insert(
-            AgentType::new(agent_type.clone()),
-            ModelConfig {
-                provider: LLMProvider::Custom(eff_p),
-                model: resolved_model,
-                base_url: resolved_base_url,
-                temperature: resolved_temperature,
-                max_tokens: resolved_max_tokens,
-                api_key,
-            },
-        );
-    }
-
+    let (default_model_config, mut model_overrides) = build_model_routing_parts(config);
     let router = ModelRouter::new(
         default_model_config.clone(),
         model_overrides.clone(),
@@ -439,7 +457,7 @@ pub(crate) async fn initialize_runtime(
             .to_string(),
     );
     prompt_runtime.goal_section = Some(
-        "## Goal Mode\nFor goal-oriented tasks, keep iterating until completion criteria are met, but stop and surface hard blockers such as missing approvals, missing credentials, or impossible environment requirements."
+        "## Goal Mode\nFor goal-oriented tasks, keep iterating until completion criteria are met, but stop and surface hard blockers such as missing approvals, missing credentials, or impossible environment requirements.\nWhen `done_when` is set on the goal spec, treat assistant output as complete only if it contains that substring (case-sensitive). Use `GoalSpec.max_attempts_cap` in API/CLI integrations to bound attempts even when infinite retries are enabled."
             .to_string(),
     );
     prompt_runtime.prompt_fragments.push(format!(

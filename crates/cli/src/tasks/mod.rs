@@ -40,6 +40,8 @@ pub(crate) fn run_skills_command(config: &Config, sub: SkillsCommands) -> anyhow
     match sub {
         SkillsCommands::List => {
             let cat = build_skill_catalog_for_cli(config);
+            let n = cat.metas().len();
+            println!("skills.enabled: {}  ({} found)", config.skills.enabled, n);
             if cat.is_empty() {
                 if !config.skills.enabled {
                     println!("(no skills: skills.enabled is false — only project `<cwd>/skills` / `.anycode/skills` resolve at run time; enable scanning in config to list them here)");

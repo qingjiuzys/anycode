@@ -34,6 +34,10 @@ anycode config
 | `model` 子命令 | [模型子命令](./cli-model) |
 | `list-agents` / `list-tools` / `test-security` | [发现与 test-security](./cli-diagnostics) |
 | `setup` / `wechat` | [微信与 setup](./wechat) |
+| `enable` / `disable` / `status` / `mode` | 特性开关与路由快照（[版本与特性开关](./releases#runtime-feature-flags)） |
+| `workspace` | 项目登记与目录级默认（[路由](./routing)） |
+
+运行时特性名见 `anycode_core::FeatureFlag`（`skills`、`workflows`、`goal-mode` 等）。
 
 ## 从源码构建
 

@@ -1464,4 +1464,10 @@ mod serde_config_tests {
     fn session_model_openrouter_allows_non_empty_id() {
         validate_session_model_override("openrouter", "anthropic/claude-3.5-sonnet").unwrap();
     }
+
+    #[test]
+    fn session_model_qualified_zai_suffix_must_be_catalog() {
+        validate_session_model_override("openrouter", "z.ai/glm-5").unwrap();
+        assert!(validate_session_model_override("openrouter", "z.ai/not-in-catalog").is_err());
+    }
 }

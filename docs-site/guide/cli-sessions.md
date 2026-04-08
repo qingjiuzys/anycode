@@ -74,6 +74,11 @@ Bottom input:
 - **`/help`**, **`/agents`**, **`/tools`**, **`/exit`**
 - Normal lines start an agentic turn with shared **messages** history.
 
+### Slash commands: host vs prompt text
+
+- **Host-executed**: In TUI / REPL, a **first line** starting with **`/`** is handled by the CLI (completion, `/compact`, `/mode`, etc.) before the model sees the message.
+- **Prompt templates**: If you put **`/foo`** inside **`system_prompt_override`**, **`system_prompt_append`**, or skill text, it is **not** automatically executed—it is plain text unless you build a custom pipeline. The default system prompt reminds the model of this distinction.
+
 **Note:** Default TUI uses **current cwd** and agent **`general-purpose`**; **`repl`** / **`run`** accept **`-C`** and **`--agent`**.
 
 ### Markdown and links in TUI

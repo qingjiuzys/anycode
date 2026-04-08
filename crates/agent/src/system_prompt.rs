@@ -39,7 +39,7 @@ pub(crate) fn default_stack_sections(
         "# Tone\n\nBe concise. Prefer `file:line` for code references. Avoid emoji unless asked. Finish with plain language, not a promise to call a tool later.".to_string(),
         env_section(cwd),
         format!(
-            "# Agent loop\n\nYou run in an agentic loop: the host executes tools and appends results as separate messages. When the user needs shell, file I/O, or repo search, emit the tool call **in this turn**. Do not ask the user to run commands you can run via Bash. On OpenAI-style tool gateways (e.g. GLM), when the task clearly needs tools, **the first assistant turn should contain tool_calls**—avoid long text-only preambles that defer execution.\n\n## Tools exposed to this agent\n\n{}",
+            "# Agent loop\n\nYou run in an agentic loop: the host executes tools and appends results as separate messages. When the user needs shell, file I/O, or repo search, emit the tool call **in this turn**. Do not ask the user to run commands you can run via Bash. On OpenAI-style tool gateways (e.g. GLM), when the task clearly needs tools, **the first assistant turn should contain tool_calls**—avoid long text-only preambles that defer execution.\n\nLines the user types that start with **`/`** in the TUI or REPL first line are **host slash commands** (not model API). Text inside this system message or other prompt templates that looks like `/foo` is **plain text** unless the product docs say otherwise.\n\n## Tools exposed to this agent\n\n{}",
             agent.tools().join(", ")
         ),
     ];

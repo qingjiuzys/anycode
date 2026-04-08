@@ -8,6 +8,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod copilot_token;
+mod chat_model_ref;
 mod model_catalog;
 mod model_context;
 mod model_router;
@@ -18,6 +19,10 @@ mod providers;
 pub use copilot_token::{
     anycode_credentials_dir, copilot_token_cache_path, github_oauth_token_path,
     read_github_oauth_access_token, resolve_copilot_api_token,
+};
+pub use chat_model_ref::{
+    build_qualified_chat_model_value, resolve_chat_model_ref, zai_model_catalog_entries,
+    ChatModelResolution, ChatModelResolutionReason, ChatModelResolutionSource, ModelCatalogEntry,
 };
 pub use model_catalog::{
     clone_with_model, is_known_model_alias, known_model_aliases, ModelAliasDescriptor,

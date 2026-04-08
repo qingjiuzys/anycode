@@ -80,6 +80,11 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 
 底部输入：**`/help`**、**`/agents`**、**`/tools`**、**`/exit`**；普通回车为一轮对话，共享 **messages** 历史。
 
+### 斜杠命令：宿主 vs 提示词正文
+
+- **宿主执行**：TUI / REPL 下输入**首行**以 **`/`** 开头时由 CLI 处理（补全、`/compact`、`/mode` 等）。
+- **提示词模板**：写在 **`system_prompt_override` / `system_prompt_append`** 或 skill 中的 **`/foo`** 仅为文本，不会自动执行；默认 system 中会说明该边界。
+
 **注意：** 无子命令 TUI 使用**当前目录**与 **`general-purpose`**；需要其它 agent 或目录请用 **`repl`** / **`run`**。
 
 ### TUI 内 Markdown 与链接

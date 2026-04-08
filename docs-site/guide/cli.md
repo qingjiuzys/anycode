@@ -34,6 +34,10 @@ See [Config & security](./config-security) for **`security.*`**, memory fields, 
 | **`model`*** subcommands | [Model commands](./cli-model) |
 | **`list-agents`**, **`list-tools`**, **`test-security`** | [Discovery & test-security](./cli-diagnostics) |
 | **`setup`**, **`wechat`** | [WeChat & setup](./wechat) |
+| **`enable` / `disable` / `status` / `mode`** | Feature flags & routing snapshot (see [Feature flags](./releases#runtime-feature-flags)) |
+| **`workspace`** | Project registry & per-directory defaults (see [Routing](./routing)) |
+
+Runtime feature names are defined in **`anycode_core::FeatureFlag`** (`skills`, `workflows`, `goal-mode`, `channel-mode`, `approval-v2`, `context-compression`, `workspace-profiles`).
 
 ## Build from source
 

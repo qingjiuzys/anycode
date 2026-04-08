@@ -37,5 +37,17 @@ anyCode 允许按 `agent_type` 覆盖模型与端点，从而实现：
 2. summary 阶段：`routing.agents.summary` → `routing.agents.plan` → default
 3. 全局 `model/plan/base_url`
 
+## 工作区覆盖与全局默认
+
+CLI 可能根据当前目录应用 **`workspace::apply_project_overlays`**：匹配 **`~/.anycode/workspace/projects/index.json`** 时，内存中的 **`default_mode` / label / channel_profile`** 来自项目登记（不写回 **`config.json`**）。**`provider` / `model` / routing** 仍以全局配置为准。
+
+## `runtime.model_routes`
+
+**`mode_aliases`** 键为运行模式（`general`、`plan`、`code`、`explore`、`channel`、`goal`）。与内置路由器一致的文档化默认值：**`ModelRouteProfile::documented_mode_alias_defaults()`**。
+
+## YAML 工作流示例
+
+仓库内 **[workflow.example.yml](https://github.com/qingjiuzys/anycode/blob/main/examples/workflow.example.yml)**。
+
 English: [Routing](/guide/routing).
 

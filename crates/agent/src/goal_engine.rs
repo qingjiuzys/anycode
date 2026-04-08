@@ -16,6 +16,11 @@ impl GoalEngine {
         if progress.completed {
             return false;
         }
+        if let Some(cap) = self.spec.max_attempts_cap {
+            if progress.attempts >= cap {
+                return false;
+            }
+        }
         self.spec.allow_infinite_retries || progress.attempts < 3
     }
 

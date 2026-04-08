@@ -166,6 +166,7 @@ pub(crate) async fn run_goal_task_with_tail(
                 objective: goal,
                 done_when: None,
                 allow_infinite_retries: true,
+                max_attempts_cap: None,
             },
         )
         .await?;

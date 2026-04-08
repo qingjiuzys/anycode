@@ -49,7 +49,7 @@ Expected output: one task run skips approval prompts in current process only.
 | Field | Default | What it controls |
 |---|---|---|
 | `require_approval` | `true` | Ask before sensitive tools run |
-| `permission_mode` | `"default"` | Shortcut mode (`default` / `auto` / `plan` / `bypass`) |
+| `permission_mode` | `"default"` | Shortcut mode (`default` / `auto` / `plan` / `accept_edits` / `bypass`) |
 | `sandbox_mode` | `false` | Path/cwd constraints |
 | `mcp_tool_deny_rules` | `[]` | Deny MCP tool calls by rule |
 | `always_allow_rules` | `[]` | Always allow matching rules |
@@ -103,6 +103,15 @@ Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 | `ANYCODE_ZAI_TOOL_CHOICE` | `required` / `auto` for debugging |
 | `ANYCODE_MCP_COMMAND`, `ANYCODE_MCP_SERVERS` | MCP integration |
 | `ANYCODE_DAEMON_TOKEN` | Daemon bearer token |
+
+## Approval matrix (quick reference)
+
+| Surface | Policy entry | Notes |
+|---|---|---|
+| TUI / `run` / `repl` | `security.require_approval` + `permission_mode` | Interactive prompts when stdin is a TTY; **`--ignore-approval`** applies to **this process only**. |
+| Channel bridges (WeChat / Telegram / Discord) | Same config file | Runtime uses **`WorkspaceAssistantAgent`** for **`RuntimeMode::Channel`** — read/search/workflow-first tools; coding tools are not the default set. |
+| Goal loops | Same **`SecurityLayer`** as the parent runtime | Use **`GoalSpec.max_attempts_cap`** to bound retries even when **`allow_infinite_retries`** is true. |
+| Feature flags | `anycode enable approval-v2` | Maps to **`FeatureFlag::ApprovalV2`** (experimental tooling). |
 
 ## Next
 

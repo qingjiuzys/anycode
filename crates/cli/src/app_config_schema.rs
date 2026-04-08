@@ -5,7 +5,8 @@ use crate::i18n::{tr, tr_args};
 use anycode_agent::{CompactPolicy, RuntimePromptConfig};
 use anycode_core::{FeatureFlag, FeatureRegistry, ModelRouteProfile, RuntimeMode};
 use anycode_llm::{
-    is_known_provider_id, normalize_provider_id, resolve_context_window_tokens, ZAI_MODEL_CATALOG,
+    is_known_provider_id, normalize_provider_id, resolve_chat_model_ref, resolve_context_window_tokens,
+    zai_model_catalog_entries, ChatModelResolutionReason, ZAI_MODEL_CATALOG,
 };
 use anyhow::Context;
 use fluent_bundle::FluentArgs;
@@ -482,14 +483,51 @@ pub(crate) fn validate_llm_provider(s: &str) -> anyhow::Result<()> {
     anyhow::bail!("{}", tr_args("err-provider", &a));
 }
 
+fn validate_qualified_model_ref(qualified: &str) -> anyhow::Result<()> {
+    let (prov, mid) = qualified.split_once('/').ok_or_else(|| {
+        anyhow::anyhow!("internal: qualified model ref expected to contain '/'")
+    })?;
+    let mid = mid.trim();
+    if mid.is_empty() {
+        anyhow::bail!("{}", tr("err-model-required"));
+    }
+    let n = normalize_provider_id(prov);
+    if !is_known_provider_id(&n) {
+        let mut a = FluentArgs::new();
+        a.set("p", prov);
+        anyhow::bail!("{}", tr_args("err-provider", &a));
+    }
+    if is_zai_family_provider(&n) && !is_known_zai_model(mid) {
+        let list = ZAI_MODEL_CATALOG
+            .iter()
+            .map(|e| e.api_name)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mut a = FluentArgs::new();
+        a.set("id", mid);
+        a.set("list", list);
+        anyhow::bail!("{}", tr_args("err-unknown-zai-model", &a));
+    }
+    Ok(())
+}
+
 /// `repl --model` 等仅本会话的模型覆盖：与 `model set` 的 z.ai 目录校验一致；Anthropic 允许任意非空 id；
 /// 其它厂商须为已知 provider，model 为非空字符串。
+/// OpenClaw 风格：若 `model` 含 `/`，按 `provider/model` 解析（与全局 `provider` 字段独立）。
 pub(crate) fn validate_session_model_override(provider: &str, model: &str) -> anyhow::Result<()> {
     let m = model.trim();
     if m.is_empty() {
         anyhow::bail!("{}", tr("err-model-required"));
     }
+    if m.contains('/') {
+        return validate_qualified_model_ref(m);
+    }
     if is_zai_family_provider(provider) {
+        let cat = zai_model_catalog_entries();
+        let r = resolve_chat_model_ref(m, Some(provider), &cat);
+        if r.reason == Some(ChatModelResolutionReason::Ambiguous) {
+            anyhow::bail!("ambiguous model id {:?}: matches multiple catalog entries", m);
+        }
         if !is_known_zai_model(m) {
             let list = ZAI_MODEL_CATALOG
                 .iter()

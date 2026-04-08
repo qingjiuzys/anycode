@@ -49,7 +49,7 @@ anycode run --ignore-approval --agent general-purpose "..."
 | 字段 | 默认 | 作用 |
 |------|------|------|
 | `require_approval` | `true` | 是否在敏感工具执行前确认 |
-| `permission_mode` | `"default"` | 快捷模式（`default` / `auto` / `plan` / `bypass`） |
+| `permission_mode` | `"default"` | 快捷模式（`default` / `auto` / `plan` / `accept_edits` / `bypass`） |
 | `sandbox_mode` | `false` | 路径和工作目录限制 |
 | `mcp_tool_deny_rules` | `[]` | 按规则拒绝 MCP 工具调用 |
 | `always_allow_rules` | `[]` | 匹配后始终放行 |
@@ -103,6 +103,15 @@ export ANYCODE_LANG=en
 | `ANYCODE_ZAI_TOOL_CHOICE` | 每轮 `required` / `auto`（调试用） |
 | `ANYCODE_MCP_COMMAND` / `ANYCODE_MCP_SERVERS` | MCP（需 `tools-mcp`） |
 | `ANYCODE_DAEMON_TOKEN` | 守护进程 POST 鉴权 |
+
+## 审批与通道（速查）
+
+| 场景 | 配置入口 | 说明 |
+|---|---|---|
+| TUI / `run` / `repl` | `security.require_approval`、`permission_mode` | TTY 下交互审批；**`--ignore-approval`** 仅当前进程。 |
+| 微信 / Telegram / Discord | 同一 `config.json` | **`RuntimeMode::Channel`** 默认 **`WorkspaceAssistantAgent`**（偏读/查/工作流，非完整编码工具集）。 |
+| 目标循环 | 同一 **`SecurityLayer`** | **`GoalSpec.max_attempts_cap`** 可在 **`allow_infinite_retries: true`** 时仍限制轮数。 |
+| 实验 | `anycode enable approval-v2` | 对应 **`FeatureFlag::ApprovalV2`**。 |
 
 ## 下一步
 

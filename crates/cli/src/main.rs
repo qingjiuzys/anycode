@@ -23,9 +23,7 @@ mod wechat_service;
 mod workspace;
 mod wx;
 
-use anycode_tools::iter_cli_tool_help;
 use app_config::{load_config_for_session, run_onboard_flow};
-use builtin_agents::BUILTIN_AGENT_IDS;
 #[cfg(feature = "mcp-oauth")]
 use cli_args::McpCommands;
 use cli_args::{ChannelCommands, Commands};
@@ -110,46 +108,7 @@ async fn main() -> anyhow::Result<()> {
                 let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
                 workspace::apply_project_overlays(&mut config, &wd);
             }
-            if json {
-                println!(
-                    "{}",
-                    serde_json::json!({
-                        "provider": config.llm.provider,
-                        "model": config.llm.model,
-                        "default_mode": config.runtime.default_mode.as_str(),
-                        "features": config.runtime.features.enabled(),
-                        "routing_agents": config.routing.agents.keys().collect::<Vec<_>>(),
-                        "agents": BUILTIN_AGENT_IDS,
-                        "tools": iter_cli_tool_help().map(|(n, _)| n).collect::<Vec<_>>(),
-                        "workspace_label": config.runtime.workspace_project_label,
-                        "workspace_channel_profile": config.runtime.workspace_channel_profile,
-                    })
-                );
-            } else {
-                println!("provider: {}", config.llm.provider);
-                println!("model: {}", config.llm.model);
-                println!("default_mode: {}", config.runtime.default_mode.as_str());
-                if let Some(ref l) = config.runtime.workspace_project_label {
-                    println!("workspace_label: {}", l);
-                }
-                if let Some(ref c) = config.runtime.workspace_channel_profile {
-                    println!("workspace_channel_profile: {}", c);
-                }
-                println!("features: {}", config.runtime.features.enabled().join(", "));
-                println!("{}", workspace::current_workspace_status(5));
-                println!(
-                    "slash_commands: {}",
-                    slash_commands::help_lines().join(" | ")
-                );
-                println!("agents: {}", BUILTIN_AGENT_IDS.join(", "));
-                println!(
-                    "tools: {}",
-                    iter_cli_tool_help()
-                        .map(|(name, _)| name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-            }
+            commands::status::print_status(&config, json)?;
         }
         Some(Commands::Setup { channel, data_dir }) => {
             run_onboard_flow(args.config.clone(), data_dir, channel, args.debug).await?;

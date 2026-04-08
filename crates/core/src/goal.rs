@@ -9,6 +9,9 @@ pub struct GoalSpec {
     pub done_when: Option<String>,
     #[serde(default)]
     pub allow_infinite_retries: bool,
+    /// When set, stop after this many attempts even if `allow_infinite_retries` is true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attempts_cap: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

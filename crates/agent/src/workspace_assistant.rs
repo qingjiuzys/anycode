@@ -1,4 +1,10 @@
 //! Workspace-first assistant profile for channel mode.
+//!
+//! **Channel separation:** [`WorkspaceAssistantAgent`] uses
+//! [`anycode_tools::workspace_assistant_tool_names`]. [`GoalAgent`] still exposes
+//! [`anycode_tools::general_purpose_tool_names`] so long-running goal loops can mutate the tree;
+//! keep Telegram/Discord/WeChat entrypoints on **`RuntimeMode::Channel`** + workspace assistant unless
+//! you intentionally spawn a coding agent.
 
 use anycode_core::prelude::*;
 use anycode_tools::workspace_assistant_tool_names;

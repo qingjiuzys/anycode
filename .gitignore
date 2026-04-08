@@ -1,6 +1,7 @@
 target/
 docs-site/node_modules/
 docs-site/.vitepress/dist/
+docs-site/.vitepress/cache/
 Cargo.lock
 **/*.rs.bk
 *.pdb

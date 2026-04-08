@@ -1,0 +1,15 @@
+# Copy to workflow.yml or .anycode/workflow.yaml in your project root.
+name: example-workflow
+retry:
+  max_attempts: 2
+  backoff_ms: 500
+done_when: "objective satisfied"
+steps:
+  - id: plan
+    prompt: "Outline the smallest change set for the user request."
+    when: null
+    mode: plan
+  - id: implement
+    prompt: "Implement step 1; keep edits minimal."
+    when: "contains:plan"
+    mode: code

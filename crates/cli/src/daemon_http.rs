@@ -306,6 +306,7 @@ async fn handle_post_task(req: Request<Body>, state: Arc<DaemonState>) -> Respon
         objective: goal.clone(),
         done_when: None,
         allow_infinite_retries: true,
+        max_attempts_cap: None,
     });
 
     let task = Task {

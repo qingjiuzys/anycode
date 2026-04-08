@@ -944,4 +944,21 @@ mod tests {
         assert_eq!(saved[0].title, "title line");
         assert_eq!(saved[0].content, "final answer");
     }
+
+    #[test]
+    fn goal_engine_max_attempts_cap_stops_even_when_infinite_retries() {
+        use crate::GoalEngine;
+        use anycode_core::{GoalProgress, GoalSpec};
+        let engine = GoalEngine::new(GoalSpec {
+            objective: "test".into(),
+            done_when: None,
+            allow_infinite_retries: true,
+            max_attempts_cap: Some(2),
+        });
+        let mut p = GoalProgress::default();
+        p.attempts = 2;
+        assert!(!engine.should_continue(&p));
+        p.attempts = 1;
+        assert!(engine.should_continue(&p));
+    }
 }
