@@ -54,6 +54,8 @@ mod tests {
 
     #[test]
     fn catalog_has_expected_entries() {
-        assert!(GOOGLE_MODEL_CATALOG.iter().any(|e| e.id == "gemini-2.5-pro"));
+        assert!(GOOGLE_MODEL_CATALOG
+            .iter()
+            .any(|e| e.id == "gemini-2.5-pro"));
     }
 }

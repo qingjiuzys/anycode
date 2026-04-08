@@ -9,3 +9,9 @@ alwaysApply: true
 2. **自检**：每次完成实质性改动后，**简要反思**实现是否合理、边界是否覆盖、是否与现有约定一致；发现疑点主动说明。
 3. **测试**：完成改动后运行**相关功能/单元测试**（或等价验证），确认无回归；CLI/TUI 在可行时做手动场景说明。
 4. **打包**：在代码与测试就绪后执行**发布构建**（例如 `cargo build --release -p …` / 项目约定的 package 命令），确保能通过编译与链接。
+5. **提交前对齐 CI（必做）**：每次 `git commit` / `push` 前，在本地跑与 `.github/workflows/ci.yml` 一致的检查，避免仅在本机能过、远端失败。Rust 工作流等价于：
+   - `cargo fmt --all -- --check`
+   - `cargo clippy --workspace --all-targets`
+   - `cargo test --workspace`
+   若改动了 `docs-site/`，再执行 `cd docs-site && npm ci && npm run build`（与 CI `docs` job 一致）。
+   **备忘**：曾出现仅链式调用/断言换行不符合 `rustfmt` 默认风格导致 `cargo fmt --check` 失败（例如 `google_catalog` 测试、`skills_catalog` 集成测试）；提交前务必先跑 fmt check。

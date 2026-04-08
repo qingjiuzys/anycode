@@ -95,8 +95,7 @@ fn render_prompt_allowlist_only_lists_matching_ids() {
 fn render_prompt_allowlist_empty_ids_yield_none() {
     let low = fixture_root("low");
     let cat = SkillCatalog::scan(&[low], None, 60_000, false);
-    assert!(
-        cat.render_prompt_subsection_allowlist(Some(&[String::new(), "  ".to_string()]))
-            .is_none()
-    );
+    assert!(cat
+        .render_prompt_subsection_allowlist(Some(&[String::new(), "  ".to_string()]))
+        .is_none());
 }
