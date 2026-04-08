@@ -354,6 +354,7 @@ impl Tool for TaskOutputTool {
             result: json!({
                 "task": t,
                 "output_log_path": output_log_path,
+                "output_file": output_log_path,
                 "output_tail": output_tail,
             }),
             error: None,

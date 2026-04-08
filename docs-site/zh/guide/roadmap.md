@@ -92,7 +92,7 @@ read_when:
 
 **代码入口**：`mcp_normalization.rs`、`mcp_tools.rs`、`mcp_stdio.rs`、`bootstrap/mcp_env.rs`；feature **`tools-mcp`**。
 
-**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套跑同一套 **`AgentRuntime`**（**`SubAgentExecutor`**），**`agent_type`** 选工具面；工具结果含 **`nested_task_id`**（执行用 UUID），可与 **`~/.anycode/tasks/<id>/output.log`** 对应；**`TaskOutput`** 对该 UUID 返回日志路径与尾部内容（若存在）。**`TaskCreate` 等编排记录**写入 **`orchestration.json`**，与执行 UUID 是两套 id。后续：隔离、权限继承、可选在 metadata 中关联编排 id 与执行 id。
+**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套 **`AgentRuntime`**。**与 Claude Code 对齐（子集）**：入参支持 **`subagent_type`**（同 **`agent_type`**，**`Explore`/`Plan`/`general-purpose`** 会规范化）、可选 **`description`**、可选 **`cwd`** 覆盖工具工作目录；出参含 **`status`**、**`agent_id`**、**`nested_task_id`**、**`output_file`**、成功时类 Claude 的 **`content`** 文本块。尚未覆盖上游能力：fork 自身、**`run_in_background`**、子 Agent **`model`** 覆盖、**`isolation: worktree`**、群聊式 **`SendMessage`** 等 — 后续里程碑再做。
 
 **LSP、P5 其余项、OpenAI 官方客户端** 等与英文 [Roadmap](/guide/roadmap) 对称，细节见源码与上表。
 

@@ -224,7 +224,7 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         (TOOL_LSP, "LSP queries (stub)"),
         (
             TOOL_AGENT,
-            "Nested agent run (same runtime; agent_type explore|plan|general-purpose; depth capped)",
+            "Nested agent (Claude-compatible: subagent_type, description, cwd; status/agent_id/output_file in result)",
         ),
         (
             TOOL_SKILL,

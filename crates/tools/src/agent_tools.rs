@@ -1,16 +1,48 @@
 //! `Agent`、`Skill`、`SendMessage`、旧版子代理名 `Task`。
+//!
+//! **Claude Code 对齐**：接受 `subagent_type`（同 `agent_type`）、可选 `description`、可选 `cwd`；
+//! 成功/失败结果中带 `status`、`agent_id`（= `nested_task_id`）、`output_file`（`~/.anycode/tasks/<id>/output.log`）、
+//! 以及类 Claude 的 `content: [{type,text}]`。`SendMessage` 接受 `to` 作为 `recipient` 别名。
 
 use crate::services::ToolServices;
 use crate::skills::{truncate_skill_output, SkillCatalog, MAX_SKILL_OUTPUT_BYTES};
 use anycode_core::prelude::*;
+use anycode_core::DiskTaskOutput;
 use async_trait::async_trait;
 use serde::Deserialize;
+use serde_json::json;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use uuid::Uuid;
 
 /// 嵌套 Agent 未指定类型时的默认子类型（与常见 `Agent`/`Task` 工具约定一致）。
 const DEFAULT_SUBAGENT_AGENT_TYPE: &str = "general-purpose";
+
+fn nested_output_log_path(task_id: Uuid) -> Option<String> {
+    dirs::home_dir().map(|h| {
+        DiskTaskOutput::new(h.join(".anycode").join("tasks"))
+            .output_path(task_id)
+            .to_string_lossy()
+            .into_owned()
+    })
+}
+
+/// Map Claude Code `subagent_type` strings (`Explore`, `Plan`, …) to anyCode `AgentType` ids.
+fn normalize_subagent_type_name(raw: &str) -> String {
+    let t = raw.trim();
+    if t.is_empty() {
+        return String::new();
+    }
+    match t.to_ascii_lowercase().as_str() {
+        "explore" => "explore".to_string(),
+        "plan" => "plan".to_string(),
+        "general-purpose" | "general_purpose" => "general-purpose".to_string(),
+        // Claude built-in we do not ship standalone — fall back so the run still works.
+        "verification" | "claude-code-guide" | "statusline-setup" => "general-purpose".to_string(),
+        _ => t.to_string(),
+    }
+}
 
 struct SubAgentDepthGuard<'a> {
     services: &'a ToolServices,
@@ -28,8 +60,15 @@ struct AgentToolIn {
     prompt: Option<String>,
     #[serde(default)]
     task: Option<String>,
-    #[serde(default)]
+    /// anyCode: `agent_type`. Claude Code: `subagent_type` (e.g. Explore, Plan, general-purpose).
+    #[serde(default, alias = "subagent_type")]
     agent_type: Option<String>,
+    /// Claude Code: short human-readable summary of what the sub-agent will do (optional here for compatibility).
+    #[serde(default)]
+    description: Option<String>,
+    /// Claude Code: working directory for the nested agent (overrides tool-call `working_directory` when set).
+    #[serde(default)]
+    cwd: Option<String>,
 }
 
 pub struct AgentTool {
@@ -80,21 +119,41 @@ impl AgentTool {
             .prompt
             .or(v.task)
             .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| CoreError::LLMError("字段 prompt 或 task 必填（非空字符串）".into()))?;
-        let agent_type = v
+            .ok_or_else(|| {
+                CoreError::LLMError(
+                    "non-empty `prompt` or `task` is required (Claude Code: `prompt`)".into(),
+                )
+            })?;
+
+        let agent_type_owned = v
             .agent_type
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .unwrap_or(default_agent_type);
+            .map(normalize_subagent_type_name)
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| default_agent_type.to_string());
 
-        let wd = input
+        let base_wd = input
             .working_directory
             .clone()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| ".".to_string());
+        let wd = v
+            .cwd
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .unwrap_or(base_wd);
 
-        let agent_type_owned = agent_type.to_string();
+        let desc = v
+            .description
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
         let NestedTaskRun { task_id, result } = exe
             .run_nested_task(
                 AgentType::new(agent_type_owned.clone()),
@@ -103,36 +162,60 @@ impl AgentTool {
             )
             .await?;
         let nested_task_id = task_id.to_string();
+        let output_file = nested_output_log_path(task_id);
+
         match result {
-            TaskResult::Success { output, artifacts } => Ok(ToolOutput {
-                result: serde_json::json!({
-                    "output": output,
-                    "artifacts_count": artifacts.len(),
-                    "agent_type": agent_type_owned,
-                    "working_directory": wd,
-                    "nested_task_id": nested_task_id,
-                }),
-                error: None,
-                duration_ms: start.elapsed().as_millis() as u64,
-            }),
+            TaskResult::Success { output, artifacts } => {
+                let content_text = output.clone();
+                Ok(ToolOutput {
+                    result: json!({
+                        "status": "completed",
+                        "output": output,
+                        "content": [{ "type": "text", "text": content_text }],
+                        "artifacts_count": artifacts.len(),
+                        "nested_task_id": &nested_task_id,
+                        "agent_id": &nested_task_id,
+                        "output_file": output_file,
+                        "agent_type": &agent_type_owned,
+                        "subagent_type_resolved": &agent_type_owned,
+                        "working_directory": wd,
+                        "prompt": prompt,
+                        "description": desc,
+                    }),
+                    error: None,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                })
+            }
             TaskResult::Failure { error, details } => Ok(ToolOutput {
-                result: serde_json::json!({
+                result: json!({
+                    "status": "failed",
                     "error": error,
                     "details": details,
-                    "nested_task_id": nested_task_id,
-                    "agent_type": agent_type_owned,
+                    "nested_task_id": &nested_task_id,
+                    "agent_id": &nested_task_id,
+                    "output_file": output_file,
+                    "agent_type": &agent_type_owned,
+                    "subagent_type_resolved": &agent_type_owned,
                     "working_directory": wd,
+                    "prompt": prompt,
+                    "description": desc,
                 }),
                 error: Some("subtask failed".into()),
                 duration_ms: start.elapsed().as_millis() as u64,
             }),
             TaskResult::Partial { success, remaining } => Ok(ToolOutput {
-                result: serde_json::json!({
+                result: json!({
+                    "status": "partial",
                     "partial_success": success,
                     "remaining": remaining,
-                    "nested_task_id": nested_task_id,
-                    "agent_type": agent_type_owned,
+                    "nested_task_id": &nested_task_id,
+                    "agent_id": &nested_task_id,
+                    "output_file": output_file,
+                    "agent_type": &agent_type_owned,
+                    "subagent_type_resolved": &agent_type_owned,
                     "working_directory": wd,
+                    "prompt": prompt,
+                    "description": desc,
                 }),
                 error: Some("subtask partial".into()),
                 duration_ms: start.elapsed().as_millis() as u64,
@@ -147,15 +230,18 @@ impl Tool for AgentTool {
         "Agent"
     }
     fn description(&self) -> &str {
-        "Run a nested agent turn via the same AgentRuntime as the host (shares LLM + tool registry wiring). Requires non-empty `prompt` or `task`. Use `agent_type` to pick tool surface: explore | plan | general-purpose (default). Nesting is capped (typically ≤6 deep); exceeding returns an error JSON. Every outcome includes `nested_task_id` (runtime UUID) so you can pass it to TaskOutput or open ~/.anycode/tasks/<id>/output.log."
+        "Nested agent run (same AgentRuntime as the host). Claude Code–compatible fields: `prompt` (or legacy `task`), optional `subagent_type` (alias: `agent_type`; Explore/Plan/general-purpose), optional `description`, optional `cwd` overriding the tool working directory. Results include `status`, `agent_id`, `nested_task_id`, `output_file` (path to output.log when HOME is set), and `content` like Claude sync results. Nesting depth capped (~6)."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "prompt": { "type": "string", "description": "Subtask instructions (required unless task is set)" },
-                "task": { "type": "string", "description": "Alias of prompt (required unless prompt is set)" },
-                "agent_type": { "type": "string", "description": "explore | plan | general-purpose; default general-purpose" }
+                "prompt": { "type": "string", "description": "Task for the agent (Claude Code primary field)" },
+                "task": { "type": "string", "description": "Alias of prompt" },
+                "description": { "type": "string", "description": "Short human-readable summary (Claude Code style, optional)" },
+                "agent_type": { "type": "string", "description": "anyCode: explore | plan | general-purpose" },
+                "subagent_type": { "type": "string", "description": "Claude Code: same as agent_type (Explore, Plan, …)" },
+                "cwd": { "type": "string", "description": "Working directory for the nested agent; overrides tool-call cwd when set" }
             },
             "anyOf": [
                 { "required": ["prompt"] },
@@ -319,7 +405,8 @@ impl Tool for SkillTool {
 
 #[derive(Deserialize)]
 struct MsgIn {
-    #[serde(default)]
+    /// anyCode: `recipient`. Claude Code swarm: `to`.
+    #[serde(default, alias = "to")]
     recipient: String,
     #[serde(default)]
     message: String,
@@ -348,14 +435,15 @@ impl Tool for SendMessageTool {
     }
 
     fn description(&self) -> &str {
-        "Queue a message for another agent/recipient key; stored in orchestration state and persists with ~/.anycode/tasks/orchestration.json when a home directory is available (otherwise session-only)."
+        "Queue a message for another agent/recipient key (`recipient` or Claude-style `to`). Body: `message` or `body`. Persists with orchestration state when ~/.anycode is available."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "recipient": { "type": "string" },
+                "recipient": { "type": "string", "description": "Recipient key / agent name" },
+                "to": { "type": "string", "description": "Claude Code alias for recipient" },
                 "message": { "type": "string" },
                 "body": { "type": "string" }
             }
@@ -377,12 +465,22 @@ impl Tool for SendMessageTool {
             message: String::new(),
             body: String::new(),
         });
+        let recipient = m.recipient.trim().to_string();
+        if recipient.is_empty() {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": "recipient or `to` must be a non-empty string (Claude Code: `to`)"
+                }),
+                error: Some("invalid SendMessage input".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         let text = if !m.body.is_empty() {
             m.body
         } else {
             m.message
         };
-        self.services.push_message(m.recipient, text.clone());
+        self.services.push_message(recipient.clone(), text.clone());
         Ok(ToolOutput {
             result: serde_json::json!({ "queued": true, "preview": text.chars().take(200).collect::<String>() }),
             error: None,
@@ -411,15 +509,18 @@ impl Tool for LegacyTaskAgentTool {
         "Task"
     }
     fn description(&self) -> &str {
-        "Legacy name for the nested Agent tool: same behavior as `Agent` (default agent_type general-purpose)."
+        "Legacy wire name `Task` (Claude Code): same as `Agent` — use `prompt`/`task`, optional `subagent_type`, `description`, `cwd`; default subagent general-purpose."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "prompt": { "type": "string", "description": "Subtask instructions (required unless task is set)" },
-                "task": { "type": "string", "description": "Alias of prompt (required unless prompt is set)" },
-                "agent_type": { "type": "string", "description": "explore | plan | general-purpose; default general-purpose" }
+                "prompt": { "type": "string" },
+                "task": { "type": "string" },
+                "description": { "type": "string" },
+                "agent_type": { "type": "string" },
+                "subagent_type": { "type": "string" },
+                "cwd": { "type": "string" }
             },
             "anyOf": [
                 { "required": ["prompt"] },
@@ -437,5 +538,24 @@ impl Tool for LegacyTaskAgentTool {
         self.inner
             .run_sub_agent(input, DEFAULT_SUBAGENT_AGENT_TYPE)
             .await
+    }
+}
+
+#[cfg(test)]
+mod claude_compat_tests {
+    use super::normalize_subagent_type_name;
+
+    #[test]
+    fn normalizes_claude_builtin_casing() {
+        assert_eq!(normalize_subagent_type_name("Explore"), "explore");
+        assert_eq!(normalize_subagent_type_name("Plan"), "plan");
+        assert_eq!(
+            normalize_subagent_type_name("general-purpose"),
+            "general-purpose"
+        );
+        assert_eq!(
+            normalize_subagent_type_name("Verification"),
+            "general-purpose"
+        );
     }
 }
