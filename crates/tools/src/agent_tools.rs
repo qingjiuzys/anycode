@@ -1,8 +1,9 @@
 //! `Agent`、`Skill`、`SendMessage`、旧版子代理名 `Task`。
 //!
-//! **Claude Code 对齐**：接受 `subagent_type`（同 `agent_type`）、可选 `description`、可选 `cwd`；
-//! 成功/失败结果中带 `status`、`agent_id`（= `nested_task_id`）、`output_file`（`~/.anycode/tasks/<id>/output.log`）、
-//! 以及类 Claude 的 `content: [{type,text}]`。`SendMessage` 接受 `to` 作为 `recipient` 别名。
+//! **Claude Code `Agent` 对齐**：`subagent_type`（同 `agent_type`）、可选 `description`、可选 `cwd`（相对则相对工具工作目录，再 canonical 为绝对路径）、
+//! 可选 `model`（`sonnet`/`opus`/`haiku` 或裸 id）、可选 `isolation: "worktree"`（临时 git worktree）、`run_in_background: true` 显式报错。
+//! 成功/失败 JSON 含 `status`、`agent_id`（= `nested_task_id`）、`output_file`、`model`/`isolation` 回显、类 Claude 的 `content: [{type,text}]`。
+//! `SendMessage` 接受 `to` 作为 `recipient` 别名。
 
 use crate::services::ToolServices;
 use crate::skills::{truncate_skill_output, SkillCatalog, MAX_SKILL_OUTPUT_BYTES};
@@ -29,6 +30,31 @@ fn nested_output_log_path(task_id: Uuid) -> Option<String> {
 }
 
 /// Map Claude Code `subagent_type` strings (`Explore`, `Plan`, …) to anyCode `AgentType` ids.
+/// Resolve `cwd` to an absolute path (Claude Code); relative paths are relative to the tool-call working directory.
+fn resolve_agent_working_directory(base_tool_wd: &str, cwd: Option<&str>) -> String {
+    let base = Path::new(base_tool_wd);
+    let base_path = if base.as_os_str().is_empty() {
+        std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf())
+    } else {
+        base.to_path_buf()
+    };
+    let joined = match cwd.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(c) => {
+            let p = Path::new(c);
+            if p.is_absolute() {
+                p.to_path_buf()
+            } else {
+                base_path.join(p)
+            }
+        }
+        None => base_path,
+    };
+    std::fs::canonicalize(&joined)
+        .unwrap_or(joined)
+        .to_string_lossy()
+        .into_owned()
+}
+
 fn normalize_subagent_type_name(raw: &str) -> String {
     let t = raw.trim();
     if t.is_empty() {
@@ -69,6 +95,15 @@ struct AgentToolIn {
     /// Claude Code: working directory for the nested agent (overrides tool-call `working_directory` when set).
     #[serde(default)]
     cwd: Option<String>,
+    /// Claude Code: `sonnet` | `opus` | `haiku` or a raw model id.
+    #[serde(default)]
+    model: Option<String>,
+    /// Claude Code: `worktree` for isolated git worktree under the temp directory.
+    #[serde(default)]
+    isolation: Option<String>,
+    /// Claude Code async agents — not implemented; `true` returns a clear error.
+    #[serde(default)]
+    run_in_background: Option<bool>,
 }
 
 pub struct AgentTool {
@@ -115,6 +150,16 @@ impl AgentTool {
         };
 
         let v: AgentToolIn = serde_json::from_value(input.input.clone())?;
+        if v.run_in_background == Some(true) {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": "run_in_background is not supported; nested Agent runs are synchronous. Omit the field or set false."
+                }),
+                error: Some("unsupported run_in_background".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
         let prompt = v
             .prompt
             .or(v.task)
@@ -139,13 +184,7 @@ impl AgentTool {
             .clone()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| ".".to_string());
-        let wd = v
-            .cwd
-            .as_ref()
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .unwrap_or(base_wd);
+        let wd = resolve_agent_working_directory(&base_wd, v.cwd.as_deref());
 
         let desc = v
             .description
@@ -154,12 +193,29 @@ impl AgentTool {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
 
+        let model = v
+            .model
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        let isolation = v
+            .isolation
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        let model_echo = model.clone();
+        let isolation_echo = isolation.clone();
+
         let NestedTaskRun { task_id, result } = exe
-            .run_nested_task(
-                AgentType::new(agent_type_owned.clone()),
-                prompt.clone(),
-                wd.clone(),
-            )
+            .run_nested_task(NestedTaskInvoke {
+                agent_type: AgentType::new(agent_type_owned.clone()),
+                prompt: prompt.clone(),
+                working_directory: wd.clone(),
+                model,
+                isolation,
+            })
             .await?;
         let nested_task_id = task_id.to_string();
         let output_file = nested_output_log_path(task_id);
@@ -178,9 +234,11 @@ impl AgentTool {
                         "output_file": output_file,
                         "agent_type": &agent_type_owned,
                         "subagent_type_resolved": &agent_type_owned,
-                        "working_directory": wd,
-                        "prompt": prompt,
-                        "description": desc,
+                        "working_directory": &wd,
+                        "prompt": &prompt,
+                        "description": desc.clone(),
+                        "model": model_echo.clone(),
+                        "isolation": isolation_echo.clone(),
                     }),
                     error: None,
                     duration_ms: start.elapsed().as_millis() as u64,
@@ -196,9 +254,11 @@ impl AgentTool {
                     "output_file": output_file,
                     "agent_type": &agent_type_owned,
                     "subagent_type_resolved": &agent_type_owned,
-                    "working_directory": wd,
-                    "prompt": prompt,
-                    "description": desc,
+                    "working_directory": &wd,
+                    "prompt": &prompt,
+                    "description": desc.clone(),
+                    "model": model_echo.clone(),
+                    "isolation": isolation_echo.clone(),
                 }),
                 error: Some("subtask failed".into()),
                 duration_ms: start.elapsed().as_millis() as u64,
@@ -213,9 +273,11 @@ impl AgentTool {
                     "output_file": output_file,
                     "agent_type": &agent_type_owned,
                     "subagent_type_resolved": &agent_type_owned,
-                    "working_directory": wd,
-                    "prompt": prompt,
-                    "description": desc,
+                    "working_directory": &wd,
+                    "prompt": &prompt,
+                    "description": desc.clone(),
+                    "model": model_echo.clone(),
+                    "isolation": isolation_echo.clone(),
                 }),
                 error: Some("subtask partial".into()),
                 duration_ms: start.elapsed().as_millis() as u64,
@@ -230,7 +292,7 @@ impl Tool for AgentTool {
         "Agent"
     }
     fn description(&self) -> &str {
-        "Nested agent run (same AgentRuntime as the host). Claude Code–compatible fields: `prompt` (or legacy `task`), optional `subagent_type` (alias: `agent_type`; Explore/Plan/general-purpose), optional `description`, optional `cwd` overriding the tool working directory. Results include `status`, `agent_id`, `nested_task_id`, `output_file` (path to output.log when HOME is set), and `content` like Claude sync results. Nesting depth capped (~6)."
+        "Nested agent run (same AgentRuntime as the host). Claude Code parity: `prompt`/`task`, `subagent_type`/`agent_type`, `description`, `cwd` (absolute path after resolve), `model` (sonnet|opus|haiku or raw id), `isolation: \"worktree\"` (temp git worktree, auto-removed). `run_in_background: true` is rejected. Results: `status`, `agent_id`, `output_file`, `content`, `model`/`isolation` echo. Depth ~6 max."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -241,7 +303,10 @@ impl Tool for AgentTool {
                 "description": { "type": "string", "description": "Short human-readable summary (Claude Code style, optional)" },
                 "agent_type": { "type": "string", "description": "anyCode: explore | plan | general-purpose" },
                 "subagent_type": { "type": "string", "description": "Claude Code: same as agent_type (Explore, Plan, …)" },
-                "cwd": { "type": "string", "description": "Working directory for the nested agent; overrides tool-call cwd when set" }
+                "cwd": { "type": "string", "description": "Working directory for the nested agent; overrides tool-call cwd when set" },
+                "model": { "type": "string", "description": "Claude: sonnet | opus | haiku or explicit model id" },
+                "isolation": { "type": "string", "description": "worktree — isolated git worktree under system temp" },
+                "run_in_background": { "type": "boolean", "description": "Must be false or omitted (not supported)" }
             },
             "anyOf": [
                 { "required": ["prompt"] },
@@ -509,7 +574,7 @@ impl Tool for LegacyTaskAgentTool {
         "Task"
     }
     fn description(&self) -> &str {
-        "Legacy wire name `Task` (Claude Code): same as `Agent` — use `prompt`/`task`, optional `subagent_type`, `description`, `cwd`; default subagent general-purpose."
+        "Legacy wire name `Task` (Claude Code): same as `Agent` — `prompt`/`task`, optional `subagent_type`, `description`, `cwd` (absolute after resolve), `model`, `isolation` (`worktree`); `run_in_background: true` is rejected (no async subagent yet)."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -520,7 +585,10 @@ impl Tool for LegacyTaskAgentTool {
                 "description": { "type": "string" },
                 "agent_type": { "type": "string" },
                 "subagent_type": { "type": "string" },
-                "cwd": { "type": "string" }
+                "cwd": { "type": "string" },
+                "model": { "type": "string" },
+                "isolation": { "type": "string" },
+                "run_in_background": { "type": "boolean" }
             },
             "anyOf": [
                 { "required": ["prompt"] },

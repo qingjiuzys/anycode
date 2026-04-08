@@ -480,6 +480,9 @@ async fn run_agent_pipeline(
                     channel_profile.assistant_agent,
                 )),
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };

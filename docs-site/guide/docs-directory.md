@@ -20,7 +20,8 @@ Short paths for common goals:
 | Crates, runtime, tools | [Architecture](./architecture) |
 | Per-agent model overrides | [Routing](./routing) |
 | `security.*`, env vars, approval | [Config & security](./config-security) |
-| Skill 目录、`SKILL.md`、`anycode skills` | [Agent skills](./skills) |
+| Skill dirs, `SKILL.md`, `anycode skills` | [Agent skills](./skills) |
+| Nested **Agent** / **Task** (Claude-style tool fields) | [Roadmap](./roadmap) (**P5** matrix + **P5 Agent / Skill** section) |
 | No TTY, WeChat QR, MCP quirks | [Troubleshooting](./troubleshooting) |
 | WeChat bridge & `setup` | [WeChat & setup](./wechat) |
 | Contribute, tests, registry checklist | [Development](./development) |

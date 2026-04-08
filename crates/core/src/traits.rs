@@ -12,7 +12,7 @@ use crate::llm_types::{
 use crate::memory_model::{Memory, MemoryType};
 use crate::message::Message;
 use crate::security_policy::SecurityPolicy;
-use crate::task::{NestedTaskRun, Task, TaskResult};
+use crate::task::{NestedTaskInvoke, NestedTaskRun, Task, TaskResult};
 
 /// Agent 抽象（类型、工具子集、说明与可选独立执行路径）
 ///
@@ -36,12 +36,7 @@ pub trait Agent: Send + Sync {
 /// 由主 `AgentRuntime` 实现，供 `Agent` / `Task` 等工具嵌套调用 `execute_task`（避免 tools ↔ agent 循环依赖）。
 #[async_trait]
 pub trait SubAgentExecutor: Send + Sync {
-    async fn run_nested_task(
-        &self,
-        agent_type: AgentType,
-        prompt: String,
-        working_directory: String,
-    ) -> Result<NestedTaskRun, CoreError>;
+    async fn run_nested_task(&self, invoke: NestedTaskInvoke) -> Result<NestedTaskRun, CoreError>;
 }
 
 /// 工具抽象（名称、Schema、执行与 API 面向模型的描述）

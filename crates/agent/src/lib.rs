@@ -6,6 +6,7 @@ mod agents;
 mod compact;
 mod goal_engine;
 mod model_instructions;
+mod nested_model;
 mod prompt_assembler;
 mod runtime;
 mod system_prompt;

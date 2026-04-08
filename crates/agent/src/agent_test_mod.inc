@@ -222,6 +222,9 @@ mod tests {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -460,6 +463,9 @@ mod tests {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -605,6 +611,9 @@ mod tests {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -720,6 +729,9 @@ mod tests {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -830,6 +842,9 @@ mod tests {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -928,6 +943,9 @@ mod tests {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };

@@ -3,6 +3,7 @@
 mod artifacts;
 mod limits;
 mod logging;
+mod nested_worktree;
 mod receipt;
 mod session;
 mod task_summary;
@@ -25,6 +26,7 @@ use limits::{
     MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL, TOOL_INPUT_LOG_MAX_BYTES, TOOL_RESULT_MAX_BYTES,
 };
 use logging::RunLogger;
+use nested_worktree::NestedWorktreeGuard;
 use receipt::ReceiptGenerator;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -569,6 +571,9 @@ impl AgentRuntime {
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -590,6 +595,18 @@ impl AgentRuntime {
 
     /// 执行任务
     pub async fn execute_task(&self, task: Task) -> Result<TaskResult, CoreError> {
+        let _nested_wt = NestedWorktreeGuard(
+            match (
+                &task.context.nested_worktree_repo_root,
+                &task.context.nested_worktree_path,
+            ) {
+                (Some(r), Some(p)) if !r.is_empty() && !p.is_empty() => {
+                    Some((r.clone(), p.clone()))
+                }
+                _ => None,
+            },
+        );
+
         let logger = self.logger();
         logger.ensure_initialized(task.id);
         logger.line(
@@ -652,7 +669,10 @@ impl AgentRuntime {
         drop(tools);
 
         // 5. 多轮 tool loop（assistant → tool_calls → 执行 → tool_result）
-        let model_config = self.model_for_task(&task.agent_type);
+        let mut model_config = self.model_for_task(&task.agent_type).clone();
+        if let Some(ref hint) = task.context.nested_model_override {
+            model_config = crate::nested_model::resolve_nested_model_hint(&model_config, hint);
+        }
         let mut total_tool_calls: usize = 0;
         let mut artifacts: Vec<Artifact> = vec![];
 
@@ -677,7 +697,7 @@ impl AgentRuntime {
             let t0 = std::time::Instant::now();
             let response = match self
                 .llm_client
-                .chat(messages.clone(), tool_schemas.clone(), model_config)
+                .chat(messages.clone(), tool_schemas.clone(), &model_config)
                 .await
             {
                 Ok(r) => r,
@@ -1027,23 +1047,37 @@ impl AgentRuntime {
 
 #[async_trait]
 impl SubAgentExecutor for AgentRuntime {
-    async fn run_nested_task(
-        &self,
-        agent_type: AgentType,
-        prompt: String,
-        working_directory: String,
-    ) -> Result<NestedTaskRun, CoreError> {
+    async fn run_nested_task(&self, invoke: NestedTaskInvoke) -> Result<NestedTaskRun, CoreError> {
+        let mut wd = invoke.working_directory;
+        let wt_roots = {
+            let iso = invoke
+                .isolation
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            if iso.is_some_and(|s| s.eq_ignore_ascii_case("worktree")) {
+                let (repo, wt) = nested_worktree::create_nested_worktree(&wd).await?;
+                wd = wt.clone();
+                Some((repo, wt))
+            } else {
+                None
+            }
+        };
+
         let task = Task {
             id: Uuid::new_v4(),
-            agent_type,
-            prompt,
+            agent_type: invoke.agent_type,
+            prompt: invoke.prompt,
             context: TaskContext {
                 session_id: Uuid::new_v4(),
-                working_directory,
+                working_directory: wd,
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: None,
                 context_injections: vec![],
+                nested_model_override: invoke.model.clone(),
+                nested_worktree_repo_root: wt_roots.as_ref().map(|(r, _)| r.clone()),
+                nested_worktree_path: wt_roots.as_ref().map(|(_, p)| p.clone()),
             },
             created_at: chrono::Utc::now(),
         };

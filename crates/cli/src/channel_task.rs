@@ -29,6 +29,9 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
                 "## Channel Session\nplatform={}\nchat_or_channel={}\nuser={}",
                 input.channel_name, input.channel_id, input.user_id
             )],
+            nested_model_override: None,
+            nested_worktree_path: None,
+            nested_worktree_repo_root: None,
         },
         created_at: chrono::Utc::now(),
     }

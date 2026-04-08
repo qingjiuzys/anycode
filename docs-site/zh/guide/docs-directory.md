@@ -19,6 +19,7 @@ read_when:
 | 按 Agent 覆盖模型 | [路由](./routing) |
 | `security.*`、环境变量、审批 | [配置与安全](./config-security) |
 | Skill 目录、`SKILL.md`、`anycode skills` | [Agent skills](./skills) |
+| **Agent** / **Task**（嵌套子 Agent，Claude 式字段） | [路线图](./roadmap)（**P5** 矩阵与 **P5 Skill / Agent** 段） |
 | 无 TTY、微信扫码、MCP | [排错](./troubleshooting) |
 | 微信桥与 `setup` | [微信与 setup](./wechat) |
 | 贡献、测试、工具注册门禁 | [开发与贡献](./development) |

@@ -85,7 +85,7 @@ flowchart TB
 
 **扩展白名单**：默认工具 = `crates/tools` 的 `registry.rs` + `catalog.rs` + `SECURITY_SENSITIVE_TOOL_IDS`；LLM = `crates/llm` 的 transport/provider；审批 = `SecurityLayer` 与 `bootstrap` 回调。
 
-**反过度抽象（团队共识）**：至少**两个**真实差异实现（或两处调用方）再抽 **public trait**；否则用 `enum`、函数或 `pub(crate)` 模块。不引入通用 **PluginHost**、动态 `.so` 加载、或与 `AgentRuntime` 并行的**第二套执行引擎**。Skill / 嵌套 Agent 在第二套真实形态出现前保持 **stub + 文档**。
+**反过度抽象（团队共识）**：至少**两个**真实差异实现（或两处调用方）再抽 **public trait**；否则用 `enum`、函数或 `pub(crate)` 模块。不引入通用 **PluginHost**、动态 `.so` 加载、或与 `AgentRuntime` 并行的**第二套执行引擎**。**Skill** 插件市场等形态仍按需演进；**嵌套 Agent** 已由 **`Agent` / `Task` 工具** 走 **`SubAgentExecutor` → `AgentRuntime`**（字段与隔离级别见 [路线图](roadmap.md) P5），不是占位 stub。
 
 **编排权威说明**（决策记录见仓库 **`docs/adr/000-runtime-orchestration.md`**）：
 
@@ -95,7 +95,7 @@ flowchart TB
 ### 推迟项（与 roadmap 一致）
 
 - **MCP**：stdio 多会话、`mcp__*` 动态工具与 `security.mcp_tool_deny_patterns` 已见 [路线图](roadmap.md) 工具矩阵 P3；**SSE/HTTP 传输、完整 OAuth 产品流**仍推迟。
-- **其它 Stub（LSP / 嵌套 Agent 等）**：部分仍为占位或实验 feature；接入第二套真实形态后再收紧 trait。
+- **其它 Stub（主要为 LSP 等）**：部分仍为占位或实验 feature；接入第二套真实形态后再收紧 trait。
 - **多通道**：`anycode-channels` 预留；接入 CLI 时用适配器映射到现有 `Task` / 消息模型，避免 core 反向依赖通道 crate。
 
 详见 [`models.md`](models.md) 中「运行时配置 vs Cargo `openai` feature」的区分。

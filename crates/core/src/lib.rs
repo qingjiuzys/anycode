@@ -40,7 +40,9 @@ pub use model_profile::ModelRouteProfile;
 pub use runtime_profile::{RuntimeMode, RuntimeProfile};
 pub use security_policy::SecurityPolicy;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
-pub use task::{Artifact, NestedTaskRun, Task, TaskContext, TaskResult, TurnOutput};
+pub use task::{
+    Artifact, NestedTaskInvoke, NestedTaskRun, Task, TaskContext, TaskResult, TurnOutput,
+};
 pub use task_output::DiskTaskOutput;
 pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor, Tool};
 pub use workflow::{WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep};
@@ -51,11 +53,11 @@ pub mod prelude {
         Agent, AgentType, ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput, FeatureFlag,
         FeatureRegistry, GoalProgress, GoalSpec, LLMClient, LLMProvider, LLMResponse, Memory,
         MemoryScope, MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
-        ModelRouteProfile, NestedTaskRun, PermissionMode, RuntimeMode, RuntimeProfile,
-        SecurityPolicy, SlashCommand, SlashCommandScope, StreamEvent, SubAgentExecutor, Task,
-        TaskContext, TaskId, TaskResult, Tool, ToolCall, ToolInput, ToolName, ToolOutput,
-        ToolSchema, TurnOutput, Usage, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
-        WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
-        BUILTIN_SLASH_COMMANDS,
+        ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, RuntimeMode,
+        RuntimeProfile, SecurityPolicy, SlashCommand, SlashCommandScope, StreamEvent,
+        SubAgentExecutor, Task, TaskContext, TaskId, TaskResult, Tool, ToolCall, ToolInput,
+        ToolName, ToolOutput, ToolSchema, TurnOutput, Usage, WorkflowDefinition, WorkflowHandoff,
+        WorkflowRetry, WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
+        ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS,
     };
 }

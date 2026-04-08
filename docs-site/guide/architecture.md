@@ -65,7 +65,7 @@ Multi-turn **LLM + tool** orchestration lives only in **`AgentRuntime::execute_t
 
 - Add a new **public trait** only after **two** real implementations (or two callers) need it; otherwise use `enum`, free functions, or `pub(crate)` modules.
 - Do **not** add a generic plugin host, dynamic `.so` loading, or a second execution engine alongside `AgentRuntime`.
-- Keep **Skill / nested-agent** stubs as stubs until a second concrete execution shape exists.
+- **Skill** marketplace-style distribution can evolve incrementally. **Nested agents** are **not** stubs: the **`Agent`** / legacy **`Task`** tools invoke **`SubAgentExecutor` → `AgentRuntime`** (see [Roadmap](./roadmap) P5 for fields and isolation).
 
 ## Design notes
 

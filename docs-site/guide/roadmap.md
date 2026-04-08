@@ -9,7 +9,7 @@ read_when:
 
 # Roadmap
 
-This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-stubs**, and **MCP post-MVP** notes into one bilingual information architecture. **Source of truth for code** remains `crates/tools/src/catalog.rs`, `crates/cli/src/bootstrap/mod.rs`, and `crates/agent/src/agents.rs`.
+This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-stubs**, and **MCP post-MVP** notes into one bilingual information architecture. **Source of truth for code** remains `crates/tools/src/catalog.rs`, `crates/tools/src/agent_tools.rs` (**Agent** / **Task**), `crates/cli/src/bootstrap/mod.rs`, and `crates/agent/src/agents.rs`.
 
 ## MVP scope (frozen)
 
@@ -25,7 +25,7 @@ This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-st
 
 - Full **MCP** product story (SSE/HTTP, rich OAuth UI, lazy-loaded tools) beyond current stdio **v1** when enabled.  
 - Full **LSP** subprocess story beyond experimental **`tools-lsp`**.  
-- **Sub-agent (`Agent` tool)** full isolation and permission inheritance.  
+- **Sub-agent:** full upstream parity for isolation/orchestration (**fork**, async **`run_in_background`**, etc.) remains a separate milestone; **worktree-level** isolation and Claude **`Agent` field** parity are described under **P5** below.  
 - **Skill** plugin market / OpenClaw full parity beyond **`SKILL.md` + `Skill` tool** (see [Agent skills](./skills)).  
 - **Swarm / coordinator**, plugin market, telemetry, voice, browser tools, etc.
 
@@ -74,7 +74,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 | P2 | WebFetch, WebSearch | Done |
 | P3 | mcp, ListMcpResourcesTool, ReadMcpResourceTool, McpAuth | **v1** with **`tools-mcp`**, **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`**, deny rules, dynamic **`mcp__<server>__authenticate`** |
 | P4 | LSP | Partial: **`tools-lsp`** + **`ANYCODE_LSP_COMMAND`** JSON-RPC forward; stub when off |
-| P5 | Agent, Skill, SendMessage, Task (legacy) | **Skill v1** shipped; **Agent** / legacy **Task** run nested **`AgentRuntime`** (tool surface via **`agent_type`**, nesting depth capped); **SendMessage** stored in orchestration snapshot |
+| P5 | Agent, Skill, SendMessage, Task (legacy) | **Skill v1** shipped; **Agent** / legacy **Task** run nested **`AgentRuntime`** (**`agent_type`** / **`subagent_type`**, nesting depth capped); Claude-style **`model`**, **`isolation: worktree`** (temp **git worktree**), **`cwd`** resolved to an **absolute** path; **`run_in_background: true`** is rejected (nested runs are synchronous); **SendMessage** stored in orchestration snapshot |
 | P6 | TaskCreate/Update/List/Get/Stop/Output, team/cron/trigger | **v1** orchestration file **`~/.anycode/tasks/orchestration.json`** |
 | P7 | Plan/worktree modes, ToolSearch, Sleep, StructuredOutput | Done |
 | P8 | PowerShell, Config, Brief, AskUserQuestion, REPL | Done (PowerShell Windows-only) |
@@ -103,7 +103,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 **P5 Agent / Skill**
 
 - **Skill (shipped):** multi-root **`SKILL.md`** discovery, **`ToolServices.skill_catalog`**, system prompt **Available skills**, path-safe **`Skill`** execution (timeout, output cap, optional minimal env), config **`skills.*`**, CLI **`anycode skills list|path|init`**. Optional **`skills.expose_on_explore_plan`** registers **Skill** for **explore** / **plan**.  
-- **Agent / legacy Task:** nested runs use the same **`AgentRuntime`** (`SubAgentExecutor`). **Claude Code field parity (subset):** inputs accept **`subagent_type`** (alias of **`agent_type`**; **`Explore` / `Plan` / `general-purpose`** normalized), optional **`description`**, optional **`cwd`** overriding the tool working directory; outputs include **`status`**, **`agent_id`**, **`nested_task_id`**, **`output_file`**, and a Claude-style **`content`** text block on success. Unimplemented vs upstream Claude Code: fork-self, **`run_in_background`**, **`model`** override per sub-agent, **`isolation: worktree`**, teammate swarm **`SendMessage`** semantics — tracked for later milestones.
+- **Agent / legacy Task:** nested runs use the same **`AgentRuntime`** (**`SubAgentExecutor`**). **Claude Code `Agent` tool parity (current subset):** **`subagent_type`** (alias **`agent_type`**; **`Explore` / `Plan` / `general-purpose`** normalized), optional **`description`**, optional **`cwd`** (relative paths resolve against the tool-call working directory, then **canonicalized** to an absolute path), optional **`model`** (**`sonnet` / `opus` / `haiku`** or a raw model id, mapped for the session provider), optional **`isolation: "worktree"`** (**`git worktree add`** under the system temp dir, removed after the run). **`run_in_background: true`** returns a clear tool error (no async sub-agent queue yet). JSON responses echo **`model`** / **`isolation`** plus **`status`**, **`agent_id`** (= **`nested_task_id`**), **`output_file`**, and a Claude-style **`content`** text block on success. Still missing vs upstream: **fork-self**, true **async background** agents, teammate-swarm **`SendMessage`** semantics — later milestones.
 
 **OpenAI official client**
 
@@ -115,7 +115,7 @@ Pick **one** primary thread for the next milestone-sized effort (avoid two large
 
 | Thread | Goal (issue-sized starters) |
 |--------|-----------------------------|
-| **P5 Agent / Task** | Harden nested **Agent**/**Task** (isolation, permissions, clearer IDs in tool JSON); align **orchestration** task records with daemon **`~/.anycode/tasks/<id>/`** execution story where useful. |
+| **P5 Agent / Task** | Optional: tighter alignment between **orchestration** records and daemon **`~/.anycode/tasks/<id>/`**; **fork** / true **async background** parity with Claude. |
 | **MCP beyond stdio v1** | Stdio health checks and clearer errors; timeouts on `tools/call`; **McpAuth** / OAuth ergonomics without a GUI; real **List** / **Read** MCP resource tools. |
 
 **Docs note:** explicit model-instructions file path is **only** via **`ANYCODE_MODEL_INSTRUCTIONS_FILE`**; JSON `model_instructions` controls **discovery** only — see [Config & security](./config-security).

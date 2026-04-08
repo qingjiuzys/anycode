@@ -326,6 +326,9 @@ async fn handle_post_task(req: Request<Body>, state: Arc<DaemonState>) -> Respon
                 merged.runtime.workspace_project_label,
             )),
             context_injections: vec![],
+            nested_model_override: None,
+            nested_worktree_path: None,
+            nested_worktree_repo_root: None,
         },
         created_at: chrono::Utc::now(),
     };
