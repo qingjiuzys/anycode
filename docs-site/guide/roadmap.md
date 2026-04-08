@@ -74,7 +74,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 | P2 | WebFetch, WebSearch | Done |
 | P3 | mcp, ListMcpResourcesTool, ReadMcpResourceTool, McpAuth | **v1** with **`tools-mcp`**, **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`**, deny rules, dynamic **`mcp__<server>__authenticate`** |
 | P4 | LSP | Partial: **`tools-lsp`** + **`ANYCODE_LSP_COMMAND`** JSON-RPC forward; stub when off |
-| P5 | Agent, Skill, SendMessage, Task (legacy) | **Skill v1**: `SKILL.md` scan, prompt injection, **`Skill` tool** hardening, **`skills.*`**, **`anycode skills`**; Agent/Task still stub / in-memory |
+| P5 | Agent, Skill, SendMessage, Task (legacy) | **Skill v1** shipped; **Agent** / legacy **Task** run nested **`AgentRuntime`** (tool surface via **`agent_type`**, nesting depth capped); **SendMessage** stored in orchestration snapshot |
 | P6 | TaskCreate/Update/List/Get/Stop/Output, team/cron/trigger | **v1** orchestration file **`~/.anycode/tasks/orchestration.json`** |
 | P7 | Plan/worktree modes, ToolSearch, Sleep, StructuredOutput | Done |
 | P8 | PowerShell, Config, Brief, AskUserQuestion, REPL | Done (PowerShell Windows-only) |
@@ -103,7 +103,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 **P5 Agent / Skill**
 
 - **Skill (shipped):** multi-root **`SKILL.md`** discovery, **`ToolServices.skill_catalog`**, system prompt **Available skills**, path-safe **`Skill`** execution (timeout, output cap, optional minimal env), config **`skills.*`**, CLI **`anycode skills list|path|init`**. Optional **`skills.expose_on_explore_plan`** registers **Skill** for **explore** / **plan**.  
-- **Agent / legacy Task:** still stub / in-memory orchestration under **`~/.anycode/tasks`** — align with `catalog.rs` when promoted.
+- **Agent / legacy Task:** nested runs use the same **`AgentRuntime`** (`SubAgentExecutor`); **`agent_type`** selects **explore** / **plan** / **general-purpose** tool surfaces; nesting depth is capped. **`TaskCreate` / `Task*`** orchestration records (plus teams, crons, etc.) **persist** to **`~/.anycode/tasks/orchestration.json`** in normal CLI sessions — not the same object as an LLM “task” UUID folder under **`~/.anycode/tasks/<id>/`**. Further work: isolation, permission inheritance, and tighter alignment between orchestration task IDs and daemon execution logs.
 
 **OpenAI official client**
 
@@ -115,7 +115,7 @@ Pick **one** primary thread for the next milestone-sized effort (avoid two large
 
 | Thread | Goal (issue-sized starters) |
 |--------|-----------------------------|
-| **P5 Agent / Task** | Move **Agent** and legacy **Task** beyond stub / in-memory orchestration; align tool surface with `crates/tools/src/catalog.rs` and `~/.anycode/tasks` conventions. |
+| **P5 Agent / Task** | Harden nested **Agent**/**Task** (isolation, permissions, clearer IDs in tool JSON); align **orchestration** task records with daemon **`~/.anycode/tasks/<id>/`** execution story where useful. |
 | **MCP beyond stdio v1** | Stdio health checks and clearer errors; timeouts on `tools/call`; **McpAuth** / OAuth ergonomics without a GUI; real **List** / **Read** MCP resource tools. |
 
 **Docs note:** explicit model-instructions file path is **only** via **`ANYCODE_MODEL_INSTRUCTIONS_FILE`**; JSON `model_instructions` controls **discovery** only — see [Config & security](./config-security).

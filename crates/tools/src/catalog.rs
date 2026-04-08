@@ -222,10 +222,22 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
             "MCP tools/call passthrough (stdio with tools-mcp + ANYCODE_MCP_* env)",
         ),
         (TOOL_LSP, "LSP queries (stub)"),
-        (TOOL_AGENT, "Sub-agent (stub)"),
-        (TOOL_SKILL, "Skill runner (stub)"),
-        (TOOL_TASK_CREATE, "Create in-memory task"),
-        (TOOL_CRON_CREATE, "Register in-memory cron entry"),
+        (
+            TOOL_AGENT,
+            "Nested agent run (same runtime; agent_type explore|plan|general-purpose; depth capped)",
+        ),
+        (
+            TOOL_SKILL,
+            "Run a discovered skill's `run` script (SKILL.md roots; timeout and env from skills.*)",
+        ),
+        (
+            TOOL_TASK_CREATE,
+            "Create orchestration task record (persists with ~/.anycode/tasks/orchestration.json when home dir exists)",
+        ),
+        (
+            TOOL_CRON_CREATE,
+            "Register cron-like job (persisted like tasks; not executed by built-in scheduler in v1)",
+        ),
         (TOOL_ENTER_WORKTREE, "git worktree add + record path"),
         (TOOL_STRUCTURED_OUTPUT, "Structured JSON passthrough"),
         (TOOL_SEND_USER_MESSAGE, "User-visible message payload"),
@@ -240,8 +252,8 @@ pub fn sidebar_tool_lines() -> Vec<String> {
         "Bash / PowerShell — Shell".to_string(),
         "Glob / Grep — 搜索".to_string(),
         "WebFetch / WebSearch — 网络".to_string(),
-        "Task* / Team* / Cron* — 编排（内存）".to_string(),
-        "mcp / LSP / Agent / Skill — 扩展（部分 stub）".to_string(),
+        "Task* / Team* / Cron* — 编排（通常落盘 orchestration.json）".to_string(),
+        "mcp / LSP / Agent / Skill — 扩展（LSP 部分能力）".to_string(),
     ]
 }
 

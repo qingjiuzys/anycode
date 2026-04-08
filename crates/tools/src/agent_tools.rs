@@ -94,14 +94,21 @@ impl AgentTool {
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| ".".to_string());
 
+        let agent_type_owned = agent_type.to_string();
         match exe
-            .run_nested_task(AgentType::new(agent_type.to_string()), prompt, wd)
+            .run_nested_task(
+                AgentType::new(agent_type_owned.clone()),
+                prompt.clone(),
+                wd.clone(),
+            )
             .await?
         {
             TaskResult::Success { output, artifacts } => Ok(ToolOutput {
                 result: serde_json::json!({
                     "output": output,
-                    "artifacts_count": artifacts.len()
+                    "artifacts_count": artifacts.len(),
+                    "agent_type": agent_type_owned,
+                    "working_directory": wd,
                 }),
                 error: None,
                 duration_ms: start.elapsed().as_millis() as u64,
@@ -126,16 +133,20 @@ impl Tool for AgentTool {
         "Agent"
     }
     fn description(&self) -> &str {
-        "Spawn a nested agent run via the same AgentRuntime（子类型工具集由 agent_type 决定；未指定时默认 general-purpose）。"
+        "Run a nested agent turn via the same AgentRuntime as the host (shares LLM + tool registry wiring). Requires non-empty `prompt` or `task`. Use `agent_type` to pick tool surface: explore | plan | general-purpose (default). Nesting is capped (typically ≤6 deep); exceeding returns an error JSON."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "prompt": { "type": "string", "description": "子任务说明" },
-                "task": { "type": "string", "description": "与 prompt 二选一" },
-                "agent_type": { "type": "string", "description": "explore | plan | general-purpose；省略时默认 general-purpose" }
-            }
+                "prompt": { "type": "string", "description": "Subtask instructions (required unless task is set)" },
+                "task": { "type": "string", "description": "Alias of prompt (required unless prompt is set)" },
+                "agent_type": { "type": "string", "description": "explore | plan | general-purpose; default general-purpose" }
+            },
+            "anyOf": [
+                { "required": ["prompt"] },
+                { "required": ["task"] }
+            ]
         })
     }
     fn permission_mode(&self) -> PermissionMode {
@@ -323,7 +334,7 @@ impl Tool for SendMessageTool {
     }
 
     fn description(&self) -> &str {
-        "Send a message to another agent/team channel (in-memory queue)."
+        "Queue a message for another agent/recipient key; stored in orchestration state and persists with ~/.anycode/tasks/orchestration.json when a home directory is available (otherwise session-only)."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -386,16 +397,20 @@ impl Tool for LegacyTaskAgentTool {
         "Task"
     }
     fn description(&self) -> &str {
-        "Legacy tool name `Task`（与 `Agent` 等价）；默认子 agent 为 general-purpose。"
+        "Legacy name for the nested Agent tool: same behavior as `Agent` (default agent_type general-purpose)."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "prompt": { "type": "string" },
-                "task": { "type": "string" },
-                "agent_type": { "type": "string" }
-            }
+                "prompt": { "type": "string", "description": "Subtask instructions (required unless task is set)" },
+                "task": { "type": "string", "description": "Alias of prompt (required unless prompt is set)" },
+                "agent_type": { "type": "string", "description": "explore | plan | general-purpose; default general-purpose" }
+            },
+            "anyOf": [
+                { "required": ["prompt"] },
+                { "required": ["task"] }
+            ]
         })
     }
     fn permission_mode(&self) -> PermissionMode {

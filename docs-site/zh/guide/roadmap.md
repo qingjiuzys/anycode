@@ -75,7 +75,7 @@ read_when:
 | P2 | WebFetch, WebSearch | **完成** |
 | P3 | mcp, ListMcpResourcesTool, ReadMcpResourceTool, McpAuth | **v1**：`tools-mcp` + **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`**；deny 规则；动态 **`mcp__<slug>__authenticate`** |
 | P4 | LSP | **部分**：`tools-lsp` + **`ANYCODE_LSP_COMMAND`** 时转发；未启用 stub |
-| P5 | Agent, Skill, SendMessage, Task(legacy) | **Skill v1**：`SKILL.md` 扫描、提示注入、**`Skill`** 硬化、**`skills.*`**、**`anycode skills`**；Agent/Task 仍为 stub / 内存 |
+| P5 | Agent, Skill, SendMessage, Task(legacy) | **Skill v1** 已落地；**Agent** / 旧 **Task** 嵌套跑 **`AgentRuntime`**（**`agent_type`** 选工具面，嵌套深度有上限）；**SendMessage** 写入编排快照并随 **`orchestration.json`** 持久化 |
 | P6 | 编排 Task/Team/Cron 等 | **持久化 v1**：**`~/.anycode/tasks/orchestration.json`**（损坏时备份为 **`*.json.corrupt`**） |
 | P7 | EnterPlanMode, Worktree, ToolSearch, Sleep, StructuredOutput | **完成** |
 | P8 | PowerShell, Config, Brief, AskUserQuestion, REPL | **完成**（PowerShell 仅 Windows） |
@@ -92,7 +92,7 @@ read_when:
 
 **代码入口**：`mcp_normalization.rs`、`mcp_tools.rs`、`mcp_stdio.rs`、`bootstrap/mcp_env.rs`；feature **`tools-mcp`**。
 
-**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 Task** 仍为 stub。
+**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套跑同一套 **`AgentRuntime`**（**`SubAgentExecutor`**），**`agent_type`** 选工具面；**`TaskCreate` 等编排记录**在常规 CLI 下写入 **`~/.anycode/tasks/orchestration.json`**（与 **`~/.anycode/tasks/<uuid>/`** 执行目录不是同一概念）。后续：隔离、权限继承、编排 ID 与 daemon 日志对齐。
 
 **LSP、P5 其余项、OpenAI 官方客户端** 等与英文 [Roadmap](/guide/roadmap) 对称，细节见源码与上表。
 
@@ -102,7 +102,7 @@ read_when:
 
 | 主线 | 目标（可拆成 issue 的起点） |
 |------|---------------------------|
-| **P5 Agent / Task** | 将 **Agent** 与旧 **Task** 从 stub / 内存编排推进到可用形态；与 `crates/tools/src/catalog.rs`、`~/.anycode/tasks` 约定对齐。 |
+| **P5 Agent / Task** | 强化嵌套 **Agent**/**Task**（隔离、权限、工具 JSON 里更清晰的 ID）；在需要处把 **orchestration** 任务记录与 daemon **`~/.anycode/tasks/<id>/`** 执行故事对齐。 |
 | **MCP 超出 stdio v1** | stdio 健康检查与更清晰错误；`tools/call` 超时；无 GUI 下的 **McpAuth** / OAuth 体验；真实的 MCP **资源** 列出与读取工具。 |
 
 **文档说明：**显式模型指令文件路径 **仅** 通过环境变量 **`ANYCODE_MODEL_INSTRUCTIONS_FILE`** 指定；JSON 中的 `model_instructions` **只**控制自动发现 — 见 [配置与安全](./config-security.md)。

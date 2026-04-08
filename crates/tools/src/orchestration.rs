@@ -1,4 +1,7 @@
-//! Task / Team / Cron / RemoteTrigger 编排工具（内存实现，与 daemon 任务 ID 后续可对齐）。
+//! Task / Team / Cron / RemoteTrigger 编排工具。
+//!
+//! 在常规 CLI 下，变更会持久化到 `~/.anycode/tasks/orchestration.json`（`ToolServices::load_or_new*` 绑定路径时）；
+//! 无用户主目录的 ephemeral 会话中为进程内状态。
 
 use crate::services::{TaskRecord, ToolServices};
 use anycode_core::prelude::*;
@@ -41,7 +44,7 @@ impl Tool for TaskCreateTool {
         "TaskCreate"
     }
     fn description(&self) -> &str {
-        "Create a task in the in-memory task list."
+        "Create an orchestration task record (persists with ~/.anycode/tasks/orchestration.json when a home directory is available)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -108,7 +111,7 @@ impl Tool for TaskUpdateTool {
         "TaskUpdate"
     }
     fn description(&self) -> &str {
-        "Update an existing task by id."
+        "Update an orchestration task by id (same persistence rules as TaskCreate)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -169,7 +172,7 @@ impl Tool for TaskListTool {
         "TaskList"
     }
     fn description(&self) -> &str {
-        "List all in-memory tasks."
+        "List orchestration task records (same persistence rules as TaskCreate)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{}})
@@ -213,7 +216,7 @@ impl Tool for TaskGetTool {
         "TaskGet"
     }
     fn description(&self) -> &str {
-        "Get one task by id."
+        "Get one orchestration task by id."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -265,7 +268,7 @@ impl Tool for TaskStopTool {
         "TaskStop"
     }
     fn description(&self) -> &str {
-        "Remove a task by id (in-memory)."
+        "Remove a task record by id (same persistence rules as TaskCreate)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -365,7 +368,7 @@ impl Tool for TeamCreateTool {
         "TeamCreate"
     }
     fn description(&self) -> &str {
-        "Create a team record (in-memory)."
+        "Create a team record (same persistence rules as TaskCreate)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -472,7 +475,7 @@ impl Tool for CronCreateTool {
         "CronCreate"
     }
     fn description(&self) -> &str {
-        "Register a cron-like job (stored in memory; not executed by scheduler in v1)."
+        "Register a cron-like job (persisted like other orchestration data; not executed by built-in scheduler in v1)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -615,7 +618,7 @@ impl Tool for RemoteTriggerTool {
         "RemoteTrigger"
     }
     fn description(&self) -> &str {
-        "Register a remote trigger URL (stored; no outbound call in v1)."
+        "Register a remote trigger URL (persisted like other orchestration data; no outbound call in v1)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
