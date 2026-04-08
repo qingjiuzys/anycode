@@ -109,6 +109,17 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 
 - **`cargo build -p anycode --features openai`** — when **`provider`** is exactly **`openai`**, Chat Completions may use **`OpenAIClient`**; gateways often still use **`ZaiClient`**.
 
+## Suggested next focus (maintainers)
+
+Pick **one** primary thread for the next milestone-sized effort (avoid two large refactors in parallel). Open scoped GitHub issues per thread.
+
+| Thread | Goal (issue-sized starters) |
+|--------|-----------------------------|
+| **P5 Agent / Task** | Move **Agent** and legacy **Task** beyond stub / in-memory orchestration; align tool surface with `crates/tools/src/catalog.rs` and `~/.anycode/tasks` conventions. |
+| **MCP beyond stdio v1** | Stdio health checks and clearer errors; timeouts on `tools/call`; **McpAuth** / OAuth ergonomics without a GUI; real **List** / **Read** MCP resource tools. |
+
+**Docs note:** explicit model-instructions file path is **only** via **`ANYCODE_MODEL_INSTRUCTIONS_FILE`**; JSON `model_instructions` controls **discovery** only — see [Config & security](./config-security).
+
 ## Related
 
 - [Architecture](./architecture)  

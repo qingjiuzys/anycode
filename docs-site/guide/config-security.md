@@ -84,7 +84,24 @@ anyCode automatically discovers and loads model instructions from `AGENTS.md` fi
 2. `.anycode/` subdirectory: `./.anycode/AGENTS.md`, etc.
 3. Parent directories (up to project root, stops at `.git`, `Cargo.toml`, `package.json`, etc.)
 
-The first file found is loaded and injected as a "Project Instructions" section in the system prompt.
+The first file found is loaded and injected as a **Project Instructions** section in the system prompt.
+
+### Explicit file (environment variable)
+
+To load a specific file without using discovery, set:
+
+```bash
+export ANYCODE_MODEL_INSTRUCTIONS_FILE=/absolute/or/relative/path/to/instructions.md
+```
+
+Relative paths are resolved against the **process working directory**. This is **only** an environment variable: there is no `model_instructions_file` (or similar) field in `config.json`. Use the `model_instructions` JSON object below to tune **discovery** (enable/disable, custom filename, walk depth).
+
+### When both explicit and discovery apply
+
+If `ANYCODE_MODEL_INSTRUCTIONS_FILE` is set **and** discovery finds a file, the runtime may inject **both**, in this order:
+
+1. **Model Instructions** — content from the explicit path.
+2. **Project Instructions** — content from the first discovery match.
 
 ### Configuration
 

@@ -96,6 +96,17 @@ read_when:
 
 **LSP、P5 其余项、OpenAI 官方客户端** 等与英文 [Roadmap](/guide/roadmap) 对称，细节见源码与上表。
 
+## 建议的下一主线（维护者）
+
+下一阶段宜 **二选一** 作为里程碑级主线（避免两条大块重构并行）。按主线拆 **GitHub issue** 跟踪。
+
+| 主线 | 目标（可拆成 issue 的起点） |
+|------|---------------------------|
+| **P5 Agent / Task** | 将 **Agent** 与旧 **Task** 从 stub / 内存编排推进到可用形态；与 `crates/tools/src/catalog.rs`、`~/.anycode/tasks` 约定对齐。 |
+| **MCP 超出 stdio v1** | stdio 健康检查与更清晰错误；`tools/call` 超时；无 GUI 下的 **McpAuth** / OAuth 体验；真实的 MCP **资源** 列出与读取工具。 |
+
+**文档说明：**显式模型指令文件路径 **仅** 通过环境变量 **`ANYCODE_MODEL_INSTRUCTIONS_FILE`** 指定；JSON 中的 `model_instructions` **只**控制自动发现 — 见 [配置与安全](./config-security.md)。
+
 ## 相关
 
 - [架构](./architecture)  
