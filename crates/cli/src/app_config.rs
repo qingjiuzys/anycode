@@ -3,7 +3,7 @@
 use crate::cli_args::{ModelAuthCommands, ModelCommands};
 use crate::copilot_auth;
 use crate::i18n::{tr, tr_args};
-use anycode_agent::RuntimePromptConfig;
+use anycode_agent::{ModelInstructionsConfig, RuntimePromptConfig};
 use anycode_core::{FeatureFlag, FeatureRegistry, RuntimeMode};
 use anycode_llm::{
     normalize_provider_id, transport_for_provider_id, LlmTransport, ZAI_MODEL_CATALOG,
@@ -393,6 +393,10 @@ pub(crate) fn save_merged_config(
             .as_ref()
             .map(|c| c.session.clone())
             .unwrap_or_default(),
+        model_instructions: existing
+            .as_ref()
+            .map(|c| c.model_instructions.clone())
+            .unwrap_or_default(),
     };
 
     validate_llm_provider(&cfg.provider)?;
@@ -555,6 +559,45 @@ pub(crate) async fn run_model_command(
 mod schema;
 pub(crate) use schema::*;
 
+fn default_model_instructions_enabled() -> bool {
+    true
+}
+
+fn default_model_instructions_max_depth() -> usize {
+    10
+}
+
+/// `config.json` 中的 `model_instructions` 段：AGENTS.md 等文件发现配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ModelInstructionsConfigFile {
+    #[serde(default = "default_model_instructions_enabled")]
+    pub(crate) enabled: bool,
+    #[serde(default)]
+    pub(crate) filename: Option<String>,
+    #[serde(default = "default_model_instructions_max_depth")]
+    pub(crate) max_depth: usize,
+}
+
+impl Default for ModelInstructionsConfigFile {
+    fn default() -> Self {
+        Self {
+            enabled: default_model_instructions_enabled(),
+            filename: None,
+            max_depth: default_model_instructions_max_depth(),
+        }
+    }
+}
+
+impl From<ModelInstructionsConfigFile> for ModelInstructionsConfig {
+    fn from(f: ModelInstructionsConfigFile) -> Self {
+        Self {
+            enabled: f.enabled,
+            filename: f.filename,
+            max_depth: Some(f.max_depth),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct AnyCodeConfig {
     // V1 固定：z.ai（= BigModel）
@@ -591,6 +634,8 @@ pub(crate) struct AnyCodeConfig {
     skills: SkillsConfigFile,
     #[serde(default)]
     pub(crate) session: SessionConfigFile,
+    #[serde(default)]
+    model_instructions: ModelInstructionsConfigFile,
 }
 
 pub(crate) fn default_base_url_for(plan: &str) -> &'static str {
@@ -717,6 +762,7 @@ fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Resul
             zai_tool_choice_first_turn: false,
             skills: SkillsConfigFile::default(),
             session: SessionConfigFile::default(),
+            model_instructions: ModelInstructionsConfigFile::default(),
         }),
     )
 }
@@ -980,6 +1026,10 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .as_ref()
             .map(|c| c.session.clone())
             .unwrap_or_default(),
+        model_instructions: existing
+            .as_ref()
+            .map(|c| c.model_instructions.clone())
+            .unwrap_or_default(),
     };
 
     save_anycode_config(&cfg)?;
@@ -1125,6 +1175,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
                 zai_tool_choice_first_turn: false,
                 skills: SkillsConfigFile::default(),
                 session: SessionConfigFile::default(),
+                model_instructions: ModelInstructionsConfigFile::default(),
             }
         }
     };
@@ -1212,6 +1263,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             workflow_section: None,
             goal_section: None,
             prompt_fragments: vec![],
+            model_instructions: cfg.model_instructions.into(),
         },
         skills: cfg.skills.into(),
         session: cfg.session.into(),

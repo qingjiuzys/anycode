@@ -74,6 +74,49 @@ anycode run --ignore-approval --agent general-purpose "..."
 
 两者都支持 `@路径`（相对路径相对配置文件目录）。
 
+## 模型指令文件（AGENTS.md）
+
+anyCode 会自动发现并加载项目中的 `AGENTS.md` 文件作为模型指令。这类似于 `.cursorrules` 或其他项目级指令文件。
+
+### 搜索位置（按顺序）
+
+1. 工作目录：`./AGENTS.md`、`./.agents.md`、`./agents.md`、`./MODEL_INSTRUCTIONS.md`
+2. `.anycode/` 子目录：`./.anycode/AGENTS.md` 等
+3. 父目录（向上遍历到项目根目录，遇到 `.git`、`Cargo.toml`、`package.json` 等停止）
+
+找到的第一个文件会被加载，并以"项目指令"部分注入到系统提示词中。
+
+### 配置
+
+```json
+{
+  "model_instructions": {
+    "enabled": true,
+    "filename": null,
+    "max_depth": 10
+  }
+}
+```
+
+| 字段 | 默认 | 含义 |
+|------|------|------|
+| `enabled` | `true` | 启用/禁用模型指令发现 |
+| `filename` | `null` | 自定义文件名（如果设置，则只搜索该文件） |
+| `max_depth` | `10` | 向上遍历父目录的最大深度 |
+
+### 示例 AGENTS.md
+
+```markdown
+# 项目规范
+
+- 使用 TypeScript 并启用 strict 模式
+- 遵循现有代码风格
+- 为新功能编写测试
+- 文档化公开 API
+```
+
+当项目中存在此文件时，其内容会自动包含在所有 agent 交互的系统提示词中。
+
 ## MCP 过滤
 
 - `security.mcp_tool_deny_rules`：按规则拒绝

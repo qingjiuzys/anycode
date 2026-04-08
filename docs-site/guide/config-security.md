@@ -74,6 +74,49 @@ Optional top-level string fields:
 
 Both support `@path` (relative to config file directory).
 
+## Model instructions file (AGENTS.md)
+
+anyCode automatically discovers and loads model instructions from `AGENTS.md` files in your project. This is similar to `.cursorrules` or other project-specific instruction files.
+
+### Search locations (in order)
+
+1. Working directory: `./AGENTS.md`, `./.agents.md`, `./agents.md`, `./MODEL_INSTRUCTIONS.md`
+2. `.anycode/` subdirectory: `./.anycode/AGENTS.md`, etc.
+3. Parent directories (up to project root, stops at `.git`, `Cargo.toml`, `package.json`, etc.)
+
+The first file found is loaded and injected as a "Project Instructions" section in the system prompt.
+
+### Configuration
+
+```json
+{
+  "model_instructions": {
+    "enabled": true,
+    "filename": null,
+    "max_depth": 10
+  }
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Enable/disable model instructions discovery |
+| `filename` | `null` | Custom filename (if set, only searches for this file) |
+| `max_depth` | `10` | Max parent directories to traverse |
+
+### Example AGENTS.md
+
+```markdown
+# Project Guidelines
+
+- Use TypeScript with strict mode enabled
+- Follow the existing code style
+- Write tests for new features
+- Document public APIs
+```
+
+When this file exists in your project, the content will be automatically included in the system prompt for all agent interactions.
+
 ## MCP deny rules
 
 - `security.mcp_tool_deny_rules`: deny by rule string

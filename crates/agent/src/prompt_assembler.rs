@@ -1,5 +1,6 @@
 //! Structured system prompt assembly.
 
+use crate::model_instructions::discover_model_instructions;
 use crate::system_prompt::RuntimePromptConfig;
 use anycode_core::{Agent, Memory, RuntimeMode, BUILTIN_SLASH_COMMANDS};
 
@@ -84,6 +85,24 @@ impl<'a> PromptAssembler<'a> {
                 });
             }
         }
+
+        // Discover and inject model instructions from AGENTS.md (or similar)
+        if let Some(instructions) = discover_model_instructions(self.cwd, &self.config.model_instructions) {
+            let path_display = instructions.path.display();
+            segments.push(SystemPromptSegment {
+                id: "model_instructions",
+                text: format!(
+                    "# Project Instructions\n\n<!-- Loaded from: {} -->\n\n{}",
+                    path_display, instructions.content
+                ),
+            });
+            tracing::debug!(
+                target: "anycode_agent",
+                "Loaded model instructions from: {}",
+                path_display
+            );
+        }
+
         if let Some(a) = self.task_append {
             if !a.trim().is_empty() {
                 segments.push(SystemPromptSegment {

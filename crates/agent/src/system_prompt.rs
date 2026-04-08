@@ -1,5 +1,6 @@
 //! 系统提示多段合成（override / append / 默认段与记忆的优先级）。
 
+use crate::model_instructions::ModelInstructionsConfig;
 use crate::prompt_assembler::PromptAssembler;
 use anycode_core::Agent;
 
@@ -18,6 +19,8 @@ pub struct RuntimePromptConfig {
     pub goal_section: Option<String>,
     #[allow(clippy::vec_box)]
     pub prompt_fragments: Vec<String>,
+    /// Configuration for model instructions file discovery (AGENTS.md).
+    pub model_instructions: ModelInstructionsConfig,
 }
 
 fn env_section(cwd: &str) -> String {
