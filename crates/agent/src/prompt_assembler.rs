@@ -77,6 +77,18 @@ impl<'a> PromptAssembler<'a> {
                 self.config.skills_section.as_deref(),
             ),
         }];
+
+        // Inject model instructions from external file (e.g., AGENTS.md)
+        if let Some(content) = self.config.model_instructions_content.as_deref() {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                segments.push(SystemPromptSegment {
+                    id: "model_instructions_file",
+                    text: format!("# Model Instructions\n\n{}", trimmed),
+                });
+            }
+        }
+
         if let Some(a) = self.config.system_prompt_append.as_deref() {
             if !a.trim().is_empty() {
                 segments.push(SystemPromptSegment {
@@ -90,7 +102,7 @@ impl<'a> PromptAssembler<'a> {
         if let Some(instructions) = discover_model_instructions(self.cwd, &self.config.model_instructions) {
             let path_display = instructions.path.display();
             segments.push(SystemPromptSegment {
-                id: "model_instructions",
+                id: "model_instructions_discovered",
                 text: format!(
                     "# Project Instructions\n\n<!-- Loaded from: {} -->\n\n{}",
                     path_display, instructions.content

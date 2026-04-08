@@ -427,6 +427,30 @@ pub(crate) async fn initialize_runtime(
     let tool_name_deny = compile_tool_name_deny_regexes(&config.security.mcp_tool_deny_patterns);
 
     let mut prompt_runtime = config.prompt.clone();
+
+    // Resolve and load model instructions file (e.g., AGENTS.md) if configured
+    if prompt_runtime.model_instructions_file.is_some() {
+        // Use current working directory as base for relative paths
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        if let Err(e) = prompt_runtime.resolve_model_instructions_file(&working_dir) {
+            let mut a = FluentArgs::new();
+            a.set(
+                "path",
+                prompt_runtime
+                    .model_instructions_file
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default(),
+            );
+            a.set("err", e.to_string());
+            tracing::warn!(
+                target: "anycode_cli",
+                "{}",
+                tr_args("log-model-instructions-fail", &a)
+            );
+        }
+    }
+
     if config.skills.enabled {
         if let Some(section) = skill_catalog.render_prompt_subsection() {
             prompt_runtime.skills_section = Some(section);
