@@ -258,7 +258,7 @@ pub async fn run_tui(
             );
         })?;
 
-        let _ = super::terminal_guard::refresh_mouse_capture_after_draw();
+        let _ = super::terminal_guard::refresh_mouse_capture_after_draw(used_alternate_screen);
 
         let avail = main_avail_cell.get().max(1);
         let max_sc = workspace_line_count.get().saturating_sub(avail);

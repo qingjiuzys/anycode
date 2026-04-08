@@ -19,8 +19,8 @@ tui-welcome-skip-restart =  后重新启动
 tui-help-title = Shortcuts
 tui-help-line1 = ?  帮助  ·  Esc 清除/退出
 tui-help-line2 = Enter 发送 · Sh+Enter 多行 · ↑↓ 历史
-tui-help-line3 = PgUp/PgDn 滚动 Workspace · ctrl+o 展开/折叠工具块
-tui-help-line4 = 默认开启鼠标报告，滚轮滚动 Workspace；拖选复制若异常可设 ANYCODE_TUI_MOUSE=0 关闭
+tui-help-line3 = PgUp/PgDn 滚动 Workspace · Ctrl+Home/End 顶/底 · ctrl+o 折叠工具
+tui-help-line4 = 鼠标：备用屏内捕获滚轮滚 Workspace；主缓冲默认不捕获，滚轮常归终端 · ANYCODE_TUI_MOUSE=1 始终捕获 · =0 关闭
 tui-help-line5 = 备用屏（对齐 Claude）: CLAUDE_CODE_NO_FLICKER=1 或 ANYCODE_TUI_ALT_SCREEN=1 或 USER_TYPE=ant；主缓冲: 将上述任一变更为 0
 tui-help-line6 = 关闭 echo: ANYCODE_TUI_NO_SCROLLBACK_DUMP=1（仅备用屏模式）
 tui-help-line7 = ^R 搜索历史 · ^L 清空会话

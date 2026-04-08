@@ -19,8 +19,8 @@ tui-welcome-skip-restart =  then restart
 tui-help-title = Shortcuts
 tui-help-line1 = ?  help  ·  Esc clear/exit
 tui-help-line2 = Enter send · Sh+Enter multiline · ↑↓ history
-tui-help-line3 = PgUp/PgDn scroll Workspace · ctrl+o fold/unfold tool blocks
-tui-help-line4 = Mouse reporting on by default (wheel scrolls Workspace); ANYCODE_TUI_MOUSE=0 if drag-select breaks
+tui-help-line3 = PgUp/PgDn scroll Workspace · Ctrl+Home/End top/bottom · ctrl+o fold tools
+tui-help-line4 = Mouse: alt-screen captures wheel for Workspace; main buffer leaves wheel to terminal · ANYCODE_TUI_MOUSE=1 to capture always · =0 off
 tui-help-line5 = Alt screen (Claude-style): CLAUDE_CODE_NO_FLICKER=1 or ANYCODE_TUI_ALT_SCREEN=1 or USER_TYPE=ant; main buffer: set either to 0
 tui-help-line6 = Disable echo: ANYCODE_TUI_NO_SCROLLBACK_DUMP=1 (alt screen only)
 tui-help-line7 = ^R search history · ^L clear session

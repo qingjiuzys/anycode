@@ -489,14 +489,24 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Home => {
-            if ctx.rev_search.is_none() {
-                ctx.input.move_home();
+            if ctx.rev_search.is_none() && ctx.pending_approval.is_none() {
+                if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    let avail = ctx.main_avail_cell.get().max(10);
+                    let max_sc = ctx.workspace_line_count.get().saturating_sub(avail);
+                    *ctx.transcript_scroll_up = max_sc;
+                } else {
+                    ctx.input.move_home();
+                }
             }
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::End => {
-            if ctx.rev_search.is_none() {
-                ctx.input.move_end();
+            if ctx.rev_search.is_none() && ctx.pending_approval.is_none() {
+                if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    *ctx.transcript_scroll_up = 0;
+                } else {
+                    ctx.input.move_end();
+                }
             }
             Ok(TuiLoopCtl::Ok)
         }

@@ -2,8 +2,7 @@
 
 use crate::i18n::{tr, tr_args};
 use crate::md_tui::{
-    render_markdown, render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed,
-    wrap_ratatui_line,
+    render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed, wrap_ratatui_line,
 };
 use fluent_bundle::FluentArgs;
 use ratatui::style::{Modifier, Style};
@@ -456,7 +455,7 @@ pub(crate) fn layout_workspace(
                     // 对齐 Claude：无正文则不占一行（避免 ⏺ <empty>）
                     continue;
                 }
-                let mut md_lines = render_markdown(t, w);
+                let mut md_lines = render_markdown_styled(t, w, style_assistant_prose());
                 if let Some(first) = md_lines.first_mut() {
                     let tail_reply = ei + 1 == entries.len();
                     let bullet = pulse_dim_assistant_bold(live, tail_reply);

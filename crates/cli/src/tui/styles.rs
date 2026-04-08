@@ -20,6 +20,11 @@ pub(crate) fn style_assistant() -> Style {
     Style::default().fg(Color::Green)
 }
 
+/// 助手 Markdown 正文（对齐 Claude Code 终端：浅色正文，避免大段亮绿）
+pub(crate) fn style_assistant_prose() -> Style {
+    Style::default().fg(Color::White)
+}
+
 pub(crate) fn style_tool() -> Style {
     Style::default().fg(Color::Yellow)
 }

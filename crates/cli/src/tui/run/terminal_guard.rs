@@ -7,7 +7,7 @@
 //! 4. 否则 `USER_TYPE=ant` 时默认备用屏，外部用户默认主缓冲。
 //!
 //! 环境变量：`ANYCODE_TUI_ALT_SCREEN`（优先）→ `CLAUDE_CODE_NO_FLICKER`（与 Claude 共用）。
-//! **鼠标**：默认开启；`ANYCODE_TUI_MOUSE=0` 关闭。
+//! **鼠标**：默认仅备用屏开启（主缓冲把滚轮留给终端）；`ANYCODE_TUI_MOUSE=1` 主缓冲也捕获；`=0` 全关。
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -20,13 +20,23 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
-/// 是否请求鼠标报告（滚轮等）。显式 `0` / `false` / `no` / `off` 关闭；其余非空值或未设置则开启。
-fn env_mouse_capture_wanted() -> bool {
+/// 鼠标报告策略（与 Claude 主缓冲思路一致）：
+/// - **未设置** `ANYCODE_TUI_MOUSE`：仅在 **备用屏** 下开启捕获（滚轮在应用内滚 Workspace）；
+///   主缓冲下不捕获，滚轮常由终端用于 **scrollback / 视口**，而非应用内虚拟滚动。
+/// - `ANYCODE_TUI_MOUSE=1|true|yes|on`：主缓冲也捕获（滚轮走应用内滚动）。
+/// - `=0|false|no|off`：始终关闭。
+pub(super) fn tui_mouse_capture_enabled(alternate_screen: bool) -> bool {
     match std::env::var("ANYCODE_TUI_MOUSE") {
-        Err(_) => true,
+        Err(_) => alternate_screen,
         Ok(s) => {
             let s = s.trim().to_ascii_lowercase();
-            !matches!(s.as_str(), "0" | "false" | "no" | "off")
+            if matches!(s.as_str(), "0" | "false" | "no" | "off") {
+                return false;
+            }
+            if s.is_empty() {
+                return alternate_screen;
+            }
+            true
         }
     }
 }
@@ -142,7 +152,7 @@ impl TuiTerminalGuard {
         // 隐藏硬件光标，避免与 ratatui 绘制的 ▌ 叠用；部分终端下 IME 会跟错光标位置。
         execute!(out, Hide)?;
         execute!(out, EnableBracketedPaste)?;
-        let mouse_capture = env_mouse_capture_wanted();
+        let mouse_capture = tui_mouse_capture_enabled(alternate_screen);
         if mouse_capture {
             execute!(out, EnableMouseCapture)?;
             let _ = out.flush();
@@ -159,8 +169,8 @@ impl TuiTerminalGuard {
 }
 
 /// ratatui 每帧重绘后，部分终端会丢失 DEC 鼠标模式（滚轮不再产生事件）；在 `draw` 之后幂等重发一次。
-pub(super) fn refresh_mouse_capture_after_draw() -> std::io::Result<()> {
-    if !env_mouse_capture_wanted() {
+pub(super) fn refresh_mouse_capture_after_draw(alternate_screen: bool) -> std::io::Result<()> {
+    if !tui_mouse_capture_enabled(alternate_screen) {
         return Ok(());
     }
     let mut out = stdout();

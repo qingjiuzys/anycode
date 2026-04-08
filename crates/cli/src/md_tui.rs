@@ -151,10 +151,6 @@ fn style_dim() -> Style {
     Style::default().fg(Color::DarkGray)
 }
 
-fn style_body() -> Style {
-    Style::default().fg(Color::Green)
-}
-
 /// 在固定宽度内把带样式的文本写成多行 `Line`（按字符宽度，支持 CJK）。
 struct WrapWriter {
     width: usize,
@@ -741,11 +737,6 @@ pub fn render_markdown_styled(
     lines
 }
 
-/// 助手气泡等：默认绿色正文样式。
-pub fn render_markdown(md: &str, content_width: usize) -> Vec<Line<'static>> {
-    render_markdown_styled(md, content_width, style_body())
-}
-
 /// 将普通文本按宽度换行成绿色正文行（用于工具结果等）。
 pub fn wrap_plain_prefixed(
     prefix: &str,
@@ -801,7 +792,7 @@ mod tests {
     #[test]
     fn renders_heading_and_list() {
         let md = "# Title\n\n- a\n- b\n";
-        let lines = render_markdown(md, 40);
+        let lines = render_markdown_styled(md, 40, Style::default().fg(Color::Green));
         assert!(!lines.is_empty());
         let s: String = lines[0]
             .spans
