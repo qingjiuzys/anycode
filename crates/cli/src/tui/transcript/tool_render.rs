@@ -8,6 +8,8 @@ use ratatui::text::{Line, Span};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 
+use anycode_core::strip_llm_reasoning_xml_blocks;
+
 use super::types::WorkspaceLiveLayout;
 use crate::tui::styles::*;
 
@@ -58,7 +60,9 @@ pub(crate) fn unwrap_single_content_json<'a>(text: &'a str) -> Cow<'a, str> {
 
 /// 比较 assistant 正文（含 `unwrap_single_content_json`）是否与 `final_text` 语义一致。
 pub(crate) fn assistant_markdown_meaningful_eq(stored: &str, candidate: &str) -> bool {
-    unwrap_single_content_json(stored).trim() == unwrap_single_content_json(candidate).trim()
+    let a = strip_llm_reasoning_xml_blocks(unwrap_single_content_json(stored).as_ref());
+    let b = strip_llm_reasoning_xml_blocks(unwrap_single_content_json(candidate).as_ref());
+    a.trim() == b.trim()
 }
 
 fn parse_tool_result_json(raw: &str) -> Option<Value> {

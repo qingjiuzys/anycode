@@ -83,6 +83,8 @@ pub async fn run_tui(
     let mut help_open = false;
 
     let mut pending_approval: Option<PendingApproval> = None;
+    // 审批三选项菜单高亮（↑↓ / Enter；y/p/n 仍为快捷键）。
+    let mut approval_menu_selected: usize = 0;
     let mut exec_handle: Option<JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>>> = None;
     let mut exec_prev_len: usize = 0;
     let mut last_max_input_tokens: u32 = 0;
@@ -119,7 +121,7 @@ pub async fn run_tui(
         let main_avail_cell = Cell::new(0usize);
         let nl_extra = input.as_string().matches('\n').count().min(12);
         // 底栏：横线(1) + Dock（正文区含外框）；快捷键在 `?` 帮助
-        let mut bottom_h: u16 = if pending_approval.is_some() { 15 } else { 7 };
+        let mut bottom_h: u16 = if pending_approval.is_some() { 18 } else { 7 };
         if rev_search.is_some() {
             bottom_h = bottom_h.max(14);
         } else if pending_approval.is_none()
@@ -168,6 +170,7 @@ pub async fn run_tui(
                     debug,
                     last_key: last_key.as_deref(),
                     pending_approval: pending_approval.as_ref(),
+                    approval_menu_selected,
                     executing,
                     working_elapsed_secs,
                     help_open,
@@ -295,6 +298,7 @@ pub async fn run_tui(
                         last_key: &mut last_key,
                         transcript_scroll_up: &mut transcript_scroll_up,
                         pending_approval: &mut pending_approval,
+                        approval_menu_selected: &mut approval_menu_selected,
                         rev_search: &mut rev_search,
                         slash_suggest_pick: &mut slash_suggest_pick,
                         slash_suggest_suppress: &mut slash_suggest_suppress,
@@ -351,8 +355,9 @@ pub async fn run_tui(
             }
             req = approval_rx.recv() => {
                 if let Some(r) = req {
+                    approval_menu_selected = 0;
                     if let Some(old) = pending_approval.replace(r) {
-                        let _ = old.reply.send(false);
+                        let _ = old.reply.send(crate::tui::approval::ApprovalDecision::Deny);
                     }
                 }
             }

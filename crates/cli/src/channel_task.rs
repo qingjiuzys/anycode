@@ -11,6 +11,23 @@ pub(crate) struct ChannelTaskInput {
     pub channel_name: &'static str,
 }
 
+/// Truncate runtime/provider error text for IM (UTF-8 safe, character-wise).
+pub(crate) fn im_task_failure_detail_excerpt(
+    details: Option<&str>,
+    max_chars: usize,
+) -> Option<String> {
+    let d = details?.trim();
+    if d.is_empty() {
+        return None;
+    }
+    let n = d.chars().count();
+    Some(if n > max_chars {
+        format!("{}…", d.chars().take(max_chars).collect::<String>())
+    } else {
+        d.to_string()
+    })
+}
+
 pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
     Task {
         id: Uuid::new_v4(),
@@ -34,5 +51,24 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
             nested_worktree_repo_root: None,
         },
         created_at: chrono::Utc::now(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn im_detail_excerpt_skips_blank() {
+        assert!(im_task_failure_detail_excerpt(None, 10).is_none());
+        assert!(im_task_failure_detail_excerpt(Some("  \n"), 10).is_none());
+    }
+
+    #[test]
+    fn im_detail_excerpt_truncates_by_char() {
+        let s = "α".repeat(50);
+        let ex = im_task_failure_detail_excerpt(Some(&s), 12).unwrap();
+        assert!(ex.ends_with('…'));
+        assert_eq!(ex.chars().count(), 13);
     }
 }

@@ -95,6 +95,8 @@ pub(super) struct DrawFrameCtx<'a> {
     pub debug: bool,
     pub last_key: Option<&'a str>,
     pub pending_approval: Option<&'a PendingApproval>,
+    /// `0..3`：与 `event` 中审批菜单一致。
+    pub approval_menu_selected: usize,
     pub executing: bool,
     /// `executing` 为 true 时，自 `executing_since` 起经过的整秒数（用于顶栏，避免子秒刷新）。
     pub working_elapsed_secs: Option<u64>,
@@ -138,6 +140,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         debug,
         last_key,
         pending_approval,
+        approval_menu_selected,
         executing,
         working_elapsed_secs,
         help_open,
@@ -490,14 +493,28 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
                 input_lines.push(Line::from(Span::styled(row, style_dim())));
             }
         }
-        input_lines.push(Line::from(vec![
-            Span::styled("y", Style::default().fg(Color::Green)),
-            Span::styled(tr("tui-approval-sp-approve"), style_dim()),
-            Span::styled("n", Style::default().fg(Color::Red)),
-            Span::styled(tr("tui-approval-sp-mid"), style_dim()),
-            Span::styled("Esc", Style::default().fg(Color::White)),
-            Span::styled(tr("tui-approval-sp-deny"), style_dim()),
-        ]));
+        let pick = approval_menu_selected % 3;
+        let opt_once = tr("tui-approval-opt-once");
+        let opt_proj = tr("tui-approval-opt-project");
+        let opt_deny = tr("tui-approval-opt-deny");
+        for (i, label) in [opt_once, opt_proj, opt_deny].into_iter().enumerate() {
+            let prefix = if i == pick { "❯ " } else { "  " };
+            let st = if i == pick {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                style_dim()
+            };
+            input_lines.push(Line::from(vec![
+                Span::styled(prefix, st),
+                Span::styled(label, st),
+            ]));
+        }
+        input_lines.push(Line::from(vec![Span::styled(
+            tr("tui-approval-hint-arrows"),
+            style_dim(),
+        )]));
     } else if let Some(rs) = rev_search {
         let m = rs.matches(input_history);
         let pick = if m.is_empty() {
@@ -631,5 +648,237 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
                 f.set_cursor(xa, ya);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tui::approval::PendingApproval;
+    use crate::tui::input::InputState;
+    use crate::tui::transcript::TranscriptEntry;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use std::cell::Cell;
+    use std::collections::HashSet;
+    use tokio::sync::oneshot;
+
+    fn buffer_to_string(term: &Terminal<TestBackend>) -> String {
+        let buf = term.backend().buffer();
+        let mut out = String::new();
+        for y in 0..buf.area.height {
+            for x in 0..buf.area.width {
+                out.push_str(&buf.get(x, y).symbol);
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn renders_assistant_incremental_text_changes() {
+        let backend = TestBackend::new(80, 24);
+        let mut term = Terminal::new(backend).unwrap();
+        let size = Rect::new(0, 0, 80, 24);
+
+        let mut cache_lines: Vec<Line<'static>> = vec![];
+        let mut cache_gen: u64 = 0;
+        let mut cache_w: usize = 0;
+        let mut cache_fold_rev: u64 = 0;
+        let mut cache_exec: bool = false;
+        let mut cache_secs: Option<u64> = None;
+        let mut cache_pulse: u64 = 0;
+        let expanded: HashSet<u64> = HashSet::new();
+
+        let agent_type = AgentType::new("general-purpose");
+        let main_avail_cell = Cell::new(0usize);
+        let workspace_line_count = Cell::new(0usize);
+
+        let mut input = InputState::default();
+        input.set_from_str("");
+        let input_history: Vec<String> = vec![];
+
+        let t1 = vec![TranscriptEntry::AssistantMarkdown("Hello".to_string())];
+        term.draw(|f| {
+            draw_tui_frame(
+                f,
+                DrawFrameCtx {
+                    size,
+                    bottom_h: 7,
+                    show_buddy: false,
+                    pet_anim_frame: 0,
+                    working_dir_str: ".",
+                    agent_type: &agent_type,
+                    permission_mode: "default",
+                    require_approval: true,
+                    llm_provider: "mock",
+                    llm_plan: "coding",
+                    llm_model: "mock",
+                    debug: false,
+                    last_key: None,
+                    pending_approval: None,
+                    approval_menu_selected: 0,
+                    executing: false,
+                    working_elapsed_secs: None,
+                    help_open: false,
+                    transcript: &t1,
+                    transcript_scroll_up: 0,
+                    rev_search: None,
+                    slash_suggest_pick: 0,
+                    slash_suggest_suppress: true,
+                    input: &input,
+                    input_history: &input_history,
+                    workspace_cache_lines: &mut cache_lines,
+                    workspace_cache_gen: &mut cache_gen,
+                    workspace_cache_w: &mut cache_w,
+                    workspace_cache_fold_rev: &mut cache_fold_rev,
+                    workspace_cache_executing: &mut cache_exec,
+                    workspace_cache_working_secs: &mut cache_secs,
+                    workspace_cache_pulse_frame: &mut cache_pulse,
+                    transcript_gen: 1,
+                    fold_layout_rev: 1,
+                    expanded_tool_folds: &expanded,
+                    main_avail_cell: &main_avail_cell,
+                    workspace_line_count: &workspace_line_count,
+                },
+            );
+        })
+        .unwrap();
+        let s1 = buffer_to_string(&term);
+        assert!(s1.contains("Hello"));
+
+        let t2 = vec![TranscriptEntry::AssistantMarkdown(
+            "Hello world".to_string(),
+        )];
+        term.draw(|f| {
+            draw_tui_frame(
+                f,
+                DrawFrameCtx {
+                    size,
+                    bottom_h: 7,
+                    show_buddy: false,
+                    pet_anim_frame: 0,
+                    working_dir_str: ".",
+                    agent_type: &agent_type,
+                    permission_mode: "default",
+                    require_approval: true,
+                    llm_provider: "mock",
+                    llm_plan: "coding",
+                    llm_model: "mock",
+                    debug: false,
+                    last_key: None,
+                    pending_approval: None,
+                    approval_menu_selected: 0,
+                    executing: false,
+                    working_elapsed_secs: None,
+                    help_open: false,
+                    transcript: &t2,
+                    transcript_scroll_up: 0,
+                    rev_search: None,
+                    slash_suggest_pick: 0,
+                    slash_suggest_suppress: true,
+                    input: &input,
+                    input_history: &input_history,
+                    workspace_cache_lines: &mut cache_lines,
+                    workspace_cache_gen: &mut cache_gen,
+                    workspace_cache_w: &mut cache_w,
+                    workspace_cache_fold_rev: &mut cache_fold_rev,
+                    workspace_cache_executing: &mut cache_exec,
+                    workspace_cache_working_secs: &mut cache_secs,
+                    workspace_cache_pulse_frame: &mut cache_pulse,
+                    transcript_gen: 2,
+                    fold_layout_rev: 1,
+                    expanded_tool_folds: &expanded,
+                    main_avail_cell: &main_avail_cell,
+                    workspace_line_count: &workspace_line_count,
+                },
+            );
+        })
+        .unwrap();
+        let s2 = buffer_to_string(&term);
+        assert!(s2.contains("Hello world"));
+    }
+
+    #[test]
+    fn approval_hint_is_three_way_no_session_option() {
+        let backend = TestBackend::new(80, 24);
+        let mut term = Terminal::new(backend).unwrap();
+        let size = Rect::new(0, 0, 80, 24);
+
+        let mut cache_lines: Vec<Line<'static>> = vec![];
+        let mut cache_gen: u64 = 0;
+        let mut cache_w: usize = 0;
+        let mut cache_fold_rev: u64 = 0;
+        let mut cache_exec: bool = false;
+        let mut cache_secs: Option<u64> = None;
+        let mut cache_pulse: u64 = 0;
+        let expanded: HashSet<u64> = HashSet::new();
+
+        let agent_type = AgentType::new("general-purpose");
+        let main_avail_cell = Cell::new(0usize);
+        let workspace_line_count = Cell::new(0usize);
+
+        let input = InputState::default();
+        let input_history: Vec<String> = vec![];
+        let transcript: Vec<TranscriptEntry> =
+            vec![TranscriptEntry::Plain(vec![Line::from("workspace")])];
+
+        let (tx, _rx) = oneshot::channel();
+        let pending = PendingApproval {
+            tool: "Bash".to_string(),
+            input_preview: r#"{"command":"echo hi"}"#.to_string(),
+            reply: tx,
+        };
+
+        term.draw(|f| {
+            draw_tui_frame(
+                f,
+                DrawFrameCtx {
+                    size,
+                    bottom_h: 7,
+                    show_buddy: false,
+                    pet_anim_frame: 0,
+                    working_dir_str: ".",
+                    agent_type: &agent_type,
+                    permission_mode: "default",
+                    require_approval: true,
+                    llm_provider: "mock",
+                    llm_plan: "coding",
+                    llm_model: "mock",
+                    debug: false,
+                    last_key: None,
+                    pending_approval: Some(&pending),
+                    approval_menu_selected: 1,
+                    executing: false,
+                    working_elapsed_secs: None,
+                    help_open: false,
+                    transcript: &transcript,
+                    transcript_scroll_up: 0,
+                    rev_search: None,
+                    slash_suggest_pick: 0,
+                    slash_suggest_suppress: true,
+                    input: &input,
+                    input_history: &input_history,
+                    workspace_cache_lines: &mut cache_lines,
+                    workspace_cache_gen: &mut cache_gen,
+                    workspace_cache_w: &mut cache_w,
+                    workspace_cache_fold_rev: &mut cache_fold_rev,
+                    workspace_cache_executing: &mut cache_exec,
+                    workspace_cache_working_secs: &mut cache_secs,
+                    workspace_cache_pulse_frame: &mut cache_pulse,
+                    transcript_gen: 1,
+                    fold_layout_rev: 1,
+                    expanded_tool_folds: &expanded,
+                    main_avail_cell: &main_avail_cell,
+                    workspace_line_count: &workspace_line_count,
+                },
+            );
+        })
+        .unwrap();
+        let s = buffer_to_string(&term);
+        assert!(s.contains("Bash"));
+        assert!(s.contains("echo hi"));
+        assert!(!s.contains("会话"));
+        assert!(!s.contains("session"));
     }
 }

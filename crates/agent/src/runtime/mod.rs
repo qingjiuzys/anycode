@@ -17,6 +17,7 @@ use crate::prompt_assembler::{
 use crate::system_prompt::{compose_effective_system_prompt, RuntimePromptConfig};
 use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAssistantAgent};
 use anycode_core::prelude::*;
+use anycode_core::strip_llm_reasoning_xml_blocks;
 use anycode_core::Artifact;
 use anycode_security::SecurityLayer;
 use anycode_tools::CompiledClaudePermissionRules;
@@ -396,46 +397,146 @@ impl AgentRuntime {
                 let g = messages.lock().await;
                 g.clone()
             };
-            let response = self
+            // Prefer streaming: TUI can render deltas incrementally via shared `messages`.
+            // Fallback to non-stream chat if streaming is not supported / fails.
+            let mut tool_calls: Vec<ToolCall> = vec![];
+            let mut streamed = false;
+            let assistant_id = Uuid::new_v4();
+
+            // Insert an empty assistant message first so UI can show deltas as they arrive.
+            {
+                let mut g = messages.lock().await;
+                g.push(Message {
+                    id: assistant_id,
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(String::new()),
+                    timestamp: chrono::Utc::now(),
+                    metadata: HashMap::new(),
+                });
+            }
+
+            if let Ok(mut rx) = self
                 .llm_client
-                .chat(messages_snapshot, tool_schemas.clone(), &model_config)
-                .await?;
+                .chat_stream(
+                    messages_snapshot.clone(),
+                    tool_schemas.clone(),
+                    &model_config,
+                )
+                .await
+            {
+                streamed = true;
+                let mut received_any = false;
+                while let Some(ev) = rx.recv().await {
+                    match ev {
+                        StreamEvent::Delta(d) => {
+                            if !d.is_empty() {
+                                received_any = true;
+                                let mut g = messages.lock().await;
+                                if let Some(last) = g.last_mut() {
+                                    if last.id == assistant_id {
+                                        if let MessageContent::Text(t) = &mut last.content {
+                                            t.push_str(&d);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        StreamEvent::ToolCall(tc) => {
+                            received_any = true;
+                            tool_calls.push(tc)
+                        }
+                        StreamEvent::Done => break,
+                    }
+                }
+                if !received_any {
+                    streamed = false;
+                }
+            }
+
+            // If streaming didn't work, do the normal one-shot request and replace the placeholder assistant message.
+            let response = if streamed {
+                // Rehydrate a response-like tuple from current message + tool_calls.
+                let assistant_msg = {
+                    let g = messages.lock().await;
+                    g.iter()
+                        .rev()
+                        .find(|m| m.id == assistant_id)
+                        .cloned()
+                        .unwrap_or(Message {
+                            id: assistant_id,
+                            role: MessageRole::Assistant,
+                            content: MessageContent::Text(String::new()),
+                            timestamp: chrono::Utc::now(),
+                            metadata: HashMap::new(),
+                        })
+                };
+                LLMResponse {
+                    message: assistant_msg,
+                    tool_calls,
+                    usage: Usage {
+                        input_tokens: 0,
+                        output_tokens: 0,
+                        cache_creation_tokens: None,
+                        cache_read_tokens: None,
+                    },
+                }
+            } else {
+                let r = self
+                    .llm_client
+                    .chat(messages_snapshot, tool_schemas.clone(), &model_config)
+                    .await?;
+                // Replace placeholder assistant with final assistant message.
+                {
+                    let mut g = messages.lock().await;
+                    if let Some(last) = g.last_mut() {
+                        if last.id == assistant_id {
+                            *last = r.message.clone();
+                        }
+                    }
+                }
+                r
+            };
 
             max_input_tokens = max_input_tokens.max(response.usage.input_tokens);
 
             logger.line(
                 task_id,
                 &format!(
-                    "[llm_response_end] turn={} elapsed_ms={} input_tokens={} output_tokens={}",
+                    "[llm_response_end] turn={} elapsed_ms={} input_tokens={} output_tokens={} streamed={}",
                     turn,
                     t0.elapsed().as_millis(),
                     response.usage.input_tokens,
-                    response.usage.output_tokens
+                    response.usage.output_tokens,
+                    streamed
                 ),
             );
 
-            // 先把 assistant 消息追加回上下文；若本轮有 tool_calls，写入 metadata 供 OpenAI 兼容 provider 重建历史
+            // 若本轮有 tool_calls，写入 metadata 供 OpenAI 兼容 provider 重建历史
             let mut assistant_msg = response.message.clone();
             if !response.tool_calls.is_empty() {
                 assistant_msg.metadata.insert(
                     ANYCODE_TOOL_CALLS_METADATA_KEY.to_string(),
                     serde_json::to_value(&response.tool_calls)?,
                 );
+                // Also update the in-place message in history with metadata.
+                let mut g = messages.lock().await;
+                if let Some(last) = g.last_mut() {
+                    if last.id == assistant_msg.id {
+                        last.metadata = assistant_msg.metadata.clone();
+                    }
+                }
             }
 
             // 保留「最后一条非空」正文：部分 API 在收尾会再给一条空 assistant，避免覆盖掉仍应作为 turn 摘要的上一段文字。
             let text = match &assistant_msg.content {
-                MessageContent::Text(t) => t.clone(),
+                MessageContent::Text(t) => strip_llm_reasoning_xml_blocks(t),
                 _ => String::new(),
             };
             if !text.trim().is_empty() {
                 last_assistant_text = text;
             }
-
-            {
-                let mut g = messages.lock().await;
-                g.push(assistant_msg);
-            }
+            // If we streamed, assistant message is already in `messages`; no need to push again.
+            // If we didn't stream, we already replaced placeholder with `r.message` above.
 
             if response.tool_calls.is_empty() {
                 logger.line(task_id, &format!("[turn_end] turn={} tool_calls=0", turn));

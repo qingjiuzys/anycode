@@ -8,7 +8,10 @@ use crate::tui::transcript::{
     rebuild_live_turn_tail, transcript_tail_closing_matches, TranscriptEntry,
 };
 use anycode_agent::AgentRuntime;
-use anycode_core::{AgentType, Artifact, Message, MessageContent, MessageRole, Usage};
+use anycode_core::{
+    strip_llm_reasoning_xml_blocks, AgentType, Artifact, Message, MessageContent, MessageRole,
+    Usage,
+};
 use fluent_bundle::FluentArgs;
 use ratatui::{
     style::Modifier,
@@ -278,9 +281,9 @@ pub(super) async fn consume_finished_turn(
             // 收尾：优先 runtime 返回的 `final_text`（末条 assistant 常为空占位，仅用 messages 会误取上一条 thinking，导致不补总结）。
             // `final_text` 为空时再回退到本回合最后非空 assistant 正文。
             let closing = {
-                let ft = final_text.trim_end();
-                if !ft.is_empty() {
-                    ft.to_string()
+                let ft = strip_llm_reasoning_xml_blocks(final_text.trim_end());
+                if !ft.trim().is_empty() {
+                    ft
                 } else {
                     last_nonempty_assistant_text(&new_msgs).unwrap_or_default()
                 }

@@ -543,6 +543,23 @@ impl ToolServices {
     }
 }
 
+/// Read [`CronJob`] rows from a persisted orchestration file (same JSON as [`ToolServices::load_or_new`]).
+/// Returns an empty list if the path is missing; returns an error if the file exists but is not valid JSON.
+pub fn read_cron_jobs_from_orchestration_file(path: &Path) -> anyhow::Result<Vec<CronJob>> {
+    if !path.is_file() {
+        return Ok(vec![]);
+    }
+    let text = fs::read_to_string(path)?;
+    #[derive(Deserialize)]
+    struct OrchestrationCronsOnly {
+        #[serde(default)]
+        crons: Vec<CronJob>,
+    }
+    let snap: OrchestrationCronsOnly = serde_json::from_str(&text)
+        .map_err(|e| anyhow::anyhow!("invalid orchestration JSON: {e}"))?;
+    Ok(snap.crons)
+}
+
 #[cfg(test)]
 mod orchestration_persist_tests {
     use super::*;
@@ -573,5 +590,20 @@ mod orchestration_persist_tests {
         let list = s2.list_tasks();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].subject, "subj");
+    }
+
+    #[test]
+    fn read_cron_jobs_from_orchestration_file_reads_crons_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        fs::write(
+            &path,
+            r#"{"version":1,"crons":[{"id":"j1","schedule":"0 0 12 * * *","command":"ping"}]}"#,
+        )
+        .unwrap();
+        let jobs = super::read_cron_jobs_from_orchestration_file(&path).unwrap();
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].id, "j1");
+        assert_eq!(jobs[0].command, "ping");
     }
 }

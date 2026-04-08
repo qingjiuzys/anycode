@@ -1,6 +1,6 @@
 //! Polling loop, message state machine, and embedded `AgentRuntime`.
 
-use crate::app_config::Config;
+use crate::app_config::{resolve_config_path, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::i18n::{tr, tr_args};
 use crate::wx::approval::{ActiveChat, WechatApprovalGate};
@@ -16,14 +16,22 @@ use crate::wx::store::{
 use anycode_agent::AgentRuntime;
 use anycode_channels::profile_for_channel_type;
 use anycode_core::prelude::*;
+use anycode_core::strip_llm_reasoning_xml_blocks;
 use anyhow::{Context, Result};
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
+use std::time::SystemTime;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use uuid::Uuid;
+
+use super::config_watch::{
+    reload_runtime_if_config_changed, spawn_config_file_watcher, ConfigReloadHandle,
+};
 
 const SESSION_EXPIRED: i64 = -14;
 const MAX_MSG_IDS: usize = 1000;
@@ -31,9 +39,10 @@ const CHUNK_MAX: usize = 2048;
 
 pub async fn run_wechat_daemon(
     app_config: &Config,
+    config_file: Option<PathBuf>,
+    ignore_approval: bool,
     data_dir: Option<PathBuf>,
     agent_type: String,
-    _ignore_approval_cli: bool,
 ) -> Result<()> {
     let data_root = wcc_data_dir(data_dir);
     std::fs::create_dir_all(&data_root)?;
@@ -65,9 +74,28 @@ pub async fn run_wechat_daemon(
 
     // 通道模式与 Telegram/Discord 一致：工具走自动策略（无终端交互审批）。
     // `WechatApprovalGate` 仍用于会话路由与其它微信侧逻辑。
-    let runtime = initialize_runtime(app_config, None)
-        .await
-        .context("initialize_runtime")?;
+    let runtime = Arc::new(RwLock::new(
+        initialize_runtime(app_config, None)
+            .await
+            .context("initialize_runtime")?,
+    ));
+
+    let last_config_mtime: Arc<StdMutex<Option<SystemTime>>> = Arc::new(StdMutex::new(
+        resolve_config_path(config_file.clone())
+            .ok()
+            .and_then(|p| std::fs::metadata(&p).ok())
+            .and_then(|m| m.modified().ok()),
+    ));
+
+    let reload = ConfigReloadHandle {
+        runtime: Arc::clone(&runtime),
+        config_file: config_file.clone(),
+        ignore_approval,
+        last_config_mtime: Arc::clone(&last_config_mtime),
+    };
+    if let Ok(p) = resolve_config_path(config_file.clone()) {
+        spawn_config_file_watcher(reload.clone(), p);
+    }
 
     let mut sa = FluentArgs::new();
     sa.set("id", account.account_id.clone());
@@ -84,6 +112,7 @@ pub async fn run_wechat_daemon(
         gate,
         broker: broker_for_state,
         runtime,
+        reload,
         sender,
         api,
         agent_type,
@@ -102,7 +131,9 @@ struct BridgeState {
     active_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
     gate: WechatApprovalGate,
     broker: crate::wx::permission::PermissionBroker,
-    runtime: Arc<AgentRuntime>,
+    /// 与 `config.json` 同步；热更新时整实例替换，进行中任务仍持有旧 `Arc`。
+    runtime: Arc<RwLock<Arc<AgentRuntime>>>,
+    reload: ConfigReloadHandle,
     sender: Arc<WxSender>,
     api: Arc<WeChatApi>,
     agent_type: String,
@@ -113,6 +144,8 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
     let mut fail_streak: u32 = 0;
 
     loop {
+        reload_runtime_if_config_changed(&st.reload).await;
+
         let buf = load_sync_buf(&st.data_root);
         let resp = match st
             .api
@@ -221,6 +254,7 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
                 gate: st.gate.clone(),
                 broker: st.broker.clone(),
                 runtime: st.runtime.clone(),
+                reload: st.reload.clone(),
                 sender: st.sender.clone(),
                 api: st.api.clone(),
                 agent_type: st.agent_type.clone(),
@@ -446,7 +480,7 @@ async fn run_agent_pipeline(
         )
     };
 
-    let rt = st.runtime.clone();
+    let rt = st.runtime.read().await.clone();
     let agent = resolve_channel_agent(
         &runtime_mode,
         &st.agent_type,
@@ -493,10 +527,18 @@ async fn run_agent_pipeline(
                 add_chat_message(&mut session, "assistant", &cleaned);
                 cleaned
             }
-            Ok(TaskResult::Failure { error, .. }) => {
+            Ok(TaskResult::Failure { error, details }) => {
                 let mut ea = FluentArgs::new();
                 ea.set("err", error.to_string());
-                tr_args("wx-task-fail", &ea)
+                let mut reply = tr_args("wx-task-fail", &ea);
+                if let Some(ex) =
+                    crate::channel_task::im_task_failure_detail_excerpt(details.as_deref(), 900)
+                {
+                    let mut da = FluentArgs::new();
+                    da.set("details", ex);
+                    reply.push_str(&tr_args("wx-task-fail-details", &da));
+                }
+                reply
             }
             Ok(TaskResult::Partial { success, remaining }) => {
                 let t = sanitize_wechat_reply_output(&format!("{}\n{}", success, remaining));
@@ -560,7 +602,8 @@ fn build_wechat_system_append(
          - 用户只看到你这一条最终回复。禁止输出：思考过程、自我解说（如「太好了」「我需要…」「从页面中可以提取」「根据系统提示我应该…」）、工具调用是否成功的说明、同一段数据的重复粘贴。\n\
          - 工具/Web 结果只内化进答案：用一小段话或一层列表给出结论即可；不要先写长段再抄一遍字段。\n\
          - 天气/事实类：几句带关键数字即可，不要「摘要 + 再列一遍同样指标」。\n\
-         - English: Reply with the final answer only. No narration of your plan, no 'Great, fetch succeeded', no duplicate blocks."
+         - English: Reply with the final answer only. No narration of your plan, no 'Great, fetch succeeded', no duplicate blocks.\n\
+         - 禁止输出 <thought>、<thinking> 等标签或任何「推理草稿」块；只输出给用户的一句话/一小段结论。"
             .to_string(),
     );
     if let Some(existing) = existing {
@@ -573,6 +616,7 @@ fn build_wechat_system_append(
 
 /// 去掉常见「废话」行（模型仍可能漏网，主要靠 system 约束）。
 fn sanitize_wechat_reply_output(text: &str) -> String {
+    let text = strip_llm_reasoning_xml_blocks(text);
     const DROP_LINE_PREFIXES: &[&str] = &[
         "太好了",
         "从页面内容",
@@ -614,22 +658,11 @@ fn sanitize_wechat_reply_output(text: &str) -> String {
     while s.contains("\n\n\n") {
         s = s.replace("\n\n\n", "\n\n");
     }
-    s.trim().to_string()
-}
-
-#[cfg(test)]
-mod wechat_sanitize_tests {
-    use super::sanitize_wechat_reply_output;
-
-    #[test]
-    fn drops_meta_lines_keeps_weather_body() {
-        let raw =
-            "## 杭州\n阴 29℃\n\n太好了！WebFetch 成功获取了天气。\n\n从页面中可以提取到：\n- 温度";
-        let out = sanitize_wechat_reply_output(raw);
-        assert!(out.contains("杭州"));
-        assert!(!out.contains("太好了"));
-        assert!(!out.contains("从页面"));
+    s = s.trim().to_string();
+    while s.contains("。。") {
+        s = s.replace("。。", "。");
     }
+    s
 }
 
 fn resolve_cwd(session: &WcSession, wcc: &WccConfig) -> PathBuf {
@@ -668,4 +701,36 @@ fn split_message(text: &str, max_chars: usize) -> Vec<String> {
         out.push(buf.trim_end().to_string());
     }
     out
+}
+
+#[cfg(test)]
+mod wechat_sanitize_tests {
+    use super::sanitize_wechat_reply_output;
+
+    #[test]
+    fn drops_meta_lines_keeps_weather_body() {
+        let raw =
+            "## 杭州\n阴 29℃\n\n太好了！WebFetch 成功获取了天气。\n\n从页面中可以提取到：\n- 温度";
+        let out = sanitize_wechat_reply_output(raw);
+        assert!(out.contains("杭州"));
+        assert!(!out.contains("太好了"));
+        assert!(!out.contains("从页面"));
+    }
+
+    #[test]
+    fn strips_thought_block_before_answer() {
+        let raw = r#"<thought>The output is "hangzhou: ⛅ +72°F".
+Wait, let me check.</thought>杭州当前天气：多云，约 22°C。"#;
+        let out = sanitize_wechat_reply_output(raw);
+        assert!(!out.to_lowercase().contains("<thought"));
+        assert!(out.contains("杭州"));
+        assert!(out.contains("22"));
+    }
+
+    #[test]
+    fn strips_thinking_tag_variant() {
+        let raw = "<thinking>draft</thinking>\n\n答案：1";
+        let out = sanitize_wechat_reply_output(raw);
+        assert_eq!(out, "答案：1");
+    }
 }

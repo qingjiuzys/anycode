@@ -496,7 +496,7 @@ impl Tool for CronCreateTool {
         "CronCreate"
     }
     fn description(&self) -> &str {
-        "Register a cron-like job (persisted like other orchestration data; not executed by built-in scheduler in v1)."
+        "Register a cron-like job (persisted under ~/.anycode/tasks/orchestration.json). `schedule` is cron syntax (6 fields: sec min hour day month weekday; 5-field unix-style is accepted with 0 seconds). `command` is executed as a single agent task prompt when `anycode scheduler` is running."
     }
     fn schema(&self) -> serde_json::Value {
         json!({

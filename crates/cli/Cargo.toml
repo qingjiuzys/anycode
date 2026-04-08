@@ -52,6 +52,7 @@ console = "0.16"
 # Utils
 uuid = { workspace = true }
 chrono = { workspace = true }
+cron = { workspace = true }
 pulldown-cmark = "0.13"
 unicode-width = { version = "0.2", features = ["cjk"] }
 
@@ -62,6 +63,7 @@ urlencoding = "2.1"
 rand = "0.8"
 url = "2.5"
 regex = "1.10"
+notify = { workspace = true }
 fuzzy-matcher = "0.3"
 fluent-bundle = "0.15.2"
 unic-langid = "0.9.4"

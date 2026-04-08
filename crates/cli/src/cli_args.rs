@@ -91,6 +91,16 @@ pub(crate) struct Args {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
+    /// ⏱️  Built-in scheduler: run persisted CronCreate jobs (`~/.anycode/tasks/orchestration.json`)
+    Scheduler {
+        /// Working directory for each triggered agent task
+        #[arg(short = 'C', long)]
+        directory: Option<PathBuf>,
+        /// Re-read orchestration.json and cap sleep between ticks (seconds)
+        #[arg(long, default_value_t = 30)]
+        reload_secs: u64,
+    },
+
     /// ▶️  Run a single task
     Run {
         /// Agent type
@@ -556,6 +566,29 @@ mod clap_tests {
                 err.to_string().contains("unrecognized subcommand"),
                 "expected removed subcommand `{sub}` to be rejected, got: {err}"
             );
+        }
+    }
+
+    #[test]
+    fn scheduler_subcommand_parses() {
+        let a = Args::try_parse_from([
+            "anycode",
+            "scheduler",
+            "-C",
+            "/tmp/wd",
+            "--reload-secs",
+            "60",
+        ])
+        .unwrap();
+        match a.command {
+            Some(Commands::Scheduler {
+                directory,
+                reload_secs,
+            }) => {
+                assert_eq!(directory, Some(std::path::PathBuf::from("/tmp/wd")));
+                assert_eq!(reload_secs, 60);
+            }
+            _ => panic!("expected scheduler"),
         }
     }
 

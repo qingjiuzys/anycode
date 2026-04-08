@@ -13,6 +13,7 @@ mod i18n;
 mod md_tui;
 mod repl_banner;
 mod repl_inline;
+mod scheduler;
 mod slash_commands;
 mod tasks;
 mod tg;
@@ -204,6 +205,20 @@ async fn main() -> anyhow::Result<()> {
                 app_config::run_model_command(cmd, args.config.clone()).await?;
             }
         },
+        Some(Commands::Scheduler {
+            directory,
+            reload_secs,
+        }) => {
+            let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
+            let working_dir = directory.unwrap_or_else(|| std::env::current_dir().unwrap());
+            workspace::touch_project_dir(working_dir.clone());
+            scheduler::run_builtin_scheduler(
+                config,
+                working_dir,
+                std::time::Duration::from_secs(reload_secs),
+            )
+            .await?;
+        }
         Some(Commands::Run {
             agent,
             mode,

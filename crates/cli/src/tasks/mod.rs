@@ -7,7 +7,8 @@ mod tasks_sink;
 mod workflow_exec;
 
 pub(crate) use tasks_repl::run_interactive;
-pub(crate) use tasks_run::run_task;
+pub(crate) use tasks_run::{run_single_task_with_tail, run_task};
+pub(crate) use tasks_sink::ReplSink;
 
 use crate::app_config::Config;
 use crate::cli_args::SkillsCommands;

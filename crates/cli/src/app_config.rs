@@ -298,9 +298,10 @@ fn prompt_api_key_and_base_url(
 
     accent_line_api_key_prompt();
     let api_key: String = if is_tty {
+        // 已有 api_key 时必须允许「空回车」，否则 dialoguer 会反复提示，无法「保留已有」。
         Password::with_theme(&ColorfulTheme::default())
             .with_prompt(&tr("wizard-api-key-prompt"))
-            .allow_empty_password(default_api_key.is_empty())
+            .allow_empty_password(!default_api_key.is_empty())
             .interact()?
     } else {
         prompt_line(&tr("wizard-api-key-prompt"))?
@@ -737,7 +738,9 @@ fn normalize_memory_backend(raw: &str) -> anyhow::Result<String> {
 }
 
 /// `-c` 指定文件，否则 `~/.anycode/config.json`。
-fn resolve_config_path(config_file: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+///
+/// 供微信桥等长驻进程监视配置文件变更（mtime）时使用，规则与 `load_config` 一致。
+pub(crate) fn resolve_config_path(config_file: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     match config_file {
         Some(p) => Ok(p),
         None => anycode_config_path(),
@@ -1149,6 +1152,23 @@ pub(crate) async fn run_onboard_flow(
     debug: bool,
 ) -> anyhow::Result<()> {
     crate::workspace::ensure_layout()?;
+    {
+        let term = console::Term::stdout();
+        if term.is_term() {
+            // Keep it minimal so it doesn't dominate the setup UX.
+            println!(
+                "\n{}\n{}\n{}\n",
+                "    _              ____          __",
+                "   / \\   _ __  _  / ___|___   __/ _| ___",
+                "  / _ \\ | '_ \\| | | |   / _ \\ / _` |/ _ \\"
+            );
+            println!(
+                "{}\n{}\n",
+                " / ___ \\| | | | |_| |__| (_) | (_| |  __/",
+                "/_/   \\_\\_| |_|\\__, |\\____\\___/ \\__,_|\\___|"
+            );
+        }
+    }
     let existing = load_anycode_config_resolved(config_file.clone())?;
     let already_configured = existing.as_ref().is_some_and(has_usable_model_config);
     let mut reconfigure_model = !already_configured;
@@ -1157,11 +1177,22 @@ pub(crate) async fn run_onboard_flow(
         println!("如需单独重配，可运行：anycode model");
         let term = console::Term::stdout();
         if term.is_term() {
-            use dialoguer::{theme::ColorfulTheme, Confirm};
-            reconfigure_model = Confirm::with_theme(&ColorfulTheme::default())
-                .with_prompt("是否现在重新配置模型？")
-                .default(false)
+            use dialoguer::{theme::ColorfulTheme, Select};
+            let options = [
+                "跳过（使用现有配置，推荐）",
+                "现在重配模型（进入 anycode model 简化向导）",
+                "退出 setup",
+            ];
+            let idx = Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("模型配置")
+                .items(&options)
+                .default(0)
                 .interact()?;
+            match idx {
+                0 => reconfigure_model = false,
+                1 => reconfigure_model = true,
+                _ => anyhow::bail!("setup cancelled"),
+            }
         } else {
             reconfigure_model = false;
         }

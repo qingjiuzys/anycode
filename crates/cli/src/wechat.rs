@@ -27,5 +27,5 @@ pub async fn run_bridged_start(
         .await
         .context("加载 anycode 配置")?;
     crate::app_config::apply_wechat_bridge_no_tool_approval(&mut cfg);
-    crate::wx::run_wechat_daemon(&cfg, data_dir, agent, ignore_approval).await
+    crate::wx::run_wechat_daemon(&cfg, config, ignore_approval, data_dir, agent).await
 }

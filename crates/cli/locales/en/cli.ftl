@@ -4,6 +4,9 @@ flag-debug = Enable debug logging
 flag-config = Path to config JSON
 flag-ignore-approval = Skip tool y/n approval for this process (temporary; deny rules still apply). Env ANYCODE_IGNORE_APPROVAL=1 is equivalent.
 flag-model = Override default model for this process (TUI without subcommand only; long option --model only)
+cmd-scheduler-about = Built-in scheduler: run CronCreate jobs from ~/.anycode/tasks/orchestration.json
+cmd-scheduler-directory = Working directory for each triggered agent task
+cmd-scheduler-reload-secs = Re-read orchestration.json and cap sleep between ticks (seconds)
 cmd-run-about = Run a single task
 cmd-run-agent = Agent type
 cmd-run-prompt = Task description

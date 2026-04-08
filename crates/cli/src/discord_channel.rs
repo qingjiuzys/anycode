@@ -1,6 +1,6 @@
 use crate::app_config::{apply_wechat_bridge_no_tool_approval, Config};
 use crate::bootstrap::initialize_runtime;
-use crate::channel_task::{build_channel_task, ChannelTaskInput};
+use crate::channel_task::{build_channel_task, im_task_failure_detail_excerpt, ChannelTaskInput};
 use anycode_agent::AgentRuntime;
 use anycode_core::TaskResult;
 use anyhow::{Context, Result};
@@ -137,7 +137,14 @@ async fn execute_prompt(
     });
     match runtime.execute_task(task).await {
         Ok(TaskResult::Success { output, .. }) => output,
-        Ok(TaskResult::Failure { error, .. }) => format!("Task failed: {error}"),
+        Ok(TaskResult::Failure { error, details }) => {
+            let mut s = format!("Task failed: {error}");
+            if let Some(ex) = im_task_failure_detail_excerpt(details.as_deref(), 1500) {
+                s.push_str("\n");
+                s.push_str(&ex);
+            }
+            s
+        }
         Ok(TaskResult::Partial { success, remaining }) => format!("{success}\n{remaining}"),
         Err(e) => format!("Runtime error: {e}"),
     }

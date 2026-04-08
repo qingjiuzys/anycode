@@ -5,7 +5,7 @@ use crate::app_config::{should_auto_compact_before_send, SessionConfig};
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
 use crate::slash_commands;
-use crate::tui::approval::PendingApproval;
+use crate::tui::approval::{ApprovalDecision, PendingApproval};
 use crate::tui::chrome::{agents_lines, tools_lines};
 use crate::tui::input::{history_apply_down, history_apply_up, InputState, RevSearchState};
 use crate::tui::styles::*;
@@ -66,6 +66,8 @@ pub(super) struct TuiEventCtx<'a> {
     /// 工作区向上滚动（与 `append_user_line_and_spawn_turn` 等共用）。
     pub transcript_scroll_up: &'a mut usize,
     pub pending_approval: &'a mut Option<PendingApproval>,
+    /// 审批菜单高亮：`0` 允许一次 · `1` 允许（项目） · `2` 拒绝（与 Claude 式 ↑↓ 一致）。
+    pub approval_menu_selected: &'a mut usize,
     pub rev_search: &'a mut Option<RevSearchState>,
     pub slash_suggest_pick: &'a mut usize,
     /// 采纳 Tab/Enter 补全后隐藏下拉，直到用户再次编辑（对齐 Claude `clearSuggestions`）。
@@ -160,15 +162,35 @@ pub(super) async fn dispatch_crossterm_event(
             *ctx.last_key = Some(format!("{:?} {:?}", key.code, key.modifiers));
 
             if let Some(p) = ctx.pending_approval.take() {
-                let approve = match key.code {
-                    KeyCode::Char('y') | KeyCode::Char('Y') => Some(true),
-                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Some(false),
-                    _ => None,
-                };
-                if let Some(ok) = approve {
-                    let _ = p.reply.send(ok);
-                } else {
-                    *ctx.pending_approval = Some(p);
+                match key.code {
+                    KeyCode::Up => {
+                        *ctx.approval_menu_selected = (*ctx.approval_menu_selected + 2) % 3;
+                        *ctx.pending_approval = Some(p);
+                    }
+                    KeyCode::Down => {
+                        *ctx.approval_menu_selected = (*ctx.approval_menu_selected + 1) % 3;
+                        *ctx.pending_approval = Some(p);
+                    }
+                    KeyCode::Enter => {
+                        let d = match *ctx.approval_menu_selected {
+                            0 => ApprovalDecision::AllowOnce,
+                            1 => ApprovalDecision::AllowToolForProject,
+                            _ => ApprovalDecision::Deny,
+                        };
+                        let _ = p.reply.send(d);
+                    }
+                    KeyCode::Char('y') | KeyCode::Char('Y') => {
+                        let _ = p.reply.send(ApprovalDecision::AllowOnce);
+                    }
+                    KeyCode::Char('p') | KeyCode::Char('P') => {
+                        let _ = p.reply.send(ApprovalDecision::AllowToolForProject);
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                        let _ = p.reply.send(ApprovalDecision::Deny);
+                    }
+                    _ => {
+                        *ctx.pending_approval = Some(p);
+                    }
                 }
                 return Ok(TuiLoopCtl::Continue);
             }

@@ -4,6 +4,7 @@ mod approval;
 mod bridge;
 mod cdn_media;
 mod commands;
+mod config_watch;
 mod fields;
 mod ilink;
 mod permission;

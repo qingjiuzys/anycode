@@ -64,7 +64,9 @@ pub use mcp_oauth_login::{mcp_oauth_login, McpOAuthLoginError, McpOAuthLoginOpti
 #[cfg(feature = "tools-mcp")]
 pub use mcp_rmcp_session::McpRmcpSession;
 pub use registry::build_registry;
-pub use services::{ToolRegistryDeps, ToolServices};
+pub use services::{
+    read_cron_jobs_from_orchestration_file, CronJob, ToolRegistryDeps, ToolServices,
+};
 pub use skills::{
     default_skill_roots, truncate_skill_output, SkillCatalog, SkillMeta, MAX_SKILL_OUTPUT_BYTES,
 };

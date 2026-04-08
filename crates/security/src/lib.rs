@@ -9,6 +9,7 @@ pub use anycode_core::SecurityPolicy;
 use crate::approval_presenter::{render_approval_request, ApprovalSurface};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
+use dialoguer::{theme::ColorfulTheme, Select};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -352,6 +353,7 @@ fn is_readonly_tool(tool: &str) -> bool {
 pub struct InteractiveApprovalCallback {
     prompt_format: PromptFormat,
     session_read_allow_dirs: Arc<StdMutex<HashSet<String>>>,
+    project_allow: Arc<StdMutex<ProjectApprovalStore>>,
 }
 
 impl InteractiveApprovalCallback {
@@ -359,6 +361,7 @@ impl InteractiveApprovalCallback {
         Self {
             prompt_format,
             session_read_allow_dirs: Arc::new(StdMutex::new(HashSet::new())),
+            project_allow: Arc::new(StdMutex::new(ProjectApprovalStore::load_or_new())),
         }
     }
 
@@ -392,6 +395,145 @@ impl InteractiveApprovalCallback {
             .iter()
             .any(|dir| p == dir || p.starts_with(&format!("{dir}/")))
     }
+
+    fn read_path_allowed_for_project(&self, path: &str) -> bool {
+        let Ok(store) = self.project_allow.lock() else {
+            return false;
+        };
+        let root =
+            find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        store.path_allowed(&root, path)
+    }
+
+    fn tool_allowed_for_project(&self, tool: &str) -> bool {
+        let Ok(store) = self.project_allow.lock() else {
+            return false;
+        };
+        let root =
+            find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        store.tool_allowed(&root, tool)
+    }
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+struct ProjectApprovalDb {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    projects: std::collections::HashMap<String, ProjectApprovalEntry>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+struct ProjectApprovalEntry {
+    #[serde(default)]
+    tools: HashSet<String>,
+    #[serde(default)]
+    read_allow_dirs: HashSet<String>,
+}
+
+#[derive(Debug, Default)]
+pub struct ProjectApprovalStore {
+    db: ProjectApprovalDb,
+}
+
+impl ProjectApprovalStore {
+    pub fn approvals_path() -> Option<std::path::PathBuf> {
+        let home = dirs::home_dir()?;
+        Some(
+            home.join(".anycode")
+                .join("security")
+                .join("approvals.json"),
+        )
+    }
+
+    pub fn load_or_new() -> Self {
+        let Some(path) = Self::approvals_path() else {
+            return Self::default();
+        };
+        let Ok(s) = std::fs::read_to_string(&path) else {
+            return Self::default();
+        };
+        let Ok(mut db) = serde_json::from_str::<ProjectApprovalDb>(&s) else {
+            return Self::default();
+        };
+        if db.version == 0 {
+            db.version = 1;
+        }
+        Self { db }
+    }
+
+    fn save_best_effort(&self) {
+        let Some(path) = Self::approvals_path() else {
+            return;
+        };
+        let Some(parent) = path.parent() else {
+            return;
+        };
+        if std::fs::create_dir_all(parent).is_err() {
+            return;
+        }
+        let Ok(body) = serde_json::to_string_pretty(&self.db) else {
+            return;
+        };
+        let tmp = path.with_extension("json.tmp");
+        if std::fs::write(&tmp, body).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
+    }
+
+    fn key(root: &std::path::Path) -> String {
+        root.to_string_lossy().to_string()
+    }
+
+    fn entry_mut(&mut self, root: &std::path::Path) -> &mut ProjectApprovalEntry {
+        let k = Self::key(root);
+        self.db.projects.entry(k).or_default()
+    }
+
+    pub fn tool_allowed(&self, root: &std::path::Path, tool: &str) -> bool {
+        let k = Self::key(root);
+        self.db
+            .projects
+            .get(&k)
+            .is_some_and(|e| e.tools.contains(tool))
+    }
+
+    pub fn allow_tool(&mut self, root: &std::path::Path, tool: &str) {
+        self.entry_mut(root).tools.insert(tool.to_string());
+        self.save_best_effort();
+    }
+
+    pub fn path_allowed(&self, root: &std::path::Path, path: &str) -> bool {
+        let k = Self::key(root);
+        let Some(ent) = self.db.projects.get(&k) else {
+            return false;
+        };
+        let p = path.trim_end_matches('/');
+        ent.read_allow_dirs
+            .iter()
+            .any(|dir| p == dir || p.starts_with(&format!("{dir}/")))
+    }
+
+    pub fn allow_read_dir(&mut self, root: &std::path::Path, dir: &str) {
+        self.entry_mut(root)
+            .read_allow_dirs
+            .insert(dir.trim_end_matches('/').to_string());
+        self.save_best_effort();
+    }
+}
+
+pub fn find_project_root() -> Option<std::path::PathBuf> {
+    let mut cur = std::env::current_dir().ok()?;
+    loop {
+        let git = cur.join(".git");
+        if git.is_dir() || git.is_file() {
+            return Some(cur);
+        }
+        if !cur.pop() {
+            break;
+        }
+    }
+    None
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -410,10 +552,16 @@ impl ApprovalCallback for InteractiveApprovalCallback {
     ) -> anyhow::Result<bool> {
         match self.prompt_format {
             PromptFormat::CLI => {
+                if self.tool_allowed_for_project(tool) {
+                    return Ok(true);
+                }
                 let read_like = is_readonly_tool(tool);
                 if read_like {
                     if let Some(path) = Self::extract_read_path(input) {
                         if self.path_allowed_for_session(&path) {
+                            return Ok(true);
+                        }
+                        if self.read_path_allowed_for_project(&path) {
                             return Ok(true);
                         }
                         let dir_name = Self::read_scope_dir(&path).unwrap_or(path.clone());
@@ -422,27 +570,32 @@ impl ApprovalCallback for InteractiveApprovalCallback {
                             "{}",
                             render_approval_request(ApprovalSurface::Cli, tool, input)
                         );
-                        println!("\nDo you want to proceed?");
-                        println!("❯ 1. Yes");
-                        println!("  2. Yes, allow reading from {dir_name}/ during this session");
-                        println!("  3. No");
-                        print!("Select [1-3] (default: 3): ");
-                        use std::io::Write;
-                        let _ = std::io::stdout().flush();
-
-                        let mut line = String::new();
-                        std::io::stdin().read_line(&mut line)?;
-                        let choice = line.trim();
-                        match choice {
-                            "1" | "y" | "Y" => return Ok(true),
-                            "2" => {
-                                if let Ok(mut g) = self.session_read_allow_dirs.lock() {
-                                    g.insert(dir_name);
+                        let items = vec![
+                            "Allow once (this run)".to_string(),
+                            format!(
+                                "Always allow reads under {}/ for this project",
+                                dir_name.trim_end_matches('/')
+                            ),
+                            "Deny".to_string(),
+                        ];
+                        let sel = Select::with_theme(&ColorfulTheme::default())
+                            .with_prompt("Choose an action (↑/↓)")
+                            .items(&items)
+                            .default(2)
+                            .interact()
+                            .map_err(|e| anyhow::anyhow!("{}", e))?;
+                        return match sel {
+                            0 => Ok(true),
+                            1 => {
+                                let root = find_project_root()
+                                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+                                if let Ok(mut store) = self.project_allow.lock() {
+                                    store.allow_read_dir(&root, &dir_name);
                                 }
-                                return Ok(true);
+                                Ok(true)
                             }
-                            _ => return Ok(false),
-                        }
+                            _ => Ok(false),
+                        };
                     }
                 }
 
@@ -451,15 +604,29 @@ impl ApprovalCallback for InteractiveApprovalCallback {
                     "{}",
                     render_approval_request(ApprovalSurface::Cli, tool, input)
                 );
-
-                print!("Approve? [y/N] ");
-                use std::io::Write;
-                let _ = std::io::stdout().flush();
-
-                let mut line = String::new();
-                std::io::stdin().read_line(&mut line)?;
-
-                Ok(line.trim().to_lowercase() == "y")
+                let items = vec![
+                    "Allow once (this run)".to_string(),
+                    format!("Always allow `{tool}` for this project"),
+                    "Deny".to_string(),
+                ];
+                let sel = Select::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Choose an action (↑/↓)")
+                    .items(&items)
+                    .default(2)
+                    .interact()
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                match sel {
+                    0 => Ok(true),
+                    1 => {
+                        let root = find_project_root()
+                            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+                        if let Ok(mut store) = self.project_allow.lock() {
+                            store.allow_tool(&root, tool);
+                        }
+                        Ok(true)
+                    }
+                    _ => Ok(false),
+                }
             }
             PromptFormat::Silent => {
                 tracing::warn!(

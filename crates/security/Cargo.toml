@@ -17,5 +17,11 @@ chrono = { workspace = true }
 # Regex for pattern matching
 regex = "1.10"
 
+# Home dir resolution (project-level approvals persistence)
+dirs = "5"
+
+# CLI tool approval: arrow-key style menu (Claude-like)
+dialoguer = "0.12"
+
 # Approval system
 tokio-stream = "0.1"

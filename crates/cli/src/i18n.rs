@@ -169,6 +169,14 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
 
     for sub in cmd.get_subcommands_mut() {
         match sub.get_name() {
+            "scheduler" => {
+                let n = sub
+                    .clone()
+                    .about(tr("cmd-scheduler-about"))
+                    .mut_arg("directory", |a| a.help(tr("cmd-scheduler-directory")))
+                    .mut_arg("reload_secs", |a| a.help(tr("cmd-scheduler-reload-secs")));
+                *sub = n;
+            }
             "run" => localize_run(sub),
             "repl" => localize_repl(sub),
             "config" => *sub = sub.clone().about(tr("cmd-config-about")),

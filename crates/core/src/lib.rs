@@ -13,6 +13,7 @@ mod llm_types;
 mod memory_model;
 mod message;
 mod model_profile;
+mod reasoning;
 mod runtime_profile;
 mod security_policy;
 mod slash_command;
@@ -37,6 +38,7 @@ pub use llm_types::{
 pub use memory_model::{Memory, MemoryScope, MemoryType};
 pub use message::{Message, MessageContent, MessageRole};
 pub use model_profile::ModelRouteProfile;
+pub use reasoning::strip_llm_reasoning_xml_blocks;
 pub use runtime_profile::{RuntimeMode, RuntimeProfile};
 pub use security_policy::SecurityPolicy;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};

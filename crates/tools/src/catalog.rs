@@ -240,7 +240,7 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         ),
         (
             TOOL_CRON_CREATE,
-            "Register cron-like job (persisted like tasks; not executed by built-in scheduler in v1)",
+            "Register cron-like job (persisted under ~/.anycode/tasks/orchestration.json; executed by `anycode scheduler` when running)",
         ),
         (TOOL_ENTER_WORKTREE, "git worktree add + record path"),
         (TOOL_STRUCTURED_OUTPUT, "Structured JSON passthrough"),

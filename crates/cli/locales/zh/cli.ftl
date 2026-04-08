@@ -4,6 +4,9 @@ flag-debug = 启用调试日志
 flag-config = 配置文件（JSON）路径
 flag-ignore-approval = 本进程跳过工具 y/n 审批（临时；deny 等策略仍生效）。环境变量 ANYCODE_IGNORE_APPROVAL=1 等价。
 flag-model = 仅无子命令 TUI 时覆盖默认模型；仅支持长选项 `--model`（避免与子命令短选项冲突）
+cmd-scheduler-about = 内置调度器：执行 ~/.anycode/tasks/orchestration.json 中 CronCreate 注册的任务
+cmd-scheduler-directory = 每次触发 agent 任务时的工作目录
+cmd-scheduler-reload-secs = 重新读取 orchestration.json，并限制两次唤醒之间的休眠上限（秒）
 cmd-run-about = 执行单次任务
 cmd-run-agent = Agent 类型
 cmd-run-prompt = 任务描述
