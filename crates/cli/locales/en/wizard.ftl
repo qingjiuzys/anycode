@@ -114,6 +114,7 @@ log-mcp-http-ok = MCP Streamable HTTP connected slug={$slug} url={$url}
 log-mcp-http-fail = MCP HTTP connect failed slug={$slug} url={$url} err={$err}
 log-llm-session = 🧠 LLM session: openai_compat_stack={$openai} anthropic={$anthropic} bedrock={$bedrock} github_copilot={$copilot}
 log-memory-info = 🗃 memory backend={$backend} path={$path} auto_save={$auto}
+log-model-instructions-fail = ⚠️ Failed to load model_instructions_file {$path}: {$err}
 err-memory-file-store = FileMemoryStore: {$err}
 err-memory-hybrid-store = HybridMemoryStore: {$err}
 workspace-readme = # anyCode workspace\n\nThis directory is the default anyCode user workspace root (similar to OpenClaw `~/.openclaw/workspace`).\n\n- **`projects/index.json`**: directories registered when you run `anycode` from a project (sorted by last use).\n- **Memory** paths stay in `~/.anycode/config.json` under `memory.path` (not merged here).\n- **WeChat bridge**: new binds default `workingDirectory` to this canonical path; use `/cwd` in WeChat to change.\n\nSee `docs/cli.md`.

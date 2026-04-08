@@ -114,6 +114,7 @@ log-mcp-http-ok = MCP Streamable HTTP 已连接 slug={$slug} url={$url}
 log-mcp-http-fail = MCP HTTP 连接失败 slug={$slug} url={$url} err={$err}
 log-llm-session = 🧠 LLM 会话: openai_compat_stack={$openai} anthropic={$anthropic} bedrock={$bedrock} github_copilot={$copilot}
 log-memory-info = 🗃 memory backend={$backend} path={$path} auto_save={$auto}
+log-model-instructions-fail = ⚠️ 无法加载 model_instructions_file {$path}: {$err}
 err-memory-file-store = FileMemoryStore: {$err}
 err-memory-hybrid-store = HybridMemoryStore: {$err}
 workspace-readme = # anyCode 工作区\n\n本目录为 anyCode 用户级默认工作区根（类似 OpenClaw 的 `~/.openclaw/workspace`）。\n\n- **`projects/index.json`**：你从各项目目录运行 `anycode` 时登记的目录列表（按最近使用时间排序）。\n- **记忆（Memory）**：仍在 `~/.anycode/config.json` 的 `memory.path` 配置，与本目录并列，未自动合并至此。\n- **微信桥**：新绑定账号时默认将 `workingDirectory` 设为本目录规范路径；可在微信内用 `/cwd` 改为项目路径。\n\n详见 `docs/cli.md`。
