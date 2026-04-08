@@ -140,7 +140,11 @@ mod tests {
 
     #[test]
     fn qualified_passthrough() {
-        let r = resolve_chat_model_ref("anthropic/claude-3-5-sonnet", Some("z.ai"), &sample_catalog());
+        let r = resolve_chat_model_ref(
+            "anthropic/claude-3-5-sonnet",
+            Some("z.ai"),
+            &sample_catalog(),
+        );
         assert_eq!(r.source, ChatModelResolutionSource::Qualified);
         assert_eq!(r.value, "anthropic/claude-3-5-sonnet");
     }

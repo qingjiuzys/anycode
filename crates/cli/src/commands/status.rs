@@ -1,5 +1,6 @@
 //! `anycode status` — config, routing, and OpenClaw-style model resolution summary.
 
+use crate::builtin_agents::BUILTIN_AGENT_IDS;
 use crate::{bootstrap, slash_commands, workspace};
 use anycode_core::{LLMProvider, ModelConfig, RuntimeMode};
 use anycode_llm::{
@@ -7,7 +8,6 @@ use anycode_llm::{
     ChatModelResolutionSource,
 };
 use anycode_tools::iter_cli_tool_help;
-use crate::builtin_agents::BUILTIN_AGENT_IDS;
 
 fn provider_label(p: &LLMProvider) -> String {
     match p {
@@ -49,7 +49,12 @@ pub(crate) fn print_status(config: &crate::app_config::Config, json: bool) -> an
 
     let mode_lines: Vec<(String, String)> = all_modes()
         .iter()
-        .map(|m| (m.as_str().to_string(), format_model_line(&router.resolve_for_mode(m))))
+        .map(|m| {
+            (
+                m.as_str().to_string(),
+                format_model_line(&router.resolve_for_mode(m)),
+            )
+        })
         .collect();
 
     let mode_aliases: serde_json::Value = serde_json::to_value(
@@ -103,10 +108,7 @@ pub(crate) fn print_status(config: &crate::app_config::Config, json: bool) -> an
 
     println!("provider: {}", config.llm.provider);
     println!("model: {}", config.llm.model);
-    println!(
-        "primary_chat_ref: {} ({:?})",
-        primary.value, primary.source
-    );
+    println!("primary_chat_ref: {} ({:?})", primary.value, primary.source);
     if primary.source == ChatModelResolutionSource::Raw {
         if let Some(r) = primary.reason {
             println!("primary_resolution_note: {:?}", r);

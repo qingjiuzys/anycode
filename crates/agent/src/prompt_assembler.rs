@@ -99,7 +99,9 @@ impl<'a> PromptAssembler<'a> {
         }
 
         // Discover and inject model instructions from AGENTS.md (or similar)
-        if let Some(instructions) = discover_model_instructions(self.cwd, &self.config.model_instructions) {
+        if let Some(instructions) =
+            discover_model_instructions(self.cwd, &self.config.model_instructions)
+        {
             let path_display = instructions.path.display();
             segments.push(SystemPromptSegment {
                 id: "model_instructions_discovered",

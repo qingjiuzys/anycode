@@ -150,7 +150,14 @@ fn try_load_file(path: &Path) -> Option<ModelInstructionsFile> {
 
 /// Check if a directory is a project root (contains markers like .git).
 fn is_project_root(dir: &Path) -> bool {
-    const ROOT_MARKERS: &[&str] = &[".git", ".hg", ".svn", "Cargo.toml", "package.json", "go.mod"];
+    const ROOT_MARKERS: &[&str] = &[
+        ".git",
+        ".hg",
+        ".svn",
+        "Cargo.toml",
+        "package.json",
+        "go.mod",
+    ];
 
     for marker in ROOT_MARKERS {
         if dir.join(marker).exists() {

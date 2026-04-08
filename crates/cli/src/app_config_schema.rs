@@ -5,8 +5,9 @@ use crate::i18n::{tr, tr_args};
 use anycode_agent::{CompactPolicy, RuntimePromptConfig};
 use anycode_core::{FeatureFlag, FeatureRegistry, ModelRouteProfile, RuntimeMode};
 use anycode_llm::{
-    is_known_provider_id, normalize_provider_id, resolve_chat_model_ref, resolve_context_window_tokens,
-    zai_model_catalog_entries, ChatModelResolutionReason, ZAI_MODEL_CATALOG,
+    is_known_provider_id, normalize_provider_id, resolve_chat_model_ref,
+    resolve_context_window_tokens, zai_model_catalog_entries, ChatModelResolutionReason,
+    ZAI_MODEL_CATALOG,
 };
 use anyhow::Context;
 use fluent_bundle::FluentArgs;
@@ -484,9 +485,9 @@ pub(crate) fn validate_llm_provider(s: &str) -> anyhow::Result<()> {
 }
 
 fn validate_qualified_model_ref(qualified: &str) -> anyhow::Result<()> {
-    let (prov, mid) = qualified.split_once('/').ok_or_else(|| {
-        anyhow::anyhow!("internal: qualified model ref expected to contain '/'")
-    })?;
+    let (prov, mid) = qualified
+        .split_once('/')
+        .ok_or_else(|| anyhow::anyhow!("internal: qualified model ref expected to contain '/'"))?;
     let mid = mid.trim();
     if mid.is_empty() {
         anyhow::bail!("{}", tr("err-model-required"));
@@ -526,7 +527,10 @@ pub(crate) fn validate_session_model_override(provider: &str, model: &str) -> an
         let cat = zai_model_catalog_entries();
         let r = resolve_chat_model_ref(m, Some(provider), &cat);
         if r.reason == Some(ChatModelResolutionReason::Ambiguous) {
-            anyhow::bail!("ambiguous model id {:?}: matches multiple catalog entries", m);
+            anyhow::bail!(
+                "ambiguous model id {:?}: matches multiple catalog entries",
+                m
+            );
         }
         if !is_known_zai_model(m) {
             let list = ZAI_MODEL_CATALOG
