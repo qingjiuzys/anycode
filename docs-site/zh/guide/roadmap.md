@@ -92,7 +92,7 @@ read_when:
 
 **代码入口**：`mcp_normalization.rs`、`mcp_tools.rs`、`mcp_stdio.rs`、`bootstrap/mcp_env.rs`；feature **`tools-mcp`**。
 
-**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套跑同一套 **`AgentRuntime`**（**`SubAgentExecutor`**），**`agent_type`** 选工具面；**`TaskCreate` 等编排记录**在常规 CLI 下写入 **`~/.anycode/tasks/orchestration.json`**（与 **`~/.anycode/tasks/<uuid>/`** 执行目录不是同一概念）。后续：隔离、权限继承、编排 ID 与 daemon 日志对齐。
+**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套跑同一套 **`AgentRuntime`**（**`SubAgentExecutor`**），**`agent_type`** 选工具面；工具结果含 **`nested_task_id`**（执行用 UUID），可与 **`~/.anycode/tasks/<id>/output.log`** 对应；**`TaskOutput`** 对该 UUID 返回日志路径与尾部内容（若存在）。**`TaskCreate` 等编排记录**写入 **`orchestration.json`**，与执行 UUID 是两套 id。后续：隔离、权限继承、可选在 metadata 中关联编排 id 与执行 id。
 
 **LSP、P5 其余项、OpenAI 官方客户端** 等与英文 [Roadmap](/guide/roadmap) 对称，细节见源码与上表。
 

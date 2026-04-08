@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Instant;
+use uuid::Uuid;
 
 fn sens() -> SecurityPolicy {
     SecurityPolicy::sensitive_mutation()
@@ -312,7 +313,7 @@ impl Tool for TaskOutputTool {
         "TaskOutput"
     }
     fn description(&self) -> &str {
-        "Fetch task output snapshot (metadata only in v1; align with ~/.anycode/tasks in future)."
+        "Returns the orchestration task record when `id` matches TaskCreate. If `id` is a runtime execution UUID (e.g. `nested_task_id` from the Agent tool), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -331,10 +332,29 @@ impl Tool for TaskOutputTool {
         let start = Instant::now();
         let g: TgIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
         let t = self.services.get_task(&g.id);
+
+        const TAIL_MAX: usize = 24 * 1024;
+        let mut output_log_path: Option<String> = None;
+        let mut output_tail: Option<String> = None;
+        if let Ok(uid) = Uuid::parse_str(g.id.trim()) {
+            if let Some(home) = dirs::home_dir() {
+                let disk = DiskTaskOutput::new(home.join(".anycode").join("tasks"));
+                let path = disk.output_path(uid);
+                output_log_path = Some(path.to_string_lossy().into_owned());
+                if path.is_file() {
+                    let tail = disk.tail(uid, TAIL_MAX).unwrap_or_default();
+                    if !tail.is_empty() {
+                        output_tail = Some(tail);
+                    }
+                }
+            }
+        }
+
         Ok(ToolOutput {
             result: json!({
                 "task": t,
-                "output_log": "Use CLI tail on ~/.anycode/tasks/<uuid>/output.log when integrated."
+                "output_log_path": output_log_path,
+                "output_tail": output_tail,
             }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,

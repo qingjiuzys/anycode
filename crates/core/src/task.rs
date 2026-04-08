@@ -32,6 +32,13 @@ pub struct TaskContext {
     pub context_injections: Vec<String>,
 }
 
+/// 嵌套 Agent / `Task` 工具一次调用的结果：携带与 `DiskTaskOutput` / `output.log` 一致的 **`task_id`**。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NestedTaskRun {
+    pub task_id: TaskId,
+    pub result: TaskResult,
+}
+
 /// 任务结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskResult {

@@ -235,6 +235,10 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
             "Create orchestration task record (persists with ~/.anycode/tasks/orchestration.json when home dir exists)",
         ),
         (
+            TOOL_TASK_OUTPUT,
+            "Task record + output.log path/tail when id is a runtime execution UUID (e.g. nested_task_id from Agent)",
+        ),
+        (
             TOOL_CRON_CREATE,
             "Register cron-like job (persisted like tasks; not executed by built-in scheduler in v1)",
         ),

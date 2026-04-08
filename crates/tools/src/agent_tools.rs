@@ -95,31 +95,45 @@ impl AgentTool {
             .unwrap_or_else(|| ".".to_string());
 
         let agent_type_owned = agent_type.to_string();
-        match exe
+        let NestedTaskRun { task_id, result } = exe
             .run_nested_task(
                 AgentType::new(agent_type_owned.clone()),
                 prompt.clone(),
                 wd.clone(),
             )
-            .await?
-        {
+            .await?;
+        let nested_task_id = task_id.to_string();
+        match result {
             TaskResult::Success { output, artifacts } => Ok(ToolOutput {
                 result: serde_json::json!({
                     "output": output,
                     "artifacts_count": artifacts.len(),
                     "agent_type": agent_type_owned,
                     "working_directory": wd,
+                    "nested_task_id": nested_task_id,
                 }),
                 error: None,
                 duration_ms: start.elapsed().as_millis() as u64,
             }),
             TaskResult::Failure { error, details } => Ok(ToolOutput {
-                result: serde_json::json!({ "error": error, "details": details }),
+                result: serde_json::json!({
+                    "error": error,
+                    "details": details,
+                    "nested_task_id": nested_task_id,
+                    "agent_type": agent_type_owned,
+                    "working_directory": wd,
+                }),
                 error: Some("subtask failed".into()),
                 duration_ms: start.elapsed().as_millis() as u64,
             }),
             TaskResult::Partial { success, remaining } => Ok(ToolOutput {
-                result: serde_json::json!({ "partial_success": success, "remaining": remaining }),
+                result: serde_json::json!({
+                    "partial_success": success,
+                    "remaining": remaining,
+                    "nested_task_id": nested_task_id,
+                    "agent_type": agent_type_owned,
+                    "working_directory": wd,
+                }),
                 error: Some("subtask partial".into()),
                 duration_ms: start.elapsed().as_millis() as u64,
             }),
@@ -133,7 +147,7 @@ impl Tool for AgentTool {
         "Agent"
     }
     fn description(&self) -> &str {
-        "Run a nested agent turn via the same AgentRuntime as the host (shares LLM + tool registry wiring). Requires non-empty `prompt` or `task`. Use `agent_type` to pick tool surface: explore | plan | general-purpose (default). Nesting is capped (typically ≤6 deep); exceeding returns an error JSON."
+        "Run a nested agent turn via the same AgentRuntime as the host (shares LLM + tool registry wiring). Requires non-empty `prompt` or `task`. Use `agent_type` to pick tool surface: explore | plan | general-purpose (default). Nesting is capped (typically ≤6 deep); exceeding returns an error JSON. Every outcome includes `nested_task_id` (runtime UUID) so you can pass it to TaskOutput or open ~/.anycode/tasks/<id>/output.log."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({

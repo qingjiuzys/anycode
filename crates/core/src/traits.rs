@@ -12,7 +12,7 @@ use crate::llm_types::{
 use crate::memory_model::{Memory, MemoryType};
 use crate::message::Message;
 use crate::security_policy::SecurityPolicy;
-use crate::task::{Task, TaskResult};
+use crate::task::{NestedTaskRun, Task, TaskResult};
 
 /// Agent 抽象（类型、工具子集、说明与可选独立执行路径）
 ///
@@ -41,7 +41,7 @@ pub trait SubAgentExecutor: Send + Sync {
         agent_type: AgentType,
         prompt: String,
         working_directory: String,
-    ) -> Result<TaskResult, CoreError>;
+    ) -> Result<NestedTaskRun, CoreError>;
 }
 
 /// 工具抽象（名称、Schema、执行与 API 面向模型的描述）

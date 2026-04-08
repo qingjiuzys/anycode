@@ -1032,7 +1032,7 @@ impl SubAgentExecutor for AgentRuntime {
         agent_type: AgentType,
         prompt: String,
         working_directory: String,
-    ) -> Result<TaskResult, CoreError> {
+    ) -> Result<NestedTaskRun, CoreError> {
         let task = Task {
             id: Uuid::new_v4(),
             agent_type,
@@ -1047,6 +1047,8 @@ impl SubAgentExecutor for AgentRuntime {
             },
             created_at: chrono::Utc::now(),
         };
-        self.execute_task(task).await
+        let task_id = task.id;
+        let result = self.execute_task(task).await?;
+        Ok(NestedTaskRun { task_id, result })
     }
 }
