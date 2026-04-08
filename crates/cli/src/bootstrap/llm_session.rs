@@ -218,7 +218,7 @@ mod tests {
     use super::*;
     use crate::app_config::{
         LLMConfig, MemoryConfig, RoutingConfig, RuntimeSettings, SecurityConfig, SessionConfig,
-        SkillsConfig,
+        SkillsConfig, StatusLineRuntime,
     };
     use anycode_agent::RuntimePromptConfig;
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -269,6 +269,7 @@ mod tests {
                 ..SkillsConfig::default()
             },
             session: SessionConfig::default(),
+            status_line: StatusLineRuntime::default(),
         }
     }
 

@@ -19,3 +19,7 @@ pub const ANYCODE_TOOL_CALLS_METADATA_KEY: &str = "anycode_tool_calls";
 
 /// User `Message.metadata`：本条为会话压缩后的续接摘要（与 Claude Code `isCompactSummary` 对齐）。
 pub const ANYCODE_COMPACT_SUMMARY_METADATA_KEY: &str = "anycode_compact_summary";
+
+/// User `Message.metadata`：由运行时注入的「上下文状态」伪用户消息（Workspace / Workflow 等），
+/// 参与 LLM 请求但不在 TUI transcript 中展示，避免与真实对话混在一起。
+pub const ANYCODE_CONTEXT_USER_METADATA_KEY: &str = "anycode_context_user";

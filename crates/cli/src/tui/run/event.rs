@@ -106,6 +106,8 @@ pub(super) struct TuiEventCtx<'a> {
     pub next_tool_fold_id: &'a mut u64,
     /// 当前 turn 的 transcript 尾部锚点（`transcript.len()` 在 user 行之后、`next_tool_fold_id` 快照），供主循环增量同步。
     pub exec_live_tail: &'a mut Option<(usize, u64)>,
+    /// 首次 Ctrl+C 已按下，再按一次则退出（对齐 Claude Code）。
+    pub quit_confirm: &'a mut bool,
 }
 
 pub(super) async fn dispatch_crossterm_event(
@@ -118,6 +120,7 @@ pub(super) async fn dispatch_crossterm_event(
 ) -> anyhow::Result<TuiLoopCtl> {
     match ev {
         Event::Mouse(me) => {
+            *ctx.quit_confirm = false;
             *ctx.last_key = Some(format!("mouse {:?}", me.kind));
             let avail = ctx.main_avail_cell.get().max(1);
             let max_sc = ctx.workspace_line_count.get().saturating_sub(avail);
@@ -135,6 +138,7 @@ pub(super) async fn dispatch_crossterm_event(
             Ok(TuiLoopCtl::Ok)
         }
         Event::Paste(text) => {
+            *ctx.quit_confirm = false;
             *ctx.last_key = Some(format!("Paste({} chars)", text.chars().count()));
             if ctx.pending_approval.is_some() {
                 return Ok(TuiLoopCtl::Continue);
@@ -162,6 +166,7 @@ pub(super) async fn dispatch_crossterm_event(
             *ctx.last_key = Some(format!("{:?} {:?}", key.code, key.modifiers));
 
             if let Some(p) = ctx.pending_approval.take() {
+                *ctx.quit_confirm = false;
                 match key.code {
                     KeyCode::Up => {
                         *ctx.approval_menu_selected = (*ctx.approval_menu_selected + 2) % 3;
@@ -206,6 +211,7 @@ pub(super) async fn dispatch_crossterm_event(
 }
 
 fn handle_rev_search_key(key: crossterm::event::KeyEvent, ctx: &mut TuiEventCtx<'_>) -> TuiLoopCtl {
+    *ctx.quit_confirm = false;
     let Some(mut rs) = ctx.rev_search.take() else {
         return TuiLoopCtl::Ok;
     };
@@ -310,10 +316,19 @@ async fn handle_main_key(
     agent_type: &mut anycode_core::AgentType,
     working_dir_str: &str,
 ) -> anyhow::Result<TuiLoopCtl> {
-    match key.code {
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Ok(TuiLoopCtl::Break)
+    if matches!(
+        key.code,
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL)
+    ) {
+        if *ctx.quit_confirm {
+            return Ok(TuiLoopCtl::Break);
         }
+        *ctx.quit_confirm = true;
+        return Ok(TuiLoopCtl::Ok);
+    }
+    *ctx.quit_confirm = false;
+
+    match key.code {
         KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             if *ctx.executing {
                 return Ok(TuiLoopCtl::Continue);
@@ -386,6 +401,10 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Esc => {
+            if *ctx.quit_confirm {
+                *ctx.quit_confirm = false;
+                return Ok(TuiLoopCtl::Ok);
+            }
             if *ctx.help_open {
                 *ctx.help_open = false;
             } else if !ctx.input.is_empty() {

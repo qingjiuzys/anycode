@@ -21,7 +21,7 @@ tui-help-line1 = ?  帮助  ·  Esc 清除/退出
 tui-help-line2 = Enter 发送 · Sh+Enter 多行 · ↑↓ 历史
 tui-help-line3 = PgUp/PgDn 滚动 Workspace · ctrl+o 展开/折叠工具块
 tui-help-line4 = 默认开启鼠标报告，滚轮滚动 Workspace；拖选复制若异常可设 ANYCODE_TUI_MOUSE=0 关闭
-tui-help-line5 = 备用屏退出后会 echo 会话；主缓冲: ANYCODE_TUI_ALT_SCREEN=0 或 CLAUDE_CODE_NO_FLICKER=0
+tui-help-line5 = 备用屏（对齐 Claude）: CLAUDE_CODE_NO_FLICKER=1 或 ANYCODE_TUI_ALT_SCREEN=1 或 USER_TYPE=ant；主缓冲: 将上述任一变更为 0
 tui-help-line6 = 关闭 echo: ANYCODE_TUI_NO_SCROLLBACK_DUMP=1（仅备用屏模式）
 tui-help-line7 = ^R 搜索历史 · ^L 清空会话
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · 行式: anycode repl
@@ -82,6 +82,13 @@ tui-buddy-title = Buddy
 tui-read-more-paths =    ⎿  … 另有 {$n} 项
 tui-germinating = 思考中…
 tui-germinating-secs = 思考中…（{$s} 秒）
+# 与 Claude Code 一致：shell 工具执行中、尚无输出时的 ⎿ 行
+tui-tool-running = Running…
+tui-exit-press-again = 再按一次 Ctrl-C 退出
+tui-exit-resume-lead = 恢复此会话请使用：
+tui-exit-resume-print = 恢复此会话请使用：
+tui-resume-not-found = 找不到该 id 的已保存会话（见 ~/.anycode/tui-sessions/）。
+tui-resume-cwd-warn = 已保存会话的工作目录与当前目录不一致；仍将恢复消息历史。
 tui-read-ex-a = 正在读取 {$n} 个文件…
 tui-read-ex-i = 已读取 {$n} 个文件
 tui-read-col-a = 正在读取 {$n} 个文件…{$hint}

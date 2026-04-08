@@ -2,6 +2,7 @@
 
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
+use uuid::Uuid;
 
 fn env_ignore_approval() -> bool {
     match std::env::var("ANYCODE_IGNORE_APPROVAL") {
@@ -87,6 +88,10 @@ pub(crate) struct Args {
     /// Override default model for this process only (TUI with no subcommand; same validation as `repl --model`; long `--model` only).
     #[arg(long = "model", global = true)]
     pub(crate) model: Option<String>,
+
+    /// Resume a saved TUI session (`~/.anycode/tui-sessions/<uuid>.json`; Claude-style `claude --resume`).
+    #[arg(long = "resume", global = true)]
+    pub(crate) resume: Option<Uuid>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -162,6 +167,12 @@ pub(crate) enum Commands {
     Status {
         #[arg(long, default_value_t = false)]
         json: bool,
+    },
+
+    /// Sample JSON for `statusLine.command` stdin (HUD)
+    Statusline {
+        #[command(subcommand)]
+        sub: StatuslineCommands,
     },
 
     /// 🗂️  Manage workspace registry and defaults
@@ -320,6 +331,12 @@ pub(crate) enum SkillsCommands {
 }
 
 #[derive(Subcommand, Debug)]
+pub(crate) enum StatuslineCommands {
+    /// Print example JSON payload (pretty-printed)
+    PrintSchema,
+}
+
+#[derive(Subcommand, Debug)]
 pub(crate) enum WorkspaceCommands {
     /// List recent workspaces
     List {
@@ -396,8 +413,9 @@ pub fn parse_args() -> Args {
 
 #[cfg(test)]
 mod clap_tests {
-    use super::{session_ignore_approval, Args, ChannelCommands, Commands};
+    use super::{session_ignore_approval, Args, ChannelCommands, Commands, StatuslineCommands};
     use clap::Parser;
+    use uuid::Uuid;
     use std::sync::{Mutex, OnceLock};
 
     static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -535,6 +553,31 @@ mod clap_tests {
             }
             _ => unreachable!("clap test: expected model status"),
         }
+    }
+
+    #[test]
+    fn statusline_print_schema_parses() {
+        let a = Args::try_parse_from(["anycode", "statusline", "print-schema"]).unwrap();
+        match a.command {
+            Some(Commands::Statusline { sub }) => {
+                assert!(matches!(sub, StatuslineCommands::PrintSchema));
+            }
+            _ => panic!("expected statusline print-schema"),
+        }
+    }
+
+    #[test]
+    fn resume_uuid_parses() {
+        let a = Args::try_parse_from([
+            "anycode",
+            "--resume",
+            "d5e55f53-f0ef-42d9-a0fb-359005d5b8aa",
+        ])
+        .unwrap();
+        assert_eq!(
+            a.resume,
+            Some(Uuid::parse_str("d5e55f53-f0ef-42d9-a0fb-359005d5b8aa").unwrap())
+        );
     }
 
     #[test]

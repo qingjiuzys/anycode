@@ -16,6 +16,62 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+fn default_status_line_timeout_ms() -> u64 {
+    5000
+}
+
+/// `config.json` 的 `statusLine` 段（与 Claude Code 同构：可选 `command` 从 stdin 读 JSON）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct StatusLineConfigFile {
+    #[serde(default)]
+    pub(crate) command: Option<String>,
+    #[serde(default)]
+    pub(crate) timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub(crate) padding: Option<u16>,
+    #[serde(default)]
+    pub(crate) show_builtin: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct StatusLineRuntime {
+    pub(crate) command: Option<String>,
+    pub(crate) timeout_ms: u64,
+    pub(crate) padding: u16,
+    pub(crate) show_builtin: bool,
+}
+
+impl Default for StatusLineRuntime {
+    fn default() -> Self {
+        Self {
+            command: None,
+            timeout_ms: default_status_line_timeout_ms(),
+            padding: 0,
+            show_builtin: false,
+        }
+    }
+}
+
+impl From<StatusLineConfigFile> for StatusLineRuntime {
+    fn from(f: StatusLineConfigFile) -> Self {
+        Self {
+            command: f.command.and_then(|s| {
+                let t = s.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }),
+            timeout_ms: f
+                .timeout_ms
+                .unwrap_or_else(|| default_status_line_timeout_ms()),
+            padding: f.padding.unwrap_or(0),
+            show_builtin: f.show_builtin,
+        }
+    }
+}
+
 /// 配置结构
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
@@ -28,6 +84,8 @@ pub(crate) struct Config {
     pub(crate) skills: SkillsConfig,
     /// TUI 会话：自动压缩阈值等（`config.json` 的 `session` 段）。
     pub(crate) session: SessionConfig,
+    /// 全屏 TUI 底部 status line（`config.json` 的 `statusLine`）。
+    pub(crate) status_line: StatusLineRuntime,
 }
 
 #[derive(Debug, Clone)]

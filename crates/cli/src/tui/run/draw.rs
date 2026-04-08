@@ -122,6 +122,13 @@ pub(super) struct DrawFrameCtx<'a> {
     pub expanded_tool_folds: &'a HashSet<u64>,
     pub main_avail_cell: &'a Cell<usize>,
     pub workspace_line_count: &'a Cell<usize>,
+    /// Claude 风格底栏 status line（`statusLine.command` 或内置行）。
+    pub status_line_show: bool,
+    pub status_line_text: &'a str,
+    pub status_line_padding: u16,
+    /// 首次 Ctrl+C 后：Dock 内提示再按一次退出，并展示 `anycode --resume <id>`。
+    pub quit_confirm_pending: bool,
+    pub tui_resume_session_id: &'a str,
 }
 
 pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
@@ -163,6 +170,11 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         expanded_tool_folds,
         main_avail_cell,
         workspace_line_count,
+        status_line_show,
+        status_line_text,
+        status_line_padding,
+        quit_confirm_pending,
+        tui_resume_session_id,
     } = ctx;
 
     let slash_candidates =
@@ -326,14 +338,11 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         let inner = workspace_block.inner(main_rect);
         let available_height = inner.height as usize;
         main_avail_cell.set(available_height.max(1));
+        let full_inner_w = inner.width.max(1) as usize;
+        let avail_h = available_height.max(1);
 
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(1), Constraint::Length(1)])
-            .split(inner);
-
-        let content_width = chunks[0].width as usize;
-
+        // 先按全宽排版；仅 **需要滚动** 时让出 1 列给滚动条（否则右侧不常驻 │/█ 条）。
+        let mut content_width = full_inner_w;
         if *workspace_cache_gen != transcript_gen
             || *workspace_cache_w != content_width
             || *workspace_cache_fold_rev != fold_layout_rev
@@ -358,8 +367,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
             *workspace_cache_working_secs = working_elapsed_secs;
             *workspace_cache_pulse_frame = pet_anim_frame;
         }
-
-        let welcome_wrapped: Vec<Line<'static>> = if transcript.is_empty() {
+        let mut welcome_wrapped: Vec<Line<'static>> = if transcript.is_empty() {
             welcome_lines(permission_mode, require_approval)
                 .into_iter()
                 .flat_map(|l| wrap_ratatui_line(l, content_width.max(8)))
@@ -367,6 +375,56 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         } else {
             Vec::new()
         };
+        let mut total_lines = if transcript.is_empty() {
+            welcome_wrapped.len()
+        } else {
+            workspace_cache_lines.len()
+        };
+        let mut show_scrollbar = total_lines > avail_h;
+        if show_scrollbar {
+            let narrow = full_inner_w.saturating_sub(1).max(1);
+            if narrow != content_width {
+                content_width = narrow;
+                if *workspace_cache_gen != transcript_gen
+                    || *workspace_cache_w != content_width
+                    || *workspace_cache_fold_rev != fold_layout_rev
+                    || *workspace_cache_executing != executing
+                    || *workspace_cache_working_secs != working_elapsed_secs
+                    || *workspace_cache_pulse_frame != pet_anim_frame
+                {
+                    *workspace_cache_lines = layout_workspace(
+                        transcript,
+                        content_width,
+                        expanded_tool_folds,
+                        WorkspaceLiveLayout {
+                            executing,
+                            working_elapsed_secs,
+                            pulse_frame: pet_anim_frame,
+                        },
+                    );
+                    *workspace_cache_gen = transcript_gen;
+                    *workspace_cache_w = content_width;
+                    *workspace_cache_fold_rev = fold_layout_rev;
+                    *workspace_cache_executing = executing;
+                    *workspace_cache_working_secs = working_elapsed_secs;
+                    *workspace_cache_pulse_frame = pet_anim_frame;
+                }
+                welcome_wrapped = if transcript.is_empty() {
+                    welcome_lines(permission_mode, require_approval)
+                        .into_iter()
+                        .flat_map(|l| wrap_ratatui_line(l, content_width.max(8)))
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                total_lines = if transcript.is_empty() {
+                    welcome_wrapped.len()
+                } else {
+                    workspace_cache_lines.len()
+                };
+                show_scrollbar = total_lines > avail_h;
+            }
+        }
 
         if transcript.is_empty() {
             workspace_line_count.set(welcome_wrapped.len().max(1));
@@ -374,49 +432,79 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
             workspace_line_count.set(workspace_cache_lines.len());
         }
 
-        let avail = available_height.max(1);
         let body: Text = if transcript.is_empty() {
             let start =
-                transcript_first_visible(welcome_wrapped.len(), avail, transcript_scroll_up);
-            let end = (start + avail).min(welcome_wrapped.len());
+                transcript_first_visible(welcome_wrapped.len(), avail_h, transcript_scroll_up);
+            let end = (start + avail_h).min(welcome_wrapped.len());
             Text::from(welcome_wrapped[start..end].to_vec())
         } else {
             let start =
-                transcript_first_visible(workspace_cache_lines.len(), avail, transcript_scroll_up);
-            let end = (start + avail).min(workspace_cache_lines.len());
+                transcript_first_visible(workspace_cache_lines.len(), avail_h, transcript_scroll_up);
+            let end = (start + avail_h).min(workspace_cache_lines.len());
             Text::from(workspace_cache_lines[start..end].to_vec())
         };
 
-        let total_for_bar = if transcript.is_empty() {
-            welcome_wrapped.len()
-        } else {
-            workspace_cache_lines.len()
-        };
         let scroll_body = workspace_scrollbar_text(
-            total_for_bar,
-            available_height.max(1),
+            total_lines,
+            avail_h,
             transcript_scroll_up,
-            available_height.max(1),
+            avail_h,
         );
 
         f.render_widget(workspace_block, main_rect);
-        f.render_widget(Paragraph::new(body).wrap(Wrap { trim: false }), chunks[0]);
-        f.render_widget(Paragraph::new(scroll_body), chunks[1]);
+        if show_scrollbar {
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(1), Constraint::Length(1)])
+                .split(inner);
+            f.render_widget(Paragraph::new(body).wrap(Wrap { trim: false }), chunks[0]);
+            f.render_widget(Paragraph::new(scroll_body), chunks[1]);
+        } else {
+            f.render_widget(
+                Paragraph::new(body).wrap(Wrap { trim: false }),
+                inner,
+            );
+        }
     }
 
-    // --- 底栏：横线 + Input Dock（快捷键见 `?` 帮助） ---
+    // --- 底栏：横线 + 可选 status line + Input Dock（快捷键见 `?` 帮助） ---
     let bottom = outer[2];
-    let bottom_split = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(6)])
-        .split(bottom);
+    let bottom_split = if status_line_show {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(6),
+            ])
+            .split(bottom)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(6)])
+            .split(bottom)
+    };
 
     f.render_widget(
         Paragraph::new(horizontal_rule_line(bottom_split[0].width)),
         bottom_split[0],
     );
 
-    let dock_rect = bottom_split[1];
+    let dock_rect = if status_line_show {
+        let pad = status_line_padding.min(48) as usize;
+        let mut padded = String::new();
+        padded.extend(std::iter::repeat(' ').take(pad));
+        padded.push_str(status_line_text);
+        let w = bottom_split[1].width.max(1) as usize;
+        let disp = truncate_preview(&padded, w);
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(disp, style_dim()))).wrap(Wrap { trim: true }),
+            bottom_split[1],
+        );
+        bottom_split[2]
+    } else {
+        bottom_split[1]
+    };
     let dock_title = if pending_approval.is_some() {
         tr("tui-dock-approve")
     } else if rev_search.is_some() {
@@ -515,6 +603,21 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
             tr("tui-approval-hint-arrows"),
             style_dim(),
         )]));
+    } else if quit_confirm_pending {
+        input_lines.push(horizontal_rule_line(body_rect.width.max(1)));
+        input_lines.push(Line::from(Span::styled(
+            tr("tui-exit-press-again"),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )));
+        input_lines.push(Line::from(vec![
+            Span::styled(tr("tui-exit-resume-lead"), style_dim()),
+            Span::styled(
+                format!(" anycode --resume {tui_resume_session_id}"),
+                style_dim(),
+            ),
+        ]));
     } else if let Some(rs) = rev_search {
         let m = rs.matches(input_history);
         let pick = if m.is_empty() {
@@ -740,6 +843,11 @@ mod tests {
                     expanded_tool_folds: &expanded,
                     main_avail_cell: &main_avail_cell,
                     workspace_line_count: &workspace_line_count,
+                    status_line_show: false,
+                    status_line_text: " ",
+                    status_line_padding: 0,
+                    quit_confirm_pending: false,
+                    tui_resume_session_id: "",
                 },
             );
         })
@@ -791,12 +899,143 @@ mod tests {
                     expanded_tool_folds: &expanded,
                     main_avail_cell: &main_avail_cell,
                     workspace_line_count: &workspace_line_count,
+                    status_line_show: false,
+                    status_line_text: " ",
+                    status_line_padding: 0,
+                    quit_confirm_pending: false,
+                    tui_resume_session_id: "",
                 },
             );
         })
         .unwrap();
         let s2 = buffer_to_string(&term);
         assert!(s2.contains("Hello world"));
+    }
+
+    /// 底栏多一行 status line 时 `bottom_h` 必须比默认多 1；见
+    /// `status_line_forgot_plus_one_collapses_rule_and_status`（少一行时横线+HUD 被压成一行高）。
+    #[test]
+    fn status_line_row_renders_marker_above_dock() {
+        let backend = TestBackend::new(80, 24);
+        let mut term = Terminal::new(backend).unwrap();
+        let size = Rect::new(0, 0, 80, 24);
+
+        let mut cache_lines: Vec<Line<'static>> = vec![];
+        let mut cache_gen: u64 = 0;
+        let mut cache_w: usize = 0;
+        let mut cache_fold_rev: u64 = 0;
+        let mut cache_exec: bool = false;
+        let mut cache_secs: Option<u64> = None;
+        let mut cache_pulse: u64 = 0;
+        let expanded: HashSet<u64> = HashSet::new();
+
+        let agent_type = AgentType::new("general-purpose");
+        let main_avail_cell = Cell::new(0usize);
+        let workspace_line_count = Cell::new(0usize);
+
+        let mut input = InputState::default();
+        input.set_from_str("");
+        let input_history: Vec<String> = vec![];
+
+        let marker = "§AC_STATUSLINE_UX§";
+        let t1 = vec![TranscriptEntry::AssistantMarkdown("Hi".to_string())];
+        term.draw(|f| {
+            draw_tui_frame(
+                f,
+                DrawFrameCtx {
+                    size,
+                    bottom_h: 8,
+                    show_buddy: false,
+                    pet_anim_frame: 0,
+                    working_dir_str: ".",
+                    agent_type: &agent_type,
+                    permission_mode: "default",
+                    require_approval: true,
+                    llm_provider: "mock",
+                    llm_plan: "coding",
+                    llm_model: "mock",
+                    debug: false,
+                    last_key: None,
+                    pending_approval: None,
+                    approval_menu_selected: 0,
+                    executing: false,
+                    working_elapsed_secs: None,
+                    help_open: false,
+                    transcript: &t1,
+                    transcript_scroll_up: 0,
+                    rev_search: None,
+                    slash_suggest_pick: 0,
+                    slash_suggest_suppress: true,
+                    input: &input,
+                    input_history: &input_history,
+                    workspace_cache_lines: &mut cache_lines,
+                    workspace_cache_gen: &mut cache_gen,
+                    workspace_cache_w: &mut cache_w,
+                    workspace_cache_fold_rev: &mut cache_fold_rev,
+                    workspace_cache_executing: &mut cache_exec,
+                    workspace_cache_working_secs: &mut cache_secs,
+                    workspace_cache_pulse_frame: &mut cache_pulse,
+                    transcript_gen: 1,
+                    fold_layout_rev: 1,
+                    expanded_tool_folds: &expanded,
+                    main_avail_cell: &main_avail_cell,
+                    workspace_line_count: &workspace_line_count,
+                    status_line_show: true,
+                    status_line_text: marker,
+                    status_line_padding: 2,
+                    quit_confirm_pending: false,
+                    tui_resume_session_id: "",
+                },
+            );
+        })
+        .unwrap();
+        let buf = buffer_to_string(&term);
+        assert!(
+            buf.contains(marker),
+            "expected dim status line text in buffer (check bottom_h +1 vs loop_inner)"
+        );
+    }
+
+    /// 与 `draw_tui_frame` 底栏 `status_line_show` 分支使用同一组约束。
+    fn split_bottom_with_status_line(bottom_h: u16) -> Vec<Rect> {
+        let bottom = Rect::new(0, 0, 80, bottom_h);
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(6),
+            ])
+            .split(bottom)
+            .to_vec()
+    }
+
+    /// 启用 HUD 时底栏需要 **8** 行（横线 1 + status 1 + Dock `Min(6)`）。若仍用无 HUD 时的 **7**，
+    /// ratatui 会优先满足 Dock 的 `Min(6)`，前两段 `Length(1)` 被 **压成合计 1 行**（横线与 HUD 争一行）。
+    /// `loop_inner` 在启用 status line 时对 `bottom_h` 做 `+1`，横线 + HUD 各占一行，布局与无 HUD 时同样「舒展」。
+    #[test]
+    fn status_line_forgot_plus_one_collapses_rule_and_status() {
+        let seven = split_bottom_with_status_line(7);
+        let eight = split_bottom_with_status_line(8);
+        assert_eq!(
+            seven.iter().map(|r| r.height).sum::<u16>(),
+            7,
+            "chunks fill bottom area"
+        );
+        assert_eq!(eight.iter().map(|r| r.height).sum::<u16>(), 8);
+        // ratatui 优先满足 `Min(6)`：7 行时 Dock 仍为 6，**压缩**前两段 `Length(1)`（见下方断言）。
+        assert_eq!(seven[2].height, 6);
+        assert_eq!(eight[2].height, 6);
+        assert_eq!(
+            seven[0].height + seven[1].height,
+            1,
+            "forgot +1: rule + status share one row — HUD 与横线叠在一起/残缺"
+        );
+        assert_eq!(
+            eight[0].height + eight[1].height,
+            2,
+            "loop_inner +1: rule + status each 1"
+        );
     }
 
     #[test]
@@ -871,6 +1110,11 @@ mod tests {
                     expanded_tool_folds: &expanded,
                     main_avail_cell: &main_avail_cell,
                     workspace_line_count: &workspace_line_count,
+                    status_line_show: false,
+                    status_line_text: " ",
+                    status_line_padding: 0,
+                    quit_confirm_pending: false,
+                    tui_resume_session_id: "",
                 },
             );
         })

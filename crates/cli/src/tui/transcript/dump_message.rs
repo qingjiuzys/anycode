@@ -2,7 +2,7 @@
 
 use anycode_core::{
     strip_llm_reasoning_xml_blocks, Message, MessageContent, MessageRole, ToolCall,
-    ANYCODE_TOOL_CALLS_METADATA_KEY,
+    ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
 use ratatui::text::{Line, Span};
 
@@ -11,7 +11,7 @@ use super::tool_render::assistant_markdown_meaningful_eq;
 use super::types::{CollapsibleToolBlock, TranscriptEntry};
 use crate::tui::styles::*;
 
-/// 将 Workspace 条目转为纯文本，供 **仅备用屏模式** 下退出后写入主缓冲（`ANYCODE_TUI_ALT_SCREEN=0` 时主缓冲原生滚动，无需 echo）。
+/// 将 Workspace 条目转为纯文本；在 **备用屏** 退出后写入主缓冲，便于终端内搜索（主缓冲模式不调用，避免重复）。
 pub(crate) fn transcript_dump_plain_text(entries: &[TranscriptEntry]) -> String {
     use std::fmt::Write;
 
@@ -133,10 +133,38 @@ pub(crate) fn transcript_dump_plain_text(entries: &[TranscriptEntry]) -> String 
     out
 }
 
+/// 运行时注入的「上下文」伪 user 消息：参与模型请求，不进入 Workspace 展示。
+fn is_hidden_context_user_message(msg: &Message, text: &str) -> bool {
+    if msg
+        .metadata
+        .get(ANYCODE_CONTEXT_USER_METADATA_KEY)
+        .and_then(|v| v.as_bool())
+        == Some(true)
+    {
+        return true;
+    }
+    // 旧版会话无 metadata：按正文前缀识别（与 `build_context_sections` 注入段对齐）。
+    let t = text.trim_start();
+    t.starts_with("## Runtime Mode")
+        || t.starts_with("# Slash Commands")
+        || t.starts_with("## Workspace Management")
+        || t.starts_with("## Channel Mode")
+        || t.starts_with("## Workflow")
+        || t.starts_with("## Goal Mode")
+        || t.starts_with("## Model Routing")
+        || t.starts_with("## Relevant Memories")
+}
+
 pub(crate) fn message_to_entries(msg: &Message) -> Vec<TranscriptEntry> {
     match msg.role {
         MessageRole::User => match &msg.content {
-            MessageContent::Text(t) => vec![TranscriptEntry::User(t.trim_end().to_string())],
+            MessageContent::Text(t) => {
+                if is_hidden_context_user_message(msg, t) {
+                    vec![]
+                } else {
+                    vec![TranscriptEntry::User(t.trim_end().to_string())]
+                }
+            }
             _ => vec![TranscriptEntry::Plain(vec![Line::from(Span::styled(
                 "> <non-text>",
                 style_error(),
@@ -166,11 +194,6 @@ pub(crate) fn message_to_entries(msg: &Message) -> Vec<TranscriptEntry> {
 
             if !content_text.trim().is_empty() {
                 out.push(TranscriptEntry::AssistantMarkdown(content_text));
-            } else if out.is_empty() {
-                out.push(TranscriptEntry::Plain(vec![Line::from(Span::styled(
-                    "⏺ <empty>",
-                    style_dim(),
-                ))]));
             }
             out
         }

@@ -16,6 +16,7 @@ Short paths for common goals:
 | Run something in 5 minutes | [Getting started](./getting-started) |
 | Install from release, script, or cargo | [Install](./install) |
 | Subcommands, TUI, REPL, daemon | [CLI overview](./cli) → section pages |
+| Bottom status line (Claude-style HUD, stdin JSON) | [Status line](./status-line) |
 | Providers, `config.json`, models | [Models](./models) |
 | Crates, runtime, tools | [Architecture](./architecture) |
 | Per-agent model overrides | [Routing](./routing) |

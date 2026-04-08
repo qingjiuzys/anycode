@@ -7,8 +7,10 @@ mod chrome;
 pub(crate) mod input;
 mod pet;
 mod run;
+pub(crate) mod status_line;
 pub(crate) mod styles;
 mod transcript;
+pub(crate) mod tui_session_persist;
 pub(crate) mod util;
 
 pub use run::run_tui;

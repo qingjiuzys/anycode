@@ -21,7 +21,7 @@ tui-help-line1 = ?  help  ·  Esc clear/exit
 tui-help-line2 = Enter send · Sh+Enter multiline · ↑↓ history
 tui-help-line3 = PgUp/PgDn scroll Workspace · ctrl+o fold/unfold tool blocks
 tui-help-line4 = Mouse reporting on by default (wheel scrolls Workspace); ANYCODE_TUI_MOUSE=0 if drag-select breaks
-tui-help-line5 = Alt screen echoes session on exit; main buffer: ANYCODE_TUI_ALT_SCREEN=0 or CLAUDE_CODE_NO_FLICKER=0
+tui-help-line5 = Alt screen (Claude-style): CLAUDE_CODE_NO_FLICKER=1 or ANYCODE_TUI_ALT_SCREEN=1 or USER_TYPE=ant; main buffer: set either to 0
 tui-help-line6 = Disable echo: ANYCODE_TUI_NO_SCROLLBACK_DUMP=1 (alt screen only)
 tui-help-line7 = ^R search history · ^L clear session
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · line mode: anycode repl
@@ -82,6 +82,13 @@ tui-buddy-title = Buddy
 tui-read-more-paths =    ⎿  … and {$n} more
 tui-germinating = Germinating…
 tui-germinating-secs = Germinating… ({$s}s)
+# Claude Code–style sub-line while a shell tool has not returned stdout yet
+tui-tool-running = Running…
+tui-exit-press-again = Press Ctrl-C again to exit
+tui-exit-resume-lead = Resume this session with:
+tui-exit-resume-print = Resume this session with:
+tui-resume-not-found = No saved TUI session for that id (see ~/.anycode/tui-sessions/).
+tui-resume-cwd-warn = resume session cwd differs from current directory; messages restored anyway.
 tui-read-ex-a = {$n ->
     [one] Reading {$n} file…
    *[other] Reading {$n} files…

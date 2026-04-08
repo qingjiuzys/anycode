@@ -111,6 +111,18 @@ async fn main() -> anyhow::Result<()> {
             }
             commands::status::print_status(&config, json)?;
         }
+        Some(Commands::Statusline { sub }) => {
+            let mut config = load_config_for_session(args.config.clone(), ignore_approval).await?;
+            if let Ok(cwd) = std::env::current_dir() {
+                let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
+                workspace::apply_project_overlays(&mut config, &wd);
+            }
+            match sub {
+                cli_args::StatuslineCommands::PrintSchema => {
+                    commands::statusline::print_schema(&config)?;
+                }
+            }
+        }
         Some(Commands::Setup { channel, data_dir }) => {
             run_onboard_flow(args.config.clone(), data_dir, channel, args.debug).await?;
         }
@@ -311,7 +323,15 @@ async fn main() -> anyhow::Result<()> {
                 .default_agent()
                 .as_str()
                 .to_string();
-            tui::run_tui(config, default_agent, None, args.model.clone(), args.debug).await?;
+            tui::run_tui(
+                config,
+                default_agent,
+                None,
+                args.model.clone(),
+                args.debug,
+                args.resume,
+            )
+            .await?;
         }
     }
 

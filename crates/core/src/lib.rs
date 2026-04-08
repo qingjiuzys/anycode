@@ -29,7 +29,7 @@ pub use feature_flags::{FeatureFlag, FeatureRegistry};
 pub use goal::{GoalProgress, GoalSpec};
 pub use ids::{
     AgentId, SessionId, TaskId, ToolName, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
-    ANYCODE_TOOL_CALLS_METADATA_KEY,
+    ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
 pub use llm_types::{
     LLMProvider, LLMResponse, ModelConfig, PermissionMode, StreamEvent, ToolCall, ToolInput,
@@ -60,6 +60,6 @@ pub mod prelude {
         SubAgentExecutor, Task, TaskContext, TaskId, TaskResult, Tool, ToolCall, ToolInput,
         ToolName, ToolOutput, ToolSchema, TurnOutput, Usage, WorkflowDefinition, WorkflowHandoff,
         WorkflowRetry, WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
-        ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS,
+        ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS,
     };
 }

@@ -463,6 +463,10 @@ pub(crate) fn save_merged_config(
             .as_ref()
             .map(|c| c.model_instructions.clone())
             .unwrap_or_default(),
+        status_line: existing
+            .as_ref()
+            .map(|c| c.status_line.clone())
+            .unwrap_or_default(),
     };
 
     validate_llm_provider(&cfg.provider)?;
@@ -702,6 +706,9 @@ pub(crate) struct AnyCodeConfig {
     pub(crate) session: SessionConfigFile,
     #[serde(default)]
     model_instructions: ModelInstructionsConfigFile,
+    /// 全屏 TUI 底部 status line（JSON key `statusLine`）。
+    #[serde(default, rename = "statusLine")]
+    pub(crate) status_line: StatusLineConfigFile,
 }
 
 pub(crate) fn default_base_url_for(plan: &str) -> &'static str {
@@ -825,6 +832,7 @@ fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Resul
             skills: SkillsConfigFile::default(),
             session: SessionConfigFile::default(),
             model_instructions: ModelInstructionsConfigFile::default(),
+            status_line: StatusLineConfigFile::default(),
         }),
     )
 }
@@ -1092,6 +1100,10 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .as_ref()
             .map(|c| c.model_instructions.clone())
             .unwrap_or_default(),
+        status_line: existing
+            .as_ref()
+            .map(|c| c.status_line.clone())
+            .unwrap_or_default(),
     };
 
     save_anycode_config(&cfg)?;
@@ -1156,14 +1168,12 @@ pub(crate) async fn run_onboard_flow(
         let term = console::Term::stdout();
         if term.is_term() {
             // Keep it minimal so it doesn't dominate the setup UX.
+            // 单段输出：`println!` 会在整段末尾再补一个 `\n`，格式里不要在最后一行前多加 `\n`，否则会出现「中间空一行」。
             println!(
-                "\n{}\n{}\n{}\n",
+                "\n{}\n{}\n{}\n{}\n{}",
                 "    _              ____          __",
                 "   / \\   _ __  _  / ___|___   __/ _| ___",
-                "  / _ \\ | '_ \\| | | |   / _ \\ / _` |/ _ \\"
-            );
-            println!(
-                "{}\n{}\n",
+                "  / _ \\ | '_ \\| | | |   / _ \\ / _` |/ _ \\",
                 " / ___ \\| | | | |_| |__| (_) | (_| |  __/",
                 "/_/   \\_\\_| |_|\\__, |\\____\\___/ \\__,_|\\___|"
             );
@@ -1274,6 +1284,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
                 skills: SkillsConfigFile::default(),
                 session: SessionConfigFile::default(),
                 model_instructions: ModelInstructionsConfigFile::default(),
+                status_line: StatusLineConfigFile::default(),
             }
         }
     };
@@ -1371,6 +1382,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         },
         skills: cfg.skills.into(),
         session: cfg.session.into(),
+        status_line: cfg.status_line.into(),
     })
 }
 
@@ -1626,5 +1638,45 @@ mod serde_config_tests {
     fn session_model_qualified_zai_suffix_must_be_catalog() {
         validate_session_model_override("openrouter", "z.ai/glm-5").unwrap();
         assert!(validate_session_model_override("openrouter", "z.ai/not-in-catalog").is_err());
+    }
+
+    #[test]
+    fn deserializes_status_line_block() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "base_url":null,
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "statusLine": {
+                "command": "~/.anycode/statusline.sh",
+                "timeout_ms": 4000,
+                "padding": 3,
+                "show_builtin": true
+            }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert_eq!(
+            c.status_line.command.as_deref(),
+            Some("~/.anycode/statusline.sh")
+        );
+        assert_eq!(c.status_line.timeout_ms, Some(4000));
+        assert_eq!(c.status_line.padding, Some(3));
+        assert!(c.status_line.show_builtin);
+    }
+
+    #[test]
+    fn status_line_runtime_trims_blank_command_to_none() {
+        let f = StatusLineConfigFile {
+            command: Some("  \n\t  ".to_string()),
+            timeout_ms: None,
+            padding: None,
+            show_builtin: false,
+        };
+        let r: StatusLineRuntime = f.into();
+        assert!(r.command.is_none());
+        assert_eq!(r.timeout_ms, 5000);
     }
 }

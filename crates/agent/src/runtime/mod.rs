@@ -92,12 +92,19 @@ impl AgentRuntime {
         sections
             .into_iter()
             .filter(|section| !section.trim().is_empty())
-            .map(|section| Message {
-                id: Uuid::new_v4(),
-                role: MessageRole::User,
-                content: MessageContent::Text(section),
-                timestamp: chrono::Utc::now(),
-                metadata: HashMap::new(),
+            .map(|section| {
+                let mut metadata = HashMap::new();
+                metadata.insert(
+                    ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+                    serde_json::Value::Bool(true),
+                );
+                Message {
+                    id: Uuid::new_v4(),
+                    role: MessageRole::User,
+                    content: MessageContent::Text(section),
+                    timestamp: chrono::Utc::now(),
+                    metadata,
+                }
             })
             .collect()
     }

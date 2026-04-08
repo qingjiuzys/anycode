@@ -8,7 +8,7 @@ alwaysApply: true
 1. **目录与文件**：新建目录、文件、模块划分要**清晰、一致、可读**；避免随意堆叠或含糊命名。
 2. **自检**：每次完成实质性改动后，**简要反思**实现是否合理、边界是否覆盖、是否与现有约定一致；发现疑点主动说明。
 3. **测试**：完成改动后运行**相关功能/单元测试**（或等价验证），确认无回归；CLI/TUI 在可行时做手动场景说明。
-4. **打包**：在代码与测试就绪后执行**发布构建**（例如 `cargo build --release -p …` / 项目约定的 package 命令），确保能通过编译与链接。
+4. **打包（必做）**：用户偏好 **每次** 完成 anycode 相关改动、或本会话任务收尾时，**默认执行一次发布构建**，除非用户明确说「不用打包/跳过 build」。标准命令：`cd anycode && cargo build --release -p anycode`（产物在 `anycode/target/release/anycode`）。先测再包亦可，但**不要**只测不包就结束。
 5. **提交前对齐 CI（必做）**：每次 `git commit` / `push` 前，在本地跑与 `.github/workflows/ci.yml` 一致的检查，避免仅在本机能过、远端失败。Rust 工作流等价于：
    - `cargo fmt --all -- --check`
    - `cargo clippy --workspace --all-targets`

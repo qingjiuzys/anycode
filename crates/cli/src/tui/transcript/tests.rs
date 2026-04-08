@@ -2,9 +2,50 @@
 mod tests {
     use crate::tui::transcript::{
         assistant_markdown_meaningful_eq, coalesce_read_tool_batches, collapse_tool_groups,
-        ctrl_o_fold_cycle, layout_workspace, transcript_tail_closing_matches, CollapsibleToolBlock,
-        TranscriptEntry, WorkspaceLiveLayout,
+        ctrl_o_fold_cycle, layout_workspace, message_to_entries, transcript_tail_closing_matches,
+        CollapsibleToolBlock, TranscriptEntry, WorkspaceLiveLayout,
     };
+    use anycode_core::{
+        Message, MessageContent, MessageRole, ANYCODE_CONTEXT_USER_METADATA_KEY,
+    };
+    use chrono::Utc;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    #[test]
+    fn message_to_entries_skips_injected_context_user_messages() {
+        let mut meta = HashMap::new();
+        meta.insert(
+            ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+            serde_json::json!(true),
+        );
+        let tagged = Message {
+            id: Uuid::new_v4(),
+            role: MessageRole::User,
+            content: MessageContent::Text("## Workflow\nx".into()),
+            timestamp: Utc::now(),
+            metadata: meta,
+        };
+        assert!(message_to_entries(&tagged).is_empty());
+
+        let legacy = Message {
+            id: Uuid::new_v4(),
+            role: MessageRole::User,
+            content: MessageContent::Text("## Model Routing\nKnown aliases: a, b".into()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        };
+        assert!(message_to_entries(&legacy).is_empty());
+
+        let real = Message {
+            id: Uuid::new_v4(),
+            role: MessageRole::User,
+            content: MessageContent::Text("分析下当前项目".into()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        };
+        assert_eq!(message_to_entries(&real).len(), 1);
+    }
 
     #[test]
     fn assistant_markdown_meaningful_eq_unwraps_candidate_json() {

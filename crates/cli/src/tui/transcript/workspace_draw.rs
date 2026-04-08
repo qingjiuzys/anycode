@@ -453,7 +453,7 @@ pub(crate) fn layout_workspace(
                 let unwrapped = unwrap_single_content_json(text);
                 let t = unwrapped.trim_end();
                 if t.is_empty() {
-                    out.push(Line::from(Span::styled("⏺ <empty>", style_dim())));
+                    // 对齐 Claude：无正文则不占一行（避免 ⏺ <empty>）
                     continue;
                 }
                 let mut md_lines = render_markdown(t, w);

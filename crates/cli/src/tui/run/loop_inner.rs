@@ -1,7 +1,7 @@
 use super::*;
 
 use super::exec_completion::{consume_finished_compact, CompactFollowup};
-use crate::tui::transcript::TranscriptEntry;
+use crate::tui::transcript::{apply_tool_transcript_pipeline, TranscriptEntry};
 use anycode_core::{Artifact, Message, Usage};
 use ratatui::text::Line;
 use std::collections::HashSet;
@@ -16,6 +16,7 @@ pub async fn run_tui(
     directory: Option<PathBuf>,
     model: Option<String>,
     debug: bool,
+    resume: Option<Uuid>,
 ) -> anyhow::Result<()> {
     crate::app_config::apply_optional_repl_model(&mut config, model)?;
 
@@ -47,12 +48,38 @@ pub async fn run_tui(
 
     let runtime = initialize_runtime(&config, approval_override).await?;
 
-    let mut agent_type = anycode_core::AgentType::new(agent.clone());
-    let messages = Arc::new(Mutex::new(
-        runtime
-            .build_session_messages(&agent_type, &working_dir_str)
-            .await?,
-    ));
+    let snap_loaded = if let Some(id) = resume {
+        match crate::tui::tui_session_persist::load_tui_session(id)? {
+            Some(s) => Some(s),
+            None => anyhow::bail!("{}", crate::i18n::tr("tui-resume-not-found")),
+        }
+    } else {
+        None
+    };
+
+    let mut agent_type = if let Some(ref s) = snap_loaded {
+        anycode_core::AgentType::new(s.agent.clone())
+    } else {
+        anycode_core::AgentType::new(agent.clone())
+    };
+
+    let messages = if let Some(ref s) = snap_loaded {
+        if s.workspace_root != working_dir_str {
+            tracing::warn!("{}", crate::i18n::tr("tui-resume-cwd-warn"));
+        }
+        Arc::new(Mutex::new(s.messages.clone()))
+    } else {
+        Arc::new(Mutex::new(
+            runtime
+                .build_session_messages(&agent_type, &working_dir_str)
+                .await?,
+        ))
+    };
+
+    let session_uuid = snap_loaded
+        .as_ref()
+        .map(|s| s.id)
+        .unwrap_or_else(Uuid::new_v4);
 
     let mut transcript: Vec<TranscriptEntry> = vec![];
     let mut transcript_gen: u64 = 0;
@@ -67,6 +94,16 @@ pub async fn run_tui(
     let mut fold_layout_rev: u64 = 0;
     let mut tool_folds_expanded: HashSet<u64> = HashSet::new();
     let mut next_tool_fold_id: u64 = 0;
+    if snap_loaded.is_some() {
+        let frozen = messages.lock().await.clone();
+        super::exec_completion::rebuild_transcript_from_messages(
+            &mut transcript,
+            &frozen,
+            &mut transcript_gen,
+            &mut next_tool_fold_id,
+        );
+        apply_tool_transcript_pipeline(&mut transcript, &mut next_tool_fold_id);
+    }
     let mut input = InputState::default();
     let mut input_history: Vec<String> = Vec::new();
     let mut history_idx: Option<usize> = None;
@@ -86,13 +123,24 @@ pub async fn run_tui(
     // 审批三选项菜单高亮（↑↓ / Enter；y/p/n 仍为快捷键）。
     let mut approval_menu_selected: usize = 0;
     let mut exec_handle: Option<JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>>> = None;
-    let mut exec_prev_len: usize = 0;
+    let mut exec_prev_len: usize = messages.lock().await.len();
     let mut last_max_input_tokens: u32 = 0;
     let mut exec_live_tail: Option<(usize, u64)> = None;
     // (messages.len(), last_message_id)：有变化时才重排 transcript，避免每帧整表重算。
     let mut exec_live_sync_fp: Option<(usize, Option<Uuid>)> = None;
     let mut compact_handle: Option<JoinHandle<anyhow::Result<(Vec<Message>, Usage)>>> = None;
     let mut compact_followup: Option<CompactFollowup> = None;
+
+    let status_line_cfg = config.status_line.clone();
+    let session_for_sl = config.session.clone();
+    let tui_session_id = session_uuid.to_string();
+    let mut quit_confirm = false;
+    let mut status_line_text = String::from(" ");
+    let mut status_line_fire_at: Option<Instant> = None;
+    let mut status_line_task: Option<JoinHandle<anyhow::Result<String>>> = None;
+    let mut last_sl_transcript_gen: u64 = u64::MAX;
+    let mut prev_executing_sl = false;
+    let mut last_turn_usage: Option<Usage> = None;
 
     let _tui_guard = super::terminal_guard::TuiTerminalGuard::enter()?;
     let used_alternate_screen = _tui_guard.used_alternate_screen();
@@ -104,7 +152,7 @@ pub async fn run_tui(
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    // 主缓冲模式：清屏并归零光标，避免启动阶段 stderr 日志与 ratatui 首帧叠在同一视口。
+    // 仅主缓冲模式：清屏避免 stderr 与首帧叠画；备用屏为独立缓冲，无需整屏 Clear（与 Claude 全屏一致）。
     if !used_alternate_screen {
         use crossterm::{
             cursor::MoveTo,
@@ -136,6 +184,14 @@ pub async fn run_tui(
         bottom_h = bottom_h.min(max_bottom);
         if max_bottom >= 6 {
             bottom_h = bottom_h.max(6);
+        }
+        let status_line_show_draw =
+            status_line_cfg.command.is_some() || status_line_cfg.show_builtin;
+        if status_line_show_draw {
+            bottom_h = bottom_h.saturating_add(1);
+        }
+        if quit_confirm {
+            bottom_h = bottom_h.saturating_add(3);
         }
 
         let working_elapsed_secs = if executing {
@@ -193,6 +249,11 @@ pub async fn run_tui(
                     expanded_tool_folds: &tool_folds_expanded,
                     main_avail_cell: &main_avail_cell,
                     workspace_line_count: &workspace_line_count,
+                    status_line_show: status_line_show_draw,
+                    status_line_text: status_line_text.as_str(),
+                    status_line_padding: status_line_cfg.padding,
+                    quit_confirm_pending: quit_confirm,
+                    tui_resume_session_id: tui_session_id.as_str(),
                 },
             );
         })?;
@@ -207,6 +268,77 @@ pub async fn run_tui(
         // `recv`；在 channel 异常等情况下可能反复选中 recv，饿死定时分支 → 永不 poll 键盘/鼠标。
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_millis(16)) => {
+
+                // --- Status line (Claude-style HUD): debounce + optional `sh -c` command ---
+                if let Some(h) = status_line_task.as_ref() {
+                    if h.is_finished() {
+                        let h = status_line_task.take().unwrap();
+                        if let Ok(Ok(s)) = h.await {
+                            status_line_text = s;
+                        }
+                    }
+                }
+                let sl_enabled =
+                    status_line_cfg.command.is_some() || status_line_cfg.show_builtin;
+                if sl_enabled {
+                    if crate::tui::status_line::status_line_arm_refresh(
+                        &mut last_sl_transcript_gen,
+                        transcript_gen,
+                        prev_executing_sl,
+                        executing,
+                    ) {
+                        status_line_fire_at =
+                            Some(Instant::now() + crate::tui::status_line::debounce_std());
+                    }
+                    if let Some(fire_at) = status_line_fire_at {
+                        if Instant::now() >= fire_at {
+                            status_line_fire_at = None;
+                            if let Some(h) = status_line_task.take() {
+                                h.abort();
+                            }
+                            if let Some(ref cmd) = status_line_cfg.command {
+                                match crate::tui::status_line::build_status_line_payload(
+                                    env!("CARGO_PKG_VERSION"),
+                                    &tui_session_id,
+                                    &working_dir_str,
+                                    &working_dir_str,
+                                    llm_model.as_str(),
+                                    &session_for_sl,
+                                    llm_provider.as_str(),
+                                    last_max_input_tokens,
+                                    last_turn_usage.as_ref(),
+                                ) {
+                                    Ok(json) if !json.is_empty() => {
+                                        let c = cmd.clone();
+                                        let t = status_line_cfg.timeout_ms;
+                                        status_line_task = Some(
+                                            crate::tui::status_line::spawn_status_line_task(
+                                                async move {
+                                                    crate::tui::status_line::run_status_line_command(
+                                                        &c, &json, t,
+                                                    )
+                                                    .await
+                                                },
+                                            ),
+                                        );
+                                    }
+                                    _ => {}
+                                }
+                            } else if status_line_cfg.show_builtin {
+                                status_line_text =
+                                    crate::tui::status_line::format_builtin_status_line(
+                                        llm_model.as_str(),
+                                        &session_for_sl,
+                                        llm_provider.as_str(),
+                                        last_max_input_tokens,
+                                    );
+                            }
+                        }
+                    }
+                }
+                prev_executing_sl = executing;
+
+
                 if executing {
                     if let Some((tail_start, fold_base)) = exec_live_tail {
                         if let Ok(g) = messages.try_lock() {
@@ -246,6 +378,19 @@ pub async fn run_tui(
                             anchor,
                         )
                         .await;
+                        last_turn_usage = Some(Usage {
+                            input_tokens: last_max_input_tokens,
+                            output_tokens: 0,
+                            cache_creation_tokens: None,
+                            cache_read_tokens: None,
+                        });
+                        crate::tui::tui_session_persist::spawn_persist_tui_session(
+                            session_uuid,
+                            working_dir_str.clone(),
+                            agent_type.as_str().to_string(),
+                            llm_model.clone(),
+                            messages.clone(),
+                        );
                     }
                 }
 
@@ -272,6 +417,19 @@ pub async fn run_tui(
                                 &working_dir_str,
                             )
                             .await;
+                            last_turn_usage = Some(Usage {
+                                input_tokens: last_max_input_tokens,
+                                output_tokens: 0,
+                                cache_creation_tokens: None,
+                                cache_read_tokens: None,
+                            });
+                            crate::tui::tui_session_persist::spawn_persist_tui_session(
+                                session_uuid,
+                                working_dir_str.clone(),
+                                agent_type.as_str().to_string(),
+                                llm_model.clone(),
+                                messages.clone(),
+                            );
                             exec_live_sync_fp = None;
                             match new_turn {
                                 Some(eh) => {
@@ -335,6 +493,7 @@ pub async fn run_tui(
                         fold_layout_rev: &mut fold_layout_rev,
                         next_tool_fold_id: &mut next_tool_fold_id,
                         exec_live_tail: &mut exec_live_tail,
+                        quit_confirm: &mut quit_confirm,
                     };
                     match super::event::dispatch_crossterm_event(
                         ev,
@@ -371,13 +530,30 @@ pub async fn run_tui(
     let skip_dump = std::env::var("ANYCODE_TUI_NO_SCROLLBACK_DUMP")
         .map(|s| matches!(s.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
         .unwrap_or(false);
-    // 主缓冲模式下会话已在滚动区，不再整段 echo（避免重复）。
+    // 备用屏下会话不在主缓冲：退出后可选 echo 一份纯文本供 shell 搜索；主缓冲模式会话已在屏上，不再重复打印。
     if used_alternate_screen && !skip_dump && !transcript.is_empty() {
         println!(
             "{}",
             crate::tui::transcript::transcript_dump_plain_text(&transcript)
         );
     }
+
+    let frozen = messages.lock().await.clone();
+    let snap = crate::tui::tui_session_persist::TuiSessionSnapshot {
+        version: 1,
+        id: session_uuid,
+        workspace_root: working_dir_str.clone(),
+        agent: agent_type.as_str().to_string(),
+        model: llm_model.clone(),
+        messages: frozen,
+    };
+    if let Err(e) = crate::tui::tui_session_persist::save_tui_session(&snap) {
+        tracing::warn!(target: "anycode_cli", "tui session final save: {e:#}");
+    }
+    println!(
+        "\n{} anycode --resume {session_uuid}",
+        crate::i18n::tr("tui-exit-resume-print")
+    );
 
     Ok(())
 }

@@ -242,13 +242,8 @@ fn layout_tool_body_content(
         }
     }
 
-    if rest.is_empty() && error_line.is_some() && !is_error {
-        // 纯 ERROR 行且未标 is_error 的遗留格式
-        block.push(Line::from(Span::styled("   <empty>", style_dim())));
-        return block;
-    }
+    // 成功但 stdout/正文为空：不渲染占位（对齐 Claude Code：无输出则不占一行）
     if rest.is_empty() {
-        block.push(Line::from(Span::styled("   <empty>", style_dim())));
         return block;
     }
 
@@ -422,6 +417,7 @@ pub(crate) fn layout_tool_turn_block(
     is_active: bool,
     live: WorkspaceLiveLayout,
 ) -> Vec<Line<'static>> {
+    let shell_tool = matches!(name, "Bash" | "PowerShell");
     let mut summary = tool_invocation_one_liner(name, args, w.saturating_sub(8).max(24));
     if is_active && !expanded {
         summary.push('…');
@@ -437,12 +433,22 @@ pub(crate) fn layout_tool_turn_block(
     let mut header =
         wrap_plain_bullet_prefixed("⏺ ", bullet_style, header_text.as_str(), text_style, w);
 
-    // 对齐 Claude：未展开时**不**渲染工具输出正文（省算力 + 避免挡掉文末总结）。
+    // 对齐 Claude：未展开时**不**渲染工具输出正文；shell 执行中显示 `⎿  Running…`
     if !expanded {
+        if is_active && !is_error && shell_tool && body.trim().is_empty() {
+            let run = Line::from(Span::styled(tr("tui-tool-running"), style_dim()));
+            header.extend(prefix_lines_braille(vec![run], "⎿  ", "   ", style_dim()));
+        }
         return header;
     }
 
-    let body_lines = layout_tool_body_content(tool_name, body, is_error, w);
+    let mut body_lines = layout_tool_body_content(tool_name, body, is_error, w);
+    if body_lines.is_empty() && is_active && !is_error && shell_tool {
+        body_lines.push(Line::from(Span::styled(
+            tr("tui-tool-running"),
+            style_dim(),
+        )));
+    }
     let braille_style = style_dim();
     let mut body_prefixed = prefix_lines_braille(body_lines, "⎿  ", "   ", braille_style);
     header.append(&mut body_prefixed);
@@ -550,5 +556,37 @@ mod tool_render_tests {
             Cow::Owned(c) => assert!(c.contains("# Hi")),
             _ => unreachable!("test: expected owned Cow from unwrap_single_content_json"),
         }
+    }
+
+    #[test]
+    fn layout_tool_body_empty_success_has_no_placeholder() {
+        assert!(layout_tool_body_content(Some("Bash"), "", false, 80).is_empty());
+    }
+
+    #[test]
+    fn layout_tool_turn_bash_collapsed_running_shows_subline() {
+        let lines = layout_tool_turn_block(
+            1,
+            "Bash",
+            r#"{"command":"pwd"}"#,
+            None,
+            "",
+            false,
+            false,
+            80,
+            true,
+            WorkspaceLiveLayout {
+                executing: true,
+                ..Default::default()
+            },
+        );
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
+            .collect();
+        assert!(
+            joined.contains("Running"),
+            "expected Claude-style ⎿ Running…, got {joined:?}"
+        );
     }
 }

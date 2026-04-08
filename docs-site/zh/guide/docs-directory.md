@@ -14,6 +14,7 @@ read_when:
 | 五分钟跑通 | [快速开始](./getting-started) |
 | Release / 脚本 / cargo 安装 | [安装](./install) |
 | 子命令、TUI、REPL、守护进程 | [CLI 总览](./cli) 及各子页 |
+| 底部状态栏（Claude 风格 HUD、stdin JSON） | [Status line](./status-line) |
 | 提供商、`config.json`、模型 | [模型与端点](./models) |
 | crate、运行时、工具装配 | [架构](./architecture) |
 | 按 Agent 覆盖模型 | [路由](./routing) |
