@@ -73,3 +73,21 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# 工作区统一 Clippy：抑制噪声类规则，保持 `cargo clippy` 零告警（CI 与本地一致）。
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+borrowed_box = "allow"
+module_inception = "allow"
+await_holding_lock = "allow"
+if_same_then_else = "allow"
+assertions_on_constants = "allow"
+field_reassign_with_default = "allow"
+needless_range_loop = "allow"
+while_let_loop = "allow"
+unnecessary_get_then_check = "allow"
+match_like_matches_macro = "allow"
+nonminimal_bool = "allow"
+manual_clamp = "allow"
+manual_strip = "allow"

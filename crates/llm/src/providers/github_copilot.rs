@@ -3,7 +3,9 @@
 use super::anthropic::{
     convert_messages, convert_response, convert_tools, AnthropicRequest, AnthropicResponse,
 };
+use super::anthropic_stream::AnthropicSseStreamState;
 use crate::copilot_token::resolve_copilot_api_token;
+use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use futures_util::StreamExt;
@@ -176,26 +178,47 @@ impl LLMClient for GithubCopilotClient {
             }
 
             let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                match chunk {
-                    Ok(bytes) => {
-                        if let Ok(text) = std::str::from_utf8(&bytes) {
-                            for line in text.lines() {
-                                if line.starts_with("data: ") {
-                                    let data = &line[6..];
-                                    if data == "[DONE]" {
-                                        let _ = tx.send(StreamEvent::Done).await;
-                                    } else if let Ok(ev) = serde_json::from_str::<StreamEvent>(data)
-                                    {
-                                        let _ = tx.send(ev).await;
-                                    }
-                                }
-                            }
-                        }
-                    }
+            let mut sse_buf = SseLineBuffer::new();
+            let mut anth = AnthropicSseStreamState::new();
+
+            'read: while let Some(chunk_res) = stream.next().await {
+                let chunk = match chunk_res {
+                    Ok(c) => c,
                     Err(e) => {
                         error!("Copilot stream chunk: {}", e);
                         break;
+                    }
+                };
+                let Ok(text) = std::str::from_utf8(&chunk) else {
+                    continue;
+                };
+                for ev in sse_buf.push_str(text) {
+                    match ev {
+                        SseDataLine::Done => break 'read,
+                        SseDataLine::Payload(data) => match anth.push_json_str(&data) {
+                            Ok(events) => {
+                                for e in events {
+                                    if tx.send(e).await.is_err() {
+                                        return;
+                                    }
+                                }
+                            }
+                            Err(e) => error!("Copilot stream JSON: {}", e),
+                        },
+                    }
+                }
+            }
+            for ev in sse_buf.finish() {
+                match ev {
+                    SseDataLine::Done => break,
+                    SseDataLine::Payload(data) => {
+                        if let Ok(events) = anth.push_json_str(&data) {
+                            for e in events {
+                                if tx.send(e).await.is_err() {
+                                    return;
+                                }
+                            }
+                        }
                     }
                 }
             }

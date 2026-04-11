@@ -2,7 +2,7 @@ use crate::app_config::{apply_wechat_bridge_no_tool_approval, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::channel_task::{build_channel_task, im_task_failure_detail_excerpt, ChannelTaskInput};
 use anycode_agent::AgentRuntime;
-use anycode_core::TaskResult;
+use anycode_core::{SecretRef, TaskResult};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -27,25 +27,69 @@ pub(crate) struct DiscordRunArgs {
 }
 
 fn resolve_token(cli_token: Option<String>) -> Result<String> {
+    // 1. CLI提供的token
     if let Some(v) = cli_token {
-        let t = v.trim().to_string();
+        let t = v.trim();
         if !t.is_empty() {
-            return Ok(t);
+            // 支持SecretRef语法
+            let secret_ref = SecretRef::from_string(t);
+            if let Ok(resolved) = resolve_secret_ref(&secret_ref) {
+                return Ok(resolved);
+            }
+            return Ok(t.to_string());
         }
     }
+
+    // 2. 环境变量
     if let Ok(v) = std::env::var("DISCORD_BOT_TOKEN") {
-        let t = v.trim().to_string();
+        let t = v.trim();
         if !t.is_empty() {
-            return Ok(t);
+            return Ok(t.to_string());
         }
     }
+
+    // 3. 保存的凭据
     if let Some(saved) = load_saved_credentials() {
-        let t = saved.bot_token.trim().to_string();
+        let t = saved.bot_token.trim();
         if !t.is_empty() {
-            return Ok(t);
+            // 支持SecretRef语法
+            let secret_ref = SecretRef::from_string(t);
+            if let Ok(resolved) = resolve_secret_ref(&secret_ref) {
+                return Ok(resolved);
+            }
+            return Ok(t.to_string());
         }
     }
+
     anyhow::bail!("missing Discord bot token; provide --bot-token or DISCORD_BOT_TOKEN");
+}
+
+/// 解析SecretRef为实际值（与Telegram适配器共用）
+fn resolve_secret_ref(secret_ref: &SecretRef) -> Result<String> {
+    match secret_ref {
+        SecretRef::Direct(value) => Ok(value.clone()),
+        SecretRef::EnvVar(var_name) => {
+            std::env::var(var_name).map_err(|_| anyhow::anyhow!("环境变量 '{}' 未设置", var_name))
+        }
+        SecretRef::File(path) => {
+            let full_path = if path.is_absolute() {
+                path.clone()
+            } else {
+                dirs::home_dir()
+                    .ok_or_else(|| anyhow::anyhow!("无法找到HOME目录"))?
+                    .join(path)
+            };
+            std::fs::read_to_string(&full_path)
+                .map(|s| s.trim().to_string())
+                .map_err(|e| anyhow::anyhow!("无法读取密钥文件 '{}': {}", full_path.display(), e))
+        }
+        SecretRef::ProviderCredential { provider, key } => {
+            let env_key = format!("{}_{}", provider.to_uppercase(), key.to_uppercase());
+            std::env::var(&env_key)
+                .or_else(|_| std::env::var(format!("DISCORD_{}", key.to_uppercase())))
+                .map_err(|_| anyhow::anyhow!("提供商凭证未找到: 尝试环境变量 '{}'", env_key))
+        }
+    }
 }
 
 fn resolve_channel_id(cli_id: Option<String>) -> Result<String> {
@@ -140,7 +184,7 @@ async fn execute_prompt(
         Ok(TaskResult::Failure { error, details }) => {
             let mut s = format!("Task failed: {error}");
             if let Some(ex) = im_task_failure_detail_excerpt(details.as_deref(), 1500) {
-                s.push_str("\n");
+                s.push('\n');
                 s.push_str(&ex);
             }
             s
@@ -244,6 +288,7 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
                 content,
             )
             .await;
+            runtime.sync_memory_durability();
             let send_url = format!("{DISCORD_API}/channels/{channel_id}/messages");
             for chunk in split_for_discord(&out) {
                 let payload = json!({ "content": chunk });

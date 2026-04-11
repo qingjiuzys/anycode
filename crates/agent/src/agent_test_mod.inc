@@ -1,7 +1,10 @@
 mod tests {
     use anycode_core::prelude::*;
     use anycode_security::SecurityLayer;
-    use crate::{AgentClaudeToolGating, AgentRuntime, GeneralPurposeAgent, RuntimePromptConfig};
+    use crate::{
+        AgentClaudeToolGating, AgentRuntime, GeneralPurposeAgent, RuntimeCoreDeps,
+        RuntimeMemoryOptions, RuntimePromptConfig, RuntimeToolPolicy,
+    };
     use async_trait::async_trait;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -99,6 +102,7 @@ mod tests {
     struct MockLLM {
         calls: Arc<Mutex<Vec<Vec<MessageRole>>>>,
         queue: Arc<Mutex<Vec<LLMResponse>>>,
+        stream_queue: Arc<Mutex<Vec<Vec<StreamEvent>>>>,
     }
 
     impl MockLLM {
@@ -106,6 +110,18 @@ mod tests {
             Self {
                 calls: Arc::new(Mutex::new(vec![])),
                 queue: Arc::new(Mutex::new(responses)),
+                stream_queue: Arc::new(Mutex::new(vec![])),
+            }
+        }
+
+        fn with_stream_batches(
+            responses: Vec<LLMResponse>,
+            stream_batches: Vec<Vec<StreamEvent>>,
+        ) -> Self {
+            Self {
+                calls: Arc::new(Mutex::new(vec![])),
+                queue: Arc::new(Mutex::new(responses)),
+                stream_queue: Arc::new(Mutex::new(stream_batches)),
             }
         }
 
@@ -135,11 +151,26 @@ mod tests {
 
         async fn chat_stream(
             &self,
-            _messages: Vec<Message>,
+            messages: Vec<Message>,
             _tools: Vec<ToolSchema>,
             _config: &ModelConfig,
         ) -> Result<tokio::sync::mpsc::Receiver<StreamEvent>, CoreError> {
-            let (_tx, rx) = tokio::sync::mpsc::channel(1);
+            self.calls
+                .lock()
+                .await
+                .push(messages.iter().map(|m| m.role.clone()).collect());
+            let mut q = self.stream_queue.lock().await;
+            let batch = if q.is_empty() { vec![] } else { q.remove(0) };
+            drop(q);
+            let cap = batch.len().max(1) + 1;
+            let (tx, rx) = tokio::sync::mpsc::channel(cap);
+            tokio::spawn(async move {
+                for ev in batch {
+                    if tx.send(ev).await.is_err() {
+                        break;
+                    }
+                }
+            });
             Ok(rx)
         }
     }
@@ -189,26 +220,34 @@ mod tests {
         tools.insert("Echo".to_string(), Box::new(EchoTool));
 
         let runtime = AgentRuntime::new(
-            llm.clone(),
-            tools,
-            Arc::new(DummyMemoryStore::default()),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm.clone(),
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk.clone()),
-            Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
-            false,
-            RuntimePromptConfig::default(),
-            false,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let task = Task {
@@ -288,26 +327,34 @@ mod tests {
         tools.insert("Echo".to_string(), Box::new(EchoTool));
 
         let runtime = AgentRuntime::new(
-            llm.clone(),
-            tools,
-            Arc::new(DummyMemoryStore::default()),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm.clone(),
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk.clone()),
-            Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
-            false,
-            RuntimePromptConfig::default(),
-            false,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let agent_type = AgentType::new("general-purpose");
@@ -319,14 +366,15 @@ mod tests {
         let messages = Arc::new(Mutex::new(messages));
 
         let task_id = Uuid::new_v4();
-        let (final_text, artifacts, max_in) = runtime
+        let out = runtime
             .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".")
             .await
             .unwrap();
 
-        assert_eq!(final_text, "done");
-        assert!(artifacts.is_empty()); // EchoTool 不在 extract_artifacts 匹配中
-        assert_eq!(max_in, 1);
+        assert_eq!(out.final_text, "done");
+        assert!(out.artifacts.is_empty()); // EchoTool 不在 extract_artifacts 匹配中
+        assert_eq!(out.usage.max_input_tokens, 1);
+        assert_eq!(out.usage.total_output_tokens, 2);
 
         let g = messages.lock().await;
         // 至少应注入一条 ToolResult
@@ -430,26 +478,34 @@ mod tests {
         );
 
         let runtime = AgentRuntime::new(
-            llm,
-            tools,
-            Arc::new(DummyMemoryStore::default()),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security,
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk.clone()),
-            security,
-            false,
-            RuntimePromptConfig::default(),
-            false,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let task = Task {
@@ -578,26 +634,34 @@ mod tests {
         );
 
         let runtime = AgentRuntime::new(
-            llm,
-            tools,
-            Arc::new(DummyMemoryStore::default()),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security,
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk.clone()),
-            security,
-            false,
-            RuntimePromptConfig::default(),
-            false,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let task = Task {
@@ -696,26 +760,34 @@ mod tests {
         tools.insert("BigResult".to_string(), Box::new(BigResultTool));
 
         let runtime = AgentRuntime::new(
-            llm,
-            tools,
-            Arc::new(DummyMemoryStore::default()),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk.clone()),
-            Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
-            false,
-            RuntimePromptConfig::default(),
-            false,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let task = Task {
@@ -809,26 +881,34 @@ mod tests {
         tools.insert("FileWrite".to_string(), Box::new(FileWriteLikeTool));
 
         let runtime = AgentRuntime::new(
-            llm,
-            tools,
-            Arc::new(DummyMemoryStore::default()),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk),
-            Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
-            false,
-            RuntimePromptConfig::default(),
-            false,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let task = Task {
@@ -889,6 +969,276 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Default)]
+    struct RecordingMemoryPipeline {
+        ingested: Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl MemoryPipeline for RecordingMemoryPipeline {
+        async fn ingest_fragment(
+            &self,
+            _session_id: &str,
+            text: &str,
+            _mem_type: MemoryType,
+        ) -> Result<String, CoreError> {
+            self.ingested.lock().unwrap().push(text.to_string());
+            Ok(Uuid::new_v4().to_string())
+        }
+
+        async fn touch(&self, _fragment_id: &str) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        async fn tick_decay(&self) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        async fn materialize_for_prompt(
+            &self,
+            _query: &str,
+            _mem_type: MemoryType,
+        ) -> Result<Vec<Memory>, CoreError> {
+            Ok(vec![])
+        }
+
+        async fn promote_fragment_to_hot(&self, _fragment_id: &str) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        async fn promote_memory_to_vector(
+            &self,
+            _memory_id: &str,
+            _mem_type: MemoryType,
+        ) -> Result<(), CoreError> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_task_pipeline_hooks_ingest_tool_and_turn_fragments() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+        let first = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "calling tool"),
+            tool_calls: vec![ToolCall {
+                id: "tooluse_1".to_string(),
+                name: "Echo".to_string(),
+                input: serde_json::json!({ "text": "hi" }),
+            }],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let second = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "final done"),
+            tool_calls: vec![],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let llm = Arc::new(MockLLM::new(vec![first, second]));
+        let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+        tools.insert("Echo".to_string(), Box::new(EchoTool));
+        let pipeline = Arc::new(RecordingMemoryPipeline::default());
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: Some(pipeline.clone()),
+                memory_pipeline_settings: Some(MemoryPipelineSettings {
+                    hook_after_tool_result: true,
+                    hook_after_agent_turn: true,
+                    hook_tool_deny_prefixes: vec![],
+                    ..MemoryPipelineSettings::default()
+                }),
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let task = Task {
+            id: Uuid::new_v4(),
+            agent_type: AgentType::new("general-purpose"),
+            prompt: "test".to_string(),
+            context: TaskContext {
+                session_id: Uuid::new_v4(),
+                working_directory: ".".to_string(),
+                environment: HashMap::new(),
+                user_id: None,
+                system_prompt_append: None,
+                context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
+            },
+            created_at: chrono::Utc::now(),
+        };
+
+        let _ = runtime.execute_task(task).await.unwrap();
+        let ingested = pipeline.ingested.lock().unwrap().clone();
+        assert!(
+            ingested.iter().any(|s| s.contains("[tool:Echo]")),
+            "tool-result hook should ingest Echo result: {:?}",
+            ingested
+        );
+        assert!(
+            ingested.iter().any(|s| s.contains("[turn 2]") && s.contains("final done")),
+            "assistant-turn hook should ingest final turn summary: {:?}",
+            ingested
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_turn_streaming_sets_non_zero_max_input_tokens() {
+        let stream_batches = vec![vec![
+            StreamEvent::Delta("streaming answer".to_string()),
+            StreamEvent::Done,
+        ]];
+        let llm = Arc::new(MockLLM::with_stream_batches(vec![], stream_batches));
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools: HashMap::new(),
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: None,
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let messages = Arc::new(Mutex::new(vec![
+            msg_text(MessageRole::System, "system"),
+            msg_text(
+                MessageRole::User,
+                "this is a sufficiently long streaming prompt for token estimation",
+            ),
+        ]));
+        let out = runtime
+            .execute_turn_from_messages(
+                Uuid::new_v4(),
+                &AgentType::new("general-purpose"),
+                messages,
+                ".",
+            )
+            .await
+            .unwrap();
+        assert!(
+            out.usage.max_input_tokens > 0,
+            "streaming mode should expose non-zero input tokens"
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_turn_streaming_prefers_usage_event_input_tokens() {
+        let stream_batches = vec![vec![
+            StreamEvent::Usage(Usage {
+                input_tokens: 321,
+                output_tokens: 7,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            }),
+            StreamEvent::Delta("ok".to_string()),
+            StreamEvent::Done,
+        ]];
+        let llm = Arc::new(MockLLM::with_stream_batches(vec![], stream_batches));
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools: HashMap::new(),
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: None,
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let messages = Arc::new(Mutex::new(vec![
+            msg_text(MessageRole::System, "system"),
+            msg_text(MessageRole::User, "prompt"),
+        ]));
+        let out = runtime
+            .execute_turn_from_messages(
+                Uuid::new_v4(),
+                &AgentType::new("general-purpose"),
+                messages,
+                ".",
+            )
+            .await
+            .unwrap();
+        assert_eq!(out.usage.max_input_tokens, 321);
+        assert_eq!(out.usage.total_output_tokens, 7);
+    }
+
     #[tokio::test]
     async fn execute_task_success_triggers_memory_autosave_when_enabled() {
         let temp = TempDir::new().unwrap();
@@ -910,26 +1260,34 @@ mod tests {
         let store = Arc::new(RecordingMemoryStore::default());
         let task_id = Uuid::new_v4();
         let runtime = AgentRuntime::new(
-            llm,
-            tools,
-            store.clone(),
-            ModelConfig {
-                provider: LLMProvider::Custom("mock".to_string()),
-                model: "mock".to_string(),
-                base_url: None,
-                temperature: None,
-                max_tokens: None,
-                api_key: None,
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: store.clone(),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
             },
-            HashMap::new(),
-            Some(disk),
-            Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
-            false,
-            RuntimePromptConfig::default(),
-            true,
-            vec![],
-            AgentClaudeToolGating::default(),
-            false,
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: true,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
         );
 
         let task = Task {

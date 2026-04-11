@@ -338,7 +338,7 @@ fn tool_invocation_one_liner(name: &str, args: &str, max_chars: usize) -> String
         "FileRead" => v
             .get("file_path")
             .and_then(|x| x.as_str())
-            .map(|p| format!("{p}"))
+            .map(|p| p.to_string())
             .unwrap_or_else(|| args.chars().take(120).collect::<String>()),
         "FileWrite" => v
             .get("file_path")
@@ -349,9 +349,20 @@ fn tool_invocation_one_liner(name: &str, args: &str, max_chars: usize) -> String
             .get("pattern")
             .or_else(|| v.get("glob_pattern"))
             .and_then(|x| x.as_str())
-            .map(|p| format!("{p}"))
+            .map(|p| p.to_string())
             .unwrap_or_else(|| args.chars().take(120).collect::<String>()),
-        _ => args.lines().next().unwrap_or(args).trim().to_string(),
+        _ => match &v {
+            Value::Array(a) if a.is_empty() => "…".to_string(),
+            Value::Object(o) if o.is_empty() => "…".to_string(),
+            _ => {
+                let one = args.lines().next().unwrap_or(args).trim().to_string();
+                if matches!(one.as_str(), "[]" | "{}") {
+                    "…".to_string()
+                } else {
+                    one
+                }
+            }
+        },
     };
     s = s.replace('\n', " ");
     if s.chars().count() > max_chars {
@@ -397,7 +408,7 @@ pub(crate) fn assistant_tool_header_styles(
     } else {
         style_assistant().add_modifier(Modifier::BOLD)
     };
-    let bullet_style = if is_active && live.executing && live.pulse_frame % 2 == 0 {
+    let bullet_style = if is_active && live.executing && live.pulse_frame.is_multiple_of(2) {
         text_style.add_modifier(Modifier::DIM)
     } else {
         text_style

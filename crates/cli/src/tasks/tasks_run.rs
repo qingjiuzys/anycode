@@ -53,7 +53,7 @@ pub(crate) async fn run_task(
 }
 
 /// Single task execution shared by `run` / `repl` (disk tail + result printing)。
-/// `ReplSink::Tui` 写入 transcript 并在 tail 增量时刷新界面。
+/// `ReplSink::Stream` 写入内嵌 transcript；`Stdio` 走真实终端。
 pub(crate) async fn run_single_task_with_tail(
     runtime: &AgentRuntime,
     disk: &DiskTaskOutput,

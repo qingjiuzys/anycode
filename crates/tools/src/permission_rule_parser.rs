@@ -21,7 +21,7 @@ fn find_first_unescaped_char(s: &str, ch: char) -> Option<usize> {
                 break;
             }
         }
-        if backslashes % 2 == 0 {
+        if backslashes.is_multiple_of(2) {
             return Some(i);
         }
     }
@@ -43,7 +43,7 @@ fn find_last_unescaped_char(s: &str, ch: char) -> Option<usize> {
                 break;
             }
         }
-        if backslashes % 2 == 0 {
+        if backslashes.is_multiple_of(2) {
             return Some(i);
         }
     }

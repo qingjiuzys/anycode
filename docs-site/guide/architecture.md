@@ -1,20 +1,22 @@
 ---
 title: Architecture
 description: Crate layers, AgentRuntime, LLM abstraction, and security wiring.
-summary: How CLI, daemon, tools, and SecurityLayer assemble into one runtime.
+summary: How CLI, tools, and SecurityLayer assemble into one runtime.
 read_when:
   - You need a structural overview of the Rust workspace.
 ---
 
 # Architecture
 
-anyCode is a **Rust-first** terminal agent: CLI/TUI/daemon share one **runtime assembly** path (`initialize_runtime` → `AgentRuntime`).
+anyCode is a **Rust-first** terminal agent: CLI/TUI share one **runtime assembly** path (`initialize_runtime` in `crates/cli/src/bootstrap/runtime.rs` → `AgentRuntime` with `RuntimeCoreDeps` / `RuntimeMemoryOptions` / `RuntimeToolPolicy`).
+
+**Repository**: Chinese maintainer-oriented notes live in `docs/architecture.md` (not built by this site). **ADRs** (orchestration, memory boundaries) are under `docs/adr/` on GitHub only. See also [Contributing extensions](./contributing-extensions).
 
 ## Layers (high level)
 
 ```mermaid
 flowchart TB
-  cli[CLI / daemon HTTP] --> runtime[AgentRuntime]
+  cli[CLI / TUI] --> runtime[AgentRuntime]
   runtime --> llm[LLMClient]
   runtime --> tools[ToolRegistry]
   runtime --> mem[MemoryStore]
@@ -22,11 +24,11 @@ flowchart TB
   tools --> sec[SecurityLayer]
 ```
 
-- **CLI (`crates/cli`)**: argument parsing, config, bootstrap, TUI modules, REPL, daemon HTTP, WeChat bridge wiring.
+- **CLI (`crates/cli`)**: argument parsing, config, bootstrap, TUI modules, REPL, WeChat bridge wiring.
 - **Agent (`crates/agent`)**: `AgentRuntime`, tool loop, persistence, summaries.
 - **Core / security / tools / llm / memory**: shared types, policies, tool implementations, LLM adapters, memory backends.
 
-`daemon` HTTP and CLI `run` are intended to share the same **AgentRuntime** construction (config, tools, `SecurityLayer`).
+CLI `run`, REPL, and TUI share the same **AgentRuntime** construction (config, tools, `SecurityLayer`).
 
 ## AgentRuntime
 
@@ -45,7 +47,7 @@ flowchart TB
 
 | Pattern | Where | Role |
 |--------|--------|------|
-| **Facade** | `initialize_runtime`, `AgentRuntime` | Hides LLM + registry + `SecurityLayer` + memory wiring from CLI/daemon/TUI. |
+| **Facade** | `initialize_runtime`, `AgentRuntime` | Hides LLM + registry + `SecurityLayer` + memory wiring from CLI/REPL/TUI. |
 | **Strategy** | `LLMClient` implementations, `ApprovalCallback` | Swap vendor or approval UI without changing the tool loop. |
 | **Registry** | `build_registry_with_services`, `catalog` | Single place to add default tools; see the checklist at the top of `registry.rs`. |
 | **Dependency injection** | `ToolServices` / `ToolRegistryDeps` | Tools receive `Arc` services instead of globals. |

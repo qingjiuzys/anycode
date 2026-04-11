@@ -1,6 +1,8 @@
 //! Config schema/defaults/helpers extracted from `app_config.rs` to keep orchestration logic smaller.
 
-use super::{is_anthropic_family_provider, is_known_zai_model, is_zai_family_provider};
+use super::{
+    is_anthropic_family_provider, is_known_zai_model, is_zai_family_provider, TuiConfigFile,
+};
 use crate::i18n::{tr, tr_args};
 use anycode_agent::{CompactPolicy, RuntimePromptConfig};
 use anycode_core::{FeatureFlag, FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -38,6 +40,8 @@ pub(crate) struct StatusLineRuntime {
     pub(crate) command: Option<String>,
     pub(crate) timeout_ms: u64,
     pub(crate) padding: u16,
+    /// 配置兼容保留；全屏 TUI 脚标已含 token，不再单独占一行内置 status。
+    #[allow(dead_code)]
     pub(crate) show_builtin: bool,
 }
 
@@ -63,9 +67,7 @@ impl From<StatusLineConfigFile> for StatusLineRuntime {
                     Some(t.to_string())
                 }
             }),
-            timeout_ms: f
-                .timeout_ms
-                .unwrap_or_else(|| default_status_line_timeout_ms()),
+            timeout_ms: f.timeout_ms.unwrap_or_else(default_status_line_timeout_ms),
             padding: f.padding.unwrap_or(0),
             show_builtin: f.show_builtin,
         }
@@ -86,6 +88,83 @@ pub(crate) struct Config {
     pub(crate) session: SessionConfig,
     /// 全屏 TUI 底部 status line（`config.json` 的 `statusLine`）。
     pub(crate) status_line: StatusLineRuntime,
+    /// 无子命令 TUI 画布（`config.json` 的 `tui`；env 可覆盖）。
+    pub(crate) tui: TuiRuntime,
+    /// 通道特定配置（由通道子命令与适配器消费；主 TUI 路径当前未读）
+    #[allow(dead_code)]
+    pub(crate) channels: ChannelsConfig,
+}
+
+/// 运行时 `tui` 段（与 [`TuiConfigFile`] 对应）。
+#[derive(Debug, Clone, Default)]
+pub(crate) struct TuiRuntime {
+    /// `true`：备用屏；`false` / `None`：主缓冲（默认行为与 env 合并）。
+    pub(crate) alternate_screen: Option<bool>,
+}
+
+impl From<TuiConfigFile> for TuiRuntime {
+    fn from(f: TuiConfigFile) -> Self {
+        Self {
+            alternate_screen: f.alternate_screen,
+        }
+    }
+}
+
+/// 运行时通道配置
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+#[derive(Default)]
+pub(crate) struct ChannelsConfig {
+    /// 微信通道配置
+    pub(crate) wechat: Option<ChannelSpecificConfig>,
+    /// Telegram通道配置
+    pub(crate) telegram: Option<ChannelSpecificConfig>,
+    /// Discord通道配置
+    pub(crate) discord: Option<ChannelSpecificConfig>,
+}
+
+/// 单个通道的运行时配置
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub(crate) struct ChannelSpecificConfig {
+    /// 是否启用该通道
+    pub(crate) enabled: bool,
+    /// 该通道使用的助手agent
+    pub(crate) assistant_agent: Option<String>,
+    /// 通道特定的系统提示词
+    pub(crate) system_prompt: Option<String>,
+    /// Bot token（已解析）
+    pub(crate) bot_token: Option<String>,
+    /// 审批模式
+    pub(crate) approval_mode: Option<String>,
+}
+
+impl From<ChannelsConfigFile> for ChannelsConfig {
+    fn from(f: ChannelsConfigFile) -> Self {
+        Self {
+            wechat: f.wechat.map(|c| ChannelSpecificConfig {
+                enabled: c.enabled,
+                assistant_agent: c.assistant_agent,
+                system_prompt: c.system_prompt,
+                bot_token: c.bot_token,
+                approval_mode: c.approval_mode,
+            }),
+            telegram: f.telegram.map(|c| ChannelSpecificConfig {
+                enabled: c.enabled,
+                assistant_agent: c.assistant_agent,
+                system_prompt: c.system_prompt,
+                bot_token: c.bot_token,
+                approval_mode: c.approval_mode,
+            }),
+            discord: f.discord.map(|c| ChannelSpecificConfig {
+                enabled: c.enabled,
+                assistant_agent: c.assistant_agent,
+                system_prompt: c.system_prompt,
+                bot_token: c.bot_token,
+                approval_mode: c.approval_mode,
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -205,14 +284,75 @@ pub(crate) struct LLMConfig {
 pub(crate) struct MemoryConfig {
     pub(crate) path: PathBuf,
     pub(crate) auto_save: bool,
-    /// `noop` | `none` | `off` | `file` | `hybrid`（运行时小写归一）
+    /// `noop` | `none` | `off` | `file` | `hybrid` | `pipeline`（运行时小写归一）
     pub(crate) backend: String,
+    /// `backend=pipeline` 时使用；其余 backend 忽略。
+    pub(crate) pipeline: anycode_core::MemoryPipelineSettings,
+    /// OpenAI 兼容 embedding 模型 id（如 `text-embedding-3-small`）；与 `pipeline.embedding_enabled` 联用。
+    pub(crate) embedding_model: Option<String>,
+    /// 覆盖 embedding 的 base URL（默认与全局 LLM `base_url` 一致并补 `/v1`）。
+    pub(crate) embedding_base_url: Option<String>,
+    /// `http`（默认，OpenAI 兼容远程）| `local`（本地 ONNX，需 `--features embedding-local`）。
+    pub(crate) embedding_provider: String,
+    /// 本地嵌入模型缓存目录；`None` 用 fastembed 默认（多为 `~/.cache/fastembed`）。
+    #[cfg_attr(not(feature = "embedding-local"), allow(dead_code))]
+    pub(crate) embedding_local_cache_dir: Option<PathBuf>,
+    /// 本地 ONNX 模型 id，与 fastembed `EmbeddingModel` 的 `Debug` 名一致（如 `AllMiniLML6V2`、`BGESmallZHV15`）。
+    #[cfg_attr(not(feature = "embedding-local"), allow(dead_code))]
+    pub(crate) embedding_local_model: Option<String>,
+    /// 覆盖 Hugging Face 下载根 URL（如 `https://hf-mirror.com`）；未设置时尊重环境变量 `HF_ENDPOINT`。
+    #[cfg_attr(not(feature = "embedding-local"), allow(dead_code))]
+    pub(crate) embedding_hf_endpoint: Option<String>,
+}
+
+/// `config.json` 中归根通道可选字段（仅 `backend: pipeline` 生效）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct MemoryPipelineConfigFile {
+    #[serde(default)]
+    pub(crate) buffer_ttl_secs: Option<u64>,
+    #[serde(default)]
+    pub(crate) max_buffer_fragments: Option<usize>,
+    #[serde(default)]
+    pub(crate) promote_touch_threshold: Option<u32>,
+    #[serde(default)]
+    pub(crate) reinforce_on_recall_match: Option<bool>,
+    #[serde(default)]
+    pub(crate) merge_legacy_file_recall: Option<bool>,
+    #[serde(default)]
+    pub(crate) buffer_wal_enabled: Option<bool>,
+    #[serde(default)]
+    pub(crate) buffer_wal_fsync_every_n: Option<u32>,
+    #[serde(default)]
+    pub(crate) hook_after_tool_result: Option<bool>,
+    #[serde(default)]
+    pub(crate) hook_after_agent_turn: Option<bool>,
+    #[serde(default)]
+    pub(crate) hook_max_bytes: Option<usize>,
+    #[serde(default)]
+    pub(crate) hook_tool_deny_prefixes: Option<Vec<String>>,
+    #[serde(default)]
+    pub(crate) embedding_enabled: Option<bool>,
+    #[serde(default)]
+    pub(crate) embedding_model: Option<String>,
+    #[serde(default)]
+    pub(crate) embedding_base_url: Option<String>,
+    /// `http` | `local`（`onnx`/`fastembed` 同义为 local）
+    #[serde(default)]
+    pub(crate) embedding_provider: Option<String>,
+    #[serde(default)]
+    pub(crate) embedding_local_cache_dir: Option<PathBuf>,
+    /// 与 fastembed `EmbeddingModel` 枚举名一致（不区分大小写），如 `AllMiniLML6V2`。
+    #[serde(default)]
+    pub(crate) embedding_local_model: Option<String>,
+    /// 首次下载 ONNX 时使用的 HF 镜像/端点（写入后由启动时设置 `HF_ENDPOINT`，若环境已设则不覆盖）。
+    #[serde(default)]
+    pub(crate) embedding_hf_endpoint: Option<String>,
 }
 
 /// `config.json` 中的 `memory` 段（serde）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct MemoryConfigFile {
-    /// `noop`（或 `none`/`off`）| `file` | `hybrid`；默认持久化 `file`。
+    /// `noop`（或 `none`/`off`）| `file` | `hybrid` | `pipeline`；默认持久化 `file`。
     #[serde(default = "default_memory_backend_kind")]
     pub(crate) backend: String,
     /// 记忆根目录。默认 `$HOME/.anycode/memory`；**相对路径相对于 `$HOME`**。
@@ -220,6 +360,8 @@ pub(crate) struct MemoryConfigFile {
     pub(crate) path: Option<PathBuf>,
     #[serde(default = "default_memory_auto_save_file")]
     pub(crate) auto_save: bool,
+    #[serde(default)]
+    pub(crate) pipeline: MemoryPipelineConfigFile,
 }
 
 fn default_memory_backend_kind() -> String {
@@ -236,6 +378,7 @@ impl Default for MemoryConfigFile {
             backend: default_memory_backend_kind(),
             path: None,
             auto_save: default_memory_auto_save_file(),
+            pipeline: MemoryPipelineConfigFile::default(),
         }
     }
 }
@@ -277,6 +420,40 @@ fn default_context_window_tokens() -> u32 {
 
 fn default_context_window_auto() -> bool {
     true
+}
+
+/// `config.json` 的 `channels` 段：通道特定配置
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct ChannelsConfigFile {
+    /// 微信通道配置
+    #[serde(default)]
+    pub(crate) wechat: Option<ChannelSpecificConfigFile>,
+    /// Telegram通道配置
+    #[serde(default)]
+    pub(crate) telegram: Option<ChannelSpecificConfigFile>,
+    /// Discord通道配置
+    #[serde(default)]
+    pub(crate) discord: Option<ChannelSpecificConfigFile>,
+}
+
+/// 单个通道的特定配置
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct ChannelSpecificConfigFile {
+    /// 是否启用该通道
+    #[serde(default)]
+    pub(crate) enabled: bool,
+    /// 该通道使用的助手agent
+    #[serde(default)]
+    pub(crate) assistant_agent: Option<String>,
+    /// 通道特定的系统提示词
+    #[serde(default)]
+    pub(crate) system_prompt: Option<String>,
+    /// Bot token（支持SecretRef语法）
+    #[serde(default)]
+    pub(crate) bot_token: Option<String>,
+    /// 审批模式（仅在需要覆盖默认时设置）
+    #[serde(default)]
+    pub(crate) approval_mode: Option<String>,
 }
 
 /// `config.json` 的 `session` 段（serde）

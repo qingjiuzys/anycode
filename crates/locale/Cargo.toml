@@ -8,3 +8,6 @@ description = "Locale resolution (zh-Hans / en) for anyCode CLI"
 
 [dependencies]
 sys-locale = "0.3.1"
+
+[lints]
+workspace = true

@@ -1,5 +1,6 @@
 tui-approval-on = 审批: 开（工具 ↑↓ 选择 · Enter）
 tui-approval-off = 审批: 关
+tui-brand-version-suffix =  · v{$version}
 tui-welcome-tagline =  — 与仓库对话，工具在本地执行。
 tui-welcome-enter-send =  发送一行任务
 tui-welcome-history =  历史  
@@ -16,17 +17,47 @@ tui-welcome-perm-sep =   ·
 tui-welcome-skip-label =   跳过 y/n: 
 tui-welcome-skip-or =  或 
 tui-welcome-skip-restart =  后重新启动
+tui-welcome-dual-back = 欢迎回来！
+tui-welcome-dual-brand-suffix =  · v{$version}
+tui-welcome-dual-model-line =   {$provider} · {$model}
+tui-welcome-dual-slash-hint =  命令 · /help /agents …
+tui-welcome-dual-tips-title = 入门提示
+tui-welcome-dual-agents-hint = 在仓库根目录添加 AGENTS.md，写入希望 Agent 遵循的说明。
+tui-welcome-dual-shortcuts-hint = 按 ? 查看快捷键 · Shift+Enter 在输入框内换行。
+tui-welcome-dual-recent-title = 最近动态
+tui-welcome-dual-recent-empty = 暂无最近动态。
+tui-welcome-dual-recent-here = （当前目录）
+tui-welcome-dual-compact-actions = Enter 发送 · ? 帮助 · Sh+Enter 换行 · /命令
+tui-welcome-dual-agents-one = 可选：在仓库根目录放 AGENTS.md 自定义说明。
+tui-welcome-dual-skip-compact = 快速跳过：-I 或 ANYCODE_IGNORE_APPROVAL=1
+tui-footer-scroll-hint = 工作区 ↑{$n}
+tui-footer-ctx-unknown = ctx —
+tui-footer-ctx-zero = ctx 0% / {$win} tok
+tui-footer-ctx-pct = ctx {$pct}% / {$win} tok
+tui-footer-out-tokens =  · 出 {$k}k
+tui-footer-help-hint = ? 帮助
 tui-help-title = Shortcuts
-tui-help-line1 = ?  帮助  ·  Esc 清除/退出
+tui-help-line1 = ?  帮助  ·  Esc 关面板 / 空行时退出 · Ctrl+U 清空输入行
 tui-help-line2 = Enter 发送 · Sh+Enter 多行 · ↑↓ 历史
-tui-help-line3 = PgUp/PgDn 滚动 Workspace · Ctrl+Home/End 顶/底 · ctrl+o 折叠工具
-tui-help-line4 = 鼠标：备用屏内捕获滚轮滚 Workspace；主缓冲默认不捕获，滚轮常归终端 · ANYCODE_TUI_MOUSE=1 始终捕获 · =0 关闭
-tui-help-line5 = 备用屏（对齐 Claude）: CLAUDE_CODE_NO_FLICKER=1 或 ANYCODE_TUI_ALT_SCREEN=1 或 USER_TYPE=ant；主缓冲: 将上述任一变更为 0
-tui-help-line6 = 关闭 echo: ANYCODE_TUI_NO_SCROLLBACK_DUMP=1（仅备用屏模式）
+tui-help-line3 = PgUp/PgDn 滚动主区（对话）· Ctrl+Home/End 顶/底 · ctrl+o 折叠工具
+tui-help-line4 = 鼠标：全屏界面下滚轮行为因终端而异；独立画布用 ANYCODE_TUI_ALT_SCREEN=1 或 config 将 alternateScreen 设为 true；应用内滚轮 ANYCODE_TUI_MOUSE=1 · =0 关闭
+tui-help-line5 = 当前为全屏 ratatui（`anycode tui`）。默认 CLI 为行式 REPL（`anycode` / `anycode repl`）。备用屏画布：ANYCODE_TUI_ALT_SCREEN=1 或 config tui alternateScreen true
+tui-help-line6 = 仅主缓冲：CLEAR_ON_START 默认关（不清屏、保留滚动位置）· =1 首帧 Clear 减轻与 shell 叠画 · 备用屏不走该路径 · SYNC_DRAW=0 关 CSI 同步 · NO_SCROLLBACK_DUMP=1 关退出 echo（仅备用屏）
 tui-help-line7 = ^R 搜索历史 · ^L 清空会话
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · 行式: anycode repl
 tui-help-approval-keys = 审批: ↑ / ↓ · Enter · Esc · y / p / n
-tui-help-buddy = Buddy：终端宽度 ≥52 列时在 Prompt 右侧 Dock 内显示
+tui-help-buddy = Buddy：宽度 ≥52 列时显示在输入框上方 HUD 右侧；过窄时回退到 Dock 内输入框旁
+tui-hud-executing = thinking…
+tui-hud-executing-secs = thinking…（{$s}秒）
+tui-hud-thought-secs = thought for {$s}s
+tui-hud-idle = 就绪
+tui-hud-await-approval = waiting for approval…
+tui-hud-tip-rename = 提示：用 /rename 给会话起名，之后用 /resume 更容易找到。
+tui-hud-tip-resume = 提示：用 /resume 继续已保存的会话（可从工作区列表或上次退出提示里取 id）。
+tui-hud-tip-compact = 提示：上下文窗口吃紧时用 /compact 压缩对话。
+tui-hud-tip-help = 提示：按 ? 看快捷键；输入 / 浏览斜杠命令。
+tui-hud-tip-clear = 提示：Ctrl+L 清空当前窗口里的对话显示（不删磁盘上的会话文件）。
+tui-hud-tip-scroll = 提示：PgUp/PgDn 滚动主区；滚轮默认归终端；应用内滚 Workspace 用 ANYCODE_TUI_ALT_SCREEN=1，或在主缓冲下 ANYCODE_TUI_MOUSE=1 捕获滚轮
 tui-agent-gp = general-purpose — 通用复杂任务
 tui-agent-explore = explore         — 快速浏览代码库
 tui-agent-plan = plan            — 架构/方案规划
@@ -66,8 +97,8 @@ tui-dock-approve = 审批工具
 tui-dock-search = 搜索
 tui-dock-prompt = 输入
 tui-dock-slash = 斜杠命令
-tui-slash-nav = ↑↓ 选择 · Enter 采纳并发送 · Tab 采纳（关列表）· Shift+Tab 上一条 · 输入字母展开更多命令
-tui-slash-range =   {$s}–{$e} / {$n}
+tui-slash-nav = ↑↓ Enter 发送 · Tab 选用 · Shift+Tab 上一条
+tui-slash-range = {$s}–{$e} / 共 {$n} 条
 tui-approval-question = 是否继续？
 tui-approval-pending = （待审批）
 tui-approval-sp-once =  允许(一次)  
@@ -89,6 +120,13 @@ tui-exit-resume-lead = 恢复此会话请使用：
 tui-exit-resume-print = 恢复此会话请使用：
 tui-resume-not-found = 找不到该 id 的已保存会话（见 ~/.anycode/tui-sessions/）。
 tui-resume-cwd-warn = 已保存会话的工作目录与当前目录不一致；仍将恢复消息历史。
+tui-err-session-during-task = 任务运行中无法加载会话
+tui-session-list-title = 已保存会话（新→旧）：
+tui-session-list-empty = （暂无已保存会话）
+tui-session-list-err = 无法列出会话：
+tui-session-bad-uuid = 无效的会话 id（需要 UUID）。
+tui-session-resolve-none = 当前目录下没有匹配的已保存会话（且无全局回退）。
+tui-session-resumed = 已加载会话 · {$id}
 tui-read-ex-a = 正在读取 {$n} 个文件…
 tui-read-ex-i = 已读取 {$n} 个文件
 tui-read-col-a = 正在读取 {$n} 个文件…{$hint}

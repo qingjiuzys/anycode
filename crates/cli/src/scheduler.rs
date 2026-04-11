@@ -180,6 +180,7 @@ pub(crate) async fn run_builtin_scheduler(
                         pj.job.id
                     );
                 }
+                runtime.sync_memory_durability();
                 last = next;
             }
             last_fire.insert(pj.job.id.clone(), last);

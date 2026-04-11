@@ -19,3 +19,6 @@ futures-util = "0.3"
 # Channel implementations
 telnet = "0.2.4"  # CLI
 tokio-tungstenite = { workspace = true }  # WebSocket
+
+[lints]
+workspace = true

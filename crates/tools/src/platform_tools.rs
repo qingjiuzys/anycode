@@ -298,7 +298,9 @@ struct QIn {
     header: String,
     #[serde(default)]
     options: Vec<Opt>,
+    /// 交互 UI 未接线；保留以兼容入参形状。
     #[serde(default)]
+    #[allow(dead_code)]
     multi_select: bool,
 }
 
@@ -368,8 +370,9 @@ impl Tool for AskUserQuestionTool {
             .unwrap_or_default();
         Ok(ToolOutput {
             result: json!({
-                "selected": if q.multi_select { vec![first.clone()] } else { vec![first.clone()] },
-                "note": "Interactive UI not wired; returned first option",
+                "selected": vec![first.clone()],
+                "status": "degraded",
+                "note": "Interactive UI not wired in this host; returned first option",
                 "question": q.question,
                 "header": q.header
             }),
@@ -420,7 +423,9 @@ impl Tool for ReplTool {
         let start = Instant::now();
         Ok(ToolOutput {
             result: json!({
+                "status": "unsupported",
                 "info": "REPL not executed",
+                "hint": "No host VM is wired for REPL in anyCode runtime.",
                 "input": input.input
             }),
             error: None,

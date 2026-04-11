@@ -2,7 +2,19 @@
 //!
 //! 四类记忆（Project / User / Session 等）与存储后端
 
+mod buffer_wal;
+#[cfg(feature = "embedding-local")]
+pub mod embedding_fastembed;
+pub mod embedding_http;
+pub mod pipeline;
 pub mod retrieval;
+pub mod vector_sled;
+
+#[cfg(feature = "embedding-local")]
+pub use embedding_fastembed::FastEmbedEmbeddingProvider;
+pub use embedding_http::OpenAiCompatibleEmbeddingProvider;
+pub use pipeline::{NoopEmbeddingProvider, NoopVectorBackend, RootReturnMemoryPipeline};
+pub use vector_sled::SledVectorBackend;
 
 use crate::retrieval::{KeywordRetrieval, MemoryRetrieval};
 use anycode_core::prelude::*;
@@ -35,6 +47,9 @@ pub enum MemoryError {
 
     #[error("YAML parse error: {0}")]
     YamlParse(String),
+
+    #[error("Embedding init: {0}")]
+    EmbeddingInit(String),
 }
 
 fn core_from_mem(e: MemoryError) -> CoreError {
@@ -74,12 +89,7 @@ impl FileMemoryStore {
     }
 
     fn get_type_path(&self, mem_type: &MemoryType) -> PathBuf {
-        match mem_type {
-            MemoryType::User => self.base_path.join("user"),
-            MemoryType::Feedback => self.base_path.join("feedback"),
-            MemoryType::Project => self.base_path.join("project"),
-            MemoryType::Reference => self.base_path.join("reference"),
-        }
+        self.base_path.join(mem_type.as_storage_str())
     }
 
     async fn load_memory(&self, id: &str, mem_type: &MemoryType) -> Result<Memory, MemoryError> {
@@ -121,13 +131,11 @@ impl FileMemoryStore {
             .map(|s| s.to_string())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let mem_type = match meta.get("type").and_then(|v| v.as_str()) {
-            Some("user") => MemoryType::User,
-            Some("feedback") => MemoryType::Feedback,
-            Some("project") => MemoryType::Project,
-            Some("reference") => MemoryType::Reference,
-            _ => MemoryType::User,
-        };
+        let mem_type = meta
+            .get("type")
+            .and_then(|v| v.as_str())
+            .and_then(MemoryType::from_storage_str)
+            .unwrap_or(MemoryType::User);
 
         let title = meta
             .get("title")
@@ -190,12 +198,7 @@ impl MemoryStore for FileMemoryStore {
         let mut content = String::new();
         content.push_str("---\n");
         content.push_str(&format!("id: {}\n", memory.id));
-        let type_s = match memory.mem_type {
-            MemoryType::User => "user",
-            MemoryType::Feedback => "feedback",
-            MemoryType::Project => "project",
-            MemoryType::Reference => "reference",
-        };
+        let type_s = memory.mem_type.as_storage_str();
         content.push_str(&format!("type: {}\n", type_s));
         content.push_str(&format!("title: {}\n", memory.title));
         if !memory.tags.is_empty() {
@@ -271,12 +274,7 @@ impl MemoryStore for FileMemoryStore {
 
     async fn delete(&self, id: &str) -> Result<(), CoreError> {
         // 需要先找到文件
-        for mem_type in &[
-            MemoryType::User,
-            MemoryType::Feedback,
-            MemoryType::Project,
-            MemoryType::Reference,
-        ] {
+        for mem_type in &MemoryType::ALL {
             let path = self.get_type_path(mem_type).join(format!("{}.md", id));
             if path.exists() {
                 tokio::fs::remove_file(&path).await?;
@@ -318,7 +316,7 @@ impl FileMemoryStore {
             // 添加到索引
             let mut new_content = existing_content;
             new_content.push_str(&entry);
-            new_content.push_str("\n");
+            new_content.push('\n');
             tokio::fs::write(&index_path, new_content).await?;
         }
 
@@ -336,6 +334,19 @@ pub struct SledMemoryStore {
 }
 
 impl SledMemoryStore {
+    /// 按键读取单条记忆（热层/Sled）。
+    pub fn get_by_id(
+        &self,
+        id: &str,
+        mem_type: &MemoryType,
+    ) -> Result<Option<Memory>, MemoryError> {
+        let tree = self.get_tree(mem_type)?;
+        let Some(v) = tree.get(id.as_bytes())? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_slice(&v)?))
+    }
+
     pub fn new(path: impl Into<PathBuf>) -> Result<Self, MemoryError> {
         let path: PathBuf = path.into();
         let db = sled::open(path.as_path())?;
@@ -352,13 +363,7 @@ impl SledMemoryStore {
     }
 
     fn get_tree(&self, mem_type: &MemoryType) -> Result<Tree, MemoryError> {
-        let tree_name = match mem_type {
-            MemoryType::User => "user",
-            MemoryType::Feedback => "feedback",
-            MemoryType::Project => "project",
-            MemoryType::Reference => "reference",
-        };
-        Ok(self.db.open_tree(tree_name)?)
+        Ok(self.db.open_tree(mem_type.as_storage_str())?)
     }
 }
 
@@ -404,12 +409,7 @@ impl MemoryStore for SledMemoryStore {
     }
 
     async fn delete(&self, id: &str) -> Result<(), CoreError> {
-        for mem_type in [
-            MemoryType::User,
-            MemoryType::Feedback,
-            MemoryType::Project,
-            MemoryType::Reference,
-        ] {
+        for mem_type in MemoryType::ALL {
             let tree = match self.get_tree(&mem_type) {
                 Ok(t) => t,
                 Err(_) => continue,

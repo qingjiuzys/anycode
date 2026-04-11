@@ -50,17 +50,19 @@ pub(crate) fn session_ignore_approval(cli_ignore_approval: bool) -> bool {
 
 /// anyCode - Integrated AI Agent System
 ///
-/// - **No subcommand**: fullscreen TUI (ratatui).
-/// - **`repl`**: line REPL; output in the main terminal buffer (no fullscreen UI).
+/// - **No subcommand (default)**: **line REPL** — ratatui Inline viewport + bottom dock（与 `anycode tui` 主缓冲同栈、`anycode repl` 同栈）。
+/// - **`tui`**: 全屏 ratatui 矩阵（后续可能演进为其它模式）；默认入口**不是** TUI。
+/// - **`repl`**: 行式 REPL（Inline 视口 + 底栏）。
 #[derive(Parser, Debug)]
 #[command(name = "anycode")]
 #[command(
     author = "anyCode Contributors",
-    version = "0.1.0",
+    version = env!("CARGO_PKG_VERSION"),
     about = "anyCode - terminal AI agent for developers (Rust)",
     long_about = "anyCode is a Rust CLI for local tool-using agents: TUI, REPL, and automation.\n\
-                 • Default (no subcommand): fullscreen TUI.\n\
-                 • `repl`: line-based REPL with native terminal scrollback."
+                 • Default (`anycode` no subcommand): line REPL — ratatui Inline transcript + bottom dock (same stack as `anycode tui` main-buffer).\n\
+                 • Fullscreen matrix UI: `anycode tui`.\n\
+                 • TUI alternate canvas: config `tui.alternateScreen` or in-TUI options (not env-gated defaults)."
 )]
 pub(crate) struct Args {
     #[command(subcommand)]
@@ -85,13 +87,17 @@ pub(crate) struct Args {
     )]
     pub(crate) ignore_approval: bool,
 
-    /// Override default model for this process only (TUI with no subcommand; same validation as `repl --model`; long `--model` only).
+    /// Override default model for this process only (fullscreen TUI or `repl`; long `--model` only).
     #[arg(long = "model", global = true)]
     pub(crate) model: Option<String>,
 
-    /// Resume a saved TUI session (`~/.anycode/tui-sessions/<uuid>.json`; Claude-style `claude --resume`).
+    /// Resume a saved interactive session snapshot (`~/.anycode/tui-sessions/<uuid>.json`; same store as fullscreen TUI; Claude-style `claude --resume`).
     #[arg(long = "resume", global = true)]
     pub(crate) resume: Option<Uuid>,
+
+    /// Log crossterm `Event` kind to stderr (paste payloads redacted); for diagnosing IME/PTY issues.
+    #[arg(long = "repl-debug-events", global = true, hide = true)]
+    pub(crate) repl_debug_events: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -132,13 +138,23 @@ pub(crate) enum Commands {
         directory: Option<PathBuf>,
     },
 
-    /// 📜  Line REPL: one line per task, **no fullscreen TUI**; scrollback in the main buffer
+    /// 📜  Interactive session: **line REPL**（Inline 视口 + 底栏）。
     Repl {
         #[arg(short, long, default_value = "general-purpose")]
         agent: String,
         #[arg(short = 'C', long)]
         directory: Option<PathBuf>,
         #[arg(short, long)]
+        model: Option<String>,
+    },
+
+    /// 🖥 全屏 ratatui 矩阵会话（默认入口为 `repl`，不用环境变量切换）
+    Tui {
+        #[arg(short, long, default_value = "general-purpose")]
+        agent: String,
+        #[arg(short = 'C', long)]
+        directory: Option<PathBuf>,
+        #[arg(long = "model")]
         model: Option<String>,
     },
 
@@ -179,6 +195,12 @@ pub(crate) enum Commands {
     Workspace {
         #[command(subcommand)]
         sub: WorkspaceCommands,
+    },
+
+    /// 🧠 Memory pipeline utilities (import legacy Markdown into hot store)
+    Memory {
+        #[command(subcommand)]
+        sub: MemoryCommands,
     },
 
     /// 🚀  First-time setup: model first, then choose channel (wechat / telegram / discord)
@@ -362,6 +384,19 @@ pub(crate) enum WorkspaceCommands {
 }
 
 #[derive(Subcommand, Debug)]
+pub(crate) enum MemoryCommands {
+    /// Import Markdown memories from `memory.path` into pipeline hot (Sled) store
+    Import {
+        /// Print actions without writing
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+        /// Maximum number of memories to import (across all types)
+        #[arg(long)]
+        limit: Option<usize>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub(crate) enum ModelCommands {
     /// List models (z.ai static catalog for now)
     #[command(hide = true)]
@@ -415,8 +450,8 @@ pub fn parse_args() -> Args {
 mod clap_tests {
     use super::{session_ignore_approval, Args, ChannelCommands, Commands, StatuslineCommands};
     use clap::Parser;
-    use uuid::Uuid;
     use std::sync::{Mutex, OnceLock};
+    use uuid::Uuid;
 
     static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
@@ -533,6 +568,26 @@ mod clap_tests {
     }
 
     #[test]
+    fn tui_subcommand_parses() {
+        let a = Args::try_parse_from([
+            "anycode", "tui", "--agent", "explore", "-C", "/tmp", "--model", "glm-5",
+        ])
+        .unwrap();
+        match a.command {
+            Some(Commands::Tui {
+                agent,
+                directory,
+                model,
+            }) => {
+                assert_eq!(agent, "explore");
+                assert_eq!(directory, Some(std::path::PathBuf::from("/tmp")));
+                assert_eq!(model.as_deref(), Some("glm-5"));
+            }
+            _ => panic!("expected tui"),
+        }
+    }
+
+    #[test]
     fn model_without_subcommand_parses() {
         let a = Args::try_parse_from(["anycode", "model"]).unwrap();
         match a.command {
@@ -643,6 +698,24 @@ mod clap_tests {
                 assert!(matches!(sub, super::WorkspaceCommands::List { json: true }));
             }
             _ => panic!("expected workspace list"),
+        }
+    }
+
+    #[test]
+    fn memory_import_parses() {
+        let a = Args::try_parse_from(["anycode", "memory", "import", "--dry-run", "--limit", "10"])
+            .unwrap();
+        match a.command {
+            Some(Commands::Memory { sub }) => {
+                assert!(matches!(
+                    sub,
+                    super::MemoryCommands::Import {
+                        dry_run: true,
+                        limit: Some(10)
+                    }
+                ));
+            }
+            _ => panic!("expected memory import"),
         }
     }
 

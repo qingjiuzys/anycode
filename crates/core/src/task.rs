@@ -1,6 +1,7 @@
 //! 任务、产物与单轮产出。
 
 use crate::ids::{SessionId, TaskId};
+use crate::llm_types::Usage;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -84,11 +85,36 @@ pub struct Artifact {
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
-/// TUI 单轮 `execute_turn_from_messages` 的产出（含用于自动压缩的上下文规模）。
+/// 单轮 `execute_turn_from_messages` 内各次 LLM 调用的 token 聚合（供 HUD / 脚标 / status line）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TurnTokenUsage {
+    /// 各次 `usage.input_tokens` 的最大值（与自动压缩阈值一致）。
+    pub max_input_tokens: u32,
+    /// 各次 `usage.output_tokens` 之和。
+    pub total_output_tokens: u32,
+    pub total_cache_read_tokens: u32,
+    pub total_cache_creation_tokens: u32,
+}
+
+impl TurnTokenUsage {
+    /// 映射为单次 `Usage`，供 JSON status line 等消费。
+    #[must_use]
+    pub fn to_usage(&self) -> Usage {
+        Usage {
+            input_tokens: self.max_input_tokens,
+            output_tokens: self.total_output_tokens,
+            cache_creation_tokens: (self.total_cache_creation_tokens > 0)
+                .then_some(self.total_cache_creation_tokens),
+            cache_read_tokens: (self.total_cache_read_tokens > 0)
+                .then_some(self.total_cache_read_tokens),
+        }
+    }
+}
+
+/// TUI / 行式 REPL 单轮 `execute_turn_from_messages` 的产出。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TurnOutput {
     pub final_text: String,
     pub artifacts: Vec<Artifact>,
-    /// 本轮工具循环内各次 `LLMClient::chat` 的 `usage.input_tokens` 最大值。
-    pub max_input_tokens: u32,
+    pub usage: TurnTokenUsage,
 }

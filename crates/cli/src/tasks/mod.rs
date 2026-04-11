@@ -1,5 +1,6 @@
 //! Task entrypoints: `run`, REPL, listings, `test-security`, etc.
 
+mod repl_line_session;
 mod tasks_repl;
 mod tasks_run;
 mod tasks_sink;
@@ -94,7 +95,7 @@ pub(crate) fn run_skills_command(config: &Config, sub: SkillsCommands) -> anyhow
             std::fs::create_dir_all(&root)?;
             std::fs::create_dir_all(&dir)?;
             let skill_md = format!(
-                "---\nname: {id}\ndescription: TODO describe this skill\n---\n\n# {id}\n\n"
+                "---\nname: {id}\ndescription: Describe this skill in one line.\n---\n\n# {id}\n\n"
             );
             std::fs::write(dir.join("SKILL.md"), skill_md)?;
             let run_script = format!(

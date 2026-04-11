@@ -13,7 +13,7 @@ read_when:
 |------|------|
 | 五分钟跑通 | [快速开始](./getting-started) |
 | Release / 脚本 / cargo 安装 | [安装](./install) |
-| 子命令、TUI、REPL、守护进程 | [CLI 总览](./cli) 及各子页 |
+| 子命令、TUI、REPL | [CLI 总览](./cli) 及各子页 |
 | 底部状态栏（Claude 风格 HUD、stdin JSON） | [Status line](./status-line) |
 | 提供商、`config.json`、模型 | [模型与端点](./models) |
 | crate、运行时、工具装配 | [架构](./architecture) |
@@ -24,6 +24,7 @@ read_when:
 | 无 TTY、微信扫码、MCP | [排错](./troubleshooting) |
 | 微信桥与 `setup` | [微信与 setup](./wechat) |
 | 贡献、测试、工具注册门禁 | [开发与贡献](./development) |
+| 维护者 backlog（now / next / later） | 仓库 [`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md) · [跳转说明](./implementation-checklist) |
 | MVP、工具矩阵、后续里程碑 | [路线图](./roadmap) |
 
 **站内全部指南链接**：[全量索引](./hubs)。

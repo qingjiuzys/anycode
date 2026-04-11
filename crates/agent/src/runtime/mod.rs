@@ -7,7 +7,12 @@ mod nested_worktree;
 mod receipt;
 mod session;
 mod task_summary;
+mod tool_gating;
 mod tool_surface;
+
+mod runtime_options;
+pub use runtime_options::{RuntimeCoreDeps, RuntimeMemoryOptions, RuntimeToolPolicy};
+pub use tool_gating::AgentClaudeToolGating;
 
 use crate::compact::{CompactionHooks, DefaultCompactionHooks};
 use crate::goal_engine::GoalEngine;
@@ -19,8 +24,8 @@ use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAs
 use anycode_core::prelude::*;
 use anycode_core::strip_llm_reasoning_xml_blocks;
 use anycode_core::Artifact;
+use anycode_core::{MemoryPipeline, MemoryPipelineSettings};
 use anycode_security::SecurityLayer;
-use anycode_tools::CompiledClaudePermissionRules;
 use artifacts::{extract_artifacts, truncate_text};
 use async_trait::async_trait;
 use limits::{
@@ -30,8 +35,8 @@ use logging::RunLogger;
 use nested_worktree::NestedWorktreeGuard;
 use receipt::ReceiptGenerator;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::collections::HashMap;
+use std::sync::Arc;
 use task_summary::{last_assistant_plain_text, llm_summary_receipt};
 use tokio::sync::{Mutex, RwLock};
 use tracing::warn;
@@ -39,6 +44,20 @@ use uuid::Uuid;
 
 const MEMORY_AUTOSAVE_TITLE_MAX_CHARS: usize = 200;
 const MEMORY_AUTOSAVE_CONTENT_MAX_BYTES: usize = 64 * 1024;
+
+fn estimate_input_tokens_for_messages(messages: &[Message]) -> u32 {
+    // Conservative fallback for streaming providers that do not report usage yet.
+    // 4 chars/token is a common rough estimate for mixed English/JSON payloads.
+    let chars: usize = messages
+        .iter()
+        .map(|m| match &m.content {
+            MessageContent::Text(t) => t.chars().count(),
+            MessageContent::ToolResult { content, .. } => content.chars().count(),
+            _ => 0,
+        })
+        .sum();
+    ((chars as u32).saturating_add(3)) / 4
+}
 
 fn last_user_plain_text_for_autosave(msgs: &[Message]) -> String {
     msgs.iter()
@@ -56,20 +75,16 @@ fn last_user_plain_text_for_autosave(msgs: &[Message]) -> String {
         .unwrap_or_default()
 }
 
-/// 工具权限门控（deny/allow/ask 编译规则 + 可选 MCP 首轮隐藏）。
-#[derive(Default)]
-pub struct AgentClaudeToolGating {
-    pub rules: Option<Arc<CompiledClaudePermissionRules>>,
-    pub defer_mcp_tools: bool,
-    pub mcp_defer_allowlist: Option<Arc<StdMutex<HashSet<String>>>>,
-}
-
 /// Agent 运行时
 pub struct AgentRuntime {
     agents: Arc<RwLock<HashMap<AgentType, Box<dyn Agent>>>>,
     llm_client: Arc<dyn LLMClient>,
     tools: Arc<RwLock<HashMap<ToolName, Box<dyn Tool>>>>,
     memory_store: Arc<dyn MemoryStore>,
+    /// `backend=pipeline` 时用于归根通道 ingest（autosave 进虚态缓冲）；否则为 `None`。
+    memory_pipeline: Option<Arc<dyn MemoryPipeline>>,
+    /// 与 `memory_pipeline` 配套；用于钩子与限流配置。
+    memory_pipeline_settings: Option<MemoryPipelineSettings>,
     default_model_config: ModelConfig,
     model_overrides: HashMap<AgentType, ModelConfig>,
     disk_output: Option<DiskTaskOutput>,
@@ -159,20 +174,34 @@ impl AgentRuntime {
     }
 
     pub fn new(
-        llm_client: Arc<dyn LLMClient>,
-        tools: HashMap<ToolName, Box<dyn Tool>>,
-        memory_store: Arc<dyn MemoryStore>,
-        default_model_config: ModelConfig,
-        model_overrides: HashMap<AgentType, ModelConfig>,
-        disk_output: Option<DiskTaskOutput>,
-        security: Arc<SecurityLayer>,
-        sandbox_mode: bool,
-        prompt_config: RuntimePromptConfig,
-        memory_project_autosave_enabled: bool,
-        tool_name_deny: Vec<Regex>,
-        claude_gating: AgentClaudeToolGating,
-        expose_skill_on_explore_plan: bool,
+        core: RuntimeCoreDeps,
+        memory: RuntimeMemoryOptions,
+        tool_policy: RuntimeToolPolicy,
     ) -> Self {
+        let RuntimeCoreDeps {
+            llm_client,
+            tools,
+            memory_store,
+            default_model_config,
+            model_overrides,
+            disk_output,
+            security,
+            sandbox_mode,
+            prompt_config,
+        } = core;
+
+        let RuntimeMemoryOptions {
+            memory_pipeline,
+            memory_pipeline_settings,
+            memory_project_autosave_enabled,
+        } = memory;
+
+        let RuntimeToolPolicy {
+            tool_name_deny,
+            claude_gating,
+            expose_skill_on_explore_plan,
+        } = tool_policy;
+
         let mut agents = HashMap::new();
 
         // 注册内置 agents
@@ -206,6 +235,8 @@ impl AgentRuntime {
             llm_client,
             tools: Arc::new(RwLock::new(tools)),
             memory_store,
+            memory_pipeline,
+            memory_pipeline_settings,
             default_model_config,
             model_overrides,
             disk_output,
@@ -216,6 +247,79 @@ impl AgentRuntime {
             tool_name_deny,
             claude_gating,
             compaction_hooks: Arc::new(DefaultCompactionHooks::new()),
+        }
+    }
+
+    /// 将记忆管线的易失层（如虚态缓冲 WAL）刷盘。进程正常退出时 pipeline 也会在 drop 时 best-effort 刷盘。
+    pub fn sync_memory_durability(&self) {
+        if let Some(ref pipe) = self.memory_pipeline {
+            if let Err(e) = pipe.sync_durability() {
+                warn!(target: "anycode_agent", "memory pipeline durability sync: {}", e);
+            }
+        }
+    }
+
+    async fn pipeline_memory_hook_tool_result(
+        &self,
+        session_label: &str,
+        task_id: TaskId,
+        tool_name: &str,
+        tool_text: &str,
+    ) {
+        let Some(ref pipe) = self.memory_pipeline else {
+            return;
+        };
+        let Some(ref s) = self.memory_pipeline_settings else {
+            return;
+        };
+        if !s.hook_after_tool_result {
+            return;
+        }
+        if s.hook_tool_deny_prefixes
+            .iter()
+            .any(|p| tool_name.starts_with(p.as_str()))
+        {
+            return;
+        }
+        let (body, _) = truncate_text(tool_text.to_string(), s.hook_max_bytes);
+        let text = format!("[tool:{}]\n{}", tool_name, body);
+        let sess = format!("{}:{}", session_label, task_id);
+        if let Err(e) = pipe
+            .ingest_fragment(&sess, &text, MemoryType::Project)
+            .await
+        {
+            warn!(target: "anycode_agent", "memory pipeline hook (tool): {}", e);
+        }
+    }
+
+    async fn pipeline_memory_hook_agent_turn(
+        &self,
+        session_label: &str,
+        task_id: TaskId,
+        turn: usize,
+        assistant_excerpt: &str,
+    ) {
+        let Some(ref pipe) = self.memory_pipeline else {
+            return;
+        };
+        let Some(ref s) = self.memory_pipeline_settings else {
+            return;
+        };
+        if !s.hook_after_agent_turn {
+            return;
+        }
+        let t = assistant_excerpt.trim();
+        if t.is_empty() {
+            return;
+        }
+        let (body, _) = truncate_text(t.to_string(), s.hook_max_bytes);
+        let text = format!("[turn {}]\n{}", turn, body);
+        let sess = format!("{}:{}", session_label, task_id);
+        if let Err(e) = pipe
+            .ingest_fragment(&sess, &text, MemoryType::Project)
+            .await
+        {
+            warn!(target: "anycode_agent", "memory pipeline hook (turn): {}", e);
         }
     }
 
@@ -238,6 +342,17 @@ impl AgentRuntime {
             title
         };
         let (content, _) = truncate_text(output.to_string(), MEMORY_AUTOSAVE_CONTENT_MAX_BYTES);
+        if let Some(ref pipe) = self.memory_pipeline {
+            let session = task_id.to_string();
+            let text = format!("{}\n\n{}", title, content);
+            if let Err(e) = pipe
+                .ingest_fragment(&session, &text, MemoryType::Project)
+                .await
+            {
+                warn!(target: "anycode_agent", "memory pipeline ingest (auto_save) failed: {}", e);
+            }
+            return;
+        }
         let now = chrono::Utc::now();
         let memory = Memory {
             id: task_id.to_string(),
@@ -334,7 +449,7 @@ impl AgentRuntime {
     }
 
     /// 执行一次“连续会话”的 agentic turn：从传入的 `messages` 继续跑同一轮工具循环，
-    /// 并在结束后返回最后一条 assistant 自然语言文本、本轮产生的 artifacts、以及本 turn 内各轮 LLM 请求的 **最大 input_tokens**（供 TUI 自动压缩阈值）。
+    /// 并在结束后返回 `TurnOutput`：最终 assistant 文本、artifacts、以及聚合的 `TurnTokenUsage`（max input、sum output、cache 累计等）。
     ///
     /// 关键点：
     /// - 不重建 system/user：由调用方（TUI）维护 messages 历史。
@@ -347,7 +462,7 @@ impl AgentRuntime {
         agent_type: &AgentType,
         messages: Arc<Mutex<Vec<Message>>>,
         working_directory: &str,
-    ) -> Result<(String, Vec<Artifact>, u32), CoreError> {
+    ) -> Result<TurnOutput, CoreError> {
         let logger = self.logger();
         logger.ensure_initialized(task_id);
         logger.line(
@@ -379,7 +494,7 @@ impl AgentRuntime {
         let mut total_tool_calls: usize = 0;
         let mut artifacts: Vec<Artifact> = vec![];
         let mut last_assistant_text = String::new();
-        let mut max_input_tokens: u32 = 0;
+        let mut turn_usage = TurnTokenUsage::default();
 
         for turn in 1..=MAX_AGENT_TURNS {
             logger.line(
@@ -409,6 +524,7 @@ impl AgentRuntime {
             let mut tool_calls: Vec<ToolCall> = vec![];
             let mut streamed = false;
             let assistant_id = Uuid::new_v4();
+            let mut stream_usage: Option<Usage> = None;
 
             // Insert an empty assistant message first so UI can show deltas as they arrive.
             {
@@ -452,6 +568,10 @@ impl AgentRuntime {
                             received_any = true;
                             tool_calls.push(tc)
                         }
+                        StreamEvent::Usage(u) => {
+                            received_any = true;
+                            stream_usage = Some(u);
+                        }
                         StreamEvent::Done => break,
                     }
                 }
@@ -480,12 +600,12 @@ impl AgentRuntime {
                 LLMResponse {
                     message: assistant_msg,
                     tool_calls,
-                    usage: Usage {
-                        input_tokens: 0,
+                    usage: stream_usage.unwrap_or_else(|| Usage {
+                        input_tokens: estimate_input_tokens_for_messages(&messages_snapshot),
                         output_tokens: 0,
                         cache_creation_tokens: None,
                         cache_read_tokens: None,
-                    },
+                    }),
                 }
             } else {
                 let r = self
@@ -504,7 +624,12 @@ impl AgentRuntime {
                 r
             };
 
-            max_input_tokens = max_input_tokens.max(response.usage.input_tokens);
+            turn_usage.max_input_tokens =
+                turn_usage.max_input_tokens.max(response.usage.input_tokens);
+            turn_usage.total_output_tokens += response.usage.output_tokens;
+            turn_usage.total_cache_read_tokens += response.usage.cache_read_tokens.unwrap_or(0);
+            turn_usage.total_cache_creation_tokens +=
+                response.usage.cache_creation_tokens.unwrap_or(0);
 
             logger.line(
                 task_id,
@@ -545,7 +670,16 @@ impl AgentRuntime {
             // If we streamed, assistant message is already in `messages`; no need to push again.
             // If we didn't stream, we already replaced placeholder with `r.message` above.
 
+            let session_label = format!("tui_{}", task_id);
+
             if response.tool_calls.is_empty() {
+                self.pipeline_memory_hook_agent_turn(
+                    &session_label,
+                    task_id,
+                    turn,
+                    &last_assistant_text,
+                )
+                .await;
                 logger.line(task_id, &format!("[turn_end] turn={} tool_calls=0", turn));
                 break;
             }
@@ -569,7 +703,11 @@ impl AgentRuntime {
                             MAX_TOOL_CALLS_TOTAL
                         ),
                     );
-                    return Ok((last_assistant_text, artifacts, max_input_tokens));
+                    return Ok(TurnOutput {
+                        final_text: last_assistant_text,
+                        artifacts,
+                        usage: turn_usage,
+                    });
                 }
 
                 // 记录工具入参（截断避免日志/上下文过大）
@@ -629,6 +767,7 @@ impl AgentRuntime {
                     );
                 }
 
+                let for_hook = tool_text.clone();
                 let mut metadata = HashMap::new();
                 metadata.insert(
                     "tool_name".to_string(),
@@ -650,6 +789,14 @@ impl AgentRuntime {
                     });
                 }
 
+                self.pipeline_memory_hook_tool_result(
+                    &session_label,
+                    task_id,
+                    &tool_call.name,
+                    &for_hook,
+                )
+                .await;
+
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));
             }
         }
@@ -662,7 +809,11 @@ impl AgentRuntime {
         if !last_assistant_text.trim().is_empty() {
             self.maybe_autosave_memory(task_id, &user_line, &last_assistant_text)
                 .await;
-            return Ok((last_assistant_text, artifacts, max_input_tokens));
+            return Ok(TurnOutput {
+                final_text: last_assistant_text,
+                artifacts,
+                usage: turn_usage,
+            });
         }
 
         let output_tail = logger.tail(task_id, 24 * 1024);
@@ -698,7 +849,11 @@ impl AgentRuntime {
         .await;
         self.maybe_autosave_memory(task_id, &user_line, &summary_text)
             .await;
-        Ok((summary_text, artifacts, max_input_tokens))
+        Ok(TurnOutput {
+            final_text: summary_text,
+            artifacts,
+            usage: turn_usage,
+        })
     }
 
     /// 执行任务
@@ -849,7 +1004,18 @@ impl AgentRuntime {
             }
             messages.push(assistant_msg);
 
+            let session_label = task.context.session_id.to_string();
+            let turn_plain = messages
+                .last()
+                .and_then(|m| match &m.content {
+                    MessageContent::Text(t) => Some(strip_llm_reasoning_xml_blocks(t)),
+                    _ => None,
+                })
+                .unwrap_or_default();
+
             if response.tool_calls.is_empty() {
+                self.pipeline_memory_hook_agent_turn(&session_label, task.id, turn, &turn_plain)
+                    .await;
                 logger.line(task.id, &format!("[turn_end] turn={} tool_calls=0", turn));
                 break;
             }
@@ -935,6 +1101,7 @@ impl AgentRuntime {
                         ),
                     );
                 }
+                let for_hook = tool_text.clone();
                 let mut tool_meta = HashMap::new();
                 tool_meta.insert(
                     "tool_name".to_string(),
@@ -951,6 +1118,14 @@ impl AgentRuntime {
                     timestamp: chrono::Utc::now(),
                     metadata: tool_meta,
                 });
+
+                self.pipeline_memory_hook_tool_result(
+                    &session_label,
+                    task.id,
+                    &tool_call.name,
+                    &for_hook,
+                )
+                .await;
 
                 // 基础 artifacts（V1）
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));

@@ -2,14 +2,17 @@
 //!
 //! 子模块：`styles` / `util` / `input` / `transcript` / `chrome` / `approval` / `run`。
 
-mod approval;
+pub(crate) mod approval;
+pub(crate) use approval::{ApprovalDecision, PendingApproval, TuiApprovalCallback};
+mod backend;
 mod chrome;
+pub(crate) mod hud_text;
 pub(crate) mod input;
 mod pet;
 mod run;
 pub(crate) mod status_line;
 pub(crate) mod styles;
-mod transcript;
+pub(crate) mod transcript;
 pub(crate) mod tui_session_persist;
 pub(crate) mod util;
 

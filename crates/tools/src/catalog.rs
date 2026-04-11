@@ -303,4 +303,15 @@ mod tests {
         let m = build_default_registry(false);
         validate_default_registry(&m).unwrap();
     }
+
+    #[test]
+    fn security_sensitive_tools_registered_in_built_registry() {
+        let m = build_default_registry(false);
+        for id in SECURITY_SENSITIVE_TOOL_IDS {
+            assert!(
+                m.contains_key(*id),
+                "{id} must be registered in default registry map"
+            );
+        }
+    }
 }

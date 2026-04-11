@@ -25,6 +25,8 @@ mod lsp_stdio;
 mod lsp_tool;
 #[cfg(feature = "tools-mcp")]
 pub mod mcp_connected;
+#[cfg(feature = "tools-mcp")]
+pub mod mcp_legacy_sse_session;
 #[cfg(feature = "tools-mcp-oauth")]
 mod mcp_oauth_login;
 #[cfg(feature = "tools-mcp")]
@@ -55,6 +57,8 @@ pub use catalog::{
 pub use claude_rules::CompiledClaudePermissionRules;
 #[cfg(feature = "tools-mcp")]
 pub use mcp_connected::McpListedTool;
+#[cfg(feature = "tools-mcp")]
+pub use mcp_legacy_sse_session::McpLegacySseSession;
 pub use mcp_normalization::{
     blanket_deny_rule_matches_tool, build_mcp_tool_name, mcp_info_from_string,
     normalize_name_for_mcp,

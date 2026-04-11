@@ -322,6 +322,7 @@ pub(crate) fn history_apply_down(history: &[String], idx: &mut Option<usize>, in
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn format_cwd_header(cwd: &str, max_chars: usize) -> String {
     if cwd.chars().count() <= max_chars {
         return cwd.to_string();

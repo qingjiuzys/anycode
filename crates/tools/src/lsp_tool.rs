@@ -56,7 +56,9 @@ impl Tool for LspTool {
         let start = Instant::now();
         Ok(ToolOutput {
             result: serde_json::json!({
+                "status": "unsupported",
                 "error": "LSP client not configured",
+                "hint": "Build with --features tools-lsp and set ANYCODE_LSP_COMMAND to an LSP bridge command.",
                 "echo": input.input
             }),
             error: Some("lsp stub".into()),

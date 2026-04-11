@@ -1,7 +1,7 @@
 ---
 title: CLI 总览
 description: anycode 二进制、全局选项与分主题子文档入口。
-summary: 子命令地图；指向 run/REPL/TUI、守护进程、模型、微信与诊断。
+summary: 子命令地图；指向 run/REPL/TUI、模型、微信与诊断；HTTP 守护进程已移除说明见 cli-daemon。
 read_when:
   - 需要先看清 CLI 文档结构再深入某一子命令。
 ---
@@ -17,7 +17,7 @@ read_when:
 - **`--model <ID>`** — **仅**在**无子命令默认 TUI** 时使用**长选项**（避免与 **`repl` 的 `-m/--model`** 冲突）。  
 - **`--ignore-approval`**（别名 **`--ignore`**，容错 **`--ingroe`**）— **本进程**跳过工具 y/n，**不写回**配置文件。
 
-`run`、默认 TUI、`repl`、`daemon`、`model` 等均按 **`-c`** 路径读写配置。
+`run`、`tui`、`repl`、`model`、`channel` 等均按 **`-c`** 路径读写配置。
 
 ```bash
 anycode config
@@ -30,7 +30,7 @@ anycode config
 | 主题 | 页面 |
 |------|------|
 | `run` / `repl` / 全屏 TUI / 任务日志 | [run / REPL / TUI](./cli-sessions) |
-| `daemon` HTTP | [守护进程](./cli-daemon) |
+| HTTP `daemon`（已移除） | [HTTP 守护进程（已移除）](./cli-daemon) |
 | `model` 子命令 | [模型子命令](./cli-model) |
 | `list-agents` / `list-tools` / `test-security` | [发现与 test-security](./cli-diagnostics) |
 | `setup` / `wechat` | [微信与 setup](./wechat) |

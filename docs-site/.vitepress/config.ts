@@ -41,10 +41,15 @@ const guideSidebarEn = [
     collapsed: true,
     items: [
       { text: 'Development', link: '/guide/development' },
+      { text: 'Contributing extensions', link: '/guide/contributing-extensions' },
       { text: 'Agent skills', link: '/guide/skills' },
       { text: 'Discovery & test-security', link: '/guide/cli-diagnostics' },
-      { text: 'Daemon', link: '/guide/cli-daemon' },
-      { text: 'Roadmap', link: '/guide/roadmap' }
+      { text: 'HTTP daemon (removed)', link: '/guide/cli-daemon' },
+      { text: 'Roadmap', link: '/guide/roadmap' },
+      {
+        text: 'Maintainer roadmap (repo)',
+        link: 'https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md'
+      }
     ]
   },
   { text: 'Docs directory', link: '/guide/docs-directory' },
@@ -88,10 +93,15 @@ const guideSidebarZh = [
     collapsed: true,
     items: [
       { text: '开发与贡献', link: '/zh/guide/development' },
+      { text: '扩展与贡献清单', link: '/zh/guide/contributing-extensions' },
       { text: 'Agent skills', link: '/zh/guide/skills' },
       { text: '发现与 test-security', link: '/zh/guide/cli-diagnostics' },
-      { text: '守护进程', link: '/zh/guide/cli-daemon' },
-      { text: '路线图', link: '/zh/guide/roadmap' }
+      { text: 'HTTP 守护进程（已移除）', link: '/zh/guide/cli-daemon' },
+      { text: '路线图', link: '/zh/guide/roadmap' },
+      {
+        text: '维护者路线图（仓库）',
+        link: 'https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md'
+      }
     ]
   },
   { text: '文档地图', link: '/zh/guide/docs-directory' },

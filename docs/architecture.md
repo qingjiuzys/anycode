@@ -2,10 +2,12 @@
 
 面向维护者：分层、依赖方向与扩展点，避免「为抽象而抽象」。
 
+**文档站**（中英、与发布流程一致）：仓库根目录 [`docs-site/guide/architecture.md`](../docs-site/guide/architecture.md) 构建为在线「Architecture」页；扩展操作清单见 [`docs-site/guide/contributing-extensions.md`](../docs-site/guide/contributing-extensions.md)。**ADR**（编排边界等决策）在 [`docs/adr/`](adr/)，不参与 VitePress 构建。
+
 ## 分层与数据流
 
 ```text
-anycode (CLI)          ← 组合根：读配置、组装 runtime、TUI/守护进程
+anycode (CLI)          ← 组合根：读配置、组装 runtime、TUI / run / 通道桥
     ↓
 anycode-agent          ← AgentRuntime：一轮/多轮 LLM + 工具、压缩、落盘
     ↓
@@ -27,7 +29,7 @@ anycode-memory         ← 记忆后端
 
 1. **新工具**：在 `anycode-tools` 的 `registry.rs` 注册实例，并维护 `catalog` 常量；详见该文件顶部 checklist。
 2. **新 LLM 提供商**：在 `anycode-llm` 实现 `LLMClient`。
-3. **压缩前后行为**：实现 `CompactionHooks` 或通过 `AgentRuntime::new(..., Some(hooks))` 注入（默认 `DefaultCompactionHooks`）。
+3. **压缩前后行为**：见 `compact` 模块与 `CompactionHooks`（当前 `AgentRuntime::new` 使用默认钩子；构造参数分组为 `RuntimeCoreDeps` / `RuntimeMemoryOptions` / `RuntimeToolPolicy`）。
 4. **新 Agent 类型**：实现 `Agent` trait 并 `register_agent`，或扩展内置 `agents.rs`。
 
 仅在确有第二种实现或需打破依赖环时，再新增 trait。
@@ -45,3 +47,19 @@ anycode-memory         ← 记忆后端
 
 - 新人应能在约 30 分钟内说清：请求从 CLI 进入 `AgentRuntime` 后，何处调用 `LLMClient::chat` 与 `Tool::execute`。
 - 子模块拆分优先于新抽象；避免通用 `PipelineStage<T>` 类框架，除非多产品线硬需求。
+
+## CLI：流式 REPL（Inline）与全屏 TUI 的会话一致性
+
+两者都通过 **`AgentRuntime::execute_turn_from_messages`** 跑多轮工具循环，并共用 **`~/.anycode/tui-sessions/`** 下的 JSON 快照（`ReplLineSession` 与 TUI 同一持久化格式）。
+
+| 能力 | 流式 REPL（默认 TTY） | 全屏 TUI |
+|------|----------------------|----------|
+| 会话 id / 恢复 | `ReplLineSession::session_file_id`；`anycode repl --resume <uuid>` 与 TUI `--resume` 读同一目录 | `session_uuid`；退出提示与 `--resume` 一致 |
+| `/session` | `list` / 无参 cwd 优先 / 显式 uuid → `load_repl_session_choice` + `apply_snapshot` | 同上逻辑，经 `TuiLoopCtl::ResumeSession` 在主循环里应用快照 |
+| `/clear` | `repl_clear_session` → `rebuild_for_agent`，并清空流式 UI 状态（滚动、HUD 摘要、**last_turn_token_usage**、**stream_exit_dump_anchor**） | `reset_transcript_state` + 重建 messages；**last_max_input_tokens** / **last_turn_usage** 归零 |
+| 持久化 | 回合结束 `spawn_persist_tui_session` | 同上 |
+| Token 用量展示 | 回合结束 HUD 与 **`/context`** 使用 `TurnTokenUsage`（与 agent 返回的 **`TurnOutput.usage`** 对齐） | 脚标 **`last_output_tokens`** + **`/context`** 使用同一套聚合字段 |
+
+退出 Inline 视口时，默认把 **完整** transcript 再打一份到 shell；**`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=0`** 关闭；**`=anchor`** 仅打印自上一轮自然语言轮起的内容（与异步侧 `turn_transcript_anchor` 同步到 **`ReplLineState::stream_exit_dump_anchor`**）。
+
+迭代任务与决策状态见 **[`docs/roadmap.md`](roadmap.md)**（SSOT）；MVP 与工具矩阵见文档站 [Roadmap](../docs-site/guide/roadmap.md)。

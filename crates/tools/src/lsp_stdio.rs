@@ -99,7 +99,7 @@ pub async fn lsp_forward_shell(
                 "processId": null,
                 "rootUri": null,
                 "capabilities": {},
-                "clientInfo": { "name": "anycode", "version": "0.1" }
+                "clientInfo": { "name": "anycode", "version": env!("CARGO_PKG_VERSION") }
             }
         }),
     )

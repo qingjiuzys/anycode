@@ -1,16 +1,154 @@
 //! Render CommonMark / GFM subset to ratatui `Line`s (pre-wrapped to column width).
+//! Fenced / indented 代码块经 syntect 着色；过长块回退为单色 `style_inline_code`。
 
 use crate::i18n::tr;
+use lru::LruCache;
+use once_cell::sync::Lazy;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
 };
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::num::NonZeroUsize;
+use std::sync::Mutex;
 use unicode_width::UnicodeWidthChar;
+
+// 语法高亮相关
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Theme, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
+
+/// Markdown 解析结果缓存
+static MD_CACHE: Lazy<Mutex<LruCache<String, Vec<Line<'static>>>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap()))); // 缓存 100 条消息
+
+/// OSC 8 链接缓存（缓存最近生成的 200 个链接）
+static OSC8_LINK_CACHE: Lazy<Mutex<LruCache<u64, String>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(200).unwrap())));
+
+/// 语法高亮主题（使用内置的 base16-ocean.dark 主题）
+static SYNTAX_THEME: Lazy<Theme> = Lazy::new(|| {
+    let theme_set = ThemeSet::load_defaults();
+    theme_set.themes["base16-ocean.dark"].clone()
+});
+
+/// 代码块高亮缓存
+struct CodeHighlightCache {
+    cache: LruCache<String, Vec<Span<'static>>>,
+    syntax_set: Option<SyntaxSet>,
+}
+
+fn cache_key_for_code_block(lang: &str, code: &str) -> String {
+    // 短块直接键入全文，避免哈希碰撞；长块用长度 + 内容哈希。
+    const INLINE_CAP: usize = 512;
+    if code.len() <= INLINE_CAP {
+        return format!("{lang}:{code}");
+    }
+    let mut h = DefaultHasher::new();
+    code.hash(&mut h);
+    format!("{lang}:{}:{:016x}", code.len(), h.finish())
+}
+
+impl CodeHighlightCache {
+    fn new() -> Self {
+        Self {
+            cache: LruCache::new(NonZeroUsize::new(50).unwrap()), // 缓存 50 个代码块
+            syntax_set: None,
+        }
+    }
+
+    fn highlight_code(&mut self, code: &str, lang: &str) -> Vec<Span<'static>> {
+        const MAX_HIGHLIGHT_BYTES: usize = 10_000;
+        if code.len() > MAX_HIGHLIGHT_BYTES {
+            return vec![Span::styled(code.to_string(), style_inline_code())];
+        }
+
+        let cache_key = cache_key_for_code_block(lang, code);
+
+        // 尝试从缓存获取
+        if let Some(cached) = self.cache.get(&cache_key) {
+            return cached.clone();
+        }
+
+        // 延迟加载语法集合
+        if self.syntax_set.is_none() {
+            self.syntax_set = Some(SyntaxSet::load_defaults_newlines());
+        }
+
+        let syntax_set = self.syntax_set.as_ref().unwrap();
+
+        // 查找语法
+        let syntax = syntax_set
+            .find_syntax_by_token(lang)
+            .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+
+        // 高亮代码
+        let mut h = HighlightLines::new(syntax, &SYNTAX_THEME);
+        let mut spans = Vec::new();
+
+        for line in LinesWithEndings::from(code) {
+            let ranges = h.highlight_line(line, syntax_set).unwrap_or_default();
+            for (style, text) in ranges {
+                let fg = Color::Rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+                let span = Span::styled(text.to_string(), Style::default().fg(fg));
+                spans.push(span);
+            }
+        }
+
+        // 保存到缓存
+        self.cache.put(cache_key, spans.clone());
+        spans
+    }
+}
+
+/// 全局代码高亮缓存
+static CODE_HIGHLIGHT_CACHE: Lazy<Mutex<CodeHighlightCache>> =
+    Lazy::new(|| Mutex::new(CodeHighlightCache::new()));
+
+fn flush_code_block_to_writer(writer: &mut WrapWriter, code: &str, lang: &str) {
+    let spans = CODE_HIGHLIGHT_CACHE
+        .lock()
+        .unwrap()
+        .highlight_code(code, lang);
+    writer.push_spans_wrapping(&spans);
+}
 
 /// 防止恶意超大 Markdown 拖垮终端。
 const MAX_MD_OUTPUT_LINES: usize = 16_384;
 const MAX_MD_TEXT_RUN: usize = 256_000;
+
+/// 带 Markdown 缓存的渲染函数（仅用于大于 1KB 的消息）
+fn render_markdown_cached(md: &str, width: usize, enable_osc8: bool) -> Option<Vec<Line<'static>>> {
+    // 只缓存较大的内容
+    if md.len() < 1024 {
+        return None;
+    }
+
+    let cache_key = format!("{}|{}|{}", md.len(), width, enable_osc8);
+
+    // 尝试从缓存获取（使用长度作为键避免复制大字符串）
+    {
+        let mut cache = MD_CACHE.lock().unwrap();
+        if let Some(cached) = cache.get(&cache_key) {
+            return Some(cached.clone());
+        }
+    }
+
+    None
+}
+
+/// 保存 Markdown 渲染结果到缓存
+fn cache_markdown_result(md: &str, width: usize, enable_osc8: bool, lines: Vec<Line<'static>>) {
+    if md.len() < 1024 {
+        return;
+    }
+
+    let cache_key = format!("{}|{}|{}", md.len(), width, enable_osc8);
+    MD_CACHE.lock().unwrap().put(cache_key, lines);
+}
 
 /// 按字节上限截断 `str`，保证落在 UTF-8 字符边界（避免 `is_char_boundary` panic）。
 fn truncate_str_at_char_boundary(s: &str, max_bytes: usize) -> &str {
@@ -38,6 +176,21 @@ fn env_osc8_links() -> bool {
 
 /// OSC 8 超链接（ST `\x1b\\` 终止，兼容 iTerm2 / Kitty / WezTerm / Windows Terminal 等）。
 fn osc8_hyperlink(url: &str, visible: &str) -> String {
+    // 生成缓存键
+    let mut hasher = DefaultHasher::new();
+    url.hash(&mut hasher);
+    visible.hash(&mut hasher);
+    let cache_key = hasher.finish();
+
+    // 尝试从缓存获取
+    {
+        let mut cache = OSC8_LINK_CACHE.lock().unwrap();
+        if let Some(cached) = cache.get(&cache_key) {
+            return cached.clone();
+        }
+    }
+
+    // 缓存未命中，生成链接
     let u: String = url
         .chars()
         .filter(|c| *c != '\x07' && *c != '\x1b')
@@ -47,14 +200,40 @@ fn osc8_hyperlink(url: &str, visible: &str) -> String {
     } else {
         visible
     };
-    format!("\x1b]8;;{u}\x1b\\{vis}\x1b]8;;\x1b\\")
+    let result = format!("\x1b]8;;{u}\x1b\\{vis}\x1b]8;;\x1b\\");
+
+    // 保存到缓存
+    OSC8_LINK_CACHE
+        .lock()
+        .unwrap()
+        .put(cache_key, result.clone());
+
+    result
 }
 
+/// ASCII 字符宽度缓存（预填充常用字符）
+static WIDTH_CACHE: Lazy<[usize; 128]> = Lazy::new(|| {
+    let mut cache = [0usize; 128];
+    for (i, slot) in cache.iter_mut().enumerate() {
+        let c = i as u8 as char;
+        *slot = UnicodeWidthChar::width(c)
+            .unwrap_or(0)
+            .max(if c.is_whitespace() { 1 } else { 0 })
+            .max(1);
+    }
+    cache
+});
+
 fn char_display_width(c: char) -> usize {
-    UnicodeWidthChar::width(c)
-        .unwrap_or(0)
-        .max(if c.is_whitespace() { 1 } else { 0 })
-        .max(1)
+    // ASCII 字符使用缓存
+    if c.is_ascii() {
+        WIDTH_CACHE[c as usize]
+    } else {
+        UnicodeWidthChar::width(c)
+            .unwrap_or(0)
+            .max(if c.is_whitespace() { 1 } else { 0 })
+            .max(1)
+    }
 }
 
 fn str_display_width(s: &str) -> usize {
@@ -64,6 +243,46 @@ fn str_display_width(s: &str) -> usize {
 /// 字符串在终端中的显示宽度（含宽字符，用于 Prompt / Plain 折行）。
 pub fn text_display_width(s: &str) -> usize {
     str_display_width(s)
+}
+
+/// 右侧用 ASCII 空格补齐到目标**显示宽度**（用于表格列对齐，如斜杠补全「命令 | 说明」）。
+pub fn pad_end_to_display_width(s: &str, target_cols: usize) -> String {
+    let w = text_display_width(s);
+    if w >= target_cols {
+        s.to_string()
+    } else {
+        format!("{}{}", s, " ".repeat(target_cols - w))
+    }
+}
+
+/// 截断到不超过 `max_cols` 显示列；过长时在末尾保留一列给 `…`（若宽度允许）。
+pub fn truncate_to_display_width(s: &str, max_cols: usize) -> String {
+    if text_display_width(s) <= max_cols {
+        return s.to_string();
+    }
+    if max_cols == 0 {
+        return String::new();
+    }
+    if max_cols == 1 {
+        return "…".to_string();
+    }
+    let budget = max_cols.saturating_sub(1);
+    let mut out = String::new();
+    let mut w = 0usize;
+    for ch in s.chars() {
+        let cw = char_display_width(ch);
+        if w + cw > budget {
+            break;
+        }
+        out.push(ch);
+        w += cw;
+    }
+    if out.is_empty() {
+        "…".to_string()
+    } else {
+        out.push('…');
+        out
+    }
 }
 
 /// 将单行按显示宽度自动折行（无样式），用于 Prompt、Plain 块等。
@@ -272,6 +491,22 @@ impl WrapWriter {
         self.line_w += vw;
     }
 
+    /// 将已着色的 `Span` 序列按显示宽度折行写入（fenced 代码块 syntect 输出）。
+    fn push_spans_wrapping(&mut self, spans: &[Span<'static>]) {
+        for sp in spans {
+            let st = sp.style;
+            for ch in sp.content.chars() {
+                if ch == '\n' {
+                    self.flush_line();
+                } else if ch == '\r' {
+                    continue;
+                } else {
+                    self.push_char_styled(st, ch);
+                }
+            }
+        }
+    }
+
     fn finish(mut self) -> Vec<Line<'static>> {
         self.flush_line();
         self.out
@@ -359,6 +594,13 @@ pub fn render_markdown_styled(
     content_width: usize,
     body_style: Style,
 ) -> Vec<Line<'static>> {
+    let use_osc8 = env_osc8_links();
+
+    // 尝试从缓存获取（仅对较大的内容）
+    if let Some(cached) = render_markdown_cached(md, content_width, use_osc8) {
+        return cached;
+    }
+
     let md_norm = loosen_glued_markdown_headings(md);
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
@@ -385,18 +627,19 @@ pub fn render_markdown_styled(
     let mut table_cell_buf: String = String::new();
     let mut in_table: bool = false;
     let mut in_table_cell: bool = false;
-    let use_osc8 = env_osc8_links();
     let mut link_plain: Option<String> = None;
+    let mut code_block_buf = String::new();
+    let mut code_block_lang = String::new();
 
     for event in parser {
         if writer.at_limit() {
             break;
         }
         match event {
-            Event::Start(Tag::Paragraph) => {
-                if !writer.line.is_empty() && writer.line_w > writer.prefix_w {
-                    writer.flush_line();
-                }
+            Event::Start(Tag::Paragraph)
+                if !writer.line.is_empty() && writer.line_w > writer.prefix_w =>
+            {
+                writer.flush_line();
             }
             Event::End(TagEnd::Paragraph) => {
                 writer.flush_line();
@@ -455,10 +698,12 @@ pub fn render_markdown_styled(
             Event::Start(Tag::CodeBlock(kind)) => {
                 writer.flush_line();
                 in_code_block = true;
-                let lang = match kind {
+                code_block_lang = match kind {
                     CodeBlockKind::Fenced(l) => l.to_string(),
                     CodeBlockKind::Indented => String::new(),
                 };
+                code_block_buf.clear();
+                let lang = code_block_lang.as_str();
                 let mut fence = writer.line_prefix.clone();
                 fence.push(Span::styled(
                     if lang.is_empty() {
@@ -476,10 +721,12 @@ pub fn render_markdown_styled(
                 writer.set_block_prefix_stack(&block_prefix_depth);
             }
             Event::End(TagEnd::CodeBlock) => {
+                flush_code_block_to_writer(&mut writer, &code_block_buf, code_block_lang.as_str());
                 writer.flush_line();
                 let _ = block_prefix_depth.pop();
                 writer.set_block_prefix_stack(&block_prefix_depth);
                 in_code_block = false;
+                code_block_buf.clear();
             }
             Event::Start(Tag::Strong) => {
                 inline.bold = inline.bold.saturating_add(1);
@@ -533,6 +780,10 @@ pub fn render_markdown_styled(
                     table_cell_buf.push('`');
                     continue;
                 }
+                if in_code_block {
+                    code_block_buf.push_str(code.as_ref());
+                    continue;
+                }
                 if use_osc8
                     && pending_link_url.is_some()
                     && link_plain.is_some()
@@ -556,6 +807,10 @@ pub fn render_markdown_styled(
             Event::Text(t) => {
                 if in_image {
                     image_alt.push_str(t.as_ref());
+                    continue;
+                }
+                if in_code_block {
+                    code_block_buf.push_str(t.as_ref());
                     continue;
                 }
                 if in_table && in_table_cell {
@@ -587,6 +842,8 @@ pub fn render_markdown_styled(
             Event::SoftBreak | Event::HardBreak => {
                 if in_table && in_table_cell {
                     table_cell_buf.push(' ');
+                } else if in_code_block {
+                    code_block_buf.push('\n');
                 } else if use_osc8
                     && pending_link_url.is_some()
                     && link_plain.is_some()
@@ -614,7 +871,8 @@ pub fn render_markdown_styled(
                 }
             }
             Event::TaskListMarker(done) => {
-                let mark = if done { "[x] " } else { "[ ] " };
+                // 避免 ASCII `[ ]`，减少与终端边框/表格线混成「左右括号」感。
+                let mark = if done { "☑ " } else { "☐ " };
                 if in_table && in_table_cell {
                     table_cell_buf.push_str(mark);
                 } else {
@@ -659,10 +917,8 @@ pub fn render_markdown_styled(
             Event::Start(Tag::TableRow) => {
                 table_row_cells.clear();
             }
-            Event::End(TagEnd::TableRow) => {
-                if in_table {
-                    table_rows.push(table_row_cells.clone());
-                }
+            Event::End(TagEnd::TableRow) if in_table => {
+                table_rows.push(table_row_cells.clone());
             }
             Event::Start(Tag::TableCell) => {
                 in_table_cell = true;
@@ -674,10 +930,18 @@ pub fn render_markdown_styled(
                 table_cell_buf.clear();
             }
             Event::Html(html) | Event::InlineHtml(html) => {
-                writer.push_str_styled(style_dim(), html.as_ref());
+                if in_code_block {
+                    code_block_buf.push_str(html.as_ref());
+                } else {
+                    writer.push_str_styled(style_dim(), html.as_ref());
+                }
             }
             Event::FootnoteReference(l) => {
-                writer.push_str_styled(style_dim(), &format!("[^{}]", l.as_ref()));
+                if in_code_block {
+                    code_block_buf.push_str(&format!("†{}", l.as_ref()));
+                } else {
+                    writer.push_str_styled(style_dim(), &format!("†{}", l.as_ref()));
+                }
             }
             Event::Start(Tag::Image { dest_url, .. }) => {
                 in_image = true;
@@ -703,7 +967,11 @@ pub fn render_markdown_styled(
                 writer.flush_line();
             }
             Event::InlineMath(m) | Event::DisplayMath(m) => {
-                writer.push_str_styled(style_dim(), &format!("`${}`", m.as_ref()));
+                if in_code_block {
+                    code_block_buf.push_str(m.as_ref());
+                } else {
+                    writer.push_str_styled(style_dim(), &format!("`${}`", m.as_ref()));
+                }
             }
             Event::Start(Tag::MetadataBlock(_)) => {}
             Event::End(TagEnd::MetadataBlock(_)) => {
@@ -734,6 +1002,10 @@ pub fn render_markdown_styled(
             style_dim(),
         )));
     }
+
+    // 保存到缓存
+    cache_markdown_result(md, content_width, use_osc8, lines.clone());
+
     lines
 }
 
@@ -788,6 +1060,39 @@ pub fn wrap_plain_bullet_prefixed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_key_distinguishes_same_length_different_content() {
+        assert_ne!(
+            super::cache_key_for_code_block("rust", "aa"),
+            super::cache_key_for_code_block("rust", "bb")
+        );
+    }
+
+    #[test]
+    fn fenced_rust_emits_highlighted_source() {
+        let md = "```rust\nfn main() {}\n```\n";
+        let lines = render_markdown_styled(md, 40, Style::default());
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(joined.contains("fn"));
+        assert!(joined.contains("main"));
+    }
+
+    #[test]
+    fn fenced_unknown_lang_still_renders_body() {
+        let md = "```weirdlang\nhello\n```\n";
+        let lines = render_markdown_styled(md, 40, Style::default());
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(joined.contains("hello"));
+    }
 
     #[test]
     fn renders_heading_and_list() {
@@ -845,5 +1150,21 @@ mod tests {
         assert!(s.contains("https://ex.test"));
         assert!(s.contains("go"));
         assert!(s.starts_with('\x1b'));
+    }
+
+    #[test]
+    fn pad_end_aligns_slash_command_column() {
+        let a = pad_end_to_display_width("/a", 8);
+        let b = pad_end_to_display_width("/clear", 8);
+        assert_eq!(text_display_width(&a), 8);
+        assert_eq!(text_display_width(&b), 8);
+    }
+
+    #[test]
+    fn truncate_to_display_width_respects_wide_chars() {
+        let s = "你好";
+        assert!(text_display_width(s) >= 4);
+        let t = truncate_to_display_width(s, 3);
+        assert!(text_display_width(&t) <= 3);
     }
 }

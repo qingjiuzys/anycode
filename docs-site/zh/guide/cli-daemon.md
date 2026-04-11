@@ -1,37 +1,30 @@
 ---
-title: 守护进程（HTTP）
-description: anycode daemon — 与 run 共用运行时，健康检查与任务接口。
-summary: 绑定地址、POST /v1/tasks 与可选令牌。
+title: HTTP 守护进程（已移除）
+description: anycode HTTP daemon 子命令已删除；请用 run、REPL/TUI 或通道桥。
+summary: 历史说明与 ADR 003；仓库内不再提供 localhost POST /v1/tasks。
 read_when:
-  - 需要通过本机 HTTP 触发任务。
+  - 你打开了旧的 `anycode daemon` 或 POST /v1/tasks 文档链接。
 ---
 
-# 守护进程（HTTP）
+# HTTP 守护进程（已移除）
 
-与 **`run`** **共用同一套** `initialize_runtime`（LLM、工具注册、`SecurityLayer`、沙箱等）。
+**`anycode daemon`** HTTP 服务（**`GET /health`**、**`POST /v1/tasks`**）已 **不作为产品能力维护**。CLI 会将 **`daemon`** 子命令视为 **已移除**（与其它废弃子命令一样拒绝），原先的 `daemon_http` 模块已从默认路径删除。
 
-```bash
-./target/release/anycode daemon --bind 127.0.0.1:8080
-```
+**请改用**
 
-- **`GET /health`**：返回纯文本 **`ok`**。  
-- **`POST /v1/tasks`**：`Content-Type: application/json`：
+- 脚本/CI：**`anycode run`**  
+- 交互：**`anycode repl`** / **`anycode tui`**  
+- 常驻或定时：**`anycode channel …`**、**`anycode scheduler`**  
+- 若需要自建 HTTP：在外部服务里 **调用 CLI**，而非依赖仓库内嵌 HTTP daemon
 
-```json
-{
-  "agent": "general-purpose",
-  "prompt": "你的任务描述",
-  "working_directory": null
-}
-```
+**决策记录：** [ADR 003](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/003-http-daemon-deprecated.md)。
 
-**`working_directory`** 可省略或 `null`，表示进程当前目录（会 canonicalize）。
-
-若设置 **`ANYCODE_DAEMON_TOKEN`**，则 **`POST /v1/tasks`** 需携带 **`Authorization: Bearer <token>`** 或 **`X-Anycode-Token: <token>`**。**`/health`** 不受令牌保护。建议仅绑定本机。
+**维护者 backlog：** [`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md)。
 
 ## 相关
 
+- [CLI 总览](./cli) — 当前子命令  
 - [架构](./architecture)  
-- [排错](./troubleshooting)  
+- [路线图](./roadmap) — MVP 与工具矩阵（不含 daemon）
 
-English: [Daemon](/guide/cli-daemon).
+English: [HTTP daemon (removed)](/guide/cli-daemon).

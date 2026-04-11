@@ -97,6 +97,17 @@ impl<'a> PromptAssembler<'a> {
             }
         }
 
+        // 通道特定提示词段（新增）
+        if let Some(channel_prompt) = self.config.channel_section.as_deref() {
+            let trimmed = channel_prompt.trim();
+            if !trimmed.is_empty() {
+                segments.push(SystemPromptSegment {
+                    id: "channel_specific",
+                    text: format!("# Channel Context\n\n{}", trimmed),
+                });
+            }
+        }
+
         if let Some(a) = self.config.system_prompt_append.as_deref() {
             if !a.trim().is_empty() {
                 segments.push(SystemPromptSegment {

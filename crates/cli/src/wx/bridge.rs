@@ -218,7 +218,7 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
                 tracing::debug!(?from, "{}", tr("wx-log-skip-empty-items"));
                 continue;
             }
-            let items_ref: Vec<_> = items.iter().cloned().collect();
+            let items_ref: Vec<_> = items.to_vec();
             let ctx_tok = str_snake_camel(&msg, "context_token", "contextToken")
                 .unwrap_or("")
                 .to_string();
@@ -287,7 +287,7 @@ async fn handle_message(
                 .unwrap_or_default()
     {
         session.working_directory = wcc.working_directory.clone();
-        let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+        let _ = save_session(&st.data_root, &st.account.account_id, &session);
     }
 
     if session.state == SessionState::Processing {
@@ -296,13 +296,13 @@ async fn handle_message(
                 h.abort();
             }
             session.state = SessionState::Idle;
-            let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+            let _ = save_session(&st.data_root, &st.account.account_id, &session);
         } else if !user_text.trim_start().starts_with('/') {
             if let Some(h) = st.active_task.lock().await.take() {
                 h.abort();
             }
             session.state = SessionState::Idle;
-            let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+            let _ = save_session(&st.data_root, &st.account.account_id, &session);
         } else if !user_text.starts_with("/status") && !user_text.starts_with("/help") {
             drop(session);
             return Ok(());
@@ -324,7 +324,7 @@ async fn handle_message(
     if session.state == SessionState::WaitingPermission {
         if st.broker.get_pending().await.is_none() {
             session.state = SessionState::Idle;
-            let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+            let _ = save_session(&st.data_root, &st.account.account_id, &session);
             st.sender
                 .send_text(&from_user_id, &context_token, &tr("wx-perm-stale"))
                 .await?;
@@ -364,12 +364,12 @@ async fn handle_message(
         let mut ctx = CmdCtx {
             data_root: &st.data_root,
             account_id: &st.account.account_id,
-            session: &mut *session,
+            session: &mut session,
             wcc: &mut wcc_mut,
         };
         match route_command(&user_text, &mut ctx)? {
             CmdOut::Reply(s) => {
-                let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+                let _ = save_session(&st.data_root, &st.account.account_id, &session);
                 *st.wcc_arc.lock().await = wcc_mut.clone();
                 drop(session);
                 st.sender
@@ -430,7 +430,7 @@ async fn run_agent_pipeline(
             user_line.clone()
         };
         add_chat_message(&mut session, "user", &content);
-        let _ = save_session(&st.data_root, &st.account.account_id, &*session);
+        let _ = save_session(&st.data_root, &st.account.account_id, &session);
     }
 
     let image_note = if let Some(ref it) = image_item {
@@ -518,6 +518,7 @@ async fn run_agent_pipeline(
         };
 
         let result = rt.execute_task(task).await;
+        rt.sync_memory_durability();
         gate.set_active_chat(None).await;
 
         let mut session = session_arc.lock().await;
@@ -552,7 +553,7 @@ async fn run_agent_pipeline(
             }
         };
         session.state = SessionState::Idle;
-        let _ = save_session(&data_root, &account_id, &*session);
+        let _ = save_session(&data_root, &account_id, &session);
         drop(session);
 
         for chunk in split_message(&reply, CHUNK_MAX) {

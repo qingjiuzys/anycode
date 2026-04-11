@@ -5,9 +5,7 @@ mod tests {
         ctrl_o_fold_cycle, layout_workspace, message_to_entries, transcript_tail_closing_matches,
         CollapsibleToolBlock, TranscriptEntry, WorkspaceLiveLayout,
     };
-    use anycode_core::{
-        Message, MessageContent, MessageRole, ANYCODE_CONTEXT_USER_METADATA_KEY,
-    };
+    use anycode_core::{Message, MessageContent, MessageRole, ANYCODE_CONTEXT_USER_METADATA_KEY};
     use chrono::Utc;
     use std::collections::HashMap;
     use uuid::Uuid;
@@ -379,5 +377,71 @@ mod tests {
             "expected completed bash phrasing, got {joined}"
         );
         assert!(!joined.contains("Running") && !joined.contains("正在执行"));
+    }
+
+    #[test]
+    fn stream_repl_hides_germinating_status_line() {
+        let entries = vec![TranscriptEntry::User("hello".into())];
+        let folds = std::collections::HashSet::new();
+        let lines = layout_workspace(
+            &entries,
+            80,
+            &folds,
+            WorkspaceLiveLayout {
+                executing: true,
+                working_elapsed_secs: Some(2),
+                stream_repl_claude_user_prefix: true,
+                ..Default::default()
+            },
+        );
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
+            .collect();
+        assert!(!joined.contains("Germinating"));
+        assert!(!joined.contains("思考中"));
+    }
+
+    #[test]
+    fn stream_repl_executing_hides_last_user_until_non_user_tail() {
+        let entries = vec![TranscriptEntry::User("hi".into())];
+        let folds = std::collections::HashSet::new();
+        let lines = layout_workspace(
+            &entries,
+            80,
+            &folds,
+            WorkspaceLiveLayout {
+                executing: true,
+                stream_repl_claude_user_prefix: true,
+                ..Default::default()
+            },
+        );
+        assert!(
+            lines.is_empty() || lines.iter().all(|l| l.spans.is_empty()),
+            "expected no user row in main pane while waiting, got {lines:?}"
+        );
+
+        let entries2 = vec![
+            TranscriptEntry::User("hi".into()),
+            TranscriptEntry::AssistantMarkdown("ok".into()),
+        ];
+        let lines2 = layout_workspace(
+            &entries2,
+            80,
+            &folds,
+            WorkspaceLiveLayout {
+                executing: true,
+                stream_repl_claude_user_prefix: true,
+                ..Default::default()
+            },
+        );
+        let joined: String = lines2
+            .iter()
+            .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
+            .collect();
+        assert!(
+            joined.contains("hi"),
+            "expected user once assistant exists, got {joined:?}"
+        );
     }
 }

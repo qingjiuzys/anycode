@@ -31,6 +31,13 @@ cargo fmt
 cargo clippy
 ```
 
+## 架构阅读顺序（约 5 分钟）
+
+1. **`crates/core/src/traits.rs`** — `Tool`、`LLMClient`、`MemoryStore` 等端口。
+2. **`crates/agent/src/runtime/`** — `AgentRuntime` 与工具/LLM 循环（`session.rs`）；编排权威**不是** `Agent::execute`（见仓库 `docs/adr/000-runtime-orchestration.md`）。
+3. **`crates/cli/src/bootstrap/runtime.rs`** — CLI/TUI/通道桥共用的 `initialize_runtime` 组装。
+4. **[扩展与贡献清单](contributing-extensions)** — registry、catalog、提供商等 checklist。
+
 ## 修改默认工具集（门禁）
 
 新增或调整 **默认暴露给模型的工具** 时，必须按 `[crates/tools/src/registry.rs](../../../crates/tools/src/registry.rs)` 文件顶部的 **checklist** 逐项完成（`ins!` 注册、`catalog` 常量、`DEFAULT_TOOL_IDS`、单测等）。若工具涉及写文件、外链、子 Agent、编排等敏感能力，还须把 API 名加入 `[catalog::SECURITY_SENSITIVE_TOOL_IDS](../../../crates/tools/src/catalog.rs)`（CLI `bootstrap` 会据此注册 `SecurityLayer`，勿在 `bootstrap` 再维护平行列表）。

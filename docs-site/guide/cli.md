@@ -1,7 +1,7 @@
 ---
 title: CLI overview
 description: anycode binary, global flags, and links to focused CLI guides.
-summary: Entry point for subcommands; points to sessions, daemon, models, WeChat, and diagnostics.
+summary: Entry point for subcommands; points to sessions, models, WeChat, diagnostics, and removed HTTP daemon note.
 read_when:
   - You need a map of CLI documentation before diving into one subcommand.
 ---
@@ -17,7 +17,7 @@ read_when:
 - **`--model <ID>`** — long option only on the **default TUI** entry (no subcommand); avoids clashing with **`repl`’s `-m/--model`**.  
 - **`--ignore-approval`** (aliases **`--ignore`**, typo **`--ingroe`**) — skip interactive approval **for this process only**; does not rewrite `config.json`.
 
-Subcommands that read/write config (**`run`**, TUI, **`repl`**, **`daemon`**, **`model`**, etc.) honor **`-c`**.
+Subcommands that read/write config (**`run`**, **`tui`**, **`repl`**, **`model`**, **`channel`**, etc.) honor **`-c`**.
 
 ```bash
 anycode config
@@ -30,7 +30,7 @@ See [Config & security](./config-security) for **`security.*`**, memory fields, 
 | Topic | Page |
 |--------|------|
 | **`run`**, **`repl`**, fullscreen TUI, task logs | [Run, REPL & TUI](./cli-sessions) |
-| **`daemon`** HTTP API | [Daemon](./cli-daemon) |
+| **HTTP `daemon`** (removed) | [HTTP daemon (removed)](./cli-daemon) |
 | **`model`*** subcommands | [Model commands](./cli-model) |
 | **`list-agents`**, **`list-tools`**, **`test-security`** | [Discovery & test-security](./cli-diagnostics) |
 | **`setup`**, **`wechat`** | [WeChat & setup](./wechat) |

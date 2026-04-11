@@ -24,9 +24,13 @@ aws-sdk-bedrockruntime = "1.129.0"
 aws-smithy-types = "1.4"
 dirs = "6.0.0"
 url = "2.5"
+rand = "0.8"
 
 [features]
 default = ["anthropic"]
 anthropic = []
 openai = []
 # local = ["candle-core"]  # Disabled until candle is added as a dependency
+
+[lints]
+workspace = true

@@ -53,7 +53,10 @@ pub trait Tool: Send + Sync {
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError>;
 }
 
-/// 记忆存储（多类型 Project/User/Session 等）
+/// 已巩固记忆的存储抽象（legacy：`file` / `hybrid` / `noop` 直接持久化；新管线中热层仍实现本 trait 的投影）。
+///
+/// 与 [`crate::MemoryPipeline`] 区分：管线负责虚态缓冲、强化与晋升；`MemoryStore` 强调 **CRUD + recall** 的
+/// 稳定接口，供工具与兼容层使用。
 #[async_trait]
 pub trait MemoryStore: Send + Sync {
     async fn save(&self, memory: Memory) -> Result<(), CoreError>;

@@ -14,6 +14,9 @@ pub enum CoreError {
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
+    #[error("Config error: {0}")]
+    ConfigError(String),
+
     #[error("LLM error: {0}")]
     LLMError(String),
 

@@ -6,6 +6,7 @@ use super::zai::{
     is_retryable_status, llm_response_from_openai_compatible_str, messages_to_openai_json,
     openai_tools_from_schemas, retry_delay_ms,
 };
+use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use crate::LLMError;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
@@ -36,6 +37,13 @@ struct OpenAiChatRequestBody {
     tools: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_choice: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream_options: Option<OpenAiStreamOptions>,
+}
+
+#[derive(Debug, Serialize)]
+struct OpenAiStreamOptions {
+    include_usage: bool,
 }
 
 fn openai_tool_choice(tools_empty: bool) -> Option<String> {
@@ -64,6 +72,85 @@ fn build_http_client() -> Client {
         .timeout(Duration::from_millis(configured_api_timeout_ms()))
         .build()
         .unwrap_or_else(|_| Client::new())
+}
+
+/// `true` 表示应停止（`tx` 已关闭）。
+async fn emit_openai_sse_json_chunk(
+    val: &Value,
+    tx: &mpsc::Sender<StreamEvent>,
+    tool_builders: &mut HashMap<u64, (Option<String>, Option<String>, String)>,
+) -> bool {
+    if let Some(usage) = val.get("usage").and_then(openai_stream_usage_from_value) {
+        if tx.send(StreamEvent::Usage(usage)).await.is_err() {
+            return true;
+        }
+    }
+    let choice = val
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|a| a.first());
+
+    if let Some(delta) = choice.and_then(|c| c.get("delta")) {
+        if let Some(c) = delta.get("content").and_then(|x| x.as_str()) {
+            if !c.is_empty() && tx.send(StreamEvent::Delta(c.to_string())).await.is_err() {
+                return true;
+            }
+        }
+        if let Some(arr) = delta.get("tool_calls").and_then(|x| x.as_array()) {
+            for part in arr {
+                let index = part.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+                let entry = tool_builders
+                    .entry(index)
+                    .or_insert((None, None, String::new()));
+                if let Some(id) = part.get("id").and_then(|i| i.as_str()) {
+                    entry.0 = Some(id.to_string());
+                }
+                if let Some(f) = part.get("function") {
+                    if let Some(n) = f.get("name").and_then(|x| x.as_str()) {
+                        entry.1.get_or_insert_with(|| n.to_string());
+                    }
+                    if let Some(a) = f.get("arguments").and_then(|x| x.as_str()) {
+                        entry.2.push_str(a);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(reason) = choice
+        .and_then(|c| c.get("finish_reason"))
+        .and_then(|r| r.as_str())
+    {
+        if reason == "tool_calls" {
+            let mut indices: Vec<u64> = tool_builders.keys().copied().collect();
+            indices.sort_unstable();
+            for i in indices {
+                if let Some((id_o, name_o, args)) = tool_builders.remove(&i) {
+                    let id = id_o.unwrap_or_else(|| format!("call_{i}"));
+                    let name = name_o.unwrap_or_default();
+                    let input: Value = if args.trim().is_empty() {
+                        json!({})
+                    } else {
+                        serde_json::from_str(&args).unwrap_or_else(|_| json!({ "raw": args }))
+                    };
+                    let tc = ToolCall { id, name, input };
+                    if tx.send(StreamEvent::ToolCall(tc)).await.is_err() {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn openai_stream_usage_from_value(v: &Value) -> Option<Usage> {
+    Some(Usage {
+        input_tokens: v.get("prompt_tokens")?.as_u64()? as u32,
+        output_tokens: v.get("completion_tokens")?.as_u64()? as u32,
+        cache_creation_tokens: None,
+        cache_read_tokens: None,
+    })
 }
 
 async fn send_chat_with_retries(
@@ -230,6 +317,7 @@ impl LLMClient for OpenAIClient {
             stream: Some(false),
             tools: tools_json,
             tool_choice,
+            stream_options: None,
         };
 
         let base_url = config
@@ -297,6 +385,9 @@ impl LLMClient for OpenAIClient {
             stream: Some(true),
             tools: tools_json,
             tool_choice,
+            stream_options: Some(OpenAiStreamOptions {
+                include_usage: true,
+            }),
         };
 
         let base_url = config
@@ -343,7 +434,7 @@ impl LLMClient for OpenAIClient {
             }
 
             let mut stream = response.bytes_stream();
-            let mut line_buf = String::new();
+            let mut sse_buf = SseLineBuffer::new();
             let mut tool_builders: HashMap<u64, (Option<String>, Option<String>, String)> =
                 HashMap::new();
 
@@ -358,83 +449,29 @@ impl LLMClient for OpenAIClient {
                 let Ok(text) = std::str::from_utf8(&chunk) else {
                     continue;
                 };
-                line_buf.push_str(text);
-
-                while let Some(pos) = line_buf.find('\n') {
-                    let line = line_buf[..pos].trim_end_matches('\r').to_string();
-                    line_buf.drain(..=pos);
-
-                    let Some(data) = line.strip_prefix("data:").map(str::trim) else {
+                for line_ev in sse_buf.push_str(text) {
+                    let data = match line_ev {
+                        SseDataLine::Done => break 'read,
+                        SseDataLine::Payload(s) => s,
+                    };
+                    let Ok(val) = serde_json::from_str::<Value>(&data) else {
                         continue;
                     };
-                    if data == "[DONE]" {
-                        break 'read;
+                    if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                        return;
                     }
-                    let Ok(val) = serde_json::from_str::<Value>(data) else {
-                        continue;
-                    };
+                }
+            }
 
-                    let choice = val
-                        .get("choices")
-                        .and_then(|c| c.as_array())
-                        .and_then(|a| a.first());
-
-                    if let Some(delta) = choice.and_then(|c| c.get("delta")) {
-                        if let Some(c) = delta.get("content").and_then(|x| x.as_str()) {
-                            if !c.is_empty()
-                                && tx.send(StreamEvent::Delta(c.to_string())).await.is_err()
-                            {
-                                return;
-                            }
-                        }
-                        if let Some(arr) = delta.get("tool_calls").and_then(|x| x.as_array()) {
-                            for part in arr {
-                                let index = part.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
-                                let entry = tool_builders.entry(index).or_insert((
-                                    None,
-                                    None,
-                                    String::new(),
-                                ));
-                                if let Some(id) = part.get("id").and_then(|i| i.as_str()) {
-                                    entry.0 = Some(id.to_string());
-                                }
-                                if let Some(f) = part.get("function") {
-                                    if let Some(n) = f.get("name").and_then(|x| x.as_str()) {
-                                        entry.1.get_or_insert_with(|| n.to_string());
-                                    }
-                                    if let Some(a) = f.get("arguments").and_then(|x| x.as_str()) {
-                                        entry.2.push_str(a);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(reason) = choice
-                        .and_then(|c| c.get("finish_reason"))
-                        .and_then(|r| r.as_str())
-                    {
-                        if reason == "tool_calls" {
-                            let mut indices: Vec<u64> = tool_builders.keys().copied().collect();
-                            indices.sort_unstable();
-                            for i in indices {
-                                if let Some((id_o, name_o, args)) = tool_builders.remove(&i) {
-                                    let id = id_o.unwrap_or_else(|| format!("call_{i}"));
-                                    let name = name_o.unwrap_or_default();
-                                    let input: Value = if args.trim().is_empty() {
-                                        json!({})
-                                    } else {
-                                        serde_json::from_str(&args)
-                                            .unwrap_or_else(|_| json!({ "raw": args }))
-                                    };
-                                    let tc = ToolCall { id, name, input };
-                                    if tx.send(StreamEvent::ToolCall(tc)).await.is_err() {
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                    }
+            for line_ev in sse_buf.finish() {
+                let SseDataLine::Payload(data) = line_ev else {
+                    break;
+                };
+                let Ok(val) = serde_json::from_str::<Value>(&data) else {
+                    continue;
+                };
+                if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                    return;
                 }
             }
 

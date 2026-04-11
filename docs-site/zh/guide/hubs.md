@@ -15,7 +15,7 @@ read_when:
 - [安装](./install)  
 - [CLI 总览](./cli)  
 - [run / REPL / TUI](./cli-sessions)  
-- [守护进程](./cli-daemon)  
+- [HTTP 守护进程（已移除）](./cli-daemon)  
 - [模型子命令](./cli-model)  
 - [发现与 test-security](./cli-diagnostics)  
 - [Agent skills](./skills)  
@@ -27,6 +27,7 @@ read_when:
 - [排错](./troubleshooting)  
 - [开发与贡献](./development)  
 - [路线图](./roadmap)  
+- [实施清单（跳转说明）](./implementation-checklist)  
 - [本页](./hubs)  
 
 English: [All pages (hub)](/guide/hubs).

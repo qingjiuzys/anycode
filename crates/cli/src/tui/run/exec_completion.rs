@@ -9,7 +9,7 @@ use crate::tui::transcript::{
 };
 use anycode_agent::AgentRuntime;
 use anycode_core::{
-    strip_llm_reasoning_xml_blocks, AgentType, Artifact, Message, MessageContent, MessageRole,
+    strip_llm_reasoning_xml_blocks, AgentType, Message, MessageContent, MessageRole, TurnOutput,
     Usage,
 };
 use fluent_bundle::FluentArgs;
@@ -42,10 +42,12 @@ async fn apply_compact_success_to_workspace(
     exec_live_tail: &mut Option<(usize, u64)>,
     exec_prev_len: &mut usize,
     last_max_input_tokens: &mut u32,
+    last_turn_usage: &mut Option<Usage>,
     transcript_scroll_up: &mut usize,
     done_hint: String,
 ) {
     *last_max_input_tokens = usage.input_tokens;
+    *last_turn_usage = Some(usage);
     let frozen = {
         let mut g = messages.lock().await;
         *g = new_msgs;
@@ -78,7 +80,7 @@ pub(super) async fn append_user_line_and_spawn_turn(
     agent_type: &AgentType,
     messages: &Arc<Mutex<Vec<Message>>>,
     working_dir_str: &str,
-) -> JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>> {
+) -> JoinHandle<anyhow::Result<TurnOutput>> {
     transcript.push(TranscriptEntry::User(trimmed.to_string()));
     apply_tool_transcript_pipeline(transcript, next_tool_fold_id);
     *transcript_gen = transcript_gen.wrapping_add(1);
@@ -125,11 +127,12 @@ pub(super) async fn consume_finished_compact(
     exec_prev_len: &mut usize,
     last_turn_error: &mut Option<String>,
     last_max_input_tokens: &mut u32,
+    last_turn_usage: &mut Option<Usage>,
     transcript_scroll_up: &mut usize,
     runtime: &Arc<AgentRuntime>,
     agent_type: &AgentType,
     working_dir_str: &str,
-) -> Option<JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>>> {
+) -> Option<JoinHandle<anyhow::Result<TurnOutput>>> {
     let err_key = match &followup {
         CompactFollowup::ManualSlash => "tui-err-compact-failed",
         CompactFollowup::AutoThenUserTurn { .. } => "tui-err-autocompact-failed",
@@ -162,6 +165,7 @@ pub(super) async fn consume_finished_compact(
                 exec_live_tail,
                 exec_prev_len,
                 last_max_input_tokens,
+                last_turn_usage,
                 transcript_scroll_up,
                 done_hint,
             )
@@ -231,7 +235,7 @@ pub(super) fn rebuild_transcript_from_messages(
 }
 
 pub(super) async fn consume_finished_turn(
-    handle: JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>>,
+    handle: JoinHandle<anyhow::Result<TurnOutput>>,
     messages: &Arc<Mutex<Vec<Message>>>,
     exec_prev_len: usize,
     transcript: &mut Vec<TranscriptEntry>,
@@ -239,6 +243,7 @@ pub(super) async fn consume_finished_turn(
     next_tool_fold_id: &mut u64,
     last_turn_error: &mut Option<String>,
     last_max_input_tokens: &mut u32,
+    last_turn_usage: &mut Option<Usage>,
     // live_anchor: (transcript_tail_start, fold_id_base)，与 sync_transcript 一致；完成时先截断再正式回填。
     live_anchor: Option<(usize, u64)>,
 ) {
@@ -248,8 +253,14 @@ pub(super) async fn consume_finished_turn(
         transcript.truncate(tail_start);
     }
     match result {
-        Ok(Ok((final_text, artifacts, max_in))) => {
-            *last_max_input_tokens = max_in;
+        Ok(Ok(out)) => {
+            let TurnOutput {
+                final_text,
+                artifacts,
+                usage,
+            } = out;
+            *last_max_input_tokens = usage.max_input_tokens;
+            *last_turn_usage = Some(usage.to_usage());
             let new_msgs = {
                 let g = messages.lock().await;
                 g.get(exec_prev_len..)

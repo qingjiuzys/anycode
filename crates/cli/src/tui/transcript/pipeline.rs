@@ -302,7 +302,7 @@ pub(crate) fn ctrl_o_fold_cycle(
             _ => None,
         })
         .collect();
-    if let Some(id) = ids.iter().rev().next() {
+    if let Some(id) = ids.iter().next_back() {
         expanded.insert(*id);
     }
 }

@@ -12,6 +12,6 @@ anycode/
     ├── security/              # SecurityLayer、审批、策略
     ├── channels/              # 多通道（预留；CLI 当前未依赖）
     ├── onboard/               # 配置向导等
-    └── cli/                   # anycode 二进制：main / app_config / bootstrap / tasks / tui/… / md_tui / daemon_http
+    └── cli/                   # anycode 二进制：main / app_config / bootstrap / tasks / tui/… / md_tui
 
 说明：历史文档若提到独立 memory crate，以本仓库实际 members 为准。

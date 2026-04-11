@@ -141,7 +141,7 @@ fn capitalize_first(s: &str) -> String {
 
 fn pulse_dim_assistant_bold(live: WorkspaceLiveLayout, enabled: bool) -> Style {
     let mut s = style_assistant().add_modifier(Modifier::BOLD);
-    if enabled && live.executing && live.pulse_frame % 2 == 0 {
+    if enabled && live.executing && live.pulse_frame.is_multiple_of(2) {
         s = s.add_modifier(Modifier::DIM);
     }
     s
@@ -160,12 +160,24 @@ fn last_user_entry_index(entries: &[TranscriptEntry]) -> Option<usize> {
         .rposition(|e| matches!(e, TranscriptEntry::User(_)))
 }
 
+/// 流式 REPL：最后一条用户之后是否已有「非用户」条目（助手/工具等）。
+fn has_non_user_content_after(entries: &[TranscriptEntry], user_idx: usize) -> bool {
+    entries
+        .iter()
+        .skip(user_idx + 1)
+        .any(|e| !matches!(e, TranscriptEntry::User(_)))
+}
+
 /// Turn 进行中：在最后一条用户消息之后显示 Germinating（会话流内，与 Prompt Dock 解耦）；已有非空 assistant 正文则隐藏。
 fn should_show_turn_status_after_user(
     entries: &[TranscriptEntry],
     user_idx: usize,
     live: WorkspaceLiveLayout,
 ) -> bool {
+    // 流式 REPL 的执行态统一放在 prompt 上方 HUD，不在正文区再插入一份。
+    if live.stream_repl_claude_user_prefix {
+        return false;
+    }
     if !live.executing {
         return false;
     }
@@ -205,10 +217,8 @@ fn last_tool_ui_fold_id(entries: &[TranscriptEntry], live: WorkspaceLiveLayout) 
             | TranscriptEntry::ReadToolBatch { fold_id, .. }
             | TranscriptEntry::ToolTurn { fold_id, .. } => return Some(*fold_id),
             TranscriptEntry::User(_) => return None,
-            TranscriptEntry::AssistantMarkdown(_) => {
-                if !live.executing {
-                    return None;
-                }
+            TranscriptEntry::AssistantMarkdown(_) if !live.executing => {
+                return None;
             }
             _ => {}
         }
@@ -433,11 +443,24 @@ pub(crate) fn layout_workspace(
                 if t.is_empty() {
                     continue;
                 }
+                // 流式 Inline：执行中且尚无助手/工具输出时，不在主区重复画 `❯` 用户行（与底部 HUD 的 ✶ thinking 解耦）。
+                if live.stream_repl_claude_user_prefix
+                    && live.executing
+                    && last_user_entry_index(entries) == Some(ei)
+                    && !has_non_user_content_after(entries, ei)
+                {
+                    continue;
+                }
+                let user_prefix = if live.stream_repl_claude_user_prefix {
+                    "❯ "
+                } else {
+                    "> "
+                };
                 let mut md_lines =
                     render_markdown_styled(t, w, style_user().add_modifier(Modifier::BOLD));
                 if let Some(first) = md_lines.first_mut() {
                     let mut spans = vec![Span::styled(
-                        "> ",
+                        user_prefix,
                         style_user().add_modifier(Modifier::BOLD),
                     )];
                     spans.extend(first.spans.clone());

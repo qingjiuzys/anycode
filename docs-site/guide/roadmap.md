@@ -11,6 +11,8 @@ read_when:
 
 This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-stubs**, and **MCP post-MVP** notes into one bilingual information architecture. **Source of truth for code** remains `crates/tools/src/catalog.rs`, `crates/tools/src/agent_tools.rs` (**Agent** / **Task**), `crates/cli/src/bootstrap/mod.rs`, and `crates/agent/src/agents.rs`.
 
+**Maintainer execution backlog** (now / next / later, decisions): repository **[`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md)** — edit that file instead of duplicating task lists here.
+
 ## MVP scope (frozen)
 
 **In MVP**
@@ -19,7 +21,7 @@ This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-st
 - **Approval / sandbox** (`SecurityLayer` and config).  
 - At least one practical **tool-calling** path for **z.ai (OpenAI-compatible)** and **Anthropic**.  
 - **Execution logs** under **`~/.anycode/tasks/<id>/output.log`** and **summary** when not TUI-only output.  
-- **CLI**: **`run`**, default TUI, **`repl`**, optional **`daemon` HTTP**.
+- **CLI**: **`run`**, **`repl`**, **`tui`**, channel bridges, **`scheduler`**, etc. (**HTTP `daemon`** was removed — see [ADR 003](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/003-http-daemon-deprecated.md) and [HTTP daemon (removed)](./cli-daemon).)
 
 **Out of MVP** (separate milestones; does not block an MVP release)
 
@@ -115,7 +117,7 @@ Pick **one** primary thread for the next milestone-sized effort (avoid two large
 
 | Thread | Goal (issue-sized starters) |
 |--------|-----------------------------|
-| **P5 Agent / Task** | Optional: tighter alignment between **orchestration** records and daemon **`~/.anycode/tasks/<id>/`**; **fork** / true **async background** parity with Claude. |
+| **P5 Agent / Task** | Optional: tighter alignment between **orchestration** records and task **`~/.anycode/tasks/<id>/`** layouts; **fork** / true **async background** parity with Claude. |
 | **MCP beyond stdio v1** | Stdio health checks and clearer errors; timeouts on `tools/call`; **McpAuth** / OAuth ergonomics without a GUI; real **List** / **Read** MCP resource tools. |
 
 **Docs note:** explicit model-instructions file path is **only** via **`ANYCODE_MODEL_INSTRUCTIONS_FILE`**; JSON `model_instructions` controls **discovery** only — see [Config & security](./config-security).

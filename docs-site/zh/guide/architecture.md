@@ -10,17 +10,19 @@ read_when:
 
 本文从架构师视角说明 anyCode 的分层与数据流，以及在 Rust 中的演进方式。
 
+**仓库内**：维护者向中文备忘见 `docs/architecture.md`（不经过本站构建）；**ADR** 在 `docs/adr/`。运行时组装入口为 `crates/cli/src/bootstrap/runtime.rs`（`initialize_runtime` → `AgentRuntime`）。扩展清单见 [扩展与贡献清单](./contributing-extensions)。
+
 ## 设计取舍
 
 - **交互**：执行期可观察（progress/log stream），结束后总结回执（summary），工具编排优先。
-- **系统能力**：模型配置与管理、长时间运行（含 daemon）、安全层与可扩展边界。
+- **系统能力**：模型配置与管理、长时间运行（run/REPL/TUI）、安全层与可扩展边界。
 - **实现**：Rust 统一底座，类型安全与稳定运行。
 
 ## 分层（稳定接口 + 可替换实现）
 
 ```mermaid
 flowchart TB
-  cli[CLI_run_and_daemon_HTTP] --> runtime[AgentRuntime]
+  cli[CLI_run_REPL_TUI_channels] --> runtime[AgentRuntime]
   runtime --> llm[LLMClient]
   runtime --> tools[ToolRegistry]
   runtime --> mem[MemoryStore]
@@ -28,7 +30,7 @@ flowchart TB
   tools --> sec[SecurityLayer]
 ```
 
-`daemon` 的 HTTP 入口与 CLI `run` **共用**同一 `AgentRuntime` 构建路径（配置、工具、`SecurityLayer` 一致）。
+CLI 的 `run`、`REPL` 与 `TUI` **共用**同一 `AgentRuntime` 构建路径（配置、工具、`SecurityLayer` 一致）。
 
 ### CLI 二进制分层（`crates/cli`）
 
@@ -37,9 +39,9 @@ flowchart TB
 - `cli_args.rs`：Clap 顶层参数与子命令
 - `app_config.rs`：`~/.anycode/config.json`、`Config` 聚合体、`model`/`config` 子命令与 serde 测试
 - `bootstrap.rs`：`initialize_runtime`（LLM + `Arc<ToolServices>` + `build_registry_with_services` 构建全量工具表 + `SecurityLayer` + `AgentRuntime`）
-- `tasks.rs`：`run`、可选 REPL、`daemon` 控制台输出、`list-*`、`test-security`
+- `tasks.rs`：`run`、可选 REPL、`list-*`、`test-security`
 - `tui/`：`mod.rs` + `run/mod.rs`（导入）、`run/draw.rs`（单帧绘制）、`run/event.rs`（crossterm）、`run/exec_completion.rs`（turn 完成回填）、`run/loop_inner.rs`（终端初始化、`select!` 与状态装配）、`input` / `transcript` / `chrome` / `approval` / `styles` / `util`；其余大块 UI 仍可在 `*_body.inc` 中 `include!` 保持单文件可浏览
-- `md_tui.rs` / `daemon_http.rs`：Markdown 渲染与 HTTP daemon
+- `md_tui.rs`：Markdown 渲染与终端排版
 
 ### Agent crate 分层（`crates/agent`）
 
@@ -105,7 +107,7 @@ flowchart TB
 ### 谁负责「跑起来」
 
 - **主路径**：`anycode_agent::AgentRuntime::execute_task` 与 `execute_turn_from_messages`（TUI 连续会话）实现多轮 `LLMClient::chat` → 工具执行 → 回注消息；**以二者为编排权威**。
-- **`Agent` trait**：用于 **agent 类型**、**工具子集**、**system 提示合成**（`tools()`、`description()`、`system_prompt_replaces_default_sections`）；`Agent::execute` **不是**当前 CLI/TUI/daemon 主路径（见 `anycode-core` 中 trait 文档说明）。
+- **`Agent` trait**：用于 **agent 类型**、**工具子集**、**system 提示合成**（`tools()`、`description()`、`system_prompt_replaces_default_sections`）；`Agent::execute` **不是**当前 CLI/TUI 主路径（见 `anycode-core` 中 trait 文档说明）。
 
 ### Crate 依赖方向（约定）
 

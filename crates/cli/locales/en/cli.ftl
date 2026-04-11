@@ -1,9 +1,9 @@
 cli-short = anyCode - terminal AI agent for developers (Rust)
-cli-long = anyCode is a Rust CLI for local tool-using agents: TUI, REPL, and automation. Default (no subcommand): fullscreen TUI. `repl`: line-based REPL with native terminal scrollback.
+cli-long = anyCode is a Rust CLI for local tool-using agents: TUI, REPL, and automation. Default (`anycode` with no subcommand): line REPL — ratatui Inline viewport (transcript + dock, same stack as `anycode tui` main-buffer). Fullscreen ratatui: `anycode tui`. Isolated alternate-screen canvas: ANYCODE_TUI_ALT_SCREEN=1 or config tui alternateScreen true.
 flag-debug = Enable debug logging
 flag-config = Path to config JSON
 flag-ignore-approval = Skip tool y/n approval for this process (temporary; deny rules still apply). Env ANYCODE_IGNORE_APPROVAL=1 is equivalent.
-flag-model = Override default model for this process (TUI without subcommand only; long option --model only)
+flag-model = Override default model for this process (TUI or `repl`; long option --model only)
 cmd-scheduler-about = Built-in scheduler: run CronCreate jobs from ~/.anycode/tasks/orchestration.json
 cmd-scheduler-directory = Working directory for each triggered agent task
 cmd-scheduler-reload-secs = Re-read orchestration.json and cap sleep between ticks (seconds)
@@ -11,8 +11,8 @@ cmd-run-about = Run a single task
 cmd-run-agent = Agent type
 cmd-run-prompt = Task description
 cmd-run-directory = Working directory
-cmd-repl-about = Line REPL: one line per task, no fullscreen TUI; scrollback in the main terminal buffer
-cmd-repl-doc = Line REPL: one line per task, no fullscreen TUI
+cmd-repl-about = Line REPL (Inline transcript + dock). Fullscreen matrix: `anycode tui`.
+cmd-repl-doc = Line REPL (Inline transcript + dock). Fullscreen matrix: `anycode tui`.
 cmd-repl-agent = Agent id
 cmd-repl-directory = Working directory
 cmd-repl-model = Model override for this REPL session

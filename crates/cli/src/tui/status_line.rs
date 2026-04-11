@@ -131,7 +131,8 @@ pub(crate) fn build_status_line_payload(
     Ok(serde_json::to_vec(&p)?)
 }
 
-/// 内置一行（无 `command` 且 `show_builtin`）。
+/// 内置一行（无 `command` 且 `show_builtin`）；脚标已含同类信息，保留供脚本/测试引用。
+#[allow(dead_code)]
 pub(crate) fn format_builtin_status_line(
     model_id: &str,
     session: &SessionConfig,
@@ -154,16 +155,14 @@ pub(crate) fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut it = s.chars().peekable();
     while let Some(c) = it.next() {
-        if c == '\x1b' {
-            if it.peek() == Some(&'[') {
-                it.next();
-                while let Some(ch) = it.next() {
-                    if ('\x40'..='\x7e').contains(&ch) {
-                        break;
-                    }
+        if c == '\x1b' && it.peek() == Some(&'[') {
+            it.next();
+            for ch in it.by_ref() {
+                if ('\x40'..='\x7e').contains(&ch) {
+                    break;
                 }
-                continue;
             }
+            continue;
         }
         out.push(c);
     }

@@ -29,7 +29,7 @@ pub(crate) fn scan_session_llm_needs(config: &Config) -> (bool, bool, bool, bool
     if let Some(ref d) = config.routing.default {
         note(&effective_provider(&config.llm.provider, Some(d)));
     }
-    for (_, p) in &config.routing.agents {
+    for p in config.routing.agents.values() {
         note(&effective_provider(&config.llm.provider, Some(p)));
     }
     (
@@ -170,10 +170,8 @@ pub(crate) fn resolve_profile_api_key(
         }
     }
     let en = normalize_provider_id(eff_provider);
-    if en == normalize_provider_id(&config.llm.provider) {
-        if !config.llm.api_key.trim().is_empty() {
-            return Some(config.llm.api_key.clone());
-        }
+    if en == normalize_provider_id(&config.llm.provider) && !config.llm.api_key.trim().is_empty() {
+        return Some(config.llm.api_key.clone());
     }
     config
         .llm
@@ -217,8 +215,8 @@ pub(crate) fn resolve_agent_base_url(
 mod tests {
     use super::*;
     use crate::app_config::{
-        LLMConfig, MemoryConfig, RoutingConfig, RuntimeSettings, SecurityConfig, SessionConfig,
-        SkillsConfig, StatusLineRuntime,
+        ChannelsConfig, LLMConfig, MemoryConfig, RoutingConfig, RuntimeSettings, SecurityConfig,
+        SessionConfig, SkillsConfig, StatusLineRuntime, TuiRuntime,
     };
     use anycode_agent::RuntimePromptConfig;
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -242,6 +240,13 @@ mod tests {
                 path: PathBuf::from("/tmp"),
                 auto_save: false,
                 backend: "noop".to_string(),
+                pipeline: anycode_core::MemoryPipelineSettings::default(),
+                embedding_model: None,
+                embedding_base_url: None,
+                embedding_provider: "http".to_string(),
+                embedding_local_cache_dir: None,
+                embedding_local_model: None,
+                embedding_hf_endpoint: None,
             },
             security: SecurityConfig {
                 permission_mode: "default".to_string(),
@@ -270,6 +275,8 @@ mod tests {
             },
             session: SessionConfig::default(),
             status_line: StatusLineRuntime::default(),
+            tui: TuiRuntime::default(),
+            channels: ChannelsConfig::default(),
         }
     }
 

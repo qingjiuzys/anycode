@@ -1,3 +1,5 @@
+use super::anthropic_stream::AnthropicSseStreamState;
+use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use futures_util::StreamExt;
@@ -161,30 +163,54 @@ impl LLMClient for AnthropicClient {
                 return;
             }
 
-            match response.bytes_stream().next().await {
-                Some(Ok(chunk)) => {
-                    if let Ok(text) = std::str::from_utf8(&chunk) {
-                        for line in text.lines() {
-                            if line.starts_with("data: ") {
-                                let data = &line[6..];
-                                if data == "[DONE]" {
-                                    let _ = tx.send(StreamEvent::Done).await;
-                                } else if let Ok(event) = serde_json::from_str::<StreamEvent>(data)
-                                {
-                                    let _ = tx.send(event).await;
+            let mut stream = response.bytes_stream();
+            let mut line_buf = SseLineBuffer::new();
+            let mut anth = AnthropicSseStreamState::new();
+
+            'read: while let Some(chunk_res) = stream.next().await {
+                let chunk = match chunk_res {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!("Stream error: {}", e);
+                        break;
+                    }
+                };
+                let Ok(text) = std::str::from_utf8(&chunk) else {
+                    continue;
+                };
+                for ev in line_buf.push_str(text) {
+                    match ev {
+                        SseDataLine::Done => break 'read,
+                        SseDataLine::Payload(data) => match anth.push_json_str(&data) {
+                            Ok(events) => {
+                                for e in events {
+                                    if tx.send(e).await.is_err() {
+                                        return;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Anthropic stream JSON: {}", e);
+                            }
+                        },
+                    }
+                }
+            }
+            for ev in line_buf.finish() {
+                match ev {
+                    SseDataLine::Done => break,
+                    SseDataLine::Payload(data) => {
+                        if let Ok(events) = anth.push_json_str(&data) {
+                            for e in events {
+                                if tx.send(e).await.is_err() {
+                                    return;
                                 }
                             }
                         }
                     }
                 }
-                Some(Err(e)) => {
-                    error!("Stream error: {}", e);
-                    let _ = tx.send(StreamEvent::Done).await;
-                }
-                None => {
-                    let _ = tx.send(StreamEvent::Done).await;
-                }
             }
+            let _ = tx.send(StreamEvent::Done).await;
         });
 
         Ok(rx)

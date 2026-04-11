@@ -1,7 +1,9 @@
 //! crossterm 事件分发（与 ratatui 绘制、exec 轮询解耦）。
 
 use super::exec_completion::{append_user_line_and_spawn_turn, CompactFollowup};
-use crate::app_config::{should_auto_compact_before_send, SessionConfig};
+use crate::app_config::{
+    effective_session_context_window_tokens, should_auto_compact_before_send, SessionConfig,
+};
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
 use crate::slash_commands;
@@ -12,7 +14,7 @@ use crate::tui::styles::*;
 use crate::tui::transcript::{ctrl_o_fold_cycle, TranscriptEntry};
 use crate::tui::util::{sanitize_paste, trim_or_default, MAX_PASTE_CHARS};
 use anycode_agent::AgentRuntime;
-use anycode_core::{Artifact, Message, RuntimeMode, Usage};
+use anycode_core::{Message, RuntimeMode, TurnOutput, Usage};
 use anycode_tools::workflows;
 use crossterm::event::{Event, KeyCode, KeyModifiers, MouseEventKind};
 use fluent_bundle::FluentArgs;
@@ -23,11 +25,14 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
 /// 主 `loop` 内对 `continue` / `break` 的显式结果。
 pub(super) enum TuiLoopCtl {
     Ok,
     Continue,
     Break,
+    /// 同进程加载 `~/.anycode/tui-sessions/<id>.json`（由主循环应用快照）。
+    ResumeSession(Uuid),
 }
 
 fn reset_slash_state(ctx: &mut TuiEventCtx<'_>) {
@@ -35,8 +40,38 @@ fn reset_slash_state(ctx: &mut TuiEventCtx<'_>) {
     *ctx.slash_suggest_suppress = false;
 }
 
+async fn rebuild_session_messages(
+    runtime: &Arc<AgentRuntime>,
+    messages: &Arc<Mutex<Vec<Message>>>,
+    agent_type: &anycode_core::AgentType,
+    working_dir_str: &str,
+) -> anyhow::Result<()> {
+    let fresh = runtime
+        .build_session_messages(agent_type, working_dir_str)
+        .await?;
+    let mut g = messages.lock().await;
+    *g = fresh;
+    Ok(())
+}
+
+fn reset_transcript_state(ctx: &mut TuiEventCtx<'_>) {
+    ctx.transcript.clear();
+    *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+    *ctx.transcript_scroll_up = 0;
+    ctx.tool_folds_expanded.clear();
+    *ctx.next_tool_fold_id = 0;
+    *ctx.exec_live_tail = None;
+    *ctx.fold_layout_rev = ctx.fold_layout_rev.wrapping_add(1);
+    *ctx.last_turn_error = None;
+    *ctx.help_open = false;
+    *ctx.rev_search = None;
+    *ctx.executing_since = None;
+    *ctx.last_max_input_tokens = 0;
+    *ctx.last_turn_usage = None;
+}
+
 fn cursor_on_first_line(input: &InputState) -> bool {
-    !input.chars[..input.cursor].iter().any(|&c| c == '\n')
+    !input.chars[..input.cursor].contains(&'\n')
 }
 
 fn slash_suggestions_for_ctx(ctx: &TuiEventCtx<'_>) -> Vec<slash_commands::SlashSuggestionItem> {
@@ -84,9 +119,11 @@ pub(super) struct TuiEventCtx<'a> {
     /// 后台会话压缩（`/compact` 或发送前自动压缩）；勿在事件里 `.await`，否则 TUI 主循环无法重绘。
     pub compact_handle: &'a mut Option<JoinHandle<anyhow::Result<(Vec<Message>, Usage)>>>,
     pub compact_followup: &'a mut Option<CompactFollowup>,
-    pub exec_handle: &'a mut Option<JoinHandle<anyhow::Result<(String, Vec<Artifact>, u32)>>>,
+    pub exec_handle: &'a mut Option<JoinHandle<anyhow::Result<TurnOutput>>>,
     pub exec_prev_len: &'a mut usize,
     pub last_max_input_tokens: &'a mut u32,
+    /// 只读引用：上一轮完成后的用量（与 `/context` 展示一致）。
+    pub last_turn_usage: &'a mut Option<Usage>,
     pub session_cfg: &'a SessionConfig,
     /// 配置中的 `runtime.default_mode`（与 REPL `/status` 的 `default_mode` 一致）。
     pub default_mode: &'a str,
@@ -108,6 +145,8 @@ pub(super) struct TuiEventCtx<'a> {
     pub exec_live_tail: &'a mut Option<(usize, u64)>,
     /// 首次 Ctrl+C 已按下，再按一次则退出（对齐 Claude Code）。
     pub quit_confirm: &'a mut bool,
+    /// `~/.anycode/tui-sessions/<id>.json` 当前会话 id（`/export` 默认文件名）。
+    pub session_file_id: &'a mut Uuid,
 }
 
 pub(super) async fn dispatch_crossterm_event(
@@ -357,28 +396,11 @@ async fn handle_main_key(
                 *ctx.last_turn_error = Some(tr("tui-err-clear-during-task"));
                 return Ok(TuiLoopCtl::Continue);
             }
-            let fresh = runtime
-                .build_session_messages(agent_type, working_dir_str)
-                .await?;
-            {
-                let mut g = messages.lock().await;
-                *g = fresh;
-            }
-            ctx.transcript.clear();
-            *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-            *ctx.transcript_scroll_up = 0;
-            ctx.tool_folds_expanded.clear();
-            *ctx.next_tool_fold_id = 0;
-            *ctx.exec_live_tail = None;
-            *ctx.fold_layout_rev = ctx.fold_layout_rev.wrapping_add(1);
+            rebuild_session_messages(runtime, messages, agent_type, working_dir_str).await?;
+            reset_transcript_state(ctx);
             ctx.input.clear();
             *ctx.history_idx = None;
-            *ctx.last_turn_error = None;
-            *ctx.help_open = false;
-            *ctx.rev_search = None;
             reset_slash_state(ctx);
-            *ctx.executing_since = None;
-            *ctx.last_max_input_tokens = 0;
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char('o') | KeyCode::Char('O')
@@ -407,15 +429,21 @@ async fn handle_main_key(
             }
             if *ctx.help_open {
                 *ctx.help_open = false;
-            } else if !ctx.input.is_empty() {
-                ctx.input.clear();
-                *ctx.history_idx = None;
-                reset_slash_state(ctx);
-            } else if ctx.last_turn_error.is_some() {
-                *ctx.last_turn_error = None;
-            } else {
-                return Ok(TuiLoopCtl::Break);
+                return Ok(TuiLoopCtl::Ok);
             }
+            let cands = slash_commands::slash_suggestions_for_first_line(&ctx.input.as_string());
+            if !cands.is_empty() && cursor_on_first_line(ctx.input) {
+                *ctx.slash_suggest_suppress = true;
+                return Ok(TuiLoopCtl::Ok);
+            }
+            if ctx.input.is_empty() {
+                if ctx.last_turn_error.is_some() {
+                    *ctx.last_turn_error = None;
+                } else {
+                    return Ok(TuiLoopCtl::Break);
+                }
+            }
+            // 不按 Esc 清空输入：中文 IME 常用 Esc 处理候选。
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Up if key.modifiers.contains(KeyModifiers::ALT) => {
@@ -627,25 +655,8 @@ async fn handle_main_key(
                     *ctx.last_turn_error = Some(tr("tui-err-clear-during-task"));
                     return Ok(TuiLoopCtl::Continue);
                 }
-                let fresh = runtime
-                    .build_session_messages(agent_type, working_dir_str)
-                    .await?;
-                {
-                    let mut g = messages.lock().await;
-                    *g = fresh;
-                }
-                ctx.transcript.clear();
-                *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
-                *ctx.transcript_scroll_up = 0;
-                ctx.tool_folds_expanded.clear();
-                *ctx.next_tool_fold_id = 0;
-                *ctx.exec_live_tail = None;
-                *ctx.fold_layout_rev = ctx.fold_layout_rev.wrapping_add(1);
-                *ctx.last_turn_error = None;
-                *ctx.help_open = false;
-                *ctx.rev_search = None;
-                *ctx.executing_since = None;
-                *ctx.last_max_input_tokens = 0;
+                rebuild_session_messages(runtime, messages, agent_type, working_dir_str).await?;
+                reset_transcript_state(ctx);
                 return Ok(TuiLoopCtl::Continue);
             }
             if trimmed.starts_with("/compact") {
@@ -707,13 +718,7 @@ async fn handle_main_key(
                     return Ok(TuiLoopCtl::Continue);
                 }
                 *agent_type = anycode_core::AgentType::new(id.to_string());
-                let fresh = runtime
-                    .build_session_messages(agent_type, working_dir_str)
-                    .await?;
-                {
-                    let mut g = messages.lock().await;
-                    *g = fresh;
-                }
+                rebuild_session_messages(runtime, messages, agent_type, working_dir_str).await?;
                 let mut ha = FluentArgs::new();
                 ha.set("id", id);
                 let hint = tr_args("tui-agent-switched", &ha);
@@ -733,13 +738,13 @@ async fn handle_main_key(
                             if let Some(parsed) = RuntimeMode::parse(&mode) {
                                 *agent_type =
                                     anycode_core::AgentType::new(parsed.default_agent().as_str());
-                                let fresh = runtime
-                                    .build_session_messages(agent_type, working_dir_str)
-                                    .await?;
-                                {
-                                    let mut g = messages.lock().await;
-                                    *g = fresh;
-                                }
+                                rebuild_session_messages(
+                                    runtime,
+                                    messages,
+                                    agent_type,
+                                    working_dir_str,
+                                )
+                                .await?;
                                 let hint = format!(
                                     "mode -> {} (agent: {})",
                                     parsed.as_str(),
@@ -824,6 +829,196 @@ async fn handle_main_key(
                         *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
                         return Ok(TuiLoopCtl::Continue);
                     }
+                    slash_commands::ParsedSlashCommand::Context => {
+                        let g = messages.lock().await;
+                        let n = g.len();
+                        drop(g);
+                        let win = effective_session_context_window_tokens(
+                            ctx.session_cfg,
+                            ctx.llm_provider,
+                            ctx.llm_model,
+                        );
+                        let lines = crate::session_transcript_export::format_context_lines(
+                            n,
+                            win,
+                            *ctx.last_max_input_tokens,
+                            ctx.last_turn_usage.as_ref(),
+                        );
+                        let tlines: Vec<Line<'static>> = lines
+                            .into_iter()
+                            .map(|s| Line::from(Span::styled(s, style_dim())))
+                            .collect();
+                        ctx.transcript.push(TranscriptEntry::Plain(tlines));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Cost => {
+                        let g = messages.lock().await;
+                        let n = g.len();
+                        drop(g);
+                        let win = effective_session_context_window_tokens(
+                            ctx.session_cfg,
+                            ctx.llm_provider,
+                            ctx.llm_model,
+                        );
+                        let lines = crate::session_transcript_export::format_cost_lines(
+                            n,
+                            win,
+                            *ctx.last_max_input_tokens,
+                            ctx.last_turn_usage.as_ref(),
+                        );
+                        let tlines: Vec<Line<'static>> = lines
+                            .into_iter()
+                            .map(|s| Line::from(Span::styled(s, style_dim())))
+                            .collect();
+                        ctx.transcript.push(TranscriptEntry::Plain(tlines));
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Export(arg) => {
+                        let g = messages.lock().await;
+                        let msgs = g.clone();
+                        drop(g);
+                        let text =
+                            crate::session_transcript_export::messages_to_plain_export(&msgs);
+                        let wd = std::path::PathBuf::from(working_dir_str);
+                        let path = match arg.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                            Some(p) => {
+                                let pb = std::path::PathBuf::from(p);
+                                if pb.is_absolute() {
+                                    pb
+                                } else {
+                                    wd.join(pb)
+                                }
+                            }
+                            None => {
+                                let id = ctx.session_file_id.simple().to_string();
+                                let short: String = id.chars().take(8).collect();
+                                wd.join(format!("anycode-export-{short}.txt"))
+                            }
+                        };
+                        match std::fs::write(&path, text.as_bytes()) {
+                            Ok(()) => {
+                                let mut a = FluentArgs::new();
+                                a.set("path", path.display().to_string());
+                                ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                    Span::styled(tr_args("repl-export-done", &a), style_dim()),
+                                )]));
+                            }
+                            Err(e) => {
+                                let mut a = FluentArgs::new();
+                                a.set("err", e.to_string());
+                                ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                    Span::styled(
+                                        tr_args("repl-export-failed-detail", &a),
+                                        style_error(),
+                                    ),
+                                )]));
+                            }
+                        }
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
+                    }
+                    slash_commands::ParsedSlashCommand::Session(arg) => {
+                        if *ctx.executing || ctx.compact_handle.is_some() {
+                            *ctx.last_turn_error = Some(tr("tui-err-session-during-task"));
+                            return Ok(TuiLoopCtl::Continue);
+                        }
+                        let dir = crate::tui::tui_session_persist::sessions_dir();
+                        match arg.as_deref().map(str::trim) {
+                            Some("list") => {
+                                match crate::tui::tui_session_persist::list_session_index_entries(
+                                    &dir,
+                                ) {
+                                    Ok(mut rows) => {
+                                        #[allow(clippy::unnecessary_sort_by)]
+                                        rows.sort_by(|a, b| b.mtime.cmp(&a.mtime));
+                                        if rows.is_empty() {
+                                            ctx.transcript.push(TranscriptEntry::Plain(vec![
+                                                Line::from(Span::styled(
+                                                    tr("tui-session-list-empty"),
+                                                    style_dim(),
+                                                )),
+                                            ]));
+                                        } else {
+                                            let mut lines: Vec<Line<'static>> =
+                                                vec![Line::from(Span::styled(
+                                                    tr("tui-session-list-title"),
+                                                    style_dim(),
+                                                ))];
+                                            for e in rows.iter().take(40) {
+                                                let short = e.id.to_string();
+                                                let short = if short.len() > 8 {
+                                                    format!("{}…", &short[..8])
+                                                } else {
+                                                    short
+                                                };
+                                                lines.push(Line::from(Span::styled(
+                                                    format!(
+                                                        "{}  {}  {}  {}",
+                                                        short, e.workspace_root, e.agent, e.model
+                                                    ),
+                                                    style_dim(),
+                                                )));
+                                            }
+                                            ctx.transcript.push(TranscriptEntry::Plain(lines));
+                                        }
+                                    }
+                                    Err(e) => {
+                                        ctx.transcript.push(TranscriptEntry::Plain(vec![
+                                            Line::from(Span::styled(
+                                                format!("{} {e}", tr("tui-session-list-err")),
+                                                style_dim(),
+                                            )),
+                                        ]));
+                                    }
+                                }
+                                *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                                return Ok(TuiLoopCtl::Continue);
+                            }
+                            Some(rest) if !rest.is_empty() => {
+                                let id = match Uuid::parse_str(rest) {
+                                    Ok(u) => u,
+                                    Err(_) => {
+                                        ctx.transcript.push(TranscriptEntry::Plain(vec![
+                                            Line::from(Span::styled(
+                                                tr("tui-session-bad-uuid"),
+                                                style_dim(),
+                                            )),
+                                        ]));
+                                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                                        return Ok(TuiLoopCtl::Continue);
+                                    }
+                                };
+                                if crate::tui::tui_session_persist::load_tui_session(id)?.is_none()
+                                {
+                                    ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                        Span::styled(tr("tui-resume-not-found"), style_dim()),
+                                    )]));
+                                    *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                                    return Ok(TuiLoopCtl::Continue);
+                                }
+                                return Ok(TuiLoopCtl::ResumeSession(id));
+                            }
+                            _ => {
+                                match crate::tui::tui_session_persist::resolve_session_for_reopen(
+                                    working_dir_str,
+                                ) {
+                                    Ok(id) => return Ok(TuiLoopCtl::ResumeSession(id)),
+                                    Err(_) => {
+                                        ctx.transcript.push(TranscriptEntry::Plain(vec![
+                                            Line::from(Span::styled(
+                                                tr("tui-session-resolve-none"),
+                                                style_dim(),
+                                            )),
+                                        ]));
+                                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                                        return Ok(TuiLoopCtl::Continue);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     slash_commands::ParsedSlashCommand::Workflow(arg) => {
                         let label = if arg.as_deref().map(str::trim) == Some("run") {
                             "workflow: run is available in REPL currently".to_string()
@@ -844,8 +1039,33 @@ async fn handle_main_key(
                         *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
                         return Ok(TuiLoopCtl::Continue);
                     }
-                    slash_commands::ParsedSlashCommand::Compact => {
+                    slash_commands::ParsedSlashCommand::Compact(_) => {
                         // handled earlier by /compact block
+                    }
+                    slash_commands::ParsedSlashCommand::Clear => {
+                        // handled earlier by /clear block
+                    }
+                    slash_commands::ParsedSlashCommand::Paste => {
+                        if let Some(raw) = crate::repl_clipboard::read_system_clipboard() {
+                            let (clean, truncated) = sanitize_paste(raw);
+                            if truncated {
+                                let mut a = FluentArgs::new();
+                                a.set("n", MAX_PASTE_CHARS as i64);
+                                ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                    Span::styled(
+                                        tr_args("tui-err-paste-truncated", &a),
+                                        style_dim(),
+                                    ),
+                                )]));
+                            }
+                            ctx.input.insert_str(&clean);
+                        } else {
+                            ctx.transcript.push(TranscriptEntry::Plain(vec![Line::from(
+                                Span::styled(tr("repl-paste-clipboard-failed"), style_dim()),
+                            )]));
+                        }
+                        *ctx.transcript_gen = ctx.transcript_gen.wrapping_add(1);
+                        return Ok(TuiLoopCtl::Continue);
                     }
                 }
             }

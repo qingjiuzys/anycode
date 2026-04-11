@@ -11,9 +11,14 @@ mod copilot_auth;
 mod discord_channel;
 mod i18n;
 mod md_tui;
+#[cfg(feature = "embedding-local")]
+mod memory_embedding_setup;
 mod repl_banner;
+mod repl_clipboard;
 mod repl_inline;
+mod repl_stream_ratatui;
 mod scheduler;
+mod session_transcript_export;
 mod slash_commands;
 mod tasks;
 mod tg;
@@ -27,7 +32,7 @@ mod wx;
 use app_config::{load_config_for_session, run_onboard_flow};
 #[cfg(feature = "mcp-oauth")]
 use cli_args::McpCommands;
-use cli_args::{ChannelCommands, Commands};
+use cli_args::{ChannelCommands, Commands, MemoryCommands};
 #[cfg(feature = "mcp-oauth")]
 use fluent_bundle::FluentArgs;
 #[cfg(feature = "mcp-oauth")]
@@ -35,6 +40,22 @@ use i18n::{tr, tr_args};
 use tracing::info;
 use tracing_subscriber::fmt;
 use tracing_subscriber::EnvFilter;
+
+async fn load_config_with_cwd_overlays(
+    config_path: Option<std::path::PathBuf>,
+    ignore_approval: bool,
+) -> anyhow::Result<app_config::Config> {
+    let mut config = load_config_for_session(config_path, ignore_approval).await?;
+    if let Ok(cwd) = std::env::current_dir() {
+        let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
+        workspace::apply_project_overlays(&mut config, &wd);
+    }
+    Ok(config)
+}
+
+fn resolve_working_dir(directory: Option<std::path::PathBuf>) -> std::path::PathBuf {
+    directory.unwrap_or_else(|| std::env::current_dir().unwrap())
+}
 
 fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
     if std::env::var_os("RUST_LOG").is_some() {
@@ -67,6 +88,7 @@ async fn main() -> anyhow::Result<()> {
     let interactive_quiet = matches!(
         args.command,
         None | Some(Commands::Repl { .. })
+            | Some(Commands::Tui { .. })
             | Some(Commands::Channel {
                 sub: ChannelCommands::Telegram { .. },
             })
@@ -104,19 +126,13 @@ async fn main() -> anyhow::Result<()> {
             commands::feature::handle_mode(args.config.clone(), ignore_approval, mode).await?;
         }
         Some(Commands::Status { json }) => {
-            let mut config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            if let Ok(cwd) = std::env::current_dir() {
-                let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
-                workspace::apply_project_overlays(&mut config, &wd);
-            }
+            let config =
+                load_config_with_cwd_overlays(args.config.clone(), ignore_approval).await?;
             commands::status::print_status(&config, json)?;
         }
         Some(Commands::Statusline { sub }) => {
-            let mut config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            if let Ok(cwd) = std::env::current_dir() {
-                let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
-                workspace::apply_project_overlays(&mut config, &wd);
-            }
+            let config =
+                load_config_with_cwd_overlays(args.config.clone(), ignore_approval).await?;
             match sub {
                 cli_args::StatuslineCommands::PrintSchema => {
                     commands::statusline::print_schema(&config)?;
@@ -189,6 +205,13 @@ async fn main() -> anyhow::Result<()> {
                 println!("Discord credentials saved (~/.anycode/channels/discord.json).");
             }
         },
+        Some(Commands::Memory { sub }) => match sub {
+            MemoryCommands::Import { dry_run, limit } => {
+                let config =
+                    load_config_with_cwd_overlays(args.config.clone(), ignore_approval).await?;
+                commands::memory_import::run_import(&config, dry_run, limit).await?;
+            }
+        },
         Some(Commands::Workspace { sub }) => match sub {
             cli_args::WorkspaceCommands::List { json } => {
                 commands::workspace::handle_list(json).await?;
@@ -222,7 +245,7 @@ async fn main() -> anyhow::Result<()> {
             reload_secs,
         }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            let working_dir = directory.unwrap_or_else(|| std::env::current_dir().unwrap());
+            let working_dir = resolve_working_dir(directory);
             workspace::touch_project_dir(working_dir.clone());
             scheduler::run_builtin_scheduler(
                 config,
@@ -240,7 +263,7 @@ async fn main() -> anyhow::Result<()> {
             directory,
         }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            let working_dir = directory.unwrap_or_else(|| std::env::current_dir().unwrap());
+            let working_dir = resolve_working_dir(directory);
             workspace::touch_project_dir(working_dir.clone());
             tasks::run_task(config, agent, mode, workflow, goal, prompt, working_dir).await?;
         }
@@ -250,11 +273,30 @@ async fn main() -> anyhow::Result<()> {
             model,
         }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            let touch_dir = directory
-                .clone()
-                .unwrap_or_else(|| std::env::current_dir().unwrap());
+            let touch_dir = resolve_working_dir(directory.clone());
             workspace::touch_project_dir(touch_dir);
-            tasks::run_interactive(config, agent, directory, model, ignore_approval).await?;
+            tasks::run_interactive(
+                config,
+                agent,
+                directory,
+                model,
+                ignore_approval,
+                args.debug,
+                args.repl_debug_events,
+                args.resume,
+                false,
+            )
+            .await?;
+        }
+        Some(Commands::Tui {
+            agent,
+            directory,
+            model,
+        }) => {
+            let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
+            let touch_dir = resolve_working_dir(directory.clone());
+            workspace::touch_project_dir(touch_dir);
+            tui::run_tui(config, agent, directory, model, args.debug, args.resume).await?;
         }
         Some(Commands::Skills { sub }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
@@ -323,13 +365,17 @@ async fn main() -> anyhow::Result<()> {
                 .default_agent()
                 .as_str()
                 .to_string();
-            tui::run_tui(
+
+            tasks::run_interactive(
                 config,
                 default_agent,
                 None,
                 args.model.clone(),
+                ignore_approval,
                 args.debug,
+                args.repl_debug_events,
                 args.resume,
+                true,
             )
             .await?;
         }

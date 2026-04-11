@@ -31,6 +31,13 @@ cargo fmt
 cargo clippy
 ```
 
+## Architecture reading order (~5 minutes)
+
+1. **`crates/core/src/traits.rs`** — `Tool`, `LLMClient`, `MemoryStore`, and other ports.
+2. **`crates/agent/src/runtime/`** — `AgentRuntime` and the tool/LLM loop (`session.rs`); orchestration authority is **not** `Agent::execute` (see `docs/adr/000-runtime-orchestration.md` in the repo).
+3. **`crates/cli/src/bootstrap/runtime.rs`** — builds the shared runtime for CLI/TUI/channel bridges (`initialize_runtime`).
+4. **[Contributing extensions](./contributing-extensions)** — checklists for registry, catalog, and providers.
+
 ## Changing the default tool surface
 
 When adding or changing **tools exposed to the model by default**, follow the **checklist** at the top of **`crates/tools/src/registry.rs`** (`ins!` registration, `catalog` constants, **`DEFAULT_TOOL_IDS`**, tests, etc.). If a tool can write files, hit the network, spawn sub-agents, or similar, also add its API name to **`catalog::SECURITY_SENSITIVE_TOOL_IDS`** in **`crates/tools/src/catalog.rs`** — the CLI **`bootstrap`** registers **`SecurityLayer`** from this; do **not** maintain a parallel list only in **`bootstrap`**.

@@ -8,7 +8,7 @@ mod profile;
 mod web_envelope;
 mod wechat;
 
-pub use profile::{profile_for_channel_type, ChannelProfile};
+pub use profile::{profile_for_channel_type, ApprovalMode, ChannelProfile};
 pub use web_envelope::{outbound_channel_message_json, AnycodeWsEnvelopeV1};
 pub use wechat::WeChatChannel;
 
@@ -247,6 +247,12 @@ impl ChannelHandler for WebChannel {
 pub struct ChannelRouter {
     channels: Arc<RwLock<HashMap<ChannelType, Box<dyn ChannelHandler>>>>,
     profiles: Arc<RwLock<HashMap<ChannelType, ChannelProfile>>>,
+}
+
+impl Default for ChannelRouter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ChannelRouter {

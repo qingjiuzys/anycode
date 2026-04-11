@@ -1,9 +1,9 @@
 cli-short = anyCode - 面向开发者的终端 AI 助手（Rust）
-cli-long = anyCode 是 Rust 编写的本地工具型 Agent：全屏 TUI、行式 REPL 与自动化。无子命令：全屏 TUI。`repl`：行式 REPL，主缓冲可滚动复制。
+cli-long = anyCode 是 Rust 编写的本地工具型 Agent：终端 TUI、REPL 与自动化。默认（无子命令 `anycode`）：**行式 REPL**（ratatui Inline 视口：正文 + 底栏，与 `anycode tui` 主缓冲同栈，与 `anycode repl` 同栈）。全屏 ratatui：**`anycode tui`**。独立备用屏画布：**ANYCODE_TUI_ALT_SCREEN=1** 或 config **tui.alternateScreen: true**。
 flag-debug = 启用调试日志
 flag-config = 配置文件（JSON）路径
 flag-ignore-approval = 本进程跳过工具 y/n 审批（临时；deny 等策略仍生效）。环境变量 ANYCODE_IGNORE_APPROVAL=1 等价。
-flag-model = 仅无子命令 TUI 时覆盖默认模型；仅支持长选项 `--model`（避免与子命令短选项冲突）
+flag-model = TUI 或 `repl` 时覆盖默认模型；仅支持长选项 `--model`（避免与子命令短选项冲突）
 cmd-scheduler-about = 内置调度器：执行 ~/.anycode/tasks/orchestration.json 中 CronCreate 注册的任务
 cmd-scheduler-directory = 每次触发 agent 任务时的工作目录
 cmd-scheduler-reload-secs = 重新读取 orchestration.json，并限制两次唤醒之间的休眠上限（秒）
@@ -11,8 +11,8 @@ cmd-run-about = 执行单次任务
 cmd-run-agent = Agent 类型
 cmd-run-prompt = 任务描述
 cmd-run-directory = 工作目录
-cmd-repl-about = 行式 REPL：每行一次任务，无全屏 TUI；主缓冲可滚动复制
-cmd-repl-doc = 行式 REPL：每行一次任务，无全屏 TUI
+cmd-repl-about = 行式 REPL（Inline 正文 + 底栏）。全屏矩阵：`anycode tui`。
+cmd-repl-doc = 行式 REPL（Inline 正文 + 底栏）。全屏矩阵：`anycode tui`。
 cmd-repl-agent = Agent 标识
 cmd-repl-directory = 工作目录
 cmd-repl-model = 本会话覆盖模型

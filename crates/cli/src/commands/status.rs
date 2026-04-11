@@ -58,7 +58,7 @@ pub(crate) fn print_status(config: &crate::app_config::Config, json: bool) -> an
         .collect();
 
     let mode_aliases: serde_json::Value = serde_json::to_value(
-        &config
+        config
             .runtime
             .model_routes
             .mode_aliases
@@ -68,7 +68,7 @@ pub(crate) fn print_status(config: &crate::app_config::Config, json: bool) -> an
     )?;
 
     let agent_aliases: serde_json::Value = serde_json::to_value(
-        &config
+        config
             .runtime
             .model_routes
             .agent_aliases

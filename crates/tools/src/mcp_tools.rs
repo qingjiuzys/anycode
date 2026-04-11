@@ -128,7 +128,9 @@ impl Tool for McpTool {
 
         Ok(ToolOutput {
             result: serde_json::json!({
+                "status": "unsupported",
                 "error": "MCP bridge not configured",
+                "hint": "Build with --features tools-mcp and set ANYCODE_MCP_COMMAND or ANYCODE_MCP_SERVERS.",
                 "echo": input.input
             }),
             error: Some("mcp not configured".into()),
@@ -218,7 +220,11 @@ impl Tool for ListMcpResourcesTool {
             }
         }
         Ok(ToolOutput {
-            result: serde_json::json!({ "resources": [], "info": "MCP not connected" }),
+            result: serde_json::json!({
+                "status": "unsupported",
+                "resources": [],
+                "info": "MCP not connected"
+            }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })
@@ -339,6 +345,7 @@ impl Tool for ReadMcpResourceTool {
         }
         Ok(ToolOutput {
             result: serde_json::json!({
+                "status": "unsupported",
                 "error": "MCP not configured",
                 "uri": r.uri
             }),

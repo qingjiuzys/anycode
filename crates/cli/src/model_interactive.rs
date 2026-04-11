@@ -19,6 +19,15 @@ fn accent_title(line: &str) {
     println!("{}", console::Style::new().cyan().bold().apply_to(line));
 }
 
+/// [`run_global_provider_flow`] 结束方式：setup 下从提供方列表返回不可结束整个 `run_onboard`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GlobalProviderFlowResult {
+    /// 已保存配置，或 `anycode model` 全局流中从提供方列表返回主菜单。
+    Finished,
+    /// 仅 `anycode setup` 精简向导：用户在全量提供方列表中选 Back，应回到「快速/完整」模式选择。
+    SetupBackToModePicker,
+}
+
 #[derive(Clone, Copy)]
 struct AuthChoice {
     id: &'static str,
@@ -131,7 +140,7 @@ pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
                 tr("model-menu-exit"),
             ];
             Select::with_theme(&ColorfulTheme::default())
-                .with_prompt(&tr("model-pick-prompt"))
+                .with_prompt(tr("model-pick-prompt"))
                 .default(0)
                 .items(&items)
                 .interact()?
@@ -151,7 +160,10 @@ pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
         };
 
         match hub_idx {
-            0 => run_global_provider_flow(config_file.clone(), &path, is_tty, false).await?,
+            0 => {
+                let _ = run_global_provider_flow(config_file.clone(), &path, is_tty, false, false)
+                    .await?;
+            }
             1 => run_routing_agents_flow(config_file.clone(), &path, is_tty).await?,
             _ => return Ok(()),
         }
@@ -163,82 +175,92 @@ pub(super) async fn run(config_file: Option<PathBuf>) -> anyhow::Result<()> {
 pub(super) async fn run_onboard(config_file: Option<PathBuf>) -> anyhow::Result<()> {
     let is_tty = console::Term::stdout().is_term();
     let path = resolve_config_path(config_file.clone())?;
-    let existing = load_anycode_config_resolved(config_file.clone())?;
 
-    println!("模型配置（OpenClaw 风格）");
-    if let Some(ref c) = existing {
-        println!("当前：provider={} model={}", c.provider, c.model);
-    }
+    loop {
+        let existing = load_anycode_config_resolved(config_file.clone())?;
 
-    let mode_items = vec![
-        "快速配置（常用 auth-choice）".to_string(),
-        "完整提供商目录（全量 provider）".to_string(),
-    ];
-    let mode_idx = if is_tty {
-        Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("请选择配置模式")
-            .default(0)
-            .items(&mode_items)
-            .interact()?
-    } else {
-        println!("请选择配置模式：");
-        for (i, l) in mode_items.iter().enumerate() {
-            println!("  {}) {}", i + 1, l);
+        println!("模型配置（OpenClaw 风格）");
+        if let Some(ref c) = existing {
+            println!("当前：provider={} model={}", c.provider, c.model);
         }
-        loop {
-            let v = prompt_line("输入序号")?;
-            if let Ok(n) = v.trim().parse::<usize>() {
-                if n >= 1 && n <= mode_items.len() {
-                    break n - 1;
-                }
+
+        let mode_items = vec![
+            "快速配置（常用 auth-choice）".to_string(),
+            "完整提供商目录（全量 provider）".to_string(),
+        ];
+        let mode_idx = if is_tty {
+            Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("请选择配置模式")
+                .default(0)
+                .items(&mode_items)
+                .interact()?
+        } else {
+            println!("请选择配置模式：");
+            for (i, l) in mode_items.iter().enumerate() {
+                println!("  {}) {}", i + 1, l);
             }
-            println!("{}", tr("model-invalid"));
-        }
-    };
-
-    if mode_idx == 1 {
-        return run_global_provider_flow(config_file, &path, is_tty, true).await;
-    }
-
-    let mut items: Vec<String> = QUICK_AUTH_CHOICES
-        .iter()
-        .map(|c| format!("{}  ({})", c.label, c.id))
-        .collect();
-    items.push("切换到完整提供商目录（全量）".to_string());
-
-    let idx = if is_tty {
-        Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("请选择 auth-choice")
-            .default(0)
-            .items(&items)
-            .interact()?
-    } else {
-        println!("请选择 auth-choice：");
-        for (i, l) in items.iter().enumerate() {
-            println!("  {}) {}", i + 1, l);
-        }
-        loop {
-            let v = prompt_line("输入序号")?;
-            if let Ok(n) = v.trim().parse::<usize>() {
-                if n >= 1 && n <= items.len() {
-                    break n - 1;
+            loop {
+                let v = prompt_line("输入序号")?;
+                if let Ok(n) = v.trim().parse::<usize>() {
+                    if n >= 1 && n <= mode_items.len() {
+                        break n - 1;
+                    }
                 }
+                println!("{}", tr("model-invalid"));
             }
-            println!("{}", tr("model-invalid"));
-        }
-    };
+        };
 
-    if idx >= QUICK_AUTH_CHOICES.len() {
-        return run_global_provider_flow(config_file, &path, is_tty, true).await;
+        if mode_idx == 1 {
+            match run_global_provider_flow(config_file.clone(), &path, is_tty, true, true).await? {
+                GlobalProviderFlowResult::Finished => return Ok(()),
+                GlobalProviderFlowResult::SetupBackToModePicker => continue,
+            }
+        }
+
+        let mut items: Vec<String> = QUICK_AUTH_CHOICES
+            .iter()
+            .map(|c| format!("{}  ({})", c.label, c.id))
+            .collect();
+        items.push("切换到完整提供商目录（全量）".to_string());
+
+        let idx = if is_tty {
+            Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("请选择 auth-choice")
+                .default(0)
+                .items(&items)
+                .interact()?
+        } else {
+            println!("请选择 auth-choice：");
+            for (i, l) in items.iter().enumerate() {
+                println!("  {}) {}", i + 1, l);
+            }
+            loop {
+                let v = prompt_line("输入序号")?;
+                if let Ok(n) = v.trim().parse::<usize>() {
+                    if n >= 1 && n <= items.len() {
+                        break n - 1;
+                    }
+                }
+                println!("{}", tr("model-invalid"));
+            }
+        };
+
+        if idx >= QUICK_AUTH_CHOICES.len() {
+            match run_global_provider_flow(config_file.clone(), &path, is_tty, true, true).await? {
+                GlobalProviderFlowResult::Finished => return Ok(()),
+                GlobalProviderFlowResult::SetupBackToModePicker => continue,
+            }
+        }
+        apply_quick_auth_choice(
+            config_file.clone(),
+            &path,
+            is_tty,
+            &existing,
+            QUICK_AUTH_CHOICES[idx],
+        )
+        .await?;
+        return Ok(());
     }
-    apply_quick_auth_choice(
-        config_file,
-        &path,
-        is_tty,
-        &existing,
-        QUICK_AUTH_CHOICES[idx],
-    )
-    .await
 }
 
 fn lookup_env_first(envs: &[&str]) -> Option<String> {
@@ -320,7 +342,8 @@ async fn run_global_provider_flow(
     path: &std::path::Path,
     is_tty: bool,
     quick_mode: bool,
-) -> anyhow::Result<()> {
+    setup_onboard: bool,
+) -> anyhow::Result<GlobalProviderFlowResult> {
     let existing = load_anycode_config_resolved(config_file.clone())?;
     if let Some(ref c) = existing {
         let mut a = FluentArgs::new();
@@ -354,7 +377,7 @@ async fn run_global_provider_flow(
 
         let idx = if is_tty {
             Select::with_theme(&ColorfulTheme::default())
-                .with_prompt(&tr("model-pick-provider"))
+                .with_prompt(tr("model-pick-provider"))
                 .default(0)
                 .items(&labels)
                 .interact()?
@@ -367,7 +390,11 @@ async fn run_global_provider_flow(
             loop {
                 let v = prompt_line(&tr("model-pick-number"))?;
                 if v.trim() == "0" {
-                    return Ok(());
+                    return Ok(if setup_onboard {
+                        GlobalProviderFlowResult::SetupBackToModePicker
+                    } else {
+                        GlobalProviderFlowResult::Finished
+                    });
                 }
                 if let Ok(n) = v.trim().parse::<usize>() {
                     if n >= 1 && n <= labels.len() {
@@ -379,7 +406,11 @@ async fn run_global_provider_flow(
         };
 
         if idx >= PROVIDER_CATALOG.len() {
-            return Ok(());
+            return Ok(if setup_onboard {
+                GlobalProviderFlowResult::SetupBackToModePicker
+            } else {
+                GlobalProviderFlowResult::Finished
+            });
         }
 
         let entry = &PROVIDER_CATALOG[idx];
@@ -410,7 +441,7 @@ async fn run_global_provider_flow(
 
             let zi = if is_tty {
                 Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt(&tr("model-pick-prompt"))
+                    .with_prompt(tr("model-pick-prompt"))
                     .default(0)
                     .items(&zai_labels)
                     .interact()?
@@ -460,7 +491,7 @@ async fn run_global_provider_flow(
             let mut sa = FluentArgs::new();
             sa.set("path", path.display().to_string());
             println!("✅ {}", tr_args("wizard-saved", &sa));
-            return Ok(());
+            return Ok(GlobalProviderFlowResult::Finished);
         }
 
         if transport_for_provider_id(&id) == LlmTransport::AnthropicMessages {
@@ -485,7 +516,7 @@ async fn run_global_provider_flow(
             let mut sa = FluentArgs::new();
             sa.set("path", path.display().to_string());
             println!("✅ {}", tr_args("wizard-saved", &sa));
-            return Ok(());
+            return Ok(GlobalProviderFlowResult::Finished);
         }
 
         if id == "google" {
@@ -511,20 +542,20 @@ async fn run_global_provider_flow(
             let mut sa = FluentArgs::new();
             sa.set("path", path.display().to_string());
             println!("✅ {}", tr_args("wizard-saved", &sa));
-            return Ok(());
+            return Ok(GlobalProviderFlowResult::Finished);
         }
 
         if transport_for_provider_id(&id) == LlmTransport::BedrockConverse {
             let model: String = if is_tty {
                 Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt(&tr("wizard-prompt-model-id"))
+                    .with_prompt(tr("wizard-prompt-model-id"))
                     .interact_text()?
             } else {
                 prompt_line(&format!("{} ", tr("wizard-prompt-model-id")))?
             };
             let base_url: Option<String> = if is_tty {
                 let raw: String = Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt(&tr("wizard-bedrock-endpoint-prompt"))
+                    .with_prompt(tr("wizard-bedrock-endpoint-prompt"))
                     .allow_empty(true)
                     .interact_text()?;
                 let t = raw.trim();
@@ -554,13 +585,13 @@ async fn run_global_provider_flow(
             let mut sa = FluentArgs::new();
             sa.set("path", path.display().to_string());
             println!("✅ {}", tr_args("wizard-saved", &sa));
-            return Ok(());
+            return Ok(GlobalProviderFlowResult::Finished);
         }
 
         if transport_for_provider_id(&id) == LlmTransport::GithubCopilot {
             let model: String = if is_tty {
                 Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt(&tr("wizard-copilot-model-prompt"))
+                    .with_prompt(tr("wizard-copilot-model-prompt"))
                     .interact_text()?
             } else {
                 prompt_line(&format!("{} ", tr("wizard-copilot-model-prompt")))?
@@ -585,7 +616,7 @@ async fn run_global_provider_flow(
             let mut sa = FluentArgs::new();
             sa.set("path", path.display().to_string());
             println!("✅ {}", tr_args("wizard-saved", &sa));
-            return Ok(());
+            return Ok(GlobalProviderFlowResult::Finished);
         }
 
         let default_url = entry.suggested_openai_base.unwrap_or("");
@@ -596,7 +627,7 @@ async fn run_global_provider_flow(
             .unwrap_or_else(|| provider_default_model(&id).to_string());
         let model: String = if is_tty {
             Input::with_theme(&ColorfulTheme::default())
-                .with_prompt(&tr("wizard-prompt-model-id"))
+                .with_prompt(tr("wizard-prompt-model-id"))
                 .default(default_model.clone())
                 .interact_text()?
         } else {
@@ -640,7 +671,7 @@ async fn run_global_provider_flow(
         let mut sa = FluentArgs::new();
         sa.set("path", path.display().to_string());
         println!("✅ {}", tr_args("wizard-saved", &sa));
-        return Ok(());
+        return Ok(GlobalProviderFlowResult::Finished);
     }
 }
 
@@ -678,7 +709,7 @@ async fn run_routing_agents_flow(
 
     let pi = if is_tty {
         Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("model-pick-agent-type"))
+            .with_prompt(tr("model-pick-agent-type"))
             .default(0)
             .items(&preset_labels)
             .interact()?
@@ -883,7 +914,7 @@ async fn run_routing_agents_flow(
 
     let ak_in = if is_tty {
         Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("model-prompt-api-key-profile"))
+            .with_prompt(tr("model-prompt-api-key-profile"))
             .default(cur.api_key.clone().unwrap_or_default())
             .allow_empty(true)
             .interact_text()?

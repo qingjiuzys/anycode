@@ -16,6 +16,8 @@ mod model_router;
 mod multi_client;
 mod provider_catalog;
 mod providers;
+mod retry_strategy;
+mod sse_data_lines;
 
 pub use chat_model_ref::{
     build_qualified_chat_model_value, resolve_chat_model_ref, zai_model_catalog_entries,
@@ -36,6 +38,10 @@ pub use multi_client::MultiProviderLlmClient;
 pub use provider_catalog::{
     catalog_lookup, is_known_provider_id, normalize_provider_id, transport_for_provider_id,
     LlmTransport, ProviderCatalogEntry, PROVIDER_CATALOG, ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
+};
+pub use retry_strategy::{
+    is_retryable_status as retry_is_retryable_status, retry_delay_ms as retry_strategy_delay_ms,
+    ErrorCategory, JitterRetryStrategy, ProviderRetryConfig, RetryConfig, RetryStrategy,
 };
 
 // ============================================================================

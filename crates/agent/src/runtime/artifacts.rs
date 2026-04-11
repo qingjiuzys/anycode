@@ -130,7 +130,7 @@ mod tests {
         let (s, t) = truncate_text("abcdefgh".to_string(), 4);
         assert!(t);
         assert!(s.contains("<truncated>"));
-        assert_eq!(s.chars().count() < 20, true);
+        assert!(s.chars().count() < 20);
     }
 
     #[test]

@@ -9,7 +9,7 @@ fn decrypt_aes_128_ecb(key16: &[u8; 16], ciphertext: &[u8]) -> Result<Vec<u8>> {
     use aes::cipher::generic_array::GenericArray;
     use aes::cipher::{BlockDecrypt, KeyInit};
     use aes::Aes128;
-    if ciphertext.len() % 16 != 0 {
+    if !ciphertext.len().is_multiple_of(16) {
         anyhow::bail!("密文长度非 16 倍数");
     }
     let cipher = Aes128::new(GenericArray::from_slice(key16));
@@ -131,7 +131,7 @@ pub fn extract_text_from_item(item: &Value) -> String {
         .to_string()
 }
 
-pub fn extract_user_text_and_image_item<'a>(items: &'a [Value]) -> (String, Option<&'a Value>) {
+pub fn extract_user_text_and_image_item(items: &[Value]) -> (String, Option<&Value>) {
     use crate::wx::fields::item_type;
     let mut texts = Vec::new();
     let mut img = None;

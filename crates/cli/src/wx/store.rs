@@ -160,12 +160,12 @@ pub fn load_latest_account(data_root: &Path) -> Result<AccountData> {
     let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
     for e in rd.flatten() {
         let p = e.path();
-        if p.extension().map_or(true, |x| x != "json") {
+        if p.extension().is_none_or(|x| x != "json") {
             continue;
         }
         let mt = e.metadata().ok().and_then(|m| m.modified().ok());
         let Some(mt) = mt else { continue };
-        if best.as_ref().map_or(true, |(t, _)| mt > *t) {
+        if best.as_ref().is_none_or(|(t, _)| mt > *t) {
             best = Some((mt, p));
         }
     }

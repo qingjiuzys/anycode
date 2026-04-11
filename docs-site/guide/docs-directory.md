@@ -15,7 +15,7 @@ Short paths for common goals:
 |------|------|
 | Run something in 5 minutes | [Getting started](./getting-started) |
 | Install from release, script, or cargo | [Install](./install) |
-| Subcommands, TUI, REPL, daemon | [CLI overview](./cli) → section pages |
+| Subcommands, TUI, REPL | [CLI overview](./cli) → section pages |
 | Bottom status line (Claude-style HUD, stdin JSON) | [Status line](./status-line) |
 | Providers, `config.json`, models | [Models](./models) |
 | Crates, runtime, tools | [Architecture](./architecture) |
@@ -26,6 +26,7 @@ Short paths for common goals:
 | No TTY, WeChat QR, MCP quirks | [Troubleshooting](./troubleshooting) |
 | WeChat bridge & `setup` | [WeChat & setup](./wechat) |
 | Contribute, tests, registry checklist | [Development](./development) |
+| Maintainer backlog (now / next / later) | Repo [`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md) · [stub](./implementation-checklist) |
 | MVP scope, tools matrix, future work | [Roadmap](./roadmap) |
 
 **All guide URLs** (including this site’s locales): [Hub / full list](./hubs).

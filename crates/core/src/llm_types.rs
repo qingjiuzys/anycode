@@ -106,5 +106,6 @@ pub struct Usage {
 pub enum StreamEvent {
     Delta(String),
     ToolCall(ToolCall),
+    Usage(Usage),
     Done,
 }

@@ -90,7 +90,7 @@ fn prompt_model_for_zai(is_tty: bool, existing: &Option<AnyCodeConfig>) -> anyho
             .position(|e| e.api_name == default_model.as_str())
             .unwrap_or(0);
         Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-pick-model-prompt"))
+            .with_prompt(tr("wizard-pick-model-prompt"))
             .default(default_i.min(catalog_items.len().saturating_sub(1)))
             .items(&catalog_items)
             .interact()?
@@ -116,7 +116,7 @@ fn prompt_model_for_zai(is_tty: bool, existing: &Option<AnyCodeConfig>) -> anyho
 
     if is_tty {
         Ok(Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-prompt-model-id"))
+            .with_prompt(tr("wizard-prompt-model-id"))
             .default(default_model)
             .interact_text()?)
     } else {
@@ -160,7 +160,7 @@ fn prompt_model_for_google(
             .position(|e| e.id == default_model.as_str())
             .unwrap_or(0);
         Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-pick-model-prompt"))
+            .with_prompt(tr("wizard-pick-model-prompt"))
             .default(default_i.min(catalog_items.len().saturating_sub(1)))
             .items(&catalog_items)
             .interact()?
@@ -186,7 +186,7 @@ fn prompt_model_for_google(
 
     if is_tty {
         Ok(Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-prompt-model-id"))
+            .with_prompt(tr("wizard-prompt-model-id"))
             .default(default_model)
             .interact_text()?)
     } else {
@@ -225,7 +225,7 @@ fn prompt_model_for_anthropic(
             .position(|(id, _)| *id == default_model.as_str())
             .unwrap_or(0);
         Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-pick-anthropic-prompt"))
+            .with_prompt(tr("wizard-pick-anthropic-prompt"))
             .default(default_i.min(labels.len().saturating_sub(1)))
             .items(&labels)
             .interact()?
@@ -251,7 +251,7 @@ fn prompt_model_for_anthropic(
 
     if is_tty {
         Ok(Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-prompt-model-id"))
+            .with_prompt(tr("wizard-prompt-model-id"))
             .default(default_model)
             .interact_text()?)
     } else {
@@ -300,7 +300,7 @@ fn prompt_api_key_and_base_url(
     let api_key: String = if is_tty {
         // 已有 api_key 时必须允许「空回车」，否则 dialoguer 会反复提示，无法「保留已有」。
         Password::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("wizard-api-key-prompt"))
+            .with_prompt(tr("wizard-api-key-prompt"))
             .allow_empty_password(!default_api_key.is_empty())
             .interact()?
     } else {
@@ -328,7 +328,7 @@ fn prompt_api_key_and_base_url(
 
         let base_url_in: String = if is_tty {
             Input::with_theme(&ColorfulTheme::default())
-                .with_prompt(&tr("wizard-base-url-merge-pty"))
+                .with_prompt(tr("wizard-base-url-merge-pty"))
                 .default(shown_default.clone())
                 .interact_text()?
         } else {
@@ -466,6 +466,11 @@ pub(crate) fn save_merged_config(
         status_line: existing
             .as_ref()
             .map(|c| c.status_line.clone())
+            .unwrap_or_default(),
+        tui: existing.as_ref().map(|c| c.tui.clone()).unwrap_or_default(),
+        channels: existing
+            .as_ref()
+            .map(|c| c.channels.clone())
             .unwrap_or_default(),
     };
 
@@ -709,6 +714,20 @@ pub(crate) struct AnyCodeConfig {
     /// 全屏 TUI 底部 status line（JSON key `statusLine`）。
     #[serde(default, rename = "statusLine")]
     pub(crate) status_line: StatusLineConfigFile,
+    /// 全屏 TUI（`anycode tui`）与行式 REPL 共用此段（备用屏等）。`tui.alternateScreen` 为 true 时 DEC 备用屏；显式 `ANYCODE_TUI_ALT_SCREEN` 可解析时覆盖。
+    #[serde(default)]
+    pub(crate) tui: TuiConfigFile,
+    /// 通道特定配置（wechat、telegram、discord等）
+    #[serde(default)]
+    pub(crate) channels: ChannelsConfigFile,
+}
+
+/// `config.json` 的 `tui` 段。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct TuiConfigFile {
+    /// `true`：DEC 备用屏（独立全屏画布）；`false` 或未设置：由入口（`anycode tui` / REPL）与运行环境决定；显式 env 优先。
+    #[serde(default, rename = "alternateScreen")]
+    pub(crate) alternate_screen: Option<bool>,
 }
 
 pub(crate) fn default_base_url_for(plan: &str) -> &'static str {
@@ -736,12 +755,89 @@ fn normalize_memory_backend(raw: &str) -> anyhow::Result<String> {
         "noop" | "none" | "off" => Ok("noop".to_string()),
         "file" => Ok("file".to_string()),
         "hybrid" => Ok("hybrid".to_string()),
+        "pipeline" | "layered" | "guigen" => Ok("pipeline".to_string()),
         _ => {
             let mut a = FluentArgs::new();
             a.set("b", raw.trim());
             anyhow::bail!("{}", tr_args("err-memory-backend", &a));
         }
     }
+}
+
+fn normalize_embedding_provider(raw: Option<&str>) -> anyhow::Result<String> {
+    let s = raw.unwrap_or("http").trim().to_lowercase();
+    match s.as_str() {
+        "" | "http" | "openai" | "remote" => Ok("http".to_string()),
+        "local" | "onnx" | "fastembed" => Ok("local".to_string()),
+        other => anyhow::bail!(
+            "invalid memory.pipeline.embedding_provider: {:?} (allowed: http, local, onnx, fastembed)",
+            other
+        ),
+    }
+}
+
+fn resolve_embedding_local_cache_dir(p: Option<PathBuf>) -> anyhow::Result<Option<PathBuf>> {
+    let Some(p) = p.filter(|x| !x.as_os_str().is_empty()) else {
+        return Ok(None);
+    };
+    if p.is_absolute() {
+        return Ok(Some(p));
+    }
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("{}", tr("err-no-home-memory")))?;
+    Ok(Some(home.join(p)))
+}
+
+fn merge_memory_pipeline_settings(
+    f: &MemoryPipelineConfigFile,
+) -> anycode_core::MemoryPipelineSettings {
+    use anycode_core::MemoryPipelineSettings;
+    let mut s = MemoryPipelineSettings::default();
+    if let Some(v) = f.buffer_ttl_secs {
+        s.buffer_ttl_secs = v;
+    }
+    if let Some(v) = f.max_buffer_fragments {
+        s.max_buffer_fragments = v;
+    }
+    if let Some(v) = f.promote_touch_threshold {
+        s.promote_touch_threshold = v;
+    }
+    if let Some(v) = f.reinforce_on_recall_match {
+        s.reinforce_on_recall_match = v;
+    }
+    if let Some(v) = f.merge_legacy_file_recall {
+        s.merge_legacy_file_recall = v;
+    }
+    if let Some(v) = f.buffer_wal_enabled {
+        s.buffer_wal_enabled = v;
+    }
+    if let Some(v) = f.buffer_wal_fsync_every_n {
+        s.buffer_wal_fsync_every_n = v.max(1);
+    }
+    if let Some(v) = f.hook_after_tool_result {
+        s.hook_after_tool_result = v;
+    }
+    if let Some(v) = f.hook_after_agent_turn {
+        s.hook_after_agent_turn = v;
+    }
+    if let Some(v) = f.hook_max_bytes {
+        s.hook_max_bytes = v.max(256);
+    }
+    if let Some(ref v) = f.hook_tool_deny_prefixes {
+        if !v.is_empty() {
+            s.hook_tool_deny_prefixes = v.clone();
+        }
+    }
+    if let Some(v) = f.embedding_enabled {
+        s.embedding_enabled = v;
+    }
+    if f.embedding_model
+        .as_ref()
+        .map(|m| !m.trim().is_empty())
+        .unwrap_or(false)
+    {
+        s.embedding_enabled = true;
+    }
+    s
 }
 
 /// `-c` 指定文件，否则 `~/.anycode/config.json`。
@@ -833,6 +929,8 @@ fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Resul
             session: SessionConfigFile::default(),
             model_instructions: ModelInstructionsConfigFile::default(),
             status_line: StatusLineConfigFile::default(),
+            tui: TuiConfigFile::default(),
+            channels: ChannelsConfigFile::default(),
         }),
     )
 }
@@ -920,7 +1018,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
     let plan_idx = if is_tty {
         let plan_items = vec![tr("cfg-plan-coding"), tr("cfg-plan-general")];
         Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("cfg-plan-step-pty"))
+            .with_prompt(tr("cfg-plan-step-pty"))
             .default(0)
             .items(&plan_items)
             .interact()?
@@ -947,7 +1045,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             tr("cfg-model-custom"),
         ];
         Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("cfg-model-step-pty"))
+            .with_prompt(tr("cfg-model-step-pty"))
             .default(0)
             .items(&model_items)
             .interact()?
@@ -972,7 +1070,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
         _ => {
             if is_tty {
                 Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt(&tr("cfg-model-custom-pty"))
+                    .with_prompt(tr("cfg-model-custom-pty"))
                     .default("glm-5".to_string())
                     .interact_text()?
             } else {
@@ -997,7 +1095,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
 
     let api_key: String = if is_tty {
         Password::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("cfg-api-step-pty"))
+            .with_prompt(tr("cfg-api-step-pty"))
             .allow_empty_password(default_api_key.is_empty())
             .interact()?
     } else {
@@ -1023,7 +1121,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
     };
     let base_url_in: String = if is_tty {
         Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(&tr("cfg-base-prompt-pty"))
+            .with_prompt(tr("cfg-base-prompt-pty"))
             .default(shown_default.clone())
             .interact_text()?
     } else {
@@ -1104,6 +1202,11 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .as_ref()
             .map(|c| c.status_line.clone())
             .unwrap_or_default(),
+        tui: existing.as_ref().map(|c| c.tui.clone()).unwrap_or_default(),
+        channels: existing
+            .as_ref()
+            .map(|c| c.channels.clone())
+            .unwrap_or_default(),
     };
 
     save_anycode_config(&cfg)?;
@@ -1128,7 +1231,7 @@ async fn maybe_offer_wechat_binding() -> anyhow::Result<()> {
         return Ok(());
     }
     if Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt(&tr("cfg-wechat-confirm"))
+        .with_prompt(tr("cfg-wechat-confirm"))
         .default(true)
         .interact()?
     {
@@ -1170,12 +1273,7 @@ pub(crate) async fn run_onboard_flow(
             // Keep it minimal so it doesn't dominate the setup UX.
             // 单段输出：`println!` 会在整段末尾再补一个 `\n`，格式里不要在最后一行前多加 `\n`，否则会出现「中间空一行」。
             println!(
-                "\n{}\n{}\n{}\n{}\n{}",
-                "    _              ____          __",
-                "   / \\   _ __  _  / ___|___   __/ _| ___",
-                "  / _ \\ | '_ \\| | | |   / _ \\ / _` |/ _ \\",
-                " / ___ \\| | | | |_| |__| (_) | (_| |  __/",
-                "/_/   \\_\\_| |_|\\__, |\\____\\___/ \\__,_|\\___|"
+                "\n    _              ____          __\n   / \\   _ __  _  / ___|___   __/ _| ___\n  / _ \\ | '_ \\| | | |   / _ \\ / _` |/ _ \\\n / ___ \\| | | | |_| |__| (_) | (_| |  __/\n/_/   \\_\\_| |_|\\__, |\\____\\___/ \\__,_|\\___|"
             );
         }
     }
@@ -1195,7 +1293,7 @@ pub(crate) async fn run_onboard_flow(
             ];
             let idx = Select::with_theme(&ColorfulTheme::default())
                 .with_prompt("模型配置")
-                .items(&options)
+                .items(options)
                 .default(0)
                 .interact()?;
             match idx {
@@ -1209,6 +1307,13 @@ pub(crate) async fn run_onboard_flow(
     }
     if reconfigure_model {
         run_model_onboard_interactive(config_file.clone()).await?;
+    }
+
+    #[cfg(feature = "embedding-local")]
+    {
+        if let Err(e) = crate::memory_embedding_setup::run_optional(config_file.clone()) {
+            tracing::warn!(target: "anycode_cli", "memory embedding setup skipped: {}", e);
+        }
     }
 
     let selected = match channel
@@ -1285,6 +1390,8 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
                 session: SessionConfigFile::default(),
                 model_instructions: ModelInstructionsConfigFile::default(),
                 status_line: StatusLineConfigFile::default(),
+                tui: TuiConfigFile::default(),
+                channels: ChannelsConfigFile::default(),
             }
         }
     };
@@ -1327,6 +1434,13 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
     let memory_path = resolve_memory_directory(cfg.memory.path.clone())?;
     let memory_backend = normalize_memory_backend(&cfg.memory.backend)?;
 
+    let embedding_provider =
+        normalize_embedding_provider(cfg.memory.pipeline.embedding_provider.as_deref())?;
+    let mut pipeline = merge_memory_pipeline_settings(&cfg.memory.pipeline);
+    if embedding_provider == "local" {
+        pipeline.embedding_enabled = true;
+    }
+
     // Resolve model instructions file from env var (e.g., AGENTS.md)
     let model_instructions_file = resolve_model_instructions_file_from_env();
 
@@ -1346,6 +1460,35 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             path: memory_path,
             auto_save: cfg.memory.auto_save,
             backend: memory_backend,
+            pipeline,
+            embedding_model: cfg
+                .memory
+                .pipeline
+                .embedding_model
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
+            embedding_base_url: cfg
+                .memory
+                .pipeline
+                .embedding_base_url
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
+            embedding_provider,
+            embedding_local_cache_dir: resolve_embedding_local_cache_dir(
+                cfg.memory.pipeline.embedding_local_cache_dir.clone(),
+            )?,
+            embedding_local_model: cfg
+                .memory
+                .pipeline
+                .embedding_local_model
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
+            embedding_hf_endpoint: cfg
+                .memory
+                .pipeline
+                .embedding_hf_endpoint
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
         },
         security: SecurityConfig {
             permission_mode: cfg.security.permission_mode.clone(),
@@ -1383,6 +1526,8 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         skills: cfg.skills.into(),
         session: cfg.session.into(),
         status_line: cfg.status_line.into(),
+        tui: cfg.tui.into(),
+        channels: cfg.channels.into(),
     })
 }
 
@@ -1534,6 +1679,41 @@ mod serde_config_tests {
         );
         assert!(!c.memory.auto_save);
         assert!(c.zai_tool_choice_first_turn);
+    }
+
+    #[test]
+    fn deserializes_memory_pipeline_embedding_local_fields() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "base_url":null,
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "memory": {
+                "backend": "pipeline",
+                "pipeline": {
+                    "embedding_provider": "local",
+                    "embedding_local_model": "BGESmallZHV15",
+                    "embedding_hf_endpoint": "https://hf-mirror.com"
+                }
+            }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert_eq!(c.memory.backend, "pipeline");
+        assert_eq!(
+            c.memory.pipeline.embedding_provider.as_deref(),
+            Some("local")
+        );
+        assert_eq!(
+            c.memory.pipeline.embedding_local_model.as_deref(),
+            Some("BGESmallZHV15")
+        );
+        assert_eq!(
+            c.memory.pipeline.embedding_hf_endpoint.as_deref(),
+            Some("https://hf-mirror.com")
+        );
     }
 
     #[test]

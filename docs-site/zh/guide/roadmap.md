@@ -11,6 +11,8 @@ read_when:
 
 本文合并原 **MVP 范围**、**MVP 验收**、**工具与阶段（tools-parity）**、**待实现清单（roadmap-stubs）**、**MCP 后续（mcp-postmvp）** 的要点。**代码事实来源**仍以 `crates/tools/src/catalog.rs`、`crates/tools/src/agent_tools.rs`（**Agent** / **Task**）、`crates/cli/src/bootstrap/mod.rs`、`crates/agent/src/agents.rs` 为准。
 
+**维护者执行层 backlog**（now / next / later、决策）：仓库 **[`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md)** — 迭代任务请只改该文件，勿在本页重复清单。
+
 ## 最小 MVP 范围（已冻结）
 
 **MVP 内**
@@ -19,7 +21,7 @@ read_when:
 - **审批 / 沙箱**（`SecurityLayer` 与配置项）。  
 - **z.ai（OpenAI 兼容）与 Anthropic** 至少一条日常可用的 tool-calling 路径。  
 - **执行期落盘日志**（`~/.anycode/tasks/<id>/output.log`）与 **结束 summary**（非 TUI 直出场景）。  
-- **CLI**：`run`、默认 TUI、`repl`、可选 `daemon` HTTP。
+- **CLI**：`run`、`repl`、`tui`、通道桥、`scheduler` 等。（**HTTP `daemon`** 已移除 — 见 [ADR 003](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/003-http-daemon-deprecated.md) 与 [HTTP 守护进程（已移除）](./cli-daemon)。）
 
 **MVP 外**（独立里程碑，**不阻塞**上述 MVP 发布）
 
@@ -102,7 +104,7 @@ read_when:
 
 | 主线 | 目标（可拆成 issue 的起点） |
 |------|---------------------------|
-| **P5 Agent / Task** | 可选：编排 **`orchestration`** 与 daemon **`~/.anycode/tasks/<id>/`** 故事进一步对齐；**fork** / **真异步后台** 等与 Claude 完整 parity。 |
+| **P5 Agent / Task** | 可选：编排 **`orchestration`** 与任务目录 **`~/.anycode/tasks/<id>/`** 布局进一步对齐；**fork** / **真异步后台** 等与 Claude 完整 parity。 |
 | **MCP 超出 stdio v1** | stdio 健康检查与更清晰错误；`tools/call` 超时；无 GUI 下的 **McpAuth** / OAuth 体验；真实的 MCP **资源** 列出与读取工具。 |
 
 **文档说明：**显式模型指令文件路径 **仅** 通过环境变量 **`ANYCODE_MODEL_INSTRUCTIONS_FILE`** 指定；JSON 中的 `model_instructions` **只**控制自动发现 — 见 [配置与安全](./config-security.md)。

@@ -385,18 +385,15 @@ impl LLMClient for BedrockClient {
                     )) => {
                         if let Some(start) = ev.start() {
                             let idx = ev.content_block_index();
-                            match start {
-                                ContentBlockStart::ToolUse(tus) => {
-                                    tool_by_index.insert(
-                                        idx,
-                                        ToolAcc {
-                                            id: tus.tool_use_id().to_string(),
-                                            name: tus.name().to_string(),
-                                            input_json: String::new(),
-                                        },
-                                    );
-                                }
-                                _ => {}
+                            if let ContentBlockStart::ToolUse(tus) = start {
+                                tool_by_index.insert(
+                                    idx,
+                                    ToolAcc {
+                                        id: tus.tool_use_id().to_string(),
+                                        name: tus.name().to_string(),
+                                        input_json: String::new(),
+                                    },
+                                );
                             }
                         }
                     }
@@ -440,6 +437,18 @@ impl LLMClient for BedrockClient {
                                     }))
                                     .await;
                             }
+                        }
+                    }
+                    Ok(Some(aws_sdk_bedrockruntime::types::ConverseStreamOutput::Metadata(ev))) => {
+                        if let Some(usage) = ev.usage() {
+                            let _ = tx
+                                .send(StreamEvent::Usage(Usage {
+                                    input_tokens: usage.input_tokens.max(0) as u32,
+                                    output_tokens: usage.output_tokens.max(0) as u32,
+                                    cache_creation_tokens: None,
+                                    cache_read_tokens: None,
+                                }))
+                                .await;
                         }
                     }
                     Ok(Some(aws_sdk_bedrockruntime::types::ConverseStreamOutput::MessageStop(

@@ -358,7 +358,7 @@ impl Tool for SleepTool {
         let start = Instant::now();
         let s: SleepIn =
             serde_json::from_value(input.input).unwrap_or(SleepIn { duration_ms: 1000 });
-        let ms = s.duration_ms.min(60_000).max(1);
+        let ms = s.duration_ms.clamp(1, 60_000);
         tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
         Ok(ToolOutput {
             result: json!({ "slept_ms": ms }),

@@ -38,3 +38,12 @@ pub(crate) fn pet_panel_lines(frame: u64, executing: bool) -> Vec<Line<'static>>
         ]
     }
 }
+
+/// Prompt 上方 HUD 仅占 2 行时用的精简 Buddy（脸 + 一行肢体/睡眠）。
+pub(crate) fn pet_hud_lines(frame: u64, executing: bool) -> Vec<Line<'static>> {
+    let full = pet_panel_lines(frame, executing);
+    vec![
+        full.first().cloned().unwrap_or_else(|| Line::from("")),
+        full.get(1).cloned().unwrap_or_else(|| Line::from("")),
+    ]
+}

@@ -6,8 +6,20 @@ use fuzzy_matcher::FuzzyMatcher;
 pub enum ParsedSlashCommand {
     Mode(Option<String>),
     Status,
-    Compact,
+    /// `None` = `/compact`；`Some` = 自定义压缩说明（与全屏 TUI 一致）。
+    Compact(Option<String>),
+    Clear,
     Workflow(Option<String>),
+    /// `None` = cwd 优先解析最近会话；`Some("list")`；`Some(uuid)` 显式 id。
+    Session(Option<String>),
+    /// 从系统剪贴板插入 UTF-8（与 `repl_clipboard` 一致）。
+    Paste,
+    /// 只读上下文与上一轮用量（与 HUD / 脚标同源字段）。
+    Context,
+    /// 可选路径；默认写到 cwd 下 `anycode-export-<session>.txt`。
+    Export(Option<String>),
+    /// 与 `/context` 同源数据 + 无货币计费说明（诚实版 usage）。
+    Cost,
 }
 
 pub fn registry() -> &'static [SlashCommand] {
@@ -58,6 +70,28 @@ pub struct SlashSuggestionItem {
     pub replacement: String,
 }
 
+/// 斜杠补全列表里「命令」列的统一显示宽度，使右侧说明纵向对齐。
+/// `inner_w_cols` 为可用行宽（与 `Rect::width` 一致）。
+pub(crate) fn slash_menu_cmd_column_width(
+    candidates: &[SlashSuggestionItem],
+    start: usize,
+    end: usize,
+    inner_w_cols: usize,
+) -> usize {
+    const PREFIX_W: usize = 2; // "▸ " / "  "
+    const GAP_W: usize = 2; // 命令列与说明之间的空白
+    /// 说明列至少保留的显示宽度（过窄时宁可缩短命令列，避免说明被折行挤乱）。
+    const MIN_DESC: usize = 14;
+    let cap = inner_w_cols
+        .saturating_sub(PREFIX_W + GAP_W + MIN_DESC)
+        .max(8);
+    let m = (start..end)
+        .map(|i| crate::md_tui::text_display_width(candidates[i].display.as_str()))
+        .max()
+        .unwrap_or(0);
+    m.max(8).min(cap)
+}
+
 /// 完整斜杠目录（用于输入了首字母后的模糊/前缀匹配，以及 ghost 补全）。
 fn full_catalog_rows() -> Vec<(&'static str, &'static str)> {
     let mut rows: Vec<(&'static str, &'static str)> =
@@ -67,6 +101,10 @@ fn full_catalog_rows() -> Vec<(&'static str, &'static str)> {
         ("agents", "列出可用 Agent"),
         ("tools", "列出工具"),
         ("clear", "清空会话与 transcript"),
+        ("paste", "从剪贴板插入文本"),
+        ("context", "只读上下文与 token 用量摘要"),
+        ("export", "导出会话为纯文本文件"),
+        ("cost", "上一轮 token 用量（无美元估算）"),
         ("exit", "退出 TUI"),
     ] {
         if !rows.iter().any(|(n, _)| *n == name) {
@@ -82,7 +120,10 @@ fn full_catalog_rows() -> Vec<(&'static str, &'static str)> {
 fn primary_catalog_rows(
     full: &[(&'static str, &'static str)],
 ) -> Vec<(&'static str, &'static str)> {
-    const ORDER: &[&str] = &["help", "clear", "mode", "status", "compact", "exit"];
+    const ORDER: &[&str] = &[
+        "help", "clear", "mode", "session", "context", "cost", "export", "status", "compact",
+        "exit",
+    ];
     ORDER
         .iter()
         .filter_map(|name| full.iter().find(|(n, _)| *n == *name).copied())
@@ -166,7 +207,7 @@ pub fn slash_ghost_suffix(buffer: &str, cursor: usize) -> Option<String> {
     if !first.starts_with('/') || has_command_args_claude(first) {
         return None;
     }
-    if before.len() < 1 || !before.starts_with('/') {
+    if before.is_empty() || !before.starts_with('/') {
         return None;
     }
     let rest = before.strip_prefix('/')?;
@@ -221,8 +262,14 @@ pub fn parse(input: &str) -> Option<ParsedSlashCommand> {
     match cmd.as_str() {
         "mode" => Some(ParsedSlashCommand::Mode(arg)),
         "status" => Some(ParsedSlashCommand::Status),
-        "compact" => Some(ParsedSlashCommand::Compact),
+        "compact" => Some(ParsedSlashCommand::Compact(arg)),
+        "clear" => Some(ParsedSlashCommand::Clear),
         "workflow" => Some(ParsedSlashCommand::Workflow(arg)),
+        "session" => Some(ParsedSlashCommand::Session(arg)),
+        "paste" => Some(ParsedSlashCommand::Paste),
+        "context" => Some(ParsedSlashCommand::Context),
+        "export" => Some(ParsedSlashCommand::Export(arg)),
+        "cost" => Some(ParsedSlashCommand::Cost),
         _ => None,
     }
 }
@@ -249,9 +296,10 @@ mod tests {
     #[test]
     fn slash_empty_lists_primary_only() {
         let v = slash_suggestions_for_first_line("/");
-        assert_eq!(v.len(), 6);
+        assert_eq!(v.len(), 10);
         let names: Vec<_> = v.iter().map(|s| s.id.as_str()).collect();
         assert!(names.contains(&"help"));
+        assert!(names.contains(&"session"));
         assert!(!names.contains(&"agents"));
     }
 
@@ -278,5 +326,47 @@ mod tests {
     #[test]
     fn replace_first_line_keeps_tail() {
         assert_eq!(replace_first_line("a\nb", "/x"), "/x\nb".to_string());
+    }
+
+    #[test]
+    fn parse_compact_and_clear() {
+        assert_eq!(parse("/compact"), Some(ParsedSlashCommand::Compact(None)));
+        assert_eq!(
+            parse("/compact focus on next steps"),
+            Some(ParsedSlashCommand::Compact(Some(
+                "focus on next steps".to_string()
+            )))
+        );
+        assert_eq!(parse("/clear"), Some(ParsedSlashCommand::Clear));
+    }
+
+    #[test]
+    fn parse_session_variants() {
+        assert_eq!(parse("/session"), Some(ParsedSlashCommand::Session(None)));
+        assert_eq!(
+            parse("/session list"),
+            Some(ParsedSlashCommand::Session(Some("list".to_string())))
+        );
+        assert_eq!(
+            parse("/session 550e8400-e29b-41d4-a716-446655440000"),
+            Some(ParsedSlashCommand::Session(Some(
+                "550e8400-e29b-41d4-a716-446655440000".to_string()
+            )))
+        );
+    }
+
+    #[test]
+    fn parse_cost() {
+        assert_eq!(parse("/cost"), Some(ParsedSlashCommand::Cost));
+    }
+
+    #[test]
+    fn parse_context_and_export() {
+        assert_eq!(parse("/context"), Some(ParsedSlashCommand::Context));
+        assert_eq!(parse("/export"), Some(ParsedSlashCommand::Export(None)));
+        assert_eq!(
+            parse("/export out.txt"),
+            Some(ParsedSlashCommand::Export(Some("out.txt".to_string())))
+        );
     }
 }

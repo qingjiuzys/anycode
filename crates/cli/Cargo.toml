@@ -10,6 +10,8 @@ path = "src/main.rs"
 
 [features]
 default = []
+# 本地 ONNX 嵌入（FastEmbed / MiniLM），与 `memory.pipeline.embedding_provider: "local"` 联用。
+embedding-local = ["anycode-memory/embedding-local"]
 openai = ["anycode-llm/openai"]
 tools-mcp = ["anycode-tools/tools-mcp"]
 mcp-oauth = ["anycode-tools/tools-mcp-oauth"]
@@ -45,7 +47,8 @@ serde = { workspace = true }
 clap = { version = "4.4", features = ["derive", "env"] }
 ratatui = { workspace = true }
 # bracketed-paste：Event::Paste（终端支持时整段粘贴，含多行）
-crossterm = { workspace = true, features = ["bracketed-paste"] }
+# use-dev-tty：从 /dev/tty 轮询输入，与 macOS 控制台/IME 的交互通常优于仅 stdin+mio（中文输入更稳）。
+crossterm = { workspace = true, features = ["bracketed-paste", "use-dev-tty"] }
 dialoguer = "0.12"
 console = "0.16"
 
@@ -67,3 +70,16 @@ notify = { workspace = true }
 fuzzy-matcher = "0.3"
 fluent-bundle = "0.15.2"
 unic-langid = "0.9.4"
+lru = "0.12"
+once_cell = "1.19"
+
+# 语法高亮
+syntect = "5.2"
+
+[dev-dependencies]
+tempfile = "3.10"
+# 阶段 2 备选：`examples/reedline_spike.rs` 评估单行 readline 与 IME；未链入默认 REPL。
+reedline = "0.32"
+
+[lints]
+workspace = true

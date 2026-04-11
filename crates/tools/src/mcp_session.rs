@@ -139,7 +139,7 @@ impl McpStdioSession {
                 "params": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {},
-                    "clientInfo": { "name": "anycode", "version": "0.1" }
+                    "clientInfo": { "name": "anycode", "version": env!("CARGO_PKG_VERSION") }
                 }
             }),
         )

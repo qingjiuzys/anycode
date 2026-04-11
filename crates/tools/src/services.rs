@@ -163,10 +163,11 @@ impl ToolServices {
         mcp_defer_allowlist: Option<Arc<Mutex<HashSet<String>>>>,
         skill_catalog: Arc<SkillCatalog>,
     ) -> Self {
-        let mut s = Self::default();
-        s.mcp_defer_allowlist = mcp_defer_allowlist;
-        s.skill_catalog = skill_catalog;
-        s
+        Self {
+            mcp_defer_allowlist,
+            skill_catalog,
+            ..Default::default()
+        }
     }
 
     /// 绑定 `orchestration.json` 路径；若文件已存在则恢复编排状态（P6 持久化 v1）。
@@ -179,10 +180,12 @@ impl ToolServices {
         mcp_defer_allowlist: Option<Arc<Mutex<HashSet<String>>>>,
         skill_catalog: Arc<SkillCatalog>,
     ) -> anyhow::Result<Self> {
-        let mut s = Self::default();
-        s.mcp_defer_allowlist = mcp_defer_allowlist;
-        s.skill_catalog = skill_catalog;
-        s.orchestration_path = Some(orchestration_file.clone());
+        let s = Self {
+            mcp_defer_allowlist,
+            skill_catalog,
+            orchestration_path: Some(orchestration_file.clone()),
+            ..Default::default()
+        };
         if orchestration_file.is_file() {
             match fs::read_to_string(&orchestration_file) {
                 Ok(text) => match serde_json::from_str::<OrchestrationSnapshotV1>(&text) {

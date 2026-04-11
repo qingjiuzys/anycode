@@ -15,7 +15,7 @@ English **`/guide/`** routes:
 - [Install](./install)  
 - [CLI overview](./cli)  
 - [Run, REPL & TUI](./cli-sessions)  
-- [Daemon](./cli-daemon)  
+- [HTTP daemon (removed)](./cli-daemon)  
 - [Model commands](./cli-model)  
 - [Discovery & test-security](./cli-diagnostics)  
 - [Agent skills](./skills)  
@@ -27,6 +27,7 @@ English **`/guide/`** routes:
 - [Troubleshooting](./troubleshooting)  
 - [Development](./development)  
 - [Roadmap](./roadmap)  
+- [Implementation checklist (stub)](./implementation-checklist)  
 - [This hub](./hubs)  
 
 Chinese locale: **`/zh/guide/`** — [全量索引](/zh/guide/hubs).

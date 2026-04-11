@@ -1,4 +1,4 @@
-//! Parse MCP servers from env: stdio commands and Streamable HTTP (SSE).
+//! Parse MCP servers from env: stdio、Streamable HTTP（`rmcp`）与 legacy SSE（`event: endpoint`）。
 
 use crate::i18n::{tr, tr_args};
 use fluent_bundle::FluentArgs;
@@ -16,6 +16,34 @@ fn expand_tilde_path(raw: &str) -> PathBuf {
     PathBuf::from(raw)
 }
 
+/// 远程 HTTP MCP 传输：与 OpenClaw `streamable-http` / 默认 SSE 分流一致。
+#[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum McpHttpTransport {
+    /// `rmcp` Streamable HTTP（`POST`，响应可为 JSON 或 SSE）。
+    StreamableHttp,
+    /// Legacy：`GET` SSE + `event: endpoint` 得 POST URL（`@modelcontextprotocol/sdk` SSEClientTransport）。
+    LegacySse,
+}
+
+fn resolve_http_transport(obj: &serde_json::Map<String, Value>) -> McpHttpTransport {
+    if let Some(t) = obj.get("transport").and_then(|x| x.as_str()) {
+        return match t.trim().to_ascii_lowercase().as_str() {
+            "sse" => McpHttpTransport::LegacySse,
+            _ => McpHttpTransport::StreamableHttp,
+        };
+    }
+    let ty = obj
+        .get("type")
+        .and_then(|x| x.as_str())
+        .map(|s| s.trim().to_ascii_lowercase())
+        .unwrap_or_default();
+    match ty.as_str() {
+        "sse" => McpHttpTransport::LegacySse,
+        _ => McpHttpTransport::StreamableHttp,
+    }
+}
+
 /// One MCP connection spec (order = connect order).
 #[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
 #[derive(Debug, Clone)]
@@ -27,6 +55,7 @@ pub(crate) enum McpServerEntry {
     Http {
         slug: String,
         url: String,
+        transport: McpHttpTransport,
         bearer_token: Option<String>,
         /// rmcp credential JSON (`oauth-login --credentials-store`); overrides static `bearer_token`.
         oauth_credentials_path: Option<PathBuf>,
@@ -122,7 +151,7 @@ fn parse_mcp_servers_json(raw: &str) -> Vec<McpServerEntry> {
             .trim();
         let is_http_ty = matches!(
             ty.as_str(),
-            "http" | "sse" | "streamable" | "streamablehttp"
+            "http" | "sse" | "streamable" | "streamablehttp" | "streamable-http"
         );
         let looks_like_url =
             url.is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"));
@@ -197,7 +226,7 @@ fn http_entry_from_object(i: usize, item: &Value) -> McpServerEntry {
         .and_then(|x| x.as_str())
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(|s| expand_tilde_path(s));
+        .map(expand_tilde_path);
     if let Ok(p) = std::env::var(&oauth_env_key) {
         let p = p.trim();
         if !p.is_empty() {
@@ -212,9 +241,11 @@ fn http_entry_from_object(i: usize, item: &Value) -> McpServerEntry {
             }
         }
     }
+    let transport = resolve_http_transport(&obj);
     McpServerEntry::Http {
         slug,
         url,
+        transport,
         bearer_token,
         oauth_credentials_path,
         headers,
@@ -259,14 +290,30 @@ mod tests {
             McpServerEntry::Http {
                 slug,
                 url,
+                transport,
                 bearer_token,
                 oauth_credentials_path,
                 ..
             } => {
                 assert_eq!(slug, "api");
                 assert_eq!(url, "https://example.com/mcp");
+                assert_eq!(*transport, McpHttpTransport::StreamableHttp);
                 assert_eq!(bearer_token.as_deref(), Some("t"));
                 assert!(oauth_credentials_path.is_none());
+            }
+            _ => panic!("expected http"),
+        }
+    }
+
+    #[test]
+    fn parse_http_legacy_sse() {
+        let j = r#"[
+            {"slug":"s","type":"sse","url":"https://example.com/sse"}
+        ]"#;
+        let v = parse_mcp_servers_json(j);
+        match &v[0] {
+            McpServerEntry::Http { transport, .. } => {
+                assert_eq!(*transport, McpHttpTransport::LegacySse);
             }
             _ => panic!("expected http"),
         }
@@ -280,9 +327,11 @@ mod tests {
         let v = parse_mcp_servers_json(j);
         match &v[0] {
             McpServerEntry::Http {
+                transport,
                 oauth_credentials_path,
                 ..
             } => {
+                assert_eq!(*transport, McpHttpTransport::StreamableHttp);
                 assert_eq!(
                     oauth_credentials_path.as_ref().map(|p| p.as_path()),
                     Some(std::path::Path::new("/tmp/mcp-oauth.json"))
