@@ -17,10 +17,10 @@ use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 
 use ratatui::backend::CrosstermBackend;
-use ratatui::buffer::Buffer;
+use ratatui::buffer::{Buffer, Cell};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use crate::md_tui::wrap_string_to_width;
@@ -67,6 +67,19 @@ fn blit_dock_to_frame(dst: &mut Buffer, src: &Buffer, origin: Rect) {
     }
 }
 
+/// Inline 视口主区若不先清空，未改写的 cell 会残留上一帧（易与底栏 `─` 叠成「多一条横线」）。
+fn clear_buffer_area(buf: &mut Buffer, area: Rect) {
+    let y1 = area.y.min(buf.area.height);
+    let y2 = area.y.saturating_add(area.height).min(buf.area.height);
+    let x1 = area.x.min(buf.area.width);
+    let x2 = area.x.saturating_add(area.width).min(buf.area.width);
+    for y in y1..y2 {
+        for x in x1..x2 {
+            *buf.get_mut(x, y) = Cell::default();
+        }
+    }
+}
+
 fn draw_stream_frame(
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     state: &Arc<Mutex<ReplLineState>>,
@@ -95,21 +108,27 @@ fn draw_stream_frame(
             let g = st.transcript.lock().unwrap_or_else(|e| e.into_inner());
             repl_stream_transcript_bottom_padded(g.as_str(), top_cell.height, wrap_w, scroll_up)
         };
+        clear_buffer_area(f.buffer_mut(), top_cell);
         // 换行已由 `repl_stream_transcript_bottom_padded` 按 `wrap_w` 折好；勿再 `wrap`，否则与按显示行「上滚」的裁剪不一致。
         let top_par = Paragraph::new(Text::raw(transcript_tail)).style(style_dim());
         f.render_widget(top_par, top_cell);
 
-        let w = dock_screen.width.max(1);
-        let h = dock_screen.height.max(1);
-        let dock_buf_rect = Rect::new(0, 0, w, h);
+        let dock_block = Block::default()
+            .borders(Borders::TOP | Borders::BOTTOM)
+            .border_style(style_dim());
+        let inner = dock_block.inner(dock_screen);
+        let iw = inner.width.max(1);
+        let ih = inner.height.max(1);
+        let dock_buf_rect = Rect::new(0, 0, iw, ih);
         let mut dock_buf = Buffer::empty(dock_buf_rect);
         let cursor_rel =
             render_repl_dock_to_buffer(&mut dock_buf, dock_buf_rect, &st, ReplDockLayout);
-        blit_dock_to_frame(f.buffer_mut(), &dock_buf, dock_screen);
+        blit_dock_to_frame(f.buffer_mut(), &dock_buf, inner);
+        dock_block.render(dock_screen, f.buffer_mut());
 
         if let Some((rx, ry)) = cursor_rel {
-            let xa = dock_screen.x.saturating_add(rx.min(w.saturating_sub(1)));
-            let ya = dock_screen.y.saturating_add(ry.min(h.saturating_sub(1)));
+            let xa = inner.x.saturating_add(rx.min(iw.saturating_sub(1)));
+            let ya = inner.y.saturating_add(ry.min(ih.saturating_sub(1)));
             f.set_cursor(xa, ya);
         }
     })?;
@@ -143,7 +162,7 @@ fn desired_inline_rows(state: &Arc<Mutex<ReplLineState>>) -> anyhow::Result<u16>
     let desired = dock_h.saturating_add(content_extra).min(cap_total);
 
     if transcript.trim().is_empty() {
-        // 保留 1 行正文区，避免 dock 被压缩后把下横线挤掉。
+        // 保留 1 行正文区，避免 dock 被压缩后把 Block 底边挤掉。
         Ok(dock_h.saturating_add(1).max(1).min(h.max(1)))
     } else {
         Ok(desired.max(dock_h.saturating_add(1)).min(h.max(1)))

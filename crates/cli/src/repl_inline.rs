@@ -184,7 +184,7 @@ fn tail_for_display(raw: &str, max_lines: usize) -> String {
     lines[lines.len().saturating_sub(max_lines)..].join("\n")
 }
 
-/// 底栏布局参数（流式 Inline：仅输入框下横线；HUD 与输入之间不再画整行 `─`，避免与 ✶ 行视觉连成一长串）。
+/// 底栏布局参数（流式 Inline：**内层**为 HUD + 输入 + 审批/斜杠/脚标；与主区及宿主终端之间由 `repl_stream_ratatui` 的 `Block` **顶边 + 底边**框住，内层不再手画整行 `─`）。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ReplDockLayout;
 
@@ -211,20 +211,20 @@ impl ReplDockLayout {
 
     fn min_dock_rows(self) -> u16 {
         let _ = self;
-        // 输入 + 下横线
-        2
+        // 至少一行输入；顶/底边各由 Block 占 1 行（不计入内层）
+        1
     }
 
-    /// 输入框**上方**分隔线（行数）。
+    /// 输入框**上方**内层分隔线（行数）；流式 UI 顶边用 `Block`，此处为 0。
     fn prompt_rule_top_rows(self) -> u16 {
         let _ = self;
         0
     }
 
-    /// 输入框**下方**分隔线（行数）。
+    /// 输入框**下方**内层整行横线（行数）；流式 UI 底边用 `Block`，此处为 0。
     fn prompt_rule_bottom_rows(self) -> u16 {
         let _ = self;
-        1
+        0
     }
 }
 
@@ -372,7 +372,6 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
             a -= 1;
             continue;
         }
-        // 尽量保留 prompt 上下两条横线，最后才牺牲。
         if rb > 0 {
             rb -= 1;
             continue;
@@ -404,15 +403,19 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
 }
 
 /// 底部 dock（斜杠候选 + 多行输入）高度，与全屏 REPL / 流式 dock 共用同一套布局规则。
+///
+/// **流式 Inline**：返回值 = 内层 + **2 行** `Block`（顶与主区分界，底封住脚标/斜杠区下沿）。
 pub(crate) fn repl_dock_height(area: Rect, state: &ReplLineState, layout: ReplDockLayout) -> u16 {
     let avail = area.height.saturating_sub(1);
     let nat = repl_dock_compute_natural(area.width.max(1), state, layout);
-    let target = nat.sum().max(layout.min_dock_rows()).min(avail).max(1);
-    let fitted = repl_dock_fit_into(target, nat);
-    fitted.sum().min(avail).max(1)
+    let max_inner = avail.saturating_sub(2).max(1);
+    let target_inner = nat.sum().max(layout.min_dock_rows()).min(max_inner).max(1);
+    let fitted = repl_dock_fit_into(target_inner, nat);
+    let inner_h = fitted.sum().min(max_inner).max(1);
+    inner_h.saturating_add(2).min(avail).max(3)
 }
 
-/// 流式 dock：Prompt 上横线之上的 HUD（与全屏 TUI `render_prompt_hud_stacked` 文案一致，无 Buddy 列）。
+/// 流式 dock：dock 顶横线**之下**的 ✶ HUD（与全屏 TUI `render_prompt_hud_stacked` 文案一致，无 Buddy 列）。
 fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineState, hud_h: u16) {
     if hud_h == 0 || area.height == 0 {
         return;
@@ -478,11 +481,11 @@ pub(crate) fn render_repl_dock_to_buffer(
     let sugg_h = fitted.sugg_h;
 
     let mut constraints: Vec<Constraint> = Vec::new();
-    if hud_h > 0 {
-        constraints.push(Constraint::Length(hud_h));
-    }
     if rule_top_h > 0 {
         constraints.push(Constraint::Length(rule_top_h));
+    }
+    if hud_h > 0 {
+        constraints.push(Constraint::Length(hud_h));
     }
     constraints.push(Constraint::Length(input_h));
     if rule_bottom_h > 0 {
@@ -501,14 +504,14 @@ pub(crate) fn render_repl_dock_to_buffer(
         .split(dock_area);
 
     let mut ci = 0usize;
-    let hud_rect_opt = if hud_h > 0 {
+    let rule_top_rect = if rule_top_h > 0 {
         let r = chunks[ci];
         ci += 1;
         Some(r)
     } else {
         None
     };
-    let rule_top_rect = if rule_top_h > 0 {
+    let hud_rect_opt = if hud_h > 0 {
         let r = chunks[ci];
         ci += 1;
         Some(r)
@@ -540,10 +543,6 @@ pub(crate) fn render_repl_dock_to_buffer(
         None
     };
 
-    if let Some(hr) = hud_rect_opt {
-        render_stream_hud_to_buffer(buf, hr, state, hud_h);
-    }
-
     if let Some(rr) = rule_top_rect {
         let rule_w = dock_area.width.max(1) as usize;
         let rule_txt = "─".repeat(rule_w.min(512));
@@ -551,6 +550,10 @@ pub(crate) fn render_repl_dock_to_buffer(
             .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_dim())))
             .collect();
         Paragraph::new(Text::from(rule_lines)).render(rr, buf);
+    }
+
+    if let Some(hr) = hud_rect_opt {
+        render_stream_hud_to_buffer(buf, hr, state, hud_h);
     }
 
     let mut prompt_hw_cursor: Option<(usize, usize)> = None;
@@ -1035,11 +1038,11 @@ mod stream_transcript_tests {
     }
 
     #[test]
-    fn stream_dock_has_prompt_bottom_rule_only() {
+    fn stream_dock_inner_has_no_manual_rules_block_draws_top_bottom() {
         let st = ReplLineState::default();
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.rule_top_h, 0);
-        assert_eq!(nat.rule_bottom_h, 1);
+        assert_eq!(nat.rule_bottom_h, 0);
     }
 
     #[test]
@@ -1049,6 +1052,7 @@ mod stream_transcript_tests {
         st.executing_since = Some(std::time::Instant::now());
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.hud_h, 1);
+        assert_eq!(nat.rule_top_h, 0);
         assert_eq!(nat.status_h, 1);
     }
 }

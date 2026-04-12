@@ -25,6 +25,16 @@ use uuid::Uuid;
 use super::repl_line_session::{self, ReplLineSession};
 use super::tasks_sink::ReplSink;
 use super::workflow_exec::{run_workflow_definition, run_workflow_path};
+
+/// 执行态每 tick 重写 transcript，去掉尾部多余 `\n`，避免与主区 padding 叠出「空行带」。
+fn normalize_stream_plain_for_transcript(s: String) -> String {
+    let t = s.trim_end_matches(['\n', '\r']);
+    if t.is_empty() {
+        String::new()
+    } else {
+        format!("{t}\n")
+    }
+}
 use anycode_core::strip_llm_reasoning_xml_blocks;
 use anycode_security::ApprovalCallback;
 use tokio::sync::mpsc;
@@ -248,16 +258,104 @@ async fn run_interactive_tty(
     .await
 }
 
-/// 流式主区：过长 API/JSON 错误一行撑满宽再叠到底栏时易乱版，截断为可扫读长度。
-fn stream_turn_fail_message_for_transcript(prefix: &str, e: impl std::fmt::Display) -> String {
-    const MAX_CHARS: usize = 2000;
-    let s = format!("{prefix}{e}");
-    if s.chars().count() <= MAX_CHARS {
-        return s;
+/// 从常见 JSON 错误体里抽出 `"message":"…"`（宽松扫描，适配 Google/OpenAI 风格 body）。
+fn extract_json_error_message(s: &str) -> Option<String> {
+    let key = "\"message\"";
+    let mut start = 0usize;
+    while start < s.len() {
+        let Some(rel) = s.get(start..).and_then(|t| t.find(key)) else {
+            break;
+        };
+        let abs = start + rel;
+        let rest = s.get(abs + key.len()..).unwrap_or("");
+        let mut after = rest.trim_start();
+        after = after.strip_prefix(':').unwrap_or(after).trim_start();
+        let Some(q) = after.strip_prefix('"') else {
+            start = abs.saturating_add(1);
+            continue;
+        };
+        let mut out = String::new();
+        let mut chars = q.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '"' => break,
+                '\\' => {
+                    let Some(n) = chars.next() else {
+                        break;
+                    };
+                    out.push(match n {
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        '\\' => '\\',
+                        '"' => '"',
+                        other => other,
+                    });
+                }
+                c => out.push(c),
+            }
+        }
+        let t = out.trim();
+        if !t.is_empty() {
+            return Some(t.to_string());
+        }
+        start = abs.saturating_add(1);
     }
-    let mut out: String = s.chars().take(MAX_CHARS).collect();
-    out.push('…');
-    out
+    None
+}
+
+/// 流式主区只保留短可读摘要；完整错误走 stderr，避免整段 JSON 与底栏横线叠在一起像「断在横线里」。
+fn compact_stream_turn_fail_for_transcript(full: &str) -> String {
+    const MAX_LINE: usize = 280;
+    if full.contains("User location is not supported") {
+        return format!("Turn failed: {}", tr("repl-stream-error-google-geo"));
+    }
+    if let Some(m) = extract_json_error_message(full) {
+        let m = m.trim();
+        if m.is_empty() {
+            // fall through
+        } else if m.chars().count() <= MAX_LINE && m.lines().count() <= 3 {
+            return format!("Turn failed: {m}");
+        } else {
+            let first = m.lines().next().unwrap_or(m).trim();
+            let head: String = first.chars().take(MAX_LINE).collect();
+            let ell = if first.chars().count() > MAX_LINE {
+                "…"
+            } else {
+                ""
+            };
+            return format!(
+                "Turn failed: {head}{ell}\n{}",
+                tr("repl-stream-error-stderr-hint")
+            );
+        }
+    }
+    let mut lines = full.lines();
+    let first = lines.next().unwrap_or("").trim();
+    if first.is_empty() {
+        return format!("Turn failed: {}", tr("repl-stream-error-stderr-hint"));
+    }
+    if first.chars().count() > MAX_LINE {
+        let head: String = first.chars().take(MAX_LINE).collect();
+        return format!(
+            "Turn failed: {head}…\n{}",
+            tr("repl-stream-error-stderr-hint")
+        );
+    }
+    if lines.next().is_some() {
+        return format!(
+            "Turn failed: {first}\n{}",
+            tr("repl-stream-error-stderr-hint")
+        );
+    }
+    format!("Turn failed: {first}")
+}
+
+fn write_stream_turn_failure(sink: &mut ReplSink, prefix: &str, e: impl std::fmt::Display) {
+    let full = format!("{prefix}{e}");
+    sink.eprint_line(&full);
+    sink.line("");
+    sink.line(compact_stream_turn_fail_for_transcript(&full));
 }
 
 async fn finish_stream_spawned_turn(
@@ -293,15 +391,10 @@ async fn finish_stream_spawned_turn(
             }
         }
         Ok(Err(e)) => {
-            sink.line("");
-            sink.line(stream_turn_fail_message_for_transcript("Turn failed: ", e));
+            write_stream_turn_failure(sink, "Turn failed: ", e);
         }
         Err(e) => {
-            sink.line("");
-            sink.line(stream_turn_fail_message_for_transcript(
-                "Turn join error: ",
-                e,
-            ));
+            write_stream_turn_failure(sink, "Turn join error: ", e);
         }
     }
     crate::tui::tui_session_persist::spawn_persist_tui_session(
@@ -438,7 +531,12 @@ async fn run_interactive_tty_stream(
                         .map(|s| s.stream_viewport_width.max(40))
                         .unwrap_or(80) as usize;
                     let guard = line_session.messages.lock().await;
-                    let plain = build_stream_turn_plain(exec_prev_len, &guard, w, false);
+                    let plain = normalize_stream_plain_for_transcript(build_stream_turn_plain(
+                        exec_prev_len,
+                        &guard,
+                        w,
+                        false,
+                    ));
                     drop(guard);
                     if let Ok(st) = state.lock() {
                         if let Ok(mut t) = st.transcript.lock() {
@@ -464,7 +562,12 @@ async fn run_interactive_tty_stream(
                     .lock()
                     .map(|s| s.stream_viewport_width.max(40))
                     .unwrap_or(80) as usize;
-                let plain = build_stream_turn_plain(exec_prev_len, &guard, w, true);
+                let plain = normalize_stream_plain_for_transcript(build_stream_turn_plain(
+                    exec_prev_len,
+                    &guard,
+                    w,
+                    true,
+                ));
                 drop(guard);
                 stream_scroll_emitted.clear();
                 stream_scroll_emitted.push_str(&plain);
@@ -948,4 +1051,16 @@ pub(crate) fn list_tools(sink: &mut ReplSink) {
     sink.line(tr("repl-security-read"));
     sink.line(tr("repl-security-approval"));
     sink.line(tr("repl-security-sandbox"));
+}
+
+#[cfg(test)]
+mod stream_fail_compact_tests {
+    use super::extract_json_error_message;
+
+    #[test]
+    fn extracts_message_from_google_style_json() {
+        let s = r#"LLM error: google … body=[{ "error": { "message": "User location is not supported for the API use.", "status": "FAILED_PRECONDITION" } }]"#;
+        let m = extract_json_error_message(s).expect("message");
+        assert!(m.contains("User location"), "unexpected message: {m:?}");
+    }
 }
