@@ -88,7 +88,7 @@ read_when:
 
 **目标**：在 **`tools-mcp`** 启用时，将 **P3** 从占位升级为可连接的 MCP 客户端；内置工具 + MCP 动态工具合并去重；**`mcp__<server>__<tool>`** 命名与 **`security.mcp_tool_deny_patterns`** 一致过滤。
 
-**v1 已落地（概要）**：多 stdio 会话（**`ANYCODE_MCP_SERVERS`**）、每服务器 **`mcp__<slug>__authenticate`**、配置级工具名过滤。仍为 **stdio 单协议**；SSE/HTTP、完整 OAuth UI、延迟加载等为后续项。
+**v1 已落地（概要）**：多 stdio 会话（**`ANYCODE_MCP_SERVERS`**）、每服务器 **`mcp__<slug>__authenticate`**、配置级工具名过滤；**`ANYCODE_MCP_READ_TIMEOUT_SECS`** 可调 JSON-RPC 单行读超时，EOF/超时错误含子进程状态提示，**`McpStdioSession::stdio_child_is_running`** 健康检查。仍为 **stdio 单协议**；SSE/HTTP、完整 OAuth UI、延迟加载等为后续项。
 
 **建议顺序**：传输层 → 协议（initialize / tools/list / tools/call）→ 在 **`bootstrap`** 单路径注册动态工具 → **`SecurityLayer`** → OAuth / **McpAuth** → 资源工具 → （进阶）延迟加载。
 
@@ -98,15 +98,18 @@ read_when:
 
 **LSP、P5 其余项、OpenAI 官方客户端** 等与英文 [Roadmap](/guide/roadmap) 对称，细节见源码与上表。
 
+## 最近已交付（参考）
+
+- **嵌套任务协作式取消（v2 + v2.1）**：**`TaskStop`** 置位并传入嵌套 **`TaskContext`** / TUI **`coop_cancel`**；**`tokio::select!`** 与 **`chat` / `chat_stream` / 流式 recv** 竞争（约 20ms 轮询）。**`TaskResult::Failure`** **`cancelled`** → **`background_status: cancelled`**。可选后续：**`CancellationToken`**；**syscall** 阻塞仍为 **`AbortHandle`** 尽力。
+
 ## 建议的下一主线（维护者）
 
 下一阶段宜 **每次只选一条** 里程碑级主线（避免两条大块重构并行）。按主线拆 **GitHub issue** 跟踪。
 
 | 主线 | 目标（可拆成 issue 的起点） |
 |------|---------------------------|
-| **嵌套任务协作式取消（v2）** | **已落地（含 v2.1）**：**`TaskStop`** → 嵌套 **`TaskContext`** / TUI **`coop_cancel`**；**`tokio::select!`** 对比 **`chat`**、**`chat_stream`** 与流式 **`recv`**（约 20ms 轮询）。**`TaskResult::Failure`** **`cancelled`** → **`background_status: cancelled`**。可选后续：**`tokio_util::sync::CancellationToken`**；**syscall** 阻塞仍为 **尽力**（**`AbortHandle`**）。 |
 | **P5 Agent / Task** | 可选：编排与 **`~/.anycode/tasks/<id>/`** 布局对齐；**fork**；跨进程持久后台（超出当前进程内注册表）。 |
-| **MCP 超出 stdio v1** | stdio 健康检查与更清晰错误；`tools/call` 超时；无 GUI 下的 **McpAuth** / OAuth 体验；真实的 MCP **资源** 列出与读取工具。 |
+| **MCP 超出 stdio v1** | **部分已做**：环境变量 **`ANYCODE_MCP_READ_TIMEOUT_SECS`** 覆盖 JSON-RPC **单行读超时**；超时 / 意外 EOF 错误更清晰（含子进程退出）；**`McpStdioSession::stdio_child_is_running`** 健康检查。**仍待**：更完整的 stdio 生命周期 / 重连；无 GUI 下 **McpAuth** / OAuth；资源工具体验打磨。 |
 | **通道 AskUserQuestion** | 微信 / Telegram / Discord 卡片或键盘选题（新 host 实现）。 |
 
 **文档说明：**显式模型指令文件路径 **仅** 通过环境变量 **`ANYCODE_MODEL_INSTRUCTIONS_FILE`** 指定；JSON 中的 `model_instructions` **只**控制自动发现 — 见 [配置与安全](./config-security.md)。

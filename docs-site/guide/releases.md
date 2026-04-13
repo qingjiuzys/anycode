@@ -15,6 +15,7 @@ read_when:
 - **Channels**: `telegram-set-token` / `discord-set-token` subcommands; `anycode_channels::hub` documents the single `ChannelMessage` → `build_channel_task` flow; WeChat bridge no longer registers an interactive tool-approval callback.
 - **LLM**: Anthropic non-stream `chat` retries on 429/5xx with `Retry-After` (same policy shape as the z.ai client).
 - **Skills**: optional `skills.registry_url` manifest merge, `skills.agent_allowlists` for per-agent prompt sections, `SkillCatalog::render_prompt_subsection_allowlist`.
+- **Agent / MCP / LSP**: nested **`run_in_background`** with cooperative cancel through tool boundaries and in-flight **`chat` / stream**; MCP stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`**, clearer timeout/EOF errors, **`McpStdioSession::stdio_child_is_running`**; **`config.json` `lsp`** and CI **`tools-lsp`** / **`tools-mcp`** test jobs.
 
 ## Versioning
 

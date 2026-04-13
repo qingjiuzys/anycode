@@ -192,6 +192,7 @@ Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 | `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` | First-turn tool-call preference |
 | `ANYCODE_ZAI_TOOL_CHOICE` | `required` / `auto` for debugging |
 | `ANYCODE_MCP_COMMAND`, `ANYCODE_MCP_SERVERS` | MCP integration |
+| `ANYCODE_MCP_READ_TIMEOUT_SECS` | MCP stdio JSON-RPC **per-line** read timeout (1–86400s); overrides defaults (**120s** persistent session, **60s** `ANYCODE_MCP_COMMAND` one-shot) when set |
 | `ANYCODE_LSP_COMMAND` | LSP stdio bridge when `lsp` config is not used |
 | `ANYCODE_DAEMON_TOKEN` | Daemon bearer token |
 

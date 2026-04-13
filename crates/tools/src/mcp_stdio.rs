@@ -1,13 +1,18 @@
 //! MCP JSON-RPC over stdio（`tools-mcp`）：`ANYCODE_MCP_COMMAND` 启动子进程，完成 `initialize` 后转发 `tools/call`。
 
+use crate::mcp_read_timeout::{self, mcp_jsonrpc_line_timeout};
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 use tokio::time::timeout;
 
-const READ_TIMEOUT: Duration = Duration::from_secs(60);
+const DEFAULT_LINE_READ_TIMEOUT: Duration = Duration::from_secs(60);
+
+fn line_read_timeout() -> Duration {
+    mcp_jsonrpc_line_timeout(DEFAULT_LINE_READ_TIMEOUT)
+}
 
 async fn write_line(stdin: &mut tokio::process::ChildStdin, v: &Value) -> Result<(), CoreError> {
     let s = serde_json::to_string(v).map_err(|e| CoreError::LLMError(e.to_string()))?;
@@ -24,15 +29,38 @@ async fn write_line(stdin: &mut tokio::process::ChildStdin, v: &Value) -> Result
 
 async fn read_until_id(
     reader: &mut BufReader<tokio::process::ChildStdout>,
+    child: &mut Child,
     want_id: u64,
+    read_timeout: Duration,
+    context: &str,
 ) -> Result<Value, CoreError> {
     let mut line = String::new();
     for _ in 0..512 {
         line.clear();
-        timeout(READ_TIMEOUT, reader.read_line(&mut line))
-            .await
-            .map_err(|_| CoreError::LLMError("MCP read timeout".into()))?
-            .map_err(|e| CoreError::LLMError(e.to_string()))?;
+        let n = match timeout(read_timeout, reader.read_line(&mut line)).await {
+            Err(_) => {
+                return Err(CoreError::LLMError(format!(
+                    "MCP read timed out after {}s waiting for JSON-RPC id={} ({}); set {} to adjust",
+                    read_timeout.as_secs(),
+                    want_id,
+                    context,
+                    mcp_read_timeout::ANYCODE_MCP_READ_TIMEOUT_SECS
+                )));
+            }
+            Ok(Err(e)) => return Err(CoreError::LLMError(e.to_string())),
+            Ok(Ok(n)) => n,
+        };
+        if n == 0 {
+            let detail = match child.try_wait() {
+                Ok(Some(st)) => format!("child exited: {st}"),
+                Ok(None) => "stdout closed while child still running (unexpected)".into(),
+                Err(e) => format!("try_wait: {e}"),
+            };
+            return Err(CoreError::LLMError(format!(
+                "MCP unexpected end of stdout before JSON-RPC id={} ({}): {}",
+                want_id, context, detail
+            )));
+        }
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -45,9 +73,10 @@ async fn read_until_id(
             return Ok(v);
         }
     }
-    Err(CoreError::LLMError(
-        "MCP: no JSON-RPC response with matching id".into(),
-    ))
+    Err(CoreError::LLMError(format!(
+        "MCP: no JSON-RPC response with matching id={} after 512 lines ({})",
+        want_id, context
+    )))
 }
 
 /// 解析工具输入：`name` / `tool` + 可选 `arguments`。
@@ -92,6 +121,8 @@ pub async fn mcp_tools_call_shell(
         .take()
         .ok_or_else(|| CoreError::LLMError("MCP stdout missing".into()))?;
     let mut reader = BufReader::new(stdout);
+    let read_to = line_read_timeout();
+    let ctx = "ANYCODE_MCP_COMMAND one-shot";
 
     write_line(
         &mut stdin,
@@ -108,7 +139,7 @@ pub async fn mcp_tools_call_shell(
     )
     .await?;
 
-    let init_resp = read_until_id(&mut reader, 1).await?;
+    let init_resp = read_until_id(&mut reader, &mut child, 1, read_to, ctx).await?;
     if let Some(err) = init_resp.get("error") {
         return Ok(ToolOutput {
             result: json!({ "mcp_error": err, "stage": "initialize" }),
@@ -138,7 +169,7 @@ pub async fn mcp_tools_call_shell(
     )
     .await?;
 
-    let call_resp = read_until_id(&mut reader, 2).await?;
+    let call_resp = read_until_id(&mut reader, &mut child, 2, read_to, ctx).await?;
     if let Some(err) = call_resp.get("error") {
         return Ok(ToolOutput {
             result: json!({ "mcp_error": err }),

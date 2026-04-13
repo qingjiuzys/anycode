@@ -192,6 +192,7 @@ export ANYCODE_LANG=en
 | `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` | z.ai 首轮强制 tool_calls |
 | `ANYCODE_ZAI_TOOL_CHOICE` | 每轮 `required` / `auto`（调试用） |
 | `ANYCODE_MCP_COMMAND` / `ANYCODE_MCP_SERVERS` | MCP（需 `tools-mcp`） |
+| `ANYCODE_MCP_READ_TIMEOUT_SECS` | MCP stdio JSON-RPC **单行读**超时（1–86400 秒）；设置时覆盖默认（**长驻会话 120s**，**`ANYCODE_MCP_COMMAND` 一次性 60s**） |
 | `ANYCODE_LSP_COMMAND` | LSP stdio（未用 `lsp` 配置时） |
 | `ANYCODE_DAEMON_TOKEN` | 守护进程 POST 鉴权 |
 

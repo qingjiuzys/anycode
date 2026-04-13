@@ -36,6 +36,8 @@ mod mcp_oauth_store;
 #[cfg(feature = "tools-mcp")]
 mod mcp_proxied_tool;
 #[cfg(feature = "tools-mcp")]
+mod mcp_read_timeout;
+#[cfg(feature = "tools-mcp")]
 pub mod mcp_rmcp_session;
 #[cfg(feature = "tools-mcp")]
 pub mod mcp_session;

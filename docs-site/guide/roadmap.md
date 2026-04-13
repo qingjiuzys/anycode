@@ -87,7 +87,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 
 **MCP (beyond stdio v1)**
 
-- Transports: stdio health checks; SSE/HTTP later.  
+- Transports: stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`** (JSON-RPC line read), clearer timeout/EOF errors, **`McpStdioSession::stdio_child_is_running`**; SSE/HTTP later.  
 - Protocol: **`initialize`**, **`tools/list`**, **`tools/call`**, timeouts and errors in **`output.log`**.  
 - Registration: single path **`initialize_runtime` → `build_registry_with_services`**.  
 - Security: allow/deny for **`mcp__<server>__<tool>`**; sensitive calls through approval.  
@@ -111,15 +111,18 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 
 - **`cargo build -p anycode --features openai`** — when **`provider`** is exactly **`openai`**, Chat Completions may use **`OpenAIClient`**; gateways often still use **`ZaiClient`**.
 
+## Recently shipped (reference)
+
+- **Nested-task cooperative cancel (v2 + v2.1):** **`TaskStop`** sets a flag wired to nested **`TaskContext`** / TUI **`coop_cancel`**; **`tokio::select!`** competes with **`chat`**, **`chat_stream`**, and stream **`recv`** (~20ms poll). **`TaskResult::Failure`** **`cancelled`** maps to **`background_status: cancelled`**. **Optional later:** **`tokio_util::sync::CancellationToken`**; **syscall-blocked** tools stay **best-effort** (**`AbortHandle`**).
+
 ## Suggested next focus (maintainers)
 
 Pick **one** primary thread for the next milestone-sized effort (avoid two large refactors in parallel). Open scoped GitHub issues per thread.
 
 | Thread | Goal (issue-sized starters) |
 |--------|-----------------------------|
-| **Nested-task cooperative cancel (v2)** | **Shipped (v2 + v2.1):** flag from **`TaskStop`** → nested **`TaskContext`** / TUI **`coop_cancel`**; **`tokio::select!`** vs **`chat`**, **`chat_stream`**, and stream **`recv`** (poll ~20ms). **`TaskResult::Failure`** **`cancelled`** → **`background_status: cancelled`**. **Optional later:** **`tokio_util::sync::CancellationToken`** for ergonomics; **syscall-blocked** tools remain **best-effort** (**`AbortHandle`**). |
 | **P5 Agent / Task** | Optional: tighter alignment between **orchestration** records and task **`~/.anycode/tasks/<id>/`** layouts; **fork-self**; durable cross-process background agents (beyond in-process registry). |
-| **MCP beyond stdio v1** | Stdio health checks and clearer errors; timeouts on `tools/call`; **McpAuth** / OAuth ergonomics without a GUI; real **List** / **Read** MCP resource tools. |
+| **MCP beyond stdio v1** | **Partial:** **`ANYCODE_MCP_READ_TIMEOUT_SECS`** overrides JSON-RPC per-line read timeout; clearer timeout / unexpected-EOF errors (incl. child exit); **`McpStdioSession::stdio_child_is_running`** for health checks. **Still open:** richer stdio lifecycle / reconnect; **McpAuth** / OAuth ergonomics without a GUI; polish **List** / **Read** MCP resource tools in UX. |
 | **Channel AskUserQuestion** | Card / inline-keyboard flows for WeChat / Telegram / Discord (new host implementations). |
 
 **Docs note:** explicit model-instructions file path is **only** via **`ANYCODE_MODEL_INSTRUCTIONS_FILE`**; JSON `model_instructions` controls **discovery** only — see [Config & security](./config-security).

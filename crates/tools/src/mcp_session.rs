@@ -2,6 +2,7 @@
 
 pub use crate::mcp_connected::McpListedTool;
 use crate::mcp_normalization::normalize_name_for_mcp;
+use crate::mcp_read_timeout::{self, mcp_jsonrpc_line_timeout};
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -11,7 +12,11 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 
-const READ_TIMEOUT: Duration = Duration::from_secs(120);
+const DEFAULT_LINE_READ_TIMEOUT: Duration = Duration::from_secs(120);
+
+fn line_read_timeout() -> Duration {
+    mcp_jsonrpc_line_timeout(DEFAULT_LINE_READ_TIMEOUT)
+}
 
 pub struct McpIo {
     pub stdin: ChildStdin,
@@ -41,15 +46,38 @@ async fn write_line(stdin: &mut ChildStdin, v: &Value) -> Result<(), CoreError> 
 
 async fn read_until_id(
     reader: &mut BufReader<tokio::process::ChildStdout>,
+    child: &mut Child,
     want_id: u64,
+    read_timeout: Duration,
+    server_slug: &str,
 ) -> Result<Value, CoreError> {
     let mut line = String::new();
     for _ in 0..1024 {
         line.clear();
-        timeout(READ_TIMEOUT, reader.read_line(&mut line))
-            .await
-            .map_err(|_| CoreError::LLMError("MCP read timeout".into()))?
-            .map_err(|e| CoreError::LLMError(e.to_string()))?;
+        let n = match timeout(read_timeout, reader.read_line(&mut line)).await {
+            Err(_) => {
+                return Err(CoreError::LLMError(format!(
+                    "MCP read timed out after {}s waiting for JSON-RPC id={} (server={}); set {} to adjust",
+                    read_timeout.as_secs(),
+                    want_id,
+                    server_slug,
+                    mcp_read_timeout::ANYCODE_MCP_READ_TIMEOUT_SECS
+                )));
+            }
+            Ok(Err(e)) => return Err(CoreError::LLMError(e.to_string())),
+            Ok(Ok(n)) => n,
+        };
+        if n == 0 {
+            let detail = match child.try_wait() {
+                Ok(Some(st)) => format!("child exited: {st}"),
+                Ok(None) => "stdout closed while child still running (unexpected)".into(),
+                Err(e) => format!("try_wait: {e}"),
+            };
+            return Err(CoreError::LLMError(format!(
+                "MCP unexpected end of stdout before JSON-RPC id={} (server={}): {}",
+                want_id, server_slug, detail
+            )));
+        }
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -62,9 +90,10 @@ async fn read_until_id(
             return Ok(v);
         }
     }
-    Err(CoreError::LLMError(
-        "MCP: no JSON-RPC response with matching id".into(),
-    ))
+    Err(CoreError::LLMError(format!(
+        "MCP: no JSON-RPC response with matching id={} after 1024 lines (server={})",
+        want_id, server_slug
+    )))
 }
 
 fn parse_tools_list(resp: &Value) -> Result<Vec<McpListedTool>, CoreError> {
@@ -145,7 +174,9 @@ impl McpStdioSession {
         )
         .await?;
 
-        let init_resp = read_until_id(&mut reader, 1).await?;
+        let read_to = line_read_timeout();
+        let init_resp =
+            read_until_id(&mut reader, &mut child, 1, read_to, server_slug.as_str()).await?;
         if init_resp.get("error").is_some() {
             return Err(CoreError::LLMError(format!(
                 "MCP initialize error: {}",
@@ -174,7 +205,8 @@ impl McpStdioSession {
         )
         .await?;
 
-        let list_resp = read_until_id(&mut reader, 2).await?;
+        let list_resp =
+            read_until_id(&mut reader, &mut child, 2, read_to, server_slug.as_str()).await?;
         if list_resp.get("error").is_some() {
             return Err(CoreError::LLMError(format!(
                 "MCP tools/list error: {}",
@@ -201,12 +233,26 @@ impl McpStdioSession {
     async fn rpc(&self, method: &str, params: Value) -> Result<Value, CoreError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let mut io = self.io.lock().await;
+        let read_to = line_read_timeout();
+        let slug = self.server_slug.clone();
+        let McpIo {
+            ref mut stdin,
+            ref mut reader,
+            ref mut child,
+            ..
+        } = &mut *io;
         write_line(
-            &mut io.stdin,
+            stdin,
             &json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }),
         )
         .await?;
-        read_until_id(&mut io.reader, id).await
+        read_until_id(reader, child, id, read_to, slug.as_str()).await
+    }
+
+    /// Best-effort: `true` if the stdio child has not reported an exit status yet.
+    pub async fn stdio_child_is_running(&self) -> bool {
+        let mut io = self.io.lock().await;
+        io.child.try_wait().ok().flatten().is_none()
     }
 
     pub async fn call_tool_named(
