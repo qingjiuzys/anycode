@@ -36,8 +36,10 @@ use nested_worktree::NestedWorktreeGuard;
 use receipt::ReceiptGenerator;
 use regex::Regex;
 use std::collections::HashMap;
+use std::future::pending;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use task_summary::{last_assistant_plain_text, llm_summary_receipt};
 use tokio::sync::{Mutex, RwLock};
 use tracing::warn;
@@ -57,6 +59,33 @@ fn task_cancelled_failure() -> TaskResult {
     TaskResult::Failure {
         error: NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
         details: Some("cooperative nested cancel".to_string()),
+    }
+}
+
+/// Short-interval polling so `tokio::select!` can abort in-flight LLM I/O without `tokio-util`.
+const COOP_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(20);
+
+async fn coop_flag_wait(flag: Arc<AtomicBool>) {
+    loop {
+        if flag.load(Ordering::Acquire) {
+            return;
+        }
+        tokio::time::sleep(COOP_CANCEL_POLL_INTERVAL).await;
+    }
+}
+
+/// For `select!`: when `flag` is `None`, this future never completes (LLM branch always runs).
+async fn coop_flag_wait_opt(flag: Option<Arc<AtomicBool>>) {
+    match flag {
+        Some(f) => coop_flag_wait(f).await,
+        None => pending().await,
+    }
+}
+
+async fn pop_assistant_placeholder(messages: &Arc<Mutex<Vec<Message>>>, assistant_id: Uuid) {
+    let mut g = messages.lock().await;
+    if g.last().is_some_and(|m| m.id == assistant_id) {
+        g.pop();
     }
 }
 
@@ -693,42 +722,79 @@ impl AgentRuntime {
                 });
             }
 
-            if let Ok(mut rx) = self
-                .llm_client
-                .chat_stream(
-                    messages_snapshot.clone(),
-                    tool_schemas.clone(),
-                    &model_config,
-                )
-                .await
-            {
+            let stream_open = self.llm_client.chat_stream(
+                messages_snapshot.clone(),
+                tool_schemas.clone(),
+                &model_config,
+            );
+            let stream_open = tokio::select! {
+                biased;
+                () = coop_flag_wait_opt(coop_cancel.clone()) => {
+                    pop_assistant_placeholder(&messages, assistant_id).await;
+                    logger.line(
+                        task_id,
+                        "[llm_response_end] status=cancelled reason=cooperative_in_flight",
+                    );
+                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                    return Err(CoreError::LLMError(
+                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+                    ));
+                }
+                r = stream_open => r,
+            };
+
+            if let Ok(mut rx) = stream_open {
                 streamed = true;
                 let mut received_any = false;
-                while let Some(ev) = rx.recv().await {
-                    match ev {
-                        StreamEvent::Delta(d) => {
-                            if !d.is_empty() {
-                                received_any = true;
-                                let mut g = messages.lock().await;
-                                if let Some(last) = g.last_mut() {
-                                    if last.id == assistant_id {
-                                        if let MessageContent::Text(t) = &mut last.content {
-                                            t.push_str(&d);
+                let mut stream_cancelled = false;
+                loop {
+                    tokio::select! {
+                        biased;
+                        () = coop_flag_wait_opt(coop_cancel.clone()) => {
+                            stream_cancelled = true;
+                            break;
+                        }
+                        ev = rx.recv() => {
+                            match ev {
+                                None => break,
+                                Some(ev) => match ev {
+                                    StreamEvent::Delta(d) => {
+                                        if !d.is_empty() {
+                                            received_any = true;
+                                            let mut g = messages.lock().await;
+                                            if let Some(last) = g.last_mut() {
+                                                if last.id == assistant_id {
+                                                    if let MessageContent::Text(t) = &mut last.content {
+                                                        t.push_str(&d);
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
-                                }
+                                    StreamEvent::ToolCall(tc) => {
+                                        received_any = true;
+                                        tool_calls.push(tc)
+                                    }
+                                    StreamEvent::Usage(u) => {
+                                        received_any = true;
+                                        stream_usage = Some(u);
+                                    }
+                                    StreamEvent::Done => break,
+                                },
                             }
                         }
-                        StreamEvent::ToolCall(tc) => {
-                            received_any = true;
-                            tool_calls.push(tc)
-                        }
-                        StreamEvent::Usage(u) => {
-                            received_any = true;
-                            stream_usage = Some(u);
-                        }
-                        StreamEvent::Done => break,
                     }
+                }
+                if stream_cancelled {
+                    pop_assistant_placeholder(&messages, assistant_id).await;
+                    logger.line(
+                        task_id,
+                        "[llm_response_end] status=cancelled reason=cooperative_in_flight",
+                    );
+                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                    return Err(CoreError::LLMError(
+                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+                    ));
                 }
                 if !received_any {
                     streamed = false;
@@ -763,10 +829,24 @@ impl AgentRuntime {
                     }),
                 }
             } else {
-                let r = self
-                    .llm_client
-                    .chat(messages_snapshot, tool_schemas.clone(), &model_config)
-                    .await?;
+                let chat_fut =
+                    self.llm_client
+                        .chat(messages_snapshot, tool_schemas.clone(), &model_config);
+                let r = tokio::select! {
+                    biased;
+                    () = coop_flag_wait_opt(coop_cancel.clone()) => {
+                        pop_assistant_placeholder(&messages, assistant_id).await;
+                        logger.line(
+                            task_id,
+                            "[llm_response_end] status=cancelled reason=cooperative_in_flight",
+                        );
+                        logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                        return Err(CoreError::LLMError(
+                            NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+                        ));
+                    }
+                    res = chat_fut => res?,
+                };
                 // Replace placeholder assistant with final assistant message.
                 {
                     let mut g = messages.lock().await;
@@ -1152,11 +1232,33 @@ impl AgentRuntime {
             );
 
             let t0 = std::time::Instant::now();
-            let response = match self
-                .llm_client
-                .chat(messages.clone(), tool_schemas.clone(), &model_config)
-                .await
-            {
+            let response_result = match task.context.nested_cancel.clone() {
+                Some(flag) => {
+                    tokio::select! {
+                        biased;
+                        () = coop_flag_wait(flag) => {
+                            logger.line(
+                                task.id,
+                                "[llm_response_end] status=cancelled reason=cooperative_in_flight",
+                            );
+                            logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
+                            return Ok(task_cancelled_failure());
+                        }
+                        res = self.llm_client.chat(
+                            messages.clone(),
+                            tool_schemas.clone(),
+                            &model_config,
+                        ) => res,
+                    }
+                }
+                None => {
+                    self.llm_client
+                        .chat(messages.clone(), tool_schemas.clone(), &model_config)
+                        .await
+                }
+            };
+
+            let response = match response_result {
                 Ok(r) => r,
                 Err(e) => {
                     logger.line(

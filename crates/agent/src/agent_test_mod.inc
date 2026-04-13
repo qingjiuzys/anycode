@@ -9,6 +9,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::time::Duration;
     use tempfile::TempDir;
     use tokio::sync::Mutex;
     use uuid::Uuid;
@@ -170,6 +171,66 @@ mod tests {
                         break;
                     }
                 }
+            });
+            Ok(rx)
+        }
+    }
+
+    /// `chat` stalls so `execute_task` / turn fallback can test in-flight `select!` cancel.
+    struct StallChatLlm {
+        stall_ms: u64,
+        response: LLMResponse,
+    }
+
+    #[async_trait]
+    impl LLMClient for StallChatLlm {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Vec<ToolSchema>,
+            _config: &ModelConfig,
+        ) -> Result<LLMResponse, CoreError> {
+            tokio::time::sleep(Duration::from_millis(self.stall_ms)).await;
+            Ok(self.response.clone())
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Vec<ToolSchema>,
+            _config: &ModelConfig,
+        ) -> Result<tokio::sync::mpsc::Receiver<StreamEvent>, CoreError> {
+            Err(CoreError::LLMError("no stream".into()))
+        }
+    }
+
+    /// Stream opens immediately; first `recv` blocks until `Done` is sent after `recv_stall_ms`.
+    struct DelayedDoneStreamLlm {
+        recv_stall_ms: u64,
+    }
+
+    #[async_trait]
+    impl LLMClient for DelayedDoneStreamLlm {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Vec<ToolSchema>,
+            _config: &ModelConfig,
+        ) -> Result<LLMResponse, CoreError> {
+            Err(CoreError::LLMError("stream only".into()))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Vec<ToolSchema>,
+            _config: &ModelConfig,
+        ) -> Result<tokio::sync::mpsc::Receiver<StreamEvent>, CoreError> {
+            let (tx, rx) = tokio::sync::mpsc::channel(4);
+            let stall = self.recv_stall_ms;
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(stall)).await;
+                let _ = tx.send(StreamEvent::Done).await;
             });
             Ok(rx)
         }
@@ -501,6 +562,269 @@ mod tests {
             _ => panic!("expected cooperative cancel failure, got {res:?}"),
         }
         assert_eq!(llm.call_roles().await.len(), 1, "second LLM round must be skipped");
+    }
+
+    #[tokio::test]
+    async fn execute_task_in_flight_llm_cooperative_cancel() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+        let response = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "should not return"),
+            tool_calls: vec![],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 0,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let llm = Arc::new(StallChatLlm {
+            stall_ms: 60_000,
+            response,
+        });
+        let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+        tools.insert("Echo".to_string(), Box::new(EchoTool));
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let coop = Arc::new(AtomicBool::new(false));
+        let trip = coop.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            trip.store(true, Ordering::Release);
+        });
+
+        let task = Task {
+            id: Uuid::new_v4(),
+            agent_type: AgentType::new("general-purpose"),
+            prompt: "test".to_string(),
+            context: TaskContext {
+                session_id: Uuid::new_v4(),
+                working_directory: ".".to_string(),
+                environment: HashMap::new(),
+                user_id: None,
+                system_prompt_append: None,
+                context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
+                nested_cancel: Some(coop),
+            },
+            created_at: chrono::Utc::now(),
+        };
+
+        let res = tokio::time::timeout(Duration::from_secs(3), runtime.execute_task(task))
+            .await
+            .expect("execute_task should finish after cooperative cancel, not stall on LLM");
+        let res = res.expect("execute_task");
+        match res {
+            TaskResult::Failure { error, .. } => {
+                assert_eq!(error, NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            }
+            _ => panic!("expected cooperative cancel failure, got {res:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_turn_from_messages_in_flight_stream_cooperative_cancel() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+        let llm = Arc::new(DelayedDoneStreamLlm {
+            recv_stall_ms: 60_000,
+        });
+        let tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let agent_type = AgentType::new("general-purpose");
+        let mut messages_vec = vec![runtime
+            .build_system_message(&agent_type, ".")
+            .await
+            .unwrap()];
+        messages_vec.push(msg_text(MessageRole::User, "hi"));
+        let messages = Arc::new(Mutex::new(messages_vec));
+
+        let coop = Arc::new(AtomicBool::new(false));
+        let trip = coop.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            trip.store(true, Ordering::Release);
+        });
+
+        let task_id = Uuid::new_v4();
+        let err = tokio::time::timeout(
+            Duration::from_secs(3),
+            runtime.execute_turn_from_messages(
+                task_id,
+                &agent_type,
+                messages.clone(),
+                ".",
+                Some(coop),
+            ),
+        )
+        .await
+        .expect("turn should return after cooperative cancel")
+        .expect_err("expected LLMError cancelled");
+        match err {
+            CoreError::LLMError(s) => assert_eq!(s, NESTED_TASK_COOPERATIVE_CANCEL_ERROR),
+            _ => panic!("unexpected err: {err:?}"),
+        }
+
+        let g = messages.lock().await;
+        assert!(
+            !g.iter().any(|m| m.role == MessageRole::Assistant),
+            "placeholder assistant should be popped on stream cancel"
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_turn_from_messages_in_flight_chat_cooperative_cancel() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+        let response = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "no"),
+            tool_calls: vec![],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 0,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let llm = Arc::new(StallChatLlm {
+            stall_ms: 60_000,
+            response,
+        });
+        let tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let agent_type = AgentType::new("general-purpose");
+        let mut messages_vec = vec![runtime
+            .build_system_message(&agent_type, ".")
+            .await
+            .unwrap()];
+        messages_vec.push(msg_text(MessageRole::User, "hi"));
+        let messages = Arc::new(Mutex::new(messages_vec));
+
+        let coop = Arc::new(AtomicBool::new(false));
+        let trip = coop.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            trip.store(true, Ordering::Release);
+        });
+
+        let task_id = Uuid::new_v4();
+        let err = tokio::time::timeout(
+            Duration::from_secs(3),
+            runtime.execute_turn_from_messages(
+                task_id,
+                &agent_type,
+                messages.clone(),
+                ".",
+                Some(coop),
+            ),
+        )
+        .await
+        .expect("turn should return after cooperative cancel")
+        .expect_err("expected LLMError cancelled");
+        match err {
+            CoreError::LLMError(s) => assert_eq!(s, NESTED_TASK_COOPERATIVE_CANCEL_ERROR),
+            _ => panic!("unexpected err: {err:?}"),
+        }
+
+        let g = messages.lock().await;
+        assert!(
+            !g.iter().any(|m| m.role == MessageRole::Assistant),
+            "placeholder assistant should be popped on chat cancel"
+        );
     }
 
     #[tokio::test]

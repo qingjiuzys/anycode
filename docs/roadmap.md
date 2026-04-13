@@ -60,7 +60,7 @@
 
 | 主题 | 完成定义（简） |
 |------|----------------|
-| **嵌套任务协作式取消** | **部分已落地**：共享 **`Arc<AtomicBool>`** 经嵌套 **`TaskContext`**，在 **`execute_task`** / **`execute_turn_from_messages`** 的 **turn** 与 **工具** 边界轮询；失败 error **`cancelled`** 对应 **`background_status: cancelled`**。**仍待**：单次 LLM / 流式请求内 **`select!`** 级取消；syscall 阻塞仍靠 **`AbortHandle`**。 |
+| **嵌套任务协作式取消** | **已覆盖 turn / 工具 / 单次 `chat` / 流式 open+recv**：共享 **`Arc<AtomicBool>`** + **`tokio::select!`**（约 20ms 轮询，无 **`tokio-util`**）；失败 error **`cancelled`** → **`background_status: cancelled`**。HTTP 连接未必立即断开；syscall 阻塞仍靠 **`AbortHandle`**。可选后续：改用 **`CancellationToken`** 简化组合。 |
 | **跨进程 / 持久后台 Agent** | 与 Claude 完整 parity 的队列或等价语义（超出当前进程内 **`HashMap`**）。 |
 | **通道 AskUserQuestion** | 微信 / Telegram / Discord 上卡片或键盘选题（需独立设计与鉴权）。 |
 
