@@ -201,6 +201,7 @@ Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 |---|---|---|
 | TUI / `run` / `repl` | `security.require_approval` + `permission_mode` | Interactive prompts when stdin is a TTY; **`--ignore-approval`** applies to **this process only**. |
 | Channel bridges (WeChat / Telegram / Discord) | Same config file | Runtime uses **`WorkspaceAssistantAgent`** for **`RuntimeMode::Channel`** — read/search/workflow-first tools; coding tools are not the default set. Tool calls do **not** use interactive approval UIs (aligned with headless bridges); `require_approval` is forced off for those processes. |
+| Channel **`AskUserQuestion`** | No host attached | Returns **`status: unsupported_host`** in JSON (same headless stance as approval). Interactive pick is TTY / stream REPL / fullscreen TUI only unless a future channel-specific host is added. |
 | Goal loops | Same **`SecurityLayer`** as the parent runtime | Use **`GoalSpec.max_attempts_cap`** to bound retries even when **`allow_infinite_retries`** is true. |
 | Feature flags | `anycode enable approval-v2` | Maps to **`FeatureFlag::ApprovalV2`** (experimental tooling). |
 

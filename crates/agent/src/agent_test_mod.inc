@@ -264,6 +264,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -290,6 +291,216 @@ mod tests {
         assert!(log.contains("[tool_call_input]"));
         assert!(log.contains("[tool_call_start]"));
         assert!(log.contains("[tool_call_end]"));
+    }
+
+    /// Sets [`TaskContext::nested_cancel`] when the tool runs so `execute_task` can exit after the tool boundary.
+    struct EchoToolSetsCoopCancel {
+        coop: Arc<AtomicBool>,
+    }
+
+    #[async_trait]
+    impl Tool for EchoToolSetsCoopCancel {
+        fn name(&self) -> &str {
+            "Echo"
+        }
+
+        fn description(&self) -> &str {
+            "Echo input for tests"
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": { "text": { "type": "string" } },
+                "required": ["text"]
+            })
+        }
+
+        fn permission_mode(&self) -> PermissionMode {
+            PermissionMode::Auto
+        }
+
+        fn security_policy(&self) -> Option<&SecurityPolicy> {
+            None
+        }
+
+        async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+            self.coop.store(true, Ordering::Release);
+            Ok(ToolOutput {
+                result: serde_json::json!({ "echo": input.input }),
+                error: None,
+                duration_ms: 1,
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_task_cooperative_cancel_before_first_llm() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+        let llm = Arc::new(MockLLM::new(vec![]));
+        let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+        tools.insert("Echo".to_string(), Box::new(EchoTool));
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm.clone(),
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let coop = Arc::new(AtomicBool::new(true));
+        let task = Task {
+            id: Uuid::new_v4(),
+            agent_type: AgentType::new("general-purpose"),
+            prompt: "test".to_string(),
+            context: TaskContext {
+                session_id: Uuid::new_v4(),
+                working_directory: ".".to_string(),
+                environment: HashMap::new(),
+                user_id: None,
+                system_prompt_append: None,
+                context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
+                nested_cancel: Some(coop),
+            },
+            created_at: chrono::Utc::now(),
+        };
+
+        let res = runtime.execute_task(task).await.unwrap();
+        match res {
+            TaskResult::Failure { error, .. } => {
+                assert_eq!(error, NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            }
+            _ => panic!("expected cooperative cancel failure, got {res:?}"),
+        }
+        assert!(llm.call_roles().await.is_empty(), "LLM must not run");
+    }
+
+    #[tokio::test]
+    async fn execute_task_cooperative_cancel_after_tool() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+
+        let first = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "calling tool"),
+            tool_calls: vec![ToolCall {
+                id: "tooluse_1".to_string(),
+                name: "Echo".to_string(),
+                input: serde_json::json!({ "text": "hi" }),
+            }],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let second = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "should not run"),
+            tool_calls: vec![],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+
+        let coop = Arc::new(AtomicBool::new(false));
+        let llm = Arc::new(MockLLM::new(vec![first, second]));
+        let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+        tools.insert(
+            "Echo".to_string(),
+            Box::new(EchoToolSetsCoopCancel {
+                coop: coop.clone(),
+            }),
+        );
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm.clone(),
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let task = Task {
+            id: Uuid::new_v4(),
+            agent_type: AgentType::new("general-purpose"),
+            prompt: "test".to_string(),
+            context: TaskContext {
+                session_id: Uuid::new_v4(),
+                working_directory: ".".to_string(),
+                environment: HashMap::new(),
+                user_id: None,
+                system_prompt_append: None,
+                context_injections: vec![],
+                nested_model_override: None,
+                nested_worktree_path: None,
+                nested_worktree_repo_root: None,
+                nested_cancel: Some(coop),
+            },
+            created_at: chrono::Utc::now(),
+        };
+
+        let res = runtime.execute_task(task).await.unwrap();
+        match res {
+            TaskResult::Failure { error, .. } => {
+                assert_eq!(error, NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            }
+            _ => panic!("expected cooperative cancel failure, got {res:?}"),
+        }
+        assert_eq!(llm.call_roles().await.len(), 1, "second LLM round must be skipped");
     }
 
     #[tokio::test]
@@ -367,7 +578,7 @@ mod tests {
 
         let task_id = Uuid::new_v4();
         let out = runtime
-            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".")
+            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None)
             .await
             .unwrap();
 
@@ -522,6 +733,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -678,6 +890,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -804,6 +1017,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -925,6 +1139,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1098,6 +1313,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1168,6 +1384,7 @@ mod tests {
                 &AgentType::new("general-purpose"),
                 messages,
                 ".",
+                None,
             )
             .await
             .unwrap();
@@ -1232,6 +1449,7 @@ mod tests {
                 &AgentType::new("general-purpose"),
                 messages,
                 ".",
+                None,
             )
             .await
             .unwrap();
@@ -1304,6 +1522,7 @@ mod tests {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };

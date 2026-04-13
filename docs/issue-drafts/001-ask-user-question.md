@@ -12,8 +12,8 @@ Replace the **first-option fallback** for **`AskUserQuestion`** with real **host
 
 ## Background
 
-- Listed as **§3 Next** in [`docs/roadmap.md`](../roadmap.md).
-- Tool today may degrade to choosing the first option when no interactive host path exists.
+- Listed as **§3 Next** in [`docs/roadmap.md`](../roadmap.md) (stream REPL + fullscreen TUI + TTY dialoguer are implemented; channel bridges remain headless — see Non-goals).
+- **Shipped behavior:** without an attached host, the tool returns **`status: unsupported_host`** (no silent first-option pick).
 
 ## Acceptance criteria
 
@@ -27,7 +27,7 @@ Replace the **first-option fallback** for **`AskUserQuestion`** with real **host
 ## Non-goals (this issue)
 
 - Full **MCP OAuth** GUI parity.
-- Changing **LSP** or **`run_in_background`** semantics.
+- **Channel-native UX** (WeChat / Telegram / Discord cards or inline keyboards for **AskUserQuestion**): track separately; today those processes do not attach **`AskUserQuestionHost`** and correctly get **`unsupported_host`**.
 
 ## References
 

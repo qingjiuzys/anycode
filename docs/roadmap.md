@@ -44,26 +44,36 @@
 
 ---
 
-## 3. 下一迭代（建议）
+## 3. 已完成（原 §3 三条）
 
-| 主题 | 完成定义（简） |
-|------|----------------|
-| 子 Agent 真异步 | **v1（进程内）**：**`run_in_background`** 立即返回 **`nested_task_id`**，**`TaskOutput`** 带 **`background_status`**，**`TaskStop`** 同 UUID **尽力**中止；跨进程队列与协作式 cancel 仍属后续。 |
-| **AskUserQuestion** | 不再默认「首项回退」；在流式 / TUI 宿主内完成真实选择（与审批 UX 一致）。 |
-| **LSP 一等配置** | **`config.json` `lsp`**（enabled / command / workspace_root / read_timeout_ms）+ 文档站；未启用时仍可读 **`ANYCODE_LSP_COMMAND`**。 |
+| 主题 | 状态（简） |
+|------|------------|
+| 子 Agent 真异步 **v1** | **`run_in_background`** + **`TaskOutput`** / **`TaskStop`**（进程内注册表；**`TaskStop`** 置协作式标志 + **`AbortHandle`** 兜底）。 |
+| **AskUserQuestion** | TTY dialoguer、流式 REPL、全屏 TUI；无 host 时 **`unsupported_host`**。 |
+| **LSP 一等配置** | **`config.json` `lsp`** + 文档；回退 **`ANYCODE_LSP_COMMAND`**。 |
 
-**当前选定主线：** **AskUserQuestion** — GitHub issue [#3](https://github.com/qingjiuzys/anycode/issues/3)；正文草稿 [`issue-drafts/001-ask-user-question.md`](issue-drafts/001-ask-user-question.md)。另两条 §3 条目仍有效，但避免与主线并行大块重构。
+**Issue [#3](https://github.com/qingjiuzys/anycode/issues/3)** 正文草稿仍见 [`issue-drafts/001-ask-user-question.md`](issue-drafts/001-ask-user-question.md)（通道卡片选题为非目标）。
 
 ---
 
-## 4. 后续（Later，不展开实现细节）
+## 4. 下一迭代（v2 建议）
+
+| 主题 | 完成定义（简） |
+|------|----------------|
+| **嵌套任务协作式取消** | **部分已落地**：共享 **`Arc<AtomicBool>`** 经嵌套 **`TaskContext`**，在 **`execute_task`** / **`execute_turn_from_messages`** 的 **turn** 与 **工具** 边界轮询；失败 error **`cancelled`** 对应 **`background_status: cancelled`**。**仍待**：单次 LLM / 流式请求内 **`select!`** 级取消；syscall 阻塞仍靠 **`AbortHandle`**。 |
+| **跨进程 / 持久后台 Agent** | 与 Claude 完整 parity 的队列或等价语义（超出当前进程内 **`HashMap`**）。 |
+| **通道 AskUserQuestion** | 微信 / Telegram / Discord 上卡片或键盘选题（需独立设计与鉴权）。 |
+
+---
+
+## 5. 后续（Later，不展开实现细节）
 
 - **Transcript 虚拟滚动**：复启前需定义性能目标与负载模型；基线见 [`tui-smoothness-baseline.md`](tui-smoothness-baseline.md) 末尾 backlog 段。  
 - **`crates/onboard`**：独立 crate 或并入 CLI — 需单独决议或 ADR。
 
 ---
 
-## 5. 已拍板
+## 6. 已拍板
 
 | 决策 | 记录 |
 |------|------|
@@ -71,7 +81,7 @@
 
 ---
 
-## 6. 待决策
+## 7. 待决策
 
 | 主题 | 备注 | ADR / 下一步 |
 |------|------|----------------|
@@ -81,7 +91,7 @@
 
 ---
 
-## 7. 相关链接
+## 8. 相关链接
 
 - [`architecture.md`](architecture.md) — 维护者分层与流式/TUI 会话表  
 - [`docs/README.md`](README.md) — ADR 索引与文档地图  

@@ -220,16 +220,17 @@ impl AgentTool {
             model,
             isolation,
             task_id: None,
+            cancel: None,
         };
 
         if v.run_in_background == Some(true) {
             let task_id = Uuid::new_v4();
+            let job = self.services.insert_background_agent_job(task_id);
             let mut invoke_bg = invoke;
             invoke_bg.task_id = Some(task_id);
+            invoke_bg.cancel = Some(job.coop_cancel.clone());
             let output_file = nested_output_log_path(task_id);
             let nested_task_id = task_id.to_string();
-
-            let job = self.services.insert_background_agent_job(task_id);
             let exe_c = exe.clone();
             let services_c = self.services.clone();
             let desc_c = desc.clone();
@@ -826,5 +827,31 @@ mod background_agent_tests {
             .await
             .unwrap();
         assert_eq!(tout.result["background_status"].as_str(), Some("cancelled"));
+    }
+
+    #[tokio::test]
+    async fn background_rejected_when_sub_agent_depth_exhausted() {
+        let services = Arc::new(ToolServices::default());
+        services.attach_sub_agent_executor(Arc::new(DelayedOkEx {
+            delay_ms: 1,
+            calls: AtomicU32::new(0),
+        }));
+        for _ in 0..6 {
+            assert!(
+                services.try_enter_sub_agent_depth(),
+                "expected enter up to max depth (6)"
+            );
+        }
+        assert!(
+            !services.try_enter_sub_agent_depth(),
+            "seventh enter should fail"
+        );
+        let agent = AgentTool::new(services.clone());
+        let out = agent.execute(bg_input("depth")).await.expect("execute");
+        assert_eq!(out.result["error"], "sub-agent nesting depth exceeded");
+        assert!(
+            out.result.get("nested_task_id").is_none(),
+            "must not spawn or register background job"
+        );
     }
 }

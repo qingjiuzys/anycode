@@ -21,6 +21,7 @@ mod file_read;
 mod file_write;
 mod glob;
 mod grep;
+mod lsp_root_uri;
 #[cfg(feature = "tools-lsp")]
 mod lsp_stdio;
 mod lsp_tool;

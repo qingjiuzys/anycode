@@ -51,7 +51,7 @@ pub use security_policy::SecurityPolicy;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 pub use task::{
     Artifact, NestedTaskInvoke, NestedTaskRun, Task, TaskContext, TaskResult, TurnOutput,
-    TurnTokenUsage,
+    TurnTokenUsage, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
 pub use task_output::DiskTaskOutput;
 pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor, Tool};
@@ -71,5 +71,6 @@ pub mod prelude {
         Usage, VectorMemoryBackend, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
         WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
         ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS,
+        NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
     };
 }

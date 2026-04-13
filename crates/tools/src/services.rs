@@ -2,13 +2,15 @@
 
 use crate::ask_user_question_host::AskUserQuestionHostArc;
 use crate::skills::SkillCatalog;
-use anycode_core::{CoreError, NestedTaskRun, SubAgentExecutor, TaskResult};
+use anycode_core::{
+    CoreError, NestedTaskRun, SubAgentExecutor, TaskResult, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uuid::Uuid;
@@ -58,6 +60,8 @@ pub struct BackgroundAgentJob {
     pub started_at: std::time::SystemTime,
     pub abort: Mutex<Option<tokio::task::AbortHandle>>,
     pub summary: Mutex<Option<String>>,
+    /// Set by **`TaskStop`**; **`AgentRuntime::execute_task`** polls between turns/tools.
+    pub coop_cancel: Arc<AtomicBool>,
 }
 
 impl BackgroundAgentJob {
@@ -342,11 +346,13 @@ impl ToolServices {
     }
 
     pub fn insert_background_agent_job(&self, id: Uuid) -> Arc<BackgroundAgentJob> {
+        let coop_cancel = Arc::new(AtomicBool::new(false));
         let job = Arc::new(BackgroundAgentJob {
             status: Mutex::new(BackgroundAgentStatus::Running),
             started_at: std::time::SystemTime::now(),
             abort: Mutex::new(None),
             summary: Mutex::new(None),
+            coop_cancel: coop_cancel.clone(),
         });
         self.background_agents
             .lock()
@@ -383,6 +389,11 @@ impl ToolServices {
             Ok(NestedTaskRun { result, .. }) => {
                 let new_status = match &result {
                     TaskResult::Success { .. } => BackgroundAgentStatus::Completed,
+                    TaskResult::Failure { error, .. }
+                        if error == NESTED_TASK_COOPERATIVE_CANCEL_ERROR =>
+                    {
+                        BackgroundAgentStatus::Cancelled
+                    }
                     TaskResult::Failure { .. } => BackgroundAgentStatus::Failed,
                     TaskResult::Partial { .. } => BackgroundAgentStatus::Partial,
                 };
@@ -413,6 +424,7 @@ impl ToolServices {
         let Some(job) = map.get(&id) else {
             return false;
         };
+        job.coop_cancel.store(true, Ordering::Release);
         let mut st = job.status.lock().expect("bg status");
         if *st != BackgroundAgentStatus::Running {
             return false;

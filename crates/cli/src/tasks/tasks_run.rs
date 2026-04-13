@@ -82,6 +82,7 @@ pub(crate) async fn run_single_task_with_tail(
             nested_model_override: None,
             nested_worktree_path: None,
             nested_worktree_repo_root: None,
+            nested_cancel: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -214,6 +215,7 @@ fn build_task(
             nested_model_override: None,
             nested_worktree_path: None,
             nested_worktree_repo_root: None,
+            nested_cancel: None,
         },
         created_at: chrono::Utc::now(),
     }

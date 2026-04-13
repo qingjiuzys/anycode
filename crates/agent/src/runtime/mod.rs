@@ -24,7 +24,7 @@ use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAs
 use anycode_core::prelude::*;
 use anycode_core::strip_llm_reasoning_xml_blocks;
 use anycode_core::Artifact;
-use anycode_core::{MemoryPipeline, MemoryPipelineSettings};
+use anycode_core::{MemoryPipeline, MemoryPipelineSettings, NESTED_TASK_COOPERATIVE_CANCEL_ERROR};
 use anycode_security::SecurityLayer;
 use artifacts::{extract_artifacts, truncate_text};
 use async_trait::async_trait;
@@ -36,11 +36,29 @@ use nested_worktree::NestedWorktreeGuard;
 use receipt::ReceiptGenerator;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use task_summary::{last_assistant_plain_text, llm_summary_receipt};
 use tokio::sync::{Mutex, RwLock};
 use tracing::warn;
 use uuid::Uuid;
+
+fn nested_coop_cancelled(ctx: &TaskContext) -> bool {
+    ctx.nested_cancel
+        .as_ref()
+        .is_some_and(|b| b.load(Ordering::Acquire))
+}
+
+fn opt_coop_cancelled(flag: &Option<Arc<AtomicBool>>) -> bool {
+    flag.as_ref().is_some_and(|b| b.load(Ordering::Acquire))
+}
+
+fn task_cancelled_failure() -> TaskResult {
+    TaskResult::Failure {
+        error: NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+        details: Some("cooperative nested cancel".to_string()),
+    }
+}
 
 const MEMORY_AUTOSAVE_TITLE_MAX_CHARS: usize = 200;
 const MEMORY_AUTOSAVE_CONTENT_MAX_BYTES: usize = 64 * 1024;
@@ -592,6 +610,7 @@ impl AgentRuntime {
         agent_type: &AgentType,
         messages: Arc<Mutex<Vec<Message>>>,
         working_directory: &str,
+        coop_cancel: Option<Arc<AtomicBool>>,
     ) -> Result<TurnOutput, CoreError> {
         let logger = self.logger();
         logger.ensure_initialized(task_id);
@@ -631,6 +650,12 @@ impl AgentRuntime {
                 task_id,
                 &format!("[turn_start] turn={}/{}", turn, MAX_AGENT_TURNS),
             );
+            if opt_coop_cancelled(&coop_cancel) {
+                logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                return Err(CoreError::LLMError(
+                    NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+                ));
+            }
             logger.line(
                 task_id,
                 &format!(
@@ -846,6 +871,12 @@ impl AgentRuntime {
             );
 
             for tool_call in response.tool_calls {
+                if opt_coop_cancelled(&coop_cancel) {
+                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                    return Err(CoreError::LLMError(
+                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+                    ));
+                }
                 total_tool_calls += 1;
                 if total_tool_calls > MAX_TOOL_CALLS_TOTAL {
                     logger.line(
@@ -950,6 +981,12 @@ impl AgentRuntime {
                 .await;
 
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));
+                if opt_coop_cancelled(&coop_cancel) {
+                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                    return Err(CoreError::LLMError(
+                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
+                    ));
+                }
             }
         }
 
@@ -985,6 +1022,7 @@ impl AgentRuntime {
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1096,6 +1134,10 @@ impl AgentRuntime {
                 task.id,
                 &format!("[turn_start] turn={}/{}", turn, MAX_AGENT_TURNS),
             );
+            if nested_coop_cancelled(&task.context) {
+                logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
+                return Ok(task_cancelled_failure());
+            }
             logger.line(
                 task.id,
                 &format!(
@@ -1182,6 +1224,10 @@ impl AgentRuntime {
             );
 
             for tool_call in response.tool_calls {
+                if nested_coop_cancelled(&task.context) {
+                    logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
+                    return Ok(task_cancelled_failure());
+                }
                 total_tool_calls += 1;
                 if total_tool_calls > MAX_TOOL_CALLS_TOTAL {
                     logger.line(
@@ -1281,6 +1327,10 @@ impl AgentRuntime {
 
                 // 基础 artifacts（V1）
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));
+                if nested_coop_cancelled(&task.context) {
+                    logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
+                    return Ok(task_cancelled_failure());
+                }
             }
         }
 
@@ -1513,6 +1563,7 @@ impl SubAgentExecutor for AgentRuntime {
                 nested_model_override: invoke.model.clone(),
                 nested_worktree_repo_root: wt_roots.as_ref().map(|(r, _)| r.clone()),
                 nested_worktree_path: wt_roots.as_ref().map(|(_, p)| p.clone()),
+                nested_cancel: invoke.cancel.clone(),
             },
             created_at: chrono::Utc::now(),
         };

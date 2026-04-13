@@ -107,7 +107,7 @@ pub(super) async fn append_user_line_and_spawn_turn(
     let msgs = messages.clone();
 
     tokio::spawn(async move {
-        rt.execute_turn_from_messages(task_id, &at, msgs, &wd)
+        rt.execute_turn_from_messages(task_id, &at, msgs, &wd, None)
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))
     })

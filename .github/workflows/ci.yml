@@ -31,6 +31,9 @@ jobs:
       - name: cargo test
         run: cargo test --workspace
 
+      - name: cargo test (tools-lsp)
+        run: cargo test -p anycode-tools --features tools-lsp
+
   docs:
     runs-on: ubuntu-latest
     steps:

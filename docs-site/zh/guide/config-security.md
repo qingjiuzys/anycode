@@ -201,6 +201,7 @@ export ANYCODE_LANG=en
 |---|---|---|
 | TUI / `run` / `repl` | `security.require_approval`、`permission_mode` | TTY 下交互审批；**`--ignore-approval`** 仅当前进程。 |
 | 微信 / Telegram / Discord | 同一 `config.json` | **`RuntimeMode::Channel`** 默认 **`WorkspaceAssistantAgent`**（偏读/查/工作流，非完整编码工具集）。桥接进程内工具**不**走交互式审批 UI（与无头通道对齐），会关闭 `require_approval`。 |
+| 通道 **`AskUserQuestion`** | 未挂 host | JSON 返回 **`status: unsupported_host`**（与审批同样无交互）；选题仅 TTY / 流式 REPL / 全屏 TUI，除非后续做通道专用 host。 |
 | 目标循环 | 同一 **`SecurityLayer`** | **`GoalSpec.max_attempts_cap`** 可在 **`allow_infinite_retries: true`** 时仍限制轮数。 |
 | 实验 | `anycode enable approval-v2` | 对应 **`FeatureFlag::ApprovalV2`**。 |
 

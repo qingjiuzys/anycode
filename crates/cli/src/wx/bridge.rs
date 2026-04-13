@@ -513,6 +513,7 @@ async fn run_agent_pipeline(
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
+                nested_cancel: None,
             },
             created_at: chrono::Utc::now(),
         };

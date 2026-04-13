@@ -77,7 +77,7 @@ read_when:
 | P2 | WebFetch, WebSearch | **完成** |
 | P3 | mcp, ListMcpResourcesTool, ReadMcpResourceTool, McpAuth | **v1**：`tools-mcp` + **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`**；deny 规则；动态 **`mcp__<slug>__authenticate`** |
 | P4 | LSP | **部分**：`tools-lsp` + **`ANYCODE_LSP_COMMAND`** 时转发；未启用 stub |
-| P5 | Agent, Skill, SendMessage, Task(legacy) | **Skill v1** 已落地；**Agent** / 旧 **Task** 嵌套 **`AgentRuntime`**（**`agent_type`** / **`subagent_type`** 选工具面，嵌套深度有上限）；支持 Claude 式 **`model`**、**`isolation: worktree`**（临时 git worktree）、**`cwd`** 解析为**绝对路径**；**`run_in_background: true`** 立即返回 **`status: started`**，嵌套在后台任务中执行 — 用 **`TaskOutput`** 轮询、用 **`TaskStop`** + UUID **尽力**中止（仅进程内）；**SendMessage** 写入编排快照并随 **`orchestration.json`** 持久化 |
+| P5 | Agent, Skill, SendMessage, Task(legacy) | **Skill v1** 已落地；**Agent** / 旧 **Task** 嵌套 **`AgentRuntime`**（**`agent_type`** / **`subagent_type`** 选工具面，嵌套深度有上限）；支持 Claude 式 **`model`**、**`isolation: worktree`**（临时 git worktree）、**`cwd`** 解析为**绝对路径**；**`run_in_background: true`** 立即返回 **`status: started`**，嵌套在后台任务中执行 — 用 **`TaskOutput`** 轮询、用 **`TaskStop`** + UUID（嵌套 **turn / 工具** 边界协作式标志位 + **`AbortHandle`** 兜底；仅进程内）；**SendMessage** 写入编排快照并随 **`orchestration.json`** 持久化 |
 | P6 | 编排 Task/Team/Cron 等 | **持久化 v1**：**`~/.anycode/tasks/orchestration.json`**（损坏时备份为 **`*.json.corrupt`**） |
 | P7 | EnterPlanMode, Worktree, ToolSearch, Sleep, StructuredOutput | **完成** |
 | P8 | PowerShell, Config, Brief, AskUserQuestion, REPL | **完成**（PowerShell 仅 Windows） |
@@ -94,18 +94,20 @@ read_when:
 
 **代码入口**：`mcp_normalization.rs`、`mcp_tools.rs`、`mcp_stdio.rs`、`bootstrap/mcp_env.rs`；feature **`tools-mcp`**。
 
-**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套 **`AgentRuntime`**（**`SubAgentExecutor`**）。**与 Claude Code `Agent` 工具对齐（当前子集）**：入参 **`subagent_type`**（同 **`agent_type`**，**`Explore`/`Plan`/`general-purpose`** 等会规范化）、可选 **`description`**、可选 **`cwd`**（相对则相对工具调用工作目录，再 **canonicalize** 为绝对路径）、可选 **`model`**（**`sonnet`/`opus`/`haiku`** 或裸模型 id；按主会话 provider 映射）、可选 **`isolation: "worktree"`**（在系统临时目录下 **`git worktree add`**，结束后移除）；**`run_in_background: true`** 立即返回 **`status: started`**，与同步路径相同的 **`nested_task_id`** / **`output_file`** 提示，进程内注册表；用 **`TaskOutput`** 查看 **`background_status`** / 日志尾部，用 **`TaskStop`** 对 UUID **尽力**中止（嵌套轮次尚无协作式 cancel token）。同步成功时仍有 **`content`**。仍与上游有差距：**fork** 自身、跨进程持久后台、群聊式 **`SendMessage`** 等 — 后续里程碑。
+**P5 Skill（已落地 v1）**：多根目录 **`SKILL.md`** 扫描、**`ToolServices.skill_catalog`**、系统提示 **Available skills**、路径安全的 **`Skill`** 执行（超时、输出上限、可选最小环境）、配置 **`skills.*`**、CLI **`anycode skills list|path|init`**；可选 **`skills.expose_on_explore_plan`** 为 **explore** / **plan** 注册 **Skill**。**Agent / 旧 `Task`**：嵌套 **`AgentRuntime`**（**`SubAgentExecutor`**）。**与 Claude Code `Agent` 工具对齐（当前子集）**：入参 **`subagent_type`**（同 **`agent_type`**，**`Explore`/`Plan`/`general-purpose`** 等会规范化）、可选 **`description`**、可选 **`cwd`**（相对则相对工具调用工作目录，再 **canonicalize** 为绝对路径）、可选 **`model`**（**`sonnet`/`opus`/`haiku`** 或裸模型 id；按主会话 provider 映射）、可选 **`isolation: "worktree"`**（在系统临时目录下 **`git worktree add`**，结束后移除）；**`run_in_background: true`** 立即返回 **`status: started`**，与同步路径相同的 **`nested_task_id`** / **`output_file`** 提示，进程内注册表；用 **`TaskOutput`** 查看 **`background_status`** / 日志尾部，用 **`TaskStop`** 对 UUID：共享标志位在嵌套 **turn** 与 **工具** 边界轮询（协作式退出），**`AbortHandle::abort`** 仍为兜底。**尚未**覆盖：单次进行中的 LLM / 流式请求协作取消；阻塞在 syscall 的工具仍可能依赖 abort。同步成功时仍有 **`content`**。仍与上游有差距：**fork** 自身、跨进程持久后台、群聊式 **`SendMessage`** 等 — 后续里程碑。
 
 **LSP、P5 其余项、OpenAI 官方客户端** 等与英文 [Roadmap](/guide/roadmap) 对称，细节见源码与上表。
 
 ## 建议的下一主线（维护者）
 
-下一阶段宜 **二选一** 作为里程碑级主线（避免两条大块重构并行）。按主线拆 **GitHub issue** 跟踪。
+下一阶段宜 **每次只选一条** 里程碑级主线（避免两条大块重构并行）。按主线拆 **GitHub issue** 跟踪。
 
 | 主线 | 目标（可拆成 issue 的起点） |
 |------|---------------------------|
-| **P5 Agent / Task** | 可选：编排 **`orchestration`** 与任务目录 **`~/.anycode/tasks/<id>/`** 布局进一步对齐；**fork** / **真异步后台** 等与 Claude 完整 parity。 |
+| **嵌套任务协作式取消（v2）** | **部分已落地**：**`TaskStop`** 经共享取消标志传入嵌套 **`TaskContext`**，在每个 **turn** 与 **工具** 调用前后轮询；**`TaskResult::Failure`** 且 error 为 **`cancelled`** 时 **`background_status`** 记为 **`cancelled`**。**仍待**：流式 / 阻塞 **LLM** 请求与 cancel 绑定；可选用 **`tokio_util::sync::CancellationToken`** 配合 **`select!`**。**syscall** 阻塞的工具仍为 **尽力**（**`AbortHandle`**）。 |
+| **P5 Agent / Task** | 可选：编排与 **`~/.anycode/tasks/<id>/`** 布局对齐；**fork**；跨进程持久后台（超出当前进程内注册表）。 |
 | **MCP 超出 stdio v1** | stdio 健康检查与更清晰错误；`tools/call` 超时；无 GUI 下的 **McpAuth** / OAuth 体验；真实的 MCP **资源** 列出与读取工具。 |
+| **通道 AskUserQuestion** | 微信 / Telegram / Discord 卡片或键盘选题（新 host 实现）。 |
 
 **文档说明：**显式模型指令文件路径 **仅** 通过环境变量 **`ANYCODE_MODEL_INSTRUCTIONS_FILE`** 指定；JSON 中的 `model_instructions` **只**控制自动发现 — 见 [配置与安全](./config-security.md)。
 

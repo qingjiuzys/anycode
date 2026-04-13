@@ -110,7 +110,7 @@ pub(crate) async fn run_line_repl_turn(
     let wd = session.working_dir_str.clone();
     sink.eprint_line(tr("repl-task-run"));
     let out = runtime
-        .execute_turn_from_messages(task_id, &at, msgs, &wd)
+        .execute_turn_from_messages(task_id, &at, msgs, &wd, None)
         .await
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     sink.eprint_line(tr("repl-task-ok"));
@@ -162,7 +162,7 @@ pub(crate) async fn append_user_spawn_turn(
     let msgs = session.messages.clone();
     let wd = session.working_dir_str.clone();
     let handle = tokio::spawn(async move {
-        rt.execute_turn_from_messages(task_id, &at, msgs, &wd)
+        rt.execute_turn_from_messages(task_id, &at, msgs, &wd, None)
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))
     });

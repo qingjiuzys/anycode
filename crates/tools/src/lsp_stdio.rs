@@ -1,5 +1,6 @@
 //! LSP JSON-RPC over stdio（`tools-lsp`）：`ANYCODE_LSP_COMMAND` 或 `config.json` 的 `lsp.command` 启动语言服务器子进程，完成 handshake 后转发自定义请求。
 
+use crate::lsp_root_uri::lsp_root_uri_json;
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -91,10 +92,7 @@ pub async fn lsp_forward_shell(
         .ok_or_else(|| CoreError::LLMError("LSP stdout missing".into()))?;
     let mut reader = BufReader::new(stdout);
 
-    let root_uri = workspace_root
-        .and_then(|p| url::Url::from_file_path(p).ok())
-        .map(|u| json!(u.as_str()))
-        .unwrap_or(Value::Null);
+    let root_uri = lsp_root_uri_json(workspace_root);
 
     write_line(
         &mut stdin,
@@ -152,4 +150,47 @@ pub async fn lsp_forward_shell(
         error: None,
         duration_ms: start.elapsed().as_millis() as u64,
     })
+}
+
+#[cfg(test)]
+mod forward_tests {
+    use super::lsp_forward_shell;
+    use serde_json::json;
+    use std::time::Duration;
+
+    /// 最小 echo JSON-RPC 服务：对 `id` 1 / 2 各回一条响应（忽略 `initialized` 通知）。
+    const FAKE_LSP_SH: &str = r##"while IFS= read -r line; do
+  if echo "$line" | grep -q '"id":1'; then
+    echo '{"jsonrpc":"2.0","id":1,"result":{}}'
+  elif echo "$line" | grep -q '"id":2'; then
+    echo '{"jsonrpc":"2.0","id":2,"result":{"ok":true}}'
+  fi
+done"##;
+
+    #[tokio::test]
+    async fn lsp_forward_fake_server_roundtrip() {
+        let input = json!({ "method": "custom/ping", "params": {} });
+        let out = lsp_forward_shell(&input, FAKE_LSP_SH, None, Duration::from_secs(5))
+            .await
+            .expect("lsp_forward_shell");
+        assert!(out.error.is_none(), "{:?}", out);
+        assert_eq!(out.result["ok"], true);
+    }
+
+    #[tokio::test]
+    async fn lsp_forward_with_workspace_root_still_roundtrips() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let abs = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let input = json!({ "method": "shutdown", "params": null });
+        let out = lsp_forward_shell(
+            &input,
+            FAKE_LSP_SH,
+            Some(abs.as_path()),
+            Duration::from_secs(5),
+        )
+        .await
+        .expect("lsp_forward_shell");
+        assert!(out.error.is_none(), "{:?}", out);
+        assert_eq!(out.result["ok"], true);
+    }
 }
