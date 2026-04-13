@@ -26,7 +26,7 @@ mod workflow;
 
 pub use agent_type::AgentType;
 pub use channel::{ChannelMessage, ChannelType};
-pub use error::CoreError;
+pub use error::{anyhow_error_is_cooperative_cancel, CoreError};
 pub use feature_flags::{FeatureFlag, FeatureRegistry};
 pub use goal::{GoalProgress, GoalSpec};
 pub use ids::{
@@ -58,6 +58,7 @@ pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor
 pub use workflow::{WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep};
 
 pub mod prelude {
+    pub use super::anyhow_error_is_cooperative_cancel;
     pub use super::CoreError;
     pub use super::{
         Agent, AgentType, ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput,

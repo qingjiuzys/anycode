@@ -722,11 +722,11 @@ mod tests {
         )
         .await
         .expect("turn should return after cooperative cancel")
-        .expect_err("expected LLMError cancelled");
-        match err {
-            CoreError::LLMError(s) => assert_eq!(s, NESTED_TASK_COOPERATIVE_CANCEL_ERROR),
-            _ => panic!("unexpected err: {err:?}"),
-        }
+        .expect_err("expected cooperative cancel");
+        assert!(
+            err.is_cooperative_cancel(),
+            "unexpected err: {err:?}"
+        );
 
         let g = messages.lock().await;
         assert!(
@@ -814,11 +814,11 @@ mod tests {
         )
         .await
         .expect("turn should return after cooperative cancel")
-        .expect_err("expected LLMError cancelled");
-        match err {
-            CoreError::LLMError(s) => assert_eq!(s, NESTED_TASK_COOPERATIVE_CANCEL_ERROR),
-            _ => panic!("unexpected err: {err:?}"),
-        }
+        .expect_err("expected cooperative cancel");
+        assert!(
+            err.is_cooperative_cancel(),
+            "unexpected err: {err:?}"
+        );
 
         let g = messages.lock().await;
         assert!(

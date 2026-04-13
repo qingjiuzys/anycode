@@ -90,7 +90,7 @@ pub(crate) struct Config {
     pub(crate) status_line: StatusLineRuntime,
     /// 无子命令 TUI 画布（`config.json` 的 `tui`；env 可覆盖）。
     pub(crate) tui: TuiRuntime,
-    /// 通道特定配置（由通道子命令与适配器消费；主 TUI 路径当前未读）
+    /// 通道特定配置：serde 聚合体；各通道子命令当前多读 `~/.anycode/channels/*.json`，此字段预留给统一运行时。
     #[allow(dead_code)]
     pub(crate) channels: ChannelsConfig,
     /// `LSP` 工具子进程（需 `--features tools-lsp`）。

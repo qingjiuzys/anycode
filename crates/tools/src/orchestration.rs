@@ -294,7 +294,7 @@ impl Tool for TaskStopTool {
                         "stopped": true,
                         "kind": "background_agent",
                         "id": g.id,
-                        "note": "best-effort abort; nested AgentRuntime has no cooperative cancel token yet"
+                        "note": "best-effort abort: sets nested cooperative-cancel flag and aborts the background task (same flag as NestedTaskInvoke.cancel / TaskContext.nested_cancel)"
                     }),
                     error: None,
                     duration_ms: start.elapsed().as_millis() as u64,

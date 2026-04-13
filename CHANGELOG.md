@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Core:** `CoreError::CooperativeCancel` for cooperative turn/nested cancel (same `Display` as legacy `LLMError("cancelled")`); `CoreError::is_cooperative_cancel` and `anyhow_error_is_cooperative_cancel` for callers. ADR `docs/adr/002-cooperative-cancel-and-nested-agents.md`; docs-site architecture section; `TaskStop` JSON note aligned with background nested cancel wiring.
+- **Tests:** `repl_line_session` helpers for trailing-assistant pop + cancel detection; MCP wall-timeout `CoreError` maps to `TimedOut` IO.
+
 ## 0.2.0
 
 Workspace release: TUI-first CLI, channels, skills, nested agents with cooperative cancel (through in-flight LLM), MCP/LSP hardening and CI feature-matrix tests. Details below.

@@ -8,10 +8,7 @@ use crate::tui::tui_session_persist::{
     workspace_paths_equal_for_session, TuiSessionSnapshot,
 };
 use anycode_agent::AgentRuntime;
-use anycode_core::{
-    AgentType, CoreError, Message, MessageContent, MessageRole, TurnOutput,
-    NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
-};
+use anycode_core::{AgentType, Message, MessageContent, MessageRole, TurnOutput};
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
 use std::path::Path;
@@ -95,11 +92,19 @@ impl ReplLineSession {
     }
 }
 
+/// Drop trailing assistant message if present (cooperative cancel or failed turn cleanup).
+pub(crate) fn pop_trailing_assistant_if_last_role_assistant(messages: &mut Vec<Message>) {
+    if messages
+        .last()
+        .is_some_and(|m| m.role == MessageRole::Assistant)
+    {
+        messages.pop();
+    }
+}
+
 async fn pop_trailing_assistant_if_present(session: &ReplLineSession) {
     let mut g = session.messages.lock().await;
-    if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
-        g.pop();
-    }
+    pop_trailing_assistant_if_last_role_assistant(&mut g);
 }
 
 pub(crate) async fn run_line_repl_turn(
@@ -146,10 +151,7 @@ pub(crate) async fn run_line_repl_turn(
     let out = match exec_res {
         Ok(o) => o,
         Err(e) => {
-            let is_coop = matches!(
-                &e,
-                CoreError::LLMError(s) if s.as_str() == NESTED_TASK_COOPERATIVE_CANCEL_ERROR
-            );
+            let is_coop = e.is_cooperative_cancel();
             if is_coop {
                 pop_trailing_assistant_if_present(session).await;
                 let msg = tr("tui-turn-cooperative-cancelled");
@@ -222,7 +224,7 @@ pub(crate) async fn append_user_spawn_turn(
     let handle = tokio::spawn(async move {
         rt.execute_turn_from_messages(task_id, &at, msgs, &wd, Some(coop))
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))
+            .map_err(anyhow::Error::from)
     });
     Ok((handle, exec_prev_len))
 }
@@ -264,5 +266,66 @@ pub(crate) fn load_repl_session_choice(
                 .map_err(|_| anyhow::anyhow!("{}", tr("repl-session-bad-uuid")))?;
             load_tui_session(id)?.ok_or_else(|| anyhow::anyhow!("{}", tr("repl-resume-not-found")))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pop_trailing_assistant_if_last_role_assistant;
+    use anycode_core::{
+        anyhow_error_is_cooperative_cancel, CoreError, Message, MessageContent, MessageRole,
+    };
+    use chrono::Utc;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    fn text_user(s: &str) -> Message {
+        Message {
+            id: Uuid::new_v4(),
+            role: MessageRole::User,
+            content: MessageContent::Text(s.into()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    fn text_asst(s: &str) -> Message {
+        Message {
+            id: Uuid::new_v4(),
+            role: MessageRole::Assistant,
+            content: MessageContent::Text(s.into()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn pop_trailing_assistant_drops_only_trailing_assistant() {
+        let mut v = vec![text_user("u"), text_asst("a")];
+        pop_trailing_assistant_if_last_role_assistant(&mut v);
+        assert_eq!(v.len(), 1);
+        assert!(matches!(v[0].role, MessageRole::User));
+    }
+
+    #[test]
+    fn pop_trailing_assistant_noop_when_last_is_user() {
+        let mut v = vec![text_asst("a"), text_user("u")];
+        pop_trailing_assistant_if_last_role_assistant(&mut v);
+        assert_eq!(v.len(), 2);
+    }
+
+    #[test]
+    fn cooperative_cancel_detection_legacy_and_structured() {
+        assert!(CoreError::CooperativeCancel.is_cooperative_cancel());
+        assert!(CoreError::LLMError("cancelled".into()).is_cooperative_cancel());
+        assert!(!CoreError::LLMError("other".into()).is_cooperative_cancel());
+    }
+
+    #[test]
+    fn anyhow_downcast_sees_cooperative_cancel() {
+        let e = anyhow::Error::from(CoreError::CooperativeCancel);
+        assert!(anyhow_error_is_cooperative_cancel(&e));
+        let e2 = anyhow::Error::from(CoreError::LLMError("nope".into()));
+        assert!(!anyhow_error_is_cooperative_cancel(&e2));
     }
 }

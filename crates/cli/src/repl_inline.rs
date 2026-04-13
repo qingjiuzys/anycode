@@ -22,7 +22,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// 仅用于绘制：保留尾部若干行，避免 transcript 撑爆屏幕。
-#[allow(dead_code)]
 const TRANSCRIPT_MAX_DISPLAY_LINES: usize = 256;
 
 pub(crate) struct ReplLineState {
@@ -34,7 +33,6 @@ pub(crate) struct ReplLineState {
     /// 流式 / Inline REPL 底栏顶行：模型 / 审批等（与全屏 TUI 脚标信息对齐）。
     pub dock_status: String,
     /// 任务与 REPL 消息（显示在输入区上方）；与异步任务共享以便 tail 写入时重绘。
-    #[allow(dead_code)]
     pub transcript: Arc<Mutex<String>>,
     /// 流式 REPL 主区宽度（ratatui `draw` 回写），供 transcript 排版换行。
     pub stream_viewport_width: u16,
@@ -135,7 +133,6 @@ fn apply_slash_pick_to_input(state: &mut ReplLineState) {
 }
 
 /// 将 `body` 按 `wrap_width` 折成与 ratatui `Paragraph`+`Wrap` 一致的**显示行**列表（逐逻辑行 `wrap_string_to_width`）。
-#[allow(dead_code)]
 fn transcript_wrapped_rows(body: &str, wrap_width: usize) -> Vec<String> {
     let w = wrap_width.max(8);
     let mut out = Vec::new();
@@ -326,7 +323,6 @@ pub(crate) fn sanitize_stream_transcript_visual_noise(s: &str) -> String {
 /// 不足时在上方补空行使正文贴在输入区上沿（stick-to-bottom）。
 ///
 /// 注意：若仅按 `\n` 逻辑行计数而不折行，长行（如整段 JSON）在 `Paragraph` 中会占多行却仍算 1 行，导致不「上滚」且被裁切。
-#[allow(dead_code)]
 pub(crate) fn repl_stream_transcript_bottom_padded(
     raw: &str,
     row_budget: u16,
@@ -363,7 +359,6 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
     }
 }
 
-#[allow(dead_code)]
 fn tail_for_display(raw: &str, max_lines: usize) -> String {
     let lines: Vec<&str> = raw.lines().collect();
     if lines.len() <= max_lines {

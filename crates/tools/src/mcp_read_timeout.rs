@@ -73,4 +73,19 @@ mod tests {
             Some(std::time::Duration::from_secs(45))
         );
     }
+
+    #[test]
+    fn wall_timeout_core_error_is_timed_out_io() {
+        let dur = Duration::from_secs(2);
+        let e = mcp_wall_timeout_core_error(dur, "test-server");
+        match e {
+            CoreError::IoError(io) => {
+                assert_eq!(io.kind(), std::io::ErrorKind::TimedOut);
+                let msg = io.to_string();
+                assert!(msg.contains("test-server"));
+                assert!(msg.contains(ANYCODE_MCP_CALL_TIMEOUT_SECS));
+            }
+            _ => panic!("expected IoError"),
+        }
+    }
 }

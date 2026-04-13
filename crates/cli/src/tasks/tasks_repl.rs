@@ -415,8 +415,7 @@ async fn finish_stream_spawned_turn(
             }
         }
         Ok(Err(e)) => {
-            let es = e.to_string();
-            let is_coop = es == format!("LLM error: {}", NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            let is_coop = anyhow_error_is_cooperative_cancel(&e);
             if is_coop {
                 let msg = tr("tui-turn-cooperative-cancelled");
                 sink.eprint_line(&msg);

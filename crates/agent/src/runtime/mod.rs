@@ -681,9 +681,7 @@ impl AgentRuntime {
             );
             if opt_coop_cancelled(&coop_cancel) {
                 logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                return Err(CoreError::LLMError(
-                    NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
-                ));
+                return Err(CoreError::CooperativeCancel);
             }
             logger.line(
                 task_id,
@@ -736,9 +734,7 @@ impl AgentRuntime {
                         "[llm_response_end] status=cancelled reason=cooperative_in_flight",
                     );
                     logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::LLMError(
-                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
-                    ));
+                    return Err(CoreError::CooperativeCancel);
                 }
                 r = stream_open => r,
             };
@@ -792,9 +788,7 @@ impl AgentRuntime {
                         "[llm_response_end] status=cancelled reason=cooperative_in_flight",
                     );
                     logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::LLMError(
-                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
-                    ));
+                    return Err(CoreError::CooperativeCancel);
                 }
                 if !received_any {
                     streamed = false;
@@ -841,9 +835,7 @@ impl AgentRuntime {
                             "[llm_response_end] status=cancelled reason=cooperative_in_flight",
                         );
                         logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                        return Err(CoreError::LLMError(
-                            NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
-                        ));
+                        return Err(CoreError::CooperativeCancel);
                     }
                     res = chat_fut => res?,
                 };
@@ -953,9 +945,7 @@ impl AgentRuntime {
             for tool_call in response.tool_calls {
                 if opt_coop_cancelled(&coop_cancel) {
                     logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::LLMError(
-                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
-                    ));
+                    return Err(CoreError::CooperativeCancel);
                 }
                 total_tool_calls += 1;
                 if total_tool_calls > MAX_TOOL_CALLS_TOTAL {
@@ -1063,9 +1053,7 @@ impl AgentRuntime {
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));
                 if opt_coop_cancelled(&coop_cancel) {
                     logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::LLMError(
-                        NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
-                    ));
+                    return Err(CoreError::CooperativeCancel);
                 }
             }
         }

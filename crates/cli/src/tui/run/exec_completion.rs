@@ -9,8 +9,8 @@ use crate::tui::transcript::{
 };
 use anycode_agent::AgentRuntime;
 use anycode_core::{
-    strip_llm_reasoning_xml_blocks, AgentType, Message, MessageContent, MessageRole, TurnOutput,
-    Usage, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+    anyhow_error_is_cooperative_cancel, strip_llm_reasoning_xml_blocks, AgentType, Message,
+    MessageContent, MessageRole, TurnOutput, Usage,
 };
 use fluent_bundle::FluentArgs;
 use ratatui::{
@@ -114,7 +114,7 @@ pub(super) async fn append_user_line_and_spawn_turn(
     tokio::spawn(async move {
         rt.execute_turn_from_messages(task_id, &at, msgs, &wd, Some(coop))
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))
+            .map_err(anyhow::Error::from)
     })
 }
 
@@ -316,7 +316,7 @@ pub(super) async fn consume_finished_turn(
         }
         Ok(Err(e)) => {
             let es = e.to_string();
-            let is_coop = es == format!("LLM error: {}", NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            let is_coop = anyhow_error_is_cooperative_cancel(&e);
             let line = if is_coop {
                 let t = tr("tui-turn-cooperative-cancelled");
                 *last_turn_error = Some(t.clone());

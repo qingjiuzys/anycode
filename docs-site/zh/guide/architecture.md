@@ -89,6 +89,10 @@ CLI 的 `run`、`REPL` 与 `TUI` **共用**同一 `AgentRuntime` 构建路径（
 
 **反过度抽象（团队共识）**：至少**两个**真实差异实现（或两处调用方）再抽 **public trait**；否则用 `enum`、函数或 `pub(crate)` 模块。不引入通用 **PluginHost**、动态 `.so` 加载、或与 `AgentRuntime` 并行的**第二套执行引擎**。**Skill** 插件市场等形态仍按需演进；**嵌套 Agent** 已由 **`Agent` / `Task` 工具** 走 **`SubAgentExecutor` → `AgentRuntime`**（字段与隔离级别见 [路线图](roadmap.md) P5），不是占位 stub。
 
+### 协作式取消（主会话与嵌套）
+
+主会话与行式/流式 REPL 将可选的 `Arc<AtomicBool>` 传入 **`execute_turn_from_messages`**。嵌套 **`execute_task`** 使用 **`TaskContext.nested_cancel`**（来自 **`NestedTaskInvoke.cancel`**）。后台嵌套任务注册任务级标志；**`TaskStop`** 置位并 `abort` 后台任务。取消结果用 **`CoreError::CooperativeCancel`**（展示文案与历史 **`LLM error: cancelled`** 一致）；处理 **`anyhow::Error`** 时用 **`CoreError::is_cooperative_cancel`** 或 **`anycode_core::anyhow_error_is_cooperative_cancel`**。详见仓库 **`docs/adr/002-cooperative-cancel-and-nested-agents.md`**。
+
 **编排权威说明**（决策记录见仓库 **`docs/adr/000-runtime-orchestration.md`**）：
 
 - **Strategy（补充）**：`LLMClient`、`Tool`、`Agent` 等 trait 由不同实现替换行为；新增厂商或工具时优先加实现而非改接口。
