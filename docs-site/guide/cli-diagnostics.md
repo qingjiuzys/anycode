@@ -28,6 +28,10 @@ anycode test-security --tool Bash --input '{"command":"ls"}'
 
 Exact subcommand spelling is shown in **`anycode --help`**.
 
+## `LSP` tool
+
+With **`--features tools-lsp`**, the **`LSP`** tool forwards JSON-RPC over a stdio subprocess. Configure **`lsp`** in `config.json` (see [Config & security](./config-security) — **LSP**) or set **`ANYCODE_LSP_COMMAND`**.
+
 ## Related
 
 - [Roadmap](./roadmap) — **P5**: **Agent** / **Task** vs Claude field parity  

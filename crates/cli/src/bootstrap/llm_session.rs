@@ -215,8 +215,8 @@ pub(crate) fn resolve_agent_base_url(
 mod tests {
     use super::*;
     use crate::app_config::{
-        ChannelsConfig, LLMConfig, MemoryConfig, RoutingConfig, RuntimeSettings, SecurityConfig,
-        SessionConfig, SkillsConfig, StatusLineRuntime, TuiRuntime,
+        ChannelsConfig, LLMConfig, LspRuntime, MemoryConfig, RoutingConfig, RuntimeSettings,
+        SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime, TuiRuntime,
     };
     use anycode_agent::RuntimePromptConfig;
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -277,6 +277,7 @@ mod tests {
             status_line: StatusLineRuntime::default(),
             tui: TuiRuntime::default(),
             channels: ChannelsConfig::default(),
+            lsp: LspRuntime::default(),
         }
     }
 

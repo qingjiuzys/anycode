@@ -24,7 +24,7 @@ pub(crate) async fn run_task(
 ) -> anyhow::Result<()> {
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
     workspace::apply_project_overlays(&mut config, &working_dir);
-    let runtime = crate::bootstrap::initialize_runtime(&config, None).await?;
+    let runtime = crate::bootstrap::initialize_runtime(&config, None, None).await?;
     let disk = DiskTaskOutput::new_default()?;
     if let Some(workflow_path) = workflow {
         return run_workflow_path(&runtime, &disk, &working_dir, &workflow_path, Some(prompt))

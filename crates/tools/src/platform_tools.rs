@@ -1,5 +1,8 @@
 //! PowerShell / Config / SendUserMessage / Brief / AskUserQuestion / REPL
 
+use crate::ask_user_question_host::{
+    AskUserQuestionHostError, AskUserQuestionOption, AskUserQuestionRequest,
+};
 use crate::services::ToolServices;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
@@ -284,33 +287,26 @@ impl Tool for BriefTool {
 }
 
 #[derive(Deserialize)]
-struct Opt {
-    label: String,
-    #[serde(default, rename = "description")]
-    _description: String,
-}
-
-#[derive(Deserialize)]
 struct QIn {
     #[serde(default)]
     question: String,
     #[serde(default)]
     header: String,
     #[serde(default)]
-    options: Vec<Opt>,
-    /// 交互 UI 未接线；保留以兼容入参形状。
-    #[serde(default)]
-    #[allow(dead_code)]
+    options: Vec<AskUserQuestionOption>,
+    #[serde(default, rename = "multiSelect")]
     multi_select: bool,
 }
 
 pub struct AskUserQuestionTool {
+    services: Arc<ToolServices>,
     policy: SecurityPolicy,
 }
 
 impl AskUserQuestionTool {
-    pub fn new() -> Self {
+    pub fn new(services: Arc<ToolServices>) -> Self {
         Self {
+            services,
             policy: SecurityPolicy::sensitive_mutation(),
         }
     }
@@ -323,7 +319,7 @@ impl Tool for AskUserQuestionTool {
     }
 
     fn description(&self) -> &str {
-        "Ask multiple-choice questions (non-interactive fallback: first option)."
+        "Ask multiple-choice questions; requires an interactive host (TTY dialoguer, stream REPL, or fullscreen TUI)."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -357,28 +353,64 @@ impl Tool for AskUserQuestionTool {
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
-        let q: QIn = serde_json::from_value(input.input).unwrap_or(QIn {
-            question: String::new(),
-            header: String::new(),
-            options: vec![],
-            multi_select: false,
-        });
-        let first = q
-            .options
-            .first()
-            .map(|o| o.label.clone())
-            .unwrap_or_default();
-        Ok(ToolOutput {
-            result: json!({
-                "selected": vec![first.clone()],
-                "status": "degraded",
-                "note": "Interactive UI not wired in this host; returned first option",
-                "question": q.question,
-                "header": q.header
+        let q: QIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        if q.options.is_empty() {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": "AskUserQuestion requires at least one option",
+                    "status": "unsupported",
+                    "question": q.question,
+                    "header": q.header
+                }),
+                error: Some("no options".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
+        let Some(host) = self.services.ask_user_question_host() else {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": "No interactive host for AskUserQuestion (non-TTY or channel mode without UI bridge)",
+                    "status": "unsupported_host",
+                    "hint": "Run from an interactive terminal (anycode repl/tui) or attach a host.",
+                    "question": q.question,
+                    "header": q.header,
+                    "options": q.options
+                }),
+                error: Some("unsupported_host".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        };
+
+        let req = AskUserQuestionRequest {
+            question: q.question.clone(),
+            header: q.header.clone(),
+            options: q.options.clone(),
+            multi_select: q.multi_select,
+        };
+
+        match host.ask_user_question(req).await {
+            Ok(resp) => Ok(ToolOutput {
+                result: json!({
+                    "selected": resp.selected_labels,
+                    "status": "answered",
+                    "question": q.question,
+                    "header": q.header
+                }),
+                error: None,
+                duration_ms: start.elapsed().as_millis() as u64,
             }),
-            error: None,
-            duration_ms: start.elapsed().as_millis() as u64,
-        })
+            Err(AskUserQuestionHostError(msg)) => Ok(ToolOutput {
+                result: json!({
+                    "error": msg,
+                    "status": "cancelled_or_error",
+                    "question": q.question,
+                    "header": q.header
+                }),
+                error: Some(msg),
+                duration_ms: start.elapsed().as_millis() as u64,
+            }),
+        }
     }
 }
 
@@ -431,5 +463,77 @@ impl Tool for ReplTool {
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })
+    }
+}
+
+#[cfg(test)]
+mod ask_user_question_tool_tests {
+    use super::*;
+    use crate::ask_user_question_host::{
+        AskUserQuestionHost, AskUserQuestionRequest, AskUserQuestionResponse,
+    };
+
+    struct PickFirst;
+
+    #[async_trait::async_trait]
+    impl AskUserQuestionHost for PickFirst {
+        async fn ask_user_question(
+            &self,
+            request: AskUserQuestionRequest,
+        ) -> Result<AskUserQuestionResponse, AskUserQuestionHostError> {
+            let label = request
+                .options
+                .first()
+                .map(|o| o.label.clone())
+                .unwrap_or_default();
+            Ok(AskUserQuestionResponse {
+                selected_labels: vec![label],
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn no_host_returns_unsupported() {
+        let services = Arc::new(ToolServices::default());
+        let t = AskUserQuestionTool::new(services);
+        let out = t
+            .execute(ToolInput {
+                name: "AskUserQuestion".into(),
+                input: json!({
+                    "question": "q?",
+                    "options": [{"label": "A"}]
+                }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(out.error.as_deref(), Some("unsupported_host"));
+    }
+
+    #[tokio::test]
+    async fn with_host_returns_selected() {
+        let services = Arc::new(ToolServices::default());
+        services.attach_ask_user_question_host(Arc::new(PickFirst));
+        let t = AskUserQuestionTool::new(services);
+        let out = t
+            .execute(ToolInput {
+                name: "AskUserQuestion".into(),
+                input: json!({
+                    "question": "q?",
+                    "options": [{"label": "A"}, {"label": "B"}]
+                }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .unwrap();
+        assert!(out.error.is_none());
+        let sel = out
+            .result
+            .get("selected")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len());
+        assert_eq!(sel, Some(1));
     }
 }

@@ -472,6 +472,7 @@ pub(crate) fn save_merged_config(
             .as_ref()
             .map(|c| c.channels.clone())
             .unwrap_or_default(),
+        lsp: existing.as_ref().map(|c| c.lsp.clone()).unwrap_or_default(),
     };
 
     validate_llm_provider(&cfg.provider)?;
@@ -720,6 +721,8 @@ pub(crate) struct AnyCodeConfig {
     /// 通道特定配置（wechat、telegram、discord等）
     #[serde(default)]
     pub(crate) channels: ChannelsConfigFile,
+    #[serde(default)]
+    pub(crate) lsp: LspConfigFile,
 }
 
 /// `config.json` 的 `tui` 段。
@@ -931,6 +934,7 @@ fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Resul
             status_line: StatusLineConfigFile::default(),
             tui: TuiConfigFile::default(),
             channels: ChannelsConfigFile::default(),
+            lsp: LspConfigFile::default(),
         }),
     )
 }
@@ -1207,6 +1211,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .as_ref()
             .map(|c| c.channels.clone())
             .unwrap_or_default(),
+        lsp: existing.as_ref().map(|c| c.lsp.clone()).unwrap_or_default(),
     };
 
     save_anycode_config(&cfg)?;
@@ -1392,6 +1397,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
                 status_line: StatusLineConfigFile::default(),
                 tui: TuiConfigFile::default(),
                 channels: ChannelsConfigFile::default(),
+                lsp: LspConfigFile::default(),
             }
         }
     };
@@ -1443,6 +1449,20 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
 
     // Resolve model instructions file from env var (e.g., AGENTS.md)
     let model_instructions_file = resolve_model_instructions_file_from_env();
+
+    let mut lsp_runtime: LspRuntime = cfg.lsp.clone().into();
+    if let Some(ref p) = lsp_runtime.workspace_root {
+        if p.as_os_str().is_empty() {
+            lsp_runtime.workspace_root = None;
+        } else {
+            let full = if p.is_absolute() {
+                p.clone()
+            } else {
+                base_dir.join(p)
+            };
+            lsp_runtime.workspace_root = std::fs::canonicalize(&full).ok().or(Some(full));
+        }
+    }
 
     Ok(Config {
         llm: LLMConfig {
@@ -1528,6 +1548,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         status_line: cfg.status_line.into(),
         tui: cfg.tui.into(),
         channels: cfg.channels.into(),
+        lsp: lsp_runtime,
     })
 }
 
@@ -1858,5 +1879,32 @@ mod serde_config_tests {
         let r: StatusLineRuntime = f.into();
         assert!(r.command.is_none());
         assert_eq!(r.timeout_ms, 5000);
+    }
+
+    #[test]
+    fn deserializes_lsp_block() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "base_url":null,
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "lsp": {
+                "enabled": true,
+                "command": "rust-analyzer",
+                "workspace_root": "./myproj",
+                "read_timeout_ms": 120000
+            }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert!(c.lsp.enabled);
+        assert_eq!(c.lsp.command.as_deref(), Some("rust-analyzer"));
+        assert_eq!(
+            c.lsp.workspace_root.as_deref(),
+            Some(std::path::Path::new("./myproj"))
+        );
+        assert_eq!(c.lsp.read_timeout_ms, Some(120_000));
     }
 }

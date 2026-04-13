@@ -28,6 +28,10 @@ read_when:
 
 子命令名以 **`anycode --help`** 为准。
 
+## `LSP` 工具
+
+使用 **`--features tools-lsp`** 时，**`LSP`** 工具通过 stdio 子进程转发 JSON-RPC。在 `config.json` 中配置 **`lsp`**（见 [配置与安全](./config-security) 的 **LSP** 小节），或设置 **`ANYCODE_LSP_COMMAND`**。
+
 ## 相关
 
 - [路线图](./roadmap) — **P5**：**Agent** / **Task** 与 Claude 字段对齐说明  

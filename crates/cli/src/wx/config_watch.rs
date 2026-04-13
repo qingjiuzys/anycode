@@ -62,7 +62,7 @@ pub(crate) async fn reload_runtime_if_config_changed(handle: &ConfigReloadHandle
             }
         };
     apply_wechat_bridge_no_tool_approval(&mut cfg);
-    let new_rt = match initialize_runtime(&cfg, None).await {
+    let new_rt = match initialize_runtime(&cfg, None, None).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(

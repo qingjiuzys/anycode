@@ -14,6 +14,7 @@ pub mod skills;
 pub mod workflows;
 
 mod agent_tools;
+pub mod ask_user_question_host;
 mod bash;
 mod edit;
 mod file_read;
@@ -48,6 +49,10 @@ mod todo_write;
 mod web_fetch;
 mod web_search;
 
+pub use ask_user_question_host::{
+    AskUserQuestionHost, AskUserQuestionHostArc, AskUserQuestionHostError, AskUserQuestionOption,
+    AskUserQuestionRequest, AskUserQuestionResponse,
+};
 pub use catalog::{
     build_default_registry, build_registry_with_services, explore_plan_tool_names,
     explore_plan_tool_names_with_skill, general_purpose_tool_names, iter_cli_tool_help,
@@ -69,7 +74,8 @@ pub use mcp_oauth_login::{mcp_oauth_login, McpOAuthLoginError, McpOAuthLoginOpti
 pub use mcp_rmcp_session::McpRmcpSession;
 pub use registry::build_registry;
 pub use services::{
-    read_cron_jobs_from_orchestration_file, CronJob, ToolRegistryDeps, ToolServices,
+    read_cron_jobs_from_orchestration_file, CronJob, LspConnectionConfig, ToolRegistryDeps,
+    ToolServices,
 };
 pub use skills::{
     default_skill_roots, truncate_skill_output, SkillCatalog, SkillMeta, MAX_SKILL_OUTPUT_BYTES,

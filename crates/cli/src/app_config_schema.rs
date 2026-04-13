@@ -93,6 +93,8 @@ pub(crate) struct Config {
     /// 通道特定配置（由通道子命令与适配器消费；主 TUI 路径当前未读）
     #[allow(dead_code)]
     pub(crate) channels: ChannelsConfig,
+    /// `LSP` 工具子进程（需 `--features tools-lsp`）。
+    pub(crate) lsp: LspRuntime,
 }
 
 /// 运行时 `tui` 段（与 [`TuiConfigFile`] 对应）。
@@ -483,6 +485,60 @@ impl Default for SessionConfigFile {
             auto_compact_ratio: default_auto_compact_ratio(),
             context_window_auto: default_context_window_auto(),
             context_window_tokens: default_context_window_tokens(),
+        }
+    }
+}
+
+/// `config.json` 的 `lsp` 段（`tools-lsp` 特性下供 `LSP` 工具使用）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct LspConfigFile {
+    #[serde(default)]
+    pub(crate) enabled: bool,
+    /// Shell 命令启动语言服务器（与 `ANYCODE_LSP_COMMAND` 同语义）；`enabled` 时优先于环境变量。
+    #[serde(default)]
+    pub(crate) command: Option<String>,
+    /// `initialize` 的 `rootUri`（`file://`）；相对路径相对 `config.json` 所在目录解析。
+    #[serde(default)]
+    pub(crate) workspace_root: Option<PathBuf>,
+    /// 等待单条 JSON-RPC 响应行的超时（毫秒），默认 60000。
+    #[serde(default)]
+    pub(crate) read_timeout_ms: Option<u64>,
+}
+
+/// 解析后的 LSP 运行时选项。
+#[derive(Debug, Clone)]
+pub(crate) struct LspRuntime {
+    pub(crate) enabled: bool,
+    pub(crate) command: Option<String>,
+    pub(crate) workspace_root: Option<PathBuf>,
+    pub(crate) read_timeout_ms: u64,
+}
+
+impl Default for LspRuntime {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            command: None,
+            workspace_root: None,
+            read_timeout_ms: 60_000,
+        }
+    }
+}
+
+impl From<LspConfigFile> for LspRuntime {
+    fn from(f: LspConfigFile) -> Self {
+        Self {
+            enabled: f.enabled,
+            command: f.command.and_then(|s| {
+                let t = s.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }),
+            workspace_root: f.workspace_root,
+            read_timeout_ms: f.read_timeout_ms.unwrap_or(60_000).clamp(1_000, 600_000),
         }
     }
 }

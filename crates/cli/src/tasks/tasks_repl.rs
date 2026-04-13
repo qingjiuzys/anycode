@@ -11,7 +11,7 @@ use crate::i18n::{tr, tr_args};
 use crate::repl_banner::{self, ReplWelcomeKind};
 use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::tui::transcript::build_stream_turn_plain;
-use crate::tui::{ApprovalDecision, PendingApproval, TuiApprovalCallback};
+use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion, TuiApprovalCallback};
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
@@ -148,15 +148,17 @@ pub(crate) async fn run_interactive(
     // TTY：主缓冲流式 dock（ratatui Inline）；非 TTY：stdio 行读。
     let use_stream_tty = is_tty;
 
-    let (runtime, approval_rx) = if use_stream_tty {
+    let (runtime, approval_rx, question_rx) = if use_stream_tty {
         let require_approval = security_wants_interactive_approval_callback(&config);
         let (approval_tx, approval_rx) = mpsc::channel::<PendingApproval>(4);
+        let (uq_tx, uq_rx) = mpsc::channel::<PendingUserQuestion>(4);
+        let uq_host = crate::ask_user_host::ChannelAskUserQuestionHost::new(uq_tx).into_arc();
         let approval_override: Option<Box<dyn ApprovalCallback>> = if require_approval {
             Some(Box::new(TuiApprovalCallback::new(approval_tx)))
         } else {
             None
         };
-        let runtime = initialize_runtime(&config, approval_override).await?;
+        let runtime = initialize_runtime(&config, approval_override, Some(uq_host)).await?;
         (
             runtime,
             if require_approval {
@@ -164,10 +166,11 @@ pub(crate) async fn run_interactive(
             } else {
                 None
             },
+            Some(uq_rx),
         )
     } else {
-        let runtime = initialize_runtime(&config, None).await?;
-        (runtime, None)
+        let runtime = initialize_runtime(&config, None, None).await?;
+        (runtime, None, None)
     };
 
     let disk = DiskTaskOutput::new_default()?;
@@ -188,6 +191,7 @@ pub(crate) async fn run_interactive(
             &mut line_session,
             welcome_kind,
             approval_rx,
+            question_rx,
             repl_debug_events,
         )
         .await?;
@@ -240,6 +244,7 @@ async fn run_interactive_tty(
     line_session: &mut ReplLineSession,
     welcome_kind: ReplWelcomeKind,
     approval_rx: Option<mpsc::Receiver<PendingApproval>>,
+    question_rx: Option<mpsc::Receiver<PendingUserQuestion>>,
     repl_debug_events: bool,
 ) -> anyhow::Result<()> {
     repl_banner::print_repl_welcome(working_dir, agent, session_skip_approval, welcome_kind);
@@ -253,6 +258,7 @@ async fn run_interactive_tty(
         line_session,
         welcome_kind,
         approval_rx,
+        question_rx,
         repl_debug_events,
     )
     .await
@@ -432,6 +438,7 @@ async fn run_interactive_tty_stream(
     line_session: &mut ReplLineSession,
     _welcome_kind: ReplWelcomeKind,
     mut approval_rx: Option<mpsc::Receiver<PendingApproval>>,
+    mut question_rx: Option<mpsc::Receiver<PendingUserQuestion>>,
     repl_debug_events: bool,
 ) -> anyhow::Result<()> {
     use crate::repl_inline::ReplLineState;
@@ -478,6 +485,21 @@ async fn run_interactive_tty_stream(
                         st.approval_menu_selected = 0;
                         if let Some(old) = st.pending_approval.replace(r) {
                             let _ = old.reply.send(ApprovalDecision::Deny);
+                        }
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+                }
+            }
+        }
+        if let Some(ref mut qrx) = question_rx {
+            loop {
+                match qrx.try_recv() {
+                    Ok(r) => {
+                        let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
+                        st.user_question_menu_selected = 0;
+                        if let Some(old) = st.pending_user_question.replace(r) {
+                            let _ = old.reply.send(Err(()));
                         }
                     }
                     Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,

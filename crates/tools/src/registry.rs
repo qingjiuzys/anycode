@@ -62,7 +62,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(ListMcpResourcesTool::new(s.clone()));
     ins!(ReadMcpResourceTool::new(s.clone()));
     ins!(McpAuthTool::new(s.clone()));
-    ins!(LspTool::new());
+    ins!(LspTool::new(s.clone()));
     ins!(AgentTool::new(s.clone()));
     ins!(SkillTool::new(s.clone()));
     ins!(SendMessageTool::new(s.clone()));
@@ -90,7 +90,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(ConfigTool::new(s.clone()));
     ins!(SendUserMessageTool::new());
     ins!(BriefTool::new());
-    ins!(AskUserQuestionTool::new());
+    ins!(AskUserQuestionTool::new(s.clone()));
     ins!(ReplTool::new());
 
     #[cfg(feature = "tools-mcp")]

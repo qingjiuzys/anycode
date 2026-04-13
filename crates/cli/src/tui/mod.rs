@@ -14,6 +14,8 @@ pub(crate) mod status_line;
 pub(crate) mod styles;
 pub(crate) mod transcript;
 pub(crate) mod tui_session_persist;
+pub(crate) mod user_question;
 pub(crate) mod util;
 
 pub use run::run_tui;
+pub(crate) use user_question::PendingUserQuestion;

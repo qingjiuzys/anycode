@@ -269,7 +269,7 @@ impl Tool for TaskStopTool {
         "TaskStop"
     }
     fn description(&self) -> &str {
-        "Remove a task record by id (same persistence rules as TaskCreate)."
+        "Remove a task record by id (same persistence rules as TaskCreate). If `id` is a UUID for a nested `Agent` started with `run_in_background: true`, best-effort aborts that background run (see `background_agent` in JSON)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -287,6 +287,20 @@ impl Tool for TaskStopTool {
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
         let g: TgIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        if let Ok(uid) = Uuid::parse_str(g.id.trim()) {
+            if self.services.cancel_background_agent(uid) {
+                return Ok(ToolOutput {
+                    result: json!({
+                        "stopped": true,
+                        "kind": "background_agent",
+                        "id": g.id,
+                        "note": "best-effort abort; nested AgentRuntime has no cooperative cancel token yet"
+                    }),
+                    error: None,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
         let ok = self.services.remove_task(&g.id);
         Ok(ToolOutput {
             result: json!({ "stopped": ok }),
@@ -313,7 +327,7 @@ impl Tool for TaskOutputTool {
         "TaskOutput"
     }
     fn description(&self) -> &str {
-        "Returns the orchestration task record when `id` matches TaskCreate. If `id` is a runtime execution UUID (e.g. `nested_task_id` from the Agent tool), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists."
+        "Returns the orchestration task record when `id` matches TaskCreate. If `id` is a runtime execution UUID (e.g. `nested_task_id` from the Agent tool), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists. For `run_in_background` nested agents, includes `background_status` / `background_summary` from the in-process registry while the process lives."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -336,7 +350,13 @@ impl Tool for TaskOutputTool {
         const TAIL_MAX: usize = 24 * 1024;
         let mut output_log_path: Option<String> = None;
         let mut output_tail: Option<String> = None;
+        let mut background_status: Option<String> = None;
+        let mut background_summary: Option<String> = None;
         if let Ok(uid) = Uuid::parse_str(g.id.trim()) {
+            if let Some((st, sum)) = self.services.background_agent_tool_view(uid) {
+                background_status = Some(st.as_json_str().to_string());
+                background_summary = sum;
+            }
             if let Some(home) = dirs::home_dir() {
                 let disk = DiskTaskOutput::new(home.join(".anycode").join("tasks"));
                 let path = disk.output_path(uid);
@@ -356,6 +376,8 @@ impl Tool for TaskOutputTool {
                 "output_log_path": output_log_path,
                 "output_file": output_log_path,
                 "output_tail": output_tail,
+                "background_status": background_status,
+                "background_summary": background_summary,
             }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,

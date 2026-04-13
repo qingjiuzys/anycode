@@ -15,6 +15,7 @@ use crate::tui::util::{
     bottom_align_viewport_lines, top_align_viewport_lines, transcript_first_visible,
     truncate_preview,
 };
+use crate::tui::PendingUserQuestion;
 use anycode_core::AgentType;
 use fluent_bundle::FluentArgs;
 use ratatui::{
@@ -333,8 +334,10 @@ pub(super) struct DrawFrameCtx<'a> {
     pub debug: bool,
     pub last_key: Option<&'a str>,
     pub pending_approval: Option<&'a PendingApproval>,
+    pub pending_user_question: Option<&'a PendingUserQuestion>,
     /// `0..3`：与 `event` 中审批菜单一致。
     pub approval_menu_selected: usize,
+    pub user_question_menu_selected: usize,
     pub executing: bool,
     /// `executing` 为 true 时，自 `executing_since` 起经过的整秒数（用于顶栏，避免子秒刷新）。
     pub working_elapsed_secs: Option<u64>,
@@ -390,7 +393,9 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         debug,
         last_key,
         pending_approval,
+        pending_user_question,
         approval_menu_selected,
+        user_question_menu_selected,
         executing,
         working_elapsed_secs,
         help_open,
@@ -430,15 +435,19 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
     let size = Rect::new(0, 0, raw.width, raw.height);
     let bottom_h = bottom_h.min(size.height.saturating_sub(1)).max(1);
 
-    let prompt_hud_active = pending_approval.is_some() || executing;
+    let prompt_hud_active =
+        pending_approval.is_some() || pending_user_question.is_some() || executing;
     let hud_rows_effective: u16 = if prompt_hud_active { 2 } else { 0 };
 
-    let slash_candidates =
-        if pending_approval.is_none() && rev_search.is_none() && !slash_suggest_suppress {
-            slash_commands::slash_suggestions_for_first_line(&input.as_string())
-        } else {
-            Vec::new()
-        };
+    let slash_candidates = if pending_approval.is_none()
+        && pending_user_question.is_none()
+        && rev_search.is_none()
+        && !slash_suggest_suppress
+    {
+        slash_commands::slash_suggestions_for_first_line(&input.as_string())
+    } else {
+        Vec::new()
+    };
 
     let frame_w = size.width.max(1) as usize;
 
@@ -679,6 +688,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
     let show_buddy_here = show_buddy
         && executing
         && pending_approval.is_none()
+        && pending_user_question.is_none()
         && rev_search.is_none()
         && slash_candidates.is_empty();
     // 紧凑底栏无 HUD 行：buddy 只能进 Dock 侧栏，不能进 Prompt HUD。
@@ -709,7 +719,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
             buddy_in_prompt_hud,
             pet_anim_frame,
             executing,
-            pending_approval.is_some(),
+            pending_approval.is_some() || pending_user_question.is_some(),
             working_elapsed_secs,
             hud_tip_slot,
         );
@@ -756,7 +766,64 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
     // 主输入区：`(Paragraph 内行下标, 行内显示宽度列)`，供 `Frame::set_cursor` 把硬件光标放到 Prompt 内（IME 预编辑跟随）。
     let mut prompt_hw_cursor: Option<(usize, u16)> = None;
 
-    if let Some(p) = pending_approval {
+    if let Some(q) = pending_user_question {
+        input_lines.push(Line::from(Span::styled(
+            tr("ask-user-title"),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )));
+        let hdr = q.header.trim();
+        if !hdr.is_empty() {
+            input_lines.push(Line::from(Span::styled(hdr, style_dim())));
+        }
+        let qq = q.question.trim();
+        if !qq.is_empty() {
+            let preview_w = input_inner_w as usize;
+            if text_display_width(qq) <= preview_w {
+                input_lines.push(Line::from(Span::styled(qq, style_dim())));
+            } else {
+                for row in wrap_string_to_width(qq, preview_w.max(8)) {
+                    input_lines.push(Line::from(Span::styled(row, style_dim())));
+                }
+            }
+        }
+        let n = q.option_labels.len().max(1);
+        let pick = user_question_menu_selected % n;
+        for (i, label) in q.option_labels.iter().enumerate() {
+            let prefix = if i == pick { "❯ " } else { "  " };
+            let st = if i == pick {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                style_dim()
+            };
+            let desc = q
+                .option_descriptions
+                .get(i)
+                .map(|s| s.as_str())
+                .unwrap_or("")
+                .trim();
+            let line = if desc.is_empty() {
+                Line::from(vec![
+                    Span::styled(prefix, st),
+                    Span::styled(label.as_str(), st),
+                ])
+            } else {
+                Line::from(vec![
+                    Span::styled(prefix, st),
+                    Span::styled(format!("{label} "), st),
+                    Span::styled(desc, style_dim()),
+                ])
+            };
+            input_lines.push(line);
+        }
+        input_lines.push(Line::from(vec![Span::styled(
+            tr("ask-user-hint-arrows"),
+            style_dim(),
+        )]));
+    } else if let Some(p) = pending_approval {
         input_lines.push(Line::from(Span::styled(
             tr("tui-approval-question"),
             Style::default()
@@ -1074,7 +1141,9 @@ mod tests {
                     debug: false,
                     last_key: None,
                     pending_approval: None,
+                    pending_user_question: None,
                     approval_menu_selected: 0,
+                    user_question_menu_selected: 0,
                     executing: false,
                     working_elapsed_secs: None,
                     help_open: false,
@@ -1167,7 +1236,9 @@ mod tests {
                     debug: false,
                     last_key: None,
                     pending_approval: None,
+                    pending_user_question: None,
                     approval_menu_selected: 0,
+                    user_question_menu_selected: 0,
                     executing: false,
                     working_elapsed_secs: None,
                     help_open: false,
@@ -1226,7 +1297,9 @@ mod tests {
                     debug: false,
                     last_key: None,
                     pending_approval: None,
+                    pending_user_question: None,
                     approval_menu_selected: 0,
+                    user_question_menu_selected: 0,
                     executing: false,
                     working_elapsed_secs: None,
                     help_open: false,
@@ -1311,7 +1384,9 @@ mod tests {
                     debug: false,
                     last_key: None,
                     pending_approval: None,
+                    pending_user_question: None,
                     approval_menu_selected: 0,
+                    user_question_menu_selected: 0,
                     executing: false,
                     working_elapsed_secs: None,
                     help_open: false,
@@ -1441,7 +1516,9 @@ mod tests {
                     debug: false,
                     last_key: None,
                     pending_approval: Some(&pending),
+                    pending_user_question: None,
                     approval_menu_selected: 1,
+                    user_question_menu_selected: 0,
                     executing: false,
                     working_elapsed_secs: None,
                     help_open: false,
@@ -1547,7 +1624,9 @@ mod tests {
                         debug: false,
                         last_key: None,
                         pending_approval: None,
+                        pending_user_question: None,
                         approval_menu_selected: 0,
+                        user_question_menu_selected: 0,
                         executing: false,
                         working_elapsed_secs: None,
                         help_open: false,

@@ -205,7 +205,7 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
     .unwrap_or_else(|_| PathBuf::from("."));
     let working_directory = workdir.to_string_lossy().to_string();
 
-    let runtime = initialize_runtime(&config, None)
+    let runtime = initialize_runtime(&config, None, None)
         .await
         .context("initialize runtime for discord")?;
     let client = Client::new();

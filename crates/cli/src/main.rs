@@ -2,6 +2,7 @@
 
 mod app_config;
 mod artifact_summary;
+mod ask_user_host;
 mod bootstrap;
 mod builtin_agents;
 mod channel_task;

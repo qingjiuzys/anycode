@@ -48,9 +48,9 @@
 
 | 主题 | 完成定义（简） |
 |------|----------------|
-| 子 Agent 真异步 | **`run_in_background`** 具备可查询状态、可取消的队列或等价语义；日志与错误模型与现有同步嵌套路径可比。 |
+| 子 Agent 真异步 | **v1（进程内）**：**`run_in_background`** 立即返回 **`nested_task_id`**，**`TaskOutput`** 带 **`background_status`**，**`TaskStop`** 同 UUID **尽力**中止；跨进程队列与协作式 cancel 仍属后续。 |
 | **AskUserQuestion** | 不再默认「首项回退」；在流式 / TUI 宿主内完成真实选择（与审批 UX 一致）。 |
-| **LSP 一等配置** | 超出纯环境变量桥接：可配置的 server / workspace root / 策略，并与文档站「配置与安全」一致。 |
+| **LSP 一等配置** | **`config.json` `lsp`**（enabled / command / workspace_root / read_timeout_ms）+ 文档站；未启用时仍可读 **`ANYCODE_LSP_COMMAND`**。 |
 
 **当前选定主线：** **AskUserQuestion** — GitHub issue [#3](https://github.com/qingjiuzys/anycode/issues/3)；正文草稿 [`issue-drafts/001-ask-user-question.md`](issue-drafts/001-ask-user-question.md)。另两条 §3 条目仍有效，但避免与主线并行大块重构。
 

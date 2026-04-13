@@ -1,13 +1,12 @@
-//! LSP JSON-RPC over stdio（`tools-lsp`）：`ANYCODE_LSP_COMMAND` 启动语言服务器子进程，完成 handshake 后转发自定义请求。
+//! LSP JSON-RPC over stdio（`tools-lsp`）：`ANYCODE_LSP_COMMAND` 或 `config.json` 的 `lsp.command` 启动语言服务器子进程，完成 handshake 后转发自定义请求。
 
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
+use std::path::Path;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::time::timeout;
-
-const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
 async fn write_line(stdin: &mut tokio::process::ChildStdin, v: &Value) -> Result<(), CoreError> {
     let s = serde_json::to_string(v).map_err(|e| CoreError::LLMError(e.to_string()))?;
@@ -25,11 +24,12 @@ async fn write_line(stdin: &mut tokio::process::ChildStdin, v: &Value) -> Result
 async fn read_until_id(
     reader: &mut BufReader<tokio::process::ChildStdout>,
     want_id: u64,
+    read_timeout: Duration,
 ) -> Result<Value, CoreError> {
     let mut line = String::new();
     for _ in 0..512 {
         line.clear();
-        timeout(READ_TIMEOUT, reader.read_line(&mut line))
+        timeout(read_timeout, reader.read_line(&mut line))
             .await
             .map_err(|_| CoreError::LLMError("LSP read timeout".into()))?
             .map_err(|e| CoreError::LLMError(e.to_string()))?;
@@ -60,6 +60,8 @@ struct LspToolIn {
 pub async fn lsp_forward_shell(
     input: &Value,
     command_shell: &str,
+    workspace_root: Option<&Path>,
+    read_timeout: Duration,
 ) -> Result<ToolOutput, CoreError> {
     let start = std::time::Instant::now();
     let req: LspToolIn = serde_json::from_value(input.clone()).map_err(|_| {
@@ -89,6 +91,11 @@ pub async fn lsp_forward_shell(
         .ok_or_else(|| CoreError::LLMError("LSP stdout missing".into()))?;
     let mut reader = BufReader::new(stdout);
 
+    let root_uri = workspace_root
+        .and_then(|p| url::Url::from_file_path(p).ok())
+        .map(|u| json!(u.as_str()))
+        .unwrap_or(Value::Null);
+
     write_line(
         &mut stdin,
         &json!({
@@ -97,7 +104,7 @@ pub async fn lsp_forward_shell(
             "method": "initialize",
             "params": {
                 "processId": null,
-                "rootUri": null,
+                "rootUri": root_uri,
                 "capabilities": {},
                 "clientInfo": { "name": "anycode", "version": env!("CARGO_PKG_VERSION") }
             }
@@ -105,7 +112,7 @@ pub async fn lsp_forward_shell(
     )
     .await?;
 
-    let init_resp = read_until_id(&mut reader, 1).await?;
+    let init_resp = read_until_id(&mut reader, 1, read_timeout).await?;
     if let Some(err) = init_resp.get("error") {
         return Ok(ToolOutput {
             result: json!({ "lsp_error": err, "stage": "initialize" }),
@@ -131,7 +138,7 @@ pub async fn lsp_forward_shell(
     )
     .await?;
 
-    let out = read_until_id(&mut reader, 2).await?;
+    let out = read_until_id(&mut reader, 2, read_timeout).await?;
     if let Some(err) = out.get("error") {
         return Ok(ToolOutput {
             result: json!({ "lsp_error": err }),

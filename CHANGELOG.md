@@ -11,3 +11,4 @@
 - Anthropic `chat`: retry on 429/5xx with `Retry-After` support.
 - Skills: `skills.registry_url` JSON manifest (`extra_scan_roots`), `skills.agent_allowlists` for per-agent prompt sections.
 - Document channel hub module and update docs-site (config-security, releases).
+- **Agent** / **Task** `run_in_background: true`: spawn nested `AgentRuntime` via `tokio::spawn`; **`TaskOutput`** exposes `background_status` / `background_summary`; **`TaskStop`** on the same UUID best-effort aborts the background nested run. **`config.json` `lsp`** section for **`tools-lsp`** (command, `workspace_root`, `read_timeout_ms`).

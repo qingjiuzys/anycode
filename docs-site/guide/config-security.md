@@ -156,6 +156,19 @@ anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "987
 
 Self-hosted MCP servers: run your server (stdio or HTTP per `ANYCODE_MCP_SERVERS`), register it via env or future config, and tighten exposure with the deny tables above. Explore/plan agents omit MCP merges unless you widen their tool surface in code/config.
 
+## LSP (`tools-lsp`)
+
+Build with **`--features tools-lsp`**. Prefer **`lsp`** in `config.json` over env-only setup:
+
+| Field | Role |
+|---|---|
+| `lsp.enabled` | When `true`, use `lsp.command` (non-empty) as the shell command to spawn the language server. |
+| `lsp.command` | Same semantics as **`ANYCODE_LSP_COMMAND`** (e.g. `"rust-analyzer"`). |
+| `lsp.workspace_root` | Optional path for `initialize` **`rootUri`** (`file://`); relative paths are resolved from the config file’s directory. |
+| `lsp.read_timeout_ms` | Timeout per JSON-RPC response line (default 60000, clamped 1000–600000). |
+
+If **`lsp.enabled`** is `false` or **`lsp.command`** is empty, the **`LSP`** tool still falls back to **`ANYCODE_LSP_COMMAND`** when set.
+
 ## Locale (CLI UI)
 
 Quick language setting:
@@ -179,6 +192,7 @@ Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 | `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` | First-turn tool-call preference |
 | `ANYCODE_ZAI_TOOL_CHOICE` | `required` / `auto` for debugging |
 | `ANYCODE_MCP_COMMAND`, `ANYCODE_MCP_SERVERS` | MCP integration |
+| `ANYCODE_LSP_COMMAND` | LSP stdio bridge when `lsp` config is not used |
 | `ANYCODE_DAEMON_TOKEN` | Daemon bearer token |
 
 ## Approval matrix (quick reference)

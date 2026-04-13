@@ -156,6 +156,19 @@ anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "987
 
 自托管 MCP：用 `ANYCODE_MCP_SERVERS` 等接入自有 server，并用上表 deny 规则收敛暴露面；explore/plan 默认不合并 MCP，除非在配置/代码中放宽工具面。
 
+## LSP（`tools-lsp`）
+
+需 **`--features tools-lsp`**。建议在 `config.json` 使用 **`lsp`** 段（优于仅环境变量）：
+
+| 字段 | 作用 |
+|------|------|
+| `lsp.enabled` | 为 `true` 且 `lsp.command` 非空时，用该 shell 命令启动语言服务器。 |
+| `lsp.command` | 与 **`ANYCODE_LSP_COMMAND`** 同语义（如 `"rust-analyzer"`）。 |
+| `lsp.workspace_root` | 可选，写入 `initialize` 的 **`rootUri`**（`file://`）；相对路径相对配置文件所在目录解析。 |
+| `lsp.read_timeout_ms` | 单条 JSON-RPC 响应行超时（默认 60000，限制在 1000–600000）。 |
+
+若 **`lsp.enabled`** 为 `false` 或 **`lsp.command`** 为空，**`LSP`** 工具仍可在设置了 **`ANYCODE_LSP_COMMAND`** 时使用该环境变量。
+
 ## 界面语言
 
 快速设置：
@@ -179,6 +192,7 @@ export ANYCODE_LANG=en
 | `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` | z.ai 首轮强制 tool_calls |
 | `ANYCODE_ZAI_TOOL_CHOICE` | 每轮 `required` / `auto`（调试用） |
 | `ANYCODE_MCP_COMMAND` / `ANYCODE_MCP_SERVERS` | MCP（需 `tools-mcp`） |
+| `ANYCODE_LSP_COMMAND` | LSP stdio（未用 `lsp` 配置时） |
 | `ANYCODE_DAEMON_TOKEN` | 守护进程 POST 鉴权 |
 
 ## 审批与通道（速查）

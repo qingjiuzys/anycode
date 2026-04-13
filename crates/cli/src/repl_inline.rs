@@ -40,7 +40,9 @@ pub(crate) struct ReplLineState {
     pub stream_viewport_width: u16,
     /// 与全屏 TUI 一致：待处理的工具审批（仅流式 REPL 主循环设置）。
     pub pending_approval: Option<crate::tui::PendingApproval>,
+    pub pending_user_question: Option<crate::tui::PendingUserQuestion>,
     pub approval_menu_selected: usize,
+    pub user_question_menu_selected: usize,
     /// 流式 REPL：自然语言轮开始执行时起算，供 Prompt HUD 显示耗时（与全屏 TUI `executing_since` 一致）。
     pub executing_since: Option<Instant>,
     /// 回合结束后在 prompt 上方短暂显示 Claude 风格摘要（耗时 + ctx tokens）。
@@ -66,7 +68,9 @@ impl Default for ReplLineState {
             transcript: Arc::new(Mutex::new(String::new())),
             stream_viewport_width: 80,
             pending_approval: None,
+            pending_user_question: None,
             approval_menu_selected: 0,
+            user_question_menu_selected: 0,
             executing_since: None,
             finished_turn_summary: None,
             finished_turn_summary_until: None,
@@ -427,6 +431,35 @@ fn repl_stream_approval_block_h(width: u16, state: &ReplLineState, layout: ReplD
     (5u16 + preview_rows).min(layout.approval_total_cap())
 }
 
+fn repl_stream_user_question_block_h(
+    width: u16,
+    state: &ReplLineState,
+    layout: ReplDockLayout,
+) -> u16 {
+    let Some(q) = state.pending_user_question.as_ref() else {
+        return 0;
+    };
+    let w = width.max(8) as usize;
+    let mut rows = 1u16;
+    if !q.header.trim().is_empty() {
+        rows = rows.saturating_add(1);
+    }
+    let qq = q.question.trim();
+    if !qq.is_empty() {
+        let qrows = if text_display_width(qq) <= w {
+            1u16
+        } else {
+            wrap_string_to_width(qq, w.max(8))
+                .len()
+                .min(layout.approval_preview_wrap_cap()) as u16
+        };
+        rows = rows.saturating_add(qrows);
+    }
+    rows = rows.saturating_add(q.option_labels.len() as u16);
+    rows = rows.saturating_add(1);
+    rows.min(layout.approval_total_cap())
+}
+
 #[derive(Clone, Copy, Debug)]
 struct ReplDockNatural {
     /// 与全屏 TUI Prompt HUD 对齐的 `✶`/`⎿` 两行（或收缩为 0～1 行）。
@@ -463,7 +496,8 @@ fn repl_dock_compute_natural(
     } else {
         1u16
     };
-    let approval_h = repl_stream_approval_block_h(area_width, state, layout);
+    let approval_h = repl_stream_approval_block_h(area_width, state, layout)
+        .max(repl_stream_user_question_block_h(area_width, state, layout));
     let slash_candidates = slash_suggestions_for_ctx(state);
     let input_inner_w = area_width.max(8);
     let slash_ghost = if state.slash_suppress {
@@ -596,7 +630,7 @@ fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineSta
     if hud_h == 0 || area.height == 0 {
         return;
     }
-    let pending = state.pending_approval.is_some();
+    let pending = state.pending_approval.is_some() || state.pending_user_question.is_some();
     let exec = state.executing_since.is_some();
     let secs = state.executing_since.map(|t| t.elapsed().as_secs());
     let summary_line = if let (Some(text), Some(until)) = (
@@ -741,7 +775,67 @@ pub(crate) fn render_repl_dock_to_buffer(
         .wrap(Wrap { trim: false })
         .render(input_rect, buf);
 
-    if let (Some(apr), Some(p)) = (approval_rect_opt, state.pending_approval.as_ref()) {
+    if let (Some(apr), Some(q)) = (approval_rect_opt, state.pending_user_question.as_ref()) {
+        let preview_w = input_inner_w as usize;
+        let mut input_lines: Vec<Line> = vec![Line::from(Span::styled(
+            tr("ask-user-title"),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ))];
+        let hdr = q.header.trim();
+        if !hdr.is_empty() {
+            input_lines.push(Line::from(Span::styled(hdr, style_dim())));
+        }
+        let qq = q.question.trim();
+        if !qq.is_empty() {
+            if text_display_width(qq) <= preview_w {
+                input_lines.push(Line::from(Span::styled(qq, style_dim())));
+            } else {
+                for row in wrap_string_to_width(qq, preview_w.max(8)) {
+                    input_lines.push(Line::from(Span::styled(row, style_dim())));
+                }
+            }
+        }
+        let n = q.option_labels.len().max(1);
+        let pick = state.user_question_menu_selected % n;
+        for (i, label) in q.option_labels.iter().enumerate() {
+            let prefix = if i == pick { "❯ " } else { "  " };
+            let st = if i == pick {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                style_dim()
+            };
+            let desc = q
+                .option_descriptions
+                .get(i)
+                .map(|s| s.as_str())
+                .unwrap_or("")
+                .trim();
+            let line = if desc.is_empty() {
+                Line::from(vec![
+                    Span::styled(prefix, st),
+                    Span::styled(label.as_str(), st),
+                ])
+            } else {
+                Line::from(vec![
+                    Span::styled(prefix, st),
+                    Span::styled(format!("{label} "), st),
+                    Span::styled(desc, style_dim()),
+                ])
+            };
+            input_lines.push(line);
+        }
+        input_lines.push(Line::from(vec![Span::styled(
+            tr("ask-user-hint-arrows"),
+            style_dim(),
+        )]));
+        Paragraph::new(Text::from(input_lines))
+            .wrap(Wrap { trim: false })
+            .render(apr, buf);
+    } else if let (Some(apr), Some(p)) = (approval_rect_opt, state.pending_approval.as_ref()) {
         let preview_w = input_inner_w as usize;
         let pv = p.input_preview.as_str();
         let mut input_lines: Vec<Line> = vec![
@@ -889,7 +983,7 @@ pub(crate) fn render_repl_dock_to_buffer(
 
 /// `✶ thinking…` / 待审批 / 回合摘要 等，拼在脚标 `dock_status` 前（秒级刷新由每帧重绘保证）。
 pub(crate) fn stream_dock_activity_prefix(state: &ReplLineState) -> String {
-    if state.pending_approval.is_some() {
+    if state.pending_approval.is_some() || state.pending_user_question.is_some() {
         return format!(
             "✶ {} · ",
             crate::tui::hud_text::prompt_hud_activity_text(true, false, None)
@@ -1172,6 +1266,38 @@ pub(crate) fn apply_stream_approval_key(state: &mut ReplLineState, key: KeyEvent
         }
         _ => {
             state.pending_approval = Some(p);
+        }
+    }
+    true
+}
+
+/// 流式 REPL 选题条：在 [`handle_event`] 之前消费方向键与确认（与审批一致）。
+pub(crate) fn apply_stream_user_question_key(state: &mut ReplLineState, key: KeyEvent) -> bool {
+    let Some(p) = state.pending_user_question.take() else {
+        return false;
+    };
+    let n = p.option_labels.len().max(1);
+    match key.code {
+        KeyCode::Up => {
+            state.user_question_menu_selected = (state.user_question_menu_selected + n - 1) % n;
+            state.pending_user_question = Some(p);
+        }
+        KeyCode::Down => {
+            state.user_question_menu_selected = (state.user_question_menu_selected + 1) % n;
+            state.pending_user_question = Some(p);
+        }
+        KeyCode::Enter => {
+            let i = state.user_question_menu_selected % n;
+            let label = p.option_labels.get(i).cloned().unwrap_or_default();
+            let _ = p.reply.send(Ok(vec![label]));
+            state.user_question_menu_selected = 0;
+        }
+        KeyCode::Esc => {
+            let _ = p.reply.send(Err(()));
+            state.user_question_menu_selected = 0;
+        }
+        _ => {
+            state.pending_user_question = Some(p);
         }
     }
     true

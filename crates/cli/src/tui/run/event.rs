@@ -13,6 +13,7 @@ use crate::tui::input::{history_apply_down, history_apply_up, InputState, RevSea
 use crate::tui::styles::*;
 use crate::tui::transcript::{ctrl_o_fold_cycle, TranscriptEntry};
 use crate::tui::util::{sanitize_paste, trim_or_default, MAX_PASTE_CHARS};
+use crate::tui::PendingUserQuestion;
 use anycode_agent::AgentRuntime;
 use anycode_core::{Message, RuntimeMode, TurnOutput, Usage};
 use anycode_tools::workflows;
@@ -101,8 +102,10 @@ pub(super) struct TuiEventCtx<'a> {
     /// 工作区向上滚动（与 `append_user_line_and_spawn_turn` 等共用）。
     pub transcript_scroll_up: &'a mut usize,
     pub pending_approval: &'a mut Option<PendingApproval>,
+    pub pending_user_question: &'a mut Option<PendingUserQuestion>,
     /// 审批菜单高亮：`0` 允许一次 · `1` 允许（项目） · `2` 拒绝（与 Claude 式 ↑↓ 一致）。
     pub approval_menu_selected: &'a mut usize,
+    pub user_question_menu_selected: &'a mut usize,
     pub rev_search: &'a mut Option<RevSearchState>,
     pub slash_suggest_pick: &'a mut usize,
     /// 采纳 Tab/Enter 补全后隐藏下拉，直到用户再次编辑（对齐 Claude `clearSuggestions`）。
@@ -179,7 +182,7 @@ pub(super) async fn dispatch_crossterm_event(
         Event::Paste(text) => {
             *ctx.quit_confirm = false;
             *ctx.last_key = Some(format!("Paste({} chars)", text.chars().count()));
-            if ctx.pending_approval.is_some() {
+            if ctx.pending_approval.is_some() || ctx.pending_user_question.is_some() {
                 return Ok(TuiLoopCtl::Continue);
             }
             let (clean, truncated) = sanitize_paste(text);
@@ -203,6 +206,35 @@ pub(super) async fn dispatch_crossterm_event(
         }
         Event::Key(key) => {
             *ctx.last_key = Some(format!("{:?} {:?}", key.code, key.modifiers));
+
+            if let Some(p) = ctx.pending_user_question.take() {
+                *ctx.quit_confirm = false;
+                let n = p.option_labels.len().max(1);
+                match key.code {
+                    KeyCode::Up => {
+                        *ctx.user_question_menu_selected =
+                            (*ctx.user_question_menu_selected + n - 1) % n;
+                        *ctx.pending_user_question = Some(p);
+                    }
+                    KeyCode::Down => {
+                        *ctx.user_question_menu_selected =
+                            (*ctx.user_question_menu_selected + 1) % n;
+                        *ctx.pending_user_question = Some(p);
+                    }
+                    KeyCode::Enter => {
+                        let i = *ctx.user_question_menu_selected % n;
+                        let label = p.option_labels.get(i).cloned().unwrap_or_default();
+                        let _ = p.reply.send(Ok(vec![label]));
+                    }
+                    KeyCode::Esc => {
+                        let _ = p.reply.send(Err(()));
+                    }
+                    _ => {
+                        *ctx.pending_user_question = Some(p);
+                    }
+                }
+                return Ok(TuiLoopCtl::Continue);
+            }
 
             if let Some(p) = ctx.pending_approval.take() {
                 *ctx.quit_confirm = false;
@@ -517,7 +549,10 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Home => {
-            if ctx.rev_search.is_none() && ctx.pending_approval.is_none() {
+            if ctx.rev_search.is_none()
+                && ctx.pending_approval.is_none()
+                && ctx.pending_user_question.is_none()
+            {
                 if key.modifiers.contains(KeyModifiers::CONTROL) {
                     let avail = ctx.main_avail_cell.get().max(10);
                     let max_sc = ctx.workspace_line_count.get().saturating_sub(avail);
@@ -529,7 +564,10 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::End => {
-            if ctx.rev_search.is_none() && ctx.pending_approval.is_none() {
+            if ctx.rev_search.is_none()
+                && ctx.pending_approval.is_none()
+                && ctx.pending_user_question.is_none()
+            {
                 if key.modifiers.contains(KeyModifiers::CONTROL) {
                     *ctx.transcript_scroll_up = 0;
                 } else {
@@ -605,7 +643,10 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
-            if *ctx.help_open || ctx.pending_approval.is_some() {
+            if *ctx.help_open
+                || ctx.pending_approval.is_some()
+                || ctx.pending_user_question.is_some()
+            {
                 return Ok(TuiLoopCtl::Continue);
             }
             *ctx.last_turn_error = None;
@@ -624,7 +665,10 @@ async fn handle_main_key(
                 *ctx.help_open = false;
                 return Ok(TuiLoopCtl::Continue);
             }
-            if *ctx.executing || ctx.pending_approval.is_some() {
+            if *ctx.executing
+                || ctx.pending_approval.is_some()
+                || ctx.pending_user_question.is_some()
+            {
                 return Ok(TuiLoopCtl::Continue);
             }
             if !slash_suggestions_for_ctx(ctx).is_empty() {
@@ -660,7 +704,10 @@ async fn handle_main_key(
                 return Ok(TuiLoopCtl::Continue);
             }
             if trimmed.starts_with("/compact") {
-                if *ctx.executing || ctx.pending_approval.is_some() {
+                if *ctx.executing
+                    || ctx.pending_approval.is_some()
+                    || ctx.pending_user_question.is_some()
+                {
                     *ctx.last_turn_error = Some(tr("tui-err-compact-during-task"));
                     return Ok(TuiLoopCtl::Continue);
                 }
@@ -821,6 +868,8 @@ async fn handle_main_key(
                         }
                         let appr = if let Some(p) = ctx.pending_approval.as_ref() {
                             format!("approval: pending — {}", p.tool)
+                        } else if ctx.pending_user_question.is_some() {
+                            "ask_user_question: pending".to_string()
                         } else {
                             "approval: none".to_string()
                         };
@@ -1122,7 +1171,7 @@ async fn handle_main_key(
             Ok(TuiLoopCtl::Ok)
         }
         KeyCode::Char(c) => {
-            if ctx.pending_approval.is_some() {
+            if ctx.pending_approval.is_some() || ctx.pending_user_question.is_some() {
                 return Ok(TuiLoopCtl::Continue);
             }
             if c.is_control() {

@@ -13,11 +13,12 @@ use anycode_security::{
 };
 use anycode_tools::{
     build_registry_with_services, catalog, default_skill_roots, validate_default_registry,
-    CompiledClaudePermissionRules, SkillCatalog, ToolServices,
+    AskUserQuestionHost, CompiledClaudePermissionRules, LspConnectionConfig, SkillCatalog,
+    ToolServices,
 };
 use fluent_bundle::FluentArgs;
 use std::collections::HashSet;
-use std::io::{stdout, IsTerminal};
+use std::io::{stdin, stdout, IsTerminal};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
@@ -29,9 +30,13 @@ use super::skills_registry;
 use super::{build_memory_layer, build_model_routing_parts, compile_tool_name_deny_regexes};
 
 /// Shared by the WeChat bridge, TUI, `run`, and other CLI entrypoints that need a full runtime.
+///
+/// `ask_user_question_host_override`: when `Some`, used for `AskUserQuestion` (stream REPL / fullscreen TUI).
+/// When `None` and stdin+stdout are TTY, falls back to dialoguer on stderr.
 pub(crate) async fn initialize_runtime(
     config: &Config,
     approval_override: Option<Box<dyn ApprovalCallback>>,
+    ask_user_question_host_override: Option<std::sync::Arc<dyn AskUserQuestionHost>>,
 ) -> anyhow::Result<Arc<AgentRuntime>> {
     let (need_openai, need_anthropic, need_bedrock, need_github_copilot) =
         scan_session_llm_needs(config);
@@ -276,6 +281,17 @@ pub(crate) async fn initialize_runtime(
         }
     }
 
+    let lsp_cmd = if config.lsp.enabled {
+        config.lsp.command.clone()
+    } else {
+        None
+    };
+    tool_services.set_lsp_connection_config(LspConnectionConfig {
+        command: lsp_cmd,
+        workspace_root: config.lsp.workspace_root.clone(),
+        read_timeout: std::time::Duration::from_millis(config.lsp.read_timeout_ms),
+    });
+
     let tools = build_registry_with_services(config.security.sandbox_mode, tool_services.clone());
     validate_default_registry(&tools)?;
 
@@ -351,6 +367,21 @@ pub(crate) async fn initialize_runtime(
     ));
 
     tool_services.attach_sub_agent_executor(runtime.clone());
+
+    let ask_host: Option<std::sync::Arc<dyn AskUserQuestionHost>> = ask_user_question_host_override
+        .or_else(|| {
+            if stdin().is_terminal() && stdout().is_terminal() {
+                Some(
+                    std::sync::Arc::new(crate::ask_user_host::DialoguerAskUserQuestionHost)
+                        as std::sync::Arc<dyn AskUserQuestionHost>,
+                )
+            } else {
+                None
+            }
+        });
+    if let Some(h) = ask_host {
+        tool_services.attach_ask_user_question_host(h);
+    }
 
     Ok(runtime)
 }

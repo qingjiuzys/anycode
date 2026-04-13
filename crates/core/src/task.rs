@@ -50,6 +50,8 @@ pub struct NestedTaskInvoke {
     pub model: Option<String>,
     /// `Some("worktree")` → isolated git worktree (Claude `isolation: "worktree"`).
     pub isolation: Option<String>,
+    /// When set, nested `Task.id` uses this UUID so callers can return `nested_task_id` before `execute_task` finishes (background agents).
+    pub task_id: Option<crate::ids::TaskId>,
 }
 
 /// 嵌套 Agent / `Task` 工具一次调用的结果：携带与 `DiskTaskOutput` / `output.log` 一致的 **`task_id`**。

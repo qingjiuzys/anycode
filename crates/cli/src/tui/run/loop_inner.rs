@@ -7,6 +7,7 @@ use super::resize_debounce::ResizeDebounce;
 use crate::app_config::effective_session_context_window_tokens;
 use crate::i18n::tr_args;
 use crate::tui::transcript::{apply_tool_transcript_pipeline, TranscriptEntry};
+use crate::tui::PendingUserQuestion;
 use anycode_core::{Message, Usage};
 use ratatui::text::{Line, Span};
 use std::collections::HashSet;
@@ -135,7 +136,10 @@ pub async fn run_tui(
         (Some(approval_tx), None)
     };
 
-    let runtime = initialize_runtime(&config, approval_override).await?;
+    let (uq_tx, mut uq_rx) = mpsc::channel::<PendingUserQuestion>(4);
+    let uq_host = crate::ask_user_host::ChannelAskUserQuestionHost::new(uq_tx).into_arc();
+
+    let runtime = initialize_runtime(&config, approval_override, Some(uq_host)).await?;
 
     let snap_loaded = if let Some(id) = resume {
         match crate::tui::tui_session_persist::load_tui_session(id)? {
@@ -210,8 +214,10 @@ pub async fn run_tui(
     let mut help_open = false;
 
     let mut pending_approval: Option<PendingApproval> = None;
+    let mut pending_user_question: Option<PendingUserQuestion> = None;
     // 审批三选项菜单高亮（↑↓ / Enter；y/p/n 仍为快捷键）。
     let mut approval_menu_selected: usize = 0;
+    let mut user_question_menu_selected: usize = 0;
     let mut exec_handle: Option<JoinHandle<anyhow::Result<anycode_core::TurnOutput>>> = None;
     let mut exec_prev_len: usize = messages.lock().await.len();
     let mut last_max_input_tokens: u32 = 0;
@@ -303,16 +309,17 @@ pub async fn run_tui(
         };
         let footer_h = super::draw::footer_wrapped_line_count(size.width, &footer_inp);
         // 底栏：横线 + 可选 status + Claude HUD（空闲 0 行）+ 横线 + Min(dock) + 横线 + 折行脚标。
-        let hud_rows_effective: u16 = if pending_approval.is_some() || executing {
-            2
-        } else {
-            0
-        };
+        let hud_rows_effective: u16 =
+            if pending_approval.is_some() || pending_user_question.is_some() || executing {
+                2
+            } else {
+                0
+            };
         // 与 `draw` 一致：无 status 且无 HUD 时合并顶横线与 Prompt 上横线，底栏总高少 1 行。
         let compact_bottom_chrome = status_rows == 0 && hud_rows_effective == 0;
         let merge_rule_rows: u16 = u16::from(compact_bottom_chrome);
         // 主缓冲空闲（含短对话后静止）：Dock 1 行即可；执行中 / 审批 / rev-search / 退出确认等仍放宽。
-        let dock_need: u16 = if pending_approval.is_some() {
+        let dock_need: u16 = if pending_approval.is_some() || pending_user_question.is_some() {
             17
         } else if !used_alternate_screen && rev_search.is_none() && !quit_confirm && !executing {
             1
@@ -326,6 +333,7 @@ pub async fn run_tui(
         if rev_search.is_some() {
             bottom_h = bottom_h.max(min_slash_rev);
         } else if pending_approval.is_none()
+            && pending_user_question.is_none()
             && !slash_suggest_suppress
             && !crate::slash_commands::slash_suggestions_for_first_line(&input.as_string())
                 .is_empty()
@@ -421,7 +429,9 @@ pub async fn run_tui(
                         debug,
                         last_key: last_key.as_deref(),
                         pending_approval: pending_approval.as_ref(),
+                        pending_user_question: pending_user_question.as_ref(),
                         approval_menu_selected,
+                        user_question_menu_selected,
                         executing,
                         working_elapsed_secs,
                         help_open,
@@ -644,7 +654,9 @@ pub async fn run_tui(
                         last_key: &mut last_key,
                         transcript_scroll_up: &mut transcript_scroll_up,
                         pending_approval: &mut pending_approval,
+                        pending_user_question: &mut pending_user_question,
                         approval_menu_selected: &mut approval_menu_selected,
+                        user_question_menu_selected: &mut user_question_menu_selected,
                         rev_search: &mut rev_search,
                         slash_suggest_pick: &mut slash_suggest_pick,
                         slash_suggest_suppress: &mut slash_suggest_suppress,
@@ -728,6 +740,14 @@ pub async fn run_tui(
                     approval_menu_selected = 0;
                     if let Some(old) = pending_approval.replace(r) {
                         let _ = old.reply.send(crate::tui::approval::ApprovalDecision::Deny);
+                    }
+                }
+            }
+            uqr = uq_rx.recv() => {
+                if let Some(r) = uqr {
+                    user_question_menu_selected = 0;
+                    if let Some(old) = pending_user_question.replace(r) {
+                        let _ = old.reply.send(Err(()));
                     }
                 }
             }

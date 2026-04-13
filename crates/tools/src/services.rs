@@ -1,7 +1,8 @@
 //! 跨工具共享的运行时状态与 HTTP 客户端（装配自 `bootstrap` / `build_registry`）。
 
+use crate::ask_user_question_host::AskUserQuestionHostArc;
 use crate::skills::SkillCatalog;
-use anycode_core::SubAgentExecutor;
+use anycode_core::{CoreError, NestedTaskRun, SubAgentExecutor, TaskResult};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -9,7 +10,61 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use uuid::Uuid;
+
+/// Resolved LSP stdio settings (from `config.json` `lsp` + bootstrap).
+#[derive(Clone)]
+pub struct LspConnectionConfig {
+    pub command: Option<String>,
+    pub workspace_root: Option<std::path::PathBuf>,
+    pub read_timeout: Duration,
+}
+
+impl Default for LspConnectionConfig {
+    fn default() -> Self {
+        Self {
+            command: None,
+            workspace_root: None,
+            read_timeout: Duration::from_secs(60),
+        }
+    }
+}
+
+/// `Agent` / `Task` with `run_in_background: true` — process-local, not persisted in orchestration.json.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackgroundAgentStatus {
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+    Partial,
+}
+
+impl BackgroundAgentStatus {
+    pub fn as_json_str(self) -> &'static str {
+        match self {
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+            Self::Partial => "partial",
+        }
+    }
+}
+
+pub struct BackgroundAgentJob {
+    pub status: Mutex<BackgroundAgentStatus>,
+    pub started_at: std::time::SystemTime,
+    pub abort: Mutex<Option<tokio::task::AbortHandle>>,
+    pub summary: Mutex<Option<String>>,
+}
+
+impl BackgroundAgentJob {
+    pub fn set_abort(&self, handle: tokio::task::AbortHandle) {
+        *self.abort.lock().expect("abort mutex") = Some(handle);
+    }
+}
 
 /// 装配默认工具注册表时的依赖（沙箱标志 + 可选共享服务）。
 #[derive(Clone)]
@@ -113,7 +168,13 @@ pub struct ToolServices {
     config_overrides: Mutex<HashMap<String, serde_json::Value>>,
     /// 装配后由 CLI 注入，供 `Agent` / `Task` 工具嵌套 `execute_task`。
     sub_agent_executor: Mutex<Option<Arc<dyn SubAgentExecutor>>>,
+    /// REPL/TUI 注入：`AskUserQuestion` 主机侧选题。
+    ask_user_question_host: Mutex<Option<AskUserQuestionHostArc>>,
+    /// `LSP` 工具：`tools-lsp` 下读此配置（CLI bootstrap 写入）。
+    lsp: Mutex<LspConnectionConfig>,
     sub_agent_depth: AtomicU32,
+    /// `run_in_background` nested agents: keyed by `nested_task_id` / execution UUID.
+    background_agents: Mutex<HashMap<Uuid, Arc<BackgroundAgentJob>>>,
     /// 长驻 MCP 会话：stdio 与 Streamable HTTP（`ANYCODE_MCP_*`）。
     #[cfg(feature = "tools-mcp")]
     mcp_sessions: Mutex<Vec<Arc<dyn crate::mcp_connected::McpConnected>>>,
@@ -144,7 +205,10 @@ impl Default for ToolServices {
             deferred_tool_names: Mutex::new(vec![]),
             config_overrides: Mutex::new(HashMap::new()),
             sub_agent_executor: Mutex::new(None),
+            ask_user_question_host: Mutex::new(None),
+            lsp: Mutex::new(LspConnectionConfig::default()),
             sub_agent_depth: AtomicU32::new(0),
+            background_agents: Mutex::new(HashMap::new()),
             #[cfg(feature = "tools-mcp")]
             mcp_sessions: Mutex::new(vec![]),
             mcp_defer_allowlist: None,
@@ -226,6 +290,28 @@ impl ToolServices {
         *self.sub_agent_executor.lock().expect("sub_agent_executor") = Some(ex);
     }
 
+    pub fn attach_ask_user_question_host(&self, host: AskUserQuestionHostArc) {
+        *self
+            .ask_user_question_host
+            .lock()
+            .expect("ask_user_question_host") = Some(host);
+    }
+
+    pub fn ask_user_question_host(&self) -> Option<AskUserQuestionHostArc> {
+        self.ask_user_question_host
+            .lock()
+            .expect("ask_user_question_host")
+            .clone()
+    }
+
+    pub fn set_lsp_connection_config(&self, c: LspConnectionConfig) {
+        *self.lsp.lock().expect("lsp mutex") = c;
+    }
+
+    pub fn lsp_connection_config(&self) -> LspConnectionConfig {
+        self.lsp.lock().expect("lsp mutex").clone()
+    }
+
     pub fn sub_agent_executor(&self) -> Option<Arc<dyn SubAgentExecutor>> {
         self.sub_agent_executor
             .lock()
@@ -253,6 +339,104 @@ impl ToolServices {
 
     pub fn leave_sub_agent_depth(&self) {
         self.sub_agent_depth.fetch_sub(1, Ordering::AcqRel);
+    }
+
+    pub fn insert_background_agent_job(&self, id: Uuid) -> Arc<BackgroundAgentJob> {
+        let job = Arc::new(BackgroundAgentJob {
+            status: Mutex::new(BackgroundAgentStatus::Running),
+            started_at: std::time::SystemTime::now(),
+            abort: Mutex::new(None),
+            summary: Mutex::new(None),
+        });
+        self.background_agents
+            .lock()
+            .expect("background_agents")
+            .insert(id, job.clone());
+        job
+    }
+
+    /// When the spawned nested task is dropped (e.g. `AbortHandle::abort`), depth and registry must still converge.
+    pub fn finalize_background_if_still_running(&self, id: Uuid) {
+        let map = self.background_agents.lock().expect("background_agents");
+        let Some(j) = map.get(&id) else {
+            return;
+        };
+        let mut st = j.status.lock().expect("bg status");
+        if *st == BackgroundAgentStatus::Running {
+            *st = BackgroundAgentStatus::Cancelled;
+            *j.summary.lock().expect("bg summary") = Some("aborted".into());
+        }
+    }
+
+    pub fn finish_background_agent(&self, id: Uuid, run: Result<NestedTaskRun, CoreError>) {
+        let map = self.background_agents.lock().expect("background_agents");
+        let Some(job) = map.get(&id) else {
+            return;
+        };
+        {
+            let st = job.status.lock().expect("bg status");
+            if *st == BackgroundAgentStatus::Cancelled {
+                return;
+            }
+        }
+        match run {
+            Ok(NestedTaskRun { result, .. }) => {
+                let new_status = match &result {
+                    TaskResult::Success { .. } => BackgroundAgentStatus::Completed,
+                    TaskResult::Failure { .. } => BackgroundAgentStatus::Failed,
+                    TaskResult::Partial { .. } => BackgroundAgentStatus::Partial,
+                };
+                let summary = match result {
+                    TaskResult::Success { output, .. } => output.chars().take(500).collect(),
+                    TaskResult::Failure { error, .. } => error,
+                    TaskResult::Partial { success, remaining } => {
+                        format!("{success} / remaining: {remaining}")
+                    }
+                };
+                let mut st = job.status.lock().expect("bg status");
+                *st = new_status;
+                drop(st);
+                *job.summary.lock().expect("bg summary") = Some(summary);
+            }
+            Err(e) => {
+                let mut st = job.status.lock().expect("bg status");
+                *st = BackgroundAgentStatus::Failed;
+                drop(st);
+                *job.summary.lock().expect("bg summary") = Some(e.to_string());
+            }
+        }
+    }
+
+    /// Best-effort: marks cancelled and aborts the tokio task running `run_nested_task`.
+    pub fn cancel_background_agent(&self, id: Uuid) -> bool {
+        let map = self.background_agents.lock().expect("background_agents");
+        let Some(job) = map.get(&id) else {
+            return false;
+        };
+        let mut st = job.status.lock().expect("bg status");
+        if *st != BackgroundAgentStatus::Running {
+            return false;
+        }
+        *st = BackgroundAgentStatus::Cancelled;
+        drop(st);
+        if let Some(a) = job.abort.lock().expect("abort").as_ref() {
+            a.abort();
+        }
+        true
+    }
+
+    /// For [`crate::orchestration::TaskOutputTool`]: status + optional short summary.
+    pub fn background_agent_tool_view(
+        &self,
+        id: Uuid,
+    ) -> Option<(BackgroundAgentStatus, Option<String>)> {
+        let job = {
+            let map = self.background_agents.lock().expect("background_agents");
+            map.get(&id).cloned()?
+        };
+        let st = *job.status.lock().expect("bg status");
+        let sum = job.summary.lock().expect("bg summary").clone();
+        Some((st, sum))
     }
 
     #[cfg(feature = "tools-mcp")]

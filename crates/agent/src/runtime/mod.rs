@@ -1500,7 +1500,7 @@ impl SubAgentExecutor for AgentRuntime {
         };
 
         let task = Task {
-            id: Uuid::new_v4(),
+            id: invoke.task_id.unwrap_or_else(Uuid::new_v4),
             agent_type: invoke.agent_type,
             prompt: invoke.prompt,
             context: TaskContext {

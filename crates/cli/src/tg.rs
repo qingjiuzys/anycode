@@ -245,7 +245,7 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
     .unwrap_or_else(|_| PathBuf::from("."));
     let working_directory = workdir.to_string_lossy().to_string();
 
-    let runtime = initialize_runtime(&config, None)
+    let runtime = initialize_runtime(&config, None, None)
         .await
         .context("initialize runtime for telegram")?;
     let client = Client::new();

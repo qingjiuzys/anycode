@@ -108,7 +108,7 @@ pub(crate) async fn run_builtin_scheduler(
     );
 
     let runtime: Arc<anycode_agent::AgentRuntime> =
-        bootstrap::initialize_runtime(&config, None).await?;
+        bootstrap::initialize_runtime(&config, None, None).await?;
     let disk = anycode_core::DiskTaskOutput::new_default()?;
 
     let default_agent = config

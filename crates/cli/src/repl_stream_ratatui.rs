@@ -25,10 +25,10 @@ use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use crate::md_tui::wrap_string_to_width;
 use crate::repl_inline::{
-    apply_stream_approval_key, handle_event, render_repl_dock_to_buffer, repl_dock_height,
-    repl_stream_transcript_bottom_padded, sanitize_stream_transcript_visual_noise,
-    scrub_stream_transcript_llm_raw_dumps, stream_repl_accept_key_event, ReplCtl, ReplDockLayout,
-    ReplLineState,
+    apply_stream_approval_key, apply_stream_user_question_key, handle_event,
+    render_repl_dock_to_buffer, repl_dock_height, repl_stream_transcript_bottom_padded,
+    sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
+    stream_repl_accept_key_event, ReplCtl, ReplDockLayout, ReplLineState,
 };
 use crate::tui::styles::style_dim;
 
@@ -362,6 +362,20 @@ pub(crate) fn run_stream_repl_ui_thread(
                         }
                         _ => {}
                     }
+                }
+                if s.pending_user_question.is_some() {
+                    if let Event::Key(key) = &ev {
+                        if key.kind == KeyEventKind::Release {
+                            continue;
+                        }
+                        if !stream_repl_accept_key_event(key) {
+                            continue;
+                        }
+                        apply_stream_user_question_key(&mut s, *key);
+                    }
+                    drop(s);
+                    draw_stream_frame(t, &state)?;
+                    continue;
                 }
                 if s.pending_approval.is_some() {
                     if let Event::Key(key) = &ev {

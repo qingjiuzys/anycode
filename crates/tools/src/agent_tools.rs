@@ -1,7 +1,7 @@
 //! `Agent`、`Skill`、`SendMessage`、旧版子代理名 `Task`。
 //!
 //! **Claude Code `Agent` 对齐**：`subagent_type`（同 `agent_type`）、可选 `description`、可选 `cwd`（相对则相对工具工作目录，再 canonical 为绝对路径）、
-//! 可选 `model`（`sonnet`/`opus`/`haiku` 或裸 id）、可选 `isolation: "worktree"`（临时 git worktree）、`run_in_background: true` 显式报错。
+//! 可选 `model`（`sonnet`/`opus`/`haiku` 或裸 id）、可选 `isolation: "worktree"`（临时 git worktree）、`run_in_background: true` 时 `tokio::spawn` 嵌套执行并立即返回 `status: started`（见 `ToolServices` 注册表与 **`TaskStop`** / **`TaskOutput`**）。
 //! 成功/失败 JSON 含 `status`、`agent_id`（= `nested_task_id`）、`output_file`、`model`/`isolation` 回显、类 Claude 的 `content: [{type,text}]`。
 //! `SendMessage` 接受 `to` 作为 `recipient` 别名。
 
@@ -72,11 +72,27 @@ fn normalize_subagent_type_name(raw: &str) -> String {
 
 struct SubAgentDepthGuard<'a> {
     services: &'a ToolServices,
+    disarmed: bool,
+}
+
+impl<'a> SubAgentDepthGuard<'a> {
+    fn new(services: &'a ToolServices) -> Self {
+        Self {
+            services,
+            disarmed: false,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.disarmed = true;
+    }
 }
 
 impl Drop for SubAgentDepthGuard<'_> {
     fn drop(&mut self) {
-        self.services.leave_sub_agent_depth();
+        if !self.disarmed {
+            self.services.leave_sub_agent_depth();
+        }
     }
 }
 
@@ -101,7 +117,7 @@ struct AgentToolIn {
     /// Claude Code: `worktree` for isolated git worktree under the temp directory.
     #[serde(default)]
     isolation: Option<String>,
-    /// Claude Code async agents — not implemented; `true` returns a clear error.
+    /// Claude Code: when `true`, nested run continues in a background task; use `TaskOutput` / `TaskStop` with `nested_task_id`.
     #[serde(default)]
     run_in_background: Option<bool>,
 }
@@ -132,9 +148,7 @@ impl AgentTool {
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
-        let _guard = SubAgentDepthGuard {
-            services: self.services.as_ref(),
-        };
+        let mut depth_guard = SubAgentDepthGuard::new(self.services.as_ref());
 
         let exe = match self.services.sub_agent_executor() {
             Some(e) => e,
@@ -150,15 +164,6 @@ impl AgentTool {
         };
 
         let v: AgentToolIn = serde_json::from_value(input.input.clone())?;
-        if v.run_in_background == Some(true) {
-            return Ok(ToolOutput {
-                result: json!({
-                    "error": "run_in_background is not supported; nested Agent runs are synchronous. Omit the field or set false."
-                }),
-                error: Some("unsupported run_in_background".into()),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
-        }
 
         let prompt = v
             .prompt
@@ -208,15 +213,76 @@ impl AgentTool {
         let model_echo = model.clone();
         let isolation_echo = isolation.clone();
 
-        let NestedTaskRun { task_id, result } = exe
-            .run_nested_task(NestedTaskInvoke {
-                agent_type: AgentType::new(agent_type_owned.clone()),
-                prompt: prompt.clone(),
-                working_directory: wd.clone(),
-                model,
-                isolation,
-            })
-            .await?;
+        let invoke = NestedTaskInvoke {
+            agent_type: AgentType::new(agent_type_owned.clone()),
+            prompt: prompt.clone(),
+            working_directory: wd.clone(),
+            model,
+            isolation,
+            task_id: None,
+        };
+
+        if v.run_in_background == Some(true) {
+            let task_id = Uuid::new_v4();
+            let mut invoke_bg = invoke;
+            invoke_bg.task_id = Some(task_id);
+            let output_file = nested_output_log_path(task_id);
+            let nested_task_id = task_id.to_string();
+
+            let job = self.services.insert_background_agent_job(task_id);
+            let exe_c = exe.clone();
+            let services_c = self.services.clone();
+            let desc_c = desc.clone();
+            let agent_type_c = agent_type_owned.clone();
+            let prompt_c = prompt.clone();
+            let model_echo_c = model_echo.clone();
+            let isolation_echo_c = isolation_echo.clone();
+            let wd_c = wd.clone();
+
+            depth_guard.disarm();
+            let handle = tokio::spawn(async move {
+                struct BgDepthGuard {
+                    services: Arc<ToolServices>,
+                    task_id: Uuid,
+                }
+                impl Drop for BgDepthGuard {
+                    fn drop(&mut self) {
+                        self.services.leave_sub_agent_depth();
+                        self.services
+                            .finalize_background_if_still_running(self.task_id);
+                    }
+                }
+                let _g = BgDepthGuard {
+                    services: services_c.clone(),
+                    task_id,
+                };
+                let res = exe_c.run_nested_task(invoke_bg).await;
+                services_c.finish_background_agent(task_id, res);
+            });
+            job.set_abort(handle.abort_handle());
+
+            return Ok(ToolOutput {
+                result: json!({
+                    "status": "started",
+                    "nested_task_id": &nested_task_id,
+                    "agent_id": &nested_task_id,
+                    "output_file": output_file,
+                    "background": true,
+                    "hint": "Poll TaskOutput with id=nested_task_id; cancel with TaskStop on the same id (best-effort abort).",
+                    "agent_type": &agent_type_c,
+                    "subagent_type_resolved": &agent_type_c,
+                    "working_directory": &wd_c,
+                    "prompt": &prompt_c,
+                    "description": desc_c.clone(),
+                    "model": model_echo_c.clone(),
+                    "isolation": isolation_echo_c.clone(),
+                }),
+                error: None,
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
+        let NestedTaskRun { task_id, result } = exe.run_nested_task(invoke).await?;
         let nested_task_id = task_id.to_string();
         let output_file = nested_output_log_path(task_id);
 
@@ -292,7 +358,7 @@ impl Tool for AgentTool {
         "Agent"
     }
     fn description(&self) -> &str {
-        "Nested agent run (same AgentRuntime as the host). Claude Code parity: `prompt`/`task`, `subagent_type`/`agent_type`, `description`, `cwd` (absolute path after resolve), `model` (sonnet|opus|haiku or raw id), `isolation: \"worktree\"` (temp git worktree, auto-removed). `run_in_background: true` is rejected. Results: `status`, `agent_id`, `output_file`, `content`, `model`/`isolation` echo. Depth ~6 max."
+        "Nested agent run (same AgentRuntime as the host). Claude Code parity: `prompt`/`task`, `subagent_type`/`agent_type`, `description`, `cwd` (absolute path after resolve), `model` (sonnet|opus|haiku or raw id), `isolation: \"worktree\"` (temp git worktree, auto-removed). `run_in_background: true` returns immediately with `status: started` and the same `nested_task_id`/`output_file` hints; poll `TaskOutput`, cancel with `TaskStop` (best-effort). Sync runs: `status` completed/failed/partial, `content` on success. Depth ~6 max."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -306,7 +372,7 @@ impl Tool for AgentTool {
                 "cwd": { "type": "string", "description": "Working directory for the nested agent; overrides tool-call cwd when set" },
                 "model": { "type": "string", "description": "Claude: sonnet | opus | haiku or explicit model id" },
                 "isolation": { "type": "string", "description": "worktree — isolated git worktree under system temp" },
-                "run_in_background": { "type": "boolean", "description": "Must be false or omitted (not supported)" }
+                "run_in_background": { "type": "boolean", "description": "When true, nested agent runs in background; use TaskOutput/TaskStop with nested_task_id" }
             },
             "anyOf": [
                 { "required": ["prompt"] },
@@ -574,7 +640,7 @@ impl Tool for LegacyTaskAgentTool {
         "Task"
     }
     fn description(&self) -> &str {
-        "Legacy wire name `Task` (Claude Code): same as `Agent` — `prompt`/`task`, optional `subagent_type`, `description`, `cwd` (absolute after resolve), `model`, `isolation` (`worktree`); `run_in_background: true` is rejected (no async subagent yet)."
+        "Legacy wire name `Task` (Claude Code): same as `Agent` — `prompt`/`task`, optional `subagent_type`, `description`, `cwd` (absolute after resolve), `model`, `isolation` (`worktree`); `run_in_background: true` spawns async nested run (TaskOutput / TaskStop)."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -625,5 +691,140 @@ mod claude_compat_tests {
             normalize_subagent_type_name("Verification"),
             "general-purpose"
         );
+    }
+}
+
+#[cfg(test)]
+mod background_agent_tests {
+    use super::AgentTool;
+    use crate::orchestration::{TaskOutputTool, TaskStopTool};
+    use crate::services::ToolServices;
+    use anycode_core::prelude::*;
+    use async_trait::async_trait;
+    use serde_json::json;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    struct DelayedOkEx {
+        delay_ms: u64,
+        #[allow(dead_code)]
+        calls: AtomicU32,
+    }
+
+    #[async_trait]
+    impl SubAgentExecutor for DelayedOkEx {
+        async fn run_nested_task(
+            &self,
+            invoke: NestedTaskInvoke,
+        ) -> Result<NestedTaskRun, CoreError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
+            let task_id = invoke
+                .task_id
+                .ok_or_else(|| CoreError::LLMError("expected task_id".into()))?;
+            Ok(NestedTaskRun {
+                task_id,
+                result: TaskResult::Success {
+                    output: "nested-done".into(),
+                    artifacts: vec![],
+                },
+            })
+        }
+    }
+
+    fn bg_input(prompt: &str) -> ToolInput {
+        ToolInput {
+            name: "Agent".into(),
+            input: json!({
+                "prompt": prompt,
+                "run_in_background": true,
+            }),
+            working_directory: Some(".".into()),
+            sandbox_mode: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn background_started_then_taskoutput_eventually_completed() {
+        let services = Arc::new(ToolServices::default());
+        services.attach_sub_agent_executor(Arc::new(DelayedOkEx {
+            delay_ms: 80,
+            calls: AtomicU32::new(0),
+        }));
+        let agent = AgentTool::new(services.clone());
+        let out = agent.execute(bg_input("hi")).await.expect("execute");
+        assert!(out.error.is_none());
+        assert_eq!(out.result["status"], "started");
+        let id_str = out.result["nested_task_id"].as_str().unwrap();
+
+        let to = TaskOutputTool::new(services.clone());
+        let tout = to
+            .execute(ToolInput {
+                name: "TaskOutput".into(),
+                input: json!({ "id": id_str }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .unwrap();
+        let st = tout.result["background_status"].as_str();
+        assert!(
+            st == Some("running") || st == Some("completed"),
+            "unexpected background_status={st:?} body={}",
+            tout.result
+        );
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        let tout2 = to
+            .execute(ToolInput {
+                name: "TaskOutput".into(),
+                input: json!({ "id": id_str }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            tout2.result["background_status"].as_str(),
+            Some("completed")
+        );
+    }
+
+    #[tokio::test]
+    async fn background_taskstop_cancelled() {
+        let services = Arc::new(ToolServices::default());
+        services.attach_sub_agent_executor(Arc::new(DelayedOkEx {
+            delay_ms: 10_000,
+            calls: AtomicU32::new(0),
+        }));
+        let agent = AgentTool::new(services.clone());
+        let out = agent.execute(bg_input("slow")).await.unwrap();
+        let id_str = out.result["nested_task_id"].as_str().unwrap();
+
+        let stop = TaskStopTool::new(services.clone());
+        let stout = stop
+            .execute(ToolInput {
+                name: "TaskStop".into(),
+                input: json!({ "id": id_str }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(stout.result["kind"].as_str(), Some("background_agent"));
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let to = TaskOutputTool::new(services.clone());
+        let tout = to
+            .execute(ToolInput {
+                name: "TaskOutput".into(),
+                input: json!({ "id": id_str }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(tout.result["background_status"].as_str(), Some("cancelled"));
     }
 }

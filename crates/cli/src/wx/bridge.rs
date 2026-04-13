@@ -75,7 +75,7 @@ pub async fn run_wechat_daemon(
     // 通道模式与 Telegram/Discord 一致：工具走自动策略（无终端交互审批）。
     // `WechatApprovalGate` 仍用于会话路由与其它微信侧逻辑。
     let runtime = Arc::new(RwLock::new(
-        initialize_runtime(app_config, None)
+        initialize_runtime(app_config, None, None)
             .await
             .context("initialize_runtime")?,
     ));
