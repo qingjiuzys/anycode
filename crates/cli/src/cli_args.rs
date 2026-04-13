@@ -50,9 +50,9 @@ pub(crate) fn session_ignore_approval(cli_ignore_approval: bool) -> bool {
 
 /// anyCode - Integrated AI Agent System
 ///
-/// - **No subcommand (default)**: **line REPL** — ratatui Inline viewport + bottom dock（与 `anycode tui` 主缓冲同栈、`anycode repl` 同栈）。
-/// - **`tui`**: 全屏 ratatui 矩阵（后续可能演进为其它模式）；默认入口**不是** TUI。
-/// - **`repl`**: 行式 REPL（Inline 视口 + 底栏）。
+/// - **No subcommand (default)**: **fullscreen TUI**（交互式 TTY 上，与 `anycode tui` 相同）；**非 TTY**（管道等）回退为 **stdio 行式 REPL**。
+/// - **`tui`**: 全屏 ratatui 矩阵（显式子命令；与无子命令默认入口等价）。
+/// - **`repl`**: 行式 REPL（Inline 视口 + 底栏；ratatui 流式 dock）。
 #[derive(Parser, Debug)]
 #[command(name = "anycode")]
 #[command(
@@ -60,8 +60,8 @@ pub(crate) fn session_ignore_approval(cli_ignore_approval: bool) -> bool {
     version = env!("CARGO_PKG_VERSION"),
     about = "anyCode - terminal AI agent for developers (Rust)",
     long_about = "anyCode is a Rust CLI for local tool-using agents: TUI, REPL, and automation.\n\
-                 • Default (`anycode` no subcommand): line REPL — ratatui Inline transcript + bottom dock (same stack as `anycode tui` main-buffer).\n\
-                 • Fullscreen matrix UI: `anycode tui`.\n\
+                 • Default (`anycode` no subcommand): fullscreen TUI on an interactive TTY (same as `anycode tui`); non-TTY falls back to line-at-a-time stdio REPL.\n\
+                 • Line REPL (Inline viewport + dock on TTY): `anycode repl`.\n\
                  • TUI alternate canvas: config `tui.alternateScreen` or in-TUI options (not env-gated defaults)."
 )]
 pub(crate) struct Args {
@@ -87,7 +87,7 @@ pub(crate) struct Args {
     )]
     pub(crate) ignore_approval: bool,
 
-    /// Override default model for this process only (fullscreen TUI or `repl`; long `--model` only).
+    /// Override default model for this process only (default entry / `tui` / `repl`; long `--model` only).
     #[arg(long = "model", global = true)]
     pub(crate) model: Option<String>,
 
@@ -148,7 +148,7 @@ pub(crate) enum Commands {
         model: Option<String>,
     },
 
-    /// 🖥 全屏 ratatui 矩阵会话（默认入口为 `repl`，不用环境变量切换）
+    /// 🖥 全屏 ratatui 矩阵会话（与无子命令 `anycode` 默认入口相同）
     Tui {
         #[arg(short, long, default_value = "general-purpose")]
         agent: String,
@@ -473,7 +473,7 @@ mod clap_tests {
     }
 
     #[test]
-    fn ignore_approval_default_tui_no_subcommand() {
+    fn ignore_approval_no_subcommand() {
         let a = Args::try_parse_from(["anycode", "--ignore"]).unwrap();
         assert!(a.ignore_approval);
         assert!(a.command.is_none());

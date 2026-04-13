@@ -1,7 +1,7 @@
 ---
 title: run / REPL / TUI
 description: anycode run、repl、全屏 TUI、任务日志与终端链接行为。
-summary: 单次任务、行式 REPL、默认 TUI、stdout/stderr 分工与 OSC 8。
+summary: 单次任务、行式 REPL、TTY 上默认全屏 TUI、stdout/stderr 分工与 OSC 8。
 read_when:
   - 在 TUI 与 repl 或脚本 run 之间选择。
   - 需要日志路径或工具调用验收 grep 提示。
@@ -13,10 +13,10 @@ read_when:
 
 | 启动方式 | 交互 TTY？ | 实际界面 |
 |----------|------------|----------|
-| **`anycode`**（无子命令） | 是 | **Inline 流式 REPL**（ratatui 视口 + 底栏），与全屏 TUI **共用 messages 引擎**；可用 **`anycode --resume <uuid>`** 续聊已存会话。 |
-| **`anycode`** | 否 | **stdio 逐行**模式（无 ratatui）。 |
-| **`anycode repl`** | 是 | 与上一种 **相同的流式 REPL**；需要显式 **`-C` / `--agent` / `--resume`** 时用此子命令。 |
-| **`anycode tui`** | — | **全屏 TUI**（见下文）。 |
+| **`anycode`**（无子命令） | 是 | **全屏 TUI**（与 **`anycode tui`** 相同），与流式 REPL **共用 messages 引擎**；可用 **`anycode --resume <uuid>`** 续聊已存会话。 |
+| **`anycode`** | 否 | **stdio 逐行**（无 ratatui），与非 TTY 的 **`repl`** 一致。 |
+| **`anycode repl`** | 是 | **Inline 流式 REPL**（ratatui 视口 + 底栏）；需要该布局或显式 **`-C` / `--agent` / `--resume`** 时用此子命令。 |
+| **`anycode tui`** | — | **全屏 TUI**（显式子命令；TTY 上与无子命令 **`anycode`** 等价）。 |
 
 会话快照目录：**`~/.anycode/tui-sessions/`**（流式与 TUI 同一套 JSON）。
 
@@ -77,7 +77,7 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 
 ## `repl`
 
-在**交互 TTY** 上，**`anycode repl`** 与无子命令的 **`anycode`** 一样走 **Inline 流式 REPL**（ratatui 视口 + 底栏，多轮 **`execute_turn_from_messages`**）。非 TTY（管道/脚本）时回退为 **stdio 逐行**。
+在**交互 TTY** 上，**`anycode repl`** 走 **Inline 流式 REPL**（ratatui 视口 + 底栏，多轮 **`execute_turn_from_messages`**）。无子命令 **`anycode`** 在 TTY 上则进入 **全屏 TUI**。非 TTY（管道/脚本）时 **`repl`** 回退为 **stdio 逐行**，与无子命令 **`anycode`** 在非 TTY 上一致。
 
 ```bash
 ./target/release/anycode repl
@@ -106,7 +106,7 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 - **宿主执行**：TUI / REPL 下输入**首行**以 **`/`** 开头时由 CLI 处理（补全、`/compact`、`/mode` 等）。
 - **提示词模板**：写在 **`system_prompt_override` / `system_prompt_append`** 或 skill 中的 **`/foo`** 仅为文本，不会自动执行；默认 system 中会说明该边界。
 
-**注意：** TTY 下 **`anycode`** / **`anycode repl`** 默认为**流式 REPL**，目录为**当前 cwd**，agent 来自 **`runtime.default_mode`**（常为 **`general-purpose`**）。指定目录/agent 用 **`repl` / `run`**；要**全屏布局**用 **`anycode tui`**。
+**注意：** TTY 下无子命令 **`anycode`** 默认为**全屏 TUI**（与 **`anycode tui`** 相同）；要 **Inline 流式 REPL** 用 **`anycode repl`**。目录为**当前 cwd**，agent 来自 **`runtime.default_mode`**（常为 **`general-purpose`**）。指定目录/agent 用 **`repl` / `run`**。
 
 **终端画布：** 全屏 TUI 默认 **DEC 备用屏**。需要 **主缓冲 + 终端滚动**时：先 **`export ANYCODE_TUI_ALT_SCREEN=0`** 再运行 **`anycode tui`**，或 **`ANYCODE_TUI_ALT_SCREEN=0 anycode tui` 同一行**；单独一行 `VAR=0` **不会**传给子进程。也可在 **`config.json`** 设 **`"tui": { "alternateScreen": false }`**。
 

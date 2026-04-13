@@ -37,6 +37,7 @@ use cli_args::{ChannelCommands, Commands, MemoryCommands};
 use fluent_bundle::FluentArgs;
 #[cfg(feature = "mcp-oauth")]
 use i18n::{tr, tr_args};
+use std::io::IsTerminal;
 use tracing::info;
 use tracing_subscriber::fmt;
 use tracing_subscriber::EnvFilter;
@@ -366,18 +367,31 @@ async fn main() -> anyhow::Result<()> {
                 .as_str()
                 .to_string();
 
-            tasks::run_interactive(
-                config,
-                default_agent,
-                None,
-                args.model.clone(),
-                ignore_approval,
-                args.debug,
-                args.repl_debug_events,
-                args.resume,
-                true,
-            )
-            .await?;
+            // 全屏 TUI 需要交互式终端；管道/无 TTY 时回退为行式 REPL（stdio），避免脚本与 CI 损坏。
+            if std::io::stdin().is_terminal() {
+                tui::run_tui(
+                    config,
+                    default_agent,
+                    None,
+                    args.model.clone(),
+                    args.debug,
+                    args.resume,
+                )
+                .await?;
+            } else {
+                tasks::run_interactive(
+                    config,
+                    default_agent,
+                    None,
+                    args.model.clone(),
+                    ignore_approval,
+                    args.debug,
+                    args.repl_debug_events,
+                    args.resume,
+                    true,
+                )
+                .await?;
+            }
         }
     }
 

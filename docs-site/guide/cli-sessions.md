@@ -1,7 +1,7 @@
 ---
 title: Run, REPL & TUI
 description: anycode run, repl, fullscreen TUI, task logs, and terminal link behavior.
-summary: One-shot tasks, line REPL, default TUI, stdout/stderr split, and OSC 8 links.
+summary: One-shot tasks, line REPL, default fullscreen TUI on TTY, stdout/stderr split, and OSC 8 links.
 read_when:
   - You choose between TUI and repl or script run.
   - You need log paths or tool-call grep hints.
@@ -13,10 +13,10 @@ read_when:
 
 | How you start | Interactive TTY? | What you get |
 |---------------|------------------|----------------|
-| **`anycode`** (no subcommand) | yes | **Inline stream REPL** — ratatui viewport + dock, shared **messages** engine with TUI; use **`anycode --resume <uuid>`** to continue a saved session. |
-| **`anycode`** | no | Line-at-a-time **stdio** mode (no ratatui). |
-| **`anycode repl`** | yes | Same **stream REPL** as above; use this when you want **`-C`**, **`--agent`**, or **`--resume`** explicitly in the command line. |
-| **`anycode tui`** | — | **Fullscreen TUI** (see below). |
+| **`anycode`** (no subcommand) | yes | **Fullscreen TUI** — same as **`anycode tui`**; shared **messages** engine with stream REPL; use **`anycode --resume <uuid>`** to continue a saved session. |
+| **`anycode`** | no | Line-at-a-time **stdio** mode (no ratatui), same as non-TTY **`repl`**. |
+| **`anycode repl`** | yes | **Inline stream REPL** — ratatui viewport + dock; use when you want that layout or **`-C`**, **`--agent`**, **`--resume`** on the command line. |
+| **`anycode tui`** | — | **Fullscreen TUI** (explicit; same as bare **`anycode`** on a TTY). |
 
 Session snapshots live under **`~/.anycode/tui-sessions/`** (same format for stream REPL and TUI).
 
@@ -66,7 +66,7 @@ Or set **`zai_tool_choice_first_turn`** in **`config.json`** (env wins when set)
 
 ## `repl`
 
-On an **interactive TTY**, **`anycode repl`** uses the same **Inline stream REPL** as **`anycode`** (ratatui viewport + dock, multi-turn **`execute_turn_from_messages`**). Without a TTY (pipes / scripts), it falls back to **line-at-a-time stdio** (closer to “classic” line REPL).
+On an **interactive TTY**, **`anycode repl`** uses the **Inline stream REPL** (ratatui viewport + dock, multi-turn **`execute_turn_from_messages`**). Bare **`anycode`** on a TTY starts the **fullscreen TUI** instead. Without a TTY (pipes / scripts), **`repl`** falls back to **line-at-a-time stdio** (closer to “classic” line REPL), same as non-TTY bare **`anycode`**.
 
 ```bash
 anycode repl
@@ -98,7 +98,7 @@ Bottom input:
 - **Host-executed**: In TUI / REPL, a **first line** starting with **`/`** is handled by the CLI (completion, `/compact`, `/mode`, etc.) before the model sees the message.
 - **Prompt templates**: If you put **`/foo`** inside **`system_prompt_override`**, **`system_prompt_append`**, or skill text, it is **not** automatically executed—it is plain text unless you build a custom pipeline. The default system prompt reminds the model of this distinction.
 
-**Note:** **`anycode`** / **`anycode repl`** on a TTY default to **stream REPL** with **current cwd** and agent from **`runtime.default_mode`** (often **`general-purpose`**). Use **`repl` / `run`** for **`-C`** and **`--agent`**. Use **`anycode tui`** when you want the fullscreen layout.
+**Note:** On a TTY, bare **`anycode`** defaults to **fullscreen TUI** (**`anycode tui`**); use **`anycode repl`** for the **stream REPL** layout. Both use **current cwd** and agent from **`runtime.default_mode`** (often **`general-purpose`**). Use **`repl` / `run`** for **`-C`** and **`--agent`**.
 
 **Terminal buffer:** The default fullscreen TUI enters the **DEC alternate screen** (isolated viewport, OpenClaw-style). For **main-buffer scrollback** (closer to Claude Code without fullscreen / `CLAUDE_CODE_NO_FLICKER`): **`export ANYCODE_TUI_ALT_SCREEN=0`** before **`anycode tui`**, or run **`ANYCODE_TUI_ALT_SCREEN=0 anycode tui`** on one line — a standalone `VAR=0` line does **not** export to the child process. Alternatively set **`"tui": { "alternateScreen": false }`** in `config.json`.
 

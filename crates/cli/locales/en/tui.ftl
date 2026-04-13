@@ -42,7 +42,7 @@ tui-help-line1 = ?  help  ·  Esc close panels / exit when prompt empty · Ctrl+
 tui-help-line2 = Enter send · Sh+Enter multiline · ↑↓ history
 tui-help-line3 = PgUp/PgDn scroll main pane (transcript) · Ctrl+Home/End top/bottom · ctrl+o fold tools
 tui-help-line4 = Mouse: in this fullscreen UI, wheel behavior depends on terminal; isolated viewport: ANYCODE_TUI_ALT_SCREEN=1 or config tui alternateScreen true · in-app wheel: ANYCODE_TUI_MOUSE=1 · =0 off
-tui-help-line5 = This screen is fullscreen ratatui (`anycode tui`). Default CLI entry is line REPL (`anycode` / `anycode repl`). Alternate-screen canvas: ANYCODE_TUI_ALT_SCREEN=1 or config tui alternateScreen true
+tui-help-line5 = This screen is fullscreen ratatui (`anycode tui`). Default bare `anycode` on a TTY is the same; use `anycode repl` for the Inline dock layout. Non-TTY pipes fall back to stdio line REPL. Alternate-screen canvas: ANYCODE_TUI_ALT_SCREEN=1 or config tui alternateScreen true
 tui-help-line6 = Main buffer only: CLEAR_ON_START defaults off (no Clear(All); preserves scroll position) · CLEAR_ON_START=1 clears on first frame to reduce shell overlap · alternate screen skips that path · SYNC_DRAW=0 disables CSI sync · NO_SCROLLBACK_DUMP=1 disables exit echo (alternate screen only)
 tui-help-line7 = ^R search history · ^L clear session
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · line mode: anycode repl

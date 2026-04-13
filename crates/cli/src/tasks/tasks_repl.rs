@@ -119,7 +119,7 @@ async fn repl_compact_line_session(
     Ok(())
 }
 
-/// `embedded_main_entry`: 仅 `anycode` 无子命令入口为 true，欢迎框与 `anycode repl` 区分。
+/// `embedded_main_entry`: 仅 **无子命令 + 非 TTY**（stdio）入口为 true，欢迎框与 `anycode repl` 区分。
 pub(crate) async fn run_interactive(
     mut config: Config,
     agent: String,

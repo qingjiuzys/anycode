@@ -41,7 +41,7 @@ tui-help-line1 = ?  帮助  ·  Esc 关面板 / 空行时退出 · Ctrl+U 清空
 tui-help-line2 = Enter 发送 · Sh+Enter 多行 · ↑↓ 历史
 tui-help-line3 = PgUp/PgDn 滚动主区（对话）· Ctrl+Home/End 顶/底 · ctrl+o 折叠工具
 tui-help-line4 = 鼠标：全屏界面下滚轮行为因终端而异；独立画布用 ANYCODE_TUI_ALT_SCREEN=1 或 config 将 alternateScreen 设为 true；应用内滚轮 ANYCODE_TUI_MOUSE=1 · =0 关闭
-tui-help-line5 = 当前为全屏 ratatui（`anycode tui`）。默认 CLI 为行式 REPL（`anycode` / `anycode repl`）。备用屏画布：ANYCODE_TUI_ALT_SCREEN=1 或 config tui alternateScreen true
+tui-help-line5 = 当前为全屏 ratatui（`anycode tui`）。无子命令 `anycode` 在 TTY 上与此相同；要 Inline 底栏布局请用 `anycode repl`。非 TTY 管道回退为 stdio 逐行。备用屏画布：ANYCODE_TUI_ALT_SCREEN=1 或 config tui alternateScreen true
 tui-help-line6 = 仅主缓冲：CLEAR_ON_START 默认关（不清屏、保留滚动位置）· =1 首帧 Clear 减轻与 shell 叠画 · 备用屏不走该路径 · SYNC_DRAW=0 关 CSI 同步 · NO_SCROLLBACK_DUMP=1 关退出 echo（仅备用屏）
 tui-help-line7 = ^R 搜索历史 · ^L 清空会话
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · 行式: anycode repl

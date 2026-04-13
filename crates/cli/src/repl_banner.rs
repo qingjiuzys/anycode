@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// `anycode` 无子命令（默认嵌入流式）与 `anycode repl` 使用不同标题与提示行。
+/// 无子命令 **非 TTY**（stdio 行式）与 `anycode repl` 使用不同标题与提示行（TTY 无子命令默认走全屏 TUI，不经此欢迎框）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReplWelcomeKind {
-    /// 默认：`anycode` 无子命令，主缓冲流式 + 底栏。
+    /// 无子命令 + 非 TTY：`run_interactive` stdio 路径。
     EmbeddedMain,
     /// `anycode repl`
     ReplSubcommand,
