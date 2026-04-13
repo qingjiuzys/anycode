@@ -340,10 +340,15 @@ impl McpConnected for McpLegacySseSession {
 
     async fn call_tool_named(&self, name: &str, arguments: Value) -> Result<ToolOutput, CoreError> {
         let start = std::time::Instant::now();
+        let slug = self.server_slug.as_str();
         let args_obj = arguments.as_object().cloned().unwrap_or_default();
-        let resp = self
-            .rpc("tools/call", json!({ "name": name, "arguments": args_obj }))
-            .await?;
+        let params = json!({ "name": name, "arguments": args_obj });
+        let resp = match crate::mcp_read_timeout::mcp_tools_call_wall_timeout() {
+            Some(dur) => tokio::time::timeout(dur, self.rpc("tools/call", params))
+                .await
+                .map_err(|_| crate::mcp_read_timeout::mcp_wall_timeout_core_error(dur, slug))??,
+            None => self.rpc("tools/call", params).await?,
+        };
         if let Some(err) = resp.get("error") {
             return Ok(ToolOutput {
                 result: json!({ "mcp_error": err }),

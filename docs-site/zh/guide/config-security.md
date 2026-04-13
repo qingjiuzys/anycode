@@ -156,6 +156,17 @@ anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "987
 
 自托管 MCP：用 `ANYCODE_MCP_SERVERS` 等接入自有 server，并用上表 deny 规则收敛暴露面；explore/plan 默认不合并 MCP，除非在配置/代码中放宽工具面。
 
+## MCP OAuth / `McpAuth`（无图形界面）
+
+anycode **不提供**图形化 OAuth 窗口。当 MCP server 需要登录或授权时：
+
+1. **动态工具** — `tools/list` 之后常会注册形如 **`mcp__<server_slug>__authenticate`** 的工具（或在 **`McpAuth`** 里设置 **`mcp_server`**）。由模型或你手动调用；server 往往在 MCP **子进程 stderr** 打印链接或说明。请留意运行 `anycode` 的终端；若任务落盘日志，可看 **`~/.anycode/tasks/`** 下对应任务的输出里工具 stderr（若已配置）。
+2. **在系统浏览器完成授权** — 打开 URL、同意、按提示粘贴 code；再回到 CLI 重试原来的 MCP 调用。
+3. **环境与命令** — 核对 **`ANYCODE_MCP_COMMAND`** / **`ANYCODE_MCP_SERVERS`** 与目标 server 一致；多 server 时在 **`mcp`** / **`McpAuth`** 输入里带 **`mcp_server`** / **`server`**。
+4. **超时** — 卡住时可能触发 **`ANYCODE_MCP_READ_TIMEOUT_SECS`**（单行 JSON-RPC）或 **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（整次 **`tools/call`**）。排障时可临时调大。
+
+若仍失败，请保留工具返回的 **JSON 错误原文**，并对照该 server 文档里的 OAuth / stdio 交互说明（多数实现假设人类与 MCP 子进程共用同一终端输出）。
+
 ## LSP（`tools-lsp`）
 
 需 **`--features tools-lsp`**。建议在 `config.json` 使用 **`lsp`** 段（优于仅环境变量）：
@@ -193,6 +204,7 @@ export ANYCODE_LANG=en
 | `ANYCODE_ZAI_TOOL_CHOICE` | 每轮 `required` / `auto`（调试用） |
 | `ANYCODE_MCP_COMMAND` / `ANYCODE_MCP_SERVERS` | MCP（需 `tools-mcp`） |
 | `ANYCODE_MCP_READ_TIMEOUT_SECS` | MCP stdio JSON-RPC **单行读**超时（1–86400 秒）；设置时覆盖默认（**长驻会话 120s**，**`ANYCODE_MCP_COMMAND` 一次性 60s**） |
+| `ANYCODE_MCP_CALL_TIMEOUT_SECS` | 可选：单次 MCP **`tools/call`** 整段墙钟上限（1–86400 秒；stdio 长驻、rmcp、旧版 SSE、**`ANYCODE_MCP_COMMAND` 一次性**）；未设置则仅受单行读超时约束 |
 | `ANYCODE_LSP_COMMAND` | LSP stdio（未用 `lsp` 配置时） |
 | `ANYCODE_DAEMON_TOKEN` | 守护进程 POST 鉴权 |
 

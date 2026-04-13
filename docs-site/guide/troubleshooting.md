@@ -70,7 +70,7 @@ Expected output: task runs without interactive approval prompts in this process.
 
 ## Advanced diagnostics (optional)
 
-- MCP/OAuth issues: check [Config & security](./config-security)
+- **MCP / `McpAuth` / OAuth (no GUI):** anycode does not open a browser for you. Use the dynamic **`mcp__…__authenticate`** tool or **`McpAuth`**, read **stderr** from the MCP subprocess (same terminal as the CLI), then complete OAuth in your browser. See [Config & security — MCP OAuth](./config-security#mcp-oauth-mcpauth-no-gui) and env **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** if calls hang.
 - Developer logs/tests: see [Development](./development)
 
 ## Still stuck

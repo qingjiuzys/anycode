@@ -10,7 +10,7 @@ use crate::tui::transcript::{
 use anycode_agent::AgentRuntime;
 use anycode_core::{
     strip_llm_reasoning_xml_blocks, AgentType, Message, MessageContent, MessageRole, TurnOutput,
-    Usage,
+    Usage, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
 use fluent_bundle::FluentArgs;
 use ratatui::{
@@ -18,6 +18,7 @@ use ratatui::{
     text::{Line, Span},
 };
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -80,6 +81,7 @@ pub(super) async fn append_user_line_and_spawn_turn(
     agent_type: &AgentType,
     messages: &Arc<Mutex<Vec<Message>>>,
     working_dir_str: &str,
+    turn_coop_cancel: &Arc<AtomicBool>,
 ) -> JoinHandle<anyhow::Result<TurnOutput>> {
     transcript.push(TranscriptEntry::User(trimmed.to_string()));
     apply_tool_transcript_pipeline(transcript, next_tool_fold_id);
@@ -100,14 +102,17 @@ pub(super) async fn append_user_line_and_spawn_turn(
         *exec_prev_len = g.len();
     }
 
+    turn_coop_cancel.store(false, Ordering::Release);
+
     let task_id = Uuid::new_v4();
     let rt = runtime.clone();
     let at = agent_type.clone();
     let wd = working_dir_str.to_string();
     let msgs = messages.clone();
+    let coop = turn_coop_cancel.clone();
 
     tokio::spawn(async move {
-        rt.execute_turn_from_messages(task_id, &at, msgs, &wd, None)
+        rt.execute_turn_from_messages(task_id, &at, msgs, &wd, Some(coop))
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))
     })
@@ -132,6 +137,7 @@ pub(super) async fn consume_finished_compact(
     runtime: &Arc<AgentRuntime>,
     agent_type: &AgentType,
     working_dir_str: &str,
+    turn_coop_cancel: &Arc<AtomicBool>,
 ) -> Option<JoinHandle<anyhow::Result<TurnOutput>>> {
     let err_key = match &followup {
         CompactFollowup::ManualSlash => "tui-err-compact-failed",
@@ -186,6 +192,7 @@ pub(super) async fn consume_finished_compact(
                         agent_type,
                         messages,
                         working_dir_str,
+                        turn_coop_cancel,
                     )
                     .await,
                 ),
@@ -308,10 +315,19 @@ pub(super) async fn consume_finished_turn(
             }
         }
         Ok(Err(e)) => {
-            *last_turn_error = Some(e.to_string());
+            let es = e.to_string();
+            let is_coop = es == format!("LLM error: {}", NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            let line = if is_coop {
+                let t = tr("tui-turn-cooperative-cancelled");
+                *last_turn_error = Some(t.clone());
+                t
+            } else {
+                *last_turn_error = Some(es);
+                format!("Turn failed: {e}")
+            };
             transcript.push(TranscriptEntry::Plain(vec![Line::from(Span::styled(
-                format!("Turn failed: {e}"),
-                style_error(),
+                line,
+                if is_coop { style_dim() } else { style_error() },
             ))]));
             *transcript_gen = transcript_gen.wrapping_add(1);
         }

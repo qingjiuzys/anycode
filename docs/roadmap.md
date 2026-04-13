@@ -42,7 +42,8 @@
 - **文档站**：`cli-sessions` 默认入口、TUI vs `repl`、上述斜杠命令与环境变量与实现对齐。  
 - **HTTP daemon**：**不恢复** — 见 [ADR 003](adr/003-http-daemon-deprecated.md)。  
 - **嵌套协作取消 v2+v2.1**：**`TaskStop`** + **`Arc<AtomicBool>`**；**`execute_task` / `execute_turn_from_messages`** 在 turn、工具、**`chat`、流式 open+recv** 上与取消竞争（~20ms 轮询）。  
-- **MCP stdio（部分加固）**：**`ANYCODE_MCP_READ_TIMEOUT_SECS`**；超时 / EOF 错误含 **server** / **子进程退出**；**`McpStdioSession::stdio_child_is_running`**。
+- **主会话协作取消（TUI / stream REPL / stdio 行模式）**：全屏 TUI、TTY **`repl` Inline**、非 TTY stdio 逐行入口在回合进行中可将 **Ctrl+C** 置位 **`turn_coop_cancel`**，与上条同一 **`execute_turn_from_messages`** 机制；TUI 空闲仍为连按 **Ctrl+C** 退出。  
+- **MCP stdio（部分加固）**：**`ANYCODE_MCP_READ_TIMEOUT_SECS`**（按行读）；可选 **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（整次 **`tools/call`**）；超时 / EOF 错误含 **server** / **子进程退出**；**`McpStdioSession::stdio_child_is_running`**。
 
 ---
 
@@ -63,7 +64,7 @@
 
 | 主题 | 完成定义（简） |
 |------|----------------|
-| **MCP 超出 stdio v1（续）** | 会话级健康 / 重连；**McpAuth** 无 GUI 体验文档；**`tools/call`** 若有需要可再加总时限（当前为 **逐行读超时**）。 |
+| **MCP 超出 stdio v1（续）** | **仍可继续**：会话级健康 / 重连。**本版已做**：**`ANYCODE_MCP_CALL_TIMEOUT_SECS`**、**McpAuth** 无 GUI 文档（见文档站 **config-security** / **troubleshooting**）。 |
 | **跨进程 / 持久后台 Agent** | 与 Claude 完整 parity 的队列或等价语义（超出当前进程内 **`HashMap`**）。 |
 | **通道 AskUserQuestion** | 微信 / Telegram / Discord 上卡片或键盘选题（需独立设计与鉴权）。 |
 

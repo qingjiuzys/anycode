@@ -1,6 +1,8 @@
 //! MCP JSON-RPC over stdio（`tools-mcp`）：`ANYCODE_MCP_COMMAND` 启动子进程，完成 `initialize` 后转发 `tools/call`。
 
-use crate::mcp_read_timeout::{self, mcp_jsonrpc_line_timeout};
+use crate::mcp_read_timeout::{
+    self, mcp_jsonrpc_line_timeout, mcp_tools_call_wall_timeout, mcp_wall_timeout_core_error,
+};
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -95,7 +97,7 @@ fn mcp_name_and_args(input: &Value) -> Result<(String, Value), CoreError> {
     Ok((name, arguments))
 }
 
-pub async fn mcp_tools_call_shell(
+async fn mcp_tools_call_shell_inner(
     input: &Value,
     command_shell: &str,
 ) -> Result<ToolOutput, CoreError> {
@@ -183,6 +185,19 @@ pub async fn mcp_tools_call_shell(
         error: None,
         duration_ms: start.elapsed().as_millis() as u64,
     })
+}
+
+pub async fn mcp_tools_call_shell(
+    input: &Value,
+    command_shell: &str,
+) -> Result<ToolOutput, CoreError> {
+    let hint = "ANYCODE_MCP_COMMAND";
+    match mcp_tools_call_wall_timeout() {
+        Some(dur) => timeout(dur, mcp_tools_call_shell_inner(input, command_shell))
+            .await
+            .map_err(|_| mcp_wall_timeout_core_error(dur, hint))?,
+        None => mcp_tools_call_shell_inner(input, command_shell).await,
+    }
 }
 
 #[cfg(test)]

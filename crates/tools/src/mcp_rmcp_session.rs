@@ -179,22 +179,31 @@ impl McpConnected for McpRmcpSession {
 
     async fn call_tool_named(&self, name: &str, arguments: Value) -> Result<ToolOutput, CoreError> {
         let start = std::time::Instant::now();
-        let args_obj = arguments.as_object().cloned().unwrap_or_default();
-        let params = CallToolRequestParams::new(name.to_string()).with_arguments(args_obj);
-        let g = self.client.lock().await;
-        let result = g.call_tool(params).await.map_err(map_service_err)?;
-        let err = result.is_error.unwrap_or(false);
-        let out =
-            serde_json::to_value(&result).unwrap_or_else(|_| json!({ "note": "serialize error" }));
-        Ok(ToolOutput {
-            result: out,
-            error: if err {
-                Some("mcp tools/call is_error".into())
-            } else {
-                None
-            },
-            duration_ms: start.elapsed().as_millis() as u64,
-        })
+        let slug = self.server_slug.as_str();
+        let inner = async {
+            let args_obj = arguments.as_object().cloned().unwrap_or_default();
+            let params = CallToolRequestParams::new(name.to_string()).with_arguments(args_obj);
+            let g = self.client.lock().await;
+            let result = g.call_tool(params).await.map_err(map_service_err)?;
+            let err = result.is_error.unwrap_or(false);
+            let out = serde_json::to_value(&result)
+                .unwrap_or_else(|_| json!({ "note": "serialize error" }));
+            Ok::<ToolOutput, CoreError>(ToolOutput {
+                result: out,
+                error: if err {
+                    Some("mcp tools/call is_error".into())
+                } else {
+                    None
+                },
+                duration_ms: start.elapsed().as_millis() as u64,
+            })
+        };
+        match crate::mcp_read_timeout::mcp_tools_call_wall_timeout() {
+            Some(dur) => tokio::time::timeout(dur, inner)
+                .await
+                .map_err(|_| crate::mcp_read_timeout::mcp_wall_timeout_core_error(dur, slug))?,
+            None => inner.await,
+        }
     }
 
     async fn resources_list(&self, _server: Option<&str>) -> Result<Value, CoreError> {

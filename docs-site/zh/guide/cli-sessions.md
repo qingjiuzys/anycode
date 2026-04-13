@@ -77,7 +77,7 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 
 ## `repl`
 
-在**交互 TTY** 上，**`anycode repl`** 走 **Inline 流式 REPL**（ratatui 视口 + 底栏，多轮 **`execute_turn_from_messages`**）。无子命令 **`anycode`** 在 TTY 上则进入 **全屏 TUI**。非 TTY（管道/脚本）时 **`repl`** 回退为 **stdio 逐行**，与无子命令 **`anycode`** 在非 TTY 上一致。
+在**交互 TTY** 上，**`anycode repl`** 走 **Inline 流式 REPL**（ratatui 视口 + 底栏，多轮 **`execute_turn_from_messages`**）。**回合进行中 Ctrl+C** 为 **协作取消**（与全屏 TUI / 嵌套任务同一套标志）；**空闲且输入为空时 Ctrl+C** 退出 REPL。无子命令 **`anycode`** 在 TTY 上则进入 **全屏 TUI**。非 TTY（管道/脚本）时 **`repl`** 回退为 **stdio 逐行**，与无子命令 **`anycode`** 在非 TTY 上一致：**提交一行进入回合后**，**Ctrl+C** 同样会请求 **协作取消**（后台监听置位与 TTY/流式相同）；若 runtime 尚未收尾，**再次**收到中断时进程仍可能被系统直接结束。
 
 ```bash
 ./target/release/anycode repl
@@ -98,6 +98,8 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 ```
 
 **仅 `--model` 长选项**（无 `-m`）。可带 **`--resume <uuid>`**。
+
+**协作取消：** 回合进行中按 **Ctrl+C** 会请求 runtime 干净结束本轮（与嵌套后台任务同一机制）。空闲且输入为空时 **Ctrl+C** 仍为「再按一次退出」（见脚标提示）。完整快捷键按 **`?`**。
 
 底部输入：**`/help`**、**`/agents`**、**`/tools`**、**`/context`**、**`/cost`**、**`/exit`** 等宿主斜杠；普通回车为一轮对话，共享 **messages** 历史。
 

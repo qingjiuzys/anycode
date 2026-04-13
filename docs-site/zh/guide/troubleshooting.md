@@ -68,7 +68,7 @@ anycode run --ignore-approval --agent general-purpose "..."
 
 ## 进阶诊断（可选）
 
-- MCP / OAuth 问题：看 [配置与安全](./config-security)
+- **MCP / `McpAuth` / OAuth（无 GUI）**：anycode 不会替你弹浏览器。用动态 **`mcp__…__authenticate`** 或 **`McpAuth`**，看 MCP 子进程 **stderr**（与 CLI 同一终端），再在系统浏览器里完成授权。详见 [配置与安全 — MCP OAuth](./config-security) 与环境变量 **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（调用挂起时）。
 - 开发者日志与测试：看 [开发与贡献](./development)
 
 ## 仍然无法解决

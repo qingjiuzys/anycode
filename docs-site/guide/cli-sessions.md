@@ -66,7 +66,7 @@ Or set **`zai_tool_choice_first_turn`** in **`config.json`** (env wins when set)
 
 ## `repl`
 
-On an **interactive TTY**, **`anycode repl`** uses the **Inline stream REPL** (ratatui viewport + dock, multi-turn **`execute_turn_from_messages`**). Bare **`anycode`** on a TTY starts the **fullscreen TUI** instead. Without a TTY (pipes / scripts), **`repl`** falls back to **line-at-a-time stdio** (closer to “classic” line REPL), same as non-TTY bare **`anycode`**.
+On an **interactive TTY**, **`anycode repl`** uses the **Inline stream REPL** (ratatui viewport + dock, multi-turn **`execute_turn_from_messages`**). While a turn is running, **Ctrl+C** requests **cooperative cancel** (same flag as fullscreen TUI / nested tasks); with an empty prompt when idle, **Ctrl+C** exits the REPL. Bare **`anycode`** on a TTY starts the **fullscreen TUI** instead. Without a TTY (pipes / scripts), **`repl`** falls back to **line-at-a-time stdio** (closer to “classic” line REPL), same as non-TTY bare **`anycode`**: while a turn is running after you submit a line, **Ctrl+C** also requests **cooperative cancel** (a background listener sets the same flag as TTY/stream). A **second** interrupt may still terminate the process if the OS delivers it before the runtime winds down.
 
 ```bash
 anycode repl
@@ -87,6 +87,8 @@ anycode tui --model glm-5
 ```
 
 **`--model`** is **long-only** here (no **`-m`** shorthand). You can also pass **`--resume <uuid>`**.
+
+**Cooperative cancel:** while the agent is working on a turn, **Ctrl+C** asks the runtime to stop that turn cleanly (same mechanism as nested background tasks). When the prompt is idle, **Ctrl+C** still means “press again to quit” (see footer hint). Press **`?`** for the full shortcut list.
 
 Bottom input:
 

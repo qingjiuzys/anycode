@@ -39,10 +39,11 @@ pub(crate) enum StreamReplAsyncCtl {
     ResumeAfterSubprocess(Sender<()>),
 }
 
-/// UI 线程 → Tokio：用户提交、Ctrl+L、EOF。
+/// UI 线程 → Tokio：用户提交、Ctrl+L、协作取消、EOF。
 pub(crate) enum StreamReplUiMsg {
     Submit(String),
     ClearSession,
+    CooperativeCancelTurn,
     Eof,
 }
 
@@ -400,6 +401,10 @@ pub(crate) fn run_stream_repl_ui_thread(
                     ReplCtl::ClearSession => {
                         drop(s);
                         let _ = to_async.send(StreamReplUiMsg::ClearSession);
+                    }
+                    ReplCtl::CooperativeCancelTurn => {
+                        drop(s);
+                        let _ = to_async.send(StreamReplUiMsg::CooperativeCancelTurn);
                     }
                     ReplCtl::Eof => {
                         drop(s);

@@ -15,7 +15,9 @@ read_when:
 - **Channels**: `telegram-set-token` / `discord-set-token` subcommands; `anycode_channels::hub` documents the single `ChannelMessage` → `build_channel_task` flow; WeChat bridge no longer registers an interactive tool-approval callback.
 - **LLM**: Anthropic non-stream `chat` retries on 429/5xx with `Retry-After` (same policy shape as the z.ai client).
 - **Skills**: optional `skills.registry_url` manifest merge, `skills.agent_allowlists` for per-agent prompt sections, `SkillCatalog::render_prompt_subsection_allowlist`.
-- **Agent / MCP / LSP**: nested **`run_in_background`** with cooperative cancel through tool boundaries and in-flight **`chat` / stream**; MCP stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`**, clearer timeout/EOF errors, **`McpStdioSession::stdio_child_is_running`**; **`config.json` `lsp`** and CI **`tools-lsp`** / **`tools-mcp`** test jobs.
+- **Agent**: nested **`run_in_background`** with cooperative cancel through tool boundaries and in-flight **`chat` / stream** (**`TaskStop`** on the nested task id).
+- **Sessions (TUI & stream REPL)**: on the main **`execute_turn_from_messages`** path, **Ctrl+C** while a turn is running requests the same cooperative cancel flag (fullscreen TUI: first Ctrl+C cancels the turn; second Ctrl+C when idle still means quit; TTY **`anycode repl`**: Ctrl+C cancels an in-flight turn instead of exiting on an empty prompt).
+- **MCP / LSP**: MCP stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`** (per-line JSON-RPC read), optional **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** (whole **`tools/call`** round-trip); clearer timeout/EOF errors, **`McpStdioSession::stdio_child_is_running`**; **`config.json` `lsp`**; CI **`tools-lsp`** / **`tools-mcp`** test jobs.
 
 ## Versioning
 

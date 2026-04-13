@@ -86,6 +86,8 @@ pub(crate) enum ReplCtl {
     Submit(String),
     /// 与全屏 TUI Ctrl+L 一致：清空本会话消息并重建 system 上下文。
     ClearSession,
+    /// 回合进行中（`executing_since`）：请求 `execute_turn_from_messages` 协作取消。
+    CooperativeCancelTurn,
     Eof,
 }
 
@@ -1041,6 +1043,9 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    if state.executing_since.is_some() {
+                        return Ok(ReplCtl::CooperativeCancelTurn);
+                    }
                     if state.input.is_empty() {
                         return Ok(ReplCtl::Eof);
                     }
@@ -1306,11 +1311,12 @@ pub(crate) fn apply_stream_user_question_key(state: &mut ReplLineState, key: Key
 #[cfg(test)]
 mod stream_transcript_tests {
     use super::{
-        repl_dock_compute_natural, repl_stream_transcript_bottom_padded,
+        handle_event, repl_dock_compute_natural, repl_stream_transcript_bottom_padded,
         sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
-        stream_dock_activity_prefix, stream_repl_accept_key_event, ReplDockLayout, ReplLineState,
+        stream_dock_activity_prefix, stream_repl_accept_key_event, ReplCtl, ReplDockLayout,
+        ReplLineState,
     };
-    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
     #[test]
     fn bottom_pad_inserts_leading_newlines_to_fill_row_budget() {
@@ -1346,6 +1352,15 @@ mod stream_transcript_tests {
         );
         assert!(older.starts_with("abcdefghij"));
         assert!(bottom.contains("opqrst"));
+    }
+
+    #[test]
+    fn ctrl_c_while_executing_is_cooperative_cancel_not_eof() {
+        let mut st = ReplLineState::default();
+        st.executing_since = Some(std::time::Instant::now());
+        let key = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        let ctl = handle_event(Event::Key(key), &mut st).unwrap();
+        assert!(matches!(ctl, ReplCtl::CooperativeCancelTurn));
     }
 
     #[test]

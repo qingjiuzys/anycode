@@ -11,6 +11,7 @@ use crate::tui::PendingUserQuestion;
 use anycode_core::{Message, Usage};
 use ratatui::text::{Line, Span};
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -219,6 +220,7 @@ pub async fn run_tui(
     let mut approval_menu_selected: usize = 0;
     let mut user_question_menu_selected: usize = 0;
     let mut exec_handle: Option<JoinHandle<anyhow::Result<anycode_core::TurnOutput>>> = None;
+    let turn_coop_cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let mut exec_prev_len: usize = messages.lock().await.len();
     let mut last_max_input_tokens: u32 = 0;
     let mut exec_live_tail: Option<(usize, u64)> = None;
@@ -619,6 +621,7 @@ pub async fn run_tui(
                                 &runtime,
                                 &agent_type,
                                 &working_dir_str,
+                                &turn_coop_cancel,
                             )
                             .await;
                             crate::tui::tui_session_persist::spawn_persist_tui_session(
@@ -695,6 +698,7 @@ pub async fn run_tui(
                         next_tool_fold_id: &mut next_tool_fold_id,
                         exec_live_tail: &mut exec_live_tail,
                         quit_confirm: &mut quit_confirm,
+                        turn_coop_cancel: &turn_coop_cancel,
                         session_file_id: &mut session_uuid,
                     };
                     match super::event::dispatch_crossterm_event(
@@ -731,6 +735,7 @@ pub async fn run_tui(
                                 &mut last_turn_error,
                             )
                             .await?;
+                            turn_coop_cancel.store(false, Ordering::Release);
                         }
                     }
                 }

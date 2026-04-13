@@ -45,7 +45,9 @@ tui-help-line4 = Mouse: in this fullscreen UI, wheel behavior depends on termina
 tui-help-line5 = This screen is fullscreen ratatui (`anycode tui`). Default bare `anycode` on a TTY is the same; use `anycode repl` for the Inline dock layout. Non-TTY pipes fall back to stdio line REPL. Alternate-screen canvas: ANYCODE_TUI_ALT_SCREEN=1 or config tui alternateScreen true
 tui-help-line6 = Main buffer only: CLEAR_ON_START defaults off (no Clear(All); preserves scroll position) · CLEAR_ON_START=1 clears on first frame to reduce shell overlap · alternate screen skips that path · SYNC_DRAW=0 disables CSI sync · NO_SCROLLBACK_DUMP=1 disables exit echo (alternate screen only)
 tui-help-line7 = ^R search history · ^L clear session
+tui-help-line7b = Ctrl+C while a turn is running: cooperative stop · Ctrl+C when idle: press twice to quit
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · line mode: anycode repl
+tui-turn-cooperative-cancelled = Turn stopped (cooperative cancel).
 tui-help-approval-keys = Approval: ↑ / ↓ · Enter · Esc · y / p / n
 tui-help-buddy = Buddy: above the prompt (HUD column) when width ≥ 52 cols; falls back beside the prompt if the HUD is too narrow
 tui-hud-executing = thinking…

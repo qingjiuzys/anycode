@@ -15,6 +15,7 @@ pub(crate) fn sidebar_help_text() -> Text<'static> {
         Line::from(Span::styled(tr("tui-help-line5"), style_dim())),
         Line::from(Span::styled(tr("tui-help-line6"), style_dim())),
         Line::from(Span::styled(tr("tui-help-line7"), style_dim())),
+        Line::from(Span::styled(tr("tui-help-line7b"), style_dim())),
         Line::from(""),
         Line::from(Span::styled(tr("tui-help-line8"), style_dim())),
         Line::from(""),

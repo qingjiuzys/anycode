@@ -87,7 +87,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 
 **MCP (beyond stdio v1)**
 
-- Transports: stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`** (JSON-RPC line read), clearer timeout/EOF errors, **`McpStdioSession::stdio_child_is_running`**; SSE/HTTP later.  
+- Transports: stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`** (JSON-RPC line read), optional **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** (whole **`tools/call`** wall clock), clearer timeout/EOF errors, **`McpStdioSession::stdio_child_is_running`**; SSE/HTTP later.  
 - Protocol: **`initialize`**, **`tools/list`**, **`tools/call`**, timeouts and errors in **`output.log`**.  
 - Registration: single path **`initialize_runtime` → `build_registry_with_services`**.  
 - Security: allow/deny for **`mcp__<server>__<tool>`**; sensitive calls through approval.  
@@ -122,7 +122,7 @@ Pick **one** primary thread for the next milestone-sized effort (avoid two large
 | Thread | Goal (issue-sized starters) |
 |--------|-----------------------------|
 | **P5 Agent / Task** | Optional: tighter alignment between **orchestration** records and task **`~/.anycode/tasks/<id>/`** layouts; **fork-self**; durable cross-process background agents (beyond in-process registry). |
-| **MCP beyond stdio v1** | **Partial:** **`ANYCODE_MCP_READ_TIMEOUT_SECS`** overrides JSON-RPC per-line read timeout; clearer timeout / unexpected-EOF errors (incl. child exit); **`McpStdioSession::stdio_child_is_running`** for health checks. **Still open:** richer stdio lifecycle / reconnect; **McpAuth** / OAuth ergonomics without a GUI; polish **List** / **Read** MCP resource tools in UX. |
+| **MCP beyond stdio v1** | **Partial:** **`ANYCODE_MCP_READ_TIMEOUT_SECS`** (per-line read), **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** (whole **`tools/call`**); clearer timeout / unexpected-EOF errors (incl. child exit); **`McpStdioSession::stdio_child_is_running`**; **McpAuth** without a GUI documented under [Config & security](./config-security#mcp-oauth-mcpauth-no-gui). **Still open:** richer stdio lifecycle / reconnect; polish **List** / **Read** MCP resource tools in UX. |
 | **Channel AskUserQuestion** | Card / inline-keyboard flows for WeChat / Telegram / Discord (new host implementations). |
 
 **Docs note:** explicit model-instructions file path is **only** via **`ANYCODE_MODEL_INSTRUCTIONS_FILE`**; JSON `model_instructions` controls **discovery** only — see [Config & security](./config-security).

@@ -2,7 +2,9 @@
 
 pub use crate::mcp_connected::McpListedTool;
 use crate::mcp_normalization::normalize_name_for_mcp;
-use crate::mcp_read_timeout::{self, mcp_jsonrpc_line_timeout};
+use crate::mcp_read_timeout::{
+    self, mcp_jsonrpc_line_timeout, mcp_tools_call_wall_timeout, mcp_wall_timeout_core_error,
+};
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -261,12 +263,14 @@ impl McpStdioSession {
         arguments: Value,
     ) -> Result<ToolOutput, CoreError> {
         let start = std::time::Instant::now();
-        let resp = self
-            .rpc(
-                "tools/call",
-                json!({ "name": name, "arguments": arguments }),
-            )
-            .await?;
+        let params = json!({ "name": name, "arguments": arguments });
+        let slug = self.server_slug.as_str();
+        let resp = match mcp_tools_call_wall_timeout() {
+            Some(dur) => timeout(dur, self.rpc("tools/call", params))
+                .await
+                .map_err(|_| mcp_wall_timeout_core_error(dur, slug))??,
+            None => self.rpc("tools/call", params).await?,
+        };
         if let Some(err) = resp.get("error") {
             return Ok(ToolOutput {
                 result: json!({ "mcp_error": err }),

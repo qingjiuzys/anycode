@@ -156,6 +156,17 @@ anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "987
 
 Self-hosted MCP servers: run your server (stdio or HTTP per `ANYCODE_MCP_SERVERS`), register it via env or future config, and tighten exposure with the deny tables above. Explore/plan agents omit MCP merges unless you widen their tool surface in code/config.
 
+## MCP OAuth / `McpAuth` (no GUI)
+
+anycode does **not** ship a graphical OAuth window. When an MCP server requires authentication:
+
+1. **Dynamic tool** — After `tools/list`, servers often expose a tool such as **`mcp__<server_slug>__authenticate`** (or the static **`McpAuth`** tool with `mcp_server` set). The model or you can invoke it; the server may print URLs or instructions on **stderr** of the MCP child process. Watch the terminal where `anycode` runs, or inspect task logs under **`~/.anycode/tasks/`** for tool stderr if configured.
+2. **Complete the flow in a normal browser** — Open the authorization URL, approve, paste codes if asked; then retry the original MCP tool call.
+3. **Env and command** — Confirm **`ANYCODE_MCP_COMMAND`** or **`ANYCODE_MCP_SERVERS`** matches the server you expect; fix typos and working directory. For multi-server setups, pass **`mcp_server`** / **`server`** on **`mcp`** / **`McpAuth`** inputs.
+4. **Timeouts** — Stuck calls may hit **`ANYCODE_MCP_READ_TIMEOUT_SECS`** (per JSON-RPC line) or **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** (whole **`tools/call`**). Increase temporarily while debugging flaky networks.
+
+If authentication keeps failing, capture the **exact** tool JSON error and the server’s documented OAuth steps (many stdio servers assume a human is watching the same terminal as the MCP process).
+
 ## LSP (`tools-lsp`)
 
 Build with **`--features tools-lsp`**. Prefer **`lsp`** in `config.json` over env-only setup:
@@ -193,6 +204,7 @@ Resolution order is `ANYCODE_LANG` -> locale env vars -> OS locale.
 | `ANYCODE_ZAI_TOOL_CHOICE` | `required` / `auto` for debugging |
 | `ANYCODE_MCP_COMMAND`, `ANYCODE_MCP_SERVERS` | MCP integration |
 | `ANYCODE_MCP_READ_TIMEOUT_SECS` | MCP stdio JSON-RPC **per-line** read timeout (1–86400s); overrides defaults (**120s** persistent session, **60s** `ANYCODE_MCP_COMMAND` one-shot) when set |
+| `ANYCODE_MCP_CALL_TIMEOUT_SECS` | Optional wall-clock cap (1–86400s) for a single MCP **`tools/call`** (stdio session, rmcp, legacy SSE, and **`ANYCODE_MCP_COMMAND`** one-shot); unset = no extra cap beyond per-line reads |
 | `ANYCODE_LSP_COMMAND` | LSP stdio bridge when `lsp` config is not used |
 | `ANYCODE_DAEMON_TOKEN` | Daemon bearer token |
 

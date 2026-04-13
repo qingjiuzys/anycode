@@ -44,7 +44,9 @@ tui-help-line4 = 鼠标：全屏界面下滚轮行为因终端而异；独立画
 tui-help-line5 = 当前为全屏 ratatui（`anycode tui`）。无子命令 `anycode` 在 TTY 上与此相同；要 Inline 底栏布局请用 `anycode repl`。非 TTY 管道回退为 stdio 逐行。备用屏画布：ANYCODE_TUI_ALT_SCREEN=1 或 config tui alternateScreen true
 tui-help-line6 = 仅主缓冲：CLEAR_ON_START 默认关（不清屏、保留滚动位置）· =1 首帧 Clear 减轻与 shell 叠画 · 备用屏不走该路径 · SYNC_DRAW=0 关 CSI 同步 · NO_SCROLLBACK_DUMP=1 关退出 echo（仅备用屏）
 tui-help-line7 = ^R 搜索历史 · ^L 清空会话
+tui-help-line7b = 回合进行中 Ctrl+C：协作结束本轮 · 空闲时 Ctrl+C：连按两次退出
 tui-help-line8 = /help /agents /tools /clear /compact /exit · /general-purpose /explore /plan · 行式: anycode repl
+tui-turn-cooperative-cancelled = 已停止本轮（协作取消）。
 tui-help-approval-keys = 审批: ↑ / ↓ · Enter · Esc · y / p / n
 tui-help-buddy = Buddy：宽度 ≥52 列时显示在输入框上方 HUD 右侧；过窄时回退到 Dock 内输入框旁
 tui-hud-executing = thinking…

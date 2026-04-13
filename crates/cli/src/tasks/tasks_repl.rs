@@ -18,6 +18,7 @@ use anycode_core::prelude::*;
 use anycode_tools::{iter_cli_tool_help, workflows};
 use fluent_bundle::FluentArgs;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -84,6 +85,9 @@ async fn repl_clear_session(
     agent: &str,
     sink: &mut ReplSink,
 ) -> anyhow::Result<()> {
+    line_session
+        .turn_coop_cancel
+        .store(false, Ordering::Release);
     line_session.rebuild_for_agent(runtime, agent).await?;
     sink.line(tr("repl-session-cleared"));
     Ok(())
@@ -411,7 +415,16 @@ async fn finish_stream_spawned_turn(
             }
         }
         Ok(Err(e)) => {
-            write_stream_turn_failure(sink, "Turn failed: ", e);
+            let es = e.to_string();
+            let is_coop = es == format!("LLM error: {}", NESTED_TASK_COOPERATIVE_CANCEL_ERROR);
+            if is_coop {
+                let msg = tr("tui-turn-cooperative-cancelled");
+                sink.eprint_line(&msg);
+                sink.line("");
+                sink.line(&msg);
+            } else {
+                write_stream_turn_failure(sink, "Turn failed: ", e);
+            }
         }
         Err(e) => {
             write_stream_turn_failure(sink, "Turn join error: ", e);
@@ -625,6 +638,11 @@ async fn run_interactive_tty_stream(
                 match msg {
                     StreamReplUiMsg::Eof => {
                         break;
+                    }
+                    StreamReplUiMsg::CooperativeCancelTurn => {
+                        line_session
+                            .turn_coop_cancel
+                            .store(true, Ordering::Release);
                     }
                     StreamReplUiMsg::ClearSession => {
                         let mut sink = ReplSink::Stream {

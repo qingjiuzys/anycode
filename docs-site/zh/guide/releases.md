@@ -15,7 +15,9 @@ read_when:
 - **通道**：`telegram-set-token`、`discord-set-token`；`anycode_channels::hub` 说明统一 `ChannelMessage` → `build_channel_task`；微信桥不再挂交互式工具审批回调。
 - **LLM**：Anthropic 非流式 `chat` 对 429/5xx 与 `Retry-After` 重试（与 z.ai 客户端策略一致）。
 - **Skills**：可选 `skills.registry_url` 合并扫描根、`skills.agent_allowlists` 按 agent 裁剪提示中的技能列表。
-- **Agent / MCP / LSP**：嵌套 **`run_in_background`** 协作式取消（含进行中 LLM/流式）；MCP stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`**、超时/EOF 与子进程提示、**`McpStdioSession::stdio_child_is_running`**；**`config.json` `lsp`**；CI 跑 **`tools-lsp`** / **`tools-mcp`** 测试。
+- **Agent**：嵌套 **`run_in_background`** 协作式取消（含进行中 LLM/流式；对嵌套任务 id 发 **`TaskStop`**）。
+- **会话（全屏 TUI 与 TTY 流式 REPL）**：主路径 **`execute_turn_from_messages`** 上，回合进行中 **Ctrl+C** 触发同一套协作取消标志（全屏 TUI：首击取消回合，空闲时仍为连按退出；TTY **`anycode repl`**：进行中时 Ctrl+C 取消回合，不再把空行 Ctrl+C 当成直接退出）。
+- **MCP / LSP**：MCP stdio **`ANYCODE_MCP_READ_TIMEOUT_SECS`**（JSON-RPC 按行读）、可选 **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（整次 **`tools/call`**）；超时/EOF 与子进程提示、**`McpStdioSession::stdio_child_is_running`**；**`config.json` `lsp`**；CI **`tools-lsp`** / **`tools-mcp`** 测试。
 
 ## 版本与发布
 

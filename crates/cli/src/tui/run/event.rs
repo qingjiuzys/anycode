@@ -22,6 +22,7 @@ use fluent_bundle::FluentArgs;
 use ratatui::text::{Line, Span};
 use std::cell::Cell;
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
@@ -148,6 +149,8 @@ pub(super) struct TuiEventCtx<'a> {
     pub exec_live_tail: &'a mut Option<(usize, u64)>,
     /// 首次 Ctrl+C 已按下，再按一次则退出（对齐 Claude Code）。
     pub quit_confirm: &'a mut bool,
+    /// 与 `execute_turn_from_messages` 共享：在 agent 回合进行中按 Ctrl+C 置位以协作结束本轮。
+    pub turn_coop_cancel: &'a Arc<AtomicBool>,
     /// `~/.anycode/tui-sessions/<id>.json` 当前会话 id（`/export` 默认文件名）。
     pub session_file_id: &'a mut Uuid,
 }
@@ -393,6 +396,10 @@ async fn handle_main_key(
     ) {
         if *ctx.quit_confirm {
             return Ok(TuiLoopCtl::Break);
+        }
+        if ctx.exec_handle.is_some() {
+            ctx.turn_coop_cancel.store(true, Ordering::Release);
+            return Ok(TuiLoopCtl::Ok);
         }
         *ctx.quit_confirm = true;
         return Ok(TuiLoopCtl::Ok);
@@ -1165,6 +1172,7 @@ async fn handle_main_key(
                     agent_type,
                     messages,
                     working_dir_str,
+                    ctx.turn_coop_cancel,
                 )
                 .await,
             );
