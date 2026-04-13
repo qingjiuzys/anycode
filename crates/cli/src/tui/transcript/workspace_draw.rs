@@ -3,11 +3,13 @@
 use crate::i18n::{tr, tr_args};
 use crate::md_tui::{
     render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed, wrap_ratatui_line,
+    wrap_string_to_width, MarkdownChrome,
 };
 use fluent_bundle::FluentArgs;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::path::Path;
 
 use super::tool_render::{
@@ -17,6 +19,47 @@ use super::tool_render::{
 };
 use super::types::{CollapsibleToolBlock, TranscriptEntry, WorkspaceLiveLayout};
 use crate::tui::styles::*;
+
+fn workspace_md_chrome(live: WorkspaceLiveLayout) -> MarkdownChrome {
+    if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
+        MarkdownChrome {
+            suppress_horizontal_rules: true,
+            suppress_code_fence_banner: true,
+        }
+    } else {
+        MarkdownChrome::default()
+    }
+}
+
+/// 流式 Inline：assistant 槽位偶发被 API 错误 JSON 占满；直接折行会像「横线割 JSON」且难读。
+/// 与 agent 侧 `provider_error_*` 互补：即使消息未从会话剔除，主区也不再渲染整段 JSON。
+fn stream_inline_assistant_body_cow<'a>(t_raw: &'a str, live: WorkspaceLiveLayout) -> Cow<'a, str> {
+    if !live.stream_repl_claude_user_prefix || !live.stream_plain_minimal_md {
+        return Cow::Borrowed(t_raw);
+    }
+    let u = t_raw.trim().trim_start_matches('\u{feff}');
+    if u.len() < 24 || u.len() > 640 * 1024 {
+        return Cow::Borrowed(t_raw);
+    }
+    let looks_api_blob = u.contains("generativelanguage.googleapis.com")
+        || (u.contains("googleapis.com") && u.contains("\"error\""))
+        || ((u.starts_with('{') || u.starts_with('['))
+            && u.contains("\"error\"")
+            && (u.contains("User location is not supported")
+                || u.contains("FAILED_PRECONDITION")
+                || (u.contains("\"message\"") && u.contains("\"code\""))));
+    if !looks_api_blob {
+        return Cow::Borrowed(t_raw);
+    }
+    if u.contains("User location is not supported") {
+        return Cow::Owned(tr("repl-stream-error-google-geo"));
+    }
+    Cow::Owned(format!(
+        "{}\n{}",
+        tr("repl-stream-error-assistant-blob-short"),
+        tr("repl-stream-error-stderr-hint")
+    ))
+}
 
 fn display_path_hint(path: &str) -> String {
     Path::new(path)
@@ -456,37 +499,95 @@ pub(crate) fn layout_workspace(
                 } else {
                     "> "
                 };
-                let mut md_lines =
-                    render_markdown_styled(t, w, style_user().add_modifier(Modifier::BOLD));
-                if let Some(first) = md_lines.first_mut() {
-                    let mut spans = vec![Span::styled(
-                        user_prefix,
-                        style_user().add_modifier(Modifier::BOLD),
-                    )];
-                    spans.extend(first.spans.clone());
-                    *first = Line::from(spans);
+                let user_st = style_user().add_modifier(Modifier::BOLD);
+                if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
+                    // 与 Assistant 一致：用户粘贴的 API/JSON 走 Markdown 会误解析成表格/横线。
+                    let mut first_line = true;
+                    for logical in t.lines() {
+                        let sub = logical.trim_end();
+                        if sub.is_empty() {
+                            if !first_line {
+                                out.push(Line::from(""));
+                            }
+                            continue;
+                        }
+                        for row in wrap_string_to_width(sub, w) {
+                            if first_line {
+                                out.push(Line::from(vec![
+                                    Span::styled(user_prefix, user_st),
+                                    Span::styled(row, user_st),
+                                ]));
+                                first_line = false;
+                            } else {
+                                out.push(Line::from(Span::styled(row, user_st)));
+                            }
+                        }
+                    }
+                } else {
+                    let mut md_lines =
+                        render_markdown_styled(t, w, user_st, workspace_md_chrome(live));
+                    if let Some(first) = md_lines.first_mut() {
+                        let mut spans = vec![Span::styled(user_prefix, user_st)];
+                        spans.extend(first.spans.clone());
+                        *first = Line::from(spans);
+                    }
+                    out.append(&mut md_lines);
                 }
-                out.append(&mut md_lines);
                 if should_show_turn_status_after_user(entries, ei, live) {
                     out.push(turn_status_line(live));
                 }
             }
             TranscriptEntry::AssistantMarkdown(text) => {
                 let unwrapped = unwrap_single_content_json(text);
-                let t = unwrapped.trim_end();
-                if t.is_empty() {
+                let t_raw = unwrapped.trim_end();
+                if t_raw.is_empty() {
                     // 对齐 Claude：无正文则不占一行（避免 ⏺ <empty>）
                     continue;
                 }
-                let mut md_lines = render_markdown_styled(t, w, style_assistant_prose());
-                if let Some(first) = md_lines.first_mut() {
+                let body = stream_inline_assistant_body_cow(t_raw, live);
+                let t = body.as_ref();
+                if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
+                    // 流式主区：API/模型常把整段 JSON 当「伪 Markdown」喂进来，cmark 会把 `---`、`|` 等解析成横线/表格导致炸版。
                     let tail_reply = ei + 1 == entries.len();
                     let bullet = pulse_dim_assistant_bold(live, tail_reply);
-                    let mut spans = vec![Span::styled("⏺ ", bullet)];
-                    spans.extend(first.spans.clone());
-                    *first = Line::from(spans);
+                    let prose = style_assistant_prose();
+                    let mut first_line = true;
+                    for logical in t.lines() {
+                        let sub = logical.trim_end();
+                        if sub.is_empty() {
+                            if !first_line {
+                                out.push(Line::from(""));
+                            }
+                            continue;
+                        }
+                        for row in wrap_string_to_width(sub, w) {
+                            if first_line {
+                                out.push(Line::from(vec![
+                                    Span::styled("⏺ ", bullet),
+                                    Span::styled(row, prose),
+                                ]));
+                                first_line = false;
+                            } else {
+                                out.push(Line::from(Span::styled(row, prose)));
+                            }
+                        }
+                    }
+                } else {
+                    let mut md_lines = render_markdown_styled(
+                        t,
+                        w,
+                        style_assistant_prose(),
+                        workspace_md_chrome(live),
+                    );
+                    if let Some(first) = md_lines.first_mut() {
+                        let tail_reply = ei + 1 == entries.len();
+                        let bullet = pulse_dim_assistant_bold(live, tail_reply);
+                        let mut spans = vec![Span::styled("⏺ ", bullet)];
+                        spans.extend(first.spans.clone());
+                        *first = Line::from(spans);
+                    }
+                    out.append(&mut md_lines);
                 }
-                out.append(&mut md_lines);
             }
             TranscriptEntry::ToolCall {
                 tool_use_id,
@@ -570,6 +671,7 @@ pub(crate) fn layout_workspace(
                     body.as_str(),
                     *is_error,
                     w,
+                    live,
                 );
                 push_lines_truncated(&mut out, block, MAX_TOOL_BLOCK_LINES);
             }

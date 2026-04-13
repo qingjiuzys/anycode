@@ -18,6 +18,7 @@ repl-slash-range = {$s}–{$e} / 共 {$n} 条
 repl-busy-natural = 当前仍有一轮回复在生成；请稍候再发送新消息，或使用 /help、/clear 等斜杠命令。
 repl-stream-error-google-geo = Google 生成式语言接口因地区限制拒绝了请求（User location is not supported）。请在配置中改用其他提供商或模型，或确认当前网络区域是否被该 API 支持。
 repl-stream-error-stderr-hint = 完整错误已输出到 stderr。
+repl-stream-error-assistant-blob-short = 接口返回了错误 JSON 而非助手正文；此处已隐藏以免满屏错位与横线。
 repl-goodbye = 再见。
 repl-agent-switched = 已切换 Agent → {$id}
 repl-help-equiv = 每行会在当前行式会话中追加一轮（多轮，与 TUI 同一套消息引擎）。单次任务等价:\n  anycode run -C {$cwd} --agent {$agent} "…"

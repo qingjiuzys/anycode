@@ -75,6 +75,136 @@ fn last_user_plain_text_for_autosave(msgs: &[Message]) -> String {
         .unwrap_or_default()
 }
 
+/// 顶层 `"error": "…"` 为字符串时，排除助手正文里举例用的短 JSON（如 `{"error":"demo"}`）。
+fn provider_error_string_smells_like_api(s: &str) -> bool {
+    const NEEDLES: &[&str] = &[
+        "User location",
+        "not supported for the API",
+        "FAILED_PRECONDITION",
+        "generativelanguage",
+        "Incorrect API key",
+        "invalid_api_key",
+        "invalid request",
+        "rate limit",
+        "quota",
+        "exceeded",
+    ];
+    NEEDLES.iter().any(|n| s.contains(n))
+}
+
+/// OpenAI/Gemini 兼容：HTTP 200 但正文是 error JSON（流式 delta 或非流式 `choices.message.content`）。
+/// 不识别时 assistant 会留下整段 JSON，流式 REPL 主区与 `Turn failed` 叠成两份。
+fn summary_from_parsed_provider_error_value(err_body: &serde_json::Value) -> Option<String> {
+    let err = err_body.get("error")?;
+    match err {
+        serde_json::Value::String(s) => {
+            let s = s.trim();
+            if s.is_empty() {
+                None
+            } else if provider_error_string_smells_like_api(s) {
+                Some(s.to_string())
+            } else {
+                None
+            }
+        }
+        serde_json::Value::Object(_) => {
+            let msg = err
+                .get("message")
+                .and_then(|m| m.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let status = err.get("status").and_then(|s| s.as_str());
+            let code = err.get("code");
+            let looks_structured = msg.is_some()
+                || status.is_some()
+                || matches!(code, Some(serde_json::Value::Number(_)));
+            if !looks_structured {
+                return None;
+            }
+            Some(
+                msg.map(|s| s.to_string())
+                    .or_else(|| status.map(|s| s.to_string()))
+                    .unwrap_or_else(|| "provider error object".to_string()),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn try_parse_provider_error_top_json(t: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(t).ok()?;
+    let err_body = match &v {
+        serde_json::Value::Array(a) => a.first()?,
+        serde_json::Value::Object(_) => &v,
+        _ => return None,
+    };
+    summary_from_parsed_provider_error_value(err_body)
+}
+
+/// 去掉 BOM 后再解析（不跳过正文中的 `{`，避免把举例 JSON 当成接口错误）。
+fn try_parse_provider_error_after_bom(t: &str) -> Option<String> {
+    let u = t.trim().trim_start_matches('\u{feff}');
+    try_parse_provider_error_top_json(u)
+}
+
+/// 明显是接口错误 JSON、但无法整段 `serde_json::parse` 时的兜底（半段、转义异常等）。
+fn heuristic_openai_compat_error_blob(t: &str) -> bool {
+    let u = t.trim().trim_start_matches('\u{feff}');
+    if u.len() < 25 || u.len() > 512 * 1024 {
+        return false;
+    }
+    if u.contains("generativelanguage.googleapis.com") {
+        return true;
+    }
+    if u.contains("googleapis.com") && u.contains("\"error\"") {
+        return true;
+    }
+    if !(u.starts_with('{') || u.starts_with('[')) {
+        return false;
+    }
+    if !u.contains("\"error\"") {
+        return false;
+    }
+    u.contains("User location is not supported")
+        || u.contains("FAILED_PRECONDITION")
+        || (u.contains("\"message\"") && u.contains("\"code\""))
+}
+
+fn provider_error_from_streamed_assistant_text(text: &str) -> Option<String> {
+    let t = text.trim();
+    if t.is_empty() {
+        return None;
+    }
+
+    if let Some(s) = try_parse_provider_error_top_json(t) {
+        return Some(format!("streamed provider error: {s}"));
+    }
+    if let Some(s) = try_parse_provider_error_after_bom(t) {
+        return Some(format!("streamed provider error: {s}"));
+    }
+
+    if heuristic_openai_compat_error_blob(t) {
+        return Some(
+            "streamed provider error: response body looks like API error JSON (details on stderr)"
+                .to_string(),
+        );
+    }
+
+    if t.contains("\"error\"") && t.contains("User location is not supported") {
+        return Some(format!(
+            "streamed provider error: {}",
+            t.chars().take(600).collect::<String>()
+        ));
+    }
+    if t.contains("FAILED_PRECONDITION") && t.contains("\"error\"") {
+        return Some(format!(
+            "streamed provider error: {}",
+            t.chars().take(600).collect::<String>()
+        ));
+    }
+    None
+}
+
 /// Agent 运行时
 pub struct AgentRuntime {
     agents: Arc<RwLock<HashMap<AgentType, Box<dyn Agent>>>>,
@@ -660,10 +790,32 @@ impl AgentRuntime {
             }
 
             // 保留「最后一条非空」正文：部分 API 在收尾会再给一条空 assistant，避免覆盖掉仍应作为 turn 摘要的上一段文字。
-            let text = match &assistant_msg.content {
-                MessageContent::Text(t) => strip_llm_reasoning_xml_blocks(t),
-                _ => String::new(),
+            let raw_assistant = match &assistant_msg.content {
+                MessageContent::Text(t) => t.as_str(),
+                _ => "",
             };
+            let text = strip_llm_reasoning_xml_blocks(raw_assistant);
+            if response.tool_calls.is_empty() {
+                let stream_err = provider_error_from_streamed_assistant_text(&text)
+                    .or_else(|| provider_error_from_streamed_assistant_text(raw_assistant));
+                if let Some(err) = stream_err {
+                    logger.line(
+                        task_id,
+                        &format!(
+                            "[llm_response_end] status=stream_error_as_body turn={} detail={}",
+                            turn, err
+                        ),
+                    );
+                    {
+                        let mut g = messages.lock().await;
+                        if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
+                            g.pop();
+                        }
+                    }
+                    logger.line(task_id, "[task_end] status=failed");
+                    return Err(CoreError::LLMError(err));
+                }
+            }
             if !text.trim().is_empty() {
                 last_assistant_text = text;
             }
@@ -1367,5 +1519,44 @@ impl SubAgentExecutor for AgentRuntime {
         let task_id = task.id;
         let result = self.execute_task(task).await?;
         Ok(NestedTaskRun { task_id, result })
+    }
+}
+
+#[cfg(test)]
+mod streamed_provider_error_tests {
+    #[test]
+    fn detects_array_wrapped_google_json() {
+        let j = r#"[{"error":{"code":400,"message":"User location is not supported for the API use.","status":"FAILED_PRECONDITION"}}]"#;
+        let e = super::provider_error_from_streamed_assistant_text(j).expect("should detect");
+        assert!(
+            e.contains("User location") || e.contains("streamed provider error"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn ignores_normal_assistant_prose() {
+        let j = "Here is an example JSON: {\"error\": \"not a provider envelope\"}";
+        assert!(super::provider_error_from_streamed_assistant_text(j).is_none());
+    }
+
+    #[test]
+    fn detects_top_level_error_string() {
+        let j = r#"{"error":"User location is not supported for the API use."}"#;
+        let e = super::provider_error_from_streamed_assistant_text(j).expect("detect");
+        assert!(e.contains("User location") || e.contains("streamed"), "{e}");
+    }
+
+    #[test]
+    fn bom_before_json_still_parses() {
+        let j =
+            "\u{feff}[{\"error\":{\"code\":400,\"message\":\"User location is not supported\"}}]";
+        assert!(super::provider_error_from_streamed_assistant_text(j).is_some());
+    }
+
+    #[test]
+    fn heuristic_truncated_geo_json() {
+        let j = r#"[{"error":{"code":400,"message":"User location is not supported","status":"FAILED_PRECONDITION""#;
+        assert!(super::provider_error_from_streamed_assistant_text(j).is_some());
     }
 }

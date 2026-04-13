@@ -18,6 +18,7 @@ repl-slash-range = {$s}–{$e} / {$n}
 repl-busy-natural = A reply is still generating; wait to send a new message, or use slash commands like /help or /clear.
 repl-stream-error-google-geo = Google Generative Language API rejected the request: your region is not supported for this API (User location is not supported). Try another provider or model in config, or check Google’s regional availability.
 repl-stream-error-stderr-hint = Full error was printed to stderr.
+repl-stream-error-assistant-blob-short = The API returned an error payload instead of assistant text; hiding it here keeps the transcript readable.
 repl-goodbye = Goodbye.
 repl-agent-switched = Switched Agent → {$id}
 repl-help-equiv = Each line continues this line-REPL session (multi-turn, same engine as TUI). One-shot equivalent:\n  anycode run -C {$cwd} --agent {$agent} "…"

@@ -1,7 +1,9 @@
 //! 工具结果 JSON、单行摘要与工具块级排版（`⏺` / `⎿`）。
 
 use crate::i18n::{tr, tr_args};
-use crate::md_tui::{render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed};
+use crate::md_tui::{
+    render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed, MarkdownChrome,
+};
 use fluent_bundle::FluentArgs;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -12,6 +14,17 @@ use anycode_core::strip_llm_reasoning_xml_blocks;
 
 use super::types::WorkspaceLiveLayout;
 use crate::tui::styles::*;
+
+fn stream_repl_md_chrome(live: WorkspaceLiveLayout) -> MarkdownChrome {
+    if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
+        MarkdownChrome {
+            suppress_horizontal_rules: true,
+            suppress_code_fence_banner: true,
+        }
+    } else {
+        MarkdownChrome::default()
+    }
+}
 
 /// 单个 ToolCall / ToolResult 块在 Workspace 中最多占用的物理行数（超出则截断并提示）。
 pub(crate) const MAX_TOOL_BLOCK_LINES: usize = 64;
@@ -218,6 +231,7 @@ fn layout_tool_body_content(
     body: &str,
     is_error: bool,
     w: usize,
+    live: WorkspaceLiveLayout,
 ) -> Vec<Line<'static>> {
     let mut block: Vec<Line<'static>> = Vec::new();
     let mut rest = body.trim_end();
@@ -282,9 +296,19 @@ fn layout_tool_body_content(
                         }
                     }
                 }
-                let mut md_lines = render_markdown_styled(&md, inner_w, base_style);
-                md_lines = prefix_block_lines(md_lines, "   ", style_dim());
-                block.extend(md_lines);
+                if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
+                    // 大块 `content`（>400 字等）会走 markdown_eligible；流式下仍可能被 cmark 误解析。
+                    block.extend(wrap_plain_prefixed("   ", md.as_str(), base_style, w));
+                } else {
+                    let mut md_lines = render_markdown_styled(
+                        &md,
+                        inner_w,
+                        base_style,
+                        stream_repl_md_chrome(live),
+                    );
+                    md_lines = prefix_block_lines(md_lines, "   ", style_dim());
+                    block.extend(md_lines);
+                }
                 return block;
             }
 
@@ -313,6 +337,7 @@ pub(crate) fn layout_tool_result_block(
     body: &str,
     is_error: bool,
     w: usize,
+    live: WorkspaceLiveLayout,
 ) -> Vec<Line<'static>> {
     let mut block: Vec<Line<'static>> = Vec::new();
     let title = tool_result_header(tool_name, tool_use_id);
@@ -322,7 +347,7 @@ pub(crate) fn layout_tool_result_block(
         style_tool().add_modifier(Modifier::BOLD),
         w,
     ));
-    block.extend(layout_tool_body_content(tool_name, body, is_error, w));
+    block.extend(layout_tool_body_content(tool_name, body, is_error, w, live));
     block
 }
 
@@ -453,7 +478,7 @@ pub(crate) fn layout_tool_turn_block(
         return header;
     }
 
-    let mut body_lines = layout_tool_body_content(tool_name, body, is_error, w);
+    let mut body_lines = layout_tool_body_content(tool_name, body, is_error, w, live);
     if body_lines.is_empty() && is_active && !is_error && shell_tool {
         body_lines.push(Line::from(Span::styled(
             tr("tui-tool-running"),
@@ -539,7 +564,7 @@ pub(crate) fn layout_read_tool_batch(
                 tool_invocation_one_liner("FileRead", args.as_str(), w.saturating_sub(12).max(16));
             let sub = format!("[{}/{}] {}", i + 1, n, one);
             out.extend(wrap_plain_prefixed("   ", sub.as_str(), style_dim(), w));
-            let bl = layout_tool_body_content(Some("FileRead"), body.as_str(), *err, w);
+            let bl = layout_tool_body_content(Some("FileRead"), body.as_str(), *err, w, live);
             out.append(&mut prefix_lines_braille(bl, "⎿  ", "   ", style_dim()));
         }
         out
@@ -571,7 +596,14 @@ mod tool_render_tests {
 
     #[test]
     fn layout_tool_body_empty_success_has_no_placeholder() {
-        assert!(layout_tool_body_content(Some("Bash"), "", false, 80).is_empty());
+        assert!(layout_tool_body_content(
+            Some("Bash"),
+            "",
+            false,
+            80,
+            WorkspaceLiveLayout::default()
+        )
+        .is_empty());
     }
 
     #[test]

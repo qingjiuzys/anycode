@@ -20,13 +20,14 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::{Buffer, Cell};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, Paragraph, Widget};
+use ratatui::widgets::Paragraph;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use crate::md_tui::wrap_string_to_width;
 use crate::repl_inline::{
     apply_stream_approval_key, handle_event, render_repl_dock_to_buffer, repl_dock_height,
-    repl_stream_transcript_bottom_padded, stream_repl_accept_key_event, ReplCtl, ReplDockLayout,
+    repl_stream_transcript_bottom_padded, sanitize_stream_transcript_visual_noise,
+    scrub_stream_transcript_llm_raw_dumps, stream_repl_accept_key_event, ReplCtl, ReplDockLayout,
     ReplLineState,
 };
 use crate::tui::styles::style_dim;
@@ -113,22 +114,17 @@ fn draw_stream_frame(
         let top_par = Paragraph::new(Text::raw(transcript_tail)).style(style_dim());
         f.render_widget(top_par, top_cell);
 
-        let dock_block = Block::default()
-            .borders(Borders::TOP | Borders::BOTTOM)
-            .border_style(style_dim());
-        let inner = dock_block.inner(dock_screen);
-        let iw = inner.width.max(1);
-        let ih = inner.height.max(1);
+        let iw = dock_screen.width.max(1);
+        let ih = dock_screen.height.max(1);
         let dock_buf_rect = Rect::new(0, 0, iw, ih);
         let mut dock_buf = Buffer::empty(dock_buf_rect);
         let cursor_rel =
             render_repl_dock_to_buffer(&mut dock_buf, dock_buf_rect, &st, ReplDockLayout);
-        blit_dock_to_frame(f.buffer_mut(), &dock_buf, inner);
-        dock_block.render(dock_screen, f.buffer_mut());
+        blit_dock_to_frame(f.buffer_mut(), &dock_buf, dock_screen);
 
         if let Some((rx, ry)) = cursor_rel {
-            let xa = inner.x.saturating_add(rx.min(iw.saturating_sub(1)));
-            let ya = inner.y.saturating_add(ry.min(ih.saturating_sub(1)));
+            let xa = dock_screen.x.saturating_add(rx.min(iw.saturating_sub(1)));
+            let ya = dock_screen.y.saturating_add(ry.min(ih.saturating_sub(1)));
             f.set_cursor(xa, ya);
         }
     })?;
@@ -137,7 +133,10 @@ fn draw_stream_frame(
 
 fn transcript_display_rows(raw: &str, width: u16) -> usize {
     let w = width.max(8) as usize;
-    raw.lines()
+    let cleaned =
+        sanitize_stream_transcript_visual_noise(&scrub_stream_transcript_llm_raw_dumps(raw));
+    cleaned
+        .lines()
         .map(|line| wrap_string_to_width(line, w).len().max(1))
         .sum()
 }
@@ -162,7 +161,7 @@ fn desired_inline_rows(state: &Arc<Mutex<ReplLineState>>) -> anyhow::Result<u16>
     let desired = dock_h.saturating_add(content_extra).min(cap_total);
 
     if transcript.trim().is_empty() {
-        // 保留 1 行正文区，避免 dock 被压缩后把 Block 底边挤掉。
+        // 保留 1 行正文区，避免 dock 被压得过扁。
         Ok(dock_h.saturating_add(1).max(1).min(h.max(1)))
     } else {
         Ok(desired.max(dock_h.saturating_add(1)).min(h.max(1)))

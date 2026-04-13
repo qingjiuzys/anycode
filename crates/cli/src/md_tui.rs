@@ -588,17 +588,33 @@ fn loosen_glued_markdown_headings(input: &str) -> String {
     out
 }
 
+/// Markdown 装饰横线控制（流式 Inline 主区可关闭，避免与底栏 `─` 叠成满屏格线）。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MarkdownChrome {
+    pub suppress_horizontal_rules: bool,
+    pub suppress_code_fence_banner: bool,
+}
+
+impl MarkdownChrome {
+    fn is_default(&self) -> bool {
+        !self.suppress_horizontal_rules && !self.suppress_code_fence_banner
+    }
+}
+
 /// 将 Markdown 渲染为已换行的 `Line`；`body_style` 控制正文/列表等默认颜色（助手用绿，用户用青等）。
 pub fn render_markdown_styled(
     md: &str,
     content_width: usize,
     body_style: Style,
+    chrome: MarkdownChrome,
 ) -> Vec<Line<'static>> {
     let use_osc8 = env_osc8_links();
 
-    // 尝试从缓存获取（仅对较大的内容）
-    if let Some(cached) = render_markdown_cached(md, content_width, use_osc8) {
-        return cached;
+    // 尝试从缓存获取（仅对较大的内容）；非默认 chrome 不参与缓存以免串结果。
+    if chrome.is_default() {
+        if let Some(cached) = render_markdown_cached(md, content_width, use_osc8) {
+            return cached;
+        }
     }
 
     let md_norm = loosen_glued_markdown_headings(md);
@@ -703,19 +719,21 @@ pub fn render_markdown_styled(
                     CodeBlockKind::Indented => String::new(),
                 };
                 code_block_buf.clear();
-                let lang = code_block_lang.as_str();
-                let mut fence = writer.line_prefix.clone();
-                fence.push(Span::styled(
-                    if lang.is_empty() {
-                        "──── code ────".to_string()
-                    } else {
-                        format!("──── {lang} ────")
-                    },
-                    style_inline_code().add_modifier(Modifier::DIM),
-                ));
-                if !writer.at_limit() {
-                    writer.out.push(Line::from(fence));
-                    writer.lines_emitted += 1;
+                if !chrome.suppress_code_fence_banner {
+                    let lang = code_block_lang.as_str();
+                    let mut fence = writer.line_prefix.clone();
+                    fence.push(Span::styled(
+                        if lang.is_empty() {
+                            "──── code ────".to_string()
+                        } else {
+                            format!("──── {lang} ────")
+                        },
+                        style_inline_code().add_modifier(Modifier::DIM),
+                    ));
+                    if !writer.at_limit() {
+                        writer.out.push(Line::from(fence));
+                        writer.lines_emitted += 1;
+                    }
                 }
                 block_prefix_depth.push("  ".to_string());
                 writer.set_block_prefix_stack(&block_prefix_depth);
@@ -859,15 +877,17 @@ pub fn render_markdown_styled(
             }
             Event::Rule => {
                 writer.flush_line();
-                let mut spans = writer.line_prefix.clone();
-                let dash_w = writer.width.saturating_sub(writer.prefix_w).min(48).max(4);
-                spans.push(Span::styled(
-                    "─".repeat(dash_w),
-                    style_dim().add_modifier(Modifier::DIM),
-                ));
-                if !writer.at_limit() {
-                    writer.out.push(Line::from(spans));
-                    writer.lines_emitted += 1;
+                if !chrome.suppress_horizontal_rules {
+                    let mut spans = writer.line_prefix.clone();
+                    let dash_w = writer.width.saturating_sub(writer.prefix_w).min(48).max(4);
+                    spans.push(Span::styled(
+                        "─".repeat(dash_w),
+                        style_dim().add_modifier(Modifier::DIM),
+                    ));
+                    if !writer.at_limit() {
+                        writer.out.push(Line::from(spans));
+                        writer.lines_emitted += 1;
+                    }
                 }
             }
             Event::TaskListMarker(done) => {
@@ -1003,8 +1023,9 @@ pub fn render_markdown_styled(
         )));
     }
 
-    // 保存到缓存
-    cache_markdown_result(md, content_width, use_osc8, lines.clone());
+    if chrome.is_default() {
+        cache_markdown_result(md, content_width, use_osc8, lines.clone());
+    }
 
     lines
 }
@@ -1072,7 +1093,7 @@ mod tests {
     #[test]
     fn fenced_rust_emits_highlighted_source() {
         let md = "```rust\nfn main() {}\n```\n";
-        let lines = render_markdown_styled(md, 40, Style::default());
+        let lines = render_markdown_styled(md, 40, Style::default(), MarkdownChrome::default());
         let joined: String = lines
             .iter()
             .flat_map(|l| l.spans.iter())
@@ -1085,7 +1106,7 @@ mod tests {
     #[test]
     fn fenced_unknown_lang_still_renders_body() {
         let md = "```weirdlang\nhello\n```\n";
-        let lines = render_markdown_styled(md, 40, Style::default());
+        let lines = render_markdown_styled(md, 40, Style::default(), MarkdownChrome::default());
         let joined: String = lines
             .iter()
             .flat_map(|l| l.spans.iter())
@@ -1097,7 +1118,12 @@ mod tests {
     #[test]
     fn renders_heading_and_list() {
         let md = "# Title\n\n- a\n- b\n";
-        let lines = render_markdown_styled(md, 40, Style::default().fg(Color::Green));
+        let lines = render_markdown_styled(
+            md,
+            40,
+            Style::default().fg(Color::Green),
+            MarkdownChrome::default(),
+        );
         assert!(!lines.is_empty());
         let s: String = lines[0]
             .spans

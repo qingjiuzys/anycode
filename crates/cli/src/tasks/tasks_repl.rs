@@ -70,7 +70,7 @@ fn sync_repl_dock_status(
     turn_in_progress: bool,
 ) {
     if let Ok(mut s) = line_state.lock() {
-        // 执行态由 Prompt 上 HUD（`tui-hud-*`）展示；脚标仅保留 provider · model · agent · 审批。
+        // 执行态 `✶ thinking…` 在绘制时经 [`stream_dock_activity_prefix`] 拼在脚标前；此处只写 provider · model · agent · 审批。
         s.dock_status = repl_stream_dock_status_line(config, agent);
         if !turn_in_progress {
             s.executing_since = None;
@@ -358,6 +358,16 @@ fn write_stream_turn_failure(sink: &mut ReplSink, prefix: &str, e: impl std::fmt
     sink.line(compact_stream_turn_fail_for_transcript(&full));
 }
 
+/// 回合失败时去掉末尾 `Assistant`：流式占位里可能已有错误 JSON/碎片，不删会与 `Turn failed` 摘要叠成两段。
+async fn pop_trailing_assistant_after_failed_turn(session: &ReplLineSession) {
+    let mut g = session.messages.lock().await;
+    if let Some(last) = g.last() {
+        if last.role == MessageRole::Assistant {
+            g.pop();
+        }
+    }
+}
+
 async fn finish_stream_spawned_turn(
     result: Result<anyhow::Result<anycode_core::TurnOutput>, tokio::task::JoinError>,
     _exec_prev_len: usize,
@@ -366,6 +376,10 @@ async fn finish_stream_spawned_turn(
     stream_emitted: &str,
     sink: &mut ReplSink,
 ) -> anyhow::Result<()> {
+    let turn_failed = matches!(&result, Ok(Err(_)) | Err(_));
+    if turn_failed {
+        pop_trailing_assistant_after_failed_turn(line_session).await;
+    }
     match result {
         Ok(Ok(out)) => {
             sink.line(tr("repl-task-ok"));

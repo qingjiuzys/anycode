@@ -139,6 +139,183 @@ fn transcript_wrapped_rows(body: &str, wrap_width: usize) -> Vec<String> {
     out
 }
 
+#[inline]
+fn is_unicode_horizontal_rule_char(c: char) -> bool {
+    matches!(c, '─' | '━' | '═') || matches!(c, '\u{2500}'..='\u{2503}' | '\u{2550}'..='\u{2551}')
+}
+
+/// 连续盒线横笔或 3+ 个 ASCII `-`（Markdown `---` 规则线）压成单个空格，避免与 JSON/正文粘成「满屏横线」。
+fn collapse_rule_like_runs(line: &str) -> String {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Run {
+        None,
+        UnicodeBar,
+        AsciiDash,
+    }
+
+    let mut out = String::with_capacity(line.len());
+    let mut run = Run::None;
+    let mut ascii_len = 0usize;
+
+    let flush = |out: &mut String, run: &mut Run, ascii_len: &mut usize| {
+        match *run {
+            Run::None => {}
+            Run::UnicodeBar => out.push(' '),
+            Run::AsciiDash => {
+                if *ascii_len >= 3 {
+                    out.push(' ');
+                } else {
+                    for _ in 0..*ascii_len {
+                        out.push('-');
+                    }
+                }
+                *ascii_len = 0;
+            }
+        }
+        *run = Run::None;
+    };
+
+    for ch in line.chars() {
+        let is_bar = is_unicode_horizontal_rule_char(ch);
+        let is_dash = ch == '-' || ch == '－'; // U+FF0D 全角连字符
+        if is_bar {
+            if run != Run::UnicodeBar {
+                flush(&mut out, &mut run, &mut ascii_len);
+                run = Run::UnicodeBar;
+            }
+        } else if is_dash {
+            if run != Run::AsciiDash {
+                flush(&mut out, &mut run, &mut ascii_len);
+                run = Run::AsciiDash;
+                ascii_len = 0;
+            }
+            ascii_len += 1;
+        } else {
+            flush(&mut out, &mut run, &mut ascii_len);
+            out.push(ch);
+        }
+    }
+    flush(&mut out, &mut run, &mut ascii_len);
+    out
+}
+
+/// 整行仅为装饰横线 / 表格线元字符（无字母数字）时视为噪音行。
+fn is_rule_or_table_garnish_line(t: &str) -> bool {
+    !t.is_empty()
+        && t.chars().all(|c| {
+            c.is_whitespace()
+                || is_unicode_horizontal_rule_char(c)
+                || matches!(
+                    c,
+                    '-' | '_'
+                        | '|'
+                        | '┌'
+                        | '┐'
+                        | '└'
+                        | '┘'
+                        | '│'
+                        | '├'
+                        | '┤'
+                        | '┬'
+                        | '┴'
+                        | '┼'
+                )
+        })
+}
+
+/// `ReplSink::line` 可能直接写入 `Turn failed: LLM error: google… body=[{`（不经 `build_stream_turn_plain`），
+/// 必须在 **tail 裁剪之前** 对整段 transcript 处理，否则视口只截到 JSON 续行会永远无法匹配首行。
+pub(crate) fn scrub_stream_transcript_llm_raw_dumps(s: &str) -> String {
+    fn line_starts_dump(line: &str) -> bool {
+        line.contains("google request failed after retries")
+            || line.contains("generativelanguage.googleapis.com/v1beta/openai")
+            || line.contains("generativelanguage.googleapis.com/v1/openai")
+            || ((line.contains("Turn failed:") || line.contains("LLM error:"))
+                && line.contains("google")
+                && (line.contains("body=") || line.contains("status=400")))
+    }
+
+    fn line_exits_dump(line: &str) -> bool {
+        let t = line.trim_start();
+        if t.starts_with("❯ ") {
+            return true;
+        }
+        if let Some(rest) = t.strip_prefix('>') {
+            let r = rest.trim_start();
+            if r.is_empty() {
+                return false;
+            }
+            let first = r.chars().next().unwrap();
+            if !matches!(first, '{' | '[' | '"' | '}' | ']') {
+                return true;
+            }
+        }
+        line.contains("Google 生成式语言接口")
+            || line.contains("Google Generative Language API rejected")
+            || (line.contains("Turn failed:") && !line.contains("LLM error:"))
+    }
+
+    let mut out: Vec<String> = Vec::new();
+    let mut skipping = false;
+    let mut pending_replacement = true;
+
+    for line in s.lines() {
+        if !skipping {
+            if line_starts_dump(line) {
+                skipping = true;
+                if pending_replacement {
+                    let geo = line.contains("User location is not supported")
+                        || s.contains("User location is not supported");
+                    if geo {
+                        out.push(tr("repl-stream-error-google-geo"));
+                    } else {
+                        out.push(tr("repl-stream-error-assistant-blob-short"));
+                        out.push(tr("repl-stream-error-stderr-hint"));
+                    }
+                    pending_replacement = false;
+                }
+                continue;
+            }
+            pending_replacement = true;
+            out.push(line.to_string());
+        } else if line_exits_dump(line) {
+            skipping = false;
+            pending_replacement = true;
+            out.push(line.to_string());
+        }
+    }
+
+    let mut joined = out.join("\n");
+    if s.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
+}
+
+/// 流式 Inline 主区展示前清理：去掉纯装饰横线/表格线行，并把正文中连续盒线字符压成空格，
+/// 避免 Markdown 误解析出的 `─` 与底栏横线叠成满屏「断线」。
+pub(crate) fn sanitize_stream_transcript_visual_noise(s: &str) -> String {
+    if s.is_empty() {
+        return String::new();
+    }
+    let mut rows: Vec<String> = Vec::new();
+    for raw in s.lines() {
+        // `\t` 在部分终端/ratatui 里会拉成宽列，JSON 缩进看起来像「错位/假横线」。
+        let raw = raw.replace('\t', " ");
+        let collapsed = collapse_rule_like_runs(&raw);
+        let t = collapsed.trim();
+        if !t.is_empty() && is_rule_or_table_garnish_line(t) {
+            continue;
+        }
+        rows.push(collapsed);
+    }
+    let mut joined = rows.join("\n");
+    if s.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
+}
+
 /// 流式 Inline：按 `wrap_width` 折行后，只保留末尾 `row_budget` 条**显示行**（超长时等价于旧内容上移滚出视口），
 /// 不足时在上方补空行使正文贴在输入区上沿（stick-to-bottom）。
 ///
@@ -153,8 +330,13 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
     let rows = row_budget.max(1) as usize;
     let w = wrap_width.max(8) as usize;
     let logical_max = TRANSCRIPT_MAX_DISPLAY_LINES.max(rows);
-    let body = tail_for_display(raw, logical_max);
+    let scrubbed = scrub_stream_transcript_llm_raw_dumps(raw);
+    let body = tail_for_display(&scrubbed, logical_max);
     if body.is_empty() {
+        return String::new();
+    }
+    let body = sanitize_stream_transcript_visual_noise(&body);
+    if body.trim().is_empty() {
         return String::new();
     }
     let wrapped = transcript_wrapped_rows(&body, w);
@@ -184,7 +366,7 @@ fn tail_for_display(raw: &str, max_lines: usize) -> String {
     lines[lines.len().saturating_sub(max_lines)..].join("\n")
 }
 
-/// 底栏布局参数（流式 Inline：**内层**为 HUD + 输入 + 审批/斜杠/脚标；与主区及宿主终端之间由 `repl_stream_ratatui` 的 `Block` **顶边 + 底边**框住，内层不再手画整行 `─`）。
+/// 底栏布局参数（流式 Inline：**上横线 → 输入 → 斜杠/审批 → 脚标（含 ✶）→ 下横线**，脚标夹在两条 `─` 之间）。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ReplDockLayout;
 
@@ -211,20 +393,20 @@ impl ReplDockLayout {
 
     fn min_dock_rows(self) -> u16 {
         let _ = self;
-        // 至少一行输入；顶/底边各由 Block 占 1 行（不计入内层）
+        // 上横线 + 至少一行输入 + 下横线
+        3
+    }
+
+    /// 输入框**正上方**整行横线（紧贴 `>` 输入区上沿；HUD 画在此行之上）。
+    fn prompt_rule_top_rows(self) -> u16 {
+        let _ = self;
         1
     }
 
-    /// 输入框**上方**内层分隔线（行数）；流式 UI 顶边用 `Block`，此处为 0。
-    fn prompt_rule_top_rows(self) -> u16 {
-        let _ = self;
-        0
-    }
-
-    /// 输入框**下方**内层整行横线（行数）；流式 UI 底边用 `Block`，此处为 0。
+    /// 输入框**正下方**整行横线（斜杠候选 / 脚标在此行之下）。
     fn prompt_rule_bottom_rows(self) -> u16 {
         let _ = self;
-        0
+        1
     }
 }
 
@@ -262,10 +444,10 @@ impl ReplDockNatural {
         self.hud_h
             .saturating_add(self.rule_top_h)
             .saturating_add(self.input_h)
-            .saturating_add(self.rule_bottom_h)
             .saturating_add(self.approval_h)
             .saturating_add(self.sugg_h)
             .saturating_add(self.status_h)
+            .saturating_add(self.rule_bottom_h)
     }
 }
 
@@ -274,16 +456,8 @@ fn repl_dock_compute_natural(
     state: &ReplLineState,
     layout: ReplDockLayout,
 ) -> ReplDockNatural {
-    let summary_visible = matches!(
-        (state.finished_turn_summary.as_ref(), state.finished_turn_summary_until),
-        (Some(_), Some(until)) if Instant::now() < until
-    );
-    let hud_h =
-        if state.executing_since.is_some() || state.pending_approval.is_some() || summary_visible {
-            1u16
-        } else {
-            0u16
-        };
+    // 活动态 HUD 不再单独占一行（见 [`stream_dock_activity_prefix`] 并入脚标）。
+    let hud_h = 0u16;
     let status_h = if state.dock_status.is_empty() {
         0u16
     } else {
@@ -335,13 +509,13 @@ fn repl_dock_compute_natural(
     }
 }
 
-fn repl_dock_block_sum(hud: u16, rt: u16, i: u16, rb: u16, a: u16, g: u16, s: u16) -> u16 {
+fn repl_dock_block_sum(hud: u16, rt: u16, i: u16, a: u16, g: u16, s: u16, rb: u16) -> u16 {
     hud.saturating_add(rt)
         .saturating_add(i)
-        .saturating_add(rb)
         .saturating_add(a)
         .saturating_add(g)
         .saturating_add(s)
+        .saturating_add(rb)
 }
 
 /// 将自然高度压进或铺满 `target_h`，保证 **各块之和等于 `target_h`**，避免矮终端下 `Layout` 约束溢出叠字。
@@ -355,7 +529,7 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
     let mut g = n.sugg_h;
     let mut s = n.status_h;
 
-    while repl_dock_block_sum(hud, rt, i, rb, a, g, s) > target_h {
+    while repl_dock_block_sum(hud, rt, i, a, g, s, rb) > target_h {
         if g > 0 {
             g -= 1;
             continue;
@@ -372,6 +546,11 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
             a -= 1;
             continue;
         }
+        if i > 1 {
+            i -= 1;
+            continue;
+        }
+        // 极矮终端：最后才去掉输入上下的横线。
         if rb > 0 {
             rb -= 1;
             continue;
@@ -380,14 +559,10 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
             rt -= 1;
             continue;
         }
-        if i > 1 {
-            i -= 1;
-            continue;
-        }
         break;
     }
 
-    let spare = target_h.saturating_sub(repl_dock_block_sum(hud, rt, i, rb, a, g, s));
+    let spare = target_h.saturating_sub(repl_dock_block_sum(hud, rt, i, a, g, s, rb));
     if spare > 0 {
         i = i.saturating_add(spare);
     }
@@ -404,18 +579,19 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
 
 /// 底部 dock（斜杠候选 + 多行输入）高度，与全屏 REPL / 流式 dock 共用同一套布局规则。
 ///
-/// **流式 Inline**：返回值 = 内层 + **2 行** `Block`（顶与主区分界，底封住脚标/斜杠区下沿）。
+/// **流式 Inline**：返回值 = dock 内层总高度（含输入上下各一行 `─`，无外层 `Block`）。
 pub(crate) fn repl_dock_height(area: Rect, state: &ReplLineState, layout: ReplDockLayout) -> u16 {
     let avail = area.height.saturating_sub(1);
     let nat = repl_dock_compute_natural(area.width.max(1), state, layout);
-    let max_inner = avail.saturating_sub(2).max(1);
+    let max_inner = avail.max(1);
     let target_inner = nat.sum().max(layout.min_dock_rows()).min(max_inner).max(1);
     let fitted = repl_dock_fit_into(target_inner, nat);
     let inner_h = fitted.sum().min(max_inner).max(1);
-    inner_h.saturating_add(2).min(avail).max(3)
+    inner_h.min(avail).max(layout.min_dock_rows())
 }
 
-/// 流式 dock：dock 顶横线**之下**的 ✶ HUD（与全屏 TUI `render_prompt_hud_stacked` 文案一致，无 Buddy 列）。
+/// 流式 dock 曾用的独立 ✶ 行（已改为脚标前辍）；保留以便日后可选恢复。
+#[allow(dead_code)]
 fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineState, hud_h: u16) {
     if hud_h == 0 || area.height == 0 {
         return;
@@ -481,16 +657,13 @@ pub(crate) fn render_repl_dock_to_buffer(
     let sugg_h = fitted.sugg_h;
 
     let mut constraints: Vec<Constraint> = Vec::new();
-    if rule_top_h > 0 {
-        constraints.push(Constraint::Length(rule_top_h));
-    }
     if hud_h > 0 {
         constraints.push(Constraint::Length(hud_h));
     }
-    constraints.push(Constraint::Length(input_h));
-    if rule_bottom_h > 0 {
-        constraints.push(Constraint::Length(rule_bottom_h));
+    if rule_top_h > 0 {
+        constraints.push(Constraint::Length(rule_top_h));
     }
+    constraints.push(Constraint::Length(input_h));
     if approval_h > 0 {
         constraints.push(Constraint::Length(approval_h));
     }
@@ -498,20 +671,23 @@ pub(crate) fn render_repl_dock_to_buffer(
     if status_h > 0 {
         constraints.push(Constraint::Length(status_h));
     }
+    if rule_bottom_h > 0 {
+        constraints.push(Constraint::Length(rule_bottom_h));
+    }
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
         .split(dock_area);
 
     let mut ci = 0usize;
-    let rule_top_rect = if rule_top_h > 0 {
+    let hud_rect_opt = if hud_h > 0 {
         let r = chunks[ci];
         ci += 1;
         Some(r)
     } else {
         None
     };
-    let hud_rect_opt = if hud_h > 0 {
+    let rule_top_rect = if rule_top_h > 0 {
         let r = chunks[ci];
         ci += 1;
         Some(r)
@@ -520,13 +696,6 @@ pub(crate) fn render_repl_dock_to_buffer(
     };
     let input_rect = chunks[ci];
     ci += 1;
-    let rule_bottom_rect = if rule_bottom_h > 0 {
-        let r = chunks[ci];
-        ci += 1;
-        Some(r)
-    } else {
-        None
-    };
     let approval_rect_opt = if approval_h > 0 {
         let r = chunks[ci];
         ci += 1;
@@ -538,10 +707,21 @@ pub(crate) fn render_repl_dock_to_buffer(
     ci += 1;
     let status_rect_opt = if status_h > 0 {
         let r = chunks[ci];
+        ci += 1;
         Some(r)
     } else {
         None
     };
+    let rule_bottom_rect = if rule_bottom_h > 0 {
+        let r = chunks[ci];
+        Some(r)
+    } else {
+        None
+    };
+
+    if let Some(hr) = hud_rect_opt {
+        render_stream_hud_to_buffer(buf, hr, state, hud_h);
+    }
 
     if let Some(rr) = rule_top_rect {
         let rule_w = dock_area.width.max(1) as usize;
@@ -552,10 +732,6 @@ pub(crate) fn render_repl_dock_to_buffer(
         Paragraph::new(Text::from(rule_lines)).render(rr, buf);
     }
 
-    if let Some(hr) = hud_rect_opt {
-        render_stream_hud_to_buffer(buf, hr, state, hud_h);
-    }
-
     let mut prompt_hw_cursor: Option<(usize, usize)> = None;
     let lines_before = 0usize;
     if let Some((li, ox)) = cur {
@@ -564,15 +740,6 @@ pub(crate) fn render_repl_dock_to_buffer(
     Paragraph::new(Text::from(pl))
         .wrap(Wrap { trim: false })
         .render(input_rect, buf);
-
-    if let Some(rr) = rule_bottom_rect {
-        let rule_w = dock_area.width.max(1) as usize;
-        let rule_txt = "─".repeat(rule_w.min(512));
-        let rule_lines: Vec<Line> = (0..rule_bottom_h)
-            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_dim())))
-            .collect();
-        Paragraph::new(Text::from(rule_lines)).render(rr, buf);
-    }
 
     if let (Some(apr), Some(p)) = (approval_rect_opt, state.pending_approval.as_ref()) {
         let preview_w = input_inner_w as usize;
@@ -683,10 +850,25 @@ pub(crate) fn render_repl_dock_to_buffer(
 
     if let Some(sr) = status_rect_opt {
         let status_w = (sr.width as usize).max(4);
-        let line = truncate_preview(state.dock_status.as_str(), status_w);
+        let pre = stream_dock_activity_prefix(state);
+        let merged = if pre.is_empty() {
+            state.dock_status.clone()
+        } else {
+            format!("{}{}", pre, state.dock_status.as_str())
+        };
+        let line = truncate_preview(merged.as_str(), status_w);
         Paragraph::new(Text::from(Span::styled(line, style_dim())))
             .wrap(Wrap { trim: false })
             .render(sr, buf);
+    }
+
+    if let Some(rr) = rule_bottom_rect {
+        let rule_w = dock_area.width.max(1) as usize;
+        let rule_txt = "─".repeat(rule_w.min(512));
+        let rule_lines: Vec<Line> = (0..rule_bottom_h)
+            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_dim())))
+            .collect();
+        Paragraph::new(Text::from(rule_lines)).render(rr, buf);
     }
 
     if let Some((gli, ox)) = prompt_hw_cursor {
@@ -703,6 +885,32 @@ pub(crate) fn render_repl_dock_to_buffer(
         }
     }
     None
+}
+
+/// `✶ thinking…` / 待审批 / 回合摘要 等，拼在脚标 `dock_status` 前（秒级刷新由每帧重绘保证）。
+pub(crate) fn stream_dock_activity_prefix(state: &ReplLineState) -> String {
+    if state.pending_approval.is_some() {
+        return format!(
+            "✶ {} · ",
+            crate::tui::hud_text::prompt_hud_activity_text(true, false, None)
+        );
+    }
+    if state.executing_since.is_some() {
+        let secs = state.executing_since.map(|t| t.elapsed().as_secs());
+        return format!(
+            "✶ {} · ",
+            crate::tui::hud_text::prompt_hud_activity_text(false, true, secs)
+        );
+    }
+    if let (Some(text), Some(until)) = (
+        state.finished_turn_summary.as_ref(),
+        state.finished_turn_summary_until,
+    ) {
+        if Instant::now() < until {
+            return format!("✶ {} · ", text);
+        }
+    }
+    String::new()
 }
 
 pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Result<ReplCtl> {
@@ -973,7 +1181,8 @@ pub(crate) fn apply_stream_approval_key(state: &mut ReplLineState, key: KeyEvent
 mod stream_transcript_tests {
     use super::{
         repl_dock_compute_natural, repl_stream_transcript_bottom_padded,
-        stream_repl_accept_key_event, ReplDockLayout, ReplLineState,
+        sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
+        stream_dock_activity_prefix, stream_repl_accept_key_event, ReplDockLayout, ReplLineState,
     };
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -1038,21 +1247,102 @@ mod stream_transcript_tests {
     }
 
     #[test]
-    fn stream_dock_inner_has_no_manual_rules_block_draws_top_bottom() {
+    fn stream_dock_prompt_sandwiched_by_two_rule_rows() {
         let st = ReplLineState::default();
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
-        assert_eq!(nat.rule_top_h, 0);
-        assert_eq!(nat.rule_bottom_h, 0);
+        assert_eq!(nat.rule_top_h, 1);
+        assert_eq!(nat.rule_bottom_h, 1);
     }
 
     #[test]
-    fn stream_dock_keeps_status_row_when_hud_visible() {
+    fn stream_dock_merges_activity_into_status_not_extra_hud_row() {
         let mut st = ReplLineState::default();
         st.dock_status = "google · model · agent · on".into();
         st.executing_since = Some(std::time::Instant::now());
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
-        assert_eq!(nat.hud_h, 1);
-        assert_eq!(nat.rule_top_h, 0);
+        assert_eq!(nat.hud_h, 0);
+        assert_eq!(nat.rule_top_h, 1);
         assert_eq!(nat.status_h, 1);
+        assert!(
+            stream_dock_activity_prefix(&st).starts_with("✶ "),
+            "thinking should appear as status prefix"
+        );
+    }
+
+    #[test]
+    fn sanitize_drops_pure_rule_lines() {
+        let s = "hello\n────────────────────────\nworld";
+        let o = sanitize_stream_transcript_visual_noise(s);
+        assert!(!o.contains('─'));
+        assert!(o.contains("hello"));
+        assert!(o.contains("world"));
+    }
+
+    #[test]
+    fn sanitize_collapses_mixed_bar_runs_inside_line() {
+        let s = "Turn failed: x\n────  \"error\": {────";
+        let o = sanitize_stream_transcript_visual_noise(s);
+        assert!(!o.contains('─'), "got: {o:?}");
+        assert!(o.contains("\"error\":"));
+        assert!(o.contains("Turn failed:"));
+    }
+
+    #[test]
+    fn sanitize_collapses_ascii_markdown_rule_dashes() {
+        let s = "err\n---\n\"code\": 400";
+        let o = sanitize_stream_transcript_visual_noise(s);
+        assert!(
+            !o.contains("---"),
+            "thematic-break dashes should collapse, got: {o:?}"
+        );
+        assert!(o.contains("\"code\":"));
+    }
+
+    #[test]
+    fn scrub_drops_google_llm_dump_and_inserts_geo_message() {
+        let raw = concat!(
+            "[> Turn failed: LLM error: google request failed after retries ",
+            "status=400 body=[{\n",
+            "  \"error\": {\n",
+            "    \"code\": 400,\n",
+            "    \"message\": \"User location is not supported for the API use.\",\n",
+            "    \"status\": \"FAILED_PRECONDITION\"\n",
+            "  }\n",
+            "}]\n",
+            "❯ next\n",
+        );
+        let o = scrub_stream_transcript_llm_raw_dumps(raw);
+        assert!(
+            !o.contains("body=[{"),
+            "raw HTTP dump should be removed, got: {o:?}"
+        );
+        assert!(
+            !o.contains("FAILED_PRECONDITION"),
+            "JSON tail should be removed, got: {o:?}"
+        );
+        assert!(o.contains("❯ next"));
+        assert!(
+            o.contains("User location is not supported"),
+            "expected localized geo hint, got: {o:?}"
+        );
+    }
+
+    #[test]
+    fn scrub_runs_before_tail_so_header_outside_window_still_strips_json() {
+        let filler: String = (0..260).map(|i| format!("pad {i}\n")).collect::<String>();
+        let tail = concat!(
+            "[> Turn failed: LLM error: google request failed body=[{\n",
+            "  \"error\": { \"code\": 400 }\n",
+            "}]\n",
+        );
+        let raw = format!("{filler}{tail}");
+        let scrubbed = scrub_stream_transcript_llm_raw_dumps(&raw);
+        assert!(!scrubbed.contains("body=[{"));
+        let logical_max = 256usize;
+        let body = super::tail_for_display(&scrubbed, logical_max);
+        assert!(
+            !body.contains("\"code\": 400"),
+            "tail view should not show JSON after full scrub, got: {body:?}"
+        );
     }
 }

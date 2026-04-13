@@ -31,6 +31,8 @@ pub(crate) struct WorkspaceLiveLayout {
     pub pulse_frame: u64,
     /// 流式 Inline REPL：用户消息前缀用 `❯ `（全屏 TUI 仍为 `> `）。
     pub stream_repl_claude_user_prefix: bool,
+    /// 流式主区：弱化 Markdown 装饰横线（`---` / 代码块顶栏），避免与底栏 `─` 叠成满屏格线。
+    pub stream_plain_minimal_md: bool,
 }
 
 /// Workspace 语义块：按终端宽度排版为物理行后再滚动（与 ratatui 自动换行脱钩）。

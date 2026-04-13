@@ -44,6 +44,7 @@ pub(crate) fn build_stream_turn_plain(
     let live = WorkspaceLiveLayout {
         executing,
         stream_repl_claude_user_prefix: true,
+        stream_plain_minimal_md: true,
         ..Default::default()
     };
     let w = content_width.max(8);
@@ -54,7 +55,7 @@ pub(crate) fn build_stream_turn_plain(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anycode_core::{MessageContent, MessageRole};
+    use anycode_core::{Message, MessageContent, MessageRole};
     use chrono::Utc;
     use std::collections::HashMap;
     use uuid::Uuid;
@@ -123,6 +124,39 @@ mod tests {
         assert!(
             idle.contains("only-user"),
             "expected user line after turn layout, got {idle:?}"
+        );
+    }
+
+    #[test]
+    fn stream_plain_redacts_assistant_google_error_blob() {
+        let exec_prev = 1usize;
+        let msgs = vec![
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text("ping".into()),
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            },
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::Assistant,
+                content: MessageContent::Text(
+                    r#"{"error":{"code":400,"message":"x"},"ref":"https://generativelanguage.googleapis.com/v1beta/x"}"#
+                        .into(),
+                ),
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            },
+        ];
+        let p = build_stream_turn_plain(exec_prev, &msgs, 80, false);
+        assert!(
+            !p.contains("generativelanguage.googleapis.com"),
+            "expected redacted main pane, got {p:?}"
+        );
+        assert!(
+            !p.contains("\"code\":400"),
+            "expected no raw error JSON, got {p:?}"
         );
     }
 }

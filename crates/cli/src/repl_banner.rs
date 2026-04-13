@@ -1,8 +1,7 @@
 //! REPL 首屏欢迎框（stdout），与 stderr 上的 tracing 分离。
 
-use crate::i18n::{tr, tr_args};
+use crate::i18n::tr;
 use console::{style, Style, Term};
-use fluent_bundle::FluentArgs;
 use std::path::Path;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use uuid::Uuid;
@@ -58,49 +57,59 @@ pub(crate) fn print_repl_welcome(
     session_skips_approval: bool,
     kind: ReplWelcomeKind,
 ) {
-    let term = Term::stdout();
-    let cols = term.size().1 as usize;
-    let inner = cols.saturating_sub(4).clamp(28, 92);
-
-    let title = match kind {
-        ReplWelcomeKind::EmbeddedMain => {
-            let mut a = FluentArgs::new();
-            a.set("version", PKG_VERSION);
-            tr_args("repl-title-embedded", &a)
-        }
-        ReplWelcomeKind::ReplSubcommand => format!(" anyCode REPL · v{PKG_VERSION} "),
-    };
-    let top = format!("╭{t:─^w$}╮", t = title, w = inner);
-    let bottom = format!("╰{}╯", "─".repeat(inner));
-
-    let b = border_style();
-    let pet_st = pet_face_style();
     let dim = dim_style();
 
-    println!("{}", b.apply_to(top));
+    match kind {
+        ReplWelcomeKind::EmbeddedMain => {
+            // 嵌入式流式 REPL：不用 ╭─╮ 框，避免与底栏横线叠成满屏分隔线。
+            println!(
+                "{}",
+                dim.apply_to(format!(
+                    "anyCode · v{PKG_VERSION} · {agent} {}",
+                    PET_FACE.trim()
+                ))
+            );
+            if session_skips_approval {
+                println!("{}", dim.apply_to(tr("repl-row-approval")));
+            }
+        }
+        ReplWelcomeKind::ReplSubcommand => {
+            let term = Term::stdout();
+            let cols = term.size().1 as usize;
+            let inner = cols.saturating_sub(4).clamp(28, 92);
+            let title = format!(" anyCode REPL · v{PKG_VERSION} ");
+            let top = format!("╭{t:─^w$}╮", t = title, w = inner);
+            let bottom = format!("╰{}╯", "─".repeat(inner));
 
-    let tail1 = format!("  anyCode · v{PKG_VERSION} · {agent}");
-    let pw = PET_FACE.width();
-    let col = 6usize;
-    let gap = col.saturating_sub(pw).max(1);
-    let rest_inner = format!("{}{}", " ".repeat(gap), tail1);
-    let rest = pad_trunc_plain(&rest_inner, inner.saturating_sub(pw));
-    print!("{}", b.apply_to("│"));
-    print!("{}", pet_st.apply_to(PET_FACE));
-    print!("{}", dim.apply_to(rest));
-    println!("{}", b.apply_to("│"));
+            let b = border_style();
+            let pet_st = pet_face_style();
 
-    if session_skips_approval {
-        let row = pad_trunc_plain(&format!("  {}", tr("repl-row-approval")), inner);
-        println!(
-            "{}{}{}",
-            b.apply_to("│"),
-            dim.apply_to(row),
-            b.apply_to("│")
-        );
+            println!("{}", b.apply_to(top));
+
+            let tail1 = format!("  anyCode · v{PKG_VERSION} · {agent}");
+            let pw = PET_FACE.width();
+            let col = 6usize;
+            let gap = col.saturating_sub(pw).max(1);
+            let rest_inner = format!("{}{}", " ".repeat(gap), tail1);
+            let rest = pad_trunc_plain(&rest_inner, inner.saturating_sub(pw));
+            print!("{}", b.apply_to("│"));
+            print!("{}", pet_st.apply_to(PET_FACE));
+            print!("{}", dim.apply_to(rest));
+            println!("{}", b.apply_to("│"));
+
+            if session_skips_approval {
+                let row = pad_trunc_plain(&format!("  {}", tr("repl-row-approval")), inner);
+                println!(
+                    "{}{}{}",
+                    b.apply_to("│"),
+                    dim.apply_to(row),
+                    b.apply_to("│")
+                );
+            }
+
+            println!("{}", b.apply_to(bottom));
+        }
     }
-
-    println!("{}", b.apply_to(bottom));
 }
 
 pub(crate) fn print_repl_prompt() {
