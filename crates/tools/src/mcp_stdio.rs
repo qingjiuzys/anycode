@@ -184,3 +184,24 @@ pub async fn mcp_tools_call_shell(
         duration_ms: start.elapsed().as_millis() as u64,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn mcp_tools_call_shell_child_exits_before_jsonrpc_response() {
+        let input = json!({ "name": "noop", "arguments": {} });
+        let err = mcp_tools_call_shell(&input, "exit 0")
+            .await
+            .expect_err("expected failure when MCP child exits with no JSON-RPC reply");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("unexpected end of stdout")
+                || msg.contains("child exited")
+                || msg.contains("Broken pipe")
+                || msg.contains("broken pipe"),
+            "unexpected error message: {msg}"
+        );
+    }
+}

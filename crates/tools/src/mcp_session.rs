@@ -324,3 +324,25 @@ impl crate::mcp_connected::McpConnected for McpStdioSession {
         McpStdioSession::resources_read(self, uri).await
     }
 }
+
+#[cfg(test)]
+mod connect_tests {
+    use super::McpStdioSession;
+
+    #[tokio::test]
+    async fn mcp_stdio_connect_fails_when_shell_exits_immediately() {
+        let err = match McpStdioSession::connect("exit 0", "early-exit-test").await {
+            Ok(_) => panic!("expected connect failure when child produces no MCP handshake"),
+            Err(e) => e,
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("MCP")
+                || msg.contains("stdout")
+                || msg.contains("exited")
+                || msg.contains("Broken pipe")
+                || msg.contains("broken pipe"),
+            "unexpected error message: {msg}"
+        );
+    }
+}
