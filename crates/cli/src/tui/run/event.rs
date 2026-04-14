@@ -6,6 +6,7 @@ use crate::app_config::{
 };
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
+use crate::repl_inline::stream_repl_accept_key_event;
 use crate::slash_commands;
 use crate::tui::approval::{ApprovalDecision, PendingApproval};
 use crate::tui::chrome::{agents_lines, tools_lines};
@@ -17,7 +18,7 @@ use crate::tui::PendingUserQuestion;
 use anycode_agent::AgentRuntime;
 use anycode_core::{Message, RuntimeMode, TurnOutput, Usage};
 use anycode_tools::workflows;
-use crossterm::event::{Event, KeyCode, KeyModifiers, MouseEventKind};
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind};
 use fluent_bundle::FluentArgs;
 use ratatui::text::{Line, Span};
 use std::cell::Cell;
@@ -208,6 +209,13 @@ pub(super) async fn dispatch_crossterm_event(
             Ok(TuiLoopCtl::Ok)
         }
         Event::Key(key) => {
+            // Kitty / 增强键盘协议会发 Release；与 stream REPL 一致，勿当作普通键（重复插入或状态错乱）。
+            if key.kind == KeyEventKind::Release {
+                return Ok(TuiLoopCtl::Continue);
+            }
+            if !stream_repl_accept_key_event(&key) {
+                return Ok(TuiLoopCtl::Continue);
+            }
             *ctx.last_key = Some(format!("{:?} {:?}", key.code, key.modifiers));
 
             if let Some(p) = ctx.pending_user_question.take() {

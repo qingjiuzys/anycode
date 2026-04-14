@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Fullscreen TUI:** ignore `KeyEventKind::Release` and apply the same Enter-repeat filter as the stream REPL (`stream_repl_accept_key_event`), fixing missing or duplicated typing on terminals that emit press/release pairs (e.g. Kitty-style enhanced keyboard).
 - **TUI / terminal palette:** default colors track claude-code-rust (`src/cli/ui.rs`): purple secondary for brand and welcome borders; **ACCENT orange** for user lines, H1 headings, menu selection, and the stdio `▸ anycode>` prompt chevron; lavender assistant labels; gray **thinking…** caption (150,150,150) beside a bold purple `✶` HUD bullet; blockquote body slightly violet-gray; muted purple-gray horizontal rules. `NO_COLOR` still forces neutral `Reset` foregrounds in ratatui paths. Markdown LRU cache keys include a palette version.
 - **Copy (EN):** transcript wait line `tui-germinating` is now “Thinking…” (was “Germinating…”), aligned with Claude-style wording.
 - **Stream REPL (TTY Inline):** transcript 主区由「整页 dim」改为按行语义色（`Turn failed` 等错误高亮、`❯` 用户行、会话恢复/命令总览偏品牌色、斜杠帮助表灰字、正文默认白字）；`/help` 去掉与表格重复的一长行 `repl-help-cmds`，等价 `run` 示例里的 cwd 改为可读路径并加引号；`slash_commands::help_lines` 列宽按显示宽度对齐。**Dock** 与全屏 TUI 对齐：执行中/审批/选题时 **两行 HUD**（`✶` + `⎿` 提示），脚标为 ctx / provider；**底部横线在脚标之上**（prompt → rule → footer）；底栏下横线与顶横线同为 `style_horizontal_rule`。**修复**：`ReplSink::Stream` 的 `eprint_line` 不再写 stderr（避免长错误/JSON 与 Inline 视口网格交错叠字）；artifact 列表与粘贴截断提示在 Stream 下走 transcript；**每帧清空整个 Inline 视口**再绘制（避免双缓冲残留 cell 与底栏 `─` 假叠字）；主区行宽仅由 ratatui `Paragraph` 截断，避免与 `unicode-width` 二次截断错位。
