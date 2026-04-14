@@ -553,6 +553,7 @@ async fn run_interactive_tty_stream(
                         .unwrap_or(1)
                 };
                 let join_result = h.await;
+                let append_finish_tail = !matches!(&join_result, Ok(Ok(_)));
                 let usage_for_hud = match &join_result {
                     Ok(Ok(ref o)) => o.usage,
                     _ => anycode_core::TurnTokenUsage::default(),
@@ -586,14 +587,21 @@ async fn run_interactive_tty_stream(
                     &mut sink,
                 )
                 .await?;
-                let appended_after_finish = transcript_len_before_finish.and_then(|start| {
-                    state.lock().ok().and_then(|st| {
-                        st.transcript
-                            .lock()
-                            .ok()
-                            .map(|t| t.as_str()[start..].to_string())
+                // `finish_stream_spawned_turn` 在成功路径会 `sink.line` 写入 `repl-task-ok` / Output 等；
+                // 随后这里用 `build_stream_turn_plain` 从 `messages` 整段重建主区。若再把 finish 阶段追加的字节
+                // 拼回去，会与重建正文叠成「一轮任务多块重复内容」（用户见 thinking/❯ 块 + 又一块同款正文）。
+                let appended_after_finish = if append_finish_tail {
+                    transcript_len_before_finish.and_then(|start| {
+                        state.lock().ok().and_then(|st| {
+                            st.transcript
+                                .lock()
+                                .ok()
+                                .map(|t| t.as_str()[start..].to_string())
+                        })
                     })
-                });
+                } else {
+                    None
+                };
                 {
                     let w = state
                         .lock()

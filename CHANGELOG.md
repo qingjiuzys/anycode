@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Stream REPL (`anycode repl` on TTY):** after a **successful** turn, stop appending the `finish_stream_spawned_turn` transcript tail onto the message-derived `build_stream_turn_plain` rebuild — it duplicated `repl-task-ok` / output blocks and looked like “one task, multiple stacked panels”.
 - **Fullscreen TUI:** fix prompt starvation when `approval_rx` / `uq_rx` stay ready — run status-line, exec/compact completion, and **`crossterm` keyboard poll** after every `tokio::select!` wake (not only the timer branch). Also ignore `KeyEventKind::Release` and filter Enter-repeat like the stream REPL.
 - **TUI / terminal palette:** default colors track claude-code-rust (`src/cli/ui.rs`): purple secondary for brand and welcome borders; **ACCENT orange** for user lines, H1 headings, menu selection, and the stdio `▸ anycode>` prompt chevron; lavender assistant labels; gray **thinking…** caption (150,150,150) beside a bold purple `✶` HUD bullet; blockquote body slightly violet-gray; muted purple-gray horizontal rules. `NO_COLOR` still forces neutral `Reset` foregrounds in ratatui paths. Markdown LRU cache keys include a palette version.
 - **Copy (EN):** transcript wait line `tui-germinating` is now “Thinking…” (was “Germinating…”), aligned with Claude-style wording.
