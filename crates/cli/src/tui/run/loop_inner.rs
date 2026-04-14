@@ -483,263 +483,11 @@ pub async fn run_tui(
         let max_sc = workspace_line_count.get().saturating_sub(avail);
         transcript_scroll_up = transcript_scroll_up.min(max_sc);
 
-        // 勿使用 `biased`：原先 `biased` + `approval_rx.recv()` 在前时，若 `recv` 与定时器同时就绪会优先
-        // `recv`；在 channel 异常等情况下可能反复选中 recv，饿死定时分支 → 永不 poll 键盘/鼠标。
+        // `select!` 只负责「等到下一 tick 或 channel 消息」；**不要**把 `ct_event::poll` 放进某个分支里。
+        // 否则当 `approval_rx` / `uq_rx` 持续就绪时，tokio 会反复选中 recv 分支而**从不**跑 sleep 分支，
+        // 主循环饿死键盘轮询 → Prompt 无法输入、斜杠补全不出现。
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_millis(16)) => {
-
-                // --- Status line (Claude-style HUD): debounce + optional `sh -c` command ---
-                if let Some(h) = status_line_task.as_ref() {
-                    if h.is_finished() {
-                        let h = status_line_task.take().unwrap();
-                        if let Ok(Ok(s)) = h.await {
-                            status_line_text = s;
-                        }
-                    }
-                }
-                let sl_enabled = status_line_cfg.command.is_some();
-                if sl_enabled {
-                    if crate::tui::status_line::status_line_arm_refresh(
-                        &mut last_sl_transcript_gen,
-                        transcript_gen,
-                        prev_executing_sl,
-                        executing,
-                    ) {
-                        status_line_fire_at =
-                            Some(Instant::now() + crate::tui::status_line::debounce_std());
-                    }
-                    if let Some(fire_at) = status_line_fire_at {
-                        if Instant::now() >= fire_at {
-                            status_line_fire_at = None;
-                            if let Some(h) = status_line_task.take() {
-                                h.abort();
-                            }
-                            if let Some(ref cmd) = status_line_cfg.command {
-                                match crate::tui::status_line::build_status_line_payload(
-                                    env!("CARGO_PKG_VERSION"),
-                                    &tui_session_id,
-                                    &working_dir_str,
-                                    &working_dir_str,
-                                    llm_model.as_str(),
-                                    &session_for_sl,
-                                    llm_provider.as_str(),
-                                    last_max_input_tokens,
-                                    last_turn_usage.as_ref(),
-                                ) {
-                                    Ok(json) if !json.is_empty() => {
-                                        let c = cmd.clone();
-                                        let t = status_line_cfg.timeout_ms;
-                                        status_line_task = Some(
-                                            crate::tui::status_line::spawn_status_line_task(
-                                                async move {
-                                                    crate::tui::status_line::run_status_line_command(
-                                                        &c, &json, t,
-                                                    )
-                                                    .await
-                                                },
-                                            ),
-                                        );
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                }
-                prev_executing_sl = executing;
-
-
-                if executing {
-                    if let Some((tail_start, fold_base)) = exec_live_tail {
-                        if let Ok(g) = messages.try_lock() {
-                            let fp = (g.len(), g.last().map(|m| m.id));
-                            if exec_live_sync_fp != Some(fp) {
-                                super::exec_completion::sync_transcript_with_messages_tail(
-                                    &mut transcript,
-                                    tail_start,
-                                    fold_base,
-                                    &mut next_tool_fold_id,
-                                    &g,
-                                    exec_prev_len,
-                                );
-                                transcript_gen = transcript_gen.wrapping_add(1);
-                                exec_live_sync_fp = Some(fp);
-                            }
-                        }
-                    }
-                }
-
-                if let Some(h) = exec_handle.as_ref() {
-                    if h.is_finished() {
-                        let h = exec_handle.take().unwrap();
-                        executing = false;
-                        executing_since = None;
-                        exec_live_sync_fp = None;
-                        let anchor = exec_live_tail.take();
-                        super::exec_completion::consume_finished_turn(
-                            h,
-                            &messages,
-                            exec_prev_len,
-                            &mut transcript,
-                            &mut transcript_gen,
-                            &mut next_tool_fold_id,
-                            &mut last_turn_error,
-                            &mut last_max_input_tokens,
-                            &mut last_turn_usage,
-                            anchor,
-                        )
-                        .await;
-                        crate::tui::tui_session_persist::spawn_persist_tui_session(
-                            session_uuid,
-                            working_dir_str.clone(),
-                            agent_type.as_str().to_string(),
-                            llm_model.clone(),
-                            messages.clone(),
-                        );
-                    }
-                }
-
-                if let Some(h) = compact_handle.as_ref() {
-                    if h.is_finished() {
-                        let h = compact_handle.take().unwrap();
-                        if let Some(follow) = compact_followup.take() {
-                            let new_turn = consume_finished_compact(
-                                h,
-                                follow,
-                                &messages,
-                                &mut transcript,
-                                &mut transcript_gen,
-                                &mut next_tool_fold_id,
-                                &mut tool_folds_expanded,
-                                &mut fold_layout_rev,
-                                &mut exec_live_tail,
-                                &mut exec_prev_len,
-                                &mut last_turn_error,
-                                &mut last_max_input_tokens,
-                                &mut last_turn_usage,
-                                &mut transcript_scroll_up,
-                                &runtime,
-                                &agent_type,
-                                &working_dir_str,
-                                &turn_coop_cancel,
-                            )
-                            .await;
-                            crate::tui::tui_session_persist::spawn_persist_tui_session(
-                                session_uuid,
-                                working_dir_str.clone(),
-                                agent_type.as_str().to_string(),
-                                llm_model.clone(),
-                                messages.clone(),
-                            );
-                            exec_live_sync_fp = None;
-                            match new_turn {
-                                Some(eh) => {
-                                    exec_handle = Some(eh);
-                                    executing = true;
-                                    executing_since = Some(Instant::now());
-                                }
-                                None => {
-                                    executing = false;
-                                    executing_since = None;
-                                }
-                            }
-                        } else {
-                            executing = false;
-                            executing_since = None;
-                            exec_live_sync_fp = None;
-                        }
-                    }
-                }
-
-                while ct_event::poll(Duration::ZERO)? {
-                    let ev = ct_event::read()?;
-                    let mut ectx = super::event::TuiEventCtx {
-                        last_key: &mut last_key,
-                        transcript_scroll_up: &mut transcript_scroll_up,
-                        pending_approval: &mut pending_approval,
-                        pending_user_question: &mut pending_user_question,
-                        approval_menu_selected: &mut approval_menu_selected,
-                        user_question_menu_selected: &mut user_question_menu_selected,
-                        rev_search: &mut rev_search,
-                        slash_suggest_pick: &mut slash_suggest_pick,
-                        slash_suggest_suppress: &mut slash_suggest_suppress,
-                        input: &mut input,
-                        input_history: &mut input_history,
-                        history_idx: &mut history_idx,
-                        executing: &mut executing,
-                        executing_since: &mut executing_since,
-                        help_open: &mut help_open,
-                        transcript: &mut transcript,
-                        transcript_gen: &mut transcript_gen,
-                        last_turn_error: &mut last_turn_error,
-                        compact_handle: &mut compact_handle,
-                        compact_followup: &mut compact_followup,
-                        exec_handle: &mut exec_handle,
-                        exec_prev_len: &mut exec_prev_len,
-                        last_max_input_tokens: &mut last_max_input_tokens,
-                        last_turn_usage: &mut last_turn_usage,
-                        session_cfg: &config.session,
-                        default_mode: config.runtime.default_mode.as_str(),
-                        permission_mode: permission_mode.as_str(),
-                        require_approval,
-                        llm_plan: llm_plan.as_str(),
-                        llm_provider: llm_provider.as_str(),
-                        llm_model: llm_model.as_str(),
-                        memory_backend: config.memory.backend.as_str(),
-                        workspace_project_label: config.runtime.workspace_project_label.as_deref(),
-                        workspace_channel_profile: config
-                            .runtime
-                            .workspace_channel_profile
-                            .as_deref(),
-                        main_avail_cell: &main_avail_cell,
-                        workspace_line_count: &workspace_line_count,
-                        tool_folds_expanded: &mut tool_folds_expanded,
-                        fold_layout_rev: &mut fold_layout_rev,
-                        next_tool_fold_id: &mut next_tool_fold_id,
-                        exec_live_tail: &mut exec_live_tail,
-                        quit_confirm: &mut quit_confirm,
-                        turn_coop_cancel: &turn_coop_cancel,
-                        session_file_id: &mut session_uuid,
-                    };
-                    match super::event::dispatch_crossterm_event(
-                        ev,
-                        &mut ectx,
-                        &runtime,
-                        &messages,
-                        &mut agent_type,
-                        &working_dir_str,
-                    )
-                    .await?
-                    {
-                        // Continue：本帧不再排空后续事件（与原先单事件行为一致）
-                        super::event::TuiLoopCtl::Continue => break,
-                        super::event::TuiLoopCtl::Break => break 'ui,
-                        super::event::TuiLoopCtl::Ok => {}
-                        super::event::TuiLoopCtl::ResumeSession(id) => {
-                            apply_tui_resume_snapshot(
-                                id,
-                                &working_dir_str,
-                                &mut agent_type,
-                                &messages,
-                                &mut transcript,
-                                &mut transcript_gen,
-                                &mut next_tool_fold_id,
-                                &mut tool_folds_expanded,
-                                &mut fold_layout_rev,
-                                &mut session_uuid,
-                                &mut tui_session_id,
-                                &mut exec_prev_len,
-                                &mut transcript_scroll_up,
-                                &mut exec_live_tail,
-                                &mut exec_live_sync_fp,
-                                &mut last_turn_error,
-                            )
-                            .await?;
-                            turn_coop_cancel.store(false, Ordering::Release);
-                        }
-                    }
-                }
-            }
+            _ = tokio::time::sleep(Duration::from_millis(16)) => {}
             req = approval_rx.recv() => {
                 if let Some(r) = req {
                     approval_menu_selected = 0;
@@ -754,6 +502,252 @@ pub async fn run_tui(
                     if let Some(old) = pending_user_question.replace(r) {
                         let _ = old.reply.send(Err(()));
                     }
+                }
+            }
+        }
+
+        // --- Status line (Claude-style HUD): debounce + optional `sh -c` command ---
+        if let Some(h) = status_line_task.as_ref() {
+            if h.is_finished() {
+                let h = status_line_task.take().unwrap();
+                if let Ok(Ok(s)) = h.await {
+                    status_line_text = s;
+                }
+            }
+        }
+        let sl_enabled = status_line_cfg.command.is_some();
+        if sl_enabled {
+            if crate::tui::status_line::status_line_arm_refresh(
+                &mut last_sl_transcript_gen,
+                transcript_gen,
+                prev_executing_sl,
+                executing,
+            ) {
+                status_line_fire_at =
+                    Some(Instant::now() + crate::tui::status_line::debounce_std());
+            }
+            if let Some(fire_at) = status_line_fire_at {
+                if Instant::now() >= fire_at {
+                    status_line_fire_at = None;
+                    if let Some(h) = status_line_task.take() {
+                        h.abort();
+                    }
+                    if let Some(ref cmd) = status_line_cfg.command {
+                        match crate::tui::status_line::build_status_line_payload(
+                            env!("CARGO_PKG_VERSION"),
+                            &tui_session_id,
+                            &working_dir_str,
+                            &working_dir_str,
+                            llm_model.as_str(),
+                            &session_for_sl,
+                            llm_provider.as_str(),
+                            last_max_input_tokens,
+                            last_turn_usage.as_ref(),
+                        ) {
+                            Ok(json) if !json.is_empty() => {
+                                let c = cmd.clone();
+                                let t = status_line_cfg.timeout_ms;
+                                status_line_task = Some(
+                                    crate::tui::status_line::spawn_status_line_task(async move {
+                                        crate::tui::status_line::run_status_line_command(
+                                            &c, &json, t,
+                                        )
+                                        .await
+                                    }),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        prev_executing_sl = executing;
+
+        if executing {
+            if let Some((tail_start, fold_base)) = exec_live_tail {
+                if let Ok(g) = messages.try_lock() {
+                    let fp = (g.len(), g.last().map(|m| m.id));
+                    if exec_live_sync_fp != Some(fp) {
+                        super::exec_completion::sync_transcript_with_messages_tail(
+                            &mut transcript,
+                            tail_start,
+                            fold_base,
+                            &mut next_tool_fold_id,
+                            &g,
+                            exec_prev_len,
+                        );
+                        transcript_gen = transcript_gen.wrapping_add(1);
+                        exec_live_sync_fp = Some(fp);
+                    }
+                }
+            }
+        }
+
+        if let Some(h) = exec_handle.as_ref() {
+            if h.is_finished() {
+                let h = exec_handle.take().unwrap();
+                executing = false;
+                executing_since = None;
+                exec_live_sync_fp = None;
+                let anchor = exec_live_tail.take();
+                super::exec_completion::consume_finished_turn(
+                    h,
+                    &messages,
+                    exec_prev_len,
+                    &mut transcript,
+                    &mut transcript_gen,
+                    &mut next_tool_fold_id,
+                    &mut last_turn_error,
+                    &mut last_max_input_tokens,
+                    &mut last_turn_usage,
+                    anchor,
+                )
+                .await;
+                crate::tui::tui_session_persist::spawn_persist_tui_session(
+                    session_uuid,
+                    working_dir_str.clone(),
+                    agent_type.as_str().to_string(),
+                    llm_model.clone(),
+                    messages.clone(),
+                );
+            }
+        }
+
+        if let Some(h) = compact_handle.as_ref() {
+            if h.is_finished() {
+                let h = compact_handle.take().unwrap();
+                if let Some(follow) = compact_followup.take() {
+                    let new_turn = consume_finished_compact(
+                        h,
+                        follow,
+                        &messages,
+                        &mut transcript,
+                        &mut transcript_gen,
+                        &mut next_tool_fold_id,
+                        &mut tool_folds_expanded,
+                        &mut fold_layout_rev,
+                        &mut exec_live_tail,
+                        &mut exec_prev_len,
+                        &mut last_turn_error,
+                        &mut last_max_input_tokens,
+                        &mut last_turn_usage,
+                        &mut transcript_scroll_up,
+                        &runtime,
+                        &agent_type,
+                        &working_dir_str,
+                        &turn_coop_cancel,
+                    )
+                    .await;
+                    crate::tui::tui_session_persist::spawn_persist_tui_session(
+                        session_uuid,
+                        working_dir_str.clone(),
+                        agent_type.as_str().to_string(),
+                        llm_model.clone(),
+                        messages.clone(),
+                    );
+                    exec_live_sync_fp = None;
+                    match new_turn {
+                        Some(eh) => {
+                            exec_handle = Some(eh);
+                            executing = true;
+                            executing_since = Some(Instant::now());
+                        }
+                        None => {
+                            executing = false;
+                            executing_since = None;
+                        }
+                    }
+                } else {
+                    executing = false;
+                    executing_since = None;
+                    exec_live_sync_fp = None;
+                }
+            }
+        }
+
+        while ct_event::poll(Duration::ZERO)? {
+            let ev = ct_event::read()?;
+            let mut ectx = super::event::TuiEventCtx {
+                last_key: &mut last_key,
+                transcript_scroll_up: &mut transcript_scroll_up,
+                pending_approval: &mut pending_approval,
+                pending_user_question: &mut pending_user_question,
+                approval_menu_selected: &mut approval_menu_selected,
+                user_question_menu_selected: &mut user_question_menu_selected,
+                rev_search: &mut rev_search,
+                slash_suggest_pick: &mut slash_suggest_pick,
+                slash_suggest_suppress: &mut slash_suggest_suppress,
+                input: &mut input,
+                input_history: &mut input_history,
+                history_idx: &mut history_idx,
+                executing: &mut executing,
+                executing_since: &mut executing_since,
+                help_open: &mut help_open,
+                transcript: &mut transcript,
+                transcript_gen: &mut transcript_gen,
+                last_turn_error: &mut last_turn_error,
+                compact_handle: &mut compact_handle,
+                compact_followup: &mut compact_followup,
+                exec_handle: &mut exec_handle,
+                exec_prev_len: &mut exec_prev_len,
+                last_max_input_tokens: &mut last_max_input_tokens,
+                last_turn_usage: &mut last_turn_usage,
+                session_cfg: &config.session,
+                default_mode: config.runtime.default_mode.as_str(),
+                permission_mode: permission_mode.as_str(),
+                require_approval,
+                llm_plan: llm_plan.as_str(),
+                llm_provider: llm_provider.as_str(),
+                llm_model: llm_model.as_str(),
+                memory_backend: config.memory.backend.as_str(),
+                workspace_project_label: config.runtime.workspace_project_label.as_deref(),
+                workspace_channel_profile: config.runtime.workspace_channel_profile.as_deref(),
+                main_avail_cell: &main_avail_cell,
+                workspace_line_count: &workspace_line_count,
+                tool_folds_expanded: &mut tool_folds_expanded,
+                fold_layout_rev: &mut fold_layout_rev,
+                next_tool_fold_id: &mut next_tool_fold_id,
+                exec_live_tail: &mut exec_live_tail,
+                quit_confirm: &mut quit_confirm,
+                turn_coop_cancel: &turn_coop_cancel,
+                session_file_id: &mut session_uuid,
+            };
+            match super::event::dispatch_crossterm_event(
+                ev,
+                &mut ectx,
+                &runtime,
+                &messages,
+                &mut agent_type,
+                &working_dir_str,
+            )
+            .await?
+            {
+                // Continue：本帧不再排空后续事件（与原先单事件行为一致）
+                super::event::TuiLoopCtl::Continue => break,
+                super::event::TuiLoopCtl::Break => break 'ui,
+                super::event::TuiLoopCtl::Ok => {}
+                super::event::TuiLoopCtl::ResumeSession(id) => {
+                    apply_tui_resume_snapshot(
+                        id,
+                        &working_dir_str,
+                        &mut agent_type,
+                        &messages,
+                        &mut transcript,
+                        &mut transcript_gen,
+                        &mut next_tool_fold_id,
+                        &mut tool_folds_expanded,
+                        &mut fold_layout_rev,
+                        &mut session_uuid,
+                        &mut tui_session_id,
+                        &mut exec_prev_len,
+                        &mut transcript_scroll_up,
+                        &mut exec_live_tail,
+                        &mut exec_live_sync_fp,
+                        &mut last_turn_error,
+                    )
+                    .await?;
+                    turn_coop_cancel.store(false, Ordering::Release);
                 }
             }
         }
