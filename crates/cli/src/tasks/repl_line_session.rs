@@ -178,11 +178,23 @@ pub(crate) async fn run_line_repl_turn(
     let written = claude_turn_written_lines(&out.artifacts);
     if !written.is_empty() {
         sink.line("");
-        sink.eprint_line(tr("repl-written-header"));
-        for line in written {
-            let mut wl = FluentArgs::new();
-            wl.set("line", line);
-            sink.eprint_line(tr_args("repl-written-line", &wl));
+        match sink {
+            ReplSink::Stdio => {
+                sink.eprint_line(tr("repl-written-header"));
+                for line in written {
+                    let mut wl = FluentArgs::new();
+                    wl.set("line", line);
+                    sink.eprint_line(tr_args("repl-written-line", &wl));
+                }
+            }
+            ReplSink::Stream { .. } => {
+                sink.line(tr("repl-written-header"));
+                for line in written {
+                    let mut wl = FluentArgs::new();
+                    wl.set("line", line);
+                    sink.line(tr_args("repl-written-line", &wl));
+                }
+            }
         }
     }
     crate::tui::tui_session_persist::spawn_persist_tui_session(

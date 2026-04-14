@@ -1,7 +1,10 @@
-//! 终端语义色（不依赖 truecolor）。
+//! Terminal semantic styles (truecolor, aligned with claude-code-rust `cli/ui.rs`).
+//! With `NO_COLOR`, foregrounds fall back via [`super::palette`].
 
 use once_cell::sync::Lazy;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
+
+use super::palette;
 
 /// 预计算的样式集合
 struct ComputedStyles {
@@ -19,24 +22,24 @@ struct ComputedStyles {
 impl ComputedStyles {
     fn new() -> Self {
         Self {
-            dim: Style::default().fg(Color::Gray),
+            dim: Style::default().fg(palette::muted()),
             brand: Style::default()
-                .fg(Color::LightCyan)
+                .fg(palette::secondary())
                 .add_modifier(Modifier::BOLD),
-            user: Style::default().fg(Color::LightCyan),
+            user: Style::default().fg(palette::user_label()),
             assistant: Style::default()
-                .fg(Color::LightGreen)
+                .fg(palette::assistant_label())
                 .add_modifier(Modifier::BOLD),
-            assistant_prose: Style::default().fg(Color::White),
+            assistant_prose: Style::default().fg(palette::text()),
             tool: Style::default()
-                .fg(Color::LightYellow)
+                .fg(palette::warning())
                 .add_modifier(Modifier::BOLD),
-            tool_result: Style::default().fg(Color::White),
+            tool_result: Style::default().fg(palette::text()),
             error: Style::default()
-                .fg(Color::LightRed)
+                .fg(palette::error())
                 .add_modifier(Modifier::BOLD),
             warn: Style::default()
-                .fg(Color::LightMagenta)
+                .fg(palette::warning())
                 .add_modifier(Modifier::BOLD),
         }
     }
@@ -61,7 +64,6 @@ pub(crate) fn style_assistant() -> Style {
     STYLES.assistant
 }
 
-/// 助手 Markdown 正文（对齐 Claude Code 终端：浅色正文，避免大段亮绿）
 pub(crate) fn style_assistant_prose() -> Style {
     STYLES.assistant_prose
 }
@@ -82,7 +84,19 @@ pub(crate) fn style_warn() -> Style {
     STYLES.warn
 }
 
-/// 欢迎卡外框（浅青，与品牌色同系、比旧 LightRed 更克制）。
+/// 欢迎卡外框（紫系，对齐 claude-code-rust 品牌色）。
 pub(crate) fn style_welcome_border() -> Style {
-    Style::default().fg(Color::LightCyan)
+    Style::default().fg(palette::secondary())
+}
+
+/// 菜单 / 斜杠候选选中项、反向搜索光标条（对齐 claude-code-rust `print_prompt` 橙色 ▸）。
+pub(crate) fn style_menu_selected() -> Style {
+    Style::default()
+        .fg(palette::accent())
+        .add_modifier(Modifier::BOLD)
+}
+
+/// 与 Workspace / Dock 对齐的整行横线（muted 紫灰分隔线）。
+pub(crate) fn style_horizontal_rule() -> Style {
+    Style::default().fg(palette::divider())
 }

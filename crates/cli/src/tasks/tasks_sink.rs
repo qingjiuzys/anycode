@@ -28,14 +28,15 @@ impl ReplSink {
         }
     }
 
-    /// 与 `eprintln!` 对齐的 stderr 行；`Stream` 仍走真实 stderr。
+    /// 与 `eprintln!` 对齐的 stderr 行。
+    ///
+    /// **`Stream`（ratatui `Viewport::Inline`）不得写 stderr**：与 stdout 上的视口网格交错后会出现
+    /// 长行「叠」在 HUD/横线/脚标上。需要用户看见的内容应走 [`Self::line`] 写入 transcript。
     pub(crate) fn eprint_line(&mut self, line: impl AsRef<str>) {
         let s = line.as_ref();
         match self {
             ReplSink::Stdio => eprintln!("{s}"),
-            ReplSink::Stream { .. } => {
-                eprintln!("{s}");
-            }
+            ReplSink::Stream { .. } => {}
         }
     }
 

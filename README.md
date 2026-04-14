@@ -48,6 +48,8 @@ If you see `command not found`, check PATH notes in the install guide.
 
 ## For developers
 
+**Implementation stack:** Rust workspace (`cargo`); async runtime **Tokio**; terminal UI **ratatui** + **crossterm**; Markdown **pulldown-cmark**; i18n **Fluent** (`fluent-bundle`); code highlighting **syntect**. Runtime is split across crates such as `anycode-core`, `anycode-agent`, `anycode-llm`, and `anycode-tools` (MCP/LSP).
+
 ```bash
 cargo fmt
 cargo clippy

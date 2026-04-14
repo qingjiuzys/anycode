@@ -48,6 +48,8 @@ anycode run --agent general-purpose "Reply with OK only"
 
 ## 给开发者
 
+**实现技术栈：** Rust workspace（`cargo`）；异步运行时 **Tokio**；终端 UI **ratatui** + **crossterm**；Markdown **pulldown-cmark**；国际化 **Fluent**（`fluent-bundle`）；代码高亮 **syntect**。逻辑拆在 `anycode-core`、`anycode-agent`、`anycode-llm`、`anycode-tools`（MCP/LSP）等 crate。
+
 ```bash
 cargo fmt
 cargo clippy

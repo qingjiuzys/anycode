@@ -8,7 +8,9 @@ use crate::slash_commands;
 use crate::tui::input::{
     history_apply_down, history_apply_up, prompt_multiline_lines_and_cursor, InputState,
 };
-use crate::tui::styles::{style_assistant, style_dim, style_tool, style_warn};
+use crate::tui::styles::{
+    style_dim, style_horizontal_rule, style_menu_selected, style_tool, style_warn,
+};
 use crate::tui::util::{sanitize_paste, trim_or_default, truncate_preview, MAX_PASTE_CHARS};
 use anycode_core::TurnTokenUsage;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -32,6 +34,8 @@ pub(crate) struct ReplLineState {
     pub history_idx: Option<usize>,
     /// 流式 / Inline REPL 底栏顶行：模型 / 审批等（与全屏 TUI 脚标信息对齐）。
     pub dock_status: String,
+    /// 底栏左列：`ctx` + `? help` + 可选滚动提示（与全屏脚标左半对齐）。
+    pub dock_footer_left: String,
     /// 任务与 REPL 消息（显示在输入区上方）；与异步任务共享以便 tail 写入时重绘。
     pub transcript: Arc<Mutex<String>>,
     /// 流式 REPL 主区宽度（ratatui `draw` 回写），供 transcript 排版换行。
@@ -63,6 +67,7 @@ impl Default for ReplLineState {
             input_history: Vec::new(),
             history_idx: None,
             dock_status: String::new(),
+            dock_footer_left: String::new(),
             transcript: Arc::new(Mutex::new(String::new())),
             stream_viewport_width: 80,
             pending_approval: None,
@@ -359,6 +364,74 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
     }
 }
 
+/// 流式 Inline 主区按行上色：错误醒目、用户行高亮、说明性表格变淡（对齐 Claude Code 式层次，避免整页灰字）。
+///
+/// 行宽由渲染时 `Paragraph` + `LineTruncator`（ratatui grapheme 宽）截断；勿在此用 `unicode-width` 再截一遍，易与 CJK/组合字符错位导致假「横线粘连」。
+pub(crate) fn stream_transcript_plain_to_styled_text(body: &str) -> Text<'static> {
+    let lines: Vec<Line<'static>> = body
+        .lines()
+        .map(|line| {
+            let t = line.trim_start();
+            let style = stream_transcript_line_style(t, line);
+            Line::from(vec![Span::styled(line.to_string(), style)])
+        })
+        .collect();
+    Text::from(lines)
+}
+
+fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> Style {
+    use crate::tui::styles::{
+        style_assistant, style_assistant_prose, style_brand, style_dim, style_error, style_user,
+    };
+
+    if trimmed.starts_with("Turn failed:") || trimmed.starts_with("Turn join error:") {
+        return style_error();
+    }
+    if trimmed.starts_with('❯') {
+        return style_user();
+    }
+    if looks_like_slash_help_catalog_row(trimmed) {
+        return style_dim();
+    }
+    if trimmed.contains("anycode run") && (trimmed.contains("-C") || trimmed.contains("--agent")) {
+        return style_dim();
+    }
+    if trimmed.starts_with("Commands:") || trimmed.starts_with("命令：") {
+        return style_brand();
+    }
+    if trimmed.contains("Session restored")
+        || trimmed.contains("已恢复会话")
+        || trimmed.contains("Switched Agent")
+        || trimmed.contains("已切换 Agent")
+    {
+        return style_brand();
+    }
+    if full_line.contains("stderr") || full_line.contains("标准错误") {
+        return style_dim();
+    }
+    if trimmed.starts_with('✅')
+        || trimmed.starts_with('❌')
+        || trimmed.contains("🤖")
+        || trimmed.contains("🔧")
+    {
+        return style_assistant();
+    }
+    if trimmed.starts_with('📝') || trimmed.starts_with('⏳') {
+        return style_dim();
+    }
+    if trimmed == "Output:" || trimmed.starts_with("输出：") {
+        return style_assistant();
+    }
+    style_assistant_prose()
+}
+
+fn looks_like_slash_help_catalog_row(s: &str) -> bool {
+    if !s.starts_with('/') {
+        return false;
+    }
+    s.contains("  ") && (s.contains("local") || s.contains("runtime") || s.contains("prompt"))
+}
+
 fn tail_for_display(raw: &str, max_lines: usize) -> String {
     let lines: Vec<&str> = raw.lines().collect();
     if lines.len() <= max_lines {
@@ -367,7 +440,7 @@ fn tail_for_display(raw: &str, max_lines: usize) -> String {
     lines[lines.len().saturating_sub(max_lines)..].join("\n")
 }
 
-/// 底栏布局参数（流式 Inline：**上横线 → 输入 → 斜杠/审批 → 脚标（含 ✶）→ 下横线**，脚标夹在两条 `─` 之间）。
+/// 底栏布局参数（流式 Inline：与全屏 TUI 一致为 **prompt → 下横线 → footer**；自上而下 **HUD → 上横线 → 输入 → 斜杠/审批 → 下横线 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等）。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ReplDockLayout;
 
@@ -486,8 +559,11 @@ fn repl_dock_compute_natural(
     state: &ReplLineState,
     layout: ReplDockLayout,
 ) -> ReplDockNatural {
-    // 活动态 HUD 不再单独占一行（见 [`stream_dock_activity_prefix`] 并入脚标）。
-    let hud_h = 0u16;
+    let stream_hud_active = state.executing_since.is_some()
+        || state.pending_approval.is_some()
+        || state.pending_user_question.is_some();
+    // 与全屏 TUI `hud_rows_effective==2` 对齐：执行中 / 审批 / 选题 时 ✶ 活动行 + ⎿ 提示行。
+    let hud_h = if stream_hud_active { 2u16 } else { 0u16 };
     let status_h = if state.dock_status.is_empty() {
         0u16
     } else {
@@ -621,8 +697,7 @@ pub(crate) fn repl_dock_height(area: Rect, state: &ReplLineState, layout: ReplDo
     inner_h.min(avail).max(layout.min_dock_rows())
 }
 
-/// 流式 dock 曾用的独立 ✶ 行（已改为脚标前辍）；保留以便日后可选恢复。
-#[allow(dead_code)]
+/// 全屏 TUI Prompt HUD 对齐：`✶` 活动行 + 可选 `⎿` 提示行（[`repl_dock_compute_natural`] 在活跃回合设 `hud_h=2`）。
 fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineState, hud_h: u16) {
     if hud_h == 0 || area.height == 0 {
         return;
@@ -630,31 +705,63 @@ fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineSta
     let pending = state.pending_approval.is_some() || state.pending_user_question.is_some();
     let exec = state.executing_since.is_some();
     let secs = state.executing_since.map(|t| t.elapsed().as_secs());
-    let summary_line = if let (Some(text), Some(until)) = (
-        state.finished_turn_summary.as_ref(),
-        state.finished_turn_summary_until,
-    ) {
-        if Instant::now() < until {
-            Some(text.as_str())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-    // 审批 > 执行中 > 回合摘要 > 空闲脚标
-    let activity = if pending || exec {
-        crate::tui::hud_text::prompt_hud_activity_text(pending, exec, secs)
-    } else if let Some(s) = summary_line {
-        s.to_string()
-    } else {
-        crate::tui::hud_text::prompt_hud_activity_text(false, false, None)
-    };
-    let line = Line::from(vec![
-        Span::styled("✶ ", style_dim()),
-        Span::styled(activity, style_assistant()),
-    ]);
-    Paragraph::new(Text::from(line)).render(area, buf);
+    let activity = crate::tui::hud_text::prompt_hud_activity_text(pending, exec, secs);
+    let activity_line_style = Style::default().fg(crate::tui::palette::thinking_caption());
+    let mut lines: Vec<Line> = vec![Line::from(vec![
+        Span::styled(
+            "✶ ",
+            Style::default()
+                .fg(crate::tui::palette::secondary())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(activity, activity_line_style),
+    ])];
+    if hud_h >= 2 {
+        let slot = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as usize
+            / 8)
+            % crate::tui::hud_text::HUD_TIP_COUNT;
+        let tip = crate::tui::hud_text::hud_tip_rotated(slot);
+        lines.push(Line::from(vec![
+            Span::styled("⎿ ", style_dim()),
+            Span::styled(tip, style_dim()),
+        ]));
+    }
+    let max_lines = area.height as usize;
+    if lines.len() > max_lines {
+        lines.truncate(max_lines.max(1));
+    }
+    Paragraph::new(Text::from(lines)).render(area, buf);
+}
+
+/// 底栏脚标：左 `dock_footer_left`（ctx / ? / scroll）+ 间隙 + 右 `dock_status`（与全屏 TUI 脚标同一视觉层次）。
+fn stream_dock_status_line_spans(state: &ReplLineState, width: usize) -> Line<'static> {
+    let w = width.max(8);
+    let left = state.dock_footer_left.as_str();
+    let right = state.dock_status.as_str();
+    if right.is_empty() {
+        return Line::from(Span::styled(truncate_preview(left, w), style_dim()));
+    }
+    if left.is_empty() {
+        return Line::from(Span::styled(
+            truncate_preview(right, w),
+            Style::default().fg(Color::White),
+        ));
+    }
+    let lw = text_display_width(left);
+    let rw = text_display_width(right);
+    let gap = w.saturating_sub(lw + rw).max(1).min(200);
+    if lw.saturating_add(gap).saturating_add(rw) > w {
+        let merged = format!("{left} · {right}");
+        return Line::from(Span::styled(truncate_preview(&merged, w), style_dim()));
+    }
+    Line::from(vec![
+        Span::styled(left.to_string(), style_dim()),
+        Span::styled(" ".repeat(gap), Style::default()),
+        Span::styled(right.to_string(), Style::default().fg(Color::White)),
+    ])
 }
 
 /// 将底部 dock 渲染进 `buf`（`buf.area` 应与 `dock_area` 一致，一般为 `Rect::new(0,0,w,bottom_h)`）。
@@ -699,11 +806,11 @@ pub(crate) fn render_repl_dock_to_buffer(
         constraints.push(Constraint::Length(approval_h));
     }
     constraints.push(Constraint::Length(sugg_h));
-    if status_h > 0 {
-        constraints.push(Constraint::Length(status_h));
-    }
     if rule_bottom_h > 0 {
         constraints.push(Constraint::Length(rule_bottom_h));
+    }
+    if status_h > 0 {
+        constraints.push(Constraint::Length(status_h));
     }
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -736,14 +843,14 @@ pub(crate) fn render_repl_dock_to_buffer(
     };
     let sugg_rect = chunks[ci];
     ci += 1;
-    let status_rect_opt = if status_h > 0 {
+    let rule_bottom_rect = if rule_bottom_h > 0 {
         let r = chunks[ci];
         ci += 1;
         Some(r)
     } else {
         None
     };
-    let rule_bottom_rect = if rule_bottom_h > 0 {
+    let status_rect_opt = if status_h > 0 {
         let r = chunks[ci];
         Some(r)
     } else {
@@ -758,7 +865,7 @@ pub(crate) fn render_repl_dock_to_buffer(
         let rule_w = dock_area.width.max(1) as usize;
         let rule_txt = "─".repeat(rule_w.min(512));
         let rule_lines: Vec<Line> = (0..rule_top_h)
-            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_dim())))
+            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_horizontal_rule())))
             .collect();
         Paragraph::new(Text::from(rule_lines)).render(rr, buf);
     }
@@ -799,9 +906,7 @@ pub(crate) fn render_repl_dock_to_buffer(
         for (i, label) in q.option_labels.iter().enumerate() {
             let prefix = if i == pick { "❯ " } else { "  " };
             let st = if i == pick {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                style_menu_selected()
             } else {
                 style_dim()
             };
@@ -865,9 +970,7 @@ pub(crate) fn render_repl_dock_to_buffer(
         for (i, label) in [opt_once, opt_proj, opt_deny].into_iter().enumerate() {
             let prefix = if i == pick { "❯ " } else { "  " };
             let st = if i == pick {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                style_menu_selected()
             } else {
                 style_dim()
             };
@@ -913,9 +1016,7 @@ pub(crate) fn render_repl_dock_to_buffer(
             let desc_max = line_w.saturating_sub(2 + max_cmd_w + 2).max(8);
             let desc = truncate_to_display_width(item.description.trim(), desc_max);
             let cmd_style = if is_sel {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                style_menu_selected()
             } else {
                 style_dim()
             };
@@ -939,27 +1040,30 @@ pub(crate) fn render_repl_dock_to_buffer(
         Paragraph::new(Text::from(sugg_lines)).render(sugg_rect, buf);
     }
 
-    if let Some(sr) = status_rect_opt {
-        let status_w = (sr.width as usize).max(4);
-        let pre = stream_dock_activity_prefix(state);
-        let merged = if pre.is_empty() {
-            state.dock_status.clone()
-        } else {
-            format!("{}{}", pre, state.dock_status.as_str())
-        };
-        let line = truncate_preview(merged.as_str(), status_w);
-        Paragraph::new(Text::from(Span::styled(line, style_dim())))
-            .wrap(Wrap { trim: false })
-            .render(sr, buf);
-    }
-
     if let Some(rr) = rule_bottom_rect {
         let rule_w = dock_area.width.max(1) as usize;
         let rule_txt = "─".repeat(rule_w.min(512));
         let rule_lines: Vec<Line> = (0..rule_bottom_h)
-            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_dim())))
+            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_horizontal_rule())))
             .collect();
         Paragraph::new(Text::from(rule_lines)).render(rr, buf);
+    }
+
+    if let Some(sr) = status_rect_opt {
+        let status_w = (sr.width as usize).max(4);
+        let pre = stream_dock_activity_prefix(state);
+        let line = if pre.is_empty() {
+            stream_dock_status_line_spans(state, status_w)
+        } else {
+            let merged = format!("{}{}", pre, state.dock_status.as_str());
+            Line::from(Span::styled(
+                truncate_preview(merged.as_str(), status_w),
+                style_dim(),
+            ))
+        };
+        Paragraph::new(Text::from(line))
+            .wrap(Wrap { trim: false })
+            .render(sr, buf);
     }
 
     if let Some((gli, ox)) = prompt_hw_cursor {
@@ -978,20 +1082,13 @@ pub(crate) fn render_repl_dock_to_buffer(
     None
 }
 
-/// `✶ thinking…` / 待审批 / 回合摘要 等，拼在脚标 `dock_status` 前（秒级刷新由每帧重绘保证）。
+/// 回合结束后的短暂 **✶ 摘要** 前缀，拼在脚标 `dock_status` 前。执行中 / 待审批 / 选题时活动行在 HUD，此处返回空（与全屏 TUI 一致）。
 pub(crate) fn stream_dock_activity_prefix(state: &ReplLineState) -> String {
-    if state.pending_approval.is_some() || state.pending_user_question.is_some() {
-        return format!(
-            "✶ {} · ",
-            crate::tui::hud_text::prompt_hud_activity_text(true, false, None)
-        );
-    }
-    if state.executing_since.is_some() {
-        let secs = state.executing_since.map(|t| t.elapsed().as_secs());
-        return format!(
-            "✶ {} · ",
-            crate::tui::hud_text::prompt_hud_activity_text(false, true, secs)
-        );
+    if state.executing_since.is_some()
+        || state.pending_approval.is_some()
+        || state.pending_user_question.is_some()
+    {
+        return String::new();
     }
     if let (Some(text), Some(until)) = (
         state.finished_turn_summary.as_ref(),
@@ -1391,17 +1488,18 @@ mod stream_transcript_tests {
     }
 
     #[test]
-    fn stream_dock_merges_activity_into_status_not_extra_hud_row() {
+    fn stream_dock_hud_two_rows_while_executing_activity_not_in_status_prefix() {
         let mut st = ReplLineState::default();
         st.dock_status = "google · model · agent · on".into();
+        st.dock_footer_left = "ctx — · ? help".into();
         st.executing_since = Some(std::time::Instant::now());
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
-        assert_eq!(nat.hud_h, 0);
+        assert_eq!(nat.hud_h, 2, "align with fullscreen TUI hud_rows_effective");
         assert_eq!(nat.rule_top_h, 1);
         assert_eq!(nat.status_h, 1);
         assert!(
-            stream_dock_activity_prefix(&st).starts_with("✶ "),
-            "thinking should appear as status prefix"
+            stream_dock_activity_prefix(&st).is_empty(),
+            "thinking lives in HUD row, not status prefix"
         );
     }
 
@@ -1464,6 +1562,33 @@ mod stream_transcript_tests {
     }
 
     #[test]
+    fn styled_transcript_marks_error_and_user_lines() {
+        use ratatui::style::Color;
+        let body = "❯ hi\nTurn failed: x\nplain\n";
+        let t = super::stream_transcript_plain_to_styled_text(body);
+        let lines: Vec<_> = t.lines.iter().collect();
+        assert_eq!(lines.len(), 3);
+        let user_fg = if std::env::var_os("NO_COLOR").is_some() {
+            Some(Color::Reset)
+        } else {
+            Some(Color::Rgb(255, 140, 66))
+        };
+        assert_eq!(lines[0].spans[0].style.fg, user_fg);
+        let err_fg = if std::env::var_os("NO_COLOR").is_some() {
+            Some(Color::Reset)
+        } else {
+            Some(Color::Red)
+        };
+        assert_eq!(lines[1].spans[0].style.fg, err_fg);
+        let plain_fg = if std::env::var_os("NO_COLOR").is_some() {
+            Some(Color::Reset)
+        } else {
+            Some(Color::White)
+        };
+        assert_eq!(lines[2].spans[0].style.fg, plain_fg);
+    }
+
+    #[test]
     fn scrub_runs_before_tail_so_header_outside_window_still_strips_json() {
         let filler: String = (0..260).map(|i| format!("pad {i}\n")).collect::<String>();
         let tail = concat!(
@@ -1480,5 +1605,615 @@ mod stream_transcript_tests {
             !body.contains("\"code\": 400"),
             "tail view should not show JSON after full scrub, got: {body:?}"
         );
+    }
+}
+
+/// 键盘与审批/选题条：`ratatui` 主循环无 TTY E2E，这里用事件原子测覆盖关键路径。
+#[cfg(test)]
+mod stream_repl_keyboard_tests {
+    use super::{
+        apply_stream_approval_key, apply_stream_user_question_key, handle_event, repl_dock_height,
+        ReplCtl, ReplDockLayout, ReplLineState,
+    };
+    use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion};
+    use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn key_release_does_not_clear_on_ctrl_u() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("abc");
+        let mut k = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+        k.kind = KeyEventKind::Release;
+        handle_event(Event::Key(k), &mut st).unwrap();
+        assert_eq!(st.input.as_string(), "abc");
+    }
+
+    #[test]
+    fn ctrl_u_clears_input_and_resets_slash() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/h");
+        st.slash_pick = 3;
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(st.input.as_string().is_empty());
+        assert_eq!(st.slash_pick, 0);
+        assert!(!st.slash_suppress);
+    }
+
+    #[test]
+    fn page_up_down_adjusts_transcript_scroll() {
+        let mut st = ReplLineState::default();
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.stream_transcript_scroll, 8);
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.stream_transcript_scroll, 0);
+    }
+
+    #[test]
+    fn ctrl_home_end_jump_transcript_scroll() {
+        let mut st = ReplLineState::default();
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.stream_transcript_scroll, usize::MAX);
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.stream_transcript_scroll, 0);
+    }
+
+    #[test]
+    fn shift_enter_inserts_newline_without_submit() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("a");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.as_string(), "a\n");
+    }
+
+    #[test]
+    fn empty_enter_yields_continue_not_submit() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("   ");
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(matches!(ctl, ReplCtl::Continue));
+        assert!(st.input.as_string().is_empty());
+    }
+
+    #[test]
+    fn slash_tab_applies_top_candidate() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/he");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(
+            st.input.as_string().starts_with("/help"),
+            "got {:?}",
+            st.input.as_string()
+        );
+        assert!(st.slash_suppress);
+    }
+
+    #[test]
+    fn slash_down_changes_pick_without_submitting() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/");
+        let before = st.slash_pick;
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_ne!(st.slash_pick, before);
+        assert!(!st.input.as_string().is_empty());
+    }
+
+    #[test]
+    fn paste_sanitized_inserts_and_resets_slash() {
+        let mut st = ReplLineState::default();
+        st.slash_pick = 2;
+        handle_event(Event::Paste("hello".into()), &mut st).unwrap();
+        assert_eq!(st.input.as_string(), "hello");
+        assert_eq!(st.slash_pick, 0);
+    }
+
+    #[test]
+    fn repl_dock_height_respects_terminal_rows() {
+        let st = ReplLineState::default();
+        let area = Rect::new(0, 0, 80, 12);
+        let h = repl_dock_height(area, &st, ReplDockLayout);
+        assert!(h <= area.height);
+        assert!(h >= 1);
+    }
+
+    #[tokio::test]
+    async fn approval_y_sends_allow_once() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        assert!(apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE)
+        ));
+        assert!(st.pending_approval.is_none());
+        assert!(matches!(rx.await.unwrap(), ApprovalDecision::AllowOnce));
+    }
+
+    #[tokio::test]
+    async fn approval_enter_respects_menu_index() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.approval_menu_selected = 2;
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        assert!(apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)
+        ));
+        assert!(matches!(rx.await.unwrap(), ApprovalDecision::Deny));
+    }
+
+    #[tokio::test]
+    async fn approval_unknown_key_keeps_pending() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        assert!(apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE)
+        ));
+        assert!(st.pending_approval.is_some());
+        std::mem::drop(rx);
+    }
+
+    #[tokio::test]
+    async fn user_question_down_enter_second_option() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.pending_user_question = Some(PendingUserQuestion {
+            header: "h".into(),
+            question: "q".into(),
+            option_labels: vec!["first".into(), "second".into()],
+            option_descriptions: vec![String::new(), String::new()],
+            multi_select: false,
+            reply: tx,
+        });
+        assert!(apply_stream_user_question_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)
+        ));
+        assert_eq!(st.user_question_menu_selected, 1);
+        assert!(apply_stream_user_question_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)
+        ));
+        assert_eq!(rx.await.unwrap().unwrap(), vec!["second"]);
+    }
+
+    #[tokio::test]
+    async fn user_question_esc_cancels() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.pending_user_question = Some(PendingUserQuestion {
+            header: "h".into(),
+            question: "q".into(),
+            option_labels: vec!["only".into()],
+            option_descriptions: vec![String::new()],
+            multi_select: false,
+            reply: tx,
+        });
+        assert!(apply_stream_user_question_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
+        ));
+        assert!(rx.await.unwrap().is_err());
+    }
+
+    #[test]
+    fn resize_yields_continue() {
+        let mut st = ReplLineState::default();
+        let ctl = handle_event(Event::Resize(100, 40), &mut st).unwrap();
+        assert!(matches!(ctl, ReplCtl::Continue));
+    }
+
+    #[test]
+    fn ctrl_l_requests_clear_session() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("noise");
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(matches!(ctl, ReplCtl::ClearSession));
+        assert_eq!(st.input.as_string(), "noise");
+    }
+
+    #[test]
+    fn ctrl_c_empty_input_eof() {
+        let mut st = ReplLineState::default();
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(matches!(ctl, ReplCtl::Eof));
+    }
+
+    #[test]
+    fn ctrl_c_nonempty_clears_input() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("x");
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(matches!(ctl, ReplCtl::Continue));
+        assert!(st.input.as_string().is_empty());
+    }
+
+    #[test]
+    fn ctrl_d_empty_eof() {
+        let mut st = ReplLineState::default();
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(matches!(ctl, ReplCtl::Eof));
+    }
+
+    #[test]
+    fn ctrl_d_deletes_forward() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("ab");
+        st.input.move_home();
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.as_string(), "b");
+    }
+
+    #[test]
+    fn esc_suppresses_slash_menu_on_first_line() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/he");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(st.slash_suppress);
+    }
+
+    #[test]
+    fn esc_does_not_suppress_when_cursor_not_on_first_line() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/he\n");
+        assert_eq!(st.input.as_string(), "/he\n");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(!st.slash_suppress);
+    }
+
+    #[test]
+    fn slash_up_wraps_pick() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/");
+        let len = crate::slash_commands::slash_suggestions_for_first_line("/").len();
+        assert!(
+            len >= 2,
+            "expected at least 2 '/' slash candidates, got {len}"
+        );
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.slash_pick, 1);
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.slash_pick, 0);
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.slash_pick, len - 1);
+    }
+
+    #[test]
+    fn slash_backtab_moves_pick_backward() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        let j = st.slash_pick;
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT)),
+            &mut st,
+        )
+        .unwrap();
+        assert_ne!(st.slash_pick, j);
+    }
+
+    #[test]
+    fn tab_without_slash_is_no_op() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("plain");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.as_string(), "plain");
+    }
+
+    #[test]
+    fn enter_applies_slash_pick_like_tab() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/he");
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        let ReplCtl::Submit(s) = ctl else {
+            panic!("expected Submit after /he + Enter");
+        };
+        assert!(s.starts_with("/help"), "got {s:?}");
+    }
+
+    #[test]
+    fn repeat_enter_does_not_submit() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("x");
+        let mut k = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        k.kind = KeyEventKind::Repeat;
+        let ctl = handle_event(Event::Key(k), &mut st).unwrap();
+        assert!(matches!(ctl, ReplCtl::Continue));
+        assert_eq!(st.input.as_string(), "x");
+    }
+
+    #[test]
+    fn control_char_insert_ignored() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("a");
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('\t'), KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.as_string(), "a");
+    }
+
+    #[test]
+    fn history_restored_on_up_after_submit() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("line-a");
+        let ctl = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert!(matches!(ctl, ReplCtl::Submit(_)));
+        assert!(st.input.as_string().is_empty());
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.as_string(), "line-a");
+    }
+
+    #[test]
+    fn history_dedupes_consecutive_identical_submit() {
+        let mut st = ReplLineState::default();
+        for _ in 0..2 {
+            st.input.set_from_str("same");
+            let _ = handle_event(
+                Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+                &mut st,
+            )
+            .unwrap();
+        }
+        assert_eq!(st.input_history.len(), 1);
+    }
+
+    #[test]
+    fn left_right_home_end_move_cursor() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("abc");
+        st.input.move_home();
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.cursor, 1);
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.cursor, 0);
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.input.cursor, 3);
+    }
+
+    #[test]
+    fn backspace_delete_reset_slash_state() {
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/x");
+        st.slash_pick = 2;
+        handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE)),
+            &mut st,
+        )
+        .unwrap();
+        assert_eq!(st.slash_pick, 0);
+    }
+
+    #[test]
+    fn repl_dock_with_pending_approval_still_bounded() {
+        let (tx, _rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.input.set_from_str("/");
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        let area = Rect::new(0, 0, 80, 24);
+        let h = repl_dock_height(area, &st, ReplDockLayout);
+        assert!(h <= area.height);
+    }
+
+    #[test]
+    fn apply_stream_approval_key_false_without_pending() {
+        let mut st = ReplLineState::default();
+        assert!(!apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)
+        ));
+    }
+
+    #[tokio::test]
+    async fn approval_p_sends_allow_tool_for_project() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        assert!(apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE)
+        ));
+        assert!(matches!(
+            rx.await.unwrap(),
+            ApprovalDecision::AllowToolForProject
+        ));
+    }
+
+    #[tokio::test]
+    async fn approval_n_sends_deny() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        assert!(apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)
+        ));
+        assert!(matches!(rx.await.unwrap(), ApprovalDecision::Deny));
+    }
+
+    #[tokio::test]
+    async fn approval_down_cycles_menu_without_send() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.approval_menu_selected = 0;
+        st.pending_approval = Some(PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: tx,
+        });
+        assert!(apply_stream_approval_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)
+        ));
+        assert_eq!(st.approval_menu_selected, 1);
+        assert!(st.pending_approval.is_some());
+        std::mem::drop(rx);
+    }
+
+    #[tokio::test]
+    async fn user_question_up_wraps_from_zero() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let mut st = ReplLineState::default();
+        st.user_question_menu_selected = 0;
+        st.pending_user_question = Some(PendingUserQuestion {
+            header: String::new(),
+            question: String::new(),
+            option_labels: vec!["a".into(), "b".into()],
+            option_descriptions: vec![String::new(), String::new()],
+            multi_select: false,
+            reply: tx,
+        });
+        assert!(apply_stream_user_question_key(
+            &mut st,
+            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)
+        ));
+        assert_eq!(st.user_question_menu_selected, 1);
+        assert!(st.pending_user_question.is_some());
+        std::mem::drop(rx);
     }
 }

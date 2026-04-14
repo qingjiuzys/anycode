@@ -2,6 +2,8 @@
 //! Fenced / indented 代码块经 syntect 着色；过长块回退为单色 `style_inline_code`。
 
 use crate::i18n::tr;
+use crate::tui::palette;
+use crate::tui::styles::style_dim;
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -127,7 +129,13 @@ fn render_markdown_cached(md: &str, width: usize, enable_osc8: bool) -> Option<V
         return None;
     }
 
-    let cache_key = format!("{}|{}|{}", md.len(), width, enable_osc8);
+    let cache_key = format!(
+        "{}|{}|{}|{}",
+        md.len(),
+        width,
+        enable_osc8,
+        palette::PALETTE_CACHE_VERSION
+    );
 
     // 尝试从缓存获取（使用长度作为键避免复制大字符串）
     {
@@ -146,7 +154,13 @@ fn cache_markdown_result(md: &str, width: usize, enable_osc8: bool, lines: Vec<L
         return;
     }
 
-    let cache_key = format!("{}|{}|{}", md.len(), width, enable_osc8);
+    let cache_key = format!(
+        "{}|{}|{}|{}",
+        md.len(),
+        width,
+        enable_osc8,
+        palette::PALETTE_CACHE_VERSION
+    );
     MD_CACHE.lock().unwrap().put(cache_key, lines);
 }
 
@@ -341,33 +355,33 @@ pub fn wrap_ratatui_line(line: Line<'static>, content_width: usize) -> Vec<Line<
 }
 
 fn style_heading(level: HeadingLevel) -> Style {
-    let base = Style::default()
-        .fg(Color::Cyan)
-        .add_modifier(Modifier::BOLD);
     match level {
-        HeadingLevel::H1 | HeadingLevel::H2 => base.fg(Color::LightCyan),
-        _ => base,
+        HeadingLevel::H1 => Style::default()
+            .fg(palette::accent())
+            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        HeadingLevel::H2 => Style::default()
+            .fg(palette::assistant_label())
+            .add_modifier(Modifier::BOLD),
+        _ => Style::default()
+            .fg(palette::text())
+            .add_modifier(Modifier::BOLD),
     }
 }
 
 fn style_inline_code() -> Style {
     Style::default()
-        .fg(Color::Yellow)
+        .fg(palette::warning())
         .add_modifier(Modifier::DIM)
 }
 
 fn style_block_quote() -> Style {
-    Style::default().fg(Color::DarkGray)
+    Style::default().fg(palette::blockquote_text())
 }
 
 fn style_link() -> Style {
     Style::default()
-        .fg(Color::LightBlue)
+        .fg(palette::link())
         .add_modifier(Modifier::UNDERLINED)
-}
-
-fn style_dim() -> Style {
-    Style::default().fg(Color::DarkGray)
 }
 
 /// 在固定宽度内把带样式的文本写成多行 `Line`（按字符宽度，支持 CJK）。
@@ -517,8 +531,21 @@ fn physical_prefix_from_stack(stack: &[String]) -> Vec<Span<'static>> {
     if stack.is_empty() {
         Vec::new()
     } else {
-        let p = stack.join("");
-        vec![Span::styled(p, style_dim())]
+        stack
+            .iter()
+            .map(|piece| {
+                let st = if piece.starts_with('│') {
+                    Style::default().fg(palette::blockquote_rule())
+                } else if piece.starts_with('·')
+                    || piece.chars().next().is_some_and(|c| c.is_ascii_digit())
+                {
+                    Style::default().fg(palette::secondary())
+                } else {
+                    style_dim()
+                };
+                Span::styled(piece.clone(), st)
+            })
+            .collect()
     }
 }
 
@@ -728,7 +755,9 @@ pub fn render_markdown_styled(
                         } else {
                             format!("──── {lang} ────")
                         },
-                        style_inline_code().add_modifier(Modifier::DIM),
+                        Style::default()
+                            .fg(palette::code_fence_line())
+                            .add_modifier(Modifier::DIM),
                     ));
                     if !writer.at_limit() {
                         writer.out.push(Line::from(fence));
@@ -1132,6 +1161,20 @@ mod tests {
             .collect();
         assert!(s.contains("Title"));
         assert!(!s.contains("# "));
+    }
+
+    #[test]
+    fn heading_h1_uses_claude_accent_palette() {
+        let md = "# Title\n\n";
+        let lines = render_markdown_styled(md, 40, Style::default(), MarkdownChrome::default());
+        assert!(!lines.is_empty());
+        let h1_fg = lines[0].spans.first().and_then(|s| s.style.fg);
+        let expected = if std::env::var_os("NO_COLOR").is_some() {
+            Some(Color::Reset)
+        } else {
+            Some(Color::Rgb(255, 140, 66))
+        };
+        assert_eq!(h1_fg, expected);
     }
 
     #[test]

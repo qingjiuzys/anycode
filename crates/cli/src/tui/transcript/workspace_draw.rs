@@ -211,7 +211,7 @@ fn has_non_user_content_after(entries: &[TranscriptEntry], user_idx: usize) -> b
         .any(|e| !matches!(e, TranscriptEntry::User(_)))
 }
 
-/// Turn 进行中：在最后一条用户消息之后显示 Germinating（会话流内，与 Prompt Dock 解耦）；已有非空 assistant 正文则隐藏。
+/// Turn 进行中：在最后一条用户消息之后显示 “Thinking…” 占位（会话流内，与 Prompt Dock 解耦）；已有非空 assistant 正文则隐藏。
 fn should_show_turn_status_after_user(
     entries: &[TranscriptEntry],
     user_idx: usize,

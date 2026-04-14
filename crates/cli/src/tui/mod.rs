@@ -8,6 +8,7 @@ mod backend;
 mod chrome;
 pub(crate) mod hud_text;
 pub(crate) mod input;
+pub(crate) mod palette;
 mod pet;
 mod run;
 pub(crate) mod status_line;

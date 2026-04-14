@@ -4,6 +4,34 @@ use crate::i18n::{tr, tr_args};
 use anycode_core::TurnTokenUsage;
 use fluent_bundle::FluentArgs;
 
+/// Footer ctx 片段：与全屏 TUI [`crate::tui::run::draw`] 脚标同源，供流式 REPL 底栏左列使用。
+pub(crate) fn footer_context_fragment_for_tokens(
+    context_window_tokens: u32,
+    last_max_input_tokens: u32,
+    last_output_tokens: u32,
+) -> String {
+    let mut base = if context_window_tokens == 0 {
+        tr("tui-footer-ctx-unknown")
+    } else if last_max_input_tokens == 0 {
+        let mut a = FluentArgs::new();
+        a.set("win", context_window_tokens as i64);
+        tr_args("tui-footer-ctx-zero", &a)
+    } else {
+        let pct =
+            ((last_max_input_tokens as f64 / context_window_tokens as f64) * 100.0).min(100.0);
+        let mut a = FluentArgs::new();
+        a.set("pct", (pct.round() as i64).max(0));
+        a.set("win", context_window_tokens as i64);
+        tr_args("tui-footer-ctx-pct", &a)
+    };
+    if last_output_tokens > 0 {
+        let mut a = FluentArgs::new();
+        a.set("k", format_tokens_k_thousands(last_output_tokens));
+        base.push_str(&tr_args("tui-footer-out-tokens", &a));
+    }
+    base
+}
+
 /// 千分位 `k` 展示（HUD 脚标共用，与 Claude「约 Xk tokens」风格一致）。
 pub(crate) fn format_tokens_k_thousands(tokens: u32) -> String {
     let tok_k = (tokens as f64) / 1000.0;

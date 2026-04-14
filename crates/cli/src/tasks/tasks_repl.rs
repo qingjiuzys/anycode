@@ -17,7 +17,7 @@ use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
 use anycode_tools::{iter_cli_tool_help, workflows};
 use fluent_bundle::FluentArgs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -71,8 +71,29 @@ fn sync_repl_dock_status(
     turn_in_progress: bool,
 ) {
     if let Ok(mut s) = line_state.lock() {
-        // 执行态 `✶ thinking…` 在绘制时经 [`stream_dock_activity_prefix`] 拼在脚标前；此处只写 provider · model · agent · 审批。
+        // 执行态 HUD 行内显示 `✶ thinking…` + `⎿` tips（与全屏 TUI 一致）；此处写脚标右列 provider · model · agent · 审批。
         s.dock_status = repl_stream_dock_status_line(config, agent);
+        let win = crate::app_config::effective_session_context_window_tokens(
+            &config.session,
+            config.llm.provider.as_str(),
+            config.llm.model.as_str(),
+        );
+        let (last_in, last_out) = s
+            .last_turn_token_usage
+            .as_ref()
+            .map(|tu| (tu.max_input_tokens, tu.total_output_tokens))
+            .unwrap_or((0u32, 0u32));
+        let mut left =
+            crate::tui::hud_text::footer_context_fragment_for_tokens(win, last_in, last_out);
+        left.push_str(" · ");
+        left.push_str(&tr("tui-footer-help-hint"));
+        if s.stream_transcript_scroll > 0 {
+            let mut a = FluentArgs::new();
+            a.set("n", s.stream_transcript_scroll as i64);
+            left.push_str(" · ");
+            left.push_str(&tr_args("tui-footer-scroll-hint", &a));
+        }
+        s.dock_footer_left = left;
         if !turn_in_progress {
             s.executing_since = None;
         }
@@ -241,7 +262,7 @@ pub(crate) async fn run_interactive(
 async fn run_interactive_tty(
     runtime: &Arc<AgentRuntime>,
     disk: &DiskTaskOutput,
-    working_dir: &PathBuf,
+    working_dir: &Path,
     agent: &mut String,
     config: &mut Config,
     session_skip_approval: bool,
@@ -443,7 +464,7 @@ async fn finish_stream_spawned_turn(
 async fn run_interactive_tty_stream(
     runtime: &Arc<AgentRuntime>,
     disk: &DiskTaskOutput,
-    working_dir: &PathBuf,
+    working_dir: &Path,
     agent: &mut String,
     config: &mut Config,
     _session_skip_approval: bool,
@@ -771,7 +792,7 @@ async fn run_interactive_tty_stream(
 async fn repl_dispatch_inner(
     runtime: &Arc<AgentRuntime>,
     disk: &DiskTaskOutput,
-    working_dir: &PathBuf,
+    working_dir: &Path,
     agent: &mut String,
     config: &mut Config,
     line_session: &mut ReplLineSession,
@@ -977,7 +998,11 @@ async fn repl_dispatch_inner(
                         if truncated {
                             let mut a = FluentArgs::new();
                             a.set("n", MAX_PASTE_CHARS as i64);
-                            sink.eprint_line(tr_args("tui-err-paste-truncated", &a));
+                            let msg = tr_args("tui-err-paste-truncated", &a);
+                            match sink {
+                                ReplSink::Stdio => sink.eprint_line(&msg),
+                                ReplSink::Stream { .. } => sink.line(&msg),
+                            }
                         }
                         if let Ok(mut st) = st_arc.lock() {
                             st.input.insert_str(&clean);
@@ -1000,10 +1025,10 @@ async fn repl_dispatch_inner(
         "exit" | "quit" | ":q" | "/exit" => return Ok(ReplDispatchOutcome::Exit),
         "help" | "?" | "/help" => {
             let mut h = FluentArgs::new();
-            h.set("cwd", format!("{:?}", working_dir));
+            h.set("cwd", working_dir.to_string_lossy().to_string());
             h.set("agent", agent.clone());
-            sink.line(tr_args("repl-help-equiv", &h));
-            sink.line(tr("repl-help-cmds"));
+            sink.line(tr_args("repl-help-equiv-line1", &h));
+            sink.line(tr_args("repl-help-equiv-line2", &h));
             for line in slash_commands::help_lines() {
                 sink.line(line);
             }
@@ -1026,7 +1051,7 @@ async fn repl_dispatch_inner(
 async fn repl_dispatch_one_line(
     runtime: &Arc<AgentRuntime>,
     disk: &DiskTaskOutput,
-    working_dir: &PathBuf,
+    working_dir: &Path,
     agent: &mut String,
     config: &mut Config,
     line_session: &mut ReplLineSession,

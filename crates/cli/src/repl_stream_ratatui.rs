@@ -28,9 +28,9 @@ use crate::repl_inline::{
     apply_stream_approval_key, apply_stream_user_question_key, handle_event,
     render_repl_dock_to_buffer, repl_dock_height, repl_stream_transcript_bottom_padded,
     sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
-    stream_repl_accept_key_event, ReplCtl, ReplDockLayout, ReplLineState,
+    stream_repl_accept_key_event, stream_transcript_plain_to_styled_text, ReplCtl, ReplDockLayout,
+    ReplLineState,
 };
-use crate::tui::styles::style_dim;
 
 /// Tokio 侧 → UI 线程：释放终端、结束循环等。
 pub(crate) enum StreamReplAsyncCtl {
@@ -92,6 +92,8 @@ fn draw_stream_frame(
             Ok(s) => s,
             Err(_) => return,
         };
+        // 双缓冲上一帧未改写的 cell 会残留；仅清主区时 dock/主区边界易出现「横线粘上一行」假叠字。
+        clear_buffer_area(f.buffer_mut(), area);
         let dock_h = repl_dock_height(area, &st, ReplDockLayout);
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -110,9 +112,14 @@ fn draw_stream_frame(
             let g = st.transcript.lock().unwrap_or_else(|e| e.into_inner());
             repl_stream_transcript_bottom_padded(g.as_str(), top_cell.height, wrap_w, scroll_up)
         };
-        clear_buffer_area(f.buffer_mut(), top_cell);
         // 换行已由 `repl_stream_transcript_bottom_padded` 按 `wrap_w` 折好；勿再 `wrap`，否则与按显示行「上滚」的裁剪不一致。
-        let top_par = Paragraph::new(Text::raw(transcript_tail)).style(style_dim());
+        // 宽度交给 ratatui Paragraph + LineTruncator（grapheme 宽），避免与 unicode-width 二次截断不一致。
+        let top_text = if transcript_tail.is_empty() {
+            Text::raw(String::new())
+        } else {
+            stream_transcript_plain_to_styled_text(&transcript_tail)
+        };
+        let top_par = Paragraph::new(top_text);
         f.render_widget(top_par, top_cell);
 
         let iw = dock_screen.width.max(1);

@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+- **TUI / terminal palette:** default colors track claude-code-rust (`src/cli/ui.rs`): purple secondary for brand and welcome borders; **ACCENT orange** for user lines, H1 headings, menu selection, and the stdio `▸ anycode>` prompt chevron; lavender assistant labels; gray **thinking…** caption (150,150,150) beside a bold purple `✶` HUD bullet; blockquote body slightly violet-gray; muted purple-gray horizontal rules. `NO_COLOR` still forces neutral `Reset` foregrounds in ratatui paths. Markdown LRU cache keys include a palette version.
+- **Copy (EN):** transcript wait line `tui-germinating` is now “Thinking…” (was “Germinating…”), aligned with Claude-style wording.
+- **Stream REPL (TTY Inline):** transcript 主区由「整页 dim」改为按行语义色（`Turn failed` 等错误高亮、`❯` 用户行、会话恢复/命令总览偏品牌色、斜杠帮助表灰字、正文默认白字）；`/help` 去掉与表格重复的一长行 `repl-help-cmds`，等价 `run` 示例里的 cwd 改为可读路径并加引号；`slash_commands::help_lines` 列宽按显示宽度对齐。**Dock** 与全屏 TUI 对齐：执行中/审批/选题时 **两行 HUD**（`✶` + `⎿` 提示），脚标为 ctx / provider；**底部横线在脚标之上**（prompt → rule → footer）；底栏下横线与顶横线同为 `style_horizontal_rule`。**修复**：`ReplSink::Stream` 的 `eprint_line` 不再写 stderr（避免长错误/JSON 与 Inline 视口网格交错叠字）；artifact 列表与粘贴截断提示在 Stream 下走 transcript；**每帧清空整个 Inline 视口**再绘制（避免双缓冲残留 cell 与底栏 `─` 假叠字）；主区行宽仅由 ratatui `Paragraph` 截断，避免与 `unicode-width` 二次截断错位。
 - **Core:** `CoreError::CooperativeCancel` for cooperative turn/nested cancel (same `Display` as legacy `LLMError("cancelled")`); `CoreError::is_cooperative_cancel` and `anyhow_error_is_cooperative_cancel` for callers. ADR `docs/adr/002-cooperative-cancel-and-nested-agents.md`; docs-site architecture section; `TaskStop` JSON note aligned with background nested cancel wiring.
-- **Tests:** `repl_line_session` helpers for trailing-assistant pop + cancel detection; MCP wall-timeout `CoreError` maps to `TimedOut` IO.
+- **Tests:** `repl_line_session` helpers for trailing-assistant pop + cancel detection; MCP wall-timeout `CoreError` maps to `TimedOut` IO. **Integration:** `tests/cli_e2e_mock_llm.rs` — local TCP OpenAI-compatible mock exercises `anycode run`, `run --workflow` (two steps), and non-TTY `repl` with two or three natural-language turns (no real API key). **Stream REPL:** `repl_inline::stream_repl_keyboard_tests` — expanded `handle_event` (Ctrl+L/D、历史去重、Esc 与多行光标、BackTab、Enter 同 Tab 补全、控制字符过滤等)、dock+审批高度、`apply_stream_*_key`（y/p/n、菜单 Down、选题 Up 环绕）。
 
 ## 0.2.0
 

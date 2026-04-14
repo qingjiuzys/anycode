@@ -39,7 +39,7 @@ const FOOTER_LINES_CAP: usize = 10;
 /// 与 Workspace / Dock 左右边对齐的整行横线。
 fn horizontal_rule_line(width: u16) -> Line<'static> {
     let w = width.max(1) as usize;
-    Line::from(Span::styled("─".repeat(w), style_dim()))
+    Line::from(Span::styled("─".repeat(w), style_horizontal_rule()))
 }
 
 /// 欢迎卡底边，与 Dock 上缘衔接（`╰─╯`），用于非三段式紧凑栈。
@@ -110,10 +110,20 @@ fn render_prompt_hud_stacked(
     } else {
         (area, None)
     };
+    let activity_line_style = if pending_approval || executing {
+        Style::default().fg(crate::tui::palette::thinking_caption())
+    } else {
+        style_dim()
+    };
     let hud_text = Text::from(vec![
         Line::from(vec![
-            Span::styled("✶ ", style_dim()),
-            Span::styled(activity, style_assistant()),
+            Span::styled(
+                "✶ ",
+                Style::default()
+                    .fg(crate::tui::palette::secondary())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(activity, activity_line_style),
         ]),
         Line::from(vec![
             Span::styled("⎿ ", style_dim()),
@@ -147,29 +157,11 @@ pub(super) struct FooterLayoutInput<'a> {
 }
 
 fn footer_ctx_fragment(inp: &FooterLayoutInput<'_>) -> String {
-    let win = inp.context_window_tokens;
-    let mut base = if win == 0 {
-        tr("tui-footer-ctx-unknown")
-    } else if inp.last_max_input_tokens == 0 {
-        let mut a = FluentArgs::new();
-        a.set("win", win as i64);
-        tr_args("tui-footer-ctx-zero", &a)
-    } else {
-        let pct = ((inp.last_max_input_tokens as f64 / win as f64) * 100.0).min(100.0);
-        let mut a = FluentArgs::new();
-        a.set("pct", (pct.round() as i64).max(0));
-        a.set("win", win as i64);
-        tr_args("tui-footer-ctx-pct", &a)
-    };
-    if inp.last_output_tokens > 0 {
-        let mut a = FluentArgs::new();
-        a.set(
-            "k",
-            crate::tui::hud_text::format_tokens_k_thousands(inp.last_output_tokens),
-        );
-        base.push_str(&tr_args("tui-footer-out-tokens", &a));
-    }
-    base
+    crate::tui::hud_text::footer_context_fragment_for_tokens(
+        inp.context_window_tokens,
+        inp.last_max_input_tokens,
+        inp.last_output_tokens,
+    )
 }
 
 fn spans_flat_string(spans: &[Span<'static>]) -> String {
@@ -793,9 +785,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         for (i, label) in q.option_labels.iter().enumerate() {
             let prefix = if i == pick { "❯ " } else { "  " };
             let st = if i == pick {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                style_menu_selected()
             } else {
                 style_dim()
             };
@@ -854,9 +844,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         for (i, label) in [opt_once, opt_proj, opt_deny].into_iter().enumerate() {
             let prefix = if i == pick { "❯ " } else { "  " };
             let st = if i == pick {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
+                style_menu_selected()
             } else {
                 style_dim()
             };
@@ -905,7 +893,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         input_lines.push(Line::from(vec![
             Span::styled(tr("tui-revsearch-prefix"), style_warn()),
             Span::styled(before, Style::default().fg(Color::White)),
-            Span::styled("▌", Style::default().fg(Color::Cyan)),
+            Span::styled("▌", style_menu_selected()),
             Span::styled(after, Style::default().fg(Color::White)),
         ]));
         let preview_w = input_inner_w.saturating_sub(2) as usize;
@@ -974,9 +962,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
                 let desc = truncate_to_display_width(item.description.trim(), desc_max);
                 let pfx_s = if is_sel { "› " } else { "  " };
                 let cmd_st2 = if is_sel {
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD)
+                    style_menu_selected()
                 } else {
                     style_dim()
                 };

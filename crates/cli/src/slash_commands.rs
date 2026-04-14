@@ -1,6 +1,8 @@
+use crate::md_tui::pad_end_to_display_width;
 use anycode_core::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParsedSlashCommand {
@@ -27,15 +29,27 @@ pub fn registry() -> &'static [SlashCommand] {
 }
 
 pub fn help_lines() -> Vec<String> {
-    registry()
+    let rows = registry();
+    let name_col_w = rows
         .iter()
+        .map(|c| format!("/{}", c.name).width())
+        .max()
+        .unwrap_or(8)
+        .clamp(10, 22);
+    let scope_w = 8usize;
+    rows.iter()
         .map(|cmd| {
             let scope = match cmd.scope {
                 SlashCommandScope::Local => "local",
                 SlashCommandScope::Runtime => "runtime",
                 SlashCommandScope::PromptOnly => "prompt",
             };
-            format!("/{:<10} {:<7} {}", cmd.name, scope, cmd.summary)
+            let cmd_col = pad_end_to_display_width(&format!("/{}", cmd.name), name_col_w);
+            format!(
+                "{cmd_col}  {scope:<scope_w$}  {}",
+                cmd.summary,
+                scope_w = scope_w
+            )
         })
         .collect()
 }

@@ -1,7 +1,8 @@
 //! REPL 首屏欢迎框（stdout），与 stderr 上的 tracing 分离。
 
 use crate::i18n::tr;
-use console::{style, Style, Term};
+use crate::tui::palette;
+use console::{style, Color, Style, Term};
 use std::path::Path;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use uuid::Uuid;
@@ -18,11 +19,13 @@ pub(crate) enum ReplWelcomeKind {
 }
 
 fn border_style() -> Style {
-    Style::new().cyan()
+    let (r, g, b) = palette::SECONDARY;
+    Style::new().fg(Color::TrueColor(r, g, b))
 }
 
 fn pet_face_style() -> Style {
-    Style::new().cyan().bold()
+    let (r, g, b) = palette::ASSISTANT_LABEL;
+    Style::new().fg(Color::TrueColor(r, g, b)).bold()
 }
 
 fn dim_style() -> Style {
@@ -113,7 +116,14 @@ pub(crate) fn print_repl_welcome(
 }
 
 pub(crate) fn print_repl_prompt() {
-    print!("{}{}", style("anycode").cyan().bold(), style("> ").bold());
+    let (ar, ag, ab) = palette::ACCENT;
+    let (sr, sg, sb) = palette::SECONDARY;
+    print!(
+        "{}{}{}",
+        style("▸ ").fg(Color::TrueColor(ar, ag, ab)).bold(),
+        style("anycode").fg(Color::TrueColor(sr, sg, sb)).bold(),
+        style("> ").bold()
+    );
 }
 
 pub(crate) fn print_repl_goodbye(session_id: Uuid) {
