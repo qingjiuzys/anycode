@@ -137,7 +137,7 @@ fn apply_slash_pick_to_input(state: &mut ReplLineState) {
     state.history_idx = None;
 }
 
-/// 将 `body` 按 `wrap_width` 折成与 ratatui `Paragraph`+`Wrap` 一致的**显示行**列表（逐逻辑行 `wrap_string_to_width`）。
+/// 将 `body` 按 `wrap_width` 折成显示行列表（与 [`crate::md_tui::wrap_string_to_width`] 一致，供行预算与上滚裁剪）。
 fn transcript_wrapped_rows(body: &str, wrap_width: usize) -> Vec<String> {
     let w = wrap_width.max(8);
     let mut out = Vec::new();
@@ -366,7 +366,8 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
 
 /// 流式 Inline 主区按行上色：错误醒目、用户行高亮、说明性表格变淡（对齐 Claude Code 式层次，避免整页灰字）。
 ///
-/// 行宽由渲染时 `Paragraph` + `LineTruncator`（ratatui grapheme 宽）截断；勿在此用 `unicode-width` 再截一遍，易与 CJK/组合字符错位导致假「横线粘连」。
+/// 预折行与 `md_tui::wrap_string_to_width` 一致；渲染时用 `Paragraph::wrap(Wrap { trim: false })`（ratatui `WordWrapper`），
+/// 避免无 wrap 时 `LineTruncator` 把超长行甩到下一列与底栏 `─` 叠成「满屏横线」。
 pub(crate) fn stream_transcript_plain_to_styled_text(body: &str) -> Text<'static> {
     let lines: Vec<Line<'static>> = body
         .lines()

@@ -5,9 +5,12 @@ use crate::i18n::{tr, tr_args};
 use anyhow::{Context, Result};
 use fluent_bundle::FluentArgs;
 use std::fs;
-use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
+use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 
+#[cfg(target_os = "macos")]
 pub const LAUNCHD_LABEL: &str = "dev.anycode.wechat";
 
 #[cfg(target_os = "linux")]
@@ -23,6 +26,7 @@ pub struct WechatServiceSpec {
     pub register_only: bool,
 }
 
+#[cfg(target_os = "macos")]
 fn xml_escape(s: &str) -> String {
     s.chars()
         .map(|c| match c {
@@ -73,6 +77,7 @@ fn build_argv(spec: &WechatServiceSpec) -> Result<Vec<String>> {
     Ok(v)
 }
 
+#[cfg(target_os = "macos")]
 fn log_paths() -> Result<(PathBuf, PathBuf)> {
     let home = dirs::home_dir().context(tr("wx-svc-err-no-home"))?;
     let log_dir = home.join(".anycode").join("logs");

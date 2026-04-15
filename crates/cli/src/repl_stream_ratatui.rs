@@ -20,7 +20,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::{Buffer, Cell};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use crate::md_tui::wrap_string_to_width;
@@ -112,14 +112,14 @@ fn draw_stream_frame(
             let g = st.transcript.lock().unwrap_or_else(|e| e.into_inner());
             repl_stream_transcript_bottom_padded(g.as_str(), top_cell.height, wrap_w, scroll_up)
         };
-        // 换行已由 `repl_stream_transcript_bottom_padded` 按 `wrap_w` 折好；勿再 `wrap`，否则与按显示行「上滚」的裁剪不一致。
-        // 宽度交给 ratatui Paragraph + LineTruncator（grapheme 宽），避免与 unicode-width 二次截断不一致。
+        // 与 `claude-code-rust` 聊天区一致：`WordWrapper`（`Wrap { trim: false }`），避免无 wrap 时
+        // `LineTruncator` 把超长行截到下一列与底栏 `─` 叠成「满屏横线」。
         let top_text = if transcript_tail.is_empty() {
             Text::raw(String::new())
         } else {
             stream_transcript_plain_to_styled_text(&transcript_tail)
         };
-        let top_par = Paragraph::new(top_text);
+        let top_par = Paragraph::new(top_text).wrap(Wrap { trim: false });
         f.render_widget(top_par, top_cell);
 
         let iw = dock_screen.width.max(1);
