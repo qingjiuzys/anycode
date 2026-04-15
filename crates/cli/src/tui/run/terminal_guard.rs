@@ -8,7 +8,7 @@
 //!
 //! 1. **DEC 备用屏**（`ANYCODE_TUI_ALT_SCREEN=1`）— **不擦**主缓冲 scrollback，换到独立画布；退出后 shell 画面恢复。这是唯一能稳定隔离「整屏矩阵重绘」与历史输出的常规手段。
 //! 2. **主缓冲 + 不清屏** — `loop_inner` 使用 ratatui **`Viewport::Inline(屏高)`**，视口锚在 **shell 光标下方**，避免 `MoveTo(0,0)` + 全屏视口把 UI 画在屏顶、与下方历史叠成「重复底栏」；若仍叠画，可用 **`ANYCODE_TUI_CLEAR_ON_START=1`** 或备用屏。
-//! 3. **（已弃用默认路径）分区绘制（DECSTBM）** — 旧版 `repl_stream_dock` 用滚动边距 + 手工 blit；**当前默认** `anycode` / `anycode repl` 与 TUI 主缓冲一致，走 **`Viewport::Inline` + ratatui**（见 `repl_stream_ratatui`）。全屏 ratatui 矩阵为 **`anycode tui`**。
+//! 3. **（已弃用默认路径）分区绘制（DECSTBM）** — 旧版 `repl_stream_dock` 用滚动边距 + 手工 blit；**当前默认** `anycode` / `anycode repl` 与 TUI 主缓冲一致，走 **`Viewport::Inline` + ratatui**（见 `repl::stream_ratatui`）。全屏 ratatui 矩阵为 **`anycode tui`**。
 //! 4. **增量写终端**（diff / 非整块矩阵）— 可规避叠画，但 **不是** ratatui 默认模型；需自研或换栈。
 //!
 //! ### 默认策略（与上表独立）

@@ -3,7 +3,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use crate::repl_inline::ReplLineState;
+use crate::repl::ReplLineState;
 
 /// REPL 输出目标：管道/工作流走真实终端；Stream 写入 [`ReplLineState::transcript`]（由 ratatui Inline 视口展示）。
 pub(crate) enum ReplSink {

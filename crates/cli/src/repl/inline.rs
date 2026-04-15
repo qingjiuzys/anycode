@@ -23,8 +23,20 @@ use ratatui::widgets::{Paragraph, Widget, Wrap};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// 仅用于绘制：保留尾部若干行，避免 transcript 撑爆屏幕。
+/// 仅用于绘制：保留尾部若干行（旧 tail 裁剪路径；测试保留）。
+#[cfg(test)]
 const TRANSCRIPT_MAX_DISPLAY_LINES: usize = 256;
+
+/// 流式 REPL 主区折行缓存（与 `claude-code-rust` 视口高度测量同思路）。
+#[derive(Clone, Debug, Default)]
+pub(crate) struct StreamTranscriptLayoutCache {
+    pub key: u64,
+    pub width: u16,
+    pub total_rows: usize,
+    /// `prefix_row[i]` = 全局显示行下标到第 `i` 条逻辑行起点。
+    pub prefix_row: Vec<usize>,
+    pub logical_heights: Vec<usize>,
+}
 
 pub(crate) struct ReplLineState {
     pub input: InputState,
@@ -52,6 +64,13 @@ pub(crate) struct ReplLineState {
     pub finished_turn_summary_until: Option<Instant>,
     /// 主区向上滚动的显示行数（从贴底算起，越大越「老」）；仅流式 Inline 使用。
     pub stream_transcript_scroll: usize,
+    /// 与 `claude-code-rust` 一致：贴底时自动跟随新输出；用户上滚后为 `false`。
+    pub stream_repl_auto_scroll_follow: bool,
+    /// 平滑滚动位置（全局「显示行」坐标，浮点）。
+    pub stream_repl_scroll_pos: f32,
+    pub stream_repl_scroll_target: f32,
+    /// 按视口宽度缓存的折行高度与前缀和（避免每帧 O(n) 全量折行）。
+    pub stream_transcript_layout: StreamTranscriptLayoutCache,
     /// 最近完成的一轮 `execute_turn` 聚合用量（供 `/context` 与 HUD 对齐）。
     pub last_turn_token_usage: Option<TurnTokenUsage>,
     /// 退出时 `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=anchor` 用的字节偏移：当前「自然语言轮」写入前 `transcript.len()`（与异步侧 `turn_transcript_anchor` 一致）。
@@ -78,6 +97,10 @@ impl Default for ReplLineState {
             finished_turn_summary: None,
             finished_turn_summary_until: None,
             stream_transcript_scroll: 0,
+            stream_repl_auto_scroll_follow: true,
+            stream_repl_scroll_pos: 0.0,
+            stream_repl_scroll_target: 0.0,
+            stream_transcript_layout: StreamTranscriptLayoutCache::default(),
             last_turn_token_usage: None,
             stream_exit_dump_anchor: 0,
         }
@@ -97,6 +120,15 @@ pub(crate) enum ReplCtl {
 pub(crate) fn reset_slash_state(state: &mut ReplLineState) {
     state.slash_pick = 0;
     state.slash_suppress = false;
+}
+
+/// 新输入 / 回合结束 / 清会话：回到贴底跟随（与 `claude-code-rust` `auto_scroll` 一致）。
+pub(crate) fn stream_repl_scroll_reset_to_bottom(state: &mut ReplLineState) {
+    state.stream_transcript_scroll = 0;
+    state.stream_repl_auto_scroll_follow = true;
+    state.stream_repl_scroll_pos = 0.0;
+    state.stream_repl_scroll_target = 0.0;
+    state.stream_transcript_layout = StreamTranscriptLayoutCache::default();
 }
 
 /// 流式 REPL 主循环是否处理该键盘事件。
@@ -137,7 +169,8 @@ fn apply_slash_pick_to_input(state: &mut ReplLineState) {
     state.history_idx = None;
 }
 
-/// 将 `body` 按 `wrap_width` 折成与 ratatui `Paragraph`+`Wrap` 一致的**显示行**列表（逐逻辑行 `wrap_string_to_width`）。
+/// 将 `body` 按 `wrap_width` 折成显示行列表（与 [`crate::md_tui::wrap_string_to_width`] 一致，供行预算与上滚裁剪）。
+#[cfg(test)]
 fn transcript_wrapped_rows(body: &str, wrap_width: usize) -> Vec<String> {
     let w = wrap_width.max(8);
     let mut out = Vec::new();
@@ -328,6 +361,7 @@ pub(crate) fn sanitize_stream_transcript_visual_noise(s: &str) -> String {
 /// 不足时在上方补空行使正文贴在输入区上沿（stick-to-bottom）。
 ///
 /// 注意：若仅按 `\n` 逻辑行计数而不折行，长行（如整段 JSON）在 `Paragraph` 中会占多行却仍算 1 行，导致不「上滚」且被裁切。
+#[cfg(test)]
 pub(crate) fn repl_stream_transcript_bottom_padded(
     raw: &str,
     row_budget: u16,
@@ -366,7 +400,9 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
 
 /// 流式 Inline 主区按行上色：错误醒目、用户行高亮、说明性表格变淡（对齐 Claude Code 式层次，避免整页灰字）。
 ///
-/// 行宽由渲染时 `Paragraph` + `LineTruncator`（ratatui grapheme 宽）截断；勿在此用 `unicode-width` 再截一遍，易与 CJK/组合字符错位导致假「横线粘连」。
+/// 预折行与 `md_tui::wrap_string_to_width` 一致；渲染时用 `Paragraph::wrap(Wrap { trim: false })`（ratatui `WordWrapper`），
+/// 避免无 wrap 时 `LineTruncator` 把超长行甩到下一列与底栏 `─` 叠成「满屏横线」。
+#[cfg(test)]
 pub(crate) fn stream_transcript_plain_to_styled_text(body: &str) -> Text<'static> {
     let lines: Vec<Line<'static>> = body
         .lines()
@@ -379,7 +415,7 @@ pub(crate) fn stream_transcript_plain_to_styled_text(body: &str) -> Text<'static
     Text::from(lines)
 }
 
-fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> Style {
+pub(crate) fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> Style {
     use crate::tui::styles::{
         style_assistant, style_assistant_prose, style_brand, style_dim, style_error, style_user,
     };
@@ -432,6 +468,7 @@ fn looks_like_slash_help_catalog_row(s: &str) -> bool {
     s.contains("  ") && (s.contains("local") || s.contains("runtime") || s.contains("prompt"))
 }
 
+#[cfg(test)]
 fn tail_for_display(raw: &str, max_lines: usize) -> String {
     let lines: Vec<&str> = raw.lines().collect();
     if lines.len() <= max_lines {
@@ -440,7 +477,8 @@ fn tail_for_display(raw: &str, max_lines: usize) -> String {
     lines[lines.len().saturating_sub(max_lines)..].join("\n")
 }
 
-/// 底栏布局参数（流式 Inline：与全屏 TUI 一致为 **prompt → 下横线 → footer**；自上而下 **HUD → 上横线 → 输入 → 斜杠/审批 → 下横线 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等）。
+/// 底栏布局参数（流式 Inline：空闲时在 prompt 上方一条 `─`；**HUD 显示时省略该横线**，由 ✶/⎿ 承担分隔，避免与 `* thinking…` 叠成双横线）。
+/// 自上而下：**HUD → （可选）上横线 → 输入 → 斜杠/审批 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ReplDockLayout;
 
@@ -467,8 +505,8 @@ impl ReplDockLayout {
 
     fn min_dock_rows(self) -> u16 {
         let _ = self;
-        // 上横线 + 至少一行输入 + 下横线
-        3
+        // 上横线 + 至少一行输入
+        2
     }
 
     /// 输入框**正上方**整行横线（紧贴 `>` 输入区上沿；HUD 画在此行之上）。
@@ -480,7 +518,7 @@ impl ReplDockLayout {
     /// 输入框**正下方**整行横线（斜杠候选 / 脚标在此行之下）。
     fn prompt_rule_bottom_rows(self) -> u16 {
         let _ = self;
-        1
+        0
     }
 }
 
@@ -603,7 +641,11 @@ fn repl_dock_compute_natural(
         h.min(layout.slash_height_cap())
     };
     let input_h = input_line_count.max(1);
-    let rule_top_h = layout.prompt_rule_top_rows();
+    let mut rule_top_h = layout.prompt_rule_top_rows();
+    if stream_hud_active {
+        // 与 claude-rust 观感对齐：有 HUD 时不再在 prompt 顶另画满宽 `─`，否则与 thinking 区块视觉上像「两条线」。
+        rule_top_h = 0;
+    }
     let rule_bottom_h = layout.prompt_rule_bottom_rows();
     ReplDockNatural {
         hud_h,
@@ -686,7 +728,7 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
 
 /// 底部 dock（斜杠候选 + 多行输入）高度，与全屏 REPL / 流式 dock 共用同一套布局规则。
 ///
-/// **流式 Inline**：返回值 = dock 内层总高度（含输入上下各一行 `─`，无外层 `Block`）。
+/// **流式 Inline**：返回值 = dock 内层总高度（空闲时含 prompt 上方一行 `─`；HUD 活跃时无该行，无外层 `Block`）。
 pub(crate) fn repl_dock_height(area: Rect, state: &ReplLineState, layout: ReplDockLayout) -> u16 {
     let avail = area.height.saturating_sub(1);
     let nat = repl_dock_compute_natural(area.width.max(1), state, layout);
@@ -1197,6 +1239,7 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::PageUp => {
+                    state.stream_repl_auto_scroll_follow = false;
                     state.stream_transcript_scroll =
                         state.stream_transcript_scroll.saturating_add(8);
                     Ok(ReplCtl::Continue)
@@ -1204,14 +1247,19 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                 KeyCode::PageDown => {
                     state.stream_transcript_scroll =
                         state.stream_transcript_scroll.saturating_sub(8);
+                    if state.stream_transcript_scroll == 0 {
+                        state.stream_repl_auto_scroll_follow = true;
+                    }
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    state.stream_repl_auto_scroll_follow = false;
                     state.stream_transcript_scroll = usize::MAX;
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     state.stream_transcript_scroll = 0;
+                    state.stream_repl_auto_scroll_follow = true;
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::Left => {
@@ -1402,6 +1450,7 @@ pub(crate) fn apply_stream_user_question_key(state: &mut ReplLineState, key: Key
 
 #[cfg(test)]
 mod stream_transcript_tests {
+    #![allow(dead_code)] // 部分断言仍引用仅测试可见的旧 tail 辅助函数
     use super::{
         handle_event, repl_dock_compute_natural, repl_stream_transcript_bottom_padded,
         sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
@@ -1480,11 +1529,11 @@ mod stream_transcript_tests {
     }
 
     #[test]
-    fn stream_dock_prompt_sandwiched_by_two_rule_rows() {
+    fn stream_dock_prompt_has_only_top_rule_row() {
         let st = ReplLineState::default();
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.rule_top_h, 1);
-        assert_eq!(nat.rule_bottom_h, 1);
+        assert_eq!(nat.rule_bottom_h, 0);
     }
 
     #[test]
@@ -1495,7 +1544,10 @@ mod stream_transcript_tests {
         st.executing_since = Some(std::time::Instant::now());
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.hud_h, 2, "align with fullscreen TUI hud_rows_effective");
-        assert_eq!(nat.rule_top_h, 1);
+        assert_eq!(
+            nat.rule_top_h, 0,
+            "HUD visible: omit prompt-top rule to avoid double lines"
+        );
         assert_eq!(nat.status_h, 1);
         assert!(
             stream_dock_activity_prefix(&st).is_empty(),

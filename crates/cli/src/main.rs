@@ -14,10 +14,9 @@ mod i18n;
 mod md_tui;
 #[cfg(feature = "embedding-local")]
 mod memory_embedding_setup;
+mod repl;
 mod repl_banner;
 mod repl_clipboard;
-mod repl_inline;
-mod repl_stream_ratatui;
 mod scheduler;
 mod session_transcript_export;
 mod slash_commands;

@@ -8,6 +8,7 @@ use crate::app_config::{
 use crate::bootstrap::initialize_runtime;
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
+use crate::repl::stream_repl_scroll_reset_to_bottom;
 use crate::repl_banner::{self, ReplWelcomeKind};
 use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::tui::transcript::build_stream_turn_plain;
@@ -65,7 +66,7 @@ pub(crate) fn repl_stream_dock_status_line(config: &Config, agent: &str) -> Stri
 }
 
 fn sync_repl_dock_status(
-    line_state: &Arc<Mutex<crate::repl_inline::ReplLineState>>,
+    line_state: &Arc<Mutex<crate::repl::ReplLineState>>,
     config: &Config,
     agent: &str,
     turn_in_progress: bool,
@@ -474,9 +475,8 @@ async fn run_interactive_tty_stream(
     mut question_rx: Option<mpsc::Receiver<PendingUserQuestion>>,
     repl_debug_events: bool,
 ) -> anyhow::Result<()> {
-    use crate::repl_inline::ReplLineState;
-    use crate::repl_stream_ratatui::{
-        run_stream_repl_ui_thread, StreamReplAsyncCtl, StreamReplUiMsg,
+    use crate::repl::{
+        run_stream_repl_ui_thread, ReplLineState, StreamReplAsyncCtl, StreamReplUiMsg,
     };
     use std::sync::mpsc as std_mpsc;
 
@@ -627,7 +627,7 @@ async fn run_interactive_tty_stream(
                 }
                 stream_scroll_emitted.clear();
                 if let Ok(mut st) = state.lock() {
-                    st.stream_transcript_scroll = 0;
+                    stream_repl_scroll_reset_to_bottom(&mut st);
                 }
                 sync_repl_dock_status(&state, config, agent, false);
             }
@@ -679,7 +679,7 @@ async fn run_interactive_tty_stream(
                         };
                         repl_clear_session(runtime, line_session, agent, &mut sink).await?;
                         if let Ok(mut st) = state.lock() {
-                            st.stream_transcript_scroll = 0;
+                            stream_repl_scroll_reset_to_bottom(&mut st);
                             st.executing_since = None;
                             st.finished_turn_summary = None;
                             st.finished_turn_summary_until = None;
@@ -694,7 +694,7 @@ async fn run_interactive_tty_stream(
                             continue;
                         }
                         if let Ok(mut st) = state.lock() {
-                            st.stream_transcript_scroll = 0;
+                            stream_repl_scroll_reset_to_bottom(&mut st);
                         }
                         let workflow_esc = t.trim_start().starts_with("/workflow");
                         let busy_executing = executing;
@@ -806,7 +806,7 @@ async fn repl_dispatch_inner(
     line_session: &mut ReplLineSession,
     trimmed: &str,
     sink: &mut ReplSink,
-    stream_paste_state: Option<Arc<Mutex<crate::repl_inline::ReplLineState>>>,
+    stream_paste_state: Option<Arc<Mutex<crate::repl::ReplLineState>>>,
 ) -> anyhow::Result<ReplDispatchOutcome> {
     if let Some(id) = parse_agent_slash_command(trimmed) {
         *agent = id.to_string();
@@ -998,7 +998,7 @@ async fn repl_dispatch_inner(
                 sink.line(tr_args("repl-session-applied", &a));
             }
             ParsedSlashCommand::Paste => {
-                use crate::repl_inline::reset_slash_state;
+                use crate::repl::reset_slash_state;
                 use crate::tui::util::{sanitize_paste, MAX_PASTE_CHARS};
                 if let Some(st_arc) = stream_paste_state.as_ref() {
                     if let Some(raw) = crate::repl_clipboard::read_system_clipboard() {
@@ -1065,7 +1065,7 @@ async fn repl_dispatch_one_line(
     line_session: &mut ReplLineSession,
     trimmed: &str,
     sink: &mut ReplSink,
-    stream_paste_state: Option<Arc<Mutex<crate::repl_inline::ReplLineState>>>,
+    stream_paste_state: Option<Arc<Mutex<crate::repl::ReplLineState>>>,
 ) -> anyhow::Result<bool> {
     match repl_dispatch_inner(
         runtime,
