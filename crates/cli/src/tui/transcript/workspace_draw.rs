@@ -37,6 +37,28 @@ fn out_last_nonempty_plain(out: &[Line<'static>]) -> Option<String> {
     })
 }
 
+/// 流式 Inline：某些模型会在后续输出里回显 `> user prompt`。
+/// 这里向后看最近若干行，只要出现同文案回显，就不再重复渲染 `❯ user prompt`。
+fn out_has_prompt_echo_recent(out: &[Line<'static>], prompt: &str) -> bool {
+    let p = prompt.trim();
+    if p.is_empty() {
+        return false;
+    }
+    let target = format!("> {p}");
+    out.iter()
+        .rev()
+        .take(40)
+        .map(|l| {
+            l.spans
+                .iter()
+                .map(|sp| sp.content.as_ref())
+                .collect::<String>()
+                .trim()
+                .to_string()
+        })
+        .any(|s| s == target)
+}
+
 fn workspace_md_chrome(live: WorkspaceLiveLayout) -> MarkdownChrome {
     if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
         MarkdownChrome {
@@ -506,6 +528,9 @@ pub(crate) fn layout_workspace(
                 // 流式 Inline：某些模型会在上一段 assistant 文本里回显 `> user prompt`。
                 // 若紧邻上一条已存在同文案的 `> ...`，此处不再重复画一份 `❯ ...`。
                 if live.stream_repl_claude_user_prefix && !t.contains('\n') {
+                    if out_has_prompt_echo_recent(&out, t) {
+                        continue;
+                    }
                     if let Some(prev) = out_last_nonempty_plain(&out) {
                         let echoed = format!("> {}", t.trim());
                         if prev == echoed {
