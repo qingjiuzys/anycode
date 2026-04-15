@@ -11,7 +11,7 @@
 //! 或极端终端的样式重置优化；**不是**简单再实现一层无差别的 cell diff。
 //!
 //! 若未来需要 **DECSTBM 分区**（全屏 TUI 仅占用部分行），属于另一套布局边界，见
-//! [`crate::repl_stream_ratatui`]。
+//! [`crate::repl::stream_ratatui`]。
 
 #[cfg(test)]
 mod tests {

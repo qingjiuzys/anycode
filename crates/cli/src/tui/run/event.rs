@@ -6,7 +6,7 @@ use crate::app_config::{
 };
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
-use crate::repl_inline::stream_repl_accept_key_event;
+use crate::repl::stream_repl_accept_key_event;
 use crate::slash_commands;
 use crate::tui::approval::{ApprovalDecision, PendingApproval};
 use crate::tui::chrome::{agents_lines, tools_lines};

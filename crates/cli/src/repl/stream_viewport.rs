@@ -8,7 +8,7 @@ use ratatui::text::{Line, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::md_tui::wrap_string_to_width;
-use crate::repl_inline::{
+use crate::repl::inline::{
     sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
     stream_transcript_line_style, StreamTranscriptLayoutCache,
 };

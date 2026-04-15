@@ -21,12 +21,12 @@ use ratatui::buffer::{Buffer, Cell};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
-use crate::repl_inline::{
+use crate::repl::inline::{
     apply_stream_approval_key, apply_stream_user_question_key, handle_event,
     render_repl_dock_to_buffer, repl_dock_height, stream_repl_accept_key_event, ReplCtl,
     ReplDockLayout, ReplLineState,
 };
-use crate::repl_stream_viewport::{prepare_stream_transcript_paragraph, render_stream_scrollbar};
+use crate::repl::stream_viewport::{prepare_stream_transcript_paragraph, render_stream_scrollbar};
 
 /// Tokio 侧 → UI 线程：释放终端、结束循环等。
 pub(crate) enum StreamReplAsyncCtl {
@@ -170,7 +170,7 @@ fn draw_stream_frame(
 
 fn transcript_display_rows(raw: &str, width: u16) -> usize {
     let body_w = width.max(2).saturating_sub(1);
-    crate::repl_stream_viewport::stream_transcript_total_rows(raw, body_w)
+    crate::repl::stream_viewport::stream_transcript_total_rows(raw, body_w)
 }
 
 fn desired_inline_rows(state: &Arc<Mutex<ReplLineState>>) -> anyhow::Result<u16> {
