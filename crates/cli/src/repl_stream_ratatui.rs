@@ -19,18 +19,14 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_si
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::{Buffer, Cell};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::text::Text;
-use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
-use crate::md_tui::wrap_string_to_width;
 use crate::repl_inline::{
     apply_stream_approval_key, apply_stream_user_question_key, handle_event,
-    render_repl_dock_to_buffer, repl_dock_height, repl_stream_transcript_bottom_padded,
-    sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
-    stream_repl_accept_key_event, stream_transcript_plain_to_styled_text, ReplCtl, ReplDockLayout,
-    ReplLineState,
+    render_repl_dock_to_buffer, repl_dock_height, stream_repl_accept_key_event, ReplCtl,
+    ReplDockLayout, ReplLineState,
 };
+use crate::repl_stream_viewport::{prepare_stream_transcript_paragraph, render_stream_scrollbar};
 
 /// Tokio 侧 → UI 线程：释放终端、结束循环等。
 pub(crate) enum StreamReplAsyncCtl {
@@ -105,22 +101,55 @@ fn draw_stream_frame(
         let top_cell = chunks[0];
         let dock_screen = chunks[1];
 
-        st.stream_viewport_width = top_cell.width.max(1);
-        let wrap_w = top_cell.width.max(1);
-        let scroll_up = st.stream_transcript_scroll;
-        let transcript_tail = {
-            let g = st.transcript.lock().unwrap_or_else(|e| e.into_inner());
-            repl_stream_transcript_bottom_padded(g.as_str(), top_cell.height, wrap_w, scroll_up)
-        };
-        // 与 `claude-code-rust` 聊天区一致：`WordWrapper`（`Wrap { trim: false }`），避免无 wrap 时
-        // `LineTruncator` 把超长行截到下一列与底栏 `─` 叠成「满屏横线」。
-        let top_text = if transcript_tail.is_empty() {
-            Text::raw(String::new())
+        let full_w = top_cell.width.max(1);
+        // 右侧 1 列滚动条（`claude-code-rust` 同款），正文区少一列以免叠字。
+        let (body_w, show_rail) = if full_w >= 2 {
+            (full_w.saturating_sub(1), true)
         } else {
-            stream_transcript_plain_to_styled_text(&transcript_tail)
+            (full_w, false)
         };
-        let top_par = Paragraph::new(top_text).wrap(Wrap { trim: false });
-        f.render_widget(top_par, top_cell);
+        st.stream_viewport_width = body_w;
+        let transcript_raw = st
+            .transcript
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let auto = st.stream_repl_auto_scroll_follow;
+        let scroll_up = st.stream_transcript_scroll;
+        let mut pos = st.stream_repl_scroll_pos;
+        let mut tgt = st.stream_repl_scroll_target;
+        let (top_par, _g_off, _max_sc, total_rows, at_bottom) = prepare_stream_transcript_paragraph(
+            transcript_raw.as_str(),
+            body_w,
+            top_cell.height,
+            &mut st.stream_transcript_layout,
+            auto,
+            scroll_up,
+            &mut pos,
+            &mut tgt,
+        );
+        st.stream_repl_scroll_pos = pos;
+        st.stream_repl_scroll_target = tgt;
+        st.stream_repl_auto_scroll_follow = at_bottom;
+
+        if show_rail {
+            let hchunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(1), Constraint::Length(1)])
+                .split(top_cell);
+            let body_rect = hchunks[0];
+            let rail_rect = hchunks[1];
+            f.render_widget(top_par, body_rect);
+            render_stream_scrollbar(
+                f.buffer_mut(),
+                rail_rect,
+                total_rows,
+                top_cell.height as usize,
+                pos,
+            );
+        } else {
+            f.render_widget(top_par, top_cell);
+        }
 
         let iw = dock_screen.width.max(1);
         let ih = dock_screen.height.max(1);
@@ -140,13 +169,8 @@ fn draw_stream_frame(
 }
 
 fn transcript_display_rows(raw: &str, width: u16) -> usize {
-    let w = width.max(8) as usize;
-    let cleaned =
-        sanitize_stream_transcript_visual_noise(&scrub_stream_transcript_llm_raw_dumps(raw));
-    cleaned
-        .lines()
-        .map(|line| wrap_string_to_width(line, w).len().max(1))
-        .sum()
+    let body_w = width.max(2).saturating_sub(1);
+    crate::repl_stream_viewport::stream_transcript_total_rows(raw, body_w)
 }
 
 fn desired_inline_rows(state: &Arc<Mutex<ReplLineState>>) -> anyhow::Result<u16> {
@@ -355,6 +379,7 @@ pub(crate) fn run_stream_repl_ui_thread(
                 if let Event::Mouse(me) = &ev {
                     match me.kind {
                         MouseEventKind::ScrollUp => {
+                            s.stream_repl_auto_scroll_follow = false;
                             s.stream_transcript_scroll =
                                 s.stream_transcript_scroll.saturating_add(4);
                             drop(s);
@@ -364,6 +389,9 @@ pub(crate) fn run_stream_repl_ui_thread(
                         MouseEventKind::ScrollDown => {
                             s.stream_transcript_scroll =
                                 s.stream_transcript_scroll.saturating_sub(4);
+                            if s.stream_transcript_scroll == 0 {
+                                s.stream_repl_auto_scroll_follow = true;
+                            }
                             drop(s);
                             draw_stream_frame(t, &state)?;
                             continue;

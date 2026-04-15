@@ -18,6 +18,7 @@ mod repl_banner;
 mod repl_clipboard;
 mod repl_inline;
 mod repl_stream_ratatui;
+mod repl_stream_viewport;
 mod scheduler;
 mod session_transcript_export;
 mod slash_commands;

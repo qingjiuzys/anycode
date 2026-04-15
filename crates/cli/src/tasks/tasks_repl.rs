@@ -9,6 +9,7 @@ use crate::bootstrap::initialize_runtime;
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
 use crate::repl_banner::{self, ReplWelcomeKind};
+use crate::repl_inline::stream_repl_scroll_reset_to_bottom;
 use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::tui::transcript::build_stream_turn_plain;
 use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion, TuiApprovalCallback};
@@ -627,7 +628,7 @@ async fn run_interactive_tty_stream(
                 }
                 stream_scroll_emitted.clear();
                 if let Ok(mut st) = state.lock() {
-                    st.stream_transcript_scroll = 0;
+                    stream_repl_scroll_reset_to_bottom(&mut st);
                 }
                 sync_repl_dock_status(&state, config, agent, false);
             }
@@ -679,7 +680,7 @@ async fn run_interactive_tty_stream(
                         };
                         repl_clear_session(runtime, line_session, agent, &mut sink).await?;
                         if let Ok(mut st) = state.lock() {
-                            st.stream_transcript_scroll = 0;
+                            stream_repl_scroll_reset_to_bottom(&mut st);
                             st.executing_since = None;
                             st.finished_turn_summary = None;
                             st.finished_turn_summary_until = None;
@@ -694,7 +695,7 @@ async fn run_interactive_tty_stream(
                             continue;
                         }
                         if let Ok(mut st) = state.lock() {
-                            st.stream_transcript_scroll = 0;
+                            stream_repl_scroll_reset_to_bottom(&mut st);
                         }
                         let workflow_esc = t.trim_start().starts_with("/workflow");
                         let busy_executing = executing;
