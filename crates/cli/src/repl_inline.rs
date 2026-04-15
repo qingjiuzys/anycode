@@ -477,7 +477,8 @@ fn tail_for_display(raw: &str, max_lines: usize) -> String {
     lines[lines.len().saturating_sub(max_lines)..].join("\n")
 }
 
-/// 底栏布局参数（流式 Inline：与全屏 TUI 一致为 **prompt → 下横线 → footer**；自上而下 **HUD → 上横线 → 输入 → 斜杠/审批 → 下横线 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等）。
+/// 底栏布局参数（流式 Inline：仅保留 prompt 上方分隔线；不在 prompt 下方再画一条）。
+/// 自上而下：**HUD → 上横线 → 输入 → 斜杠/审批 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ReplDockLayout;
 
@@ -504,8 +505,8 @@ impl ReplDockLayout {
 
     fn min_dock_rows(self) -> u16 {
         let _ = self;
-        // 上横线 + 至少一行输入 + 下横线
-        3
+        // 上横线 + 至少一行输入
+        2
     }
 
     /// 输入框**正上方**整行横线（紧贴 `>` 输入区上沿；HUD 画在此行之上）。
@@ -517,7 +518,7 @@ impl ReplDockLayout {
     /// 输入框**正下方**整行横线（斜杠候选 / 脚标在此行之下）。
     fn prompt_rule_bottom_rows(self) -> u16 {
         let _ = self;
-        1
+        0
     }
 }
 
@@ -1524,11 +1525,11 @@ mod stream_transcript_tests {
     }
 
     #[test]
-    fn stream_dock_prompt_sandwiched_by_two_rule_rows() {
+    fn stream_dock_prompt_has_only_top_rule_row() {
         let st = ReplLineState::default();
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.rule_top_h, 1);
-        assert_eq!(nat.rule_bottom_h, 1);
+        assert_eq!(nat.rule_bottom_h, 0);
     }
 
     #[test]
