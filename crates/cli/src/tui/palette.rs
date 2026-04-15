@@ -7,7 +7,7 @@
 use ratatui::style::Color;
 
 /// Bump when default colors change so markdown LRU cache does not return stale styled output.
-pub(crate) const PALETTE_CACHE_VERSION: u8 = 3;
+pub(crate) const PALETTE_CACHE_VERSION: u8 = 4;
 
 pub(crate) fn no_color() -> bool {
     std::env::var_os("NO_COLOR").is_some()

@@ -3,7 +3,7 @@
 
 use crate::i18n::tr;
 use crate::tui::palette;
-use crate::tui::styles::style_dim;
+use crate::tui::styles::{style_code_block, style_dim, style_list_bullet, style_separator};
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -372,9 +372,7 @@ fn style_heading(level: HeadingLevel) -> Style {
 }
 
 fn style_inline_code() -> Style {
-    Style::default()
-        .fg(palette::accent()) // 使用橙色而非黄色，更符合Claude风格
-        .add_modifier(Modifier::BOLD) // 改为BOLD而非DIM，更易读
+    style_code_block()
 }
 
 fn style_block_quote() -> Style {
@@ -542,10 +540,7 @@ fn physical_prefix_from_stack(stack: &[String]) -> Vec<Span<'static>> {
                 let st = if piece.starts_with('│') {
                     Style::default().fg(palette::blockquote_rule())
                 } else if piece.starts_with('·') {
-                    // 无序列表使用淡紫色
-                    Style::default()
-                        .fg(palette::list_bullet())
-                        .add_modifier(Modifier::BOLD)
+                    style_list_bullet().add_modifier(Modifier::BOLD)
                 } else if piece.chars().next().is_some_and(|c| c.is_ascii_digit()) {
                     // 有序列表使用紫色
                     Style::default()
@@ -767,8 +762,8 @@ pub fn render_markdown_styled(
                             format!("──── {lang} ────")
                         },
                         Style::default()
-                            .fg(palette::accent()) // 使用橙色使代码块更突出
-                            .add_modifier(Modifier::BOLD), // 使用BOLD而非DIM
+                            .fg(palette::code_fence_line())
+                            .add_modifier(Modifier::BOLD),
                     ));
                     if !writer.at_limit() {
                         writer.out.push(Line::from(fence));
@@ -922,7 +917,7 @@ pub fn render_markdown_styled(
                     let dash_w = writer.width.saturating_sub(writer.prefix_w).min(48).max(4);
                     spans.push(Span::styled(
                         "─".repeat(dash_w),
-                        style_dim().add_modifier(Modifier::DIM),
+                        style_separator().add_modifier(Modifier::DIM),
                     ));
                     if !writer.at_limit() {
                         writer.out.push(Line::from(spans));
