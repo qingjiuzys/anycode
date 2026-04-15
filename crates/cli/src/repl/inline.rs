@@ -477,8 +477,8 @@ fn tail_for_display(raw: &str, max_lines: usize) -> String {
     lines[lines.len().saturating_sub(max_lines)..].join("\n")
 }
 
-/// 底栏布局参数（流式 Inline：仅保留 prompt 上方分隔线；不在 prompt 下方再画一条）。
-/// 自上而下：**HUD → 上横线 → 输入 → 斜杠/审批 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等。
+/// 底栏布局参数（流式 Inline：空闲时在 prompt 上方一条 `─`；**HUD 显示时省略该横线**，由 ✶/⎿ 承担分隔，避免与 `* thinking…` 叠成双横线）。
+/// 自上而下：**HUD → （可选）上横线 → 输入 → 斜杠/审批 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等。
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ReplDockLayout;
 
@@ -641,7 +641,11 @@ fn repl_dock_compute_natural(
         h.min(layout.slash_height_cap())
     };
     let input_h = input_line_count.max(1);
-    let rule_top_h = layout.prompt_rule_top_rows();
+    let mut rule_top_h = layout.prompt_rule_top_rows();
+    if stream_hud_active {
+        // 与 claude-rust 观感对齐：有 HUD 时不再在 prompt 顶另画满宽 `─`，否则与 thinking 区块视觉上像「两条线」。
+        rule_top_h = 0;
+    }
     let rule_bottom_h = layout.prompt_rule_bottom_rows();
     ReplDockNatural {
         hud_h,
@@ -724,7 +728,7 @@ fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural 
 
 /// 底部 dock（斜杠候选 + 多行输入）高度，与全屏 REPL / 流式 dock 共用同一套布局规则。
 ///
-/// **流式 Inline**：返回值 = dock 内层总高度（含输入上下各一行 `─`，无外层 `Block`）。
+/// **流式 Inline**：返回值 = dock 内层总高度（空闲时含 prompt 上方一行 `─`；HUD 活跃时无该行，无外层 `Block`）。
 pub(crate) fn repl_dock_height(area: Rect, state: &ReplLineState, layout: ReplDockLayout) -> u16 {
     let avail = area.height.saturating_sub(1);
     let nat = repl_dock_compute_natural(area.width.max(1), state, layout);
@@ -1540,7 +1544,10 @@ mod stream_transcript_tests {
         st.executing_since = Some(std::time::Instant::now());
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.hud_h, 2, "align with fullscreen TUI hud_rows_effective");
-        assert_eq!(nat.rule_top_h, 1);
+        assert_eq!(
+            nat.rule_top_h, 0,
+            "HUD visible: omit prompt-top rule to avoid double lines"
+        );
         assert_eq!(nat.status_h, 1);
         assert!(
             stream_dock_activity_prefix(&st).is_empty(),
