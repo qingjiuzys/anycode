@@ -13,6 +13,17 @@ use uuid::Uuid;
 use super::tasks_sink::ReplSink;
 use super::workflow_exec::run_workflow_path;
 
+/// `execute_task` 已将总结逐行写入磁盘 tail；若再原样 `sink.line(output)` 会与流式 stdout 叠一份。
+fn streamed_log_already_contains_output(streamed: &str, output: &str) -> bool {
+    let o = output.trim();
+    if o.is_empty() {
+        return false;
+    }
+    let s: String = streamed.chars().filter(|c| *c != '\r').collect();
+    let o_norm: String = o.chars().filter(|c| *c != '\r').collect();
+    s.contains(o_norm.trim_end())
+}
+
 pub(crate) async fn run_task(
     mut config: crate::app_config::Config,
     agent_type: Option<String>,
@@ -96,6 +107,7 @@ pub(crate) async fn run_single_task_with_tail(
     let exec = runtime.execute_task(task.clone());
 
     let mut offset: u64 = 0;
+    let mut streamed_from_disk = String::new();
     tokio::pin!(exec);
     let result = loop {
         tokio::select! {
@@ -103,6 +115,7 @@ pub(crate) async fn run_single_task_with_tail(
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(300)) => {
                 let (delta, new_offset) = disk.read_delta(task.id, offset, 16 * 1024).unwrap_or_default();
                 if !delta.is_empty() {
+                    streamed_from_disk.push_str(&delta);
                     sink.push_stdout_str(&delta);
                     offset = new_offset;
                 }
@@ -110,12 +123,29 @@ pub(crate) async fn run_single_task_with_tail(
         }
     };
 
+    // 最后一轮 `sleep` 与 `exec` 完成之间可能仍有 tail；补读避免漏段后误判「未流式输出」再整段打印一遍。
+    loop {
+        let (delta, new_offset) = disk
+            .read_delta(task.id, offset, 512 * 1024)
+            .unwrap_or_default();
+        if delta.is_empty() {
+            break;
+        }
+        streamed_from_disk.push_str(&delta);
+        sink.push_stdout_str(&delta);
+        offset = new_offset;
+    }
+
     match result {
         TaskResult::Success { output, artifacts } => {
             sink.eprint_line(tr("repl-task-ok"));
-            sink.line("");
-            sink.line(tr("repl-output-header"));
-            sink.line(output);
+            let skip_duplicate_block =
+                streamed_log_already_contains_output(&streamed_from_disk, &output);
+            if !skip_duplicate_block && !output.trim().is_empty() {
+                sink.line("");
+                sink.line(tr("repl-output-header"));
+                sink.line(output);
+            }
             let written = crate::artifact_summary::claude_turn_written_lines(&artifacts);
             if !written.is_empty() {
                 sink.line("");
@@ -218,5 +248,21 @@ fn build_task(
             nested_cancel: None,
         },
         created_at: chrono::Utc::now(),
+    }
+}
+
+#[cfg(test)]
+mod stream_dedup_tests {
+    use super::streamed_log_already_contains_output;
+
+    #[test]
+    fn detects_summary_already_in_streamed_log() {
+        let log = "…\n== summary ==\nhello\n";
+        assert!(streamed_log_already_contains_output(log, "hello"));
+    }
+
+    #[test]
+    fn empty_output_never_counts_as_duplicate() {
+        assert!(!streamed_log_already_contains_output("hello", ""));
     }
 }

@@ -37,7 +37,6 @@ fn normalize_stream_plain_for_transcript(s: String) -> String {
         format!("{t}\n")
     }
 }
-use anycode_core::strip_llm_reasoning_xml_blocks;
 use anycode_security::ApprovalCallback;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -402,10 +401,8 @@ async fn pop_trailing_assistant_after_failed_turn(session: &ReplLineSession) {
 
 async fn finish_stream_spawned_turn(
     result: Result<anyhow::Result<anycode_core::TurnOutput>, tokio::task::JoinError>,
-    _exec_prev_len: usize,
     line_session: &ReplLineSession,
     agent: &str,
-    stream_emitted: &str,
     sink: &mut ReplSink,
 ) -> anyhow::Result<()> {
     let turn_failed = matches!(&result, Ok(Err(_)) | Err(_));
@@ -413,28 +410,9 @@ async fn finish_stream_spawned_turn(
         pop_trailing_assistant_after_failed_turn(line_session).await;
     }
     match result {
-        Ok(Ok(out)) => {
-            sink.line(tr("repl-task-ok"));
-            let ft = strip_llm_reasoning_xml_blocks(out.final_text.trim_end());
-            let show_block = !ft.trim().is_empty()
-                && !stream_emitted
-                    .trim()
-                    .contains(ft.trim().trim_matches(|c: char| c == '\n' || c == ' '));
-            if show_block {
-                sink.line("");
-                sink.line(tr("repl-output-header"));
-                sink.line(&out.final_text);
-            }
-            let written = crate::artifact_summary::claude_turn_written_lines(&out.artifacts);
-            if !written.is_empty() {
-                sink.line("");
-                sink.line(tr("repl-written-header"));
-                for line in written {
-                    let mut wl = FluentArgs::new();
-                    wl.set("line", line);
-                    sink.line(tr_args("repl-written-line", &wl));
-                }
-            }
+        Ok(Ok(_out)) => {
+            // 主区唯一源：`messages` → 随后 `build_stream_turn_plain` 整段重建 transcript。
+            // 勿再 `sink.line` 写入 task-ok / Output / Written：会与消息派生正文叠成多块重复，或先写再被截断造成逻辑双轨。
         }
         Ok(Err(e)) => {
             let is_coop = anyhow_error_is_cooperative_cancel(&e);
@@ -495,7 +473,6 @@ async fn run_interactive_tty_stream(
     let mut exec_prev_len: usize = 0;
     // 本轮任务写入前 `transcript` 字节偏移；执行中按 tick 截断至此再重算 `build_stream_turn_plain`。
     let mut turn_transcript_anchor: usize = 0;
-    let mut stream_scroll_emitted = String::new();
 
     sync_repl_dock_status(&state, config, agent, false);
     let mut stream_tick = tokio::time::interval(Duration::from_millis(50));
@@ -578,18 +555,10 @@ async fn run_interactive_tty_stream(
                     .lock()
                     .ok()
                     .and_then(|st| st.transcript.lock().ok().map(|t| t.len()));
-                finish_stream_spawned_turn(
-                    join_result,
-                    exec_prev_len,
-                    line_session,
-                    agent.as_str(),
-                    &stream_scroll_emitted,
-                    &mut sink,
-                )
-                .await?;
-                // `finish_stream_spawned_turn` 在成功路径会 `sink.line` 写入 `repl-task-ok` / Output 等；
-                // 随后这里用 `build_stream_turn_plain` 从 `messages` 整段重建主区。若再把 finish 阶段追加的字节
-                // 拼回去，会与重建正文叠成「一轮任务多块重复内容」（用户见 thinking/❯ 块 + 又一块同款正文）。
+                finish_stream_spawned_turn(join_result, line_session, agent.as_str(), &mut sink)
+                    .await?;
+                // 成功路径：主区仅由下方 `build_stream_turn_plain(messages)` 重建；失败路径才用 `appended_after_finish`
+                // 保留 finish 阶段写入 transcript 的错误摘要（不随 messages 回放）。
                 let appended_after_finish = if append_finish_tail {
                     transcript_len_before_finish.and_then(|start| {
                         state.lock().ok().and_then(|st| {
@@ -625,7 +594,6 @@ async fn run_interactive_tty_stream(
                         }
                     }
                 }
-                stream_scroll_emitted.clear();
                 if let Ok(mut st) = state.lock() {
                     stream_repl_scroll_reset_to_bottom(&mut st);
                 }
@@ -646,8 +614,6 @@ async fn run_interactive_tty_stream(
                     true,
                 ));
                 drop(guard);
-                stream_scroll_emitted.clear();
-                stream_scroll_emitted.push_str(&plain);
                 if let Ok(st) = state.lock() {
                     if let Ok(mut t) = st.transcript.lock() {
                         t.truncate(turn_transcript_anchor);
@@ -772,7 +738,6 @@ async fn run_interactive_tty_stream(
                                         exec_handle = Some(handle);
                                         exec_prev_len = prev;
                                         executing = true;
-                                        stream_scroll_emitted.clear();
                                     }
                                 }
                             }
