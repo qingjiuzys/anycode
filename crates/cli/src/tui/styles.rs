@@ -100,3 +100,20 @@ pub(crate) fn style_menu_selected() -> Style {
 pub(crate) fn style_horizontal_rule() -> Style {
     Style::default().fg(palette::divider())
 }
+
+/// 列表项样式：淡紫色圆点
+pub(crate) fn style_list_bullet() -> Style {
+    Style::default().fg(palette::list_bullet())
+}
+
+/// 分隔线样式：细微灰色
+pub(crate) fn style_separator() -> Style {
+    Style::default().fg(palette::separator())
+}
+
+/// 代码块样式：橙色加粗
+pub(crate) fn style_code_block() -> Style {
+    Style::default()
+        .fg(palette::accent())
+        .add_modifier(Modifier::BOLD)
+}

@@ -357,31 +357,36 @@ pub fn wrap_ratatui_line(line: Line<'static>, content_width: usize) -> Vec<Line<
 fn style_heading(level: HeadingLevel) -> Style {
     match level {
         HeadingLevel::H1 => Style::default()
-            .fg(palette::accent())
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            .fg(palette::accent()) // 橙色 H1
+            .add_modifier(Modifier::BOLD), // 移除下划线，更简洁
         HeadingLevel::H2 => Style::default()
-            .fg(palette::assistant_label())
+            .fg(palette::assistant_label()) // 淡紫色 H2
+            .add_modifier(Modifier::BOLD),
+        HeadingLevel::H3 => Style::default()
+            .fg(palette::secondary()) // 紫色 H3
             .add_modifier(Modifier::BOLD),
         _ => Style::default()
-            .fg(palette::text())
+            .fg(palette::text()) // 其他标题白色
             .add_modifier(Modifier::BOLD),
     }
 }
 
 fn style_inline_code() -> Style {
     Style::default()
-        .fg(palette::warning())
-        .add_modifier(Modifier::DIM)
+        .fg(palette::accent()) // 使用橙色而非黄色，更符合Claude风格
+        .add_modifier(Modifier::BOLD) // 改为BOLD而非DIM，更易读
 }
 
 fn style_block_quote() -> Style {
-    Style::default().fg(palette::blockquote_text())
+    Style::default()
+        .fg(palette::blockquote_text()) // 灰紫色
+        .add_modifier(Modifier::ITALIC) // 添加斜体使其更突出
 }
 
 fn style_link() -> Style {
     Style::default()
-        .fg(palette::link())
-        .add_modifier(Modifier::UNDERLINED)
+        .fg(palette::link()) // 紫色链接
+        .add_modifier(Modifier::BOLD) // 改为BOLD更明显
 }
 
 /// 在固定宽度内把带样式的文本写成多行 `Line`（按字符宽度，支持 CJK）。
@@ -536,10 +541,16 @@ fn physical_prefix_from_stack(stack: &[String]) -> Vec<Span<'static>> {
             .map(|piece| {
                 let st = if piece.starts_with('│') {
                     Style::default().fg(palette::blockquote_rule())
-                } else if piece.starts_with('·')
-                    || piece.chars().next().is_some_and(|c| c.is_ascii_digit())
-                {
-                    Style::default().fg(palette::secondary())
+                } else if piece.starts_with('·') {
+                    // 无序列表使用淡紫色
+                    Style::default()
+                        .fg(palette::list_bullet())
+                        .add_modifier(Modifier::BOLD)
+                } else if piece.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+                    // 有序列表使用紫色
+                    Style::default()
+                        .fg(palette::secondary())
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     style_dim()
                 };
@@ -756,8 +767,8 @@ pub fn render_markdown_styled(
                             format!("──── {lang} ────")
                         },
                         Style::default()
-                            .fg(palette::code_fence_line())
-                            .add_modifier(Modifier::DIM),
+                            .fg(palette::accent()) // 使用橙色使代码块更突出
+                            .add_modifier(Modifier::BOLD), // 使用BOLD而非DIM
                     ));
                     if !writer.at_limit() {
                         writer.out.push(Line::from(fence));

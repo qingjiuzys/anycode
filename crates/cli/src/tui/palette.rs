@@ -7,7 +7,7 @@
 use ratatui::style::Color;
 
 /// Bump when default colors change so markdown LRU cache does not return stale styled output.
-pub(crate) const PALETTE_CACHE_VERSION: u8 = 2;
+pub(crate) const PALETTE_CACHE_VERSION: u8 = 3;
 
 pub(crate) fn no_color() -> bool {
     std::env::var_os("NO_COLOR").is_some()
@@ -26,7 +26,7 @@ pub(crate) const ASSISTANT_LABEL: (u8, u8, u8) = (200, 150, 255);
 pub(crate) const DIVIDER: (u8, u8, u8) = (100, 80, 120);
 
 /// Code fence separator line (`print_claude_message`).
-pub(crate) const CODE_FENCE: (u8, u8, u8) = (80, 80, 80);
+pub(crate) const CODE_FENCE: (u8, u8, u8) = (100, 90, 110); // 稍微亮一点的灰紫色
 
 pub(crate) fn rgb(r: u8, g: u8, b: u8) -> Color {
     if no_color() {
@@ -110,4 +110,14 @@ pub(crate) fn code_fence_line() -> Color {
 /// Links: secondary purple (distinct from orange H1).
 pub(crate) fn link() -> Color {
     secondary()
+}
+
+/// List item bullets: lighter purple for better readability
+pub(crate) fn list_bullet() -> Color {
+    rgb(180, 140, 220)
+}
+
+/// Separator lines between sections: subtle gray
+pub(crate) fn separator() -> Color {
+    rgb(120, 100, 140)
 }

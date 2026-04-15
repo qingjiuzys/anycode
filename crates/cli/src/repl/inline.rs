@@ -420,21 +420,32 @@ pub(crate) fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> St
         style_assistant, style_assistant_prose, style_brand, style_dim, style_error, style_user,
     };
 
+    // 错误消息 - 红色加粗
     if trimmed.starts_with("Turn failed:") || trimmed.starts_with("Turn join error:") {
         return style_error();
     }
+
+    // 用户消息 - 橙色
     if trimmed.starts_with('❯') {
         return style_user();
     }
+
+    // 斜杠命令帮助 - 灰色
     if looks_like_slash_help_catalog_row(trimmed) {
         return style_dim();
     }
+
+    // 命令示例 - 灰色
     if trimmed.contains("anycode run") && (trimmed.contains("-C") || trimmed.contains("--agent")) {
         return style_dim();
     }
+
+    // 标题和命令标题 - 紫色品牌色
     if trimmed.starts_with("Commands:") || trimmed.starts_with("命令：") {
         return style_brand();
     }
+
+    // 会话状态消息 - 紫色品牌色
     if trimmed.contains("Session restored")
         || trimmed.contains("已恢复会话")
         || trimmed.contains("Switched Agent")
@@ -442,9 +453,13 @@ pub(crate) fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> St
     {
         return style_brand();
     }
+
+    // 标准错误输出 - 灰色
     if full_line.contains("stderr") || full_line.contains("标准错误") {
         return style_dim();
     }
+
+    // 工具执行状态 - 紫色助手色
     if trimmed.starts_with('✅')
         || trimmed.starts_with('❌')
         || trimmed.contains("🤖")
@@ -452,12 +467,42 @@ pub(crate) fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> St
     {
         return style_assistant();
     }
+
+    // 等待状态 - 灰色
     if trimmed.starts_with('📝') || trimmed.starts_with('⏳') {
         return style_dim();
     }
+
+    // 输出标题 - 紫色助手色
     if trimmed == "Output:" || trimmed.starts_with("输出：") {
         return style_assistant();
     }
+
+    // Markdown 标题样式识别
+    if trimmed.starts_with('#') {
+        return Style::default()
+            .fg(ratatui::style::Color::Rgb(255, 140, 66)) // 橙色 H1
+            .add_modifier(ratatui::style::Modifier::BOLD);
+    }
+
+    // 代码块相关行
+    if trimmed.starts_with('`') || trimmed.starts_with("```") {
+        return Style::default()
+            .fg(ratatui::style::Color::Yellow)
+            .add_modifier(ratatui::style::Modifier::DIM);
+    }
+
+    // 列表项
+    if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("• ") {
+        return style_assistant_prose();
+    }
+
+    // 引用块
+    if trimmed.starts_with('>') {
+        return Style::default().fg(ratatui::style::Color::Rgb(170, 160, 185)); // 灰紫色
+    }
+
+    // 默认助手文本
     style_assistant_prose()
 }
 
