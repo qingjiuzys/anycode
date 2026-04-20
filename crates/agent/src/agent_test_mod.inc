@@ -940,6 +940,110 @@ mod tests {
         assert!(has_metadata);
     }
 
+    /// 末轮 assistant 正文为空时走 `llm_summary_receipt`：总结须 **写入** `messages`，供流式 REPL `build_stream_turn_plain` 展示。
+    #[tokio::test]
+    async fn test_execute_turn_summary_receipt_appends_assistant_to_messages() {
+        let temp = TempDir::new().unwrap();
+        let disk = DiskTaskOutput::new(temp.path().to_path_buf());
+
+        let first = LLMResponse {
+            message: msg_text(MessageRole::Assistant, ""),
+            tool_calls: vec![ToolCall {
+                id: "tooluse_1".to_string(),
+                name: "Echo".to_string(),
+                input: serde_json::json!({ "text": "hi" }),
+            }],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let second = LLMResponse {
+            message: msg_text(MessageRole::Assistant, ""),
+            tool_calls: vec![],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+        let third = LLMResponse {
+            message: msg_text(MessageRole::Assistant, "SYNTHETIC_SUMMARY"),
+            tool_calls: vec![],
+            usage: Usage {
+                input_tokens: 1,
+                output_tokens: 1,
+                cache_creation_tokens: None,
+                cache_read_tokens: None,
+            },
+        };
+
+        let llm = Arc::new(MockLLM::new(vec![first, second, third]));
+        let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+        tools.insert("Echo".to_string(), Box::new(EchoTool));
+
+        let runtime = AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client: llm.clone(),
+                tools,
+                memory_store: Arc::new(DummyMemoryStore),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("mock".to_string()),
+                    model: "mock".to_string(),
+                    base_url: None,
+                    temperature: None,
+                    max_tokens: None,
+                    api_key: None,
+                },
+                model_overrides: HashMap::new(),
+                disk_output: Some(disk.clone()),
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: false,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+                session_notifications: None,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        );
+
+        let agent_type = AgentType::new("general-purpose");
+        let mut messages = vec![runtime
+            .build_system_message(&agent_type, ".")
+            .await
+            .unwrap()];
+        messages.push(msg_text(MessageRole::User, "test"));
+        let messages = Arc::new(Mutex::new(messages));
+
+        let task_id = Uuid::new_v4();
+        let out = runtime
+            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None)
+            .await
+            .unwrap();
+
+        assert_eq!(out.final_text, "SYNTHETIC_SUMMARY");
+
+        let g = messages.lock().await;
+        assert!(
+            g.last().is_some_and(|m| {
+                m.role == MessageRole::Assistant
+                    && matches!(&m.content, MessageContent::Text(t) if t == "SYNTHETIC_SUMMARY")
+            }),
+            "expected trailing assistant from summary receipt, last={:?}",
+            g.last()
+        );
+    }
+
     struct CountingBashTool {
         executed: Arc<AtomicBool>,
     }

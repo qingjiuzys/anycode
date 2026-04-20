@@ -1204,6 +1204,18 @@ impl AgentRuntime {
         .await;
         self.maybe_autosave_memory(task_id, &user_line, &summary_text)
             .await;
+        // 与 `execute_task` 的 summary 回执一致：须写入会话 `messages`，流式 REPL 仅靠
+        // `build_stream_turn_plain(messages)` 渲染主区；仅返回 `TurnOutput` 会导致「有工具无总结」。
+        if !summary_text.trim().is_empty() {
+            let mut g = messages.lock().await;
+            g.push(Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::Assistant,
+                content: MessageContent::Text(summary_text.clone()),
+                timestamp: chrono::Utc::now(),
+                metadata: HashMap::new(),
+            });
+        }
         Ok(TurnOutput {
             final_text: summary_text,
             artifacts,
