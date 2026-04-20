@@ -1418,6 +1418,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
     validate_permission_mode(cfg.security.permission_mode.trim())?;
     let runtime_mode = validate_runtime_mode(cfg.runtime.default_mode.trim())?;
     validate_llm_provider(&cfg.provider)?;
+    validate_notifications(&cfg.notifications)?;
 
     let config_path = resolve_config_path(config_file.clone())?;
     let base_dir = config_path
@@ -1708,6 +1709,7 @@ mod serde_config_tests {
             }
         }"#;
         let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        validate_notifications(&c.notifications).unwrap();
         assert!(c.notifications.is_configured());
         assert_eq!(
             c.notifications.http_url.as_deref(),
@@ -1718,6 +1720,27 @@ mod serde_config_tests {
             c.notifications.tool_deny_prefixes,
             vec!["mcp__".to_string()]
         );
+    }
+
+    #[test]
+    fn notifications_validation_rejects_non_http_url_scheme() {
+        let mut s = anycode_core::SessionNotificationSettings::default();
+        s.http_url = Some("ftp://example.com/hook".to_string());
+        s.max_body_bytes = 4096;
+        let e = validate_notifications(&s).unwrap_err();
+        let m = e.to_string();
+        assert!(
+            m.contains("notifications") && m.contains("http"),
+            "unexpected message: {m}"
+        );
+    }
+
+    #[test]
+    fn notifications_validation_rejects_max_body_out_of_range() {
+        let mut s = anycode_core::SessionNotificationSettings::default();
+        s.max_body_bytes = 100;
+        let e = validate_notifications(&s).unwrap_err();
+        assert!(e.to_string().contains("max_body_bytes"), "{}", e);
     }
 
     #[test]

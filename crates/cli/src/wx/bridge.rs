@@ -22,6 +22,7 @@ use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use std::time::SystemTime;
@@ -62,6 +63,7 @@ pub async fn run_wechat_daemon(
     let wcc_arc = Arc::new(Mutex::new(wcc.clone()));
     let active_chat = Arc::new(Mutex::new(None::<ActiveChat>));
     let active_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(None));
+    let wx_turn_cancel: Arc<StdMutex<Option<Arc<AtomicBool>>>> = Arc::new(StdMutex::new(None));
 
     let gate = WechatApprovalGate::new(
         data_root.clone(),
@@ -109,6 +111,7 @@ pub async fn run_wechat_daemon(
         session_arc,
         active_chat,
         active_task,
+        wx_turn_cancel,
         gate,
         broker: broker_for_state,
         runtime,
@@ -129,6 +132,8 @@ struct BridgeState {
     session_arc: Arc<Mutex<WcSession>>,
     active_chat: Arc<Mutex<Option<ActiveChat>>>,
     active_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// 当前微信回合的协作式取消：`execute_task` 在工具/轮次边界检查；中断或 `/clear` 时置位。
+    wx_turn_cancel: Arc<StdMutex<Option<Arc<AtomicBool>>>>,
     gate: WechatApprovalGate,
     broker: crate::wx::permission::PermissionBroker,
     /// 与 `config.json` 同步；热更新时整实例替换，进行中任务仍持有旧 `Arc`。
@@ -251,6 +256,7 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
                 session_arc: st.session_arc.clone(),
                 active_chat: st.active_chat.clone(),
                 active_task: st.active_task.clone(),
+                wx_turn_cancel: st.wx_turn_cancel.clone(),
                 gate: st.gate.clone(),
                 broker: st.broker.clone(),
                 runtime: st.runtime.clone(),
@@ -292,12 +298,18 @@ async fn handle_message(
 
     if session.state == SessionState::Processing {
         if user_text.trim_start().starts_with("/clear") {
+            if let Some(f) = st.wx_turn_cancel.lock().unwrap().as_ref() {
+                f.store(true, Ordering::SeqCst);
+            }
             if let Some(h) = st.active_task.lock().await.take() {
                 h.abort();
             }
             session.state = SessionState::Idle;
             let _ = save_session(&st.data_root, &st.account.account_id, &session);
         } else if !user_text.trim_start().starts_with('/') {
+            if let Some(f) = st.wx_turn_cancel.lock().unwrap().as_ref() {
+                f.store(true, Ordering::SeqCst);
+            }
             if let Some(h) = st.active_task.lock().await.take() {
                 h.abort();
             }
@@ -499,8 +511,29 @@ async fn run_agent_pipeline(
     let session_arc = st.session_arc.clone();
     let gate = st.gate.clone();
     let active_task = st.active_task.clone();
+    let wx_turn_cancel_slot = st.wx_turn_cancel.clone();
+
+    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let progress_user = from_user_id.clone();
+    let progress_ctx = context_token.clone();
+    let progress_sender = sender.clone();
+    let progress_worker = tokio::spawn(async move {
+        while let Some(line) = progress_rx.recv().await {
+            let line = strip_llm_reasoning_for_display(&line);
+            let t = line.trim();
+            if t.is_empty() {
+                continue;
+            }
+            let _ = progress_sender
+                .send_text(&progress_user, &progress_ctx, t)
+                .await;
+        }
+    });
 
     let h = tokio::spawn(async move {
+        let coop = Arc::new(AtomicBool::new(false));
+        *wx_turn_cancel_slot.lock().unwrap() = Some(coop.clone());
+
         let task = Task {
             id: Uuid::new_v4(),
             agent_type: AgentType::new(agent),
@@ -520,12 +553,15 @@ async fn run_agent_pipeline(
                 nested_model_override: None,
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
-                nested_cancel: None,
+                nested_cancel: Some(coop),
+                channel_progress_tx: Some(progress_tx),
             },
             created_at: chrono::Utc::now(),
         };
 
         let result = rt.execute_task(task).await;
+        *wx_turn_cancel_slot.lock().unwrap() = None;
+        let _ = progress_worker.await;
         rt.sync_memory_durability();
         gate.set_active_chat(None).await;
 

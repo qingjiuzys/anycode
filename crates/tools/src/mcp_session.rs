@@ -349,4 +349,21 @@ mod connect_tests {
             "unexpected error message: {msg}"
         );
     }
+
+    /// Child answers `initialize` then exits before `tools/list` — regression for EOF / early exit.
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn mcp_stdio_connect_fails_when_child_exits_before_tools_list() {
+        let script = r#"read -r _; printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"t","version":"0"}}}'; read -r _; read -r _; exit 0"#;
+        let err = McpStdioSession::connect(script, "trunc-handshake")
+            .await
+            .err()
+            .expect("expected connect failure when stdout ends before id=2");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("MCP")
+                && (msg.contains("id=2") || msg.contains("stdout") || msg.contains("exited")),
+            "unexpected error message: {msg}"
+        );
+    }
 }

@@ -71,6 +71,7 @@ Expected output: task runs without interactive approval prompts in this process.
 ## Advanced diagnostics (optional)
 
 - **MCP / `McpAuth` / OAuth (no GUI):** anycode does not open a browser for you. Use the dynamic **`mcp__…__authenticate`** tool or **`McpAuth`**, read **stderr** from the MCP subprocess (same terminal as the CLI), then complete OAuth in your browser. See [Config & security — MCP OAuth](./config-security#mcp-oauth-mcpauth-no-gui) and env **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** if calls hang.
+- **MCP stdio session:** there is **no automatic reconnect** if the MCP child exits or the session hits repeated timeouts/EOF. Fix the server command or restart the CLI session; see repo [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md).
 - Developer logs/tests: see [Development](./development)
 
 ## Still stuck

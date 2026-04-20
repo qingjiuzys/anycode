@@ -36,6 +36,9 @@
 
 ## 2. 最近已交付（摘要）
 
+- **会话外向通知**：`config.json` **`notifications`** — 工具结果后 / 无后续 tool_calls 的 assistant 回合结束时，可选 **HTTP POST JSON** 或 **`shell_command`（stdin 为 JSON）**；与 **`memory.pipeline.hook_*`**（归根 ingest）独立；头 **`${ENV_VAR}`** 展开；失败不阻断 **`AgentRuntime`**（见 [`architecture.md`](architecture.md)）。  
+- **流式 REPL 模块化**：Inline dock / viewport / 事件 / 任务循环等拆至 `crates/cli/src/repl/`、`tasks/stream_repl_loop.rs`；布局与术语见 [`stream-repl-layout.md`](stream-repl-layout.md)；与 claude-code-rust 对照见 [`references/claude-code-rust-stream-repl.md`](references/claude-code-rust-stream-repl.md)。  
+- **微信桥中断提示**：**`SessionState::Processing`** 下新非斜杠消息 **abort** 上一段任务后发送 **`wx-interrupt-new-msg`**（Fluent）。  
 - **审计与清理**：移除默认路径未接线模块 `daemon_http`、`virtual_scroll`；主路径低风险去重（`main.rs`、`tui/run/event.rs`、`bootstrap/mod.rs`）；`LSP` / `MCP` / `AskUserQuestion` / `REPL` 降级返回统一 `status` / `hint`。  
 - **会话与用量**：流式 REPL 与全屏 TUI 对齐 **`TurnTokenUsage`** / **`TurnOutput.usage`**；HUD 与 **`/context`** 同源；**`/export`**、**`/cost`**（免责声明 + 与 context 一致的用量行）。  
 - **Inline 退出 scrollback**：**`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP`** 支持 `0` / `anchor` / `full`（默认 full）；`anchor` 与 `turn_transcript_anchor` → **`ReplLineState::stream_exit_dump_anchor`**；**`/clear`** 重置 anchor。  

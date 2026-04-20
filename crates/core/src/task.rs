@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::agent_type::AgentType;
 
@@ -47,6 +48,9 @@ pub struct TaskContext {
     /// 嵌套子 Agent（如 `run_in_background`）：`true` 时 turn / 工具边界提前退出（非 serde）。
     #[serde(skip)]
     pub nested_cancel: Option<Arc<AtomicBool>>,
+    /// 可选：工具进度短行（如微信桥）；`execute_task` 在工具开始/结束时 **try-send** UTF-8 行。
+    #[serde(skip, default)]
+    pub channel_progress_tx: Option<UnboundedSender<String>>,
 }
 
 /// Parameters for [`crate::SubAgentExecutor::run_nested_task`] (Claude Code `Agent` / `Task` tool parity).

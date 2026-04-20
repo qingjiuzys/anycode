@@ -19,6 +19,7 @@ read_when:
 | crate、运行时、工具装配 | [架构](./architecture) |
 | 按 Agent 覆盖模型 | [路由](./routing) |
 | `security.*`、环境变量、审批 | [配置与安全](./config-security) |
+| 会话通知（HTTP/shell、网关对接） | [会话通知](./notifications) |
 | Skill 目录、`SKILL.md`、`anycode skills` | [Agent skills](./skills) |
 | **Agent** / **Task**（嵌套子 Agent，Claude 式字段） | [路线图](./roadmap)（**P5** 矩阵与 **P5 Skill / Agent** 段） |
 | 无 TTY、微信扫码、MCP | [排错](./troubleshooting) |

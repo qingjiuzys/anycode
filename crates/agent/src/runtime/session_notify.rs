@@ -3,8 +3,9 @@
 use super::artifacts::truncate_text;
 use anycode_core::{SessionNotificationSettings, TaskId};
 use serde_json::{json, Value};
-use std::time::Duration;
-use tracing::warn;
+use std::time::{Duration, Instant};
+use tracing::{debug, warn};
+use uuid::Uuid;
 
 pub(crate) fn expand_env_placeholders(s: &str) -> String {
     let mut out = String::with_capacity(s.len().saturating_mul(2));
@@ -38,8 +39,10 @@ pub(crate) fn build_notification_value(
     max_body_bytes: usize,
 ) -> Value {
     let (excerpt_body, excerpt_truncated) = truncate_text(excerpt.to_string(), max_body_bytes);
+    let event_id = Uuid::new_v4();
     let mut v = json!({
         "schema_version": 1,
+        "event_id": event_id.to_string(),
         "event": event,
         "session_id": session_id,
         "task_id": task_id.to_string(),
@@ -97,6 +100,23 @@ async fn dispatch_http(
     url: &str,
     payload: &Value,
 ) -> anyhow::Result<()> {
+    let host = reqwest::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(std::string::ToString::to_string))
+        .unwrap_or_else(|| "?".to_string());
+    let ev = payload.get("event").and_then(|x| x.as_str()).unwrap_or("?");
+    let truncated = payload
+        .get("excerpt_truncated")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
+    debug!(
+        target: "anycode_session_notify",
+        host = %host,
+        event = %ev,
+        excerpt_truncated = truncated,
+        "session notify http start"
+    );
+    let t0 = Instant::now();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(settings.http_timeout_ms.max(100)))
         .build()?;
@@ -115,6 +135,13 @@ async fn dispatch_http(
         let brief: String = txt.chars().take(512).collect();
         anyhow::bail!("HTTP status {} body {}", status, brief);
     }
+    debug!(
+        target: "anycode_session_notify",
+        host = %host,
+        event = %ev,
+        elapsed_ms = t0.elapsed().as_millis() as u64,
+        "session notify http ok"
+    );
     Ok(())
 }
 
@@ -128,6 +155,13 @@ async fn dispatch_shell(
     use tokio::process::Command;
     use tokio::time::timeout;
 
+    debug!(
+        target: "anycode_session_notify",
+        cmd_len = cmd.len(),
+        body_len = body.len(),
+        "session notify shell start"
+    );
+    let t0 = Instant::now();
     let timeout_d = Duration::from_millis(settings.shell_timeout_ms.max(100));
 
     #[cfg(unix)]
@@ -166,6 +200,11 @@ async fn dispatch_shell(
     };
 
     timeout(timeout_d, wait).await??;
+    debug!(
+        target: "anycode_session_notify",
+        elapsed_ms = t0.elapsed().as_millis() as u64,
+        "session notify shell ok"
+    );
     Ok(())
 }
 
@@ -174,6 +213,7 @@ mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn http_dispatch_posts_json() {
@@ -244,5 +284,7 @@ mod tests {
         assert_eq!(v["excerpt_truncated"], true);
         assert_eq!(v["tool_name"], "bash");
         assert_eq!(v["working_directory"], "/tmp");
+        let eid = v["event_id"].as_str().expect("event_id");
+        assert!(Uuid::parse_str(eid).is_ok());
     }
 }

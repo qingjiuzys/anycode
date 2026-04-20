@@ -40,6 +40,7 @@ pub struct SessionNotificationSettings {
     pub shell_command: Option<String>,
     #[serde(default = "default_shell_timeout_ms")]
     pub shell_timeout_ms: u64,
+    /// 正文 `excerpt` 上限；加载配置时校验在 **256..=524288**（见 CLI `validate_notifications`）。
     #[serde(default = "default_max_body_bytes")]
     pub max_body_bytes: usize,
     /// 工具名前缀命中则跳过（与 memory pipeline 钩子语义一致，可单独留空表示不筛）。

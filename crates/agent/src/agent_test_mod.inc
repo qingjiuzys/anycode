@@ -327,6 +327,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -452,6 +453,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -553,6 +555,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -642,6 +645,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1066,6 +1070,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1224,6 +1229,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1352,6 +1358,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1475,6 +1482,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1650,6 +1658,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1862,6 +1871,7 @@ mod tests {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };

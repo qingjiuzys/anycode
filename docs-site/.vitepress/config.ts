@@ -30,6 +30,7 @@ const guideSidebarEn = [
     items: [
       { text: 'Models', link: '/guide/models' },
       { text: 'Config & security', link: '/guide/config-security' },
+      { text: 'Session notifications', link: '/guide/notifications' },
       { text: 'Routing', link: '/guide/routing' },
       { text: 'Memory notes', link: '/guide/memory' },
       { text: 'Releases & flags', link: '/guide/releases' },
@@ -82,6 +83,7 @@ const guideSidebarZh = [
     items: [
       { text: '模型与端点', link: '/zh/guide/models' },
       { text: '配置与安全', link: '/zh/guide/config-security' },
+      { text: '会话通知', link: '/zh/guide/notifications' },
       { text: '路由', link: '/zh/guide/routing' },
       { text: '记忆说明', link: '/zh/guide/memory' },
       { text: '版本与特性开关', link: '/zh/guide/releases' },

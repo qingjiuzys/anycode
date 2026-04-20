@@ -60,6 +60,12 @@ fn opt_coop_cancelled(flag: &Option<Arc<AtomicBool>>) -> bool {
     flag.as_ref().is_some_and(|b| b.load(Ordering::Acquire))
 }
 
+fn channel_progress_send(ctx: &TaskContext, line: String) {
+    if let Some(tx) = &ctx.channel_progress_tx {
+        let _ = tx.send(line);
+    }
+}
+
 fn task_cancelled_failure() -> TaskResult {
     TaskResult::Failure {
         error: NESTED_TASK_COOPERATIVE_CANCEL_ERROR.to_string(),
@@ -1181,6 +1187,7 @@ impl AgentRuntime {
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
@@ -1451,6 +1458,7 @@ impl AgentRuntime {
                         turn, total_tool_calls, tool_call.name
                     ),
                 );
+                channel_progress_send(&task.context, format!("🔧 {}", tool_call.name));
                 let t0 = std::time::Instant::now();
                 let tool_result = self
                     .execute_tool_call(task.id, &task.context.working_directory, &tool_call)
@@ -1503,6 +1511,22 @@ impl AgentRuntime {
                     timestamp: chrono::Utc::now(),
                     metadata: tool_meta,
                 });
+
+                if tool_result.error.is_some() {
+                    let e_short: String = tool_result
+                        .error
+                        .as_deref()
+                        .unwrap_or("error")
+                        .chars()
+                        .take(120)
+                        .collect();
+                    channel_progress_send(
+                        &task.context,
+                        format!("✗ {} {}", tool_call.name, e_short),
+                    );
+                } else {
+                    channel_progress_send(&task.context, format!("✓ {}", tool_call.name));
+                }
 
                 self.pipeline_memory_hook_tool_result(
                     &session_label,
@@ -1759,6 +1783,7 @@ impl SubAgentExecutor for AgentRuntime {
                 nested_worktree_repo_root: wt_roots.as_ref().map(|(r, _)| r.clone()),
                 nested_worktree_path: wt_roots.as_ref().map(|(_, p)| p.clone()),
                 nested_cancel: invoke.cancel.clone(),
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };

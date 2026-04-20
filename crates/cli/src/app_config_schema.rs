@@ -789,6 +789,42 @@ pub(crate) fn validate_llm_provider(s: &str) -> anyhow::Result<()> {
     anyhow::bail!("{}", tr_args("err-provider", &a));
 }
 
+/// `config.json` `notifications`：非空 `http_url` 须为可解析的 `http`/`https`；`max_body_bytes` 有上下限。
+pub(crate) fn validate_notifications(
+    s: &anycode_core::SessionNotificationSettings,
+) -> anyhow::Result<()> {
+    const MIN_BODY: usize = 256;
+    const MAX_BODY: usize = 512 * 1024;
+    if s.max_body_bytes < MIN_BODY || s.max_body_bytes > MAX_BODY {
+        anyhow::bail!(
+            "notifications: max_body_bytes must be between {} and {} (got {})",
+            MIN_BODY,
+            MAX_BODY,
+            s.max_body_bytes
+        );
+    }
+    if let Some(raw) = s
+        .http_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+    {
+        let parsed = reqwest::Url::parse(raw).map_err(|e| {
+            anyhow::anyhow!(
+                "notifications: http_url is not a valid URL ({e}); check the value is a full http(s) address"
+            )
+        })?;
+        let scheme = parsed.scheme();
+        if scheme != "http" && scheme != "https" {
+            anyhow::bail!(
+                "notifications: http_url must use http or https (got scheme {:?})",
+                scheme
+            );
+        }
+    }
+    Ok(())
+}
+
 fn validate_qualified_model_ref(qualified: &str) -> anyhow::Result<()> {
     let (prov, mid) = qualified
         .split_once('/')

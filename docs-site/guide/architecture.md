@@ -61,6 +61,10 @@ Multi-turn **LLM + tool** orchestration lives only in **`AgentRuntime::execute_t
 
 Main-session and line/stream REPL turns pass an optional `Arc<AtomicBool>` into **`execute_turn_from_messages`**. Nested **`execute_task`** runs use **`TaskContext.nested_cancel`** (from **`NestedTaskInvoke.cancel`**). Background nested agents register a job flag; **`TaskStop`** sets that flag and aborts the spawned task. Outcomes use **`CoreError::CooperativeCancel`** (same display as legacy `LLM error: cancelled`); use **`CoreError::is_cooperative_cancel`** or **`anycode_core::anyhow_error_is_cooperative_cancel`** when handling **`anyhow::Error`**. See **`docs/adr/002-cooperative-cancel-and-nested-agents.md`**.
 
+### Session notifications (HTTP / shell)
+
+Optional **`config.json`** **`notifications`** block posts versioned JSON (**`schema_version`**, **`event_id`**) on tool results and agent turns—**separate** from **`memory.pipeline`** hooks. User-facing field table and OpenClaw-style notes: [Session notifications](./notifications).
+
 ### Extension allowlist (where to change things)
 
 - **Default tools**: `crates/tools/src/registry.rs` + `catalog.rs` + `SECURITY_SENSITIVE_TOOL_IDS` (must stay aligned with `bootstrap` policy registration).

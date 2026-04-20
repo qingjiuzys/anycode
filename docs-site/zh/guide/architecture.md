@@ -93,6 +93,10 @@ CLI 的 `run`、`REPL` 与 `TUI` **共用**同一 `AgentRuntime` 构建路径（
 
 主会话与行式/流式 REPL 将可选的 `Arc<AtomicBool>` 传入 **`execute_turn_from_messages`**。嵌套 **`execute_task`** 使用 **`TaskContext.nested_cancel`**（来自 **`NestedTaskInvoke.cancel`**）。后台嵌套任务注册任务级标志；**`TaskStop`** 置位并 `abort` 后台任务。取消结果用 **`CoreError::CooperativeCancel`**（展示文案与历史 **`LLM error: cancelled`** 一致）；处理 **`anyhow::Error`** 时用 **`CoreError::is_cooperative_cancel`** 或 **`anycode_core::anyhow_error_is_cooperative_cancel`**。详见仓库 **`docs/adr/002-cooperative-cancel-and-nested-agents.md`**。
 
+### 会话通知（HTTP / shell）
+
+可选的 **`config.json`** **`notifications`** 在工具结果与 assistant 回合结束时投递带版本号的 JSON（**`schema_version`**、**`event_id`**），与 **`memory.pipeline`** 钩子独立。字段说明与 OpenClaw 式对接见 [会话通知](./notifications)。
+
 **编排权威说明**（决策记录见仓库 **`docs/adr/000-runtime-orchestration.md`**）：
 
 - **Strategy（补充）**：`LLMClient`、`Tool`、`Agent` 等 trait 由不同实现替换行为；新增厂商或工具时优先加实现而非改接口。

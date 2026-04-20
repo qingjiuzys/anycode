@@ -50,6 +50,7 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
             nested_worktree_path: None,
             nested_worktree_repo_root: None,
             nested_cancel: None,
+            channel_progress_tx: None,
         },
         created_at: chrono::Utc::now(),
     }
