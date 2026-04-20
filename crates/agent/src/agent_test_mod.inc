@@ -303,6 +303,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -426,6 +427,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -527,6 +529,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -608,6 +611,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -686,6 +690,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -778,6 +783,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -884,6 +890,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1035,6 +1042,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1192,6 +1200,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1319,6 +1328,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1441,6 +1451,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1615,6 +1626,7 @@ mod tests {
                     ..MemoryPipelineSettings::default()
                 }),
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1687,6 +1699,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1755,6 +1768,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: false,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],
@@ -1824,6 +1838,7 @@ mod tests {
                 memory_pipeline: None,
                 memory_pipeline_settings: None,
                 memory_project_autosave_enabled: true,
+                session_notifications: None,
             },
             RuntimeToolPolicy {
                 tool_name_deny: vec![],

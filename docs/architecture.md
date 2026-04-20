@@ -2,7 +2,7 @@
 
 面向维护者：分层、依赖方向与扩展点，避免「为抽象而抽象」。
 
-**文档站**（中英、与发布流程一致）：仓库根目录 [`docs-site/guide/architecture.md`](../docs-site/guide/architecture.md) 构建为在线「Architecture」页；扩展操作清单见 [`docs-site/guide/contributing-extensions.md`](../docs-site/guide/contributing-extensions.md)。**ADR**（编排边界等决策）在 [`docs/adr/`](adr/)，不参与 VitePress 构建。
+**文档站**（中英、与发布流程一致）：仓库根目录 [`docs-site/guide/architecture.md`](../docs-site/guide/architecture.md) 构建为在线「Architecture」页；扩展操作清单见 [`docs-site/guide/contributing-extensions.md`](../docs-site/guide/contributing-extensions.md)。**ADR**（编排边界等决策）在 [`docs/adr/`](adr/)，不参与 VitePress 构建。**`anycode repl` 流式 TTY 页面与通道**见 [`stream-repl-layout.md`](stream-repl-layout.md)。
 
 ## 分层与数据流
 
@@ -61,5 +61,17 @@ anycode-memory         ← 记忆后端
 | Token 用量展示 | 回合结束 HUD 与 **`/context`** 使用 `TurnTokenUsage`（与 agent 返回的 **`TurnOutput.usage`** 对齐） | 脚标 **`last_output_tokens`** + **`/context`** 使用同一套聚合字段 |
 
 退出 Inline 视口时，默认把 **完整** transcript 再打一份到 shell；**`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=0`** 关闭；**`=anchor`** 仅打印自上一轮自然语言轮起的内容（与异步侧 `turn_transcript_anchor` 同步到 **`ReplLineState::stream_exit_dump_anchor`**）。
+
+## 会话外向通知（`config.json` 的 `notifications`）
+
+与 **`memory.pipeline.hook_after_*`**（归根虚态缓冲 ingest）**独立**：在工具结果落地后、以及「本轮 assistant 结束且无后续 tool_calls」时，可选向 **`http_url` POST JSON** 或执行 **`shell_command`**（进程 **stdin** 为同一份 UTF-8 JSON）。失败、超时仅打日志，**不**影响 `AgentRuntime` 编排。请求头值支持 **`${ENV_VAR}`** 展开（与 OpenClaw / 自建 gateway 的 token 用法兼容）。**`tool_deny_prefixes`** 与记忆钩子语义一致，可单独留空。
+
+## 与 oh-my-codex / OpenClaw 双栈
+
+anycode **不**内嵌 OMX 的 `$ralph` / `$team` 等工作流引擎；编排仍以 **`AgentRuntime`** 为唯一权威（ADR 000）。若本机另跑 OpenClaw gateway，可通过上述 **`notifications`** 把回合事件推到网关；OMX 侧可参考其 OpenClaw 集成文档配置 hooks，二者通过 HTTP/脚本对接而非源码合并。
+
+## 微信桥（与 wechat-claude-code 对照）
+
+微信 daemon 在 **`SessionState::Processing`** 下收到新的非斜杠消息时会 **abort** 上一段 `execute_task` 并提示用户已中断（Fluent **`wx-interrupt-new-msg`**）。会话内 **`y` / `n` 审批** 由 `PermissionBroker` + `WaitingPermission` 状态处理。流式「思考/工具行」逐条推送至微信需走 **`execute_turn_from_messages` + 通道侧流式 sink**，当前桥接仍以整轮 **`execute_task`** 为主，与 Claude Code Skill 的实时 tool HUD 不完全等价。
 
 迭代任务与决策状态见 **[`docs/roadmap.md`](roadmap.md)**（SSOT）；MVP 与工具矩阵见文档站 [Roadmap](../docs-site/guide/roadmap.md)。

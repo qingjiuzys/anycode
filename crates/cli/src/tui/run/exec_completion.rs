@@ -9,7 +9,7 @@ use crate::tui::transcript::{
 };
 use anycode_agent::AgentRuntime;
 use anycode_core::{
-    anyhow_error_is_cooperative_cancel, strip_llm_reasoning_xml_blocks, AgentType, Message,
+    anyhow_error_is_cooperative_cancel, strip_llm_reasoning_for_display, AgentType, Message,
     MessageContent, MessageRole, TurnOutput, Usage,
 };
 use fluent_bundle::FluentArgs;
@@ -299,7 +299,7 @@ pub(super) async fn consume_finished_turn(
             // 收尾：优先 runtime 返回的 `final_text`（末条 assistant 常为空占位，仅用 messages 会误取上一条 thinking，导致不补总结）。
             // `final_text` 为空时再回退到本回合最后非空 assistant 正文。
             let closing = {
-                let ft = strip_llm_reasoning_xml_blocks(final_text.trim_end());
+                let ft = strip_llm_reasoning_for_display(final_text.trim_end());
                 if !ft.trim().is_empty() {
                     ft
                 } else {

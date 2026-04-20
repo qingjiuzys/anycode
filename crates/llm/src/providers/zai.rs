@@ -43,7 +43,10 @@ pub fn zai_default_chat_url_for_plan(plan: &str) -> &'static str {
     }
 }
 
-const DEFAULT_API_TIMEOUT_MS: u64 = 600_000;
+/// 单次 HTTP 请求总超时（含流式读 body）；更长对话可设环境变量 `API_TIMEOUT_MS`。
+const DEFAULT_API_TIMEOUT_MS: u64 = 180_000;
+/// 建连阶段（TCP/TLS）超时，与总超时独立，避免坏地址长时间挂起。
+const DEFAULT_API_CONNECT_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_MAX_RETRIES: u32 = 10;
 
 /// 向导 / CLI 展示用的模型目录（单一事实来源）
@@ -271,6 +274,7 @@ fn configured_api_timeout_ms() -> u64 {
 
 fn build_http_client() -> Client {
     Client::builder()
+        .connect_timeout(Duration::from_millis(DEFAULT_API_CONNECT_TIMEOUT_MS))
         .timeout(Duration::from_millis(configured_api_timeout_ms()))
         .build()
         .unwrap_or_else(|_| Client::new())

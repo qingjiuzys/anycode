@@ -473,6 +473,10 @@ pub(crate) fn save_merged_config(
             .map(|c| c.channels.clone())
             .unwrap_or_default(),
         lsp: existing.as_ref().map(|c| c.lsp.clone()).unwrap_or_default(),
+        notifications: existing
+            .as_ref()
+            .map(|c| c.notifications.clone())
+            .unwrap_or_default(),
     };
 
     validate_llm_provider(&cfg.provider)?;
@@ -723,6 +727,9 @@ pub(crate) struct AnyCodeConfig {
     pub(crate) channels: ChannelsConfigFile,
     #[serde(default)]
     pub(crate) lsp: LspConfigFile,
+    /// 工具结果 / 回合结束外向通知（HTTP、shell），与 `memory.pipeline.hook_*` 独立。
+    #[serde(default)]
+    pub(crate) notifications: anycode_core::SessionNotificationSettings,
 }
 
 /// `config.json` 的 `tui` 段。
@@ -935,6 +942,7 @@ fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Resul
             tui: TuiConfigFile::default(),
             channels: ChannelsConfigFile::default(),
             lsp: LspConfigFile::default(),
+            notifications: Default::default(),
         }),
     )
 }
@@ -1212,6 +1220,10 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .map(|c| c.channels.clone())
             .unwrap_or_default(),
         lsp: existing.as_ref().map(|c| c.lsp.clone()).unwrap_or_default(),
+        notifications: existing
+            .as_ref()
+            .map(|c| c.notifications.clone())
+            .unwrap_or_default(),
     };
 
     save_anycode_config(&cfg)?;
@@ -1398,6 +1410,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
                 tui: TuiConfigFile::default(),
                 channels: ChannelsConfigFile::default(),
                 lsp: LspConfigFile::default(),
+                notifications: Default::default(),
             }
         }
     };
@@ -1549,6 +1562,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         tui: cfg.tui.into(),
         channels: cfg.channels.into(),
         lsp: lsp_runtime,
+        notifications: cfg.notifications,
     })
 }
 
@@ -1673,6 +1687,37 @@ mod serde_config_tests {
         assert!(!c.session.auto_compact);
         assert_eq!(c.session.auto_compact_min_input_tokens, 90_000);
         assert_eq!(c.session.context_window_tokens, 200_000);
+    }
+
+    #[test]
+    fn deserializes_notifications_block() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "base_url":null,
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "notifications": {
+                "http_url": "http://127.0.0.1:9/hook",
+                "http_headers": { "Authorization": "Bearer ${HOOKS_TOKEN}" },
+                "shell_command": "cat",
+                "max_body_bytes": 1024,
+                "tool_deny_prefixes": ["mcp__"]
+            }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert!(c.notifications.is_configured());
+        assert_eq!(
+            c.notifications.http_url.as_deref(),
+            Some("http://127.0.0.1:9/hook")
+        );
+        assert_eq!(c.notifications.max_body_bytes, 1024);
+        assert_eq!(
+            c.notifications.tool_deny_prefixes,
+            vec!["mcp__".to_string()]
+        );
     }
 
     #[test]

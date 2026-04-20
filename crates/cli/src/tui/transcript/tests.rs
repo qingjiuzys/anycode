@@ -403,6 +403,33 @@ mod tests {
     }
 
     #[test]
+    fn fullscreen_tui_no_inline_thinking_after_user() {
+        let entries = vec![TranscriptEntry::User("分析下当前项目".into())];
+        let folds = std::collections::HashSet::new();
+        let lines = layout_workspace(
+            &entries,
+            80,
+            &folds,
+            WorkspaceLiveLayout {
+                executing: true,
+                working_elapsed_secs: Some(9),
+                ..Default::default()
+            },
+        );
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
+            .collect();
+        assert!(
+            joined.contains("分析"),
+            "expected user prompt in workspace, got {joined:?}"
+        );
+        // 主区不再插 `tui-germinating*`（与 Prompt HUD 的 tui-hud-executing* 重复）
+        assert!(!joined.contains("思考中"));
+        assert!(!joined.contains("Germinating"));
+    }
+
+    #[test]
     fn stream_repl_executing_hides_last_user_until_non_user_tail() {
         let entries = vec![TranscriptEntry::User("hi".into())];
         let folds = std::collections::HashSet::new();

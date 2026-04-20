@@ -95,6 +95,8 @@ pub(crate) struct Config {
     pub(crate) channels: ChannelsConfig,
     /// `LSP` 工具子进程（需 `--features tools-lsp`）。
     pub(crate) lsp: LspRuntime,
+    /// 会话外向通知（OpenClaw 类网关 / 自定义脚本）。
+    pub(crate) notifications: anycode_core::SessionNotificationSettings,
 }
 
 /// 运行时 `tui` 段（与 [`TuiConfigFile`] 对应）。

@@ -1,20 +1,22 @@
-//! 终端尺寸快速连变时的渲染防抖（减轻 resize 风暴下的全量重绘压力）。
+//! 终端尺寸快速连变时的绘制防抖（全屏 TUI 与流式 Inline REPL 共用）。
 //!
-//! **首帧**：第一次观察到终端尺寸时 **不** 跳过绘制——否则从 [`ResizeDebounce::new`] 到首次
-//! [`ResizeDebounce::update`] 若落在防抖窗口内（例如不足 150ms），会错误地跳过第一帧。
+//! **首帧**：第一次观察到终端尺寸时 **不** 跳过绘制。
+//!
+//! ratatui 0.24 下 `Viewport::Inline` 在 `autoresize`/`resize` 时会 `append_lines`（换行顶屏），
+//! 连续 resize 会把视口内容反复顶入宿主 scrollback；防抖合并可显著减轻「叠行/脏历史」。
 
 use std::time::Instant;
 
 const DEBOUNCE_MS: u64 = 150;
 
-pub(super) struct ResizeDebounce {
+pub(crate) struct ResizeDebounce {
     last_resize: Instant,
     last_size: Option<(u16, u16)>,
     skip_render: bool,
 }
 
 impl ResizeDebounce {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             last_resize: Instant::now(),
             last_size: None,
@@ -23,7 +25,7 @@ impl ResizeDebounce {
     }
 
     /// 返回 **是否跳过本帧绘制**（`true` = 跳过）。
-    pub(super) fn update(&mut self, current_size: (u16, u16)) -> bool {
+    pub(crate) fn update(&mut self, current_size: (u16, u16)) -> bool {
         let now = Instant::now();
 
         let size_changed = match self.last_size {

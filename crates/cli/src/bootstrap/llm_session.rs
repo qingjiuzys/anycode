@@ -278,6 +278,7 @@ mod tests {
             tui: TuiRuntime::default(),
             channels: ChannelsConfig::default(),
             lsp: LspRuntime::default(),
+            notifications: anycode_core::SessionNotificationSettings::default(),
         }
     }
 

@@ -5,7 +5,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anycode_core::prelude::*;
-use anycode_core::{DiskTaskOutput, MemoryPipeline, MemoryPipelineSettings};
+use anycode_core::{
+    DiskTaskOutput, MemoryPipeline, MemoryPipelineSettings, SessionNotificationSettings,
+};
 use anycode_security::SecurityLayer;
 use regex::Regex;
 
@@ -31,6 +33,8 @@ pub struct RuntimeMemoryOptions {
     pub memory_pipeline: Option<Arc<dyn MemoryPipeline>>,
     pub memory_pipeline_settings: Option<MemoryPipelineSettings>,
     pub memory_project_autosave_enabled: bool,
+    /// 外向会话通知（`config.notifications`）；与 `memory_pipeline` 无耦合。
+    pub session_notifications: Option<SessionNotificationSettings>,
 }
 
 /// Tool listing policy: deny patterns, Claude permission rules, skill exposure on explore/plan agents.

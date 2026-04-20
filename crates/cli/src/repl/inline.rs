@@ -1,176 +1,19 @@
-//! REPL 行内编辑（ratatui）：上方为输出区，底部为输入行；斜杠候选在**输入行下方**。
+//! 流式 REPL transcript 清洗、折行与样式（ratatui 主区与单测共用）。
+//!
+//! 状态与底栏见 [`crate::repl::line_state`]、[`crate::repl::dock_render`]；键盘见 [`crate::repl::stream_events`]。
 
-use crate::i18n::{tr, tr_args};
-use crate::md_tui::{
-    pad_end_to_display_width, text_display_width, truncate_to_display_width, wrap_string_to_width,
-};
-use crate::slash_commands;
-use crate::tui::input::{
-    history_apply_down, history_apply_up, prompt_multiline_lines_and_cursor, InputState,
-};
+#![allow(dead_code)] // `repl_stream_transcript_bottom_padded` 等主要由本文件内单测使用。
+
+use crate::i18n::tr;
+use crate::md_tui::wrap_string_to_width;
 use crate::tui::styles::{
-    style_dim, style_horizontal_rule, style_menu_selected, style_tool, style_warn,
+    style_assistant, style_assistant_prose, style_brand, style_dim, style_error, style_user,
 };
-use crate::tui::util::{sanitize_paste, trim_or_default, truncate_preview, MAX_PASTE_CHARS};
-use anycode_core::TurnTokenUsage;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use fluent_bundle::FluentArgs;
-use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Paragraph, Widget, Wrap};
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
-
-/// 仅用于绘制：保留尾部若干行（旧 tail 裁剪路径；测试保留）。
+use ratatui::style::Style;
 #[cfg(test)]
-const TRANSCRIPT_MAX_DISPLAY_LINES: usize = 256;
-
-/// 流式 REPL 主区折行缓存（与 `claude-code-rust` 视口高度测量同思路）。
-#[derive(Clone, Debug, Default)]
-pub(crate) struct StreamTranscriptLayoutCache {
-    pub key: u64,
-    pub width: u16,
-    pub total_rows: usize,
-    /// `prefix_row[i]` = 全局显示行下标到第 `i` 条逻辑行起点。
-    pub prefix_row: Vec<usize>,
-    pub logical_heights: Vec<usize>,
-}
-
-pub(crate) struct ReplLineState {
-    pub input: InputState,
-    pub slash_pick: usize,
-    pub slash_suppress: bool,
-    pub input_history: Vec<String>,
-    pub history_idx: Option<usize>,
-    /// 流式 / Inline REPL 底栏顶行：模型 / 审批等（与全屏 TUI 脚标信息对齐）。
-    pub dock_status: String,
-    /// 底栏左列：`ctx` + `? help` + 可选滚动提示（与全屏脚标左半对齐）。
-    pub dock_footer_left: String,
-    /// 任务与 REPL 消息（显示在输入区上方）；与异步任务共享以便 tail 写入时重绘。
-    pub transcript: Arc<Mutex<String>>,
-    /// 流式 REPL 主区宽度（ratatui `draw` 回写），供 transcript 排版换行。
-    pub stream_viewport_width: u16,
-    /// 与全屏 TUI 一致：待处理的工具审批（仅流式 REPL 主循环设置）。
-    pub pending_approval: Option<crate::tui::PendingApproval>,
-    pub pending_user_question: Option<crate::tui::PendingUserQuestion>,
-    pub approval_menu_selected: usize,
-    pub user_question_menu_selected: usize,
-    /// 流式 REPL：自然语言轮开始执行时起算，供 Prompt HUD 显示耗时（与全屏 TUI `executing_since` 一致）。
-    pub executing_since: Option<Instant>,
-    /// 回合结束后在 prompt 上方短暂显示 Claude 风格摘要（耗时 + ctx tokens）。
-    pub finished_turn_summary: Option<String>,
-    pub finished_turn_summary_until: Option<Instant>,
-    /// 主区向上滚动的显示行数（从贴底算起，越大越「老」）；仅流式 Inline 使用。
-    pub stream_transcript_scroll: usize,
-    /// 与 `claude-code-rust` 一致：贴底时自动跟随新输出；用户上滚后为 `false`。
-    pub stream_repl_auto_scroll_follow: bool,
-    /// 平滑滚动位置（全局「显示行」坐标，浮点）。
-    pub stream_repl_scroll_pos: f32,
-    pub stream_repl_scroll_target: f32,
-    /// 按视口宽度缓存的折行高度与前缀和（避免每帧 O(n) 全量折行）。
-    pub stream_transcript_layout: StreamTranscriptLayoutCache,
-    /// 最近完成的一轮 `execute_turn` 聚合用量（供 `/context` 与 HUD 对齐）。
-    pub last_turn_token_usage: Option<TurnTokenUsage>,
-    /// 退出时 `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=anchor` 用的字节偏移：当前「自然语言轮」写入前 `transcript.len()`（与异步侧 `turn_transcript_anchor` 一致）。
-    pub stream_exit_dump_anchor: usize,
-}
-
-impl Default for ReplLineState {
-    fn default() -> Self {
-        Self {
-            input: InputState::default(),
-            slash_pick: 0,
-            slash_suppress: false,
-            input_history: Vec::new(),
-            history_idx: None,
-            dock_status: String::new(),
-            dock_footer_left: String::new(),
-            transcript: Arc::new(Mutex::new(String::new())),
-            stream_viewport_width: 80,
-            pending_approval: None,
-            pending_user_question: None,
-            approval_menu_selected: 0,
-            user_question_menu_selected: 0,
-            executing_since: None,
-            finished_turn_summary: None,
-            finished_turn_summary_until: None,
-            stream_transcript_scroll: 0,
-            stream_repl_auto_scroll_follow: true,
-            stream_repl_scroll_pos: 0.0,
-            stream_repl_scroll_target: 0.0,
-            stream_transcript_layout: StreamTranscriptLayoutCache::default(),
-            last_turn_token_usage: None,
-            stream_exit_dump_anchor: 0,
-        }
-    }
-}
-
-pub(crate) enum ReplCtl {
-    Continue,
-    Submit(String),
-    /// 与全屏 TUI Ctrl+L 一致：清空本会话消息并重建 system 上下文。
-    ClearSession,
-    /// 回合进行中（`executing_since`）：请求 `execute_turn_from_messages` 协作取消。
-    CooperativeCancelTurn,
-    Eof,
-}
-
-pub(crate) fn reset_slash_state(state: &mut ReplLineState) {
-    state.slash_pick = 0;
-    state.slash_suppress = false;
-}
-
-/// 新输入 / 回合结束 / 清会话：回到贴底跟随（与 `claude-code-rust` `auto_scroll` 一致）。
-pub(crate) fn stream_repl_scroll_reset_to_bottom(state: &mut ReplLineState) {
-    state.stream_transcript_scroll = 0;
-    state.stream_repl_auto_scroll_follow = true;
-    state.stream_repl_scroll_pos = 0.0;
-    state.stream_repl_scroll_target = 0.0;
-    state.stream_transcript_layout = StreamTranscriptLayoutCache::default();
-}
-
-/// 流式 REPL 主循环是否处理该键盘事件。
-/// 为改善 macOS/中文 IME 与各类终端组合，**不做** Release 过滤；若个别终端出现重复键再收紧。
-pub(crate) fn stream_repl_accept_key_event(key: &KeyEvent) -> bool {
-    // 部分终端在按住 Enter 时会发 Repeat；过滤回车类 Repeat，避免重复 submit/重复状态提示。
-    if key.kind == KeyEventKind::Repeat {
-        return !matches!(
-            key.code,
-            KeyCode::Enter | KeyCode::Char('\n') | KeyCode::Char('\r')
-        );
-    }
-    true
-}
-
-fn cursor_on_first_line(input: &InputState) -> bool {
-    !input.chars[..input.cursor].contains(&'\n')
-}
-
-fn slash_suggestions_for_ctx(state: &ReplLineState) -> Vec<slash_commands::SlashSuggestionItem> {
-    if state.slash_suppress {
-        return Vec::new();
-    }
-    slash_commands::slash_suggestions_for_first_line(&state.input.as_string())
-}
-
-fn apply_slash_pick_to_input(state: &mut ReplLineState) {
-    let cands = slash_commands::slash_suggestions_for_first_line(&state.input.as_string());
-    if cands.is_empty() {
-        return;
-    }
-    let len = cands.len();
-    let pick = state.slash_pick % len;
-    let new_first = cands[pick].replacement.clone();
-    let new_buf = slash_commands::replace_first_line(&state.input.as_string(), &new_first);
-    state.input.set_from_str(&new_buf);
-    state.slash_pick = 0;
-    state.history_idx = None;
-}
+use ratatui::text::{Line, Span, Text};
 
 /// 将 `body` 按 `wrap_width` 折成显示行列表（与 [`crate::md_tui::wrap_string_to_width`] 一致，供行预算与上滚裁剪）。
-#[cfg(test)]
 fn transcript_wrapped_rows(body: &str, wrap_width: usize) -> Vec<String> {
     let w = wrap_width.max(8);
     let mut out = Vec::new();
@@ -357,11 +200,18 @@ pub(crate) fn sanitize_stream_transcript_visual_noise(s: &str) -> String {
     joined
 }
 
+pub(crate) fn tail_for_display(raw: &str, max_lines: usize) -> String {
+    let lines: Vec<&str> = raw.lines().collect();
+    if lines.len() <= max_lines {
+        return raw.to_string();
+    }
+    lines[lines.len().saturating_sub(max_lines)..].join("\n")
+}
+
 /// 流式 Inline：按 `wrap_width` 折行后，只保留末尾 `row_budget` 条**显示行**（超长时等价于旧内容上移滚出视口），
 /// 不足时在上方补空行使正文贴在输入区上沿（stick-to-bottom）。
 ///
 /// 注意：若仅按 `\n` 逻辑行计数而不折行，长行（如整段 JSON）在 `Paragraph` 中会占多行却仍算 1 行，导致不「上滚」且被裁切。
-#[cfg(test)]
 pub(crate) fn repl_stream_transcript_bottom_padded(
     raw: &str,
     row_budget: u16,
@@ -370,7 +220,7 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
 ) -> String {
     let rows = row_budget.max(1) as usize;
     let w = wrap_width.max(8) as usize;
-    let logical_max = TRANSCRIPT_MAX_DISPLAY_LINES.max(rows);
+    let logical_max = crate::repl::line_state::TRANSCRIPT_MAX_DISPLAY_LINES.max(rows);
     let scrubbed = scrub_stream_transcript_llm_raw_dumps(raw);
     let body = tail_for_display(&scrubbed, logical_max);
     if body.is_empty() {
@@ -416,10 +266,6 @@ pub(crate) fn stream_transcript_plain_to_styled_text(body: &str) -> Text<'static
 }
 
 pub(crate) fn stream_transcript_line_style(trimmed: &str, full_line: &str) -> Style {
-    use crate::tui::styles::{
-        style_assistant, style_assistant_prose, style_brand, style_dim, style_error, style_user,
-    };
-
     // 错误消息 - 红色加粗
     if trimmed.starts_with("Turn failed:") || trimmed.starts_with("Turn join error:") {
         return style_error();
@@ -514,994 +360,17 @@ fn looks_like_slash_help_catalog_row(s: &str) -> bool {
 }
 
 #[cfg(test)]
-fn tail_for_display(raw: &str, max_lines: usize) -> String {
-    let lines: Vec<&str> = raw.lines().collect();
-    if lines.len() <= max_lines {
-        return raw.to_string();
-    }
-    lines[lines.len().saturating_sub(max_lines)..].join("\n")
-}
-
-/// 底栏布局参数（流式 Inline：空闲时在 prompt 上方一条 `─`；**HUD 显示时省略该横线**，由 ✶/⎿ 承担分隔，避免与 `* thinking…` 叠成双横线）。
-/// 自上而下：**HUD → （可选）上横线 → 输入 → 斜杠/审批 → 脚标**。活跃回合的 ✶/⎿ 在 HUD，脚标为 ctx / provider 等。
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct ReplDockLayout;
-
-impl ReplDockLayout {
-    fn max_slash_show(self) -> usize {
-        let _ = self;
-        5
-    }
-
-    fn slash_height_cap(self) -> u16 {
-        let _ = self;
-        7
-    }
-
-    fn approval_total_cap(self) -> u16 {
-        let _ = self;
-        14
-    }
-
-    fn approval_preview_wrap_cap(self) -> usize {
-        let _ = self;
-        5
-    }
-
-    fn min_dock_rows(self) -> u16 {
-        let _ = self;
-        // 上横线 + 至少一行输入
-        2
-    }
-
-    /// 输入框**正上方**整行横线（紧贴 `>` 输入区上沿；HUD 画在此行之上）。
-    fn prompt_rule_top_rows(self) -> u16 {
-        let _ = self;
-        1
-    }
-
-    /// 输入框**正下方**整行横线（斜杠候选 / 脚标在此行之下）。
-    fn prompt_rule_bottom_rows(self) -> u16 {
-        let _ = self;
-        0
-    }
-}
-
-fn repl_stream_approval_block_h(width: u16, state: &ReplLineState, layout: ReplDockLayout) -> u16 {
-    let Some(p) = state.pending_approval.as_ref() else {
-        return 0;
-    };
-    let w = width.max(8) as usize;
-    let pv = p.input_preview.as_str();
-    let preview_rows = if text_display_width(pv) <= w {
-        1u16
-    } else {
-        wrap_string_to_width(pv, w.max(8))
-            .len()
-            .min(layout.approval_preview_wrap_cap()) as u16
-    };
-    // 标题 + 工具行 + 三选项 + 提示
-    (5u16 + preview_rows).min(layout.approval_total_cap())
-}
-
-fn repl_stream_user_question_block_h(
-    width: u16,
-    state: &ReplLineState,
-    layout: ReplDockLayout,
-) -> u16 {
-    let Some(q) = state.pending_user_question.as_ref() else {
-        return 0;
-    };
-    let w = width.max(8) as usize;
-    let mut rows = 1u16;
-    if !q.header.trim().is_empty() {
-        rows = rows.saturating_add(1);
-    }
-    let qq = q.question.trim();
-    if !qq.is_empty() {
-        let qrows = if text_display_width(qq) <= w {
-            1u16
-        } else {
-            wrap_string_to_width(qq, w.max(8))
-                .len()
-                .min(layout.approval_preview_wrap_cap()) as u16
-        };
-        rows = rows.saturating_add(qrows);
-    }
-    rows = rows.saturating_add(q.option_labels.len() as u16);
-    rows = rows.saturating_add(1);
-    rows.min(layout.approval_total_cap())
-}
-
-#[derive(Clone, Copy, Debug)]
-struct ReplDockNatural {
-    /// 与全屏 TUI Prompt HUD 对齐的 `✶`/`⎿` 两行（或收缩为 0～1 行）。
-    hud_h: u16,
-    rule_top_h: u16,
-    input_h: u16,
-    rule_bottom_h: u16,
-    approval_h: u16,
-    sugg_h: u16,
-    status_h: u16,
-}
-
-impl ReplDockNatural {
-    fn sum(self) -> u16 {
-        self.hud_h
-            .saturating_add(self.rule_top_h)
-            .saturating_add(self.input_h)
-            .saturating_add(self.approval_h)
-            .saturating_add(self.sugg_h)
-            .saturating_add(self.status_h)
-            .saturating_add(self.rule_bottom_h)
-    }
-}
-
-fn repl_dock_compute_natural(
-    area_width: u16,
-    state: &ReplLineState,
-    layout: ReplDockLayout,
-) -> ReplDockNatural {
-    let stream_hud_active = state.executing_since.is_some()
-        || state.pending_approval.is_some()
-        || state.pending_user_question.is_some();
-    // 与全屏 TUI `hud_rows_effective==2` 对齐：执行中 / 审批 / 选题 时 ✶ 活动行 + ⎿ 提示行。
-    let hud_h = if stream_hud_active { 2u16 } else { 0u16 };
-    let status_h = if state.dock_status.is_empty() {
-        0u16
-    } else {
-        1u16
-    };
-    let approval_h = repl_stream_approval_block_h(area_width, state, layout)
-        .max(repl_stream_user_question_block_h(area_width, state, layout));
-    let slash_candidates = slash_suggestions_for_ctx(state);
-    let input_inner_w = area_width.max(8);
-    let slash_ghost = if state.slash_suppress {
-        None
-    } else {
-        slash_commands::slash_ghost_suffix(&state.input.as_string(), state.input.cursor)
-    };
-    let (pl, _) = prompt_multiline_lines_and_cursor(&state.input, input_inner_w, slash_ghost);
-    let input_line_count = pl.len().max(1) as u16;
-    let sugg_h = if approval_h > 0 {
-        0u16
-    } else if slash_candidates.is_empty() {
-        0u16
-    } else {
-        let len = slash_candidates.len();
-        let pick = state.slash_pick % len;
-        let max_show = layout.max_slash_show();
-        let start = if len <= max_show {
-            0usize
-        } else {
-            pick.saturating_sub(max_show / 2)
-                .min(len.saturating_sub(max_show))
-        };
-        let end = (start + max_show).min(len);
-        let mut h = (end - start) as u16;
-        if len > max_show {
-            h = h.saturating_add(1);
-        }
-        h = h.saturating_add(1);
-        h.min(layout.slash_height_cap())
-    };
-    let input_h = input_line_count.max(1);
-    let mut rule_top_h = layout.prompt_rule_top_rows();
-    if stream_hud_active {
-        // 与 claude-rust 观感对齐：有 HUD 时不再在 prompt 顶另画满宽 `─`，否则与 thinking 区块视觉上像「两条线」。
-        rule_top_h = 0;
-    }
-    let rule_bottom_h = layout.prompt_rule_bottom_rows();
-    ReplDockNatural {
-        hud_h,
-        rule_top_h,
-        input_h,
-        rule_bottom_h,
-        approval_h,
-        sugg_h,
-        status_h,
-    }
-}
-
-fn repl_dock_block_sum(hud: u16, rt: u16, i: u16, a: u16, g: u16, s: u16, rb: u16) -> u16 {
-    hud.saturating_add(rt)
-        .saturating_add(i)
-        .saturating_add(a)
-        .saturating_add(g)
-        .saturating_add(s)
-        .saturating_add(rb)
-}
-
-/// 将自然高度压进或铺满 `target_h`，保证 **各块之和等于 `target_h`**，避免矮终端下 `Layout` 约束溢出叠字。
-fn repl_dock_fit_into(target_h: u16, mut n: ReplDockNatural) -> ReplDockNatural {
-    let target_h = target_h.max(1);
-    let mut hud = n.hud_h;
-    let mut rt = n.rule_top_h;
-    let mut i = n.input_h.max(1);
-    let mut rb = n.rule_bottom_h;
-    let mut a = n.approval_h;
-    let mut g = n.sugg_h;
-    let mut s = n.status_h;
-
-    while repl_dock_block_sum(hud, rt, i, a, g, s, rb) > target_h {
-        if g > 0 {
-            g -= 1;
-            continue;
-        }
-        if hud > 0 {
-            hud -= 1;
-            continue;
-        }
-        if s > 0 {
-            s = 0;
-            continue;
-        }
-        if a > 0 {
-            a -= 1;
-            continue;
-        }
-        if i > 1 {
-            i -= 1;
-            continue;
-        }
-        // 极矮终端：最后才去掉输入上下的横线。
-        if rb > 0 {
-            rb -= 1;
-            continue;
-        }
-        if rt > 0 {
-            rt -= 1;
-            continue;
-        }
-        break;
-    }
-
-    let spare = target_h.saturating_sub(repl_dock_block_sum(hud, rt, i, a, g, s, rb));
-    if spare > 0 {
-        i = i.saturating_add(spare);
-    }
-
-    n.hud_h = hud;
-    n.rule_top_h = rt;
-    n.input_h = i.max(1);
-    n.rule_bottom_h = rb;
-    n.approval_h = a;
-    n.sugg_h = g;
-    n.status_h = s;
-    n
-}
-
-/// 底部 dock（斜杠候选 + 多行输入）高度，与全屏 REPL / 流式 dock 共用同一套布局规则。
-///
-/// **流式 Inline**：返回值 = dock 内层总高度（空闲时含 prompt 上方一行 `─`；HUD 活跃时无该行，无外层 `Block`）。
-pub(crate) fn repl_dock_height(area: Rect, state: &ReplLineState, layout: ReplDockLayout) -> u16 {
-    let avail = area.height.saturating_sub(1);
-    let nat = repl_dock_compute_natural(area.width.max(1), state, layout);
-    let max_inner = avail.max(1);
-    let target_inner = nat.sum().max(layout.min_dock_rows()).min(max_inner).max(1);
-    let fitted = repl_dock_fit_into(target_inner, nat);
-    let inner_h = fitted.sum().min(max_inner).max(1);
-    inner_h.min(avail).max(layout.min_dock_rows())
-}
-
-/// 全屏 TUI Prompt HUD 对齐：`✶` 活动行 + 可选 `⎿` 提示行（[`repl_dock_compute_natural`] 在活跃回合设 `hud_h=2`）。
-fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineState, hud_h: u16) {
-    if hud_h == 0 || area.height == 0 {
-        return;
-    }
-    let pending = state.pending_approval.is_some() || state.pending_user_question.is_some();
-    let exec = state.executing_since.is_some();
-    let secs = state.executing_since.map(|t| t.elapsed().as_secs());
-    let activity = crate::tui::hud_text::prompt_hud_activity_text(pending, exec, secs);
-    let activity_line_style = Style::default().fg(crate::tui::palette::thinking_caption());
-    let mut lines: Vec<Line> = vec![Line::from(vec![
-        Span::styled(
-            "✶ ",
-            Style::default()
-                .fg(crate::tui::palette::secondary())
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(activity, activity_line_style),
-    ])];
-    if hud_h >= 2 {
-        let slot = (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as usize
-            / 8)
-            % crate::tui::hud_text::HUD_TIP_COUNT;
-        let tip = crate::tui::hud_text::hud_tip_rotated(slot);
-        lines.push(Line::from(vec![
-            Span::styled("⎿ ", style_dim()),
-            Span::styled(tip, style_dim()),
-        ]));
-    }
-    let max_lines = area.height as usize;
-    if lines.len() > max_lines {
-        lines.truncate(max_lines.max(1));
-    }
-    Paragraph::new(Text::from(lines)).render(area, buf);
-}
-
-/// 底栏脚标：左 `dock_footer_left`（ctx / ? / scroll）+ 间隙 + 右 `dock_status`（与全屏 TUI 脚标同一视觉层次）。
-fn stream_dock_status_line_spans(state: &ReplLineState, width: usize) -> Line<'static> {
-    let w = width.max(8);
-    let left = state.dock_footer_left.as_str();
-    let right = state.dock_status.as_str();
-    if right.is_empty() {
-        return Line::from(Span::styled(truncate_preview(left, w), style_dim()));
-    }
-    if left.is_empty() {
-        return Line::from(Span::styled(
-            truncate_preview(right, w),
-            Style::default().fg(Color::White),
-        ));
-    }
-    let lw = text_display_width(left);
-    let rw = text_display_width(right);
-    let gap = w.saturating_sub(lw + rw).max(1).min(200);
-    if lw.saturating_add(gap).saturating_add(rw) > w {
-        let merged = format!("{left} · {right}");
-        return Line::from(Span::styled(truncate_preview(&merged, w), style_dim()));
-    }
-    Line::from(vec![
-        Span::styled(left.to_string(), style_dim()),
-        Span::styled(" ".repeat(gap), Style::default()),
-        Span::styled(right.to_string(), Style::default().fg(Color::White)),
-    ])
-}
-
-/// 将底部 dock 渲染进 `buf`（`buf.area` 应与 `dock_area` 一致，一般为 `Rect::new(0,0,w,bottom_h)`）。
-/// 返回相对于 `dock_area` 左上角的光标 `(x,y)`。
-pub(crate) fn render_repl_dock_to_buffer(
-    buf: &mut Buffer,
-    dock_area: Rect,
-    state: &ReplLineState,
-    layout: ReplDockLayout,
-) -> Option<(u16, u16)> {
-    let slash_candidates = slash_suggestions_for_ctx(state);
-    let input_inner_w = dock_area.width.max(8);
-    let slash_ghost = if state.slash_suppress {
-        None
-    } else {
-        slash_commands::slash_ghost_suffix(&state.input.as_string(), state.input.cursor)
-    };
-    let (pl, cur) = prompt_multiline_lines_and_cursor(&state.input, input_inner_w, slash_ghost);
-
-    let nat = repl_dock_compute_natural(dock_area.width.max(1), state, layout);
-    let dock_h = dock_area.height.max(1);
-    let fitted = repl_dock_fit_into(dock_h, nat);
-    debug_assert_eq!(fitted.sum(), dock_h, "dock layout must fill buffer height");
-
-    let hud_h = fitted.hud_h;
-    let approval_h = fitted.approval_h;
-    let status_h = fitted.status_h;
-    let rule_top_h = fitted.rule_top_h;
-    let input_h = fitted.input_h;
-    let rule_bottom_h = fitted.rule_bottom_h;
-    let sugg_h = fitted.sugg_h;
-
-    let mut constraints: Vec<Constraint> = Vec::new();
-    if hud_h > 0 {
-        constraints.push(Constraint::Length(hud_h));
-    }
-    if rule_top_h > 0 {
-        constraints.push(Constraint::Length(rule_top_h));
-    }
-    constraints.push(Constraint::Length(input_h));
-    if approval_h > 0 {
-        constraints.push(Constraint::Length(approval_h));
-    }
-    constraints.push(Constraint::Length(sugg_h));
-    if rule_bottom_h > 0 {
-        constraints.push(Constraint::Length(rule_bottom_h));
-    }
-    if status_h > 0 {
-        constraints.push(Constraint::Length(status_h));
-    }
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(constraints)
-        .split(dock_area);
-
-    let mut ci = 0usize;
-    let hud_rect_opt = if hud_h > 0 {
-        let r = chunks[ci];
-        ci += 1;
-        Some(r)
-    } else {
-        None
-    };
-    let rule_top_rect = if rule_top_h > 0 {
-        let r = chunks[ci];
-        ci += 1;
-        Some(r)
-    } else {
-        None
-    };
-    let input_rect = chunks[ci];
-    ci += 1;
-    let approval_rect_opt = if approval_h > 0 {
-        let r = chunks[ci];
-        ci += 1;
-        Some(r)
-    } else {
-        None
-    };
-    let sugg_rect = chunks[ci];
-    ci += 1;
-    let rule_bottom_rect = if rule_bottom_h > 0 {
-        let r = chunks[ci];
-        ci += 1;
-        Some(r)
-    } else {
-        None
-    };
-    let status_rect_opt = if status_h > 0 {
-        let r = chunks[ci];
-        Some(r)
-    } else {
-        None
-    };
-
-    if let Some(hr) = hud_rect_opt {
-        render_stream_hud_to_buffer(buf, hr, state, hud_h);
-    }
-
-    if let Some(rr) = rule_top_rect {
-        let rule_w = dock_area.width.max(1) as usize;
-        let rule_txt = "─".repeat(rule_w.min(512));
-        let rule_lines: Vec<Line> = (0..rule_top_h)
-            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_horizontal_rule())))
-            .collect();
-        Paragraph::new(Text::from(rule_lines)).render(rr, buf);
-    }
-
-    let mut prompt_hw_cursor: Option<(usize, usize)> = None;
-    let lines_before = 0usize;
-    if let Some((li, ox)) = cur {
-        prompt_hw_cursor = Some((lines_before + li, usize::from(ox)));
-    }
-    Paragraph::new(Text::from(pl))
-        .wrap(Wrap { trim: false })
-        .render(input_rect, buf);
-
-    if let (Some(apr), Some(q)) = (approval_rect_opt, state.pending_user_question.as_ref()) {
-        let preview_w = input_inner_w as usize;
-        let mut input_lines: Vec<Line> = vec![Line::from(Span::styled(
-            tr("ask-user-title"),
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ))];
-        let hdr = q.header.trim();
-        if !hdr.is_empty() {
-            input_lines.push(Line::from(Span::styled(hdr, style_dim())));
-        }
-        let qq = q.question.trim();
-        if !qq.is_empty() {
-            if text_display_width(qq) <= preview_w {
-                input_lines.push(Line::from(Span::styled(qq, style_dim())));
-            } else {
-                for row in wrap_string_to_width(qq, preview_w.max(8)) {
-                    input_lines.push(Line::from(Span::styled(row, style_dim())));
-                }
-            }
-        }
-        let n = q.option_labels.len().max(1);
-        let pick = state.user_question_menu_selected % n;
-        for (i, label) in q.option_labels.iter().enumerate() {
-            let prefix = if i == pick { "❯ " } else { "  " };
-            let st = if i == pick {
-                style_menu_selected()
-            } else {
-                style_dim()
-            };
-            let desc = q
-                .option_descriptions
-                .get(i)
-                .map(|s| s.as_str())
-                .unwrap_or("")
-                .trim();
-            let line = if desc.is_empty() {
-                Line::from(vec![
-                    Span::styled(prefix, st),
-                    Span::styled(label.as_str(), st),
-                ])
-            } else {
-                Line::from(vec![
-                    Span::styled(prefix, st),
-                    Span::styled(format!("{label} "), st),
-                    Span::styled(desc, style_dim()),
-                ])
-            };
-            input_lines.push(line);
-        }
-        input_lines.push(Line::from(vec![Span::styled(
-            tr("ask-user-hint-arrows"),
-            style_dim(),
-        )]));
-        Paragraph::new(Text::from(input_lines))
-            .wrap(Wrap { trim: false })
-            .render(apr, buf);
-    } else if let (Some(apr), Some(p)) = (approval_rect_opt, state.pending_approval.as_ref()) {
-        let preview_w = input_inner_w as usize;
-        let pv = p.input_preview.as_str();
-        let mut input_lines: Vec<Line> = vec![
-            Line::from(Span::styled(
-                tr("tui-approval-question"),
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(vec![
-                Span::styled("⏺ ", style_tool()),
-                Span::styled(
-                    format!("{} ", p.tool),
-                    style_warn().add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(tr("tui-approval-pending"), style_dim()),
-            ]),
-        ];
-        if text_display_width(pv) <= preview_w {
-            input_lines.push(Line::from(Span::styled(pv, style_dim())));
-        } else {
-            for row in wrap_string_to_width(pv, preview_w.max(8)) {
-                input_lines.push(Line::from(Span::styled(row, style_dim())));
-            }
-        }
-        let pick = state.approval_menu_selected % 3;
-        let opt_once = tr("tui-approval-opt-once");
-        let opt_proj = tr("tui-approval-opt-project");
-        let opt_deny = tr("tui-approval-opt-deny");
-        for (i, label) in [opt_once, opt_proj, opt_deny].into_iter().enumerate() {
-            let prefix = if i == pick { "❯ " } else { "  " };
-            let st = if i == pick {
-                style_menu_selected()
-            } else {
-                style_dim()
-            };
-            input_lines.push(Line::from(vec![
-                Span::styled(prefix, st),
-                Span::styled(label, st),
-            ]));
-        }
-        input_lines.push(Line::from(vec![Span::styled(
-            tr("tui-approval-hint-arrows"),
-            style_dim(),
-        )]));
-        Paragraph::new(Text::from(input_lines))
-            .wrap(Wrap { trim: false })
-            .render(apr, buf);
-    }
-
-    if !slash_candidates.is_empty() {
-        let len = slash_candidates.len();
-        let pick = state.slash_pick % len;
-        let max_show = layout.max_slash_show();
-        let start = if len <= max_show {
-            0usize
-        } else {
-            pick.saturating_sub(max_show / 2)
-                .min(len.saturating_sub(max_show))
-        };
-        let end = (start + max_show).min(len);
-        let line_w = sugg_rect.width as usize;
-        let max_cmd_w =
-            slash_commands::slash_menu_cmd_column_width(&slash_candidates, start, end, line_w);
-        let mut sugg_lines: Vec<Line> = Vec::new();
-        for idx in start..end {
-            let item = &slash_candidates[idx];
-            let is_sel = idx == pick;
-            let d = item.display.as_str();
-            let raw = if text_display_width(d) > max_cmd_w {
-                truncate_to_display_width(d, max_cmd_w)
-            } else {
-                d.to_string()
-            };
-            let cmd_cell = pad_end_to_display_width(&raw, max_cmd_w);
-            let desc_max = line_w.saturating_sub(2 + max_cmd_w + 2).max(8);
-            let desc = truncate_to_display_width(item.description.trim(), desc_max);
-            let cmd_style = if is_sel {
-                style_menu_selected()
-            } else {
-                style_dim()
-            };
-            sugg_lines.push(Line::from(vec![
-                Span::styled(if is_sel { "› " } else { "  " }, style_dim()),
-                Span::styled(cmd_cell, cmd_style),
-                Span::styled(format!("  {desc}"), style_dim()),
-            ]));
-        }
-        if len > max_show {
-            let mut a = FluentArgs::new();
-            a.set("s", (start + 1) as i64);
-            a.set("e", end as i64);
-            a.set("n", len as i64);
-            sugg_lines.push(Line::from(Span::styled(
-                tr_args("repl-slash-range", &a),
-                style_dim(),
-            )));
-        }
-        sugg_lines.push(Line::from(Span::styled(tr("repl-slash-nav"), style_dim())));
-        Paragraph::new(Text::from(sugg_lines)).render(sugg_rect, buf);
-    }
-
-    if let Some(rr) = rule_bottom_rect {
-        let rule_w = dock_area.width.max(1) as usize;
-        let rule_txt = "─".repeat(rule_w.min(512));
-        let rule_lines: Vec<Line> = (0..rule_bottom_h)
-            .map(|_| Line::from(Span::styled(rule_txt.as_str(), style_horizontal_rule())))
-            .collect();
-        Paragraph::new(Text::from(rule_lines)).render(rr, buf);
-    }
-
-    if let Some(sr) = status_rect_opt {
-        let status_w = (sr.width as usize).max(4);
-        let pre = stream_dock_activity_prefix(state);
-        let line = if pre.is_empty() {
-            stream_dock_status_line_spans(state, status_w)
-        } else {
-            let merged = format!("{}{}", pre, state.dock_status.as_str());
-            Line::from(Span::styled(
-                truncate_preview(merged.as_str(), status_w),
-                style_dim(),
-            ))
-        };
-        Paragraph::new(Text::from(line))
-            .wrap(Wrap { trim: false })
-            .render(sr, buf);
-    }
-
-    if let Some((gli, ox)) = prompt_hw_cursor {
-        if input_rect.height > 0 {
-            let ya = input_rect.y.saturating_add(gli as u16);
-            let y_end = input_rect.y + input_rect.height;
-            if ya < y_end {
-                let max_x = input_rect
-                    .x
-                    .saturating_add(input_rect.width.saturating_sub(1));
-                let xa = input_rect.x.saturating_add(ox as u16).min(max_x);
-                return Some((xa, ya));
-            }
-        }
-    }
-    None
-}
-
-/// 回合结束后的短暂 **✶ 摘要** 前缀，拼在脚标 `dock_status` 前。执行中 / 待审批 / 选题时活动行在 HUD，此处返回空（与全屏 TUI 一致）。
-pub(crate) fn stream_dock_activity_prefix(state: &ReplLineState) -> String {
-    if state.executing_since.is_some()
-        || state.pending_approval.is_some()
-        || state.pending_user_question.is_some()
-    {
-        return String::new();
-    }
-    if let (Some(text), Some(until)) = (
-        state.finished_turn_summary.as_ref(),
-        state.finished_turn_summary_until,
-    ) {
-        if Instant::now() < until {
-            return format!("✶ {} · ", text);
-        }
-    }
-    String::new()
-}
-
-pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Result<ReplCtl> {
-    match ev {
-        Event::Resize(_, _) => Ok(ReplCtl::Continue),
-        Event::Paste(text) => {
-            let (clean, truncated) = sanitize_paste(text);
-            if truncated {
-                let mut a = FluentArgs::new();
-                a.set("n", MAX_PASTE_CHARS as i64);
-                eprintln!("{}", tr_args("tui-err-paste-truncated", &a));
-            }
-            state.input.insert_str(&clean);
-            state.history_idx = None;
-            reset_slash_state(state);
-            Ok(ReplCtl::Continue)
-        }
-        Event::Key(key) => {
-            // Kitty / 增强键盘协议会发 Release；若当作普通键处理会导致重复或状态错乱。
-            if key.kind == KeyEventKind::Release {
-                return Ok(ReplCtl::Continue);
-            }
-            if !stream_repl_accept_key_event(&key) {
-                return Ok(ReplCtl::Continue);
-            }
-            match key.code {
-                KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    Ok(ReplCtl::ClearSession)
-                }
-                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    state.input.clear();
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    if state.executing_since.is_some() {
-                        return Ok(ReplCtl::CooperativeCancelTurn);
-                    }
-                    if state.input.is_empty() {
-                        return Ok(ReplCtl::Eof);
-                    }
-                    state.input.clear();
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    if state.input.is_empty() {
-                        Ok(ReplCtl::Eof)
-                    } else {
-                        state.input.delete_forward();
-                        reset_slash_state(state);
-                        Ok(ReplCtl::Continue)
-                    }
-                }
-                KeyCode::Esc => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        state.slash_suppress = true;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    // 不按 Esc 清空整行：中文 IME 常用 Esc 关闭候选，清空会破坏输入。
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Up => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + len - 1) % len;
-                        state.history_idx = None;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    history_apply_up(
-                        &state.input_history,
-                        &mut state.history_idx,
-                        &mut state.input,
-                    );
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Down => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + 1) % len;
-                        state.history_idx = None;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    history_apply_down(
-                        &state.input_history,
-                        &mut state.history_idx,
-                        &mut state.input,
-                    );
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::PageUp => {
-                    state.stream_repl_auto_scroll_follow = false;
-                    state.stream_transcript_scroll =
-                        state.stream_transcript_scroll.saturating_add(8);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::PageDown => {
-                    state.stream_transcript_scroll =
-                        state.stream_transcript_scroll.saturating_sub(8);
-                    if state.stream_transcript_scroll == 0 {
-                        state.stream_repl_auto_scroll_follow = true;
-                    }
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    state.stream_repl_auto_scroll_follow = false;
-                    state.stream_transcript_scroll = usize::MAX;
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    state.stream_transcript_scroll = 0;
-                    state.stream_repl_auto_scroll_follow = true;
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Left => {
-                    state.input.move_left();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Right => {
-                    state.input.move_right();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Home => {
-                    state.input.move_home();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::End => {
-                    state.input.move_end();
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Delete => {
-                    state.input.delete_forward();
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Backspace => {
-                    state.input.backspace();
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::BackTab => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + len - 1) % len;
-                    }
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Tab => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        apply_slash_pick_to_input(state);
-                        state.slash_suppress = true;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    // 无 `/` 补全时不再插空格，避免占用 Tab（中文 IME 常用 Tab 切候选）。
-                    Ok(ReplCtl::Continue)
-                }
-                // 不依赖终端 bracketed-paste：直连系统剪贴板（raw TTY 下 Cmd+V 常到不了 Event::Paste）
-                KeyCode::Char(c)
-                    if (c == 'v' || c == 'V')
-                        && ((key.modifiers.contains(KeyModifiers::CONTROL)
-                            && key.modifiers.contains(KeyModifiers::SHIFT))
-                            || key.modifiers.contains(KeyModifiers::SUPER)) =>
-                {
-                    if let Some(raw) = crate::repl_clipboard::read_system_clipboard() {
-                        let (clean, truncated) = sanitize_paste(raw);
-                        if truncated {
-                            let mut a = FluentArgs::new();
-                            a.set("n", MAX_PASTE_CHARS as i64);
-                            eprintln!("{}", tr_args("tui-err-paste-truncated", &a));
-                        }
-                        state.input.insert_str(&clean);
-                        state.history_idx = None;
-                        reset_slash_state(state);
-                    }
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                    state.input.insert('\n');
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                KeyCode::Enter
-                | KeyCode::Char('\n')
-                | KeyCode::Char('\r')
-                | KeyCode::Char('\u{0085}')
-                | KeyCode::Char('\u{2028}')
-                | KeyCode::Char('\u{2029}') => {
-                    if !slash_suggestions_for_ctx(state).is_empty() {
-                        apply_slash_pick_to_input(state);
-                        state.slash_suppress = true;
-                    }
-                    let trimmed_owned = trim_or_default(&state.input.as_string()).to_string();
-                    state.input.clear();
-                    state.history_idx = None;
-                    reset_slash_state(state);
-                    if trimmed_owned.is_empty() {
-                        return Ok(ReplCtl::Continue);
-                    }
-                    if state.input_history.last().map(|s| s.as_str())
-                        != Some(trimmed_owned.as_str())
-                    {
-                        state.input_history.push(trimmed_owned.clone());
-                    }
-                    Ok(ReplCtl::Submit(trimmed_owned))
-                }
-                KeyCode::Char(c) => {
-                    if c.is_control() {
-                        return Ok(ReplCtl::Continue);
-                    }
-                    state.history_idx = None;
-                    state.input.insert(c);
-                    reset_slash_state(state);
-                    Ok(ReplCtl::Continue)
-                }
-                _ => Ok(ReplCtl::Continue),
-            }
-        }
-        _ => Ok(ReplCtl::Continue),
-    }
-}
-
-/// 流式 REPL 审批条：在 [`handle_event`] 之前消费方向键与确认（与 `tasks_repl` 原逻辑一致）。
-pub(crate) fn apply_stream_approval_key(state: &mut ReplLineState, key: KeyEvent) -> bool {
-    use crate::tui::ApprovalDecision;
-
-    let Some(p) = state.pending_approval.take() else {
-        return false;
-    };
-    match key.code {
-        KeyCode::Up => {
-            state.approval_menu_selected = (state.approval_menu_selected + 2) % 3;
-            state.pending_approval = Some(p);
-        }
-        KeyCode::Down => {
-            state.approval_menu_selected = (state.approval_menu_selected + 1) % 3;
-            state.pending_approval = Some(p);
-        }
-        KeyCode::Enter => {
-            let d = match state.approval_menu_selected % 3 {
-                0 => ApprovalDecision::AllowOnce,
-                1 => ApprovalDecision::AllowToolForProject,
-                _ => ApprovalDecision::Deny,
-            };
-            let _ = p.reply.send(d);
-            state.approval_menu_selected = 0;
-        }
-        KeyCode::Char('y') | KeyCode::Char('Y') => {
-            let _ = p.reply.send(ApprovalDecision::AllowOnce);
-            state.approval_menu_selected = 0;
-        }
-        KeyCode::Char('p') | KeyCode::Char('P') => {
-            let _ = p.reply.send(ApprovalDecision::AllowToolForProject);
-            state.approval_menu_selected = 0;
-        }
-        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-            let _ = p.reply.send(ApprovalDecision::Deny);
-            state.approval_menu_selected = 0;
-        }
-        _ => {
-            state.pending_approval = Some(p);
-        }
-    }
-    true
-}
-
-/// 流式 REPL 选题条：在 [`handle_event`] 之前消费方向键与确认（与审批一致）。
-pub(crate) fn apply_stream_user_question_key(state: &mut ReplLineState, key: KeyEvent) -> bool {
-    let Some(p) = state.pending_user_question.take() else {
-        return false;
-    };
-    let n = p.option_labels.len().max(1);
-    match key.code {
-        KeyCode::Up => {
-            state.user_question_menu_selected = (state.user_question_menu_selected + n - 1) % n;
-            state.pending_user_question = Some(p);
-        }
-        KeyCode::Down => {
-            state.user_question_menu_selected = (state.user_question_menu_selected + 1) % n;
-            state.pending_user_question = Some(p);
-        }
-        KeyCode::Enter => {
-            let i = state.user_question_menu_selected % n;
-            let label = p.option_labels.get(i).cloned().unwrap_or_default();
-            let _ = p.reply.send(Ok(vec![label]));
-            state.user_question_menu_selected = 0;
-        }
-        KeyCode::Esc => {
-            let _ = p.reply.send(Err(()));
-            state.user_question_menu_selected = 0;
-        }
-        _ => {
-            state.pending_user_question = Some(p);
-        }
-    }
-    true
-}
-
-#[cfg(test)]
 mod stream_transcript_tests {
     #![allow(dead_code)] // 部分断言仍引用仅测试可见的旧 tail 辅助函数
     use super::{
-        handle_event, repl_dock_compute_natural, repl_stream_transcript_bottom_padded,
-        sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
-        stream_dock_activity_prefix, stream_repl_accept_key_event, ReplCtl, ReplDockLayout,
-        ReplLineState,
+        repl_stream_transcript_bottom_padded, sanitize_stream_transcript_visual_noise,
+        scrub_stream_transcript_llm_raw_dumps,
     };
+    use crate::repl::dock_render::{
+        repl_dock_compute_natural, stream_dock_activity_prefix, ReplDockLayout,
+    };
+    use crate::repl::line_state::{ReplCtl, ReplLineState};
+    use crate::repl::stream_events::{handle_event, stream_repl_accept_key_event};
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
     #[test]
@@ -1574,30 +443,37 @@ mod stream_transcript_tests {
     }
 
     #[test]
-    fn stream_dock_prompt_has_only_top_rule_row() {
+    fn stream_dock_prompt_has_fixed_top_and_bottom_rule_rows() {
         let st = ReplLineState::default();
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
         assert_eq!(nat.rule_top_h, 1);
-        assert_eq!(nat.rule_bottom_h, 0);
+        assert_eq!(nat.rule_bottom_h, 1);
     }
 
     #[test]
-    fn stream_dock_hud_two_rows_while_executing_activity_not_in_status_prefix() {
+    fn stream_dock_hud_one_row_executing_two_rows_when_pending_approval() {
         let mut st = ReplLineState::default();
         st.dock_status = "google · model · agent · on".into();
         st.dock_footer_left = "ctx — · ? help".into();
         st.executing_since = Some(std::time::Instant::now());
         let nat = repl_dock_compute_natural(80, &st, ReplDockLayout);
-        assert_eq!(nat.hud_h, 2, "align with fullscreen TUI hud_rows_effective");
-        assert_eq!(
-            nat.rule_top_h, 0,
-            "HUD visible: omit prompt-top rule to avoid double lines"
-        );
+        assert_eq!(nat.hud_h, 1, "pure execute: single ✶ row, no ⎿ tips");
+        assert_eq!(nat.rule_top_h, 1, "prompt 上横线固定，与 HUD 并存");
+        assert_eq!(nat.rule_bottom_h, 1);
         assert_eq!(nat.status_h, 1);
         assert!(
             stream_dock_activity_prefix(&st).is_empty(),
             "thinking lives in HUD row, not status prefix"
         );
+
+        let (reply_tx, _rx) = tokio::sync::oneshot::channel();
+        st.pending_approval = Some(crate::tui::approval::PendingApproval {
+            tool: "bash".into(),
+            input_preview: "{}".into(),
+            reply: reply_tx,
+        });
+        let nat2 = repl_dock_compute_natural(80, &st, ReplDockLayout);
+        assert_eq!(nat2.hud_h, 2, "approval menu: ✶ + ⎿ like fullscreen TUI");
     }
 
     #[test]
@@ -1697,7 +573,7 @@ mod stream_transcript_tests {
         let scrubbed = scrub_stream_transcript_llm_raw_dumps(&raw);
         assert!(!scrubbed.contains("body=[{"));
         let logical_max = 256usize;
-        let body = super::tail_for_display(&scrubbed, logical_max);
+        let body = crate::repl::inline::tail_for_display(&scrubbed, logical_max);
         assert!(
             !body.contains("\"code\": 400"),
             "tail view should not show JSON after full scrub, got: {body:?}"
@@ -1708,9 +584,10 @@ mod stream_transcript_tests {
 /// 键盘与审批/选题条：`ratatui` 主循环无 TTY E2E，这里用事件原子测覆盖关键路径。
 #[cfg(test)]
 mod stream_repl_keyboard_tests {
-    use super::{
-        apply_stream_approval_key, apply_stream_user_question_key, handle_event, repl_dock_height,
-        ReplCtl, ReplDockLayout, ReplLineState,
+    use crate::repl::dock_render::{repl_dock_height, ReplDockLayout};
+    use crate::repl::line_state::{ReplCtl, ReplLineState};
+    use crate::repl::stream_events::{
+        apply_stream_approval_key, apply_stream_user_question_key, handle_event,
     };
     use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion};
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1744,12 +621,13 @@ mod stream_repl_keyboard_tests {
     #[test]
     fn page_up_down_adjusts_transcript_scroll() {
         let mut st = ReplLineState::default();
+        st.stream_transcript_viewport_h = 20;
         handle_event(
             Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
             &mut st,
         )
         .unwrap();
-        assert_eq!(st.stream_transcript_scroll, 8);
+        assert_eq!(st.stream_transcript_scroll, 20);
         handle_event(
             Event::Key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
             &mut st,

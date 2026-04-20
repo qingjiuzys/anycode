@@ -21,6 +21,7 @@ wx-prompt-none = (无)
 wx-bridge-started = 已启动微信桥 (Rust) 账号: {$id}\n工作目录优先使用会话配置；模型以 anycode config / routing 为准。\n已尝试启用配置文件监听（保存后约数百毫秒内重载）；轮询仍作后备。无需重扫码。
 wx-session-expired = ⚠️ 微信会话过期，暂停 1 小时…
 wx-perm-timeout = ⏰ 权限请求已超时，请重新发送你的请求。
+wx-interrupt-new-msg = 已中断上一段回复，正在处理你的新消息。
 wx-perm-stale = ⚠️ 权限请求已失效（可能因服务重启），请重新发送。
 wx-perm-allowed = ✅ 已允许
 wx-perm-fail = ⚠️ 处理失败或已超时

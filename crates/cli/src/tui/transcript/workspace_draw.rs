@@ -5,6 +5,7 @@ use crate::md_tui::{
     render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed, wrap_ratatui_line,
     wrap_string_to_width, MarkdownChrome,
 };
+use anycode_core::strip_llm_reasoning_for_display;
 use fluent_bundle::FluentArgs;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -64,6 +65,7 @@ fn workspace_md_chrome(live: WorkspaceLiveLayout) -> MarkdownChrome {
         MarkdownChrome {
             suppress_horizontal_rules: true,
             suppress_code_fence_banner: true,
+            suppress_tables: true,
         }
     } else {
         MarkdownChrome::default()
@@ -248,47 +250,6 @@ fn has_non_user_content_after(entries: &[TranscriptEntry], user_idx: usize) -> b
         .iter()
         .skip(user_idx + 1)
         .any(|e| !matches!(e, TranscriptEntry::User(_)))
-}
-
-/// Turn 进行中：在最后一条用户消息之后显示 “Thinking…” 占位（会话流内，与 Prompt Dock 解耦）；已有非空 assistant 正文则隐藏。
-fn should_show_turn_status_after_user(
-    entries: &[TranscriptEntry],
-    user_idx: usize,
-    live: WorkspaceLiveLayout,
-) -> bool {
-    // 流式 REPL 的执行态统一放在 prompt 上方 HUD，不在正文区再插入一份。
-    if live.stream_repl_claude_user_prefix {
-        return false;
-    }
-    if !live.executing {
-        return false;
-    }
-    if last_user_entry_index(entries) != Some(user_idx) {
-        return false;
-    }
-    for e in entries.iter().skip(user_idx + 1) {
-        match e {
-            TranscriptEntry::AssistantMarkdown(s) if !s.trim().is_empty() => return false,
-            TranscriptEntry::User(_) => break,
-            _ => {}
-        }
-    }
-    true
-}
-
-fn turn_status_line(live: WorkspaceLiveLayout) -> Line<'static> {
-    let label = match live.working_elapsed_secs {
-        Some(s) if s >= 1 => {
-            let mut a = FluentArgs::new();
-            a.set("s", s);
-            tr_args("tui-germinating-secs", &a)
-        }
-        _ => tr("tui-germinating"),
-    };
-    Line::from(vec![
-        Span::styled("⏺ ", pulse_dim_assistant_bold(live, true)),
-        Span::styled(label, style_assistant().add_modifier(Modifier::ITALIC)),
-    ])
 }
 
 /// 从尾部找「当前轮」仍在展开的工具块 `fold_id`（跳过 `ToolCall`/`Plain` 等）。
@@ -585,18 +546,17 @@ pub(crate) fn layout_workspace(
                     }
                     out.append(&mut md_lines);
                 }
-                if should_show_turn_status_after_user(entries, ei, live) {
-                    out.push(turn_status_line(live));
-                }
+                // 执行态「thinking / 耗时」仅在 Prompt 上方 HUD（✶）与脚标展示，不在主区再插一行：
+                // 与流式 REPL 对齐，避免与底栏重复，并减轻主缓冲（非备用屏）scrollback 叠帧感。
             }
             TranscriptEntry::AssistantMarkdown(text) => {
                 let unwrapped = unwrap_single_content_json(text);
-                let t_raw = unwrapped.trim_end();
+                let t_raw = strip_llm_reasoning_for_display(unwrapped.trim_end());
                 if t_raw.is_empty() {
                     // 对齐 Claude：无正文则不占一行（避免 ⏺ <empty>）
                     continue;
                 }
-                let body = stream_inline_assistant_body_cow(t_raw, live);
+                let body = stream_inline_assistant_body_cow(t_raw.as_str(), live);
                 let t = body.as_ref();
                 if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
                     // 流式主区：API/模型常把整段 JSON 当「伪 Markdown」喂进来，cmark 会把 `---`、`|` 等解析成横线/表格导致炸版。

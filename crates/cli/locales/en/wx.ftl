@@ -21,6 +21,7 @@ wx-prompt-none = (none)
 wx-bridge-started = WeChat bridge (Rust) started for account: {$id}\nWorking dir follows session config; model from anycode config / routing.\nA file watcher reloads config shortly after save; polling remains as fallback. No QR re-login needed.
 wx-session-expired = WeChat session expired; pausing 1 hour…
 wx-perm-timeout = Permission request timed out; send your request again.
+wx-interrupt-new-msg = Stopped the previous reply and started on your new message.
 wx-perm-stale = Permission request invalid (e.g. restart); send again.
 wx-perm-allowed = ✅ Allowed
 wx-perm-fail = ⚠️ Failed or timed out

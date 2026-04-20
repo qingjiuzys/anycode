@@ -1,6 +1,7 @@
 //! Task entrypoints: `run`, REPL, listings, `test-security`, etc.
 
 mod repl_line_session;
+mod stream_repl_loop;
 mod tasks_repl;
 mod tasks_run;
 mod tasks_sink;

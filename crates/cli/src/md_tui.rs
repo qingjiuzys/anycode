@@ -626,11 +626,13 @@ fn loosen_glued_markdown_headings(input: &str) -> String {
 pub struct MarkdownChrome {
     pub suppress_horizontal_rules: bool,
     pub suppress_code_fence_banner: bool,
+    /// 不启用 GFM 表格：模型正文里的 `|...|` 常是误解析，终端里会落成 `│` 框线（与 Claude 主区偏 prose 不一致）。
+    pub suppress_tables: bool,
 }
 
 impl MarkdownChrome {
     fn is_default(&self) -> bool {
-        !self.suppress_horizontal_rules && !self.suppress_code_fence_banner
+        !self.suppress_horizontal_rules && !self.suppress_code_fence_banner && !self.suppress_tables
     }
 }
 
@@ -652,7 +654,9 @@ pub fn render_markdown_styled(
 
     let md_norm = loosen_glued_markdown_headings(md);
     let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_TABLES);
+    if !chrome.suppress_tables {
+        opts.insert(Options::ENABLE_TABLES);
+    }
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TASKLISTS);
     opts.insert(Options::ENABLE_GFM);
@@ -1167,6 +1171,34 @@ mod tests {
             .collect();
         assert!(s.contains("Title"));
         assert!(!s.contains("# "));
+    }
+
+    #[test]
+    fn suppress_tables_keeps_pipe_lines_as_prose() {
+        let md = "| a | b |\n| - | - |\n| 1 | 2 |\n";
+        let lines = render_markdown_styled(
+            md,
+            40,
+            Style::default(),
+            MarkdownChrome {
+                suppress_horizontal_rules: false,
+                suppress_code_fence_banner: false,
+                suppress_tables: true,
+            },
+        );
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(
+            !joined.contains('┌') && !joined.contains('└'),
+            "expected no pseudo-table chrome, got {joined:?}"
+        );
+        assert!(
+            joined.contains('|'),
+            "pipes should remain visible: {joined:?}"
+        );
     }
 
     #[test]

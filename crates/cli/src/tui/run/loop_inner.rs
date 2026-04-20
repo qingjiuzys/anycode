@@ -3,9 +3,9 @@ use super::*;
 use ratatui::backend::Backend;
 
 use super::exec_completion::{consume_finished_compact, CompactFollowup};
-use super::resize_debounce::ResizeDebounce;
 use crate::app_config::effective_session_context_window_tokens;
 use crate::i18n::tr_args;
+use crate::resize_debounce::ResizeDebounce;
 use crate::tui::transcript::{apply_tool_transcript_pipeline, TranscriptEntry};
 use crate::tui::PendingUserQuestion;
 use anycode_core::{Message, Usage};
@@ -297,6 +297,8 @@ pub async fn run_tui(
             .as_ref()
             .map(|u| u.output_tokens)
             .unwrap_or(0);
+        let compact_footer_right =
+            executing && pending_approval.is_none() && pending_user_question.is_none();
         let footer_inp = super::draw::FooterLayoutInput {
             permission_mode: permission_mode.as_str(),
             require_approval,
@@ -308,12 +310,15 @@ pub async fn run_tui(
             context_window_tokens,
             last_max_input_tokens,
             last_output_tokens,
+            compact_footer_right,
         };
         let footer_h = super::draw::footer_wrapped_line_count(size.width, &footer_inp);
         // 底栏：横线 + 可选 status + Claude HUD（空闲 0 行）+ 横线 + Min(dock) + 横线 + 折行脚标。
         let hud_rows_effective: u16 =
-            if pending_approval.is_some() || pending_user_question.is_some() || executing {
+            if pending_approval.is_some() || pending_user_question.is_some() {
                 2
+            } else if executing {
+                1
             } else {
                 0
             };

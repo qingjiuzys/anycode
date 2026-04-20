@@ -12,7 +12,7 @@ use crate::repl::stream_repl_scroll_reset_to_bottom;
 use crate::repl_banner::{self, ReplWelcomeKind};
 use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::tui::transcript::build_stream_turn_plain;
-use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion, TuiApprovalCallback};
+use crate::tui::{PendingApproval, PendingUserQuestion, TuiApprovalCallback};
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
@@ -25,18 +25,10 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use super::repl_line_session::{self, ReplLineSession};
+use super::stream_repl_loop;
 use super::tasks_sink::ReplSink;
 use super::workflow_exec::{run_workflow_definition, run_workflow_path};
 
-/// 执行态每 tick 重写 transcript，去掉尾部多余 `\n`，避免与主区 padding 叠出「空行带」。
-fn normalize_stream_plain_for_transcript(s: String) -> String {
-    let t = s.trim_end_matches(['\n', '\r']);
-    if t.is_empty() {
-        String::new()
-    } else {
-        format!("{t}\n")
-    }
-}
 use anycode_security::ApprovalCallback;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -439,7 +431,7 @@ async fn finish_stream_spawned_turn(
     Ok(())
 }
 
-/// 流式输出 + 底部 dock：ratatui `Viewport::Inline` + 专用 UI 线程内 `poll`/`read`（与全屏 TUI 栈一致）。
+/// 流式输出 + 底部 dock：专用 UI 线程内 `poll`/`read`；默认主缓冲 Inline **比例高度随终端缩放**（非整屏），可选备用屏全屏（`ANYCODE_STREAM_REPL_ALT_SCREEN=1`）。
 async fn run_interactive_tty_stream(
     runtime: &Arc<AgentRuntime>,
     disk: &DiskTaskOutput,
@@ -454,18 +446,33 @@ async fn run_interactive_tty_stream(
     repl_debug_events: bool,
 ) -> anyhow::Result<()> {
     use crate::repl::{
-        run_stream_repl_ui_thread, ReplLineState, StreamReplAsyncCtl, StreamReplUiMsg,
+        run_stream_repl_ui_thread, ReplLineState, StreamReplAsyncCtl, StreamReplRenderMsg,
+        StreamReplUiMsg,
     };
     use std::sync::mpsc as std_mpsc;
 
-    let state = Arc::new(Mutex::new(ReplLineState::default()));
+    let use_repl_alt = crate::tui::stream_repl_use_alternate_screen(config.tui.alternate_screen);
+    let mut line0 = ReplLineState::default();
+    line0.stream_repl_host_scrollback = !use_repl_alt;
+    let state = Arc::new(Mutex::new(line0));
     let (ui_tx, mut ui_rx) = tokio::sync::mpsc::unbounded_channel::<StreamReplUiMsg>();
     let (ctrl_tx, ctrl_rx) = std_mpsc::channel::<StreamReplAsyncCtl>();
+    let (stream_render_tx, stream_render_rx) = std_mpsc::channel::<StreamReplRenderMsg>();
 
+    let mut live_scroll_echo_len: usize = 0;
     let state_th = state.clone();
     let ui_join = std::thread::Builder::new()
         .name("anycode-repl-stream-ui".into())
-        .spawn(move || run_stream_repl_ui_thread(state_th, ui_tx, ctrl_rx, repl_debug_events))
+        .spawn(move || {
+            run_stream_repl_ui_thread(
+                state_th,
+                ui_tx,
+                ctrl_rx,
+                stream_render_rx,
+                repl_debug_events,
+                use_repl_alt,
+            )
+        })
         .map_err(|e| anyhow::anyhow!("spawn anycode-repl-stream-ui: {e}"))?;
 
     let mut exec_handle: Option<JoinHandle<anyhow::Result<anycode_core::TurnOutput>>> = None;
@@ -475,53 +482,21 @@ async fn run_interactive_tty_stream(
     let mut turn_transcript_anchor: usize = 0;
 
     sync_repl_dock_status(&state, config, agent, false);
-    let mut stream_tick = tokio::time::interval(Duration::from_millis(50));
+    // 与 `repl::stream_ratatui` UI 线程 `poll(16ms)` 同量级：流式回合中 `transcript` 在本循环顶部重建，
+    // tick 过大则滚动区/正文明显「跟不上」流式输出（曾用 50ms，提交任务后延迟感明显）。
+    let mut stream_tick = tokio::time::interval(Duration::from_millis(16));
     stream_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     loop {
-        if let Ok(mut st) = state.lock() {
-            if let Some(until) = st.finished_turn_summary_until {
-                if Instant::now() >= until {
-                    st.finished_turn_summary_until = None;
-                    st.finished_turn_summary = None;
-                }
-            }
-        }
-        if let Some(ref mut rx) = approval_rx {
-            loop {
-                match rx.try_recv() {
-                    Ok(r) => {
-                        let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
-                        st.approval_menu_selected = 0;
-                        if let Some(old) = st.pending_approval.replace(r) {
-                            let _ = old.reply.send(ApprovalDecision::Deny);
-                        }
-                    }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-                }
-            }
-        }
-        if let Some(ref mut qrx) = question_rx {
-            loop {
-                match qrx.try_recv() {
-                    Ok(r) => {
-                        let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
-                        st.user_question_menu_selected = 0;
-                        if let Some(old) = st.pending_user_question.replace(r) {
-                            let _ = old.reply.send(Err(()));
-                        }
-                    }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-                }
-            }
-        }
+        stream_repl_loop::tick_finished_turn_summary_expiry(&state);
+        stream_repl_loop::drain_pending_stream_approvals(approval_rx.as_mut(), &state);
+        stream_repl_loop::drain_pending_stream_user_questions(question_rx.as_mut(), &state);
 
         if let Some(h) = exec_handle.as_ref() {
             if h.is_finished() {
                 let h = exec_handle.take().unwrap();
                 executing = false;
+                live_scroll_echo_len = 0;
                 let turn_wall_secs = {
                     let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
                     st.executing_since
@@ -550,6 +525,7 @@ async fn run_interactive_tty_stream(
                 let mut sink = ReplSink::Stream {
                     state: state.clone(),
                     tail: String::new(),
+                    render_tx: stream_render_tx.clone(),
                 };
                 let transcript_len_before_finish = state
                     .lock()
@@ -577,12 +553,9 @@ async fn run_interactive_tty_stream(
                         .map(|s| s.stream_viewport_width.max(40))
                         .unwrap_or(80) as usize;
                     let guard = line_session.messages.lock().await;
-                    let plain = normalize_stream_plain_for_transcript(build_stream_turn_plain(
-                        exec_prev_len,
-                        &guard,
-                        w,
-                        false,
-                    ));
+                    let plain = stream_repl_loop::normalize_stream_plain_for_transcript(
+                        build_stream_turn_plain(exec_prev_len, &guard, w, false),
+                    );
                     drop(guard);
                     if let Ok(st) = state.lock() {
                         if let Ok(mut t) = st.transcript.lock() {
@@ -594,6 +567,22 @@ async fn run_interactive_tty_stream(
                         }
                     }
                 }
+                if !use_repl_alt {
+                    let host_scroll_chunk = state.lock().ok().and_then(|st| {
+                        if !st.stream_repl_host_scrollback {
+                            return None;
+                        }
+                        st.transcript
+                            .lock()
+                            .ok()
+                            .and_then(|t| t.get(turn_transcript_anchor..).map(|s| s.to_string()))
+                    });
+                    if let Some(s) = host_scroll_chunk {
+                        if !s.trim().is_empty() {
+                            stream_repl_loop::send_scrollback_chunk(&stream_render_tx, s);
+                        }
+                    }
+                }
                 if let Ok(mut st) = state.lock() {
                     stream_repl_scroll_reset_to_bottom(&mut st);
                 }
@@ -602,25 +591,14 @@ async fn run_interactive_tty_stream(
         }
 
         if executing {
-            if let Ok(guard) = line_session.messages.try_lock() {
-                let w = state
-                    .lock()
-                    .map(|s| s.stream_viewport_width.max(40))
-                    .unwrap_or(80) as usize;
-                let plain = normalize_stream_plain_for_transcript(build_stream_turn_plain(
-                    exec_prev_len,
-                    &guard,
-                    w,
-                    true,
-                ));
-                drop(guard);
-                if let Ok(st) = state.lock() {
-                    if let Ok(mut t) = st.transcript.lock() {
-                        t.truncate(turn_transcript_anchor);
-                        t.push_str(&plain);
-                    }
-                }
-            }
+            stream_repl_loop::tick_executing_stream_transcript(
+                line_session,
+                &state,
+                use_repl_alt,
+                exec_prev_len,
+                turn_transcript_anchor,
+                &mut live_scroll_echo_len,
+            );
         }
 
         tokio::select! {
@@ -642,8 +620,10 @@ async fn run_interactive_tty_stream(
                         let mut sink = ReplSink::Stream {
                             state: state.clone(),
                             tail: String::new(),
+                            render_tx: stream_render_tx.clone(),
                         };
                         repl_clear_session(runtime, line_session, agent, &mut sink).await?;
+                        stream_repl_loop::clear_scrollback_queue(&stream_render_tx);
                         if let Ok(mut st) = state.lock() {
                             stream_repl_scroll_reset_to_bottom(&mut st);
                             st.executing_since = None;
@@ -696,6 +676,7 @@ async fn run_interactive_tty_stream(
                             let mut sink = ReplSink::Stream {
                                 state: state.clone(),
                                 tail: String::new(),
+                                render_tx: stream_render_tx.clone(),
                             };
                             let dispatch = repl_dispatch_inner(
                                 runtime,
@@ -738,6 +719,7 @@ async fn run_interactive_tty_stream(
                                         exec_handle = Some(handle);
                                         exec_prev_len = prev;
                                         executing = true;
+                                        live_scroll_echo_len = 0;
                                     }
                                 }
                             }

@@ -128,6 +128,32 @@ mod tests {
     }
 
     #[test]
+    fn stream_plain_hides_streaming_thought_tag() {
+        let exec_prev = 1usize;
+        let msgs = vec![
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text("ping".into()),
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            },
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::Assistant,
+                content: MessageContent::Text("<thought\npartial only".into()),
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            },
+        ];
+        let p = build_stream_turn_plain(exec_prev, &msgs, 80, false);
+        assert!(
+            !p.to_lowercase().contains("<thought"),
+            "expected reasoning open stripped from plain, got {p:?}"
+        );
+    }
+
+    #[test]
     fn stream_plain_redacts_assistant_google_error_blob() {
         let exec_prev = 1usize;
         let msgs = vec![

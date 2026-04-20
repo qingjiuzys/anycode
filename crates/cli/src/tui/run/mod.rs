@@ -16,6 +16,6 @@ mod draw;
 mod event;
 mod exec_completion;
 mod loop_inner;
-mod resize_debounce;
 mod terminal_guard;
 pub use loop_inner::run_tui;
+pub(crate) use terminal_guard::stream_repl_use_alternate_screen;

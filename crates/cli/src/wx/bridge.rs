@@ -16,7 +16,7 @@ use crate::wx::store::{
 use anycode_agent::AgentRuntime;
 use anycode_channels::profile_for_channel_type;
 use anycode_core::prelude::*;
-use anycode_core::strip_llm_reasoning_xml_blocks;
+use anycode_core::strip_llm_reasoning_for_display;
 use anyhow::{Context, Result};
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
@@ -303,6 +303,13 @@ async fn handle_message(
             }
             session.state = SessionState::Idle;
             let _ = save_session(&st.data_root, &st.account.account_id, &session);
+            drop(session);
+            let _ = st
+                .sender
+                .send_text(&from_user_id, &context_token, &tr("wx-interrupt-new-msg"))
+                .await;
+            // Re-lock session for the rest of `handle_message`.
+            session = st.session_arc.lock().await;
         } else if !user_text.starts_with("/status") && !user_text.starts_with("/help") {
             drop(session);
             return Ok(());
@@ -618,7 +625,7 @@ fn build_wechat_system_append(
 
 /// 去掉常见「废话」行（模型仍可能漏网，主要靠 system 约束）。
 fn sanitize_wechat_reply_output(text: &str) -> String {
-    let text = strip_llm_reasoning_xml_blocks(text);
+    let text = strip_llm_reasoning_for_display(text);
     const DROP_LINE_PREFIXES: &[&str] = &[
         "太好了",
         "从页面内容",

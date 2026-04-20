@@ -17,6 +17,7 @@ mod memory_embedding_setup;
 mod repl;
 mod repl_banner;
 mod repl_clipboard;
+mod resize_debounce;
 mod scheduler;
 mod session_transcript_export;
 mod slash_commands;

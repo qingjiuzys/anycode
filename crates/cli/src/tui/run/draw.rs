@@ -81,7 +81,7 @@ fn home_welcome_card_lines(width: u16, closes_bottom: bool) -> Vec<Line<'static>
     v
 }
 
-/// 横线下方两行：`✶` 活动态 + `⎿` 轮换提示；右侧可选 Buddy 双行。
+/// 横线下方：`✶` 活动态；`hud_rows>=2` 时再画 `⎿` 轮换提示（纯执行态单行，贴近输入、不跟提示滚换）。
 fn render_prompt_hud_stacked(
     f: &mut Frame<'_>,
     area: Rect,
@@ -91,6 +91,7 @@ fn render_prompt_hud_stacked(
     pending_approval: bool,
     working_elapsed_secs: Option<u64>,
     hud_tip_slot: usize,
+    hud_rows: u16,
 ) {
     if area.width == 0 || area.height == 0 {
         return;
@@ -100,7 +101,6 @@ fn render_prompt_hud_stacked(
         executing,
         working_elapsed_secs,
     );
-    let tip = crate::tui::hud_text::hud_tip_rotated(hud_tip_slot);
     let (text_r, buddy_r) = if buddy_column && area.width > PROMPT_HUD_BUDDY_W.saturating_add(24) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -115,21 +115,23 @@ fn render_prompt_hud_stacked(
     } else {
         style_dim()
     };
-    let hud_text = Text::from(vec![
-        Line::from(vec![
-            Span::styled(
-                "✶ ",
-                Style::default()
-                    .fg(crate::tui::palette::secondary())
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(activity, activity_line_style),
-        ]),
-        Line::from(vec![
+    let mut hud_lines: Vec<Line> = vec![Line::from(vec![
+        Span::styled(
+            "✶ ",
+            Style::default()
+                .fg(crate::tui::palette::secondary())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(activity, activity_line_style),
+    ])];
+    if hud_rows >= 2 {
+        let tip = crate::tui::hud_text::hud_tip_rotated(hud_tip_slot);
+        hud_lines.push(Line::from(vec![
             Span::styled("⎿ ", style_dim()),
             Span::styled(tip, style_dim()),
-        ]),
-    ]);
+        ]));
+    }
+    let hud_text = Text::from(hud_lines);
     f.render_widget(Paragraph::new(hud_text).wrap(Wrap { trim: true }), text_r);
     if let Some(br) = buddy_r {
         let pet_lines = pet::pet_hud_lines(pet_anim_frame, executing);
@@ -154,6 +156,8 @@ pub(super) struct FooterLayoutInput<'a> {
     pub last_max_input_tokens: u32,
     /// 最近一轮 LLM 调用聚合的 output tokens（与流式 HUD 同源）。
     pub last_output_tokens: u32,
+    /// 纯执行（仅 ✶ thinking、无审批/选题浮层）时隐藏脚标右侧 provider·model。
+    pub compact_footer_right: bool,
 }
 
 fn footer_ctx_fragment(inp: &FooterLayoutInput<'_>) -> String {
@@ -216,15 +220,21 @@ fn footer_left_spans(inp: &FooterLayoutInput<'_>) -> Vec<Span<'static>> {
 }
 
 fn footer_right_spans(inp: &FooterLayoutInput<'_>) -> Vec<Span<'static>> {
+    if inp.compact_footer_right {
+        return Vec::new();
+    }
     let val = Style::default().fg(Color::White);
     let right_txt = format!("{} · {}", inp.llm_provider.trim(), inp.llm_model.trim());
     vec![Span::styled(right_txt, val)]
 }
 
-/// 左 token/权限/?；右对齐 提供商·模型。
+/// 左 token/权限/?；右对齐 提供商·模型（可由 `compact_footer_right` 关掉右侧）。
 fn footer_span_rows_combined(width: usize, inp: &FooterLayoutInput<'_>) -> Vec<Span<'static>> {
     let left = footer_left_spans(inp);
     let right = footer_right_spans(inp);
+    if right.is_empty() {
+        return left;
+    }
     let lw = text_display_width(&spans_flat_string(&left));
     let rw = text_display_width(&spans_flat_string(&right));
     let gap = width.saturating_sub(lw + rw).min(200);
@@ -429,7 +439,13 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
 
     let prompt_hud_active =
         pending_approval.is_some() || pending_user_question.is_some() || executing;
-    let hud_rows_effective: u16 = if prompt_hud_active { 2 } else { 0 };
+    let hud_rows_effective: u16 = if !prompt_hud_active {
+        0
+    } else if pending_approval.is_some() || pending_user_question.is_some() {
+        2
+    } else {
+        1
+    };
 
     let slash_candidates = if pending_approval.is_none()
         && pending_user_question.is_none()
@@ -714,6 +730,7 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
             pending_approval.is_some() || pending_user_question.is_some(),
             working_elapsed_secs,
             hud_tip_slot,
+            hud_rows_effective,
         );
 
         f.render_widget(
@@ -1005,6 +1022,9 @@ pub(super) fn draw_tui_frame(f: &mut Frame<'_>, ctx: DrawFrameCtx<'_>) {
         context_window_tokens,
         last_max_input_tokens,
         last_output_tokens,
+        compact_footer_right: executing
+            && pending_approval.is_none()
+            && pending_user_question.is_none(),
     };
     let footer_lines = build_tui_footer_lines(footer_rect.width, &finp);
     f.render_widget(
@@ -1079,6 +1099,7 @@ mod tests {
             context_window_tokens: 128_000,
             last_max_input_tokens: 0,
             last_output_tokens: 0,
+            compact_footer_right: false,
         };
         footer_wrapped_line_count(width, &finp)
     }

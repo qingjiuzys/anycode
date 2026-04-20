@@ -10,7 +10,7 @@ use ratatui::text::{Line, Span};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 
-use anycode_core::strip_llm_reasoning_xml_blocks;
+use anycode_core::strip_llm_reasoning_for_display;
 
 use super::types::WorkspaceLiveLayout;
 use crate::tui::styles::*;
@@ -20,6 +20,7 @@ fn stream_repl_md_chrome(live: WorkspaceLiveLayout) -> MarkdownChrome {
         MarkdownChrome {
             suppress_horizontal_rules: true,
             suppress_code_fence_banner: true,
+            suppress_tables: true,
         }
     } else {
         MarkdownChrome::default()
@@ -73,8 +74,8 @@ pub(crate) fn unwrap_single_content_json<'a>(text: &'a str) -> Cow<'a, str> {
 
 /// 比较 assistant 正文（含 `unwrap_single_content_json`）是否与 `final_text` 语义一致。
 pub(crate) fn assistant_markdown_meaningful_eq(stored: &str, candidate: &str) -> bool {
-    let a = strip_llm_reasoning_xml_blocks(unwrap_single_content_json(stored).as_ref());
-    let b = strip_llm_reasoning_xml_blocks(unwrap_single_content_json(candidate).as_ref());
+    let a = strip_llm_reasoning_for_display(unwrap_single_content_json(stored).as_ref());
+    let b = strip_llm_reasoning_for_display(unwrap_single_content_json(candidate).as_ref());
     a.trim() == b.trim()
 }
 

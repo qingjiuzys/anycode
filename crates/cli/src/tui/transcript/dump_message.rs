@@ -1,7 +1,7 @@
 //! 消息 → transcript 条目、纯文本导出、尾部匹配与 live tail 回放。
 
 use anycode_core::{
-    strip_llm_reasoning_xml_blocks, Message, MessageContent, MessageRole, ToolCall,
+    strip_llm_reasoning_for_display, Message, MessageContent, MessageRole, ToolCall,
     ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
 use ratatui::text::{Line, Span};
@@ -173,7 +173,7 @@ pub(crate) fn message_to_entries(msg: &Message) -> Vec<TranscriptEntry> {
         MessageRole::Assistant => {
             let mut out: Vec<TranscriptEntry> = vec![];
             let content_text = match &msg.content {
-                MessageContent::Text(t) => strip_llm_reasoning_xml_blocks(t),
+                MessageContent::Text(t) => strip_llm_reasoning_for_display(t),
                 _ => String::new(),
             };
 
@@ -235,7 +235,7 @@ pub(crate) fn last_nonempty_assistant_text(msgs: &[Message]) -> Option<String> {
         }
         match &m.content {
             MessageContent::Text(t) => {
-                let cleaned = strip_llm_reasoning_xml_blocks(t);
+                let cleaned = strip_llm_reasoning_for_display(t);
                 let tr = cleaned.trim();
                 if tr.is_empty() {
                     None

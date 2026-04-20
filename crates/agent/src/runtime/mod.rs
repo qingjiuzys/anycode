@@ -6,6 +6,7 @@ mod logging;
 mod nested_worktree;
 mod receipt;
 mod session;
+mod session_notify;
 mod task_summary;
 mod tool_gating;
 mod tool_surface;
@@ -24,7 +25,10 @@ use crate::{ExploreAgent, GeneralPurposeAgent, GoalAgent, PlanAgent, WorkspaceAs
 use anycode_core::prelude::*;
 use anycode_core::strip_llm_reasoning_xml_blocks;
 use anycode_core::Artifact;
-use anycode_core::{MemoryPipeline, MemoryPipelineSettings, NESTED_TASK_COOPERATIVE_CANCEL_ERROR};
+use anycode_core::{
+    MemoryPipeline, MemoryPipelineSettings, SessionNotificationSettings,
+    NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+};
 use anycode_security::SecurityLayer;
 use artifacts::{extract_artifacts, truncate_text};
 use async_trait::async_trait;
@@ -35,6 +39,7 @@ use logging::RunLogger;
 use nested_worktree::NestedWorktreeGuard;
 use receipt::ReceiptGenerator;
 use regex::Regex;
+use session_notify::{build_notification_value, spawn_dispatch};
 use std::collections::HashMap;
 use std::future::pending;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -262,6 +267,8 @@ pub struct AgentRuntime {
     memory_pipeline: Option<Arc<dyn MemoryPipeline>>,
     /// 与 `memory_pipeline` 配套；用于钩子与限流配置。
     memory_pipeline_settings: Option<MemoryPipelineSettings>,
+    /// 可选：工具结果 / 回合结束外向通知（HTTP、shell），与记忆管线钩子独立。
+    session_notifications: Option<SessionNotificationSettings>,
     default_model_config: ModelConfig,
     model_overrides: HashMap<AgentType, ModelConfig>,
     disk_output: Option<DiskTaskOutput>,
@@ -371,6 +378,7 @@ impl AgentRuntime {
             memory_pipeline,
             memory_pipeline_settings,
             memory_project_autosave_enabled,
+            session_notifications,
         } = memory;
 
         let RuntimeToolPolicy {
@@ -414,6 +422,7 @@ impl AgentRuntime {
             memory_store,
             memory_pipeline,
             memory_pipeline_settings,
+            session_notifications,
             default_model_config,
             model_overrides,
             disk_output,
@@ -498,6 +507,72 @@ impl AgentRuntime {
         {
             warn!(target: "anycode_agent", "memory pipeline hook (turn): {}", e);
         }
+    }
+
+    fn maybe_session_notify_tool_result(
+        &self,
+        session_label: &str,
+        task_id: TaskId,
+        turn: usize,
+        tool_name: &str,
+        tool_text: &str,
+        cwd: Option<&str>,
+    ) {
+        let Some(ref cfg) = self.session_notifications else {
+            return;
+        };
+        if !cfg.after_tool_result || !cfg.is_configured() {
+            return;
+        }
+        if cfg
+            .tool_deny_prefixes
+            .iter()
+            .any(|p| tool_name.starts_with(p.as_str()))
+        {
+            return;
+        }
+        let payload = build_notification_value(
+            "tool_result",
+            session_label,
+            task_id,
+            turn,
+            Some(tool_name),
+            tool_text,
+            cwd,
+            cfg.max_body_bytes,
+        );
+        spawn_dispatch(cfg.clone(), payload);
+    }
+
+    fn maybe_session_notify_agent_turn(
+        &self,
+        session_label: &str,
+        task_id: TaskId,
+        turn: usize,
+        assistant_excerpt: &str,
+        cwd: Option<&str>,
+    ) {
+        let Some(ref cfg) = self.session_notifications else {
+            return;
+        };
+        if !cfg.after_agent_turn || !cfg.is_configured() {
+            return;
+        }
+        let t = assistant_excerpt.trim();
+        if t.is_empty() {
+            return;
+        }
+        let payload = build_notification_value(
+            "agent_turn",
+            session_label,
+            task_id,
+            turn,
+            None,
+            t,
+            cwd,
+            cfg.max_body_bytes,
+        );
+        spawn_dispatch(cfg.clone(), payload);
     }
 
     async fn maybe_autosave_memory(&self, task_id: TaskId, prompt: &str, output: &str) {
@@ -929,6 +1004,13 @@ impl AgentRuntime {
                     &last_assistant_text,
                 )
                 .await;
+                self.maybe_session_notify_agent_turn(
+                    &session_label,
+                    task_id,
+                    turn,
+                    &last_assistant_text,
+                    Some(working_directory),
+                );
                 logger.line(task_id, &format!("[turn_end] turn={} tool_calls=0", turn));
                 break;
             }
@@ -1049,6 +1131,14 @@ impl AgentRuntime {
                     &for_hook,
                 )
                 .await;
+                self.maybe_session_notify_tool_result(
+                    &session_label,
+                    task_id,
+                    turn,
+                    &tool_call.name,
+                    &for_hook,
+                    Some(working_directory),
+                );
 
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));
                 if opt_coop_cancelled(&coop_cancel) {
@@ -1300,6 +1390,13 @@ impl AgentRuntime {
             if response.tool_calls.is_empty() {
                 self.pipeline_memory_hook_agent_turn(&session_label, task.id, turn, &turn_plain)
                     .await;
+                self.maybe_session_notify_agent_turn(
+                    &session_label,
+                    task.id,
+                    turn,
+                    &turn_plain,
+                    Some(task.context.working_directory.as_str()),
+                );
                 logger.line(task.id, &format!("[turn_end] turn={} tool_calls=0", turn));
                 break;
             }
@@ -1414,6 +1511,14 @@ impl AgentRuntime {
                     &for_hook,
                 )
                 .await;
+                self.maybe_session_notify_tool_result(
+                    &session_label,
+                    task.id,
+                    turn,
+                    &tool_call.name,
+                    &for_hook,
+                    Some(task.context.working_directory.as_str()),
+                );
 
                 // 基础 artifacts（V1）
                 artifacts.extend(extract_artifacts(&tool_call, &tool_result));

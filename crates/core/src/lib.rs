@@ -18,6 +18,7 @@ mod reasoning;
 mod runtime_profile;
 mod secret_ref;
 mod security_policy;
+mod session_notification;
 mod slash_command;
 mod task;
 mod task_output;
@@ -44,10 +45,11 @@ pub use memory_pipeline::{
 };
 pub use message::{Message, MessageContent, MessageRole};
 pub use model_profile::ModelRouteProfile;
-pub use reasoning::strip_llm_reasoning_xml_blocks;
+pub use reasoning::{strip_llm_reasoning_for_display, strip_llm_reasoning_xml_blocks};
 pub use runtime_profile::{RuntimeMode, RuntimeProfile};
 pub use secret_ref::{SecretRef, SecretResolver};
 pub use security_policy::SecurityPolicy;
+pub use session_notification::SessionNotificationSettings;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 pub use task::{
     Artifact, NestedTaskInvoke, NestedTaskRun, Task, TaskContext, TaskResult, TurnOutput,
@@ -66,11 +68,12 @@ pub mod prelude {
         LLMProvider, LLMResponse, Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope,
         MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
         ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PreSemanticFragment,
-        RuntimeMode, RuntimeProfile, SecretRef, SecretResolver, SecurityPolicy, SlashCommand,
-        SlashCommandScope, StreamEvent, SubAgentExecutor, Task, TaskContext, TaskId, TaskResult,
-        Tool, ToolCall, ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage,
-        Usage, VectorMemoryBackend, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
-        WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
+        RuntimeMode, RuntimeProfile, SecretRef, SecretResolver, SecurityPolicy,
+        SessionNotificationSettings, SlashCommand, SlashCommandScope, StreamEvent,
+        SubAgentExecutor, Task, TaskContext, TaskId, TaskResult, Tool, ToolCall, ToolInput,
+        ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage, VectorMemoryBackend,
+        WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep,
+        ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
         ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS,
         NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
     };

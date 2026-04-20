@@ -19,4 +19,5 @@ pub(crate) mod user_question;
 pub(crate) mod util;
 
 pub use run::run_tui;
+pub(crate) use run::stream_repl_use_alternate_screen;
 pub(crate) use user_question::PendingUserQuestion;

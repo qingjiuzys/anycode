@@ -8,8 +8,14 @@
 //!
 //! 1. **DEC 备用屏**（`ANYCODE_TUI_ALT_SCREEN=1`）— **不擦**主缓冲 scrollback，换到独立画布；退出后 shell 画面恢复。这是唯一能稳定隔离「整屏矩阵重绘」与历史输出的常规手段。
 //! 2. **主缓冲 + 不清屏** — `loop_inner` 使用 ratatui **`Viewport::Inline(屏高)`**，视口锚在 **shell 光标下方**，避免 `MoveTo(0,0)` + 全屏视口把 UI 画在屏顶、与下方历史叠成「重复底栏」；若仍叠画，可用 **`ANYCODE_TUI_CLEAR_ON_START=1`** 或备用屏。
-//! 3. **（已弃用默认路径）分区绘制（DECSTBM）** — 旧版 `repl_stream_dock` 用滚动边距 + 手工 blit；**当前默认** `anycode` / `anycode repl` 与 TUI 主缓冲一致，走 **`Viewport::Inline` + ratatui**（见 `repl::stream_ratatui`）。全屏 ratatui 矩阵为 **`anycode tui`**。
+//! 3. **`anycode repl` 流式界面** — 默认主缓冲 **`Viewport::Inline`**，高度为终端可视行数的**比例**（默认约 55%，**非整屏**），比例行数随窗口缩放变化；可选 **`ANYCODE_STREAM_REPL_ALT_SCREEN=1`** 进入备用屏全屏。Inline 高度仅随**终端行数**变化而重建，避免随正文变长反复 `append_lines` 叠层。全屏矩阵另见 **`anycode tui`**。
 //! 4. **增量写终端**（diff / 非整块矩阵）— 可规避叠画，但 **不是** ratatui 默认模型；需自研或换栈。
+//!
+//! ### `anycode repl` 流式界面（主缓冲默认）
+//!
+//! - **Inline 矩阵**：固定高度视口内用内存 `transcript` + ratatui `Paragraph::scroll` 画摘要（[`crate::repl::stream_ratatui`]）。
+//! - **执行中长文**：助手流经 [`crate::repl::StreamReplRenderMsg`] 排队，UI 线程 **`Terminal::insert_before`** 推入宿主 **scrollback**（避免与 ratatui `draw` 争用同一 `stdout`）；**不**捕鼠，滚轮交给宿主（[`crate::tasks::tasks_repl::run_interactive_tty_stream`] + [`crate::repl::stream_term::flush_stream_scrollback_staging`]）。
+//! - `ReplSink::line` / 工具行 echo 同上队列；备用屏全屏无宿主 scrollback 时仅写 `transcript`。
 //!
 //! ### 默认策略（与上表独立）
 //!
@@ -196,6 +202,31 @@ pub(super) fn tui_use_alternate_screen_resolved(config_alternate_screen: Option<
     use_alt
 }
 
+/// `anycode repl` 流式 ratatui 是否使用 **备用屏 + 全屏视口**。
+///
+/// 默认 **关**：主缓冲下 **`Viewport::Inline`** 为终端行数的比例高度（默认约 55%，**非整屏**），随终端缩放重算。
+/// 需要独立画布、缩放时与 scrollback 完全隔离时设 **`ANYCODE_STREAM_REPL_ALT_SCREEN=1`**。
+///
+/// - **`ANYCODE_STREAM_REPL_ALT_SCREEN`**：仅针对流式 REPL；可识别布尔串时优先生效。
+/// - 否则若用户显式设置了 **`ANYCODE_TUI_ALT_SCREEN`** 或 **`config.tui.alternateScreen`**，与全屏 TUI 共用同一决策（[`tui_use_alternate_screen_resolved`]）。
+/// - 若以上均未显式指定，流式 REPL **默认 `false`**（紧凑主缓冲；与全屏 TUI 默认一致）。
+pub(crate) fn stream_repl_use_alternate_screen(config_alternate_screen: Option<bool>) -> bool {
+    if let Ok(v) = std::env::var("ANYCODE_STREAM_REPL_ALT_SCREEN") {
+        if let Some(b) = interpret_optional_env_bool(&v) {
+            return b;
+        }
+    }
+    let tui_env_has_explicit = std::env::var("ANYCODE_TUI_ALT_SCREEN")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .and_then(|v| interpret_optional_env_bool(&v))
+        .is_some();
+    if tui_env_has_explicit || config_alternate_screen.is_some() {
+        return tui_use_alternate_screen_resolved(config_alternate_screen);
+    }
+    false
+}
+
 /// 与 `loop_inner` 正常收尾顺序一致：按需 `DisableMouseCapture` → `DisableBracketedPaste` → `disable_raw_mode` → `Show` → 按需 `LeaveAlternateScreen`。
 pub(super) struct TuiTerminalGuard {
     mouse_capture: bool,
@@ -292,7 +323,8 @@ impl Drop for TuiTerminalGuard {
 mod tests {
     use super::{
         interpret_optional_env_bool, is_env_defined_falsy, is_env_truthy,
-        resolve_use_alternate_screen, tui_main_buffer_clear_all_on_start, tui_sync_draw_enabled,
+        resolve_use_alternate_screen, stream_repl_use_alternate_screen,
+        tui_main_buffer_clear_all_on_start, tui_sync_draw_enabled,
         tui_use_alternate_screen_resolved,
     };
     use crossterm::execute;
@@ -405,5 +437,58 @@ mod tests {
         assert_eq!(interpret_optional_env_bool("maybe"), None);
         assert_eq!(interpret_optional_env_bool("1"), Some(true));
         assert_eq!(interpret_optional_env_bool("0"), Some(false));
+    }
+
+    fn with_cleared_repl_alt_env<F: FnOnce()>(f: F) {
+        let _g = ENV_TEST_LOCK.lock().expect("env test lock");
+        let keys = ["ANYCODE_STREAM_REPL_ALT_SCREEN", "ANYCODE_TUI_ALT_SCREEN"];
+        let saved: Vec<_> = keys.iter().map(|k| (*k, std::env::var_os(k))).collect();
+        for k in keys {
+            std::env::remove_var(k);
+        }
+        f();
+        for (k, v) in saved {
+            match v {
+                Some(val) => std::env::set_var(k, val),
+                None => std::env::remove_var(k),
+            }
+        }
+    }
+
+    #[test]
+    fn stream_repl_alt_defaults_off_without_explicit_global() {
+        with_cleared_repl_alt_env(|| {
+            assert!(
+                !stream_repl_use_alternate_screen(None),
+                "repl defaults to compact main-buffer inline when TUI env/config unset"
+            );
+        });
+    }
+
+    #[test]
+    fn stream_repl_alt_follows_tui_env_when_explicit() {
+        with_cleared_repl_alt_env(|| {
+            std::env::set_var("ANYCODE_TUI_ALT_SCREEN", "0");
+            assert!(!stream_repl_use_alternate_screen(None));
+            std::env::set_var("ANYCODE_TUI_ALT_SCREEN", "1");
+            assert!(stream_repl_use_alternate_screen(None));
+        });
+    }
+
+    #[test]
+    fn stream_repl_alt_stream_env_overrides_tui() {
+        with_cleared_repl_alt_env(|| {
+            std::env::set_var("ANYCODE_TUI_ALT_SCREEN", "1");
+            std::env::set_var("ANYCODE_STREAM_REPL_ALT_SCREEN", "0");
+            assert!(!stream_repl_use_alternate_screen(None));
+        });
+    }
+
+    #[test]
+    fn stream_repl_alt_config_used_when_no_tui_env() {
+        with_cleared_repl_alt_env(|| {
+            assert!(!stream_repl_use_alternate_screen(Some(false)));
+            assert!(stream_repl_use_alternate_screen(Some(true)));
+        });
     }
 }

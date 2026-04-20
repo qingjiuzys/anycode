@@ -10,16 +10,18 @@ use ratatui::widgets::Paragraph;
 use crate::md_tui::wrap_string_to_width;
 use crate::repl::inline::{
     sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
-    stream_transcript_line_style, StreamTranscriptLayoutCache,
+    stream_transcript_line_style,
 };
+use crate::repl::line_state::StreamTranscriptLayoutCache;
 use crate::tui::palette;
 
 const SCROLL_EASE: f32 = 0.3;
 const OVERSCROLL_CLAMP_EASE: f32 = 0.2;
 const SCROLL_EPS: f32 = 0.01;
 
-/// 与主区绘制一致：清洗后按 `width` 折行的总行数（用于 Inline 视口行数估算）。
-pub(crate) fn stream_transcript_total_rows(raw: &str, width: u16) -> usize {
+/// 与主区绘制一致：清洗后按 `width` 折行的总行数（单测断言用）。
+#[cfg(test)]
+fn stream_transcript_total_rows(raw: &str, width: u16) -> usize {
     let scrubbed = scrub_stream_transcript_llm_raw_dumps(raw);
     let cleaned = sanitize_stream_transcript_visual_noise(&scrubbed);
     let w = width.max(1) as usize;

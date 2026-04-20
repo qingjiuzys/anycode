@@ -338,6 +338,12 @@ pub(crate) async fn initialize_runtime(
         None
     };
 
+    let session_notifications = if config.notifications.is_configured() {
+        Some(config.notifications.clone())
+    } else {
+        None
+    };
+
     let runtime = Arc::new(AgentRuntime::new(
         RuntimeCoreDeps {
             llm_client,
@@ -354,6 +360,7 @@ pub(crate) async fn initialize_runtime(
             memory_pipeline,
             memory_pipeline_settings,
             memory_project_autosave_enabled,
+            session_notifications,
         },
         RuntimeToolPolicy {
             tool_name_deny,
