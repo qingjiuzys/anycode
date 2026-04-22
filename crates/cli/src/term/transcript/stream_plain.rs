@@ -11,6 +11,22 @@ use super::{
     apply_tool_transcript_pipeline, message_to_entries, TranscriptEntry, WorkspaceLiveLayout,
 };
 
+/// 合并**相邻且正文完全相同**的 `User` 块，避免会话里偶发重复 User 消息时主区刷满 `❯` 重复行。
+fn dedupe_consecutive_identical_users(entries: &mut Vec<TranscriptEntry>) {
+    let mut i = 0usize;
+    while i + 1 < entries.len() {
+        let dup = matches!(
+            (&entries[i], &entries[i + 1]),
+            (TranscriptEntry::User(a), TranscriptEntry::User(b)) if a == b
+        );
+        if dup {
+            entries.remove(i + 1);
+        } else {
+            i += 1;
+        }
+    }
+}
+
 pub(crate) fn lines_to_plain_string(lines: &[Line<'static>]) -> String {
     let mut out = String::new();
     for (i, line) in lines.iter().enumerate() {
@@ -40,6 +56,7 @@ pub(crate) fn build_stream_turn_plain(
     }
     let mut fold_id = 0u64;
     apply_tool_transcript_pipeline(&mut entries, &mut fold_id);
+    dedupe_consecutive_identical_users(&mut entries);
     let expanded: HashSet<u64> = HashSet::new();
     let live = WorkspaceLiveLayout {
         executing,
@@ -150,6 +167,34 @@ mod tests {
         assert!(
             !p.to_lowercase().contains("<thought"),
             "expected reasoning open stripped from plain, got {p:?}"
+        );
+    }
+
+    #[test]
+    fn stream_plain_dedupes_consecutive_duplicate_user_messages() {
+        let exec_prev = 1usize;
+        let mut msgs = vec![Message {
+            id: Uuid::new_v4(),
+            role: MessageRole::User,
+            content: MessageContent::Text("ping".into()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        }];
+        let dup_text = "分析下当前项目";
+        for _ in 0..5 {
+            msgs.push(Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text(dup_text.into()),
+                timestamp: Utc::now(),
+                metadata: HashMap::new(),
+            });
+        }
+        let p = build_stream_turn_plain(exec_prev, &msgs, 80, false);
+        let n = p.matches("❯ ").count();
+        assert_eq!(
+            n, 2,
+            "expected one ❯ for 'ping' and one for duplicated prompt, got {n} in {p:?}"
         );
     }
 

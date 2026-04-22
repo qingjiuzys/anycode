@@ -18,12 +18,12 @@ pub(crate) struct PendingApproval {
     pub(crate) reply: oneshot::Sender<ApprovalDecision>,
 }
 
-pub(crate) struct TuiApprovalCallback {
+pub(crate) struct InteractiveApprovalCallback {
     tx: mpsc::Sender<PendingApproval>,
     project_allow: std::sync::Arc<std::sync::Mutex<ProjectApprovalStore>>,
 }
 
-impl TuiApprovalCallback {
+impl InteractiveApprovalCallback {
     pub(crate) fn new(tx: mpsc::Sender<PendingApproval>) -> Self {
         Self {
             tx,
@@ -35,7 +35,7 @@ impl TuiApprovalCallback {
 }
 
 #[async_trait]
-impl ApprovalCallback for TuiApprovalCallback {
+impl ApprovalCallback for InteractiveApprovalCallback {
     async fn request_approval(
         &self,
         tool: &str,
@@ -58,10 +58,10 @@ impl ApprovalCallback for TuiApprovalCallback {
         self.tx
             .send(pending)
             .await
-            .map_err(|_| anyhow::anyhow!("{}", tr("tui-approval-tui-exited")))?;
+            .map_err(|_| anyhow::anyhow!("{}", tr("term-approval-ui-exited")))?;
         let decision = reply_rx
             .await
-            .map_err(|_| anyhow::anyhow!("{}", tr("tui-approval-cancelled")))?;
+            .map_err(|_| anyhow::anyhow!("{}", tr("term-approval-cancelled")))?;
         match decision {
             ApprovalDecision::AllowOnce => Ok(true),
             ApprovalDecision::AllowToolForProject => {

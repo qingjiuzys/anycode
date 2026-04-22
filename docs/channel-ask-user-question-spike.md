@@ -2,22 +2,24 @@
 
 ## 各通道交互能力（概要）
 
-| 通道 | 内联按钮 / 键盘 | 文本 fallback |
-|------|------------------|---------------|
-| **Telegram** | Bot API 支持 `InlineKeyboardMarkup`、callback query | 可回落为纯文本指令 |
-| **Discord** | 组件（Button、Select）与交互 token | 可回落为文本 |
-| **微信（iLink 桥）** | 当前桥以 **`send_text`** 为主；审批为 **y/n** 文本 | 适合超时 + 明确文本提示 |
+
+| 通道              | 内联按钮 / 键盘                                        | 文本 fallback   |
+| --------------- | ------------------------------------------------ | ------------- |
+| **Telegram**    | Bot API 支持 `InlineKeyboardMarkup`、callback query | 可回落为纯文本指令     |
+| **Discord**     | 组件（Button、Select）与交互 token                       | 可回落为文本        |
+| **微信（iLink 桥）** | 当前桥以 `**send_text`** 为主；审批为 **y/n** 文本           | 适合超时 + 明确文本提示 |
+
 
 ## 目标
 
-在通道上与 TUI **`AskUserQuestionHost`** 类似：**结构化选项 / 超时 / 与审批状态机可组合**，但不急于引入新的 **public trait**；优先 **枚举**、`pub(crate)` 宿主或单一 broker 扩展点。
+在通道上与 TUI `**AskUserQuestionHost`** 类似：**结构化选项 / 超时 / 与审批状态机可组合**，但不急于引入新的 **public trait**；优先 **枚举**、`pub(crate)` 宿主或单一 broker 扩展点。
 
 ## 数据面（草案）
 
-- **`question_id`**：UUID，与 `PermissionBroker` 或独立 `QuestionBroker` 关联。
-- **`prompt`**：展示给用户的短文案（多语言可由 Fluent 统一）。
-- **`options`**：`[{ "id": "a", "label": "…" }, …]`；微信可渲染为 `回复 a / b` 或 `1 / 2`。
-- **`timeout`**：与现有微信审批超时一致时可复用 broker 定时器语义。
+- `**question_id`**：UUID，与 `PermissionBroker` 或独立 `QuestionBroker` 关联。
+- `**prompt`**：展示给用户的短文案（多语言可由 Fluent 统一）。
+- `**options**`：`[{ "id": "a", "label": "…" }, …]`；微信可渲染为 `回复 a / b` 或 `1 / 2`。
+- `**timeout**`：与现有微信审批超时一致时可复用 broker 定时器语义。
 
 ## 与 PermissionBroker 的关系
 

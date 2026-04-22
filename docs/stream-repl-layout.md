@@ -1,6 +1,19 @@
 # Stream REPL 当前页面结构（自上而下）
 
-面向维护者：描述 `anycode repl` 在 TTY 流式模式下的**终端分区**、**ratatui 单帧竖直布局**、**Dock 内部栈**与 **Tokio / UI 线程**数据流。实现入口见 [`crates/cli/src/tasks/tasks_repl.rs`](../crates/cli/src/tasks/tasks_repl.rs) 的 `run_interactive_tty_stream`（主 `select!` 与斜杠分发）、[`crates/cli/src/tasks/stream_repl_loop.rs`](../crates/cli/src/tasks/stream_repl_loop.rs)（审批/选题 drain、回合摘要过期、执行态 `transcript` tick、`StreamReplRenderMsg` scrollback 发送）与 [`crates/cli/src/repl/stream_ratatui.rs`](../crates/cli/src/repl/stream_ratatui.rs) 的 `run_stream_repl_ui_thread`。
+面向维护者：描述 `anycode repl` 在 TTY 流式模式下的**终端分区**、**ratatui 单帧竖直布局**、**Dock 内部栈**与 **轴心 / 从属 Tokio** 数据流。实现入口见 [`crates/cli/src/repl/stream_ratatui.rs`](../crates/cli/src/repl/stream_ratatui.rs) 的 `run_stream_repl_ui_thread`（[`StreamReplUiSession`](../crates/cli/src/repl/stream_app.rs)：**当前线程** `poll`/`draw`，每帧 **审批/选题 drain**、**回合摘要过期**、**执行态** [`tick_executing_stream_transcript`](../crates/cli/src/tasks/stream_repl_loop.rs)）、[`crates/cli/src/tasks/tasks_repl.rs`](../crates/cli/src/tasks/tasks_repl.rs) 的 `stream_repl_tokio_worker`（从属 `select!`、斜杠分发、回合 join）与 [`stream_repl_loop.rs`](../crates/cli/src/tasks/stream_repl_loop.rs)（`StreamReplRenderMsg` scrollback 发送等）、[`stream_app.rs`](../crates/cli/src/repl/stream_app.rs) 的 `init_stream_repl_axis`。
+
+### 迁移前行为基线（架构对齐前备忘）
+
+| 项目 | 行为 |
+|------|------|
+| 默认视口 | 主缓冲 `Viewport::Inline`（约 55% 屏高），除非配置/env 显式开备用屏 |
+| 宿主 scrollback | 非备用屏时 `Terminal::insert_before` + `StreamReplRenderMsg::ScrollbackChunk` |
+| 线程 | Tokio `select!` 为主循环；独立 std 线程 `run_stream_repl_ui_thread`（crossterm + ratatui） |
+| 通道 | `StreamReplUiMsg`（Tokio unbounded）UI→Tokio；`StreamReplAsyncCtl` / `StreamReplRenderMsg`（std mpsc） |
+| Resize（Inline） | `Event::Resize` 在 UI 侧忽略，不重建视口 |
+| 子进程 | Tokio 侧 `SuspendForSubprocess` / `ResumeAfterSubprocess` 与 UI 线程 ack |
+
+**手工验收清单（发布前）**：自然语言提交；工具审批 / AskUser 选题；`/clear`；执行中 Ctrl+C 协作取消；`/workflow` 子进程挂起与恢复；Ctrl+D 退出；`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP` 与备用屏退出表现。
 
 ### 重构边界（不变量）
 
@@ -14,10 +27,10 @@ Stream REPL 栈可以演进通道与文件拆分，但须遵守：
 
 | 符号 | 方向 | 定义位置 |
 |------|------|----------|
-| `StreamReplUiMsg` | UI → Tokio（`UnboundedSender`） | [`crates/cli/src/repl/stream_ratatui.rs`](../crates/cli/src/repl/stream_ratatui.rs) |
-| `StreamReplAsyncCtl` | Tokio → UI（`std::sync::mpsc`） | 同上 |
-| `StreamReplRenderMsg` | Tokio / `ReplSink::Stream` → UI（`std::sync::mpsc`） | [`crates/cli/src/repl/stream_render_msg.rs`](../crates/cli/src/repl/stream_render_msg.rs) |
-| `ReplLineState`（含 `transcript`、`pending_*`） | Tokio 写为主，UI 读/写输入态 | [`crates/cli/src/repl/line_state.rs`](../crates/cli/src/repl/line_state.rs) |
+| `StreamReplUiMsg` | UI 轴心 → 从属 Tokio（`UnboundedSender`） | [`crates/cli/src/repl/stream_ratatui.rs`](../crates/cli/src/repl/stream_ratatui.rs) |
+| `StreamReplAsyncCtl` | 从属 Tokio → UI 轴心（`std::sync::mpsc`） | 同上 |
+| `StreamReplRenderMsg` | 从属 Tokio / `ReplSink::Stream` → UI（`std::sync::mpsc`；全屏下 `flush` 对 scrollback 短路） | [`crates/cli/src/repl/stream_render_msg.rs`](../crates/cli/src/repl/stream_render_msg.rs) |
+| `ReplLineState`（含 `transcript`、`pending_*`） | 从属 Tokio 写为主，UI 轴心读/写输入态 | [`crates/cli/src/repl/line_state.rs`](../crates/cli/src/repl/line_state.rs) |
 
 历史：`ReplLineState::stream_scrollback_pending` 已移除，宿主 scrollback 增量改走 **`StreamReplRenderMsg::ScrollbackChunk`**（见 [`stream_repl_loop::send_scrollback_chunk`](../crates/cli/src/tasks/stream_repl_loop.rs)）。
 
@@ -28,13 +41,14 @@ Stream REPL 栈可以演进通道与文件拆分，但须遵守：
 与常见「ratatui 0.28 + crossterm 0.28」教程栈不同，anyCode 工作区当前为：
 
 - 根目录 [`Cargo.toml`](../Cargo.toml)：`ratatui = "0.24"`，`crossterm = "0.27"`（`[workspace.dependencies]`）。
-- 无独立 `tui-textarea` / `ratatui-markdown` crate；多行输入在 [`crates/cli/src/tui/input/`](../crates/cli/src/tui/input/)，终端内 Markdown 辅助在 [`crates/cli/src/md_tui.rs`](../crates/cli/src/md_tui.rs) 等。
+- 无独立 `tui-textarea` / `ratatui-markdown` crate；多行输入在 [`crates/cli/src/term/input.rs`](../crates/cli/src/term/input.rs)，终端内 Markdown 辅助在 [`crates/cli/src/md_render.rs`](../crates/cli/src/md_render.rs) 等。
 
 ---
 
 ## 终端里「整屏」分两层心智模型
 
-主缓冲默认下，**宿主 scrollback** 与 **ratatui Inline 视口**并存：长文执行路径经 `insert_before` 推入宿主历史；矩阵区仍由 ratatui 绘制。
+**默认（备用屏全屏）**：整块 ratatui 矩阵，无宿主 `insert_before` 主路径。  
+**`ANYCODE_TERM_REPL_INLINE_LEGACY=1`** 时恢复主缓冲：**宿主 scrollback** 与 **ratatui Inline 视口**并存，长文执行路径经 `insert_before` 推入宿主历史。
 
 ```mermaid
 flowchart TB
@@ -51,8 +65,8 @@ flowchart TB
 
 说明：
 
-- **主缓冲 + 非备用屏**：ratatui 使用 `Viewport::Inline`，高度约为终端可视行数的比例（默认约 55%，下限等见 [`stream_repl_inline_viewport_rows`](../crates/cli/src/repl/stream_term.rs)）。**视口上方**是终端已有滚动历史；执行中助手增量经 [`StreamReplRenderMsg`](../crates/cli/src/repl/stream_render_msg.rs) 送达 UI 线程，再经 [`flush_stream_scrollback_staging`](../crates/cli/src/repl/stream_term.rs) 内 **`Terminal::insert_before`** 写入宿主 scrollback（与「消息区完全画在 ratatui 单画布内」的教程架构不同）。
-- **备用屏**（`ANYCODE_STREAM_REPL_ALT_SCREEN` 等与配置对齐）：整块为 ratatui 全屏，无上述「视口之上宿主分区」划分。
+- **备用屏（TTY 默认）**：整块 ratatui 全屏（`Terminal::new`）；[`flush_stream_scrollback_staging`](../crates/cli/src/repl/stream_term.rs) 对 scrollback staging **no-op**。
+- **主缓冲 Inline（遗留）**：`ANYCODE_TERM_REPL_INLINE_LEGACY=1` 等关闭备用屏时，ratatui 使用 `Viewport::Inline`（高度约 55%，见 [`stream_repl_inline_viewport_rows`](../crates/cli/src/repl/stream_term.rs)）；执行中助手增量经 [`StreamReplRenderMsg`](../crates/cli/src/repl/stream_render_msg.rs) 与 **`insert_before`** 写入宿主 scrollback。
 
 ---
 
@@ -125,8 +139,8 @@ flowchart LR
   flush --> draw
 ```
 
-- **Tokio**：`run_interactive_tty_stream` — 主循环每 tick 调用 [`stream_repl_loop`](../crates/cli/src/tasks/stream_repl_loop.rs) 的 `drain_pending_stream_approvals` / `drain_pending_stream_user_questions`、`tick_finished_turn_summary_expiry`；执行中由 `tick_executing_stream_transcript` 驱动 `build_stream_turn_plain` 写入 `transcript`；**视口宽度未变时**才按字节游标向 **`Sender<StreamReplRenderMsg>`** 推宿主 scrollback 增量（宽度变化会整段重排 plain，增量切片会与旧串错位导致重复 `insert_before`）。回合 join 收尾仍在 `tasks_repl`。
-- **UI 线程**：`run_stream_repl_ui_thread` — `event::poll` / `read`，每帧 **`paint_stream_frame`**：`drain_stream_repl_render_scrollback` → **`flush_stream_scrollback_staging`** → `draw_stream_frame`。
+- **Tokio**（`stream_repl_tokio_worker`）：从属 `select!`、斜杠分发、回合 **`JoinHandle` join** 与收尾重建 `transcript`；定时 tick 仅用于在无 UI 消息时唤醒以检测 **`is_finished`**。宿主 scrollback 增量仍由 worker 在回合结束时经 **`StreamReplRenderMsg`** 发送（Inline 遗留路径）。
+- **UI 轴心**（`run_stream_repl_ui_thread`）：每帧 **`drain_pending_stream_approvals` / `drain_pending_stream_user_questions`**、**`tick_finished_turn_summary_expiry`**、**`tick_executing_stream_transcript`**（`ReplLineState::stream_exec_*` + `messages.try_lock`），再 `event::poll` / `read`，最后 **`paint_stream_frame`**：`drain_stream_repl_render_scrollback` → **`flush_stream_scrollback_staging`** → `draw_stream_frame`。
 - **通道**：`StreamReplUiMsg`（Submit、ClearSession、CooperativeCancelTurn、Eof）到 Tokio；`StreamReplAsyncCtl`（子进程前后挂起/恢复终端）到 UI 线程；**`StreamReplRenderMsg`**（`ScrollbackChunk` / `ClearScrollback` / `DockInvalidate`）Tokio → UI。
 
 流式 token 边界在 **agent / llm** 与 `ReplLineSession.messages` 内维护，无单独暴露的「SSE task → mpsc token」模块名与教程一一对应。

@@ -5,15 +5,15 @@
 #![allow(dead_code)] // `repl_stream_transcript_bottom_padded` 等主要由本文件内单测使用。
 
 use crate::i18n::tr;
-use crate::md_tui::wrap_string_to_width;
-use crate::tui::styles::{
+use crate::md_render::wrap_string_to_width;
+use crate::term::styles::{
     style_assistant, style_assistant_prose, style_brand, style_dim, style_error, style_user,
 };
 use ratatui::style::Style;
 #[cfg(test)]
 use ratatui::text::{Line, Span, Text};
 
-/// 将 `body` 按 `wrap_width` 折成显示行列表（与 [`crate::md_tui::wrap_string_to_width`] 一致，供行预算与上滚裁剪）。
+/// 将 `body` 按 `wrap_width` 折成显示行列表（与 [`crate::md_render::wrap_string_to_width`] 一致，供行预算与上滚裁剪）。
 fn transcript_wrapped_rows(body: &str, wrap_width: usize) -> Vec<String> {
     let w = wrap_width.max(8);
     let mut out = Vec::new();
@@ -250,7 +250,7 @@ pub(crate) fn repl_stream_transcript_bottom_padded(
 
 /// 流式 Inline 主区按行上色：错误醒目、用户行高亮、说明性表格变淡（对齐 Claude Code 式层次，避免整页灰字）。
 ///
-/// 预折行与 `md_tui::wrap_string_to_width` 一致；渲染时用 `Paragraph::wrap(Wrap { trim: false })`（ratatui `WordWrapper`），
+/// 预折行与 `md_render::wrap_string_to_width` 一致；渲染时用 `Paragraph::wrap(Wrap { trim: false })`（ratatui `WordWrapper`），
 /// 避免无 wrap 时 `LineTruncator` 把超长行甩到下一列与底栏 `─` 叠成「满屏横线」。
 #[cfg(test)]
 pub(crate) fn stream_transcript_plain_to_styled_text(body: &str) -> Text<'static> {
@@ -467,7 +467,7 @@ mod stream_transcript_tests {
         );
 
         let (reply_tx, _rx) = tokio::sync::oneshot::channel();
-        st.pending_approval = Some(crate::tui::approval::PendingApproval {
+        st.pending_approval = Some(crate::term::approval::PendingApproval {
             tool: "bash".into(),
             input_preview: "{}".into(),
             reply: reply_tx,
@@ -589,7 +589,7 @@ mod stream_repl_keyboard_tests {
     use crate::repl::stream_events::{
         apply_stream_approval_key, apply_stream_user_question_key, handle_event,
     };
-    use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion};
+    use crate::term::{ApprovalDecision, PendingApproval, PendingUserQuestion};
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use ratatui::layout::Rect;
 
@@ -679,7 +679,7 @@ mod stream_repl_keyboard_tests {
     }
 
     #[test]
-    fn slash_tab_applies_top_candidate() {
+    fn slash_tab_does_not_complete_in_stream_repl() {
         let mut st = ReplLineState::default();
         st.input.set_from_str("/he");
         handle_event(
@@ -687,26 +687,21 @@ mod stream_repl_keyboard_tests {
             &mut st,
         )
         .unwrap();
-        assert!(
-            st.input.as_string().starts_with("/help"),
-            "got {:?}",
-            st.input.as_string()
-        );
-        assert!(st.slash_suppress);
+        assert_eq!(st.input.as_string(), "/he");
+        assert!(!st.slash_suppress);
     }
 
     #[test]
-    fn slash_down_changes_pick_without_submitting() {
+    fn slash_down_with_empty_history_keeps_input() {
         let mut st = ReplLineState::default();
         st.input.set_from_str("/");
-        let before = st.slash_pick;
         handle_event(
             Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
             &mut st,
         )
         .unwrap();
-        assert_ne!(st.slash_pick, before);
-        assert!(!st.input.as_string().is_empty());
+        assert_eq!(st.slash_pick, 0);
+        assert_eq!(st.input.as_string(), "/");
     }
 
     #[test]
@@ -890,7 +885,7 @@ mod stream_repl_keyboard_tests {
     }
 
     #[test]
-    fn esc_suppresses_slash_menu_on_first_line() {
+    fn esc_does_not_toggle_slash_suppress_in_stream_repl() {
         let mut st = ReplLineState::default();
         st.input.set_from_str("/he");
         handle_event(
@@ -898,7 +893,7 @@ mod stream_repl_keyboard_tests {
             &mut st,
         )
         .unwrap();
-        assert!(st.slash_suppress);
+        assert!(!st.slash_suppress);
     }
 
     #[test]
@@ -915,22 +910,11 @@ mod stream_repl_keyboard_tests {
     }
 
     #[test]
-    fn slash_up_wraps_pick() {
+    fn slash_arrow_keys_use_history_not_pick_in_stream_repl() {
         let mut st = ReplLineState::default();
         st.input.set_from_str("/");
-        let len = crate::slash_commands::slash_suggestions_for_first_line("/").len();
-        assert!(
-            len >= 2,
-            "expected at least 2 '/' slash candidates, got {len}"
-        );
         handle_event(
             Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
-            &mut st,
-        )
-        .unwrap();
-        assert_eq!(st.slash_pick, 1);
-        handle_event(
-            Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
             &mut st,
         )
         .unwrap();
@@ -940,25 +924,20 @@ mod stream_repl_keyboard_tests {
             &mut st,
         )
         .unwrap();
-        assert_eq!(st.slash_pick, len - 1);
+        assert_eq!(st.slash_pick, 0);
     }
 
     #[test]
-    fn slash_backtab_moves_pick_backward() {
+    fn slash_backtab_is_no_op_in_stream_repl() {
         let mut st = ReplLineState::default();
         st.input.set_from_str("/");
-        handle_event(
-            Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
-            &mut st,
-        )
-        .unwrap();
-        let j = st.slash_pick;
+        st.slash_pick = 2;
         handle_event(
             Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT)),
             &mut st,
         )
         .unwrap();
-        assert_ne!(st.slash_pick, j);
+        assert_eq!(st.slash_pick, 2);
     }
 
     #[test]
@@ -974,7 +953,7 @@ mod stream_repl_keyboard_tests {
     }
 
     #[test]
-    fn enter_applies_slash_pick_like_tab() {
+    fn enter_submits_partial_slash_literal() {
         let mut st = ReplLineState::default();
         st.input.set_from_str("/he");
         let ctl = handle_event(
@@ -985,7 +964,7 @@ mod stream_repl_keyboard_tests {
         let ReplCtl::Submit(s) = ctl else {
             panic!("expected Submit after /he + Enter");
         };
-        assert!(s.starts_with("/help"), "got {s:?}");
+        assert_eq!(s, "/he");
     }
 
     #[test]

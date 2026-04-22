@@ -9,6 +9,7 @@
 
 - 助手**最终回复**经 `split_message(..., CHUNK_MAX)`（默认 2048 字符）分片，经 iLink **`send_text`** 顺序发送。
 - **工具进度**：通过 `TaskContext::channel_progress_tx` 发送短行（如 `🔧 tool`、`✓ tool`），独立任务 `recv` 后逐行 `send_text`；不包含大段 tool 输出，以减轻通道压力。
+- **可选后续（未实现）**：若 iLink / 侧观察到限流或乱序，可对进度行做 **最小节流**（例如相邻 `send_text` 间隔下限，或合并同一工具的重复「进行中」行）；需实机压测后再定常量或配置，避免与 ADR000 分叉第二条编排路径。**与 `execute_turn_from_messages` 全量流式对齐**仍属大项：须维持单 `AgentRuntime` 入口，仅扩展桥侧状态机，见上文「编排路径」。
 
 ## 推理与展示策略
 

@@ -1,9 +1,13 @@
 cli-short = anyCode - terminal AI agent for developers (Rust)
-cli-long = anyCode is a Rust CLI for local tool-using agents: TUI, REPL, and automation. Default (`anycode` with no subcommand): fullscreen TUI on an interactive TTY (same as `anycode tui`); non-TTY falls back to line-at-a-time stdio REPL. Line REPL with Inline dock: `anycode repl`. Isolated alternate-screen canvas: ANYCODE_TUI_ALT_SCREEN=1 or config tui alternateScreen true.
+cli-long = anyCode is a Rust CLI for local tool-using agents. Default (`anycode` with no subcommand): stream terminal UI on an interactive TTY; non-TTY uses line-at-a-time stdio. Tune with global --agent, -C/--directory, --model, --resume. Alternate screen: config terminal.alternateScreen or ANYCODE_TERM_REPL_*, ANYCODE_TERM_ALT_SCREEN (see docs).
 flag-debug = Enable debug logging
 flag-config = Path to config JSON
 flag-ignore-approval = Skip tool y/n approval for this process (temporary; deny rules still apply). Env ANYCODE_IGNORE_APPROVAL=1 is equivalent.
-flag-model = Override default model for this process (default entry / `tui` / `repl`; long option --model only)
+flag-agent = Agent id (default: from config runtime mode)
+flag-directory = Working directory for the default interactive session
+flag-model = Override default model for this process (long option --model only)
+flag-resume = Resume saved session UUID (~/.anycode/sessions/)
+flag-repl-debug-events = Log crossterm keyboard/paste events to stderr (redacted)
 cmd-scheduler-about = Built-in scheduler: run CronCreate jobs from ~/.anycode/tasks/orchestration.json
 cmd-scheduler-directory = Working directory for each triggered agent task
 cmd-scheduler-reload-secs = Re-read orchestration.json and cap sleep between ticks (seconds)
@@ -11,11 +15,6 @@ cmd-run-about = Run a single task
 cmd-run-agent = Agent type
 cmd-run-prompt = Task description
 cmd-run-directory = Working directory
-cmd-repl-about = Line REPL (Inline transcript + dock on TTY). Default bare `anycode` on TTY: fullscreen TUI (`anycode tui`).
-cmd-repl-doc = Line REPL (Inline transcript + dock on TTY). Default bare `anycode` on TTY: fullscreen TUI (`anycode tui`).
-cmd-repl-agent = Agent id
-cmd-repl-directory = Working directory
-cmd-repl-model = Model override for this REPL session
 cmd-list-agents-about = List available agents
 cmd-list-tools-about = List available tools
 cmd-daemon-about = HTTP daemon (long-running)

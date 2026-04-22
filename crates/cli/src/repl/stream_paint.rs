@@ -30,6 +30,37 @@ fn clear_buffer_area(buf: &mut Buffer, area: Rect) {
     }
 }
 
+/// 与 [`draw_stream_frame`] 相同的竖切 + 主区正文宽（scrollbar 列），保证 `ReplLineState` 与 ratatui 视口一致。
+fn stream_frame_layout(st: &ReplLineState, area: Rect) -> (Rect, Rect, u16, bool) {
+    let dock_h = repl_dock_height(area, st, ReplDockLayout);
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(dock_h.min(area.height.saturating_sub(1)).max(1)),
+        ])
+        .split(area);
+    let top_cell = chunks[0];
+    let dock_screen = chunks[1];
+    let full_w = top_cell.width.max(1);
+    let (body_w, show_rail) = if full_w >= 2 {
+        (full_w.saturating_sub(1), true)
+    } else {
+        (full_w, false)
+    };
+    (top_cell, dock_screen, body_w, show_rail)
+}
+
+/// 首帧 `paint` 之前、`tick_executing_stream_transcript` 已可能运行：用终端当前 `size()` 回写宽高，避免沿用默认 80×0。
+pub(crate) fn sync_stream_repl_viewport_from_area(state: &Arc<Mutex<ReplLineState>>, area: Rect) {
+    let Ok(mut st) = state.lock() else {
+        return;
+    };
+    let (top_cell, _, body_w, _) = stream_frame_layout(&st, area);
+    st.stream_transcript_viewport_h = top_cell.height.max(1);
+    st.stream_viewport_width = body_w;
+}
+
 pub(crate) fn draw_stream_frame(
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     state: &Arc<Mutex<ReplLineState>>,
@@ -41,24 +72,8 @@ pub(crate) fn draw_stream_frame(
             Err(_) => return,
         };
         clear_buffer_area(f.buffer_mut(), area);
-        let dock_h = repl_dock_height(area, &st, ReplDockLayout);
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(1),
-                Constraint::Length(dock_h.min(area.height.saturating_sub(1)).max(1)),
-            ])
-            .split(area);
-        let top_cell = chunks[0];
-        let dock_screen = chunks[1];
+        let (top_cell, dock_screen, body_w, show_rail) = stream_frame_layout(&st, area);
         st.stream_transcript_viewport_h = top_cell.height.max(1);
-
-        let full_w = top_cell.width.max(1);
-        let (body_w, show_rail) = if full_w >= 2 {
-            (full_w.saturating_sub(1), true)
-        } else {
-            (full_w, false)
-        };
         st.stream_viewport_width = body_w;
         let transcript_raw = st
             .transcript

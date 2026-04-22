@@ -1,7 +1,7 @@
 //! Workspace 折叠摘要与终端宽度下整块排版。
 
 use crate::i18n::{tr, tr_args};
-use crate::md_tui::{
+use crate::md_render::{
     render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed, wrap_ratatui_line,
     wrap_string_to_width, MarkdownChrome,
 };
@@ -19,7 +19,7 @@ use super::tool_render::{
     unwrap_single_content_json, MAX_COLLAPSED_PATH_PREVIEWS, MAX_TOOL_BLOCK_LINES,
 };
 use super::types::{CollapsibleToolBlock, TranscriptEntry, WorkspaceLiveLayout};
-use crate::tui::styles::*;
+use crate::term::styles::*;
 
 fn out_last_nonempty_plain(out: &[Line<'static>]) -> Option<String> {
     out.iter().rev().find_map(|l| {
@@ -299,13 +299,13 @@ fn build_collapsed_summary_line(
         a.set("n", search as i64);
         a.set(
             "unit",
-            col_unit_key(search, "tui-col-unit-pattern", "tui-col-unit-patterns"),
+            col_unit_key(search, "term-col-unit-pattern", "term-col-unit-patterns"),
         );
         fragments.push(tr_args(
             if active {
-                "tui-col-search-a"
+                "term-col-search-a"
             } else {
-                "tui-col-search-i"
+                "term-col-search-i"
             },
             &a,
         ));
@@ -315,13 +315,13 @@ fn build_collapsed_summary_line(
         a.set("n", read as i64);
         a.set(
             "unit",
-            col_unit_key(read, "tui-col-unit-file", "tui-col-unit-files"),
+            col_unit_key(read, "term-col-unit-file", "term-col-unit-files"),
         );
         fragments.push(tr_args(
             if active {
-                "tui-col-read-a"
+                "term-col-read-a"
             } else {
-                "tui-col-read-i"
+                "term-col-read-i"
             },
             &a,
         ));
@@ -331,13 +331,13 @@ fn build_collapsed_summary_line(
         a.set("n", list as i64);
         a.set(
             "unit",
-            col_unit_key(list, "tui-col-unit-dir", "tui-col-unit-dirs"),
+            col_unit_key(list, "term-col-unit-dir", "term-col-unit-dirs"),
         );
         fragments.push(tr_args(
             if active {
-                "tui-col-list-a"
+                "term-col-list-a"
             } else {
-                "tui-col-list-i"
+                "term-col-list-i"
             },
             &a,
         ));
@@ -347,21 +347,21 @@ fn build_collapsed_summary_line(
         a.set("n", bash as i64);
         a.set(
             "unit",
-            col_unit_key(bash, "tui-col-unit-cmd", "tui-col-unit-cmds"),
+            col_unit_key(bash, "term-col-unit-cmd", "term-col-unit-cmds"),
         );
         fragments.push(tr_args(
             if active {
-                "tui-col-bash-a"
+                "term-col-bash-a"
             } else {
-                "tui-col-bash-i"
+                "term-col-bash-i"
             },
             &a,
         ));
     }
     if fragments.is_empty() {
-        return tr("tui-col-tools");
+        return tr("term-col-tools");
     }
-    let sep = tr("tui-col-sep");
+    let sep = tr("term-col-sep");
     let mut out = String::new();
     for (i, frag) in fragments.iter().enumerate() {
         if i > 0 {
@@ -433,14 +433,14 @@ fn layout_collapsed_tool_group(
             if secs >= 2 {
                 let mut a = FluentArgs::new();
                 a.set("s", secs);
-                summary.push_str(&tr_args("tui-col-bash-active-secs", &a));
+                summary.push_str(&tr_args("term-col-bash-active-secs", &a));
             }
         }
     }
     if is_active {
         summary.push('…');
     }
-    let summary_line = format!("{} {}", summary, tr("tui-expand-hint"));
+    let summary_line = format!("{} {}", summary, tr("term-expand-hint"));
     let (bullet_style, text_style) = assistant_tool_header_styles(!is_active, is_active, live);
     let mut out =
         wrap_plain_bullet_prefixed("⏺ ", bullet_style, summary_line.as_str(), text_style, w);
@@ -456,7 +456,7 @@ fn layout_collapsed_tool_group(
             let mut a = FluentArgs::new();
             a.set("n", extra as i64);
             out.push(Line::from(Span::styled(
-                tr_args("tui-read-more-paths", &a),
+                tr_args("term-read-more-paths", &a),
                 style_dim(),
             )));
         }

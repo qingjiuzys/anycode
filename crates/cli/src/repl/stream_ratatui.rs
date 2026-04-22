@@ -1,14 +1,11 @@
-//! 流式 REPL 终端层：**同线程** crossterm `poll`/`read` + ratatui。
+//! 流式 REPL 终端层：**轴心线程** crossterm `poll`/`read` + ratatui。
 //!
-//! - **默认（主缓冲，跟随终端但非整屏）**：[`Viewport::Inline`] 高度为**当前终端可视行数 × 55%**（下限 10 行，极矮终端铺满），**不占满整屏**；行数随窗口/字体变化时重算并重建视口，即**跟随终端尺寸**。长文在区内滚动。
-//! - **可选整屏**：`ANYCODE_STREAM_REPL_ALT_SCREEN=1` 或与全屏 TUI 对齐的全局备用屏开关 → DEC 备用屏 + `Terminal::new()`（见 [`crate::tui::run::terminal_guard::stream_repl_use_alternate_screen`]）。
-//! - **长文**：Tokio 经 [`crate::repl::StreamReplRenderMsg`] 将增量送入本线程，[`drain_stream_repl_render_scrollback`] + [`crate::repl::stream_term::flush_stream_scrollback_staging`] 用 `Terminal::insert_before` 推入宿主 **scrollback**；主区同步 `transcript`。**不**捕鼠，滚轮交给终端。
+//! - **默认（备用屏全屏）**：DEC 备用屏 + `Terminal::new()`（见 [`crate::term::terminal_guard::stream_repl_use_alternate_screen`]）；**处理** `Event::Resize`，与 ratatui `draw` 内 `autoresize` 一致。
+//! - **遗留主缓冲 Inline**：`ANYCODE_TERM_REPL_INLINE_LEGACY=1` 等关闭备用屏时，[`Viewport::Inline`] 高度在**启动时**按可视行数 × 55%；**会话内忽略** `Resize`。长文可经 [`StreamReplRenderMsg`] + [`crate::repl::stream_term::flush_stream_scrollback_staging`] **`insert_before`** 进宿主 scrollback。
+//! - **不**捕鼠，滚轮交给终端（Inline 下尤甚）。
 //!
-//! Inline 高度**不**随正文变长而增大（避免反复 `Terminal::with_options` → scrollback 叠层）；仅在**终端行数变化**导致目标高度变化时重建终端（宽度变化由 `draw` 内 `autoresize` 处理）。
-//! ratatui 0.24 下 Inline 的 `resize`/`autoresize` 会用换行「顶屏」，拖拽窗口时若每帧都绘制会把视口内容反复顶入宿主 scrollback；故主缓冲下对终端尺寸做 **150ms 防抖**，爆发式 Resize 期间跳过绘制，静稳后再 `paint`（与全屏 TUI 同源 [`crate::resize_debounce`]）。
-//!
-//! 主区为应用内视口：长文用 **PgUp / PgDn** 按**当前主区高度**分页（随终端缩放），`Ctrl+Home` / `Ctrl+End` 跳到最旧/最新（见 [`crate::repl::stream_events::handle_event`]）。
-//! 退出时：备用屏仍可按 `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP` 把 transcript 打到 shell；**主缓冲**下正文已在 `insert_before` 历史中，默认**不再**整段 dump（避免与 scrollback 叠重复）；需要时显式 `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=full`。
+//! 主区为应用内视口：长文用 **PgUp / PgDn** 分页，`Ctrl+Home` / `Ctrl+End` 跳到最旧/最新（见 [`crate::repl::stream_events::handle_event`]）。
+//! 退出时：备用屏仍可按 `ANYCODE_TERM_EXIT_SCROLLBACK_DUMP` 把 transcript 打到 shell；**主缓冲 Inline** 下正文可能已在 `insert_before` 历史中，默认退出 dump 策略见 [`crate::repl::stream_term::shutdown_stream_terminal`]。
 
 use std::io::Write;
 use std::sync::mpsc::{Receiver, Sender};
@@ -18,23 +15,21 @@ use std::time::Duration;
 use crossterm::cursor::Hide;
 use crossterm::event::{self, EnableBracketedPaste, Event, KeyEventKind};
 use crossterm::execute;
-use crossterm::terminal::{enable_raw_mode, size as terminal_size, EnterAlternateScreen};
+use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen};
 
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
+use crate::repl::stream_app::StreamReplUiSession;
 use crate::repl::stream_paint::draw_stream_frame;
 use crate::repl::stream_term::{
     flush_stream_scrollback_staging, new_stream_terminal, repl_event_debug_line,
-    resume_terminal_after_subprocess, shutdown_stream_terminal, stream_repl_inline_viewport_rows,
-    suspend_terminal_for_subprocess,
+    resume_terminal_after_subprocess, shutdown_stream_terminal, suspend_terminal_for_subprocess,
 };
 use crate::repl::{
     apply_stream_approval_key, apply_stream_user_question_key, drain_stream_repl_render_scrollback,
     handle_event, stream_repl_accept_key_event, ReplCtl, ReplLineState, StreamReplRenderMsg,
 };
-use crate::resize_debounce::ResizeDebounce;
-
 /// `poll` 之后单入口：先 `draw`（内含 `autoresize`、回写 `stream_viewport_width`）→ 再 `drain`/`insert_before`，
 /// 避免 reflow 当帧仍用旧视口宽算增量却用新终端宽刷 scrollback。
 fn paint_stream_frame(
@@ -48,39 +43,6 @@ fn paint_stream_frame(
     drain_stream_repl_render_scrollback(render_rx, scrollback_staging);
     flush_stream_scrollback_staging(terminal, state, scrollback_staging, use_alternate_screen)?;
     Ok(())
-}
-
-/// 主缓冲 Inline：防抖 + 视口行数变化时重建终端，再 [`paint_stream_frame`]；备用屏无 Inline 顶屏问题，始终绘制。
-fn paint_stream_repl_maybe_skipped(
-    resize_debounce: &mut ResizeDebounce,
-    inline_viewport_rows: &mut Option<u16>,
-    use_alternate_screen: bool,
-    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
-    state: &Arc<Mutex<ReplLineState>>,
-    render_rx: &Receiver<StreamReplRenderMsg>,
-    scrollback_staging: &mut Vec<String>,
-) -> anyhow::Result<()> {
-    if !use_alternate_screen {
-        if let Ok(term_dims) = terminal_size() {
-            if resize_debounce.update(term_dims) {
-                return Ok(());
-            }
-            let target = stream_repl_inline_viewport_rows(term_dims.1);
-            if *inline_viewport_rows != Some(target) {
-                if let Ok(nt) = new_stream_terminal(false) {
-                    *terminal = nt;
-                    *inline_viewport_rows = Some(target);
-                }
-            }
-        }
-    }
-    paint_stream_frame(
-        terminal,
-        state,
-        render_rx,
-        scrollback_staging,
-        use_alternate_screen,
-    )
 }
 
 /// Tokio 侧 → UI 线程：释放终端、结束循环等。
@@ -98,15 +60,19 @@ pub(crate) enum StreamReplUiMsg {
     Eof,
 }
 
-/// 在专用线程中运行：crossterm 输入 + ratatui 绘制（与 TUI 一致栈）。
-pub(crate) fn run_stream_repl_ui_thread(
-    state: Arc<Mutex<ReplLineState>>,
-    to_async: tokio::sync::mpsc::UnboundedSender<StreamReplUiMsg>,
-    ctrl_rx: Receiver<StreamReplAsyncCtl>,
-    render_rx: Receiver<StreamReplRenderMsg>,
-    repl_debug_events: bool,
-    use_alternate_screen: bool,
-) -> anyhow::Result<()> {
+/// 在当前线程运行：crossterm 输入 + ratatui 绘制（轴心）；每帧从 Tokio 队列 drain 审批/选题与回合摘要过期。
+pub(crate) fn run_stream_repl_ui_thread(session: StreamReplUiSession) -> anyhow::Result<()> {
+    let StreamReplUiSession {
+        state,
+        to_worker: to_async,
+        ctrl_rx,
+        render_rx,
+        approval_rx,
+        question_rx,
+        repl_debug_events,
+        use_alternate_screen,
+    } = session;
+
     enable_raw_mode()?;
     let mut out = std::io::stdout();
     if use_alternate_screen {
@@ -114,20 +80,30 @@ pub(crate) fn run_stream_repl_ui_thread(
     }
     execute!(out, Hide, EnableBracketedPaste)?;
 
-    let (_, init_h) = terminal_size()?;
-    let mut inline_viewport_rows: Option<u16> = if use_alternate_screen {
-        None
-    } else {
-        Some(stream_repl_inline_viewport_rows(init_h))
-    };
-
     let mut terminal: Option<Terminal<CrosstermBackend<std::io::Stdout>>> =
         Some(new_stream_terminal(use_alternate_screen)?);
 
+    if let Some(ref t) = terminal {
+        if let Ok(area) = t.size() {
+            crate::repl::stream_paint::sync_stream_repl_viewport_from_area(&state, area);
+        }
+    }
+
     let mut exit = false;
     let mut scrollback_staging: Vec<String> = Vec::new();
-    let mut resize_debounce = ResizeDebounce::new();
     while !exit {
+        crate::tasks::stream_repl_loop::tick_finished_turn_summary_expiry(&state);
+        {
+            let mut g = approval_rx.lock().unwrap_or_else(|e| e.into_inner());
+            crate::tasks::stream_repl_loop::drain_pending_stream_approvals(g.as_mut(), &state);
+        }
+        {
+            let mut g = question_rx.lock().unwrap_or_else(|e| e.into_inner());
+            crate::tasks::stream_repl_loop::drain_pending_stream_user_questions(g.as_mut(), &state);
+        }
+
+        crate::tasks::stream_repl_loop::tick_executing_stream_transcript(&state);
+
         while let Ok(cmd) = ctrl_rx.try_recv() {
             match cmd {
                 StreamReplAsyncCtl::Shutdown => {
@@ -141,14 +117,17 @@ pub(crate) fn run_stream_repl_ui_thread(
                 StreamReplAsyncCtl::ResumeAfterSubprocess(ack) => {
                     resume_terminal_after_subprocess(&mut terminal, use_alternate_screen)?;
                     if let Some(t) = terminal.as_mut() {
-                        let _ = paint_stream_repl_maybe_skipped(
-                            &mut resize_debounce,
-                            &mut inline_viewport_rows,
-                            use_alternate_screen,
+                        if let Ok(area) = t.size() {
+                            crate::repl::stream_paint::sync_stream_repl_viewport_from_area(
+                                &state, area,
+                            );
+                        }
+                        let _ = paint_stream_frame(
                             t,
                             &state,
                             &render_rx,
                             &mut scrollback_staging,
+                            use_alternate_screen,
                         );
                     }
                     let _ = ack.send(());
@@ -174,6 +153,10 @@ pub(crate) fn run_stream_repl_ui_thread(
                 if repl_debug_events {
                     eprintln!("[repl-debug-events] {}", repl_event_debug_line(&ev));
                 }
+                // 主缓冲 Inline（遗留）：忽略 Resize，避免 Inline 顶屏叠 scrollback。备用屏全屏：交给 ratatui draw 内 autoresize。
+                if !use_alternate_screen && matches!(&ev, Event::Resize(_, _)) {
+                    continue;
+                }
                 let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
                 if s.pending_user_question.is_some() {
                     if let Event::Key(key) = &ev {
@@ -186,14 +169,12 @@ pub(crate) fn run_stream_repl_ui_thread(
                         apply_stream_user_question_key(&mut s, *key);
                     }
                     drop(s);
-                    paint_stream_repl_maybe_skipped(
-                        &mut resize_debounce,
-                        &mut inline_viewport_rows,
-                        use_alternate_screen,
+                    paint_stream_frame(
                         t,
                         &state,
                         &render_rx,
                         &mut scrollback_staging,
+                        use_alternate_screen,
                     )?;
                     continue;
                 }
@@ -208,14 +189,12 @@ pub(crate) fn run_stream_repl_ui_thread(
                         apply_stream_approval_key(&mut s, *key);
                     }
                     drop(s);
-                    paint_stream_repl_maybe_skipped(
-                        &mut resize_debounce,
-                        &mut inline_viewport_rows,
-                        use_alternate_screen,
+                    paint_stream_frame(
                         t,
                         &state,
                         &render_rx,
                         &mut scrollback_staging,
+                        use_alternate_screen,
                     )?;
                     continue;
                 }
@@ -247,14 +226,12 @@ pub(crate) fn run_stream_repl_ui_thread(
             break;
         }
 
-        paint_stream_repl_maybe_skipped(
-            &mut resize_debounce,
-            &mut inline_viewport_rows,
-            use_alternate_screen,
+        paint_stream_frame(
             t,
             &state,
             &render_rx,
             &mut scrollback_staging,
+            use_alternate_screen,
         )?;
     }
 

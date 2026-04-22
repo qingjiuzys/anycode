@@ -7,13 +7,13 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::Paragraph;
 
-use crate::md_tui::wrap_string_to_width;
+use crate::md_render::wrap_string_to_width;
 use crate::repl::inline::{
     sanitize_stream_transcript_visual_noise, scrub_stream_transcript_llm_raw_dumps,
     stream_transcript_line_style,
 };
 use crate::repl::line_state::StreamTranscriptLayoutCache;
-use crate::tui::palette;
+use crate::term::palette;
 
 const SCROLL_EASE: f32 = 0.3;
 const OVERSCROLL_CLAMP_EASE: f32 = 0.2;
@@ -98,7 +98,7 @@ pub(crate) fn compute_stream_scroll(
     let vh = viewport_h.max(1);
     let max_scroll = total_rows.saturating_sub(vh);
     let rm = reduced_motion_effective();
-    let smooth = std::env::var("ANYCODE_STREAM_SMOOTH_SCROLL")
+    let smooth = std::env::var("ANYCODE_TERM_SMOOTH_SCROLL")
         .map(|v| {
             let v = v.trim().to_ascii_lowercase();
             v != "0" && v != "false" && v != "off"

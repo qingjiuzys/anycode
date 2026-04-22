@@ -50,17 +50,17 @@ anycode-memory         ← 记忆后端
 
 ## CLI：流式 REPL（Inline）与全屏 TUI 的会话一致性
 
-两者都通过 **`AgentRuntime::execute_turn_from_messages`** 跑多轮工具循环，并共用 **`~/.anycode/tui-sessions/`** 下的 JSON 快照（`ReplLineSession` 与 TUI 同一持久化格式）。
+两者都通过 **`AgentRuntime::execute_turn_from_messages`** 跑多轮工具循环，并共用 **`~/.anycode/sessions/`** 下的 JSON 快照（`ReplLineSession` 与 TUI 同一持久化格式）。
 
 | 能力 | 流式 REPL（默认 TTY） | 全屏 TUI |
 |------|----------------------|----------|
 | 会话 id / 恢复 | `ReplLineSession::session_file_id`；`anycode repl --resume <uuid>` 与 TUI `--resume` 读同一目录 | `session_uuid`；退出提示与 `--resume` 一致 |
 | `/session` | `list` / 无参 cwd 优先 / 显式 uuid → `load_repl_session_choice` + `apply_snapshot` | 同上逻辑，经 `TuiLoopCtl::ResumeSession` 在主循环里应用快照 |
 | `/clear` | `repl_clear_session` → `rebuild_for_agent`，并清空流式 UI 状态（滚动、HUD 摘要、**last_turn_token_usage**、**stream_exit_dump_anchor**） | `reset_transcript_state` + 重建 messages；**last_max_input_tokens** / **last_turn_usage** 归零 |
-| 持久化 | 回合结束 `spawn_persist_tui_session` | 同上 |
+| 持久化 | 回合结束 `spawn_persist_session` | 同上 |
 | Token 用量展示 | 回合结束 HUD 与 **`/context`** 使用 `TurnTokenUsage`（与 agent 返回的 **`TurnOutput.usage`** 对齐） | 脚标 **`last_output_tokens`** + **`/context`** 使用同一套聚合字段 |
 
-退出 Inline 视口时，默认把 **完整** transcript 再打一份到 shell；**`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=0`** 关闭；**`=anchor`** 仅打印自上一轮自然语言轮起的内容（与异步侧 `turn_transcript_anchor` 同步到 **`ReplLineState::stream_exit_dump_anchor`**）。
+退出 Inline 视口时，默认把 **完整** transcript 再打一份到 shell；**`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=0`** 关闭；**`=anchor`** 仅打印自上一轮自然语言轮起的内容（与异步侧 `turn_transcript_anchor` 同步到 **`ReplLineState::stream_exit_dump_anchor`**）。
 
 ## 会话外向通知（`config.json` 的 `notifications`）
 

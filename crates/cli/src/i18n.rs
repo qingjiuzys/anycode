@@ -56,24 +56,24 @@ fn build_bundle() -> FluentBundle<FluentResource> {
         AppLocale::ZhHans => "zh".parse().expect("langid zh"),
         AppLocale::En => "en".parse().expect("langid en"),
     };
-    let (cli, repl, wizard, tui, wx) = match loc {
+    let (cli, repl, wizard, term, wx) = match loc {
         AppLocale::ZhHans => (
             include_str!("../locales/zh/cli.ftl"),
             include_str!("../locales/zh/repl.ftl"),
             include_str!("../locales/zh/wizard.ftl"),
-            include_str!("../locales/zh/tui.ftl"),
+            include_str!("../locales/zh/term.ftl"),
             include_str!("../locales/zh/wx.ftl"),
         ),
         AppLocale::En => (
             include_str!("../locales/en/cli.ftl"),
             include_str!("../locales/en/repl.ftl"),
             include_str!("../locales/en/wizard.ftl"),
-            include_str!("../locales/en/tui.ftl"),
+            include_str!("../locales/en/term.ftl"),
             include_str!("../locales/en/wx.ftl"),
         ),
     };
     let mut bundle = FluentBundle::new(vec![lang]);
-    for src in [cli, repl, wizard, tui, wx] {
+    for src in [cli, repl, wizard, term, wx] {
         let res = FluentResource::try_new(src.to_string()).expect("FTL parse");
         bundle.add_resource(res).expect("FTL add_resource");
     }
@@ -174,7 +174,7 @@ pub fn tr_args(id: &str, args: &FluentArgs<'_>) -> String {
 fn is_common_translation_id(id: &str) -> bool {
     // 常见的 UI 文本，值得缓存
     const COMMON_PREFIXES: &[&str] = &[
-        "tui-", "cli-", "repl-", "status-", "error-", "warn-", "confirm-", "cancel-",
+        "term-", "cli-", "repl-", "status-", "error-", "warn-", "confirm-", "cancel-",
     ];
 
     // 长度适中的翻译 ID 更可能是常用翻译
@@ -211,16 +211,6 @@ fn localize_run(s: &mut clap::Command) {
         .mut_arg("agent", |a| a.help(tr("cmd-run-agent")))
         .mut_arg("prompt", |a| a.help(tr("cmd-run-prompt")))
         .mut_arg("directory", |a| a.help(tr("cmd-run-directory")));
-    *s = n;
-}
-
-fn localize_repl(s: &mut clap::Command) {
-    let n = s
-        .clone()
-        .about(tr("cmd-repl-about"))
-        .mut_arg("agent", |a| a.help(tr("cmd-repl-agent")))
-        .mut_arg("directory", |a| a.help(tr("cmd-repl-directory")))
-        .mut_arg("model", |a| a.help(tr("cmd-repl-model")));
     *s = n;
 }
 
@@ -293,7 +283,13 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
         .mut_arg("debug", |a| a.help(tr("flag-debug")))
         .mut_arg("config", |a| a.help(tr("flag-config")))
         .mut_arg("ignore_approval", |a| a.help(tr("flag-ignore-approval")))
-        .mut_arg("model", |a| a.help(tr("flag-model")));
+        .mut_arg("agent", |a| a.help(tr("flag-agent")))
+        .mut_arg("directory", |a| a.help(tr("flag-directory")))
+        .mut_arg("model", |a| a.help(tr("flag-model")))
+        .mut_arg("resume", |a| a.help(tr("flag-resume")))
+        .mut_arg("repl_debug_events", |a| {
+            a.help(tr("flag-repl-debug-events"))
+        });
     *cmd = root;
 
     for sub in cmd.get_subcommands_mut() {
@@ -307,7 +303,6 @@ pub fn localize_cli_command(cmd: &mut clap::Command) {
                 *sub = n;
             }
             "run" => localize_run(sub),
-            "repl" => localize_repl(sub),
             "config" => *sub = sub.clone().about(tr("cmd-config-about")),
             "setup" => {
                 let n = sub

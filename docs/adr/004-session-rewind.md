@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-Users may want to **rewind** or **undo** visible conversation state relative to persisted **`tui-sessions`** JSON. Today, load/resume and `/clear` semantics are documented in [`docs/architecture.md`](../architecture.md) and [`docs/roadmap.md`](../roadmap.md), but there is no agreed product behavior for:
+Users may want to **rewind** or **undo** visible conversation state relative to persisted **`sessions`** JSON. Today, load/resume and `/clear` semantics are documented in [`docs/architecture.md`](../architecture.md) and [`docs/roadmap.md`](../roadmap.md), but there is no agreed product behavior for:
 
 - Rewinding **transcript** vs **agent `messages`** vs **on-disk snapshot** together or independently.
 - Whether rewind is **UI-only** (scroll/viewport) or **mutates** the session file and the next model turn.

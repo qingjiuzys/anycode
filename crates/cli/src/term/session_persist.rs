@@ -1,6 +1,7 @@
-//! TUI 全屏会话持久化（`~/.anycode/tui-sessions/<uuid>.json`），供 `--resume` 恢复。
+//! 会话持久化（`~/.anycode/sessions/<uuid>.json`），供 `--resume` 恢复。
 //!
-//! `~/.anycode/tui-sessions/.last-session.json` 记录全局最近一次成功落盘的会话 id，供无参 `/session` 回退。
+//! `~/.anycode/sessions/.last-session.json` 记录全局最近一次成功落盘的会话 id，供无参 `/session` 回退。
+//! 自旧版 `tui-sessions` 目录启动时，会在首次访问时 **整目录重命名** 到 `sessions`（同卷；失败时尽力递归复制，见 `migrate_legacy_sessions_dir`）。
 
 use anycode_core::Message;
 use anyhow::Context;
@@ -8,14 +9,68 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Once;
 use std::time::SystemTime;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 const LAST_SESSION_FILE: &str = ".last-session.json";
+const NEW_DIR: &str = "sessions";
+const LEGACY_DIR: &str = "term-sessions";
+static MIGRATE_ONCE: Once = Once::new();
+
+fn anycode_home() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".anycode")
+}
+
+/// `~/.anycode` 下：从 `tui-sessions` 整目录迁到 `sessions`（`sessions` 尚不存在时）。失败仅打 log。
+fn try_migrate_legacy_at(anycode_root: &Path) {
+    let newp = anycode_root.join(NEW_DIR);
+    if newp.exists() {
+        return;
+    }
+    let old = anycode_root.join(LEGACY_DIR);
+    if !old.is_dir() {
+        return;
+    }
+    if fs::rename(&old, &newp).is_ok() {
+        tracing::info!(target: "anycode_cli", "migrated session storage from {LEGACY_DIR}/ to {NEW_DIR}/");
+        return;
+    }
+    if let Err(e) = copy_dir_all(&old, &newp) {
+        tracing::warn!(target: "anycode_cli", "session dir migrate: rename+copy failed: {e:#}; keeping legacy {LEGACY_DIR}");
+        return;
+    }
+    if let Err(e) = fs::remove_dir_all(&old) {
+        tracing::warn!(target: "anycode_cli", "session dir migrate: copied to {NEW_DIR} but could not remove {LEGACY_DIR}: {e:#}");
+    } else {
+        tracing::info!(target: "anycode_cli", "migrated session storage from {LEGACY_DIR}/ to {NEW_DIR}/ (copy+remove)");
+    }
+}
+
+fn migrate_legacy_sessions_dir() {
+    MIGRATE_ONCE.call_once(|| try_migrate_legacy_at(&anycode_home()));
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for ent in fs::read_dir(src)? {
+        let ent = ent?;
+        let s = ent.path();
+        let d = dst.join(ent.file_name());
+        if ent.file_type()?.is_dir() {
+            copy_dir_all(&s, &d)?;
+        } else {
+            fs::copy(&s, &d)?;
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct TuiSessionSnapshot {
+pub(crate) struct SessionSnapshot {
     pub version: u32,
     pub id: Uuid,
     pub workspace_root: String,
@@ -24,11 +79,10 @@ pub(crate) struct TuiSessionSnapshot {
     pub messages: Vec<Message>,
 }
 
+/// 默认 `~/.anycode/sessions`（在首次需要时可能从 `tui-sessions` 迁移）。
 pub(crate) fn sessions_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".anycode")
-        .join("tui-sessions")
+    migrate_legacy_sessions_dir();
+    anycode_home().join(NEW_DIR)
 }
 
 fn last_session_pointer_path() -> PathBuf {
@@ -72,7 +126,7 @@ fn read_last_session_pointer_in(sessions_root: &Path) -> anyhow::Result<Option<U
     Ok(Some(ptr.id))
 }
 
-/// 与 TUI resume 一致：路径在磁盘上则 canonical 后比较，否则规范化尾部 `/` 再比字符串。
+/// 与 resume 一致：路径在磁盘上则 canonical 后比较，否则规范化尾部 `/` 再比字符串。
 pub(crate) fn workspace_paths_equal_for_session(a: &str, b: &str) -> bool {
     let pa = Path::new(a);
     let pb = Path::new(b);
@@ -120,7 +174,7 @@ fn parse_snapshot_header(path: &Path) -> Option<(Uuid, String, String, String)> 
     Some((id, workspace_root, agent, model))
 }
 
-/// 枚举 `tui-sessions` 下会话快照（排除 `.last-session.json`），带 mtime。
+/// 枚举 `sessions` 下会话快照（排除 `.last-session.json`），带 mtime。
 pub(crate) fn list_session_index_entries(
     sessions_root: &Path,
 ) -> anyhow::Result<Vec<SessionIndexEntry>> {
@@ -194,12 +248,12 @@ pub(crate) fn session_file_path(id: Uuid) -> PathBuf {
     sessions_dir().join(format!("{id}.json"))
 }
 
-pub(crate) fn save_tui_session(snap: &TuiSessionSnapshot) -> anyhow::Result<()> {
+pub(crate) fn save_session(snap: &SessionSnapshot) -> anyhow::Result<()> {
     let dir = sessions_dir();
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let path = session_file_path(snap.id);
     let tmp = path.with_extension("json.tmp");
-    let j = serde_json::to_string_pretty(snap).context("serialize tui session")?;
+    let j = serde_json::to_string_pretty(snap).context("serialize session snapshot")?;
     std::fs::write(&tmp, j).with_context(|| format!("write {}", tmp.display()))?;
     std::fs::rename(&tmp, &path).with_context(|| format!("rename to {}", path.display()))?;
     if let Err(e) = write_last_session_pointer(snap.id) {
@@ -208,19 +262,19 @@ pub(crate) fn save_tui_session(snap: &TuiSessionSnapshot) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub(crate) fn load_tui_session(id: Uuid) -> anyhow::Result<Option<TuiSessionSnapshot>> {
+pub(crate) fn load_session(id: Uuid) -> anyhow::Result<Option<SessionSnapshot>> {
     let p = session_file_path(id);
     if !p.is_file() {
         return Ok(None);
     }
     let s = std::fs::read_to_string(&p).with_context(|| format!("read {}", p.display()))?;
-    let snap: TuiSessionSnapshot =
+    let snap: SessionSnapshot =
         serde_json::from_str(&s).with_context(|| format!("parse {}", p.display()))?;
     Ok(Some(snap))
 }
 
 /// 后台写入会话（turn 完成时节流调用；失败仅打 log）。
-pub(crate) fn spawn_persist_tui_session(
+pub(crate) fn spawn_persist_session(
     id: Uuid,
     workspace_root: String,
     agent: String,
@@ -229,7 +283,7 @@ pub(crate) fn spawn_persist_tui_session(
 ) {
     tokio::spawn(async move {
         let vec = messages.lock().await.clone();
-        let snap = TuiSessionSnapshot {
+        let snap = SessionSnapshot {
             version: 1,
             id,
             workspace_root,
@@ -237,8 +291,8 @@ pub(crate) fn spawn_persist_tui_session(
             model,
             messages: vec,
         };
-        if let Err(e) = save_tui_session(&snap) {
-            tracing::warn!(target: "anycode_cli", "tui session persist: {e:#}");
+        if let Err(e) = save_session(&snap) {
+            tracing::warn!(target: "anycode_cli", "session persist: {e:#}");
         }
     });
 }
@@ -260,7 +314,7 @@ mod tests {
     #[test]
     fn resolve_prefers_matching_cwd_newest_mtime() {
         let dir = tempfile::tempdir().unwrap();
-        let sd = dir.path().join("tui-sessions");
+        let sd = dir.path().join("sessions");
         fs::create_dir_all(&sd).unwrap();
         let ws = "/tmp/anycode-resolve-ws-test";
         let id_old = Uuid::new_v4();
@@ -283,7 +337,7 @@ mod tests {
     #[test]
     fn resolve_falls_back_to_last_pointer_when_no_cwd_match() {
         let dir = tempfile::tempdir().unwrap();
-        let sd = dir.path().join("tui-sessions");
+        let sd = dir.path().join("sessions");
         fs::create_dir_all(&sd).unwrap();
         let id_a = Uuid::new_v4();
         fs::write(
@@ -307,5 +361,25 @@ mod tests {
     #[test]
     fn workspace_paths_equal_trims_slash() {
         assert!(workspace_paths_equal_for_session("/foo/bar", "/foo/bar/"));
+    }
+
+    #[test]
+    fn migrates_tui_sessions_rename_to_sessions() {
+        let temp = tempfile::tempdir().unwrap();
+        let anycode = temp.path().join(".anycode");
+        let old = anycode.join(LEGACY_DIR);
+        fs::create_dir_all(&old).unwrap();
+        let id = Uuid::new_v4();
+        fs::write(
+            old.join(format!("{id}.json")),
+            minimal_snapshot_json(id, "/w"),
+        )
+        .unwrap();
+
+        try_migrate_legacy_at(&anycode);
+        let newp = anycode.join(NEW_DIR);
+        assert!(newp.is_dir());
+        assert!(!old.exists());
+        assert!(newp.join(format!("{id}.json")).is_file());
     }
 }

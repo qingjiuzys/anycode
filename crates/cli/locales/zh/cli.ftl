@@ -1,9 +1,13 @@
 cli-short = anyCode - 面向开发者的终端 AI 助手（Rust）
-cli-long = anyCode 是 Rust 编写的本地工具型 Agent：终端 TUI、REPL 与自动化。默认（无子命令 `anycode`）：**交互式 TTY 上为全屏 TUI**（与 **`anycode tui`** 相同）；**非 TTY**（管道等）回退为 **stdio 逐行行式 REPL**。带底栏的 Inline 流式：**`anycode repl`**（TTY）。独立备用屏画布：**ANYCODE_TUI_ALT_SCREEN=1** 或 config **tui.alternateScreen: true**。
+cli-long = anyCode 是 Rust 编写的本地工具型 Agent。默认（无子命令 `anycode`）：**交互式 TTY 上为流式终端**（主区 + 底栏）；**非 TTY** 为 **stdio 逐行**。可用全局 **`--agent`、`-C`/`--directory`、`--model`、`--resume`** 调整。备用屏等行为见配置 **terminal.alternateScreen** 与环境变量 **ANYCODE_TERM_REPL_***、**ANYCODE_TERM_ALT_SCREEN**（详见文档）。
 flag-debug = 启用调试日志
 flag-config = 配置文件（JSON）路径
 flag-ignore-approval = 本进程跳过工具 y/n 审批（临时；deny 等策略仍生效）。环境变量 ANYCODE_IGNORE_APPROVAL=1 等价。
-flag-model = 默认入口 / `tui` / `repl` 时覆盖默认模型；仅支持长选项 `--model`（避免与子命令短选项冲突）
+flag-agent = Agent 标识（默认取配置中 runtime 模式对应 agent）
+flag-directory = 默认交互会话的工作目录
+flag-model = 本进程覆盖默认模型；仅支持长选项 `--model`
+flag-resume = 恢复已保存会话 UUID（~/.anycode/sessions/）
+flag-repl-debug-events = 将 crossterm 键盘/粘贴事件记到 stderr（已脱敏）
 cmd-scheduler-about = 内置调度器：执行 ~/.anycode/tasks/orchestration.json 中 CronCreate 注册的任务
 cmd-scheduler-directory = 每次触发 agent 任务时的工作目录
 cmd-scheduler-reload-secs = 重新读取 orchestration.json，并限制两次唤醒之间的休眠上限（秒）
@@ -11,11 +15,6 @@ cmd-run-about = 执行单次任务
 cmd-run-agent = Agent 类型
 cmd-run-prompt = 任务描述
 cmd-run-directory = 工作目录
-cmd-repl-about = 行式 REPL（TTY 上 Inline 正文 + 底栏）。无子命令 `anycode` 在 TTY 上默认全屏 TUI（`anycode tui`）。
-cmd-repl-doc = 行式 REPL（TTY 上 Inline 正文 + 底栏）。无子命令 `anycode` 在 TTY 上默认全屏 TUI（`anycode tui`）。
-cmd-repl-agent = Agent 标识
-cmd-repl-directory = 工作目录
-cmd-repl-model = 本会话覆盖模型
 cmd-list-agents-about = 列出可用 Agents
 cmd-list-tools-about = 列出可用工具
 cmd-daemon-about = HTTP 守护进程（长时间运行）

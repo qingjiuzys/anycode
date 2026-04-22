@@ -97,13 +97,13 @@ fn dialoguer_pick(
     }
 }
 
-/// Sends [`crate::tui::PendingUserQuestion`] to the UI loop (stream REPL or fullscreen TUI).
+/// Sends [`crate::term::PendingUserQuestion`] to the UI loop (stream REPL or fullscreen TUI).
 pub(crate) struct ChannelAskUserQuestionHost {
-    tx: tokio::sync::mpsc::Sender<crate::tui::PendingUserQuestion>,
+    tx: tokio::sync::mpsc::Sender<crate::term::PendingUserQuestion>,
 }
 
 impl ChannelAskUserQuestionHost {
-    pub(crate) fn new(tx: tokio::sync::mpsc::Sender<crate::tui::PendingUserQuestion>) -> Self {
+    pub(crate) fn new(tx: tokio::sync::mpsc::Sender<crate::term::PendingUserQuestion>) -> Self {
         Self { tx }
     }
 
@@ -131,7 +131,7 @@ impl AskUserQuestionHost for ChannelAskUserQuestionHost {
             .iter()
             .map(|o| o.description.clone())
             .collect();
-        let pending = crate::tui::PendingUserQuestion {
+        let pending = crate::term::PendingUserQuestion {
             header: request.header,
             question: request.question,
             option_labels,
@@ -142,7 +142,7 @@ impl AskUserQuestionHost for ChannelAskUserQuestionHost {
         self.tx
             .send(pending)
             .await
-            .map_err(|_| AskUserQuestionHostError(crate::i18n::tr("ask-user-tui-exited")))?;
+            .map_err(|_| AskUserQuestionHostError(crate::i18n::tr("ask-user-ui-exited")))?;
         match reply_rx.await {
             Ok(Ok(labels)) => {
                 if labels.is_empty() {
@@ -159,7 +159,7 @@ impl AskUserQuestionHost for ChannelAskUserQuestionHost {
                 "ask-user-cancelled",
             ))),
             Err(_) => Err(AskUserQuestionHostError(crate::i18n::tr(
-                "ask-user-tui-exited",
+                "ask-user-ui-exited",
             ))),
         }
     }

@@ -11,19 +11,18 @@ mod commands;
 mod copilot_auth;
 mod discord_channel;
 mod i18n;
-mod md_tui;
+mod md_render;
 #[cfg(feature = "embedding-local")]
 mod memory_embedding_setup;
 mod repl;
 mod repl_banner;
 mod repl_clipboard;
-mod resize_debounce;
 mod scheduler;
 mod session_transcript_export;
 mod slash_commands;
 mod tasks;
+mod term;
 mod tg;
-mod tui;
 mod wechat;
 mod wechat_ilink;
 mod wechat_service;
@@ -85,18 +84,14 @@ fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
 async fn main() -> anyhow::Result<()> {
     let args = cli_args::parse_args();
 
-    // Interactive surfaces (fullscreen TUI / repl) should keep terminal clean by
-    // default; INFO logs easily pollute the prompt/input area.
+    // Default interactive terminal / channel bots: keep stdout clean; INFO logs pollute the UI.
     let interactive_quiet = matches!(
         args.command,
-        None | Some(Commands::Repl { .. })
-            | Some(Commands::Tui { .. })
-            | Some(Commands::Channel {
-                sub: ChannelCommands::Telegram { .. },
-            })
-            | Some(Commands::Channel {
-                sub: ChannelCommands::Discord { .. },
-            })
+        None | Some(Commands::Channel {
+            sub: ChannelCommands::Telegram { .. },
+        }) | Some(Commands::Channel {
+            sub: ChannelCommands::Discord { .. },
+        })
     );
 
     // Logs on stderr; stdout for ratatui / REPL banner and task output.
@@ -269,37 +264,6 @@ async fn main() -> anyhow::Result<()> {
             workspace::touch_project_dir(working_dir.clone());
             tasks::run_task(config, agent, mode, workflow, goal, prompt, working_dir).await?;
         }
-        Some(Commands::Repl {
-            agent,
-            directory,
-            model,
-        }) => {
-            let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            let touch_dir = resolve_working_dir(directory.clone());
-            workspace::touch_project_dir(touch_dir);
-            tasks::run_interactive(
-                config,
-                agent,
-                directory,
-                model,
-                ignore_approval,
-                args.debug,
-                args.repl_debug_events,
-                args.resume,
-                false,
-            )
-            .await?;
-        }
-        Some(Commands::Tui {
-            agent,
-            directory,
-            model,
-        }) => {
-            let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
-            let touch_dir = resolve_working_dir(directory.clone());
-            workspace::touch_project_dir(touch_dir);
-            tui::run_tui(config, agent, directory, model, args.debug, args.resume).await?;
-        }
         Some(Commands::Skills { sub }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
             tasks::run_skills_command(&config, sub)?;
@@ -367,23 +331,28 @@ async fn main() -> anyhow::Result<()> {
                 .default_agent()
                 .as_str()
                 .to_string();
+            let agent = args.agent.unwrap_or(default_agent);
+            let directory = args.directory.clone();
 
-            // 全屏 TUI 需要交互式终端；管道/无 TTY 时回退为行式 REPL（stdio），避免脚本与 CI 损坏。
+            // TTY：流式终端；非 TTY：stdio 逐行（脚本 / CI）。
             if std::io::stdin().is_terminal() {
-                tui::run_tui(
+                tasks::run_interactive(
                     config,
-                    default_agent,
-                    None,
+                    agent,
+                    directory,
                     args.model.clone(),
+                    ignore_approval,
                     args.debug,
+                    args.repl_debug_events,
                     args.resume,
+                    false,
                 )
                 .await?;
             } else {
                 tasks::run_interactive(
                     config,
-                    default_agent,
-                    None,
+                    agent,
+                    directory,
                     args.model.clone(),
                     ignore_approval,
                     args.debug,

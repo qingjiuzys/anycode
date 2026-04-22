@@ -25,4 +25,4 @@ _Depends on decision; may affect [`ReplLineState`](../../crates/cli/src/repl_inl
 
 - [`docs/architecture.md`](../architecture.md) — `/clear` row  
 - [`docs/roadmap.md`](../roadmap.md) §6  
-- `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP` in [`docs-site/guide/cli-sessions.md`](../../docs-site/guide/cli-sessions.md)
+- `ANYCODE_TERM_EXIT_SCROLLBACK_DUMP` in [`docs-site/guide/cli-sessions.md`](../../docs-site/guide/cli-sessions.md)

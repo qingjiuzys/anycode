@@ -216,7 +216,7 @@ mod tests {
     use super::*;
     use crate::app_config::{
         ChannelsConfig, LLMConfig, LspRuntime, MemoryConfig, RoutingConfig, RuntimeSettings,
-        SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime, TuiRuntime,
+        SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime, TerminalRuntime,
     };
     use anycode_agent::RuntimePromptConfig;
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -275,7 +275,7 @@ mod tests {
             },
             session: SessionConfig::default(),
             status_line: StatusLineRuntime::default(),
-            tui: TuiRuntime::default(),
+            terminal: TerminalRuntime::default(),
             channels: ChannelsConfig::default(),
             lsp: LspRuntime::default(),
             notifications: anycode_core::SessionNotificationSettings::default(),

@@ -9,7 +9,7 @@ use ratatui::text::{Line, Span};
 use super::pipeline::apply_tool_transcript_pipeline;
 use super::tool_render::assistant_markdown_meaningful_eq;
 use super::types::{CollapsibleToolBlock, TranscriptEntry};
-use crate::tui::styles::*;
+use crate::term::styles::*;
 
 /// 将 Workspace 条目转为纯文本；在 **备用屏** 退出后写入主缓冲，便于终端内搜索（主缓冲模式不调用，避免重复）。
 pub(crate) fn transcript_dump_plain_text(entries: &[TranscriptEntry]) -> String {

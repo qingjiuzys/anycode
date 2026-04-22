@@ -1,11 +1,11 @@
-//! 行式 REPL 多轮会话状态（与 TUI 共用 `tui-sessions` 快照与 `execute_turn_from_messages`）。
+//! 行式 REPL 多轮会话状态（与流式终端共用 `~/.anycode/sessions` 快照与 `execute_turn_from_messages`）。
 
 use super::tasks_sink::ReplSink;
 use crate::artifact_summary::claude_turn_written_lines;
 use crate::i18n::{tr, tr_args};
-use crate::tui::tui_session_persist::{
-    list_session_index_entries, load_tui_session, resolve_session_for_reopen, sessions_dir,
-    workspace_paths_equal_for_session, TuiSessionSnapshot,
+use crate::term::session_persist::{
+    list_session_index_entries, load_session, resolve_session_for_reopen, sessions_dir,
+    workspace_paths_equal_for_session, SessionSnapshot,
 };
 use anycode_agent::AgentRuntime;
 use anycode_core::{AgentType, Message, MessageContent, MessageRole, TurnOutput};
@@ -42,10 +42,10 @@ impl ReplLineSession {
         let at = AgentType::new(agent.to_string());
         let turn_coop_cancel = Arc::new(AtomicBool::new(false));
         let (messages, session_file_id) = if let Some(id) = resume {
-            match load_tui_session(id)? {
+            match load_session(id)? {
                 Some(snap) => {
                     if !workspace_paths_equal_for_session(&snap.workspace_root, &working_dir_str) {
-                        tracing::warn!("{}", crate::i18n::tr("tui-resume-cwd-warn"));
+                        tracing::warn!("{}", crate::i18n::tr("term-resume-cwd-warn"));
                     }
                     (Arc::new(Mutex::new(snap.messages)), snap.id)
                 }
@@ -81,9 +81,9 @@ impl ReplLineSession {
         Ok(())
     }
 
-    pub async fn apply_snapshot(&mut self, snap: TuiSessionSnapshot, agent_out: &mut String) {
+    pub async fn apply_snapshot(&mut self, snap: SessionSnapshot, agent_out: &mut String) {
         if !workspace_paths_equal_for_session(&snap.workspace_root, &self.working_dir_str) {
-            tracing::warn!("{}", crate::i18n::tr("tui-resume-cwd-warn"));
+            tracing::warn!("{}", crate::i18n::tr("term-resume-cwd-warn"));
         }
         self.session_file_id = snap.id;
         *agent_out = snap.agent.clone();
@@ -154,11 +154,11 @@ pub(crate) async fn run_line_repl_turn(
             let is_coop = e.is_cooperative_cancel();
             if is_coop {
                 pop_trailing_assistant_if_present(session).await;
-                let msg = tr("tui-turn-cooperative-cancelled");
+                let msg = tr("term-turn-cooperative-cancelled");
                 sink.eprint_line(&msg);
                 sink.line("");
                 sink.line(&msg);
-                crate::tui::tui_session_persist::spawn_persist_tui_session(
+                crate::term::session_persist::spawn_persist_session(
                     session.session_file_id,
                     session.working_dir_str.clone(),
                     agent.to_string(),
@@ -197,7 +197,7 @@ pub(crate) async fn run_line_repl_turn(
             }
         }
     }
-    crate::tui::tui_session_persist::spawn_persist_tui_session(
+    crate::term::session_persist::spawn_persist_session(
         session.session_file_id,
         session.working_dir_str.clone(),
         agent.to_string(),
@@ -267,16 +267,16 @@ pub(crate) fn format_session_list_for_repl() -> String {
 pub(crate) fn load_repl_session_choice(
     arg: Option<String>,
     working_dir_str: &str,
-) -> anyhow::Result<TuiSessionSnapshot> {
+) -> anyhow::Result<SessionSnapshot> {
     match arg.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         None => {
             let id = resolve_session_for_reopen(working_dir_str)?;
-            load_tui_session(id)?.ok_or_else(|| anyhow::anyhow!("{}", tr("repl-resume-not-found")))
+            load_session(id)?.ok_or_else(|| anyhow::anyhow!("{}", tr("repl-resume-not-found")))
         }
         Some(rest) => {
             let id = Uuid::parse_str(rest)
                 .map_err(|_| anyhow::anyhow!("{}", tr("repl-session-bad-uuid")))?;
-            load_tui_session(id)?.ok_or_else(|| anyhow::anyhow!("{}", tr("repl-resume-not-found")))
+            load_session(id)?.ok_or_else(|| anyhow::anyhow!("{}", tr("repl-resume-not-found")))
         }
     }
 }

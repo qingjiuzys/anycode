@@ -1,4 +1,4 @@
-//! 流式 REPL：终端生命周期、Inline 行数、退出时 scrollback 回打。
+//! 流式 REPL：终端生命周期、Inline 行数（遗留主缓冲）、退出时 scrollback 回打。备用屏全屏下 `flush_stream_scrollback_staging` 对宿主 scrollback 为 no-op。
 
 use std::io::{stdout, Write};
 use std::sync::{Arc, Mutex};
@@ -42,7 +42,7 @@ pub(crate) fn stream_repl_inline_viewport_rows(term_h: u16) -> u16 {
 }
 
 fn stream_repl_inline_height_pct() -> u16 {
-    match std::env::var("ANYCODE_STREAM_REPL_INLINE_PCT") {
+    match std::env::var("ANYCODE_TERM_REPL_INLINE_PCT") {
         Ok(s) => s
             .trim()
             .parse::<u16>()
@@ -121,7 +121,7 @@ fn parse_exit_scrollback_dump_var(v: &str) -> StreamExitScrollbackDump {
 }
 
 fn stream_exit_scrollback_dump_mode() -> StreamExitScrollbackDump {
-    match std::env::var("ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP") {
+    match std::env::var("ANYCODE_TERM_EXIT_SCROLLBACK_DUMP") {
         Err(_) => StreamExitScrollbackDump::Full,
         Ok(v) => parse_exit_scrollback_dump_var(&v),
     }
@@ -129,7 +129,7 @@ fn stream_exit_scrollback_dump_mode() -> StreamExitScrollbackDump {
 
 /// 退出时是否把 `transcript` 再 `writeln` 到 shell。
 ///
-/// **主缓冲 + `insert_before` 路径**：执行中正文已进入宿主 scrollback，若仍默认 `Full` 会在退出时再打一遍整段 transcript → **重复块**。故未设环境变量时默认 **`None`**；需要留底时显式设 `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=full` / `=anchor`。
+/// **主缓冲 + `insert_before` 路径**：执行中正文已进入宿主 scrollback，若仍默认 `Full` 会在退出时再打一遍整段 transcript → **重复块**。故未设环境变量时默认 **`None`**；需要留底时显式设 `ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=full` / `=anchor`。
 fn effective_exit_scrollback_dump(
     state: &Arc<Mutex<ReplLineState>>,
     use_alternate_screen: bool,
@@ -139,7 +139,7 @@ fn effective_exit_scrollback_dump(
         .map(|s| s.stream_repl_host_scrollback)
         .unwrap_or(false);
     if !use_alternate_screen && host_scrollback {
-        return match std::env::var("ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP") {
+        return match std::env::var("ANYCODE_TERM_EXIT_SCROLLBACK_DUMP") {
             Err(_) => StreamExitScrollbackDump::None,
             Ok(v) => parse_exit_scrollback_dump_var(&v),
         };

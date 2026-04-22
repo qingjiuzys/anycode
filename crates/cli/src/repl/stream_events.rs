@@ -4,11 +4,8 @@ use crate::i18n::tr_args;
 use crate::repl::line_state::{
     reset_slash_state, stream_transcript_page_step, ReplCtl, ReplLineState,
 };
-use crate::repl::slash_ctx::{
-    apply_slash_pick_to_input, cursor_on_first_line, slash_suggestions_for_ctx,
-};
-use crate::tui::input::{history_apply_down, history_apply_up};
-use crate::tui::util::{sanitize_paste, trim_or_default, MAX_PASTE_CHARS};
+use crate::term::input::{history_apply_down, history_apply_up};
+use crate::term::util::{sanitize_paste, trim_or_default, MAX_PASTE_CHARS};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use fluent_bundle::FluentArgs;
 
@@ -26,13 +23,12 @@ pub(crate) fn stream_repl_accept_key_event(key: &KeyEvent) -> bool {
 }
 pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Result<ReplCtl> {
     match ev {
-        Event::Resize(_, _) => Ok(ReplCtl::Continue),
         Event::Paste(text) => {
             let (clean, truncated) = sanitize_paste(text);
             if truncated {
                 let mut a = FluentArgs::new();
                 a.set("n", MAX_PASTE_CHARS as i64);
-                eprintln!("{}", tr_args("tui-err-paste-truncated", &a));
+                eprintln!("{}", tr_args("term-err-paste-truncated", &a));
             }
             state.input.insert_str(&clean);
             state.history_idx = None;
@@ -79,22 +75,10 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                     }
                 }
                 KeyCode::Esc => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        state.slash_suppress = true;
-                        return Ok(ReplCtl::Continue);
-                    }
                     // 不按 Esc 清空整行：中文 IME 常用 Esc 关闭候选，清空会破坏输入。
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::Up => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + len - 1) % len;
-                        state.history_idx = None;
-                        return Ok(ReplCtl::Continue);
-                    }
                     history_apply_up(
                         &state.input_history,
                         &mut state.history_idx,
@@ -104,13 +88,6 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                     Ok(ReplCtl::Continue)
                 }
                 KeyCode::Down => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + 1) % len;
-                        state.history_idx = None;
-                        return Ok(ReplCtl::Continue);
-                    }
                     history_apply_down(
                         &state.input_history,
                         &mut state.history_idx,
@@ -171,22 +148,9 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                     reset_slash_state(state);
                     Ok(ReplCtl::Continue)
                 }
-                KeyCode::BackTab => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        let len = cands.len();
-                        state.slash_pick = (state.slash_pick + len - 1) % len;
-                    }
-                    Ok(ReplCtl::Continue)
-                }
+                KeyCode::BackTab => Ok(ReplCtl::Continue),
                 KeyCode::Tab => {
-                    let cands = slash_suggestions_for_ctx(state);
-                    if !cands.is_empty() && cursor_on_first_line(&state.input) {
-                        apply_slash_pick_to_input(state);
-                        state.slash_suppress = true;
-                        return Ok(ReplCtl::Continue);
-                    }
-                    // 无 `/` 补全时不再插空格，避免占用 Tab（中文 IME 常用 Tab 切候选）。
+                    // 流式 REPL 不做 `/` 补全；不占 Tab（中文 IME 常用 Tab 切候选）。
                     Ok(ReplCtl::Continue)
                 }
                 // 不依赖终端 bracketed-paste：直连系统剪贴板（raw TTY 下 Cmd+V 常到不了 Event::Paste）
@@ -201,7 +165,7 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                         if truncated {
                             let mut a = FluentArgs::new();
                             a.set("n", MAX_PASTE_CHARS as i64);
-                            eprintln!("{}", tr_args("tui-err-paste-truncated", &a));
+                            eprintln!("{}", tr_args("term-err-paste-truncated", &a));
                         }
                         state.input.insert_str(&clean);
                         state.history_idx = None;
@@ -221,10 +185,6 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
                 | KeyCode::Char('\u{0085}')
                 | KeyCode::Char('\u{2028}')
                 | KeyCode::Char('\u{2029}') => {
-                    if !slash_suggestions_for_ctx(state).is_empty() {
-                        apply_slash_pick_to_input(state);
-                        state.slash_suppress = true;
-                    }
                     let trimmed_owned = trim_or_default(&state.input.as_string()).to_string();
                     state.input.clear();
                     state.history_idx = None;
@@ -257,7 +217,7 @@ pub(crate) fn handle_event(ev: Event, state: &mut ReplLineState) -> anyhow::Resu
 
 /// 流式 REPL 审批条：在 [`handle_event`] 之前消费方向键与确认（与 `tasks_repl` 原逻辑一致）。
 pub(crate) fn apply_stream_approval_key(state: &mut ReplLineState, key: KeyEvent) -> bool {
-    use crate::tui::ApprovalDecision;
+    use crate::term::ApprovalDecision;
 
     let Some(p) = state.pending_approval.take() else {
         return false;

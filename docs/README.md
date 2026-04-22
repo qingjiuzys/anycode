@@ -27,6 +27,6 @@ GitHub Actions 工作流 [`.github/workflows/docs.yml`](../.github/workflows/doc
 
 - [`roadmap.md`](roadmap.md) — **维护者 backlog 单一事实来源**（now / next / later、决策与待决项）。
 - [`issue-drafts/`](issue-drafts/) — GitHub issue 正文草稿（与 §3 主线对齐时可复制或 `gh issue create --body-file`）。
-- [`tui-smoothness-baseline.md`](tui-smoothness-baseline.md) — TUI 观感迭代基线与终端矩阵清单（与 `ANYCODE_TUI_*` 环境变量对照）。
+- [`term-smoothness-baseline.md`](term-smoothness-baseline.md) — 流式终端观感迭代基线与终端矩阵清单（与 `ANYCODE_TERM_*` 等环境变量对照）。
 - [`stream-repl-layout.md`](stream-repl-layout.md) — **`anycode repl` 流式 TTY**：自上而下页面结构、宿主 scrollback 与 Inline 视口、Dock 栈与 Tokio/UI 线程数据流。
 - [`implementation-audit-checklist.md`](implementation-audit-checklist.md) — 重定向至 [`roadmap.md`](roadmap.md)（勿重复编辑清单正文）。

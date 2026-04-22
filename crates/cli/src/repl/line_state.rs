@@ -5,8 +5,9 @@
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use crate::tui::input::InputState;
-use anycode_core::TurnTokenUsage;
+use crate::term::input::InputState;
+use anycode_core::{Message, TurnTokenUsage};
+use tokio::sync::Mutex as AsyncMutex;
 
 /// 仅用于绘制：保留尾部若干行（旧 tail 裁剪路径；`repl_stream_transcript_bottom_padded` 与单测共用）。
 pub(crate) const TRANSCRIPT_MAX_DISPLAY_LINES: usize = 256;
@@ -37,8 +38,8 @@ pub(crate) struct ReplLineState {
     /// 流式 REPL 主区宽度（ratatui `draw` 回写），供 transcript 排版换行。
     pub stream_viewport_width: u16,
     /// 与全屏 TUI 一致：待处理的工具审批（仅流式 REPL 主循环设置）。
-    pub pending_approval: Option<crate::tui::PendingApproval>,
-    pub pending_user_question: Option<crate::tui::PendingUserQuestion>,
+    pub pending_approval: Option<crate::term::PendingApproval>,
+    pub pending_user_question: Option<crate::term::PendingUserQuestion>,
     pub approval_menu_selected: usize,
     pub user_question_menu_selected: usize,
     /// 流式 REPL：自然语言轮开始执行时起算，供 Prompt HUD 显示耗时（与全屏 TUI `executing_since` 一致）。
@@ -60,10 +61,16 @@ pub(crate) struct ReplLineState {
     pub stream_transcript_layout: StreamTranscriptLayoutCache,
     /// 最近完成的一轮 `execute_turn` 聚合用量（供 `/context` 与 HUD 对齐）。
     pub last_turn_token_usage: Option<TurnTokenUsage>,
-    /// 退出时 `ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=anchor` 用的字节偏移：当前「自然语言轮」写入前 `transcript.len()`（与异步侧 `turn_transcript_anchor` 一致）。
+    /// 退出时 `ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=anchor` 用的字节偏移：当前「自然语言轮」写入前 `transcript.len()`（与异步侧 `turn_transcript_anchor` 一致）。
     pub stream_exit_dump_anchor: usize,
     /// `true` 时使用 `insert_before` 路径；备用屏全屏时为 `false`（无宿主 scrollback，改走 transcript）。
     pub stream_repl_host_scrollback: bool,
+    /// 自然语言回合执行中：共享 `messages` 句柄，供轴心线程 [`crate::tasks::stream_repl_loop::tick_executing_stream_transcript`] 每帧 `try_lock` 刷新主区。
+    pub stream_exec_messages: Option<Arc<AsyncMutex<Vec<Message>>>>,
+    /// 与 `append_user_spawn_turn` 返回的 `prev` 一致，供 `build_stream_turn_plain(exec_prev_len, …)`。
+    pub stream_exec_prev_len: usize,
+    /// 本轮写入前 `transcript` 字节偏移（与 worker 侧 `turn_transcript_anchor` 同步）。
+    pub stream_exec_transcript_anchor: usize,
 }
 
 impl Default for ReplLineState {
@@ -94,6 +101,9 @@ impl Default for ReplLineState {
             last_turn_token_usage: None,
             stream_exit_dump_anchor: 0,
             stream_repl_host_scrollback: false,
+            stream_exec_messages: None,
+            stream_exec_prev_len: 0,
+            stream_exec_transcript_anchor: 0,
         }
     }
 }

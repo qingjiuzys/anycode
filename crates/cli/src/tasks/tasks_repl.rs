@@ -8,11 +8,14 @@ use crate::app_config::{
 use crate::bootstrap::initialize_runtime;
 use crate::builtin_agents::parse_agent_slash_command;
 use crate::i18n::{tr, tr_args};
-use crate::repl::stream_repl_scroll_reset_to_bottom;
+use crate::repl::{
+    run_stream_repl_ui_thread, stream_repl_scroll_reset_to_bottom, StreamReplAsyncCtl,
+    StreamReplRenderMsg, StreamReplUiMsg, StreamReplUiSession,
+};
 use crate::repl_banner::{self, ReplWelcomeKind};
 use crate::slash_commands::{self, ParsedSlashCommand};
-use crate::tui::transcript::build_stream_turn_plain;
-use crate::tui::{PendingApproval, PendingUserQuestion, TuiApprovalCallback};
+use crate::term::transcript::build_stream_turn_plain;
+use crate::term::{InteractiveApprovalCallback, PendingApproval, PendingUserQuestion};
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
@@ -21,6 +24,7 @@ use fluent_bundle::FluentArgs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -76,14 +80,14 @@ fn sync_repl_dock_status(
             .map(|tu| (tu.max_input_tokens, tu.total_output_tokens))
             .unwrap_or((0u32, 0u32));
         let mut left =
-            crate::tui::hud_text::footer_context_fragment_for_tokens(win, last_in, last_out);
+            crate::term::hud_text::footer_context_fragment_for_tokens(win, last_in, last_out);
         left.push_str(" · ");
-        left.push_str(&tr("tui-footer-help-hint"));
+        left.push_str(&tr("term-footer-help-hint"));
         if s.stream_transcript_scroll > 0 {
             let mut a = FluentArgs::new();
             a.set("n", s.stream_transcript_scroll as i64);
             left.push_str(" · ");
-            left.push_str(&tr_args("tui-footer-scroll-hint", &a));
+            left.push_str(&tr_args("term-footer-scroll-hint", &a));
         }
         s.dock_footer_left = left;
         if !turn_in_progress {
@@ -115,7 +119,7 @@ async fn repl_compact_line_session(
 ) -> anyhow::Result<()> {
     let snap = line_session.messages.lock().await.clone();
     if snap.len() < 2 {
-        sink.line(tr("tui-err-compact-empty"));
+        sink.line(tr("term-err-compact-empty"));
         return Ok(());
     }
     let at = AgentType::new(agent.to_string());
@@ -132,7 +136,7 @@ async fn repl_compact_line_session(
         .await
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     *line_session.messages.lock().await = new_msgs;
-    sink.line(tr("tui-compact-done"));
+    sink.line(tr("term-compact-done"));
     Ok(())
 }
 
@@ -162,16 +166,16 @@ pub(crate) async fn run_interactive(
     } else {
         ReplWelcomeKind::ReplSubcommand
     };
-    // TTY：主缓冲流式 dock（ratatui Inline）；非 TTY：stdio 行读。
+    // TTY：流式 dock（默认备用屏 ratatui）；非 TTY：stdio 行读。
     let use_stream_tty = is_tty;
 
-    let (runtime, approval_rx, question_rx) = if use_stream_tty {
+    let (runtime, mut approval_rx, mut question_rx) = if use_stream_tty {
         let require_approval = security_wants_interactive_approval_callback(&config);
         let (approval_tx, approval_rx) = mpsc::channel::<PendingApproval>(4);
         let (uq_tx, uq_rx) = mpsc::channel::<PendingUserQuestion>(4);
         let uq_host = crate::ask_user_host::ChannelAskUserQuestionHost::new(uq_tx).into_arc();
         let approval_override: Option<Box<dyn ApprovalCallback>> = if require_approval {
-            Some(Box::new(TuiApprovalCallback::new(approval_tx)))
+            Some(Box::new(InteractiveApprovalCallback::new(approval_tx)))
         } else {
             None
         };
@@ -207,8 +211,8 @@ pub(crate) async fn run_interactive(
             session_skip_approval,
             &mut line_session,
             welcome_kind,
-            approval_rx,
-            question_rx,
+            &mut approval_rx,
+            &mut question_rx,
             repl_debug_events,
         )
         .await?;
@@ -260,11 +264,10 @@ async fn run_interactive_tty(
     session_skip_approval: bool,
     line_session: &mut ReplLineSession,
     welcome_kind: ReplWelcomeKind,
-    approval_rx: Option<mpsc::Receiver<PendingApproval>>,
-    question_rx: Option<mpsc::Receiver<PendingUserQuestion>>,
+    approval_rx: &mut Option<mpsc::Receiver<PendingApproval>>,
+    question_rx: &mut Option<mpsc::Receiver<PendingUserQuestion>>,
     repl_debug_events: bool,
 ) -> anyhow::Result<()> {
-    repl_banner::print_repl_welcome(working_dir, agent, session_skip_approval, welcome_kind);
     run_interactive_tty_stream(
         runtime,
         disk,
@@ -409,7 +412,7 @@ async fn finish_stream_spawned_turn(
         Ok(Err(e)) => {
             let is_coop = anyhow_error_is_cooperative_cancel(&e);
             if is_coop {
-                let msg = tr("tui-turn-cooperative-cancelled");
+                let msg = tr("term-turn-cooperative-cancelled");
                 sink.eprint_line(&msg);
                 sink.line("");
                 sink.line(&msg);
@@ -421,7 +424,7 @@ async fn finish_stream_spawned_turn(
             write_stream_turn_failure(sink, "Turn join error: ", e);
         }
     }
-    crate::tui::tui_session_persist::spawn_persist_tui_session(
+    crate::term::session_persist::spawn_persist_session(
         line_session.session_file_id,
         line_session.working_dir_str.clone(),
         agent.to_string(),
@@ -431,49 +434,100 @@ async fn finish_stream_spawned_turn(
     Ok(())
 }
 
-/// 流式输出 + 底部 dock：专用 UI 线程内 `poll`/`read`；默认主缓冲 Inline **比例高度随终端缩放**（非整屏），可选备用屏全屏（`ANYCODE_STREAM_REPL_ALT_SCREEN=1`）。
-async fn run_interactive_tty_stream(
-    runtime: &Arc<AgentRuntime>,
-    disk: &DiskTaskOutput,
-    working_dir: &Path,
+/// 流式输出 + 底部 dock：**当前线程**为轴心 `poll`/`draw`；Tokio `select!` 在从属 `current_thread` 线程。
+fn run_interactive_tty_stream_blocking(
+    runtime: Arc<AgentRuntime>,
+    disk: DiskTaskOutput,
+    working_dir: PathBuf,
     agent: &mut String,
     config: &mut Config,
     _session_skip_approval: bool,
     line_session: &mut ReplLineSession,
     _welcome_kind: ReplWelcomeKind,
-    mut approval_rx: Option<mpsc::Receiver<PendingApproval>>,
-    mut question_rx: Option<mpsc::Receiver<PendingUserQuestion>>,
+    approval_rx: &mut Option<mpsc::Receiver<PendingApproval>>,
+    question_rx: &mut Option<mpsc::Receiver<PendingUserQuestion>>,
     repl_debug_events: bool,
 ) -> anyhow::Result<()> {
-    use crate::repl::{
-        run_stream_repl_ui_thread, ReplLineState, StreamReplAsyncCtl, StreamReplRenderMsg,
-        StreamReplUiMsg,
-    };
-    use std::sync::mpsc as std_mpsc;
+    use crate::repl::stream_app::init_stream_repl_axis;
 
-    let use_repl_alt = crate::tui::stream_repl_use_alternate_screen(config.tui.alternate_screen);
-    let mut line0 = ReplLineState::default();
-    line0.stream_repl_host_scrollback = !use_repl_alt;
-    let state = Arc::new(Mutex::new(line0));
-    let (ui_tx, mut ui_rx) = tokio::sync::mpsc::unbounded_channel::<StreamReplUiMsg>();
-    let (ctrl_tx, ctrl_rx) = std_mpsc::channel::<StreamReplAsyncCtl>();
-    let (stream_render_tx, stream_render_rx) = std_mpsc::channel::<StreamReplRenderMsg>();
+    let axis = init_stream_repl_axis(config.terminal.alternate_screen);
+    let crate::repl::stream_app::StreamReplAxis {
+        state,
+        ui_to_worker_tx,
+        ui_to_worker_rx,
+        ctrl_tx,
+        ctrl_rx,
+        stream_render_tx,
+        stream_render_rx,
+        use_repl_alt,
+    } = axis;
 
-    let mut live_scroll_echo_len: usize = 0;
-    let state_th = state.clone();
-    let ui_join = std::thread::Builder::new()
-        .name("anycode-repl-stream-ui".into())
-        .spawn(move || {
-            run_stream_repl_ui_thread(
-                state_th,
-                ui_tx,
-                ctrl_rx,
-                stream_render_rx,
-                repl_debug_events,
+    sync_repl_dock_status(&state, config, agent, false);
+
+    let approval_shared = Arc::new(Mutex::new(approval_rx.take()));
+    let question_shared = Arc::new(Mutex::new(question_rx.take()));
+
+    thread::scope(|s| {
+        let rt = runtime.clone();
+        let dk = disk.clone();
+        let wd = working_dir.clone();
+        let st = state.clone();
+        let srt = stream_render_tx.clone();
+        let ctd = ctrl_tx.clone();
+        let handle = s.spawn(move || {
+            let worker_rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| anyhow::anyhow!("stream repl tokio runtime: {e}"))?;
+            worker_rt.block_on(stream_repl_tokio_worker(
+                ui_to_worker_rx,
+                ctd,
+                srt,
+                st,
+                rt,
+                dk,
+                wd,
+                agent,
+                config,
+                line_session,
                 use_repl_alt,
-            )
-        })
-        .map_err(|e| anyhow::anyhow!("spawn anycode-repl-stream-ui: {e}"))?;
+            ))
+        });
+
+        let ui_result = run_stream_repl_ui_thread(StreamReplUiSession {
+            state: state.clone(),
+            to_worker: ui_to_worker_tx,
+            ctrl_rx,
+            render_rx: stream_render_rx,
+            approval_rx: approval_shared.clone(),
+            question_rx: question_shared.clone(),
+            repl_debug_events,
+            use_alternate_screen: use_repl_alt,
+        });
+
+        let worker_res = handle
+            .join()
+            .map_err(|_| anyhow::anyhow!("stream repl worker thread panicked"))?;
+        worker_res?;
+        ui_result
+    })
+}
+
+/// Tokio 从属循环：`select!`、回合 join（审批/选题 drain 在轴心线程每帧，见 [`run_stream_repl_ui_thread`]）。
+async fn stream_repl_tokio_worker(
+    mut ui_rx: tokio::sync::mpsc::UnboundedReceiver<StreamReplUiMsg>,
+    ctrl_tx: std::sync::mpsc::Sender<StreamReplAsyncCtl>,
+    stream_render_tx: std::sync::mpsc::Sender<StreamReplRenderMsg>,
+    state: Arc<Mutex<crate::repl::ReplLineState>>,
+    runtime: Arc<AgentRuntime>,
+    disk: DiskTaskOutput,
+    working_dir: PathBuf,
+    agent: &mut String,
+    config: &mut Config,
+    line_session: &mut ReplLineSession,
+    use_repl_alt: bool,
+) -> anyhow::Result<()> {
+    use std::sync::mpsc as std_mpsc;
 
     let mut exec_handle: Option<JoinHandle<anyhow::Result<anycode_core::TurnOutput>>> = None;
     let mut executing = false;
@@ -481,22 +535,19 @@ async fn run_interactive_tty_stream(
     // 本轮任务写入前 `transcript` 字节偏移；执行中按 tick 截断至此再重算 `build_stream_turn_plain`。
     let mut turn_transcript_anchor: usize = 0;
 
-    sync_repl_dock_status(&state, config, agent, false);
-    // 与 `repl::stream_ratatui` UI 线程 `poll(16ms)` 同量级：流式回合中 `transcript` 在本循环顶部重建，
-    // tick 过大则滚动区/正文明显「跟不上」流式输出（曾用 50ms，提交任务后延迟感明显）。
+    // 与 `repl::stream_ratatui` 轴心 `poll(16ms)` 同量级：唤醒 `select!` 以轮询回合 `JoinHandle::is_finished`；
+    // 执行态 `transcript` 刷新已由轴心线程 `tick_executing_stream_transcript` 承担。
     let mut stream_tick = tokio::time::interval(Duration::from_millis(16));
     stream_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     loop {
-        stream_repl_loop::tick_finished_turn_summary_expiry(&state);
-        stream_repl_loop::drain_pending_stream_approvals(approval_rx.as_mut(), &state);
-        stream_repl_loop::drain_pending_stream_user_questions(question_rx.as_mut(), &state);
-
         if let Some(h) = exec_handle.as_ref() {
             if h.is_finished() {
                 let h = exec_handle.take().unwrap();
                 executing = false;
-                live_scroll_echo_len = 0;
+                if let Ok(mut st) = state.lock() {
+                    st.stream_exec_messages = None;
+                }
                 let turn_wall_secs = {
                     let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
                     st.executing_since
@@ -516,7 +567,7 @@ async fn run_interactive_tty_stream(
                         _ => st.last_turn_token_usage,
                     };
                     st.finished_turn_summary =
-                        Some(crate::tui::hud_text::prompt_hud_stream_turn_summary_text(
+                        Some(crate::term::hud_text::prompt_hud_stream_turn_summary_text(
                             turn_wall_secs,
                             &usage_for_hud,
                         ));
@@ -533,8 +584,6 @@ async fn run_interactive_tty_stream(
                     .and_then(|st| st.transcript.lock().ok().map(|t| t.len()));
                 finish_stream_spawned_turn(join_result, line_session, agent.as_str(), &mut sink)
                     .await?;
-                // 成功路径：主区仅由下方 `build_stream_turn_plain(messages)` 重建；失败路径才用 `appended_after_finish`
-                // 保留 finish 阶段写入 transcript 的错误摘要（不随 messages 回放）。
                 let appended_after_finish = if append_finish_tail {
                     transcript_len_before_finish.and_then(|start| {
                         state.lock().ok().and_then(|st| {
@@ -590,17 +639,6 @@ async fn run_interactive_tty_stream(
             }
         }
 
-        if executing {
-            stream_repl_loop::tick_executing_stream_transcript(
-                line_session,
-                &state,
-                use_repl_alt,
-                exec_prev_len,
-                turn_transcript_anchor,
-                &mut live_scroll_echo_len,
-            );
-        }
-
         tokio::select! {
             biased;
             msg = ui_rx.recv() => {
@@ -622,7 +660,7 @@ async fn run_interactive_tty_stream(
                             tail: String::new(),
                             render_tx: stream_render_tx.clone(),
                         };
-                        repl_clear_session(runtime, line_session, agent, &mut sink).await?;
+                        repl_clear_session(&runtime, line_session, agent, &mut sink).await?;
                         stream_repl_loop::clear_scrollback_queue(&stream_render_tx);
                         if let Ok(mut st) = state.lock() {
                             stream_repl_scroll_reset_to_bottom(&mut st);
@@ -631,11 +669,14 @@ async fn run_interactive_tty_stream(
                             st.finished_turn_summary_until = None;
                             st.last_turn_token_usage = None;
                             st.stream_exit_dump_anchor = 0;
+                            st.stream_exec_messages = None;
+                            st.stream_exec_prev_len = 0;
+                            st.stream_exec_transcript_anchor = 0;
                         }
                         sync_repl_dock_status(&state, config, agent, executing);
                     }
                     StreamReplUiMsg::Submit(text) => {
-                        let t = crate::tui::util::trim_or_default(text.as_str());
+                        let t = crate::term::util::trim_or_default(text.as_str());
                         if t.is_empty() {
                             continue;
                         }
@@ -654,9 +695,9 @@ async fn run_interactive_tty_stream(
                                 .map_err(|_| anyhow::anyhow!("repl UI ended during suspend"))?;
                             let mut sink = ReplSink::Stdio;
                             let d = repl_dispatch_one_line(
-                                runtime,
-                                disk,
-                                working_dir,
+                                &runtime,
+                                &disk,
+                                working_dir.as_path(),
                                 agent,
                                 config,
                                 line_session,
@@ -679,9 +720,9 @@ async fn run_interactive_tty_stream(
                                 render_tx: stream_render_tx.clone(),
                             };
                             let dispatch = repl_dispatch_inner(
-                                runtime,
-                                disk,
-                                working_dir,
+                                &runtime,
+                                &disk,
+                                working_dir.as_path(),
                                 agent,
                                 config,
                                 line_session,
@@ -710,16 +751,22 @@ async fn run_interactive_tty_stream(
                                             st.finished_turn_summary_until = None;
                                         }
                                         let (handle, prev) = repl_line_session::append_user_spawn_turn(
-                                            runtime,
+                                            &runtime,
                                             line_session,
                                             agent,
                                             &prompt,
                                         )
                                         .await?;
+                                        {
+                                            let mut st = state.lock().unwrap();
+                                            st.stream_exec_transcript_anchor = turn_transcript_anchor;
+                                            st.stream_exec_prev_len = prev;
+                                            st.stream_exec_messages =
+                                                Some(line_session.messages.clone());
+                                        }
                                         exec_handle = Some(handle);
                                         exec_prev_len = prev;
                                         executing = true;
-                                        live_scroll_echo_len = 0;
                                     }
                                 }
                             }
@@ -737,11 +784,37 @@ async fn run_interactive_tty_stream(
     }
 
     let _ = ctrl_tx.send(StreamReplAsyncCtl::Shutdown);
-    ui_join
-        .join()
-        .map_err(|_| anyhow::anyhow!("repl stream UI thread panicked"))??;
-
     Ok(())
+}
+
+async fn run_interactive_tty_stream(
+    runtime: &Arc<AgentRuntime>,
+    disk: &DiskTaskOutput,
+    working_dir: &Path,
+    agent: &mut String,
+    config: &mut Config,
+    session_skip_approval: bool,
+    line_session: &mut ReplLineSession,
+    welcome_kind: ReplWelcomeKind,
+    approval_rx: &mut Option<mpsc::Receiver<PendingApproval>>,
+    question_rx: &mut Option<mpsc::Receiver<PendingUserQuestion>>,
+    repl_debug_events: bool,
+) -> anyhow::Result<()> {
+    tokio::task::block_in_place(|| {
+        run_interactive_tty_stream_blocking(
+            runtime.clone(),
+            disk.clone(),
+            working_dir.to_path_buf(),
+            agent,
+            config,
+            session_skip_approval,
+            line_session,
+            welcome_kind,
+            approval_rx,
+            question_rx,
+            repl_debug_events,
+        )
+    })
 }
 
 async fn repl_dispatch_inner(
@@ -946,14 +1019,14 @@ async fn repl_dispatch_inner(
             }
             ParsedSlashCommand::Paste => {
                 use crate::repl::reset_slash_state;
-                use crate::tui::util::{sanitize_paste, MAX_PASTE_CHARS};
+                use crate::term::util::{sanitize_paste, MAX_PASTE_CHARS};
                 if let Some(st_arc) = stream_paste_state.as_ref() {
                     if let Some(raw) = crate::repl_clipboard::read_system_clipboard() {
                         let (clean, truncated) = sanitize_paste(raw);
                         if truncated {
                             let mut a = FluentArgs::new();
                             a.set("n", MAX_PASTE_CHARS as i64);
-                            let msg = tr_args("tui-err-paste-truncated", &a);
+                            let msg = tr_args("term-err-paste-truncated", &a);
                             match sink {
                                 ReplSink::Stdio => sink.eprint_line(&msg),
                                 ReplSink::Stream { .. } => sink.line(&msg),

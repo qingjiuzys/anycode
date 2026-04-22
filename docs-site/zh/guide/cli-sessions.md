@@ -18,12 +18,12 @@ read_when:
 | **`anycode repl`** | 是 | **Inline 流式 REPL**（ratatui 视口 + 底栏）；需要该布局或显式 **`-C` / `--agent` / `--resume`** 时用此子命令。 |
 | **`anycode tui`** | — | **全屏 TUI**（显式子命令；TTY 上与无子命令 **`anycode`** 等价）。 |
 
-会话快照目录：**`~/.anycode/tui-sessions/`**（流式与 TUI 同一套 JSON）。
+会话快照目录：**`~/.anycode/sessions/`**（流式与 TUI 同一套 JSON）。
 
 **退出流式 REPL 后的滚动历史：** 默认会把 **完整** transcript 再打一份到 shell，便于检索。若与视口重复可改用：
 
-- **`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=0`**（或 `false` / `no` / `off`）— 不打印。
-- **`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=anchor`** — 只打印 **上一轮自然语言会话** 起的内容（与流式重建 plain 时用的字节锚点一致）。
+- **`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=0`**（或 `false` / `no` / `off`）— 不打印。
+- **`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=anchor`** — 只打印 **上一轮自然语言会话** 起的内容（与流式重建 plain 时用的字节锚点一致）。
 - **`full`**、**`1`**、**`true`** 或未设置 — 全文（默认）。
 
 **只读用量：** 宿主斜杠 **`/context`**、**`/cost`** 可查看消息条数、配置的上下文窗口、上一轮 token 聚合（若有）。**`/cost` 不提供货币金额**，计费以各提供商账单为准。
@@ -110,7 +110,7 @@ ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN=1 ./target/release/anycode run --agent genera
 
 **注意：** TTY 下无子命令 **`anycode`** 默认为**全屏 TUI**（与 **`anycode tui`** 相同）；要 **Inline 流式 REPL** 用 **`anycode repl`**。目录为**当前 cwd**，agent 来自 **`runtime.default_mode`**（常为 **`general-purpose`**）。指定目录/agent 用 **`repl` / `run`**。
 
-**终端画布：** 全屏 TUI 默认 **DEC 备用屏**。需要 **主缓冲 + 终端滚动**时：先 **`export ANYCODE_TUI_ALT_SCREEN=0`** 再运行 **`anycode tui`**，或 **`ANYCODE_TUI_ALT_SCREEN=0 anycode tui` 同一行**；单独一行 `VAR=0` **不会**传给子进程。也可在 **`config.json`** 设 **`"tui": { "alternateScreen": false }`**。
+**终端画布：** 全屏 TUI 默认 **DEC 备用屏**。需要 **主缓冲 + 终端滚动**时：先 **`export ANYCODE_TERM_ALT_SCREEN=0`** 再运行 **`anycode tui`**，或 **`ANYCODE_TERM_ALT_SCREEN=0 anycode tui` 同一行**；单独一行 `VAR=0` **不会**传给子进程。也可在 **`config.json`** 设 **`"terminal": { "alternateScreen": false }`**。
 
 ### TUI 内 Markdown 与链接
 

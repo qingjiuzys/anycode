@@ -2,8 +2,8 @@
 //! Fenced / indented 代码块经 syntect 着色；过长块回退为单色 `style_inline_code`。
 
 use crate::i18n::tr;
-use crate::tui::palette;
-use crate::tui::styles::{style_code_block, style_dim, style_list_bullet, style_separator};
+use crate::term::palette;
+use crate::term::styles::{style_code_block, style_dim, style_list_bullet, style_separator};
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -1057,7 +1057,7 @@ pub fn render_markdown_styled(
     let mut lines = writer.finish();
     if lines.len() >= MAX_MD_OUTPUT_LINES {
         lines.push(Line::from(Span::styled(
-            tr("tui-md-truncated"),
+            tr("term-md-truncated"),
             style_dim(),
         )));
     }

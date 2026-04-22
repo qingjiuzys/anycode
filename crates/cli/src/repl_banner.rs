@@ -1,7 +1,7 @@
 //! REPL 首屏欢迎框（stdout），与 stderr 上的 tracing 分离。
 
 use crate::i18n::tr;
-use crate::tui::palette;
+use crate::term::palette;
 use console::{style, Color, Style, Term};
 use std::path::Path;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -130,7 +130,7 @@ pub(crate) fn print_repl_goodbye(session_id: Uuid) {
     println!("{}", style(tr("repl-goodbye")).dim());
     println!(
         "\n{} anycode --resume {}",
-        style(tr("tui-exit-resume-print")).dim(),
+        style(tr("term-exit-resume-print")).dim(),
         style(session_id).dim()
     );
 }

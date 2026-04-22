@@ -33,11 +33,11 @@ Always run CI-equivalent checks to avoid remote failures:
 
 ## Workspace Architecture
 
-**anyCode** is a terminal-first AI assistant built as a Rust workspace with Tokio async runtime and ratatui TUI. The architecture follows a strict orchestration pattern where `AgentRuntime` is the sole authority for multi-turn LLM+tool execution.
+**anyCode** is a terminal-first AI assistant built as a Rust workspace with Tokio async runtime and ratatui-based stream UI. The architecture follows a strict orchestration pattern where `AgentRuntime` is the sole authority for multi-turn LLM+tool execution.
 
 ### Crate Structure
 
-- **`crates/cli`** - Main binary (`anycode`), TUI modules, REPL, config, channel bridges (WeChat, Telegram, Discord)
+- **`crates/cli`** - Main binary (`anycode`), stream terminal + transcript shared layer (`term`), REPL, config, channel bridges (WeChat, Telegram, Discord)
 - **`crates/agent`** - `AgentRuntime`, tool loop, compaction, memory integration, agent implementations
 - **`crates/core`** - Domain types and traits: Task, Message, Tool, Agent, SecurityPolicy, MemoryPipeline, LLM types
 - **`crates/llm`** - LLM provider abstractions and implementations (Anthropic, OpenAI-compatible, Bedrock, etc.)
@@ -51,12 +51,12 @@ Always run CI-equivalent checks to avoid remote failures:
 
 **Orchestration Authority (ADR 000):**
 - `AgentRuntime::execute_task` and `execute_turn_from_messages` are the ONLY multi-turn orchestration paths
-- The `Agent` trait supplies type, tool subset, and system prompt hooks but `Agent::execute` is NOT the main CLI/TUI path
+- The `Agent` trait supplies type, tool subset, and system prompt hooks but `Agent::execute` is NOT the main CLI path
 - Never create parallel execution engines - extend Tool + registry + bootstrap instead
 
 **Composition Root (ADR 002):**
 - `crates/cli/src/bootstrap/runtime.rs::initialize_runtime` assembles the runtime: LLM client, tool registry, security layer, memory backends
-- All CLI entry points (TUI, REPL, `run`) share this single runtime construction path
+- All CLI entry points (interactive terminal, REPL, `run`) share this single runtime construction path
 
 **Cooperative Cancel (ADR 002):**
 - Use `Arc<AtomicBool>` for cooperative cancellation at turn/tool boundaries
@@ -71,23 +71,22 @@ Always run CI-equivalent checks to avoid remote failures:
 ### Runtime Modes
 
 The CLI supports three main modes:
-1. **Fullscreen TUI** (default on TTY): ratatui matrix with alternate screen
-2. **Stream REPL** (`anycode repl`): Inline viewport with streaming dock
+1. **Stream terminal** (default on TTY): ratatui stream UI (alternate screen by default; see `stream_repl_use_alternate_screen`)
+2. **Stream REPL** (`anycode repl`): same stack with explicit subcommand; optional Inline legacy via env
 3. **Line REPL** (non-TTY): stdio line-at-a-time mode
 
-### TUI Architecture
+### Terminal / transcript layer (`term`)
 
-The TUI (`crates/cli/src/tui/`) uses a modular event-driven architecture:
-- **`run/`**: Main event loop, drawing, terminal guard, execution completion
-- **`transcript/`**: Virtual scrolling, message rendering, artifact display
-- **`backend/`**: State management, mode switching, task coordination
-- Key files: `event.rs`, `draw.rs`, `loop_inner.rs`, `status_line.rs`
+The shared layer (`crates/cli/src/term/`) provides styles, input, session snapshots, approval plumbing, and transcript building for the stream REPL. Key areas:
+- **`terminal_guard`**: alternate-screen / inline policy (`ANYCODE_TERM_*` stream REPL variables)
+- **`transcript/`**: plain-text and tool render helpers for the dock
+- **`session_persist`**: `~/.anycode/sessions` JSON snapshots
 
 ### Configuration
 
 - Main config: `~/.anycode/config.json` (schema in `crates/cli/src/app_config_schema.rs`)
 - Session-level overlays via `.anycode/config.json` in workspace directories
-- Environment variables: `ANYCODE_IGNORE_APPROVAL`, `ANYCODE_TUI_ALT_SCREEN`, etc.
+- Environment variables: `ANYCODE_IGNORE_APPROVAL`, `ANYCODE_TERM_ALT_SCREEN`, `ANYCODE_TERM_REPL_*`, etc. (see `CHANGELOG.md` for renames)
 
 ### Testing Patterns
 
@@ -126,11 +125,9 @@ All channels use the same `AgentRuntime` via `initialize_runtime` but with diffe
 2. Implement provider module in `crates/llm/src/providers/`
 3. Wire up in `transport_for_provider_id` and provider catalog
 
-**TUI modifications:**
-- Event handling: `tui/run/event.rs`
-- Drawing: `tui/run/draw.rs`
-- State changes: `tui/backend/` modules
-- Transcript rendering: `tui/transcript/`
+**Stream / terminal layer modifications:**
+- Transcript: `term/transcript/`
+- REPL event/draw: `repl/stream_*.rs`, `repl/dock_render.rs`
 
 ### Documentation
 

@@ -1,4 +1,7 @@
-use crate::md_tui::pad_end_to_display_width;
+//! `/` 命令解析与（仅单测使用的）补全辅助；流式终端不展示候选菜单。
+#![allow(dead_code)]
+
+use crate::md_render::pad_end_to_display_width;
 use anycode_core::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -100,7 +103,7 @@ pub(crate) fn slash_menu_cmd_column_width(
         .saturating_sub(PREFIX_W + GAP_W + MIN_DESC)
         .max(8);
     let m = (start..end)
-        .map(|i| crate::md_tui::text_display_width(candidates[i].display.as_str()))
+        .map(|i| crate::md_render::text_display_width(candidates[i].display.as_str()))
         .max()
         .unwrap_or(0);
     m.max(8).min(cap)

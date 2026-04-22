@@ -372,7 +372,7 @@ impl Tool for AskUserQuestionTool {
                 result: json!({
                     "error": "No interactive host for AskUserQuestion (non-TTY or channel mode without UI bridge)",
                     "status": "unsupported_host",
-                    "hint": "Run from an interactive terminal (anycode repl/tui) or attach a host.",
+                    "hint": "Run from an interactive terminal (`anycode`) or attach a host.",
                     "question": q.question,
                     "header": q.header,
                     "options": q.options

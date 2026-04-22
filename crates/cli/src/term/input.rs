@@ -1,6 +1,6 @@
 //! 多行输入缓冲、`^R` 反向搜索与历史导航。
 
-use crate::md_tui::{text_display_width, wrap_string_to_width};
+use crate::md_render::{text_display_width, wrap_string_to_width};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 

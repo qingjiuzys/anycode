@@ -30,7 +30,7 @@ flowchart TB
   tools --> sec[SecurityLayer]
 ```
 
-CLI 的 `run`、`REPL` 与 `TUI` **共用**同一 `AgentRuntime` 构建路径（配置、工具、`SecurityLayer` 一致）。
+CLI 的 `run`、**交互式终端** 与行式/流式 `repl` 路径 **共用**同一 `AgentRuntime` 构建路径（配置、工具、`SecurityLayer` 一致）。
 
 ### CLI 二进制分层（`crates/cli`）
 
@@ -39,9 +39,10 @@ CLI 的 `run`、`REPL` 与 `TUI` **共用**同一 `AgentRuntime` 构建路径（
 - `cli_args.rs`：Clap 顶层参数与子命令
 - `app_config.rs`：`~/.anycode/config.json`、`Config` 聚合体、`model`/`config` 子命令与 serde 测试
 - `bootstrap.rs`：`initialize_runtime`（LLM + `Arc<ToolServices>` + `build_registry_with_services` 构建全量工具表 + `SecurityLayer` + `AgentRuntime`）
-- `tasks.rs`：`run`、可选 REPL、`list-*`、`test-security`
-- `tui/`：`mod.rs` + `run/mod.rs`（导入）、`run/draw.rs`（单帧绘制）、`run/event.rs`（crossterm）、`run/exec_completion.rs`（turn 完成回填）、`run/loop_inner.rs`（终端初始化、`select!` 与状态装配）、`input` / `transcript` / `chrome` / `approval` / `styles` / `util`；其余大块 UI 仍可在 `*_body.inc` 中 `include!` 保持单文件可浏览
-- `md_tui.rs`：Markdown 渲染与终端排版
+- `tasks.rs`：默认交互、可选 `run`、`list-*`、`test-security` 等
+- `term/`：样式、输入、transcript 辅助、审批回调与会话 `session_persist`（`~/.anycode/sessions` JSON）
+- `repl/`：流式 ratatui 轴心（`stream_ratatui`、`dock_render` 等）与 TTY 子命令入口
+- `md_render.rs`：Markdown 渲染与终端排版
 
 ### Agent crate 分层（`crates/agent`）
 

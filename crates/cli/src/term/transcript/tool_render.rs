@@ -1,7 +1,7 @@
 //! 工具结果 JSON、单行摘要与工具块级排版（`⏺` / `⎿`）。
 
 use crate::i18n::{tr, tr_args};
-use crate::md_tui::{
+use crate::md_render::{
     render_markdown_styled, wrap_plain_bullet_prefixed, wrap_plain_prefixed, MarkdownChrome,
 };
 use fluent_bundle::FluentArgs;
@@ -13,7 +13,7 @@ use std::borrow::Cow;
 use anycode_core::strip_llm_reasoning_for_display;
 
 use super::types::WorkspaceLiveLayout;
-use crate::tui::styles::*;
+use crate::term::styles::*;
 
 fn stream_repl_md_chrome(live: WorkspaceLiveLayout) -> MarkdownChrome {
     if live.stream_repl_claude_user_prefix && live.stream_plain_minimal_md {
@@ -45,7 +45,7 @@ pub(crate) fn push_lines_truncated(
     let keep = max_lines.saturating_sub(1);
     out.extend(block.drain(..keep));
     out.push(Line::from(Span::styled(
-        tr("tui-block-truncated"),
+        tr("term-block-truncated"),
         style_dim(),
     )));
 }
@@ -463,7 +463,7 @@ pub(crate) fn layout_tool_turn_block(
     let (bullet_style, text_style) =
         assistant_tool_header_styles(text_dim_inactive, is_active, live);
     let header_text = if !expanded {
-        format!("{} {}", summary, tr("tui-expand-hint"))
+        format!("{} {}", summary, tr("term-expand-hint"))
     } else {
         summary.clone()
     };
@@ -473,7 +473,7 @@ pub(crate) fn layout_tool_turn_block(
     // 对齐 Claude：未展开时**不**渲染工具输出正文；shell 执行中显示 `⎿  Running…`
     if !expanded {
         if is_active && !is_error && shell_tool && body.trim().is_empty() {
-            let run = Line::from(Span::styled(tr("tui-tool-running"), style_dim()));
+            let run = Line::from(Span::styled(tr("term-tool-running"), style_dim()));
             header.extend(prefix_lines_braille(vec![run], "⎿  ", "   ", style_dim()));
         }
         return header;
@@ -482,7 +482,7 @@ pub(crate) fn layout_tool_turn_block(
     let mut body_lines = layout_tool_body_content(tool_name, body, is_error, w, live);
     if body_lines.is_empty() && is_active && !is_error && shell_tool {
         body_lines.push(Line::from(Span::styled(
-            tr("tui-tool-running"),
+            tr("term-tool-running"),
             style_dim(),
         )));
     }
@@ -515,17 +515,17 @@ pub(crate) fn layout_read_tool_batch(
     let mut n_arg = FluentArgs::new();
     n_arg.set("n", n as i64);
     let title_expanded = if is_active {
-        tr_args("tui-read-ex-a", &n_arg)
+        tr_args("term-read-ex-a", &n_arg)
     } else {
-        tr_args("tui-read-ex-i", &n_arg)
+        tr_args("term-read-ex-i", &n_arg)
     };
     let mut col_arg = FluentArgs::new();
     col_arg.set("n", n as i64);
-    col_arg.set("hint", tr("tui-expand-hint"));
+    col_arg.set("hint", tr("term-expand-hint"));
     let title_collapsed = if is_active {
-        tr_args("tui-read-col-a", &col_arg)
+        tr_args("term-read-col-a", &col_arg)
     } else {
-        tr_args("tui-read-col-i", &col_arg)
+        tr_args("term-read-col-i", &col_arg)
     };
     let (bullet_style, text_style) = assistant_tool_header_styles(!is_active, is_active, live);
     let header = wrap_plain_bullet_prefixed(
@@ -553,7 +553,7 @@ pub(crate) fn layout_read_tool_batch(
             let mut a = FluentArgs::new();
             a.set("n", extra as i64);
             out.push(Line::from(Span::styled(
-                tr_args("tui-read-more-paths", &a),
+                tr_args("term-read-more-paths", &a),
                 style_dim(),
             )));
         }

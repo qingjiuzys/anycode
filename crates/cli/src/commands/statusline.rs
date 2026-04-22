@@ -1,7 +1,7 @@
 //! `anycode statusline print-schema` — 调试 status line 的 stdin JSON。
 
 use crate::app_config::Config;
-use crate::tui::status_line::build_status_line_payload;
+use crate::term::status_line::build_status_line_payload;
 
 pub(crate) fn print_schema(config: &Config) -> anyhow::Result<()> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));

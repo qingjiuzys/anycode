@@ -1,7 +1,7 @@
 //! Config schema/defaults/helpers extracted from `app_config.rs` to keep orchestration logic smaller.
 
 use super::{
-    is_anthropic_family_provider, is_known_zai_model, is_zai_family_provider, TuiConfigFile,
+    is_anthropic_family_provider, is_known_zai_model, is_zai_family_provider, TerminalConfigFile,
 };
 use crate::i18n::{tr, tr_args};
 use anycode_agent::{CompactPolicy, RuntimePromptConfig};
@@ -88,8 +88,8 @@ pub(crate) struct Config {
     pub(crate) session: SessionConfig,
     /// 全屏 TUI 底部 status line（`config.json` 的 `statusLine`）。
     pub(crate) status_line: StatusLineRuntime,
-    /// 无子命令 TUI 画布（`config.json` 的 `tui`；env 可覆盖）。
-    pub(crate) tui: TuiRuntime,
+    /// 流式终端画布（`config.json` 的 `terminal`；env 可覆盖）。
+    pub(crate) terminal: TerminalRuntime,
     /// 通道特定配置：serde 聚合体；各通道子命令当前多读 `~/.anycode/channels/*.json`，此字段预留给统一运行时。
     #[allow(dead_code)]
     pub(crate) channels: ChannelsConfig,
@@ -99,15 +99,15 @@ pub(crate) struct Config {
     pub(crate) notifications: anycode_core::SessionNotificationSettings,
 }
 
-/// 运行时 `tui` 段（与 [`TuiConfigFile`] 对应）。
+/// 运行时 `terminal` 段（与 [`TerminalConfigFile`] 对应）。
 #[derive(Debug, Clone, Default)]
-pub(crate) struct TuiRuntime {
+pub(crate) struct TerminalRuntime {
     /// `true`：备用屏；`false` / `None`：主缓冲（默认行为与 env 合并）。
     pub(crate) alternate_screen: Option<bool>,
 }
 
-impl From<TuiConfigFile> for TuiRuntime {
-    fn from(f: TuiConfigFile) -> Self {
+impl From<TerminalConfigFile> for TerminalRuntime {
+    fn from(f: TerminalConfigFile) -> Self {
         Self {
             alternate_screen: f.alternate_screen,
         }

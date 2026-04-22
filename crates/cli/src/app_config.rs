@@ -467,7 +467,10 @@ pub(crate) fn save_merged_config(
             .as_ref()
             .map(|c| c.status_line.clone())
             .unwrap_or_default(),
-        tui: existing.as_ref().map(|c| c.tui.clone()).unwrap_or_default(),
+        terminal: existing
+            .as_ref()
+            .map(|c| c.terminal.clone())
+            .unwrap_or_default(),
         channels: existing
             .as_ref()
             .map(|c| c.channels.clone())
@@ -719,9 +722,9 @@ pub(crate) struct AnyCodeConfig {
     /// 全屏 TUI 底部 status line（JSON key `statusLine`）。
     #[serde(default, rename = "statusLine")]
     pub(crate) status_line: StatusLineConfigFile,
-    /// 全屏 TUI（`anycode tui`）与行式 REPL 共用此段（备用屏等）。`tui.alternateScreen` 为 true 时 DEC 备用屏；显式 `ANYCODE_TUI_ALT_SCREEN` 可解析时覆盖。
-    #[serde(default)]
-    pub(crate) tui: TuiConfigFile,
+    /// 流式终端与行式 REPL 共用此段（备用屏等）。`terminal.alternateScreen` 为 true 时 DEC 备用屏；显式 `ANYCODE_TERM_ALT_SCREEN` 可解析时覆盖（见 CHANGELOG）。
+    #[serde(default, rename = "terminal")]
+    pub(crate) terminal: TerminalConfigFile,
     /// 通道特定配置（wechat、telegram、discord等）
     #[serde(default)]
     pub(crate) channels: ChannelsConfigFile,
@@ -732,9 +735,9 @@ pub(crate) struct AnyCodeConfig {
     pub(crate) notifications: anycode_core::SessionNotificationSettings,
 }
 
-/// `config.json` 的 `tui` 段。
+/// `config.json` 的 `terminal` 段。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub(crate) struct TuiConfigFile {
+pub(crate) struct TerminalConfigFile {
     /// `true`：DEC 备用屏（独立全屏画布）；`false` 或未设置：由入口（`anycode tui` / REPL）与运行环境决定；显式 env 优先。
     #[serde(default, rename = "alternateScreen")]
     pub(crate) alternate_screen: Option<bool>,
@@ -939,7 +942,7 @@ fn load_or_default_anycode_config(config_file: Option<PathBuf>) -> anyhow::Resul
             session: SessionConfigFile::default(),
             model_instructions: ModelInstructionsConfigFile::default(),
             status_line: StatusLineConfigFile::default(),
-            tui: TuiConfigFile::default(),
+            terminal: TerminalConfigFile::default(),
             channels: ChannelsConfigFile::default(),
             lsp: LspConfigFile::default(),
             notifications: Default::default(),
@@ -1214,7 +1217,10 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .as_ref()
             .map(|c| c.status_line.clone())
             .unwrap_or_default(),
-        tui: existing.as_ref().map(|c| c.tui.clone()).unwrap_or_default(),
+        terminal: existing
+            .as_ref()
+            .map(|c| c.terminal.clone())
+            .unwrap_or_default(),
         channels: existing
             .as_ref()
             .map(|c| c.channels.clone())
@@ -1407,7 +1413,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
                 session: SessionConfigFile::default(),
                 model_instructions: ModelInstructionsConfigFile::default(),
                 status_line: StatusLineConfigFile::default(),
-                tui: TuiConfigFile::default(),
+                terminal: TerminalConfigFile::default(),
                 channels: ChannelsConfigFile::default(),
                 lsp: LspConfigFile::default(),
                 notifications: Default::default(),
@@ -1560,7 +1566,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         skills: cfg.skills.into(),
         session: cfg.session.into(),
         status_line: cfg.status_line.into(),
-        tui: cfg.tui.into(),
+        terminal: cfg.terminal.into(),
         channels: cfg.channels.into(),
         lsp: lsp_runtime,
         notifications: cfg.notifications,

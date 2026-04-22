@@ -1,5 +1,6 @@
-//! Stream REPL Tokio 侧循环：审批/选题 drain、执行态 transcript 同步、scrollback 通道。
-//! 主 `select!` 与斜杠分发仍在 [`crate::tasks::tasks_repl::run_interactive_tty_stream`]。
+//! Stream REPL：执行态 `transcript` 刷新（[`tick_executing_stream_transcript`]，**仅轴心线程**）、scrollback 通道；
+//! **审批/选题 drain** 与 **回合摘要过期** 亦在轴心 [`crate::repl::run_stream_repl_ui_thread`] 每帧调用。
+//! 主 `select!`、斜杠分发与回合 join 在 [`crate::tasks::tasks_repl::stream_repl_tokio_worker`]（`current_thread` 运行时线程）。
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -7,10 +8,8 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::repl::{ReplLineState, StreamReplRenderMsg};
-use crate::tui::transcript::build_stream_turn_plain;
-use crate::tui::{ApprovalDecision, PendingApproval, PendingUserQuestion};
-
-use super::repl_line_session::ReplLineSession;
+use crate::term::transcript::build_stream_turn_plain;
+use crate::term::{ApprovalDecision, PendingApproval, PendingUserQuestion};
 
 /// 执行态每 tick 重写 transcript，去掉尾部多余 `\n`，避免与主区 padding 叠出「空行带」。
 pub(crate) fn normalize_stream_plain_for_transcript(s: String) -> String {
@@ -80,48 +79,39 @@ pub(crate) fn drain_pending_stream_user_questions(
     }
 }
 
-/// 执行中：按 `messages` 重建主区 `transcript`（与视口一致）。
+/// 执行中：按 `messages` 重建主区 `transcript`（与视口一致）。**仅在轴心线程**调用（与 `poll`/`draw` 同线程）；
+/// 依赖 `ReplLineState::stream_exec_*`（由 Tokio worker 在 `append_user_spawn_turn` 成功后写入）。
 ///
-/// **主缓冲 + 宿主 scrollback**：执行中**不向** `StreamReplRenderMsg::ScrollbackChunk` 推内容。
-/// ratatui 0.24 的 `Terminal::insert_before` 每次会先 `clear()` 再 `append_lines`，高频增量会把视口正文
-/// 反复顶进宿主历史，表现为整段/标题叠行；回合结束后由 `tasks_repl` 一次性写入本回合
-/// `transcript[turn_transcript_anchor..]`。
-pub(crate) fn tick_executing_stream_transcript(
-    line_session: &ReplLineSession,
-    state: &Arc<Mutex<ReplLineState>>,
-    use_repl_alt: bool,
-    exec_prev_len: usize,
-    turn_transcript_anchor: usize,
-    live_scroll_echo_len: &mut usize,
-) {
-    if let Ok(guard) = line_session.messages.try_lock() {
-        let w = state
-            .lock()
-            .map(|s| s.stream_viewport_width.max(40))
-            .unwrap_or(80) as usize;
-        let plain = normalize_stream_plain_for_transcript(build_stream_turn_plain(
-            exec_prev_len,
-            &guard,
-            w,
-            true,
-        ));
-        drop(guard);
-        if use_repl_alt {
-            if let Ok(st) = state.lock() {
-                if let Ok(mut t) = st.transcript.lock() {
-                    t.truncate(turn_transcript_anchor);
-                    t.push_str(&plain);
-                }
-            }
-            *live_scroll_echo_len = plain.len();
-        } else {
-            if let Ok(st) = state.lock() {
-                if let Ok(mut t) = st.transcript.lock() {
-                    t.truncate(turn_transcript_anchor);
-                    t.push_str(&plain);
-                }
-            }
-            *live_scroll_echo_len = plain.len();
+/// **主缓冲 + 宿主 scrollback**：执行中**不向** `StreamReplRenderMsg::ScrollbackChunk` 推内容；
+/// 回合结束后由 `tasks_repl` join 路径一次性写入本回合 `transcript[anchor..]`。
+pub(crate) fn tick_executing_stream_transcript(state: &Arc<Mutex<ReplLineState>>) {
+    let (msgs, exec_prev, anchor) = {
+        let Ok(st) = state.lock() else {
+            return;
+        };
+        let Some(m) = st.stream_exec_messages.as_ref() else {
+            return;
+        };
+        (
+            Arc::clone(m),
+            st.stream_exec_prev_len,
+            st.stream_exec_transcript_anchor,
+        )
+    };
+    let Ok(guard) = msgs.try_lock() else {
+        return;
+    };
+    let w = state
+        .lock()
+        .map(|s| s.stream_viewport_width.max(40))
+        .unwrap_or(80) as usize;
+    let plain =
+        normalize_stream_plain_for_transcript(build_stream_turn_plain(exec_prev, &guard, w, true));
+    drop(guard);
+    if let Ok(st) = state.lock() {
+        if let Ok(mut t) = st.transcript.lock() {
+            t.truncate(anchor);
+            t.push_str(&plain);
         }
     }
 }

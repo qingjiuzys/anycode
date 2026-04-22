@@ -50,19 +50,16 @@ pub(crate) fn session_ignore_approval(cli_ignore_approval: bool) -> bool {
 
 /// anyCode - Integrated AI Agent System
 ///
-/// - **No subcommand (default)**: **fullscreen TUI**（交互式 TTY 上，与 `anycode tui` 相同）；**非 TTY**（管道等）回退为 **stdio 行式 REPL**。
-/// - **`tui`**: 全屏 ratatui 矩阵（显式子命令；与无子命令默认入口等价）。
-/// - **`repl`**: 行式 REPL（Inline 视口 + 底栏；ratatui 流式 dock）。
+/// - **No subcommand (default)**: **交互式终端**（TTY 上流式视口 + 底栏）；**非 TTY** 为 **stdio 逐行**会话。
 #[derive(Parser, Debug)]
 #[command(name = "anycode")]
 #[command(
     author = "anyCode Contributors",
     version = env!("CARGO_PKG_VERSION"),
     about = "anyCode - terminal AI agent for developers (Rust)",
-    long_about = "anyCode is a Rust CLI for local tool-using agents: TUI, REPL, and automation.\n\
-                 • Default (`anycode` no subcommand): fullscreen TUI on an interactive TTY (same as `anycode tui`); non-TTY falls back to line-at-a-time stdio REPL.\n\
-                 • Line REPL (Inline viewport + dock on TTY): `anycode repl`.\n\
-                 • TUI alternate canvas: config `tui.alternateScreen` or in-TUI options (not env-gated defaults)."
+    long_about = "anyCode is a Rust CLI for local tool-using agents.\n\
+                 • Default (`anycode` with no subcommand): stream terminal UI on an interactive TTY; non-TTY uses line-at-a-time stdio.\n\
+                 • Use global `--agent`, `-C` / `--directory`, `--model`, `--resume` to tune the default session."
 )]
 pub(crate) struct Args {
     #[command(subcommand)]
@@ -87,11 +84,19 @@ pub(crate) struct Args {
     )]
     pub(crate) ignore_approval: bool,
 
-    /// Override default model for this process only (default entry / `tui` / `repl`; long `--model` only).
+    /// Agent id (default: from config runtime mode).
+    #[arg(short, long, global = true)]
+    pub(crate) agent: Option<String>,
+
+    /// Working directory for the default interactive session.
+    #[arg(short = 'C', long = "directory", global = true)]
+    pub(crate) directory: Option<PathBuf>,
+
+    /// Override default model for this process only (long `--model` only).
     #[arg(long = "model", global = true)]
     pub(crate) model: Option<String>,
 
-    /// Resume a saved interactive session snapshot (`~/.anycode/tui-sessions/<uuid>.json`; same store as fullscreen TUI; Claude-style `claude --resume`).
+    /// Resume a saved session snapshot (`~/.anycode/sessions/<uuid>.json`).
     #[arg(long = "resume", global = true)]
     pub(crate) resume: Option<Uuid>,
 
@@ -136,26 +141,6 @@ pub(crate) enum Commands {
         /// Working directory
         #[arg(short = 'C', long)]
         directory: Option<PathBuf>,
-    },
-
-    /// 📜  Interactive session: **line REPL**（Inline 视口 + 底栏）。
-    Repl {
-        #[arg(short, long, default_value = "general-purpose")]
-        agent: String,
-        #[arg(short = 'C', long)]
-        directory: Option<PathBuf>,
-        #[arg(short, long)]
-        model: Option<String>,
-    },
-
-    /// 🖥 全屏 ratatui 矩阵会话（与无子命令 `anycode` 默认入口相同）
-    Tui {
-        #[arg(short, long, default_value = "general-purpose")]
-        agent: String,
-        #[arg(short = 'C', long)]
-        directory: Option<PathBuf>,
-        #[arg(long = "model")]
-        model: Option<String>,
     },
 
     /// 🧩  Agent Skills (SKILL.md discovery under configured roots)
@@ -533,58 +518,15 @@ mod clap_tests {
     }
 
     #[test]
-    fn repl_subcommand_parses() {
-        let a =
-            Args::try_parse_from(["anycode", "repl", "--agent", "explore", "-C", "/tmp"]).unwrap();
-        match a.command {
-            Some(Commands::Repl {
-                agent,
-                directory,
-                model,
-            }) => {
-                assert_eq!(agent, "explore");
-                assert_eq!(directory, Some(std::path::PathBuf::from("/tmp")));
-                assert!(model.is_none());
-            }
-            _ => panic!("expected repl"),
-        }
-    }
-
-    #[test]
-    fn repl_subcommand_parses_model_flag() {
+    fn default_entry_parses_global_agent_and_directory() {
         let a = Args::try_parse_from([
-            "anycode",
-            "repl",
-            "--model",
-            "glm-5",
-            "--agent",
-            "general-purpose",
+            "anycode", "--agent", "explore", "-C", "/tmp", "--model", "glm-5",
         ])
         .unwrap();
-        match a.command {
-            Some(Commands::Repl { model, .. }) => assert_eq!(model.as_deref(), Some("glm-5")),
-            _ => panic!("expected repl"),
-        }
-    }
-
-    #[test]
-    fn tui_subcommand_parses() {
-        let a = Args::try_parse_from([
-            "anycode", "tui", "--agent", "explore", "-C", "/tmp", "--model", "glm-5",
-        ])
-        .unwrap();
-        match a.command {
-            Some(Commands::Tui {
-                agent,
-                directory,
-                model,
-            }) => {
-                assert_eq!(agent, "explore");
-                assert_eq!(directory, Some(std::path::PathBuf::from("/tmp")));
-                assert_eq!(model.as_deref(), Some("glm-5"));
-            }
-            _ => panic!("expected tui"),
-        }
+        assert!(a.command.is_none());
+        assert_eq!(a.agent.as_deref(), Some("explore"));
+        assert_eq!(a.directory, Some(std::path::PathBuf::from("/tmp")));
+        assert_eq!(a.model.as_deref(), Some("glm-5"));
     }
 
     #[test]
@@ -658,7 +600,7 @@ mod clap_tests {
 
     #[test]
     fn removed_commands_are_rejected() {
-        for sub in ["chat", "daemon", "list-agents", "list-tools"] {
+        for sub in ["chat", "daemon", "list-agents", "list-tools", "repl", "tui"] {
             let err = Args::try_parse_from(["anycode", sub]).unwrap_err();
             assert!(
                 err.to_string().contains("unrecognized subcommand"),

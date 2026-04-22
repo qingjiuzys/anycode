@@ -1,33 +1,33 @@
-//! 与全屏 TUI Prompt HUD 共享的文案与 `⎿` 提示轮换（流式 REPL dock 复用）。
+//! 流式 REPL dock 与底栏复用的脚标文案与 `⎿` 提示轮换。
 
 use crate::i18n::{tr, tr_args};
 use anycode_core::TurnTokenUsage;
 use fluent_bundle::FluentArgs;
 
-/// Footer ctx 片段：与全屏 TUI [`crate::tui::run::draw`] 脚标同源，供流式 REPL 底栏左列使用。
+/// Footer ctx 片段：流式 REPL 底栏左列使用（与历史全屏脚标同文案策略）。
 pub(crate) fn footer_context_fragment_for_tokens(
     context_window_tokens: u32,
     last_max_input_tokens: u32,
     last_output_tokens: u32,
 ) -> String {
     let mut base = if context_window_tokens == 0 {
-        tr("tui-footer-ctx-unknown")
+        tr("term-footer-ctx-unknown")
     } else if last_max_input_tokens == 0 {
         let mut a = FluentArgs::new();
         a.set("win", context_window_tokens as i64);
-        tr_args("tui-footer-ctx-zero", &a)
+        tr_args("term-footer-ctx-zero", &a)
     } else {
         let pct =
             ((last_max_input_tokens as f64 / context_window_tokens as f64) * 100.0).min(100.0);
         let mut a = FluentArgs::new();
         a.set("pct", (pct.round() as i64).max(0));
         a.set("win", context_window_tokens as i64);
-        tr_args("tui-footer-ctx-pct", &a)
+        tr_args("term-footer-ctx-pct", &a)
     };
     if last_output_tokens > 0 {
         let mut a = FluentArgs::new();
         a.set("k", format_tokens_k_thousands(last_output_tokens));
-        base.push_str(&tr_args("tui-footer-out-tokens", &a));
+        base.push_str(&tr_args("term-footer-out-tokens", &a));
     }
     base
 }
@@ -44,41 +44,41 @@ pub(crate) fn format_tokens_k_thousands(tokens: u32) -> String {
     }
 }
 
-/// Prompt 上 `⎿` 提示轮换条数（约每 8 秒换一条，与 `loop_inner` 一致）。
+/// Prompt 上 `⎿` 提示轮换条数（约每 8 秒换一条）。
 pub(crate) const HUD_TIP_COUNT: usize = 6;
 
 const HUD_TIP_IDS: [&str; HUD_TIP_COUNT] = [
-    "tui-hud-tip-rename",
-    "tui-hud-tip-resume",
-    "tui-hud-tip-compact",
-    "tui-hud-tip-help",
-    "tui-hud-tip-clear",
-    "tui-hud-tip-scroll",
+    "term-hud-tip-rename",
+    "term-hud-tip-resume",
+    "term-hud-tip-compact",
+    "term-hud-tip-help",
+    "term-hud-tip-clear",
+    "term-hud-tip-scroll",
 ];
 
 pub(crate) fn hud_tip_rotated(slot: usize) -> String {
     tr(HUD_TIP_IDS[slot % HUD_TIP_COUNT])
 }
 
-/// 与全屏 TUI [`crate::tui::run::draw`] Prompt HUD 第一行活动文案一致。
+/// Prompt HUD 第一行活动文案（与历史全屏栈一致策略）。
 pub(crate) fn prompt_hud_activity_text(
     pending_approval: bool,
     executing: bool,
     working_elapsed_secs: Option<u64>,
 ) -> String {
     if pending_approval {
-        tr("tui-hud-await-approval")
+        tr("term-hud-await-approval")
     } else if executing {
         match working_elapsed_secs {
             Some(s) => {
                 let mut a = FluentArgs::new();
                 a.set("s", s);
-                tr_args("tui-hud-executing-secs", &a)
+                tr_args("term-hud-executing-secs", &a)
             }
-            None => tr("tui-hud-executing"),
+            None => tr("term-hud-executing"),
         }
     } else {
-        tr("tui-hud-idle")
+        tr("term-hud-idle")
     }
 }
 
@@ -87,7 +87,7 @@ pub(crate) fn prompt_hud_activity_text(
 pub(crate) fn prompt_hud_thought_for_text(elapsed_secs: u64) -> String {
     let mut a = FluentArgs::new();
     a.set("s", elapsed_secs.max(1));
-    tr_args("tui-hud-thought-secs", &a)
+    tr_args("term-hud-thought-secs", &a)
 }
 
 /// 流式 REPL 回合结束：墙钟耗时 + 本轮聚合 tokens（与全屏脚标同源字段）。

@@ -50,6 +50,8 @@ anycode run --agent general-purpose "Reply with OK only"
 
 **实现技术栈：** Rust workspace（`cargo`）；异步运行时 **Tokio**；终端 UI **ratatui** + **crossterm**；Markdown **pulldown-cmark**；国际化 **Fluent**（`fluent-bundle`）；代码高亮 **syntect**。逻辑拆在 `anycode-core`、`anycode-agent`、`anycode-llm`、`anycode-tools`（MCP/LSP）等 crate。
 
+TTY 下 **`anycode repl` 流式界面**默认 **备用屏全屏**（与 `terminal_guard::stream_repl_use_alternate_screen` 一致）；若需旧版主缓冲 Inline + 宿主 scrollback，可设 **`ANYCODE_TERM_REPL_INLINE_LEGACY=1`**。维护者说明见仓库内 [`docs/stream-repl-layout.md`](docs/stream-repl-layout.md)。
+
 ```bash
 cargo fmt
 cargo clippy

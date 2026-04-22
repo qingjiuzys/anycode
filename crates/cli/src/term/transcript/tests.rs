@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::tui::transcript::{
+    use crate::term::transcript::{
         assistant_markdown_meaningful_eq, coalesce_read_tool_batches, collapse_tool_groups,
         ctrl_o_fold_cycle, layout_workspace, message_to_entries, transcript_tail_closing_matches,
         CollapsibleToolBlock, TranscriptEntry, WorkspaceLiveLayout,
@@ -424,7 +424,7 @@ mod tests {
             joined.contains("分析"),
             "expected user prompt in workspace, got {joined:?}"
         );
-        // 主区不再插 `tui-germinating*`（与 Prompt HUD 的 tui-hud-executing* 重复）
+        // 主区不再插 `term-germinating*`（与 Prompt HUD 的 `term-hud-executing*` 重复）
         assert!(!joined.contains("思考中"));
         assert!(!joined.contains("Germinating"));
     }

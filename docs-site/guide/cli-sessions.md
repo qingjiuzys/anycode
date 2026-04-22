@@ -18,12 +18,12 @@ read_when:
 | **`anycode repl`** | yes | **Inline stream REPL** — ratatui viewport + dock; use when you want that layout or **`-C`**, **`--agent`**, **`--resume`** on the command line. |
 | **`anycode tui`** | — | **Fullscreen TUI** (explicit; same as bare **`anycode`** on a TTY). |
 
-Session snapshots live under **`~/.anycode/tui-sessions/`** (same format for stream REPL and TUI).
+Session snapshots live under **`~/.anycode/sessions/`** (same format for stream REPL and TUI).
 
 **Scrollback after exiting stream REPL:** by default the CLI prints the **full** inline transcript again so you can search it in the shell. To reduce duplication with the viewport:
 
-- **`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=0`** (or `false` / `no` / `off`) — do not print.
-- **`ANYCODE_STREAM_EXIT_SCROLLBACK_DUMP=anchor`** — print only from the **last natural-language turn** (byte offset captured when that turn started; same anchor the streamer uses when rebuilding the plain-text buffer).
+- **`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=0`** (or `false` / `no` / `off`) — do not print.
+- **`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP=anchor`** — print only from the **last natural-language turn** (byte offset captured when that turn started; same anchor the streamer uses when rebuilding the plain-text buffer).
 - **`full`**, **`1`**, **`true`**, or unset — full transcript (default).
 
 **Read-only usage:** **`/context`** and **`/cost`** in the host slash menu show message counts, configured context window, and last-turn token aggregates where available. **`/cost`** does **not** estimate dollars — provider billing is authoritative.
@@ -102,7 +102,7 @@ Bottom input:
 
 **Note:** On a TTY, bare **`anycode`** defaults to **fullscreen TUI** (**`anycode tui`**); use **`anycode repl`** for the **stream REPL** layout. Both use **current cwd** and agent from **`runtime.default_mode`** (often **`general-purpose`**). Use **`repl` / `run`** for **`-C`** and **`--agent`**.
 
-**Terminal buffer:** The default fullscreen TUI enters the **DEC alternate screen** (isolated viewport, OpenClaw-style). For **main-buffer scrollback** (closer to Claude Code without fullscreen / `CLAUDE_CODE_NO_FLICKER`): **`export ANYCODE_TUI_ALT_SCREEN=0`** before **`anycode tui`**, or run **`ANYCODE_TUI_ALT_SCREEN=0 anycode tui`** on one line — a standalone `VAR=0` line does **not** export to the child process. Alternatively set **`"tui": { "alternateScreen": false }`** in `config.json`.
+**Terminal buffer:** The default fullscreen TUI enters the **DEC alternate screen** (isolated viewport, OpenClaw-style). For **main-buffer scrollback** (closer to Claude Code without fullscreen / `CLAUDE_CODE_NO_FLICKER`): **`export ANYCODE_TERM_ALT_SCREEN=0`** before **`anycode tui`**, or run **`ANYCODE_TERM_ALT_SCREEN=0 anycode tui`** on one line — a standalone `VAR=0` line does **not** export to the child process. Alternatively set **`"terminal": { "alternateScreen": false }`** in `config.json`.
 
 ### Markdown and links in TUI
 

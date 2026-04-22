@@ -1,17 +1,17 @@
-//! 全屏 TUI（[`crate::tui::run::loop_inner`]）与流式 REPL（[`crate::tasks::tasks_repl::run_interactive_tty_stream`]）执行态差异备忘。
+//! 已移除的全屏 ratatui 主循环与流式 REPL（[`crate::tasks::tasks_repl::run_interactive_tty_stream`]）执行态差异备忘（仅档案）。
 //!
-//! | 维度 | 全屏 `loop_inner` | 流式 `run_interactive_tty_stream` |
-//! |------|-------------------|-------------------------------------|
-//! | `executing_since` 置位 | `event.rs` 多路径 | 自然语言 `SpawnNatural` 分支 |
-//! | 执行中 transcript | `exec_live_tail` + `sync_transcript_with_messages_tail` | `build_stream_turn_plain(..., live: true)` + `turn_transcript_anchor` 截断 |
+//! | 维度 | 历史全屏主循环 | 流式 `run_interactive_tty_stream` |
+//! |------|----------------|-------------------------------------|
+//! | `executing_since` 置位 | 多事件路径 | 自然语言 `SpawnNatural` 分支 |
+//! | 执行中 transcript | `exec_live_tail` 等 | `build_stream_turn_plain(..., live: true)` + `turn_transcript_anchor` 截断 |
 //! | 回合结束清理 | `consume_finished_turn` | `finish_stream_spawned_turn` + 回放 `build_stream_turn_plain` |
 //!
-//! 回归策略：对同一组 `messages` 快照，断言 `build_stream_turn_plain` 与（若可及）全屏折叠路径的关键行一致；见下方 smoke 单测。
+//! 回归策略：对同一组 `messages` 快照，断言 `build_stream_turn_plain` 与流式路径一致；见下方 smoke 单测。
 
 #[cfg(test)]
 mod tests {
     use crate::repl::{drain_stream_repl_render_scrollback, StreamReplRenderMsg};
-    use crate::tui::transcript::build_stream_turn_plain;
+    use crate::term::transcript::build_stream_turn_plain;
     use anycode_core::{Message, MessageContent, MessageRole};
     use chrono::Utc;
     use std::collections::HashMap;

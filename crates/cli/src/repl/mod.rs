@@ -1,6 +1,7 @@
-//! Stream REPL（`anycode repl`）：默认主缓冲 `Viewport::Inline`（**约占屏高 55%，随终端缩放**，非整屏）+ 底栏与 transcript 视口；可选备用屏全屏。
+//! 交互式流式终端（默认 `anycode` 无子命令、TTY）：默认 **备用屏全屏** ratatui；`ANYCODE_TERM_REPL_INLINE_LEGACY=1` 时为主缓冲 Inline（约占屏高 55%）+ 底栏。
+//! 流式 REPL 输入区**不**提供 `/` 候选列表与灰色续写。
 //!
-//! 主缓冲下执行中正文经 **`insert_before`** 进宿主 **scrollback**（与 `draw` 同线程）；不捕鼠（见 [`crate::tui::run::terminal_guard`]）。
+//! Inline 下执行中正文可经 **`insert_before`** 进宿主 **scrollback**；不捕鼠（见 [`crate::term::terminal_guard`]）。
 
 #![allow(unused_imports)] // 聚合 re-export：子模块与外部 crate 路径共用。
 
@@ -8,7 +9,7 @@ pub(crate) mod dock_render;
 pub(crate) mod exec_parity;
 pub(crate) mod inline;
 pub(crate) mod line_state;
-pub(crate) mod slash_ctx;
+pub(crate) mod stream_app;
 pub(crate) mod stream_events;
 pub(crate) mod stream_paint;
 pub(crate) mod stream_ratatui;
@@ -27,6 +28,7 @@ pub(crate) use line_state::{
     reset_slash_state, stream_repl_scroll_reset_to_bottom, stream_transcript_page_step,
     stream_transcript_wheel_step, ReplCtl, ReplLineState, StreamTranscriptLayoutCache,
 };
+pub(crate) use stream_app::StreamReplUiSession;
 pub(crate) use stream_events::{
     apply_stream_approval_key, apply_stream_user_question_key, handle_event,
     stream_repl_accept_key_event,

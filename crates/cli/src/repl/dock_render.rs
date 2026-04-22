@@ -2,19 +2,14 @@
 
 use std::time::Instant;
 
-use crate::i18n::{tr, tr_args};
-use crate::md_tui::{
-    pad_end_to_display_width, text_display_width, truncate_to_display_width, wrap_string_to_width,
-};
+use crate::i18n::tr;
+use crate::md_render::{text_display_width, wrap_string_to_width};
 use crate::repl::line_state::ReplLineState;
-use crate::repl::slash_ctx::slash_suggestions_for_ctx;
-use crate::slash_commands;
-use crate::tui::input::prompt_multiline_lines_and_cursor;
-use crate::tui::styles::{
+use crate::term::input::prompt_multiline_lines_and_cursor;
+use crate::term::styles::{
     style_dim, style_horizontal_rule, style_menu_selected, style_tool, style_warn,
 };
-use crate::tui::util::truncate_preview;
-use fluent_bundle::FluentArgs;
+use crate::term::util::truncate_preview;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -27,16 +22,6 @@ use ratatui::widgets::{Paragraph, Widget, Wrap};
 pub(crate) struct ReplDockLayout;
 
 impl ReplDockLayout {
-    fn max_slash_show(self) -> usize {
-        let _ = self;
-        5
-    }
-
-    fn slash_height_cap(self) -> u16 {
-        let _ = self;
-        7
-    }
-
     fn approval_total_cap(self) -> u16 {
         let _ = self;
         14
@@ -156,37 +141,10 @@ pub(crate) fn repl_dock_compute_natural(
     };
     let approval_h = repl_stream_approval_block_h(area_width, state, layout)
         .max(repl_stream_user_question_block_h(area_width, state, layout));
-    let slash_candidates = slash_suggestions_for_ctx(state);
     let input_inner_w = area_width.max(8);
-    let slash_ghost = if state.slash_suppress {
-        None
-    } else {
-        slash_commands::slash_ghost_suffix(&state.input.as_string(), state.input.cursor)
-    };
-    let (pl, _) = prompt_multiline_lines_and_cursor(&state.input, input_inner_w, slash_ghost);
+    let (pl, _) = prompt_multiline_lines_and_cursor(&state.input, input_inner_w, None);
     let input_line_count = pl.len().max(1) as u16;
-    let sugg_h = if approval_h > 0 {
-        0u16
-    } else if slash_candidates.is_empty() {
-        0u16
-    } else {
-        let len = slash_candidates.len();
-        let pick = state.slash_pick % len;
-        let max_show = layout.max_slash_show();
-        let start = if len <= max_show {
-            0usize
-        } else {
-            pick.saturating_sub(max_show / 2)
-                .min(len.saturating_sub(max_show))
-        };
-        let end = (start + max_show).min(len);
-        let mut h = (end - start) as u16;
-        if len > max_show {
-            h = h.saturating_add(1);
-        }
-        h = h.saturating_add(1);
-        h.min(layout.slash_height_cap())
-    };
+    let sugg_h = 0u16;
     let input_h = input_line_count.max(1);
     let rule_top_h = layout.prompt_rule_top_rows();
     let rule_bottom_h = layout.prompt_rule_bottom_rows();
@@ -290,13 +248,13 @@ fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineSta
     let pending = state.pending_approval.is_some() || state.pending_user_question.is_some();
     let exec = state.executing_since.is_some();
     let secs = state.executing_since.map(|t| t.elapsed().as_secs());
-    let activity = crate::tui::hud_text::prompt_hud_activity_text(pending, exec, secs);
-    let activity_line_style = Style::default().fg(crate::tui::palette::thinking_caption());
+    let activity = crate::term::hud_text::prompt_hud_activity_text(pending, exec, secs);
+    let activity_line_style = Style::default().fg(crate::term::palette::thinking_caption());
     let mut lines: Vec<Line> = vec![Line::from(vec![
         Span::styled(
             "✶ ",
             Style::default()
-                .fg(crate::tui::palette::secondary())
+                .fg(crate::term::palette::secondary())
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(activity, activity_line_style),
@@ -307,8 +265,8 @@ fn render_stream_hud_to_buffer(buf: &mut Buffer, area: Rect, state: &ReplLineSta
             .unwrap_or_default()
             .as_secs() as usize
             / 8)
-            % crate::tui::hud_text::HUD_TIP_COUNT;
-        let tip = crate::tui::hud_text::hud_tip_rotated(slot);
+            % crate::term::hud_text::HUD_TIP_COUNT;
+        let tip = crate::term::hud_text::hud_tip_rotated(slot);
         lines.push(Line::from(vec![
             Span::styled("⎿ ", style_dim()),
             Span::styled(tip, style_dim()),
@@ -365,14 +323,8 @@ pub(crate) fn render_repl_dock_to_buffer(
     state: &ReplLineState,
     layout: ReplDockLayout,
 ) -> Option<(u16, u16)> {
-    let slash_candidates = slash_suggestions_for_ctx(state);
     let input_inner_w = dock_area.width.max(8);
-    let slash_ghost = if state.slash_suppress {
-        None
-    } else {
-        slash_commands::slash_ghost_suffix(&state.input.as_string(), state.input.cursor)
-    };
-    let (pl, cur) = prompt_multiline_lines_and_cursor(&state.input, input_inner_w, slash_ghost);
+    let (pl, cur) = prompt_multiline_lines_and_cursor(&state.input, input_inner_w, None);
 
     let nat = repl_dock_compute_natural(dock_area.width.max(1), state, layout);
     let dock_h = dock_area.height.max(1);
@@ -434,7 +386,7 @@ pub(crate) fn render_repl_dock_to_buffer(
     } else {
         None
     };
-    let sugg_rect = chunks[ci];
+    let _ = chunks[ci];
     ci += 1;
     let rule_bottom_rect = if rule_bottom_h > 0 {
         let r = chunks[ci];
@@ -535,7 +487,7 @@ pub(crate) fn render_repl_dock_to_buffer(
         let pv = p.input_preview.as_str();
         let mut input_lines: Vec<Line> = vec![
             Line::from(Span::styled(
-                tr("tui-approval-question"),
+                tr("term-approval-question"),
                 Style::default()
                     .fg(Color::White)
                     .add_modifier(Modifier::BOLD),
@@ -546,7 +498,7 @@ pub(crate) fn render_repl_dock_to_buffer(
                     format!("{} ", p.tool),
                     style_warn().add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(tr("tui-approval-pending"), style_dim()),
+                Span::styled(tr("term-approval-pending"), style_dim()),
             ]),
         ];
         if text_display_width(pv) <= preview_w {
@@ -557,9 +509,9 @@ pub(crate) fn render_repl_dock_to_buffer(
             }
         }
         let pick = state.approval_menu_selected % 3;
-        let opt_once = tr("tui-approval-opt-once");
-        let opt_proj = tr("tui-approval-opt-project");
-        let opt_deny = tr("tui-approval-opt-deny");
+        let opt_once = tr("term-approval-opt-once");
+        let opt_proj = tr("term-approval-opt-project");
+        let opt_deny = tr("term-approval-opt-deny");
         for (i, label) in [opt_once, opt_proj, opt_deny].into_iter().enumerate() {
             let prefix = if i == pick { "❯ " } else { "  " };
             let st = if i == pick {
@@ -573,64 +525,12 @@ pub(crate) fn render_repl_dock_to_buffer(
             ]));
         }
         input_lines.push(Line::from(vec![Span::styled(
-            tr("tui-approval-hint-arrows"),
+            tr("term-approval-hint-arrows"),
             style_dim(),
         )]));
         Paragraph::new(Text::from(input_lines))
             .wrap(Wrap { trim: false })
             .render(apr, buf);
-    }
-
-    if !slash_candidates.is_empty() {
-        let len = slash_candidates.len();
-        let pick = state.slash_pick % len;
-        let max_show = layout.max_slash_show();
-        let start = if len <= max_show {
-            0usize
-        } else {
-            pick.saturating_sub(max_show / 2)
-                .min(len.saturating_sub(max_show))
-        };
-        let end = (start + max_show).min(len);
-        let line_w = sugg_rect.width as usize;
-        let max_cmd_w =
-            slash_commands::slash_menu_cmd_column_width(&slash_candidates, start, end, line_w);
-        let mut sugg_lines: Vec<Line> = Vec::new();
-        for idx in start..end {
-            let item = &slash_candidates[idx];
-            let is_sel = idx == pick;
-            let d = item.display.as_str();
-            let raw = if text_display_width(d) > max_cmd_w {
-                truncate_to_display_width(d, max_cmd_w)
-            } else {
-                d.to_string()
-            };
-            let cmd_cell = pad_end_to_display_width(&raw, max_cmd_w);
-            let desc_max = line_w.saturating_sub(2 + max_cmd_w + 2).max(8);
-            let desc = truncate_to_display_width(item.description.trim(), desc_max);
-            let cmd_style = if is_sel {
-                style_menu_selected()
-            } else {
-                style_dim()
-            };
-            sugg_lines.push(Line::from(vec![
-                Span::styled(if is_sel { "› " } else { "  " }, style_dim()),
-                Span::styled(cmd_cell, cmd_style),
-                Span::styled(format!("  {desc}"), style_dim()),
-            ]));
-        }
-        if len > max_show {
-            let mut a = FluentArgs::new();
-            a.set("s", (start + 1) as i64);
-            a.set("e", end as i64);
-            a.set("n", len as i64);
-            sugg_lines.push(Line::from(Span::styled(
-                tr_args("repl-slash-range", &a),
-                style_dim(),
-            )));
-        }
-        sugg_lines.push(Line::from(Span::styled(tr("repl-slash-nav"), style_dim())));
-        Paragraph::new(Text::from(sugg_lines)).render(sugg_rect, buf);
     }
 
     if let Some(rr) = rule_bottom_rect {

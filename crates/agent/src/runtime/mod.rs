@@ -754,8 +754,10 @@ impl AgentRuntime {
         let mut artifacts: Vec<Artifact> = vec![];
         let mut last_assistant_text = String::new();
         let mut turn_usage = TurnTokenUsage::default();
+        let mut last_model_turn: usize = 1;
 
         for turn in 1..=MAX_AGENT_TURNS {
+            last_model_turn = turn;
             logger.line(
                 task_id,
                 &format!("[turn_start] turn={}/{}", turn, MAX_AGENT_TURNS),
@@ -1154,12 +1156,23 @@ impl AgentRuntime {
             }
         }
 
-        logger.line(task_id, "[task_end] status=completed");
         let user_line = {
             let g = messages.lock().await;
             last_user_plain_text_for_autosave(&g)
         };
         if !last_assistant_text.trim().is_empty() {
+            logger.line(task_id, "[task_end] status=completed");
+            logger.line(
+                task_id,
+                &format!(
+                    "[final_output] source=assistant reply_chars={}",
+                    last_assistant_text.chars().count()
+                ),
+            );
+            logger.line(task_id, "== assistant_final ==");
+            for line in last_assistant_text.lines() {
+                logger.line(task_id, line);
+            }
             self.maybe_autosave_memory(task_id, &user_line, &last_assistant_text)
                 .await;
             return Ok(TurnOutput {
@@ -1202,6 +1215,13 @@ impl AgentRuntime {
             &output_tail,
         )
         .await;
+
+        logger.line(task_id, "[task_end] status=completed");
+        logger.line(task_id, "== summary ==");
+        for line in summary_text.lines() {
+            logger.line(task_id, line);
+        }
+
         self.maybe_autosave_memory(task_id, &user_line, &summary_text)
             .await;
         // 与 `execute_task` 的 summary 回执一致：须写入会话 `messages`，流式 REPL 仅靠
@@ -1216,6 +1236,23 @@ impl AgentRuntime {
                 metadata: HashMap::new(),
             });
         }
+
+        let session_label = format!("tui_{}", task_id);
+        self.pipeline_memory_hook_agent_turn(
+            &session_label,
+            task_id,
+            last_model_turn,
+            &summary_text,
+        )
+        .await;
+        self.maybe_session_notify_agent_turn(
+            &session_label,
+            task_id,
+            last_model_turn,
+            &summary_text,
+            Some(working_directory),
+        );
+
         Ok(TurnOutput {
             final_text: summary_text,
             artifacts,
@@ -1305,8 +1342,10 @@ impl AgentRuntime {
         }
         let mut total_tool_calls: usize = 0;
         let mut artifacts: Vec<Artifact> = vec![];
+        let mut last_model_turn: usize = 1;
 
         for turn in 1..=MAX_AGENT_TURNS {
+            last_model_turn = turn;
             logger.line(
                 task.id,
                 &format!("[turn_start] turn={}/{}", turn, MAX_AGENT_TURNS),
@@ -1612,6 +1651,22 @@ impl AgentRuntime {
 
         self.maybe_autosave_memory(task.id, &task.prompt, &summary_text)
             .await;
+
+        let session_label = task.context.session_id.to_string();
+        self.pipeline_memory_hook_agent_turn(
+            &session_label,
+            task.id,
+            last_model_turn,
+            &summary_text,
+        )
+        .await;
+        self.maybe_session_notify_agent_turn(
+            &session_label,
+            task.id,
+            last_model_turn,
+            &summary_text,
+            Some(task.context.working_directory.as_str()),
+        );
 
         Ok(TaskResult::Success {
             output: summary_text,
