@@ -188,9 +188,9 @@ pub(crate) enum Commands {
         sub: MemoryCommands,
     },
 
-    /// 🚀  First-time setup: model first, then choose channel (wechat / telegram / discord)
+    /// 🚀  First-time setup: model first, then choose channel (wechat / telegram / discord) or skip
     Setup {
-        /// Preferred channel: wechat / telegram / discord (optional)
+        /// Channel: wechat, telegram, discord, or skip/none to skip (optional)
         #[arg(long)]
         channel: Option<String>,
         /// WeChat data directory (default ~/.anycode/wechat; used when channel=wechat)
@@ -584,6 +584,13 @@ mod clap_tests {
             Some(Commands::Setup { channel, data_dir }) => {
                 assert_eq!(channel.as_deref(), Some("telegram"));
                 assert!(data_dir.is_none());
+            }
+            _ => panic!("expected setup"),
+        }
+        let a = Args::try_parse_from(["anycode", "setup", "--channel", "skip"]).unwrap();
+        match a.command {
+            Some(Commands::Setup { channel, .. }) => {
+                assert_eq!(channel.as_deref(), Some("skip"));
             }
             _ => panic!("expected setup"),
         }

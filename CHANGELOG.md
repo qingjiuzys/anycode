@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- **WeChat bridge:** Align inbound body with OpenClaw `bodyFromItemList`; slash routing uses first plain TEXT segment; `ref_msg` quote lines and media selection/fallback (`IMAGE > VIDEO > FILE > VOICE` without STT); CDN decryption for video/file/voice when applicable; attachment prompts via `wx.ftl`.
+- **`anycode setup`:** Fourth interactive choice and `--channel skip` / `--channel none` to skip channel onboarding. Non-interactive setups without `--channel` skip channel; pass `--channel wechat|telegram|discord` explicitly when needed.
+
 ### Breaking (terminal / session / env)
 
 - **`config.json`**: top-level key **`"tui"` → `"terminal"`** (same inner fields, e.g. `alternateScreen`). No serde alias for the old key.

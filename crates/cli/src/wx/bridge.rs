@@ -4,9 +4,14 @@ use crate::app_config::{resolve_config_path, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::i18n::{tr, tr_args};
 use crate::wx::approval::{ActiveChat, WechatApprovalGate};
-use crate::wx::cdn_media::{download_image_from_item, extract_user_text_and_image_item};
+use crate::wx::cdn_media::{
+    download_cdn_item_to_b64, extract_user_text_and_image_item, first_plain_text_from_items,
+    has_voice_item_without_stt,
+};
 use crate::wx::commands::{route_command, CmdCtx, CmdOut};
-use crate::wx::fields::{i64_snake_camel, msgs_array, str_snake_camel, sync_buf_from_response};
+use crate::wx::fields::{
+    i64_snake_camel, item_type, msgs_array, str_snake_camel, sync_buf_from_response,
+};
 use crate::wx::ilink::{load_sync_buf, save_sync_buf, WeChatApi, WxSender};
 use crate::wx::permission::PermissionBroker;
 use crate::wx::store::{
@@ -201,9 +206,10 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
         }
 
         for msg in msgs {
+            // 与 openclaw-weixin `MessageType` 对齐：1=用户 2=机器人；不强制仅处理 1，避免错丢入站。
             let msg_type = i64_snake_camel(&msg, "message_type", "messageType").unwrap_or(0);
-            if msg_type != 1 {
-                tracing::debug!(msg_type, "{}", tr("wx-log-skip-non-user"));
+            if msg_type == 2 {
+                tracing::debug!(msg_type, "wx-skip-bot-echo");
                 continue;
             }
             let from = match str_snake_camel(&msg, "from_user_id", "fromUserId") {
@@ -281,7 +287,8 @@ async fn handle_message(
     context_token: String,
     items: Vec<serde_json::Value>,
 ) -> Result<()> {
-    let (user_text, image_item) = extract_user_text_and_image_item(&items);
+    let (body, media_item) = extract_user_text_and_image_item(&items);
+    let cmd = first_plain_text_from_items(&items);
 
     let mut session = st.session_arc.lock().await;
     let wcc = st.wcc_arc.lock().await.clone();
@@ -297,7 +304,7 @@ async fn handle_message(
     }
 
     if session.state == SessionState::Processing {
-        if user_text.trim_start().starts_with("/clear") {
+        if cmd.trim_start().starts_with("/clear") {
             if let Some(f) = st.wx_turn_cancel.lock().unwrap().as_ref() {
                 f.store(true, Ordering::SeqCst);
             }
@@ -306,7 +313,7 @@ async fn handle_message(
             }
             session.state = SessionState::Idle;
             let _ = save_session(&st.data_root, &st.account.account_id, &session);
-        } else if !user_text.trim_start().starts_with('/') {
+        } else if !cmd.trim_start().starts_with('/') {
             if let Some(f) = st.wx_turn_cancel.lock().unwrap().as_ref() {
                 f.store(true, Ordering::SeqCst);
             }
@@ -322,14 +329,14 @@ async fn handle_message(
                 .await;
             // Re-lock session for the rest of `handle_message`.
             session = st.session_arc.lock().await;
-        } else if !user_text.starts_with("/status") && !user_text.starts_with("/help") {
+        } else if !cmd.starts_with("/status") && !cmd.starts_with("/help") {
             drop(session);
             return Ok(());
         }
     }
 
     if session.state == SessionState::Idle && st.broker.is_timed_out().await {
-        let lower = user_text.to_lowercase();
+        let lower = body.to_lowercase();
         if matches!(lower.as_str(), "y" | "yes" | "n" | "no") {
             st.broker.clear_timed_out().await;
             st.sender
@@ -350,7 +357,7 @@ async fn handle_message(
             drop(session);
             return Ok(());
         }
-        let lower = user_text.to_lowercase();
+        let lower = body.to_lowercase();
         let reply = if matches!(lower.as_str(), "y" | "yes") {
             let ok = st.broker.resolve(true).await;
             if ok {
@@ -375,8 +382,8 @@ async fn handle_message(
         return Ok(());
     }
 
-    if user_text.starts_with('/') {
-        if user_text.trim_start().starts_with("/clear") {
+    if cmd.starts_with('/') {
+        if cmd.trim_start().starts_with("/clear") {
             let _ = st.broker.reject_pending().await;
         }
         let mut wcc_mut = st.wcc_arc.lock().await.clone();
@@ -386,7 +393,7 @@ async fn handle_message(
             session: &mut session,
             wcc: &mut wcc_mut,
         };
-        match route_command(&user_text, &mut ctx)? {
+        match route_command(&cmd, &mut ctx)? {
             CmdOut::Reply(s) => {
                 let _ = save_session(&st.data_root, &st.account.account_id, &session);
                 *st.wcc_arc.lock().await = wcc_mut.clone();
@@ -402,18 +409,28 @@ async fn handle_message(
         }
     }
 
-    if user_text.is_empty() && image_item.is_none() {
+    if body.is_empty() && media_item.is_none() {
         drop(session);
+        let reply = if has_voice_item_without_stt(&items) {
+            tr("wx-voice-no-stt")
+        } else {
+            tr("wx-unsupported-msg")
+        };
         st.sender
-            .send_text(&from_user_id, &context_token, &tr("wx-unsupported-msg"))
+            .send_text(&from_user_id, &context_token, &reply)
             .await?;
         return Ok(());
     }
 
-    let user_line = if user_text.is_empty() {
-        tr("wx-analyze-image")
+    let user_line = if !body.is_empty() {
+        body.clone()
+    } else if let Some(m) = &media_item {
+        match item_type(m) {
+            2 => tr("wx-analyze-image"),
+            _ => tr("wx-analyze-attachment"),
+        }
     } else {
-        user_text.clone()
+        String::new()
     };
     drop(session);
     run_agent_pipeline(
@@ -421,7 +438,8 @@ async fn handle_message(
         from_user_id,
         context_token,
         user_line,
-        image_item.cloned(),
+        body,
+        media_item.cloned(),
     )
     .await
 }
@@ -431,7 +449,8 @@ async fn run_agent_pipeline(
     from_user_id: String,
     context_token: String,
     user_line: String,
-    image_item: Option<serde_json::Value>,
+    body: String,
+    media_item: Option<serde_json::Value>,
 ) -> Result<()> {
     let chat = ActiveChat {
         from_user_id: from_user_id.clone(),
@@ -443,8 +462,17 @@ async fn run_agent_pipeline(
         let mut session = st.session_arc.lock().await;
         session.state = SessionState::Processing;
         let analyze = tr("wx-analyze-image");
-        let content = if user_line == analyze && image_item.is_some() {
-            tr("wx-chat-image-marker")
+        let att = tr("wx-analyze-attachment");
+        let content = if !body.is_empty() {
+            body.clone()
+        } else if let Some(m) = &media_item {
+            if item_type(m) == 2 && user_line == analyze {
+                tr("wx-chat-image-marker")
+            } else if user_line == att || user_line == analyze {
+                tr("wx-chat-attachment-marker")
+            } else {
+                user_line.clone()
+            }
         } else {
             user_line.clone()
         };
@@ -452,15 +480,36 @@ async fn run_agent_pipeline(
         let _ = save_session(&st.data_root, &st.account.account_id, &session);
     }
 
-    let image_note = if let Some(ref it) = image_item {
-        match download_image_from_item(st.api.http_client(), it).await {
+    let media_note = if let Some(ref it) = media_item {
+        let t = item_type(it);
+        let kind = match t {
+            2 => tr("wx-media-kind-image"),
+            3 => tr("wx-media-kind-voice"),
+            4 => tr("wx-media-kind-file"),
+            5 => tr("wx-media-kind-video"),
+            _ => "media".to_string(),
+        };
+        match download_cdn_item_to_b64(st.api.http_client(), it).await {
             Some((mime, b64)) => {
                 let mut ia = FluentArgs::new();
                 ia.set("mime", mime);
                 ia.set("len", b64.len() as i64);
-                Some(tr_args("wx-llm-image-note", &ia))
+                if t == 2 {
+                    Some(tr_args("wx-llm-image-note", &ia))
+                } else {
+                    ia.set("kind", kind);
+                    Some(tr_args("wx-llm-attachment-note", &ia))
+                }
             }
-            None => Some(tr("wx-llm-image-fail")),
+            None => {
+                if t == 2 {
+                    Some(tr("wx-llm-image-fail"))
+                } else {
+                    let mut fa = FluentArgs::new();
+                    fa.set("kind", kind);
+                    Some(tr_args("wx-llm-attachment-fail", &fa))
+                }
+            }
         }
     } else {
         None
@@ -477,9 +526,16 @@ async fn run_agent_pipeline(
         let hist_txt = chat_history_text(&hist, Some(40));
         let mut ha = FluentArgs::new();
         ha.set("hist", hist_txt);
-        ha.set("user", user_line.clone());
+        ha.set(
+            "user",
+            if !body.is_empty() {
+                body.clone()
+            } else {
+                user_line.clone()
+            },
+        );
         let mut p = tr_args("wx-llm-history-wrap", &ha);
-        if let Some(note) = image_note {
+        if let Some(note) = media_note {
             p.push_str(&note);
         }
         p

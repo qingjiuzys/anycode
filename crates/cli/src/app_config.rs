@@ -1339,36 +1339,50 @@ pub(crate) async fn run_onboard_flow(
         }
     }
 
-    let selected = match channel
+    let ch_arg = channel
         .as_deref()
-        .map(|s| s.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        Some("wechat") => "wechat",
-        Some("telegram") => "telegram",
-        Some("discord") => "discord",
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase());
+    let selected: Option<&'static str> = match ch_arg.as_deref() {
+        Some("wechat") => Some("wechat"),
+        Some("telegram") => Some("telegram"),
+        Some("discord") => Some("discord"),
+        Some("skip" | "none") => None,
         Some(other) => {
-            anyhow::bail!("unsupported setup channel: {other} (expected wechat/telegram/discord)")
+            anyhow::bail!("unsupported setup channel: {other} (expected wechat/telegram/discord or skip/none)")
         }
         None => {
             use dialoguer::{theme::ColorfulTheme, Select};
             let term = console::Term::stdout();
             if !term.is_term() {
-                println!("setup 未指定 channel，默认选择 wechat（可用 --channel 覆盖）");
-                "wechat"
+                println!("{}", tr("setup-non-tty-skip-hint"));
+                None
             } else {
-                let options = ["wechat", "telegram", "discord"];
+                let opt_skip = tr("setup-channel-opt-skip");
+                let options = ["wechat", "telegram", "discord", opt_skip.as_str()];
+                let prompt = tr("setup-channel-prompt");
                 let idx = Select::with_theme(&ColorfulTheme::default())
-                    .with_prompt("选择要接入的 channel")
+                    .with_prompt(&prompt)
                     .items(options)
                     .default(0)
                     .interact()?;
-                options[idx]
+                match idx {
+                    0 => Some("wechat"),
+                    1 => Some("telegram"),
+                    2 => Some("discord"),
+                    _ => None,
+                }
             }
         }
     };
 
-    match selected {
+    let Some(ch) = selected else {
+        println!("{}", tr("setup-channel-skipped-hint"));
+        return Ok(());
+    };
+
+    match ch {
         "wechat" => crate::wechat::run_onboard(data_dir, config_file, debug).await,
         "telegram" => crate::tg::run_telegram_setup().await,
         "discord" => crate::discord_channel::run_discord_setup().await,
