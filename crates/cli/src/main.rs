@@ -12,13 +12,12 @@ mod copilot_auth;
 mod discord_channel;
 mod i18n;
 mod md_render;
-#[cfg(feature = "embedding-local")]
-mod memory_embedding_setup;
 mod repl;
 mod repl_banner;
 mod repl_clipboard;
 mod scheduler;
 mod session_transcript_export;
+mod setup_memory;
 mod slash_commands;
 mod tasks;
 mod term;

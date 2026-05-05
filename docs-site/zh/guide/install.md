@@ -35,7 +35,7 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
-预期输出：安装脚本下载二进制并默认执行 `anycode setup`。
+预期输出：安装脚本下载二进制并默认执行 `anycode setup`（交互终端上包含记忆 / 向量步骤；见 [记忆系统说明](./memory)）。
 
 ## 一行安装（Windows PowerShell）
 

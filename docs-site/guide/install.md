@@ -35,7 +35,7 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
-Expected output: installer downloads binary and runs `anycode setup` by default.
+Expected output: installer downloads binary and runs `anycode setup` by default (`setup` includes a memory / embedding step on interactive terminals; see [Memory notes](./memory)).
 
 ## One-line installer (Windows PowerShell)
 

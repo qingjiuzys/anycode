@@ -10,6 +10,8 @@ read_when:
 
 ## Current anyCode behavior
 
+`anycode setup` (interactive TTY) walks through memory / embedding options after model configuration—remote OpenAI-compatible embeddings, simple `file`, or **local ONNX** when you build with `embedding-local` (see vectors below).
+
 - **Backends**: `memory.backend` supports `file`, `hybrid`, `noop`, or **`pipeline`** (归根通道: ephemeral buffer → reinforce → hot Sled → optional vector; see `anycode_memory::RootReturnMemoryPipeline`). Aliases: `layered`, `guigen`.
 - **Legacy Markdown**: With `pipeline` and `memory.pipeline.merge_legacy_file_recall` (default true), existing `*.md` under the memory root are merged **read-only** into recall alongside the hot layer.
 - **Scope**: Project vs user memories flow through `anycode_memory` with keyword retrieval today; pipeline adds pre-semantic fragments before promotion.

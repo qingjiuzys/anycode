@@ -691,7 +691,7 @@ pub(crate) struct AnyCodeConfig {
     /// 按厂商 id 存额外密钥（如 `anthropic`、`openrouter`），用于与全局不同厂商混跑 routing。
     #[serde(default)]
     provider_credentials: HashMap<String, String>,
-    base_url: Option<String>,
+    pub(crate) base_url: Option<String>,
     // V1 先固定为 glm-4（后续可扩展为编码套餐的多个模型）
     model: String,
     temperature: f32,
@@ -1176,7 +1176,7 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
         .map(|c| c.runtime.clone())
         .unwrap_or_default();
 
-    let cfg = AnyCodeConfig {
+    let mut cfg = AnyCodeConfig {
         provider: "z.ai".to_string(),
         plan,
         api_key,
@@ -1231,6 +1231,10 @@ async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow::Result<()>
             .map(|c| c.notifications.clone())
             .unwrap_or_default(),
     };
+
+    if let Err(e) = crate::setup_memory::apply_to_in_memory_wizard_config(&mut cfg) {
+        tracing::warn!(target: "anycode_cli", "memory setup wizard step skipped: {}", e);
+    }
 
     save_anycode_config(&cfg)?;
     println!();
@@ -1332,10 +1336,16 @@ pub(crate) async fn run_onboard_flow(
         run_model_onboard_interactive(config_file.clone()).await?;
     }
 
-    #[cfg(feature = "embedding-local")]
+    let cf_mem = config_file.clone();
+    match tokio::task::spawn_blocking(move || crate::setup_memory::run_after_model_step(cf_mem))
+        .await
     {
-        if let Err(e) = crate::memory_embedding_setup::run_optional(config_file.clone()) {
-            tracing::warn!(target: "anycode_cli", "memory embedding setup skipped: {}", e);
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            tracing::warn!(target: "anycode_cli", "memory setup step skipped: {}", e);
+        }
+        Err(e) => {
+            tracing::warn!(target: "anycode_cli", "memory setup task join failed: {}", e);
         }
     }
 

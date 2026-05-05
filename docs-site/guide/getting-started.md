@@ -19,7 +19,7 @@ After this page, you will have:
 ## Five-minute path
 
 1. **Install** — use [Install](./install).  
-2. **Run setup** — choose model + channel (`wechat` / `telegram` / `discord`).  
+2. **Run setup** — choose model, then memory / embedding strategy ([Memory notes](./memory)), then optional channel (`wechat` / `telegram` / `discord`).  
 3. **Verify** — run one command and check output.
 
 ## Requirements
@@ -36,7 +36,7 @@ If `anycode` is already in PATH:
 anycode setup
 ```
 
-Expected output: setup wizard starts and asks for model/channel choices.  
+Expected output: setup wizard asks for model, memory / vectors (TTY), then channel choices.  
 Next step: complete setup, then run the Verify commands below.
 
 If you are running directly from a local build output:

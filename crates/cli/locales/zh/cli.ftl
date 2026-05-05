@@ -20,13 +20,36 @@ cmd-list-tools-about = 列出可用工具
 cmd-daemon-about = HTTP 守护进程（长时间运行）
 cmd-daemon-bind = 绑定地址
 cmd-config-about = 交互式配置向导
-cmd-setup-about = 首次安装：工作区 → 缺 API 时向导 → 可选微信扫码与登录自启
+cmd-setup-about = 首次安装：工作区 → 模型/API 向导 → 交互终端上记忆 / 向量选项 → 可选渠道（微信等）
 cmd-setup-channel = setup 时选择的 channel；填 wechat、telegram、discord，或 skip/none 跳过接入
 setup-channel-prompt = 选择要接入的 channel
 setup-channel-opt-skip = 跳过（不接入，稍后用 anycode channel 子命令配置）
 setup-channel-skipped-hint = 已跳过 channel 接入。可稍后执行：anycode channel wechat / telegram / discord
 setup-non-tty-skip-hint = 非交互环境未指定 --channel：跳过 channel 接入。可用 anycode setup --channel wechat|telegram|discord|skip
 cmd-setup-data-dir = 微信数据目录（默认 ~/.anycode/wechat）
+
+setup-memory-non-tty-hint = 非交互环境：`anycode setup` 未展示记忆向量选项。稍后可用 `anycode config`（TTY）或编辑配置 `memory`/「记忆」小节。
+setup-memory-prompt = 记忆与向量检索（不改变 LLM chat 密钥；HTTP 向量与 chat 共用 `api_key`，另设 `embedding_base_url`）
+setup-memory-opt-skip = 跳过（保留当前记忆配置）
+setup-memory-opt-file = 简易 file 后端（开箱默认）
+setup-memory-opt-pipeline-http = Pipeline + 远程向量（OpenAI 兼容，`embedding_base_url` + `embedding_model`）
+setup-memory-opt-pipeline-local = Pipeline + 本地 ONNX（需 embedding-local 构建）
+setup-memory-http-apikey-hint = HTTP 向量请求将使用配置中的 `api_key`（与聊天相同）。若需不同密钥，请事后编辑配置或换用渠道专用凭据。
+setup-memory-http-prompt-base-url = 嵌入 API 根地址（OpenAI 兼容，含 /v1，如 https://api.openai.com/v1）
+setup-memory-http-prompt-model = 嵌入模型 id（如 text-embedding-3-small）
+setup-memory-http-empty-url = 嵌入 base URL 不能为空
+setup-memory-http-empty-model = 嵌入模型 id 不能为空
+setup-memory-local-prompt-ep = 模型下载端点（国内访问 HF 不稳定时可选用镜像）
+setup-memory-ep-official = Hugging Face 官方 (huggingface.co)
+setup-memory-ep-mirror = 国内镜像 (hf-mirror.com)
+setup-memory-ep-env = 不写入端点（沿用环境变量 HF_ENDPOINT，若已设置）
+setup-memory-local-prompt-model = 本地嵌入模型（与 fastembed 内置枚举一致）
+setup-memory-local-model-allmini = AllMiniLML6-v2（英文小模型，常用）
+setup-memory-local-model-bge-zh = bge-small-zh（中文）
+setup-memory-local-model-e5-base = multilingual-e5-base（多语）
+setup-memory-local-model-bge-en = bge-small-en-v1.5（英文）
+setup-memory-local-done-print = 已写入本地嵌入配置（memory.backend=pipeline，embedding_provider=local）。若尚未使用本地 ONNX，请用 `cargo build -p anycode --features embedding-local` 构建后运行。
+
 cmd-channel-about = Channel 子命令（wechat / telegram / discord）
 cmd-telegram-about = Telegram 桥接（Bot Token + 轮询）
 cmd-telegram-bot-token = Telegram Bot Token（默认读取 TELEGRAM_BOT_TOKEN）

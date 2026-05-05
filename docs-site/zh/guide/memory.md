@@ -10,6 +10,8 @@ read_when:
 
 ## anyCode 现状
 
+交互式终端上运行 `anycode setup`，在模型配置之后会引导选择记忆 / 向量：远程 OpenAI 兼容向量、`file` 简易模式，或使用 **`embedding-local` 源码构建后才可用的本地 ONNX（见下文「向量」）**。
+
 - **后端**：`memory.backend` 支持 `file` / `hybrid` / `noop`，以及 **`pipeline`**（归根通道：虚态缓冲 → 强化 → 热层 Sled → 可选向量；实现见 `anycode_memory::RootReturnMemoryPipeline`）。别名：`layered`、`guigen`。
 - **旧版 Markdown**：在 `pipeline` 且 `memory.pipeline.merge_legacy_file_recall` 为 true（默认）时，记忆根目录下既有 `*.md` 会以**只读**方式并入召回，与热层并行。
 - **作用域**：项目 / 用户记忆经 `anycode_memory`；pipeline 在晋升前多一层「前语义」片段。

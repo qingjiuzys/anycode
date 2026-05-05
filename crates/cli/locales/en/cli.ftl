@@ -20,13 +20,36 @@ cmd-list-tools-about = List available tools
 cmd-daemon-about = HTTP daemon (long-running)
 cmd-daemon-bind = Bind address
 cmd-config-about = Interactive configuration wizard
-cmd-setup-about = First-time setup: workspace, API wizard, optional WeChat scan and login autostart
+cmd-setup-about = First-time setup: workspace → model/API wizard → memory / embeddings (interactive TTY) → optional channels (WeChat, etc.)
 cmd-setup-channel = Channel for setup: wechat, telegram, discord, or skip/none to skip
 setup-channel-prompt = Choose a channel to connect
 setup-channel-opt-skip = Skip (configure later with anycode channel …)
 setup-channel-skipped-hint = Skipped channel setup. Later: anycode channel wechat / telegram / discord
 setup-non-tty-skip-hint = Non-interactive, no --channel: skipping channel setup. Use: anycode setup --channel wechat|telegram|discord|skip
 cmd-setup-data-dir = WeChat data directory (default ~/.anycode/wechat)
+
+setup-memory-non-tty-hint = Non-interactive terminal: skipping the memory wizard. Use `anycode config` on a TTY or edit JSON `memory` later.
+setup-memory-prompt = Memory / vector retrieval (HTTP embeddings reuse chat `api_key`; set `embedding_base_url` for the embeddings host)
+setup-memory-opt-skip = Skip (keep current memory settings)
+setup-memory-opt-file = Simple file backend (default onboarding)
+setup-memory-opt-pipeline-http = Pipeline + remote vectors (OpenAI-compatible `embedding_base_url` + `embedding_model`)
+setup-memory-opt-pipeline-local = Pipeline + local ONNX (requires embedding-local build)
+setup-memory-http-apikey-hint = Embedding HTTP calls reuse the configured `api_key` (same as chat). Override later in JSON if needed.
+setup-memory-http-prompt-base-url = Embedding base URL (OpenAI-compatible API root incl. /v1, e.g. https://api.openai.com/v1)
+setup-memory-http-prompt-model = Embedding model id (e.g. text-embedding-3-small)
+setup-memory-http-empty-url = Embedding base URL must not be empty
+setup-memory-http-empty-model = Embedding model id must not be empty
+setup-memory-local-prompt-ep = Model download endpoint (mirror if huggingface.co is slow from your region)
+setup-memory-ep-official = Hugging Face official (huggingface.co)
+setup-memory-ep-mirror = China mirror (hf-mirror.com)
+setup-memory-ep-env = Do not write endpoint (respect existing HF_ENDPOINT if set)
+setup-memory-local-prompt-model = Local embedding model (fastembed built-in enums)
+setup-memory-local-model-allmini = AllMiniLML6-v2 (small English, common default)
+setup-memory-local-model-bge-zh = bge-small-zh (Chinese)
+setup-memory-local-model-e5-base = multilingual-e5-base (multilingual)
+setup-memory-local-model-bge-en = bge-small-en-v1.5 (English)
+setup-memory-local-done-print = Saved local embeddings (memory.backend=pipeline, embedding_provider=local). Build with `cargo build -p anycode --features embedding-local` if embeddings are unsupported in this binary.
+
 cmd-channel-about = Channel commands (wechat / telegram / discord)
 cmd-telegram-about = Telegram bridge (Bot Token + polling)
 cmd-telegram-bot-token = Telegram bot token (fallback: TELEGRAM_BOT_TOKEN)

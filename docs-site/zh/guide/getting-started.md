@@ -19,7 +19,7 @@ read_when:
 ## 五分钟路径
 
 1. **安装** — 见 [安装](./install)。  
-2. **运行 `setup`** — 选择模型与 channel（`wechat` / `telegram` / `discord`）。  
+2. **运行 `setup`** — 选择模型，再选记忆 / 向量策略（见 [记忆系统说明](./memory)），随后可选 channel（`wechat` / `telegram` / `discord`）。  
 3. **验证** — 执行一次任务并检查输出。
 
 ## 环境要求
@@ -36,8 +36,8 @@ read_when:
 anycode setup
 ```
 
-预期输出：进入 setup 向导，提示选择模型和 channel。  
-下一步：完成向导后执行下方“验证”命令。
+预期输出：进入 setup 向导，先在 TTY 上选择模型与记忆 / 向量选项，再选 channel。  
+下一步：完成向导后执行下方「验证」命令。
 
 如果你在本地源码目录里直接运行编译产物：
 
