@@ -30,6 +30,7 @@ See [Config & security](./config-security) for **`security.*`**, memory fields, 
 | Topic | Page |
 |--------|------|
 | **`run`**, **`repl`**, fullscreen TUI, task logs | [Run, REPL & TUI](./cli-sessions) |
+| **`scheduler`**, **`CronCreate`** | [Cron & scheduler](./cli-scheduler) |
 | **HTTP `daemon`** (removed) | [HTTP daemon (removed)](./cli-daemon) |
 | **`model`*** subcommands | [Model commands](./cli-model) |
 | **`list-agents`**, **`list-tools`**, **`test-security`** | [Discovery & test-security](./cli-diagnostics) |

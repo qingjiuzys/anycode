@@ -159,6 +159,8 @@ pub fn workspace_assistant_tool_names(include_skill: bool) -> Vec<ToolName> {
         TOOL_BASH.to_string(),
         TOOL_TASK_LIST.to_string(),
         TOOL_TASK_GET.to_string(),
+        TOOL_CRON_CREATE.to_string(),
+        TOOL_CRON_DELETE.to_string(),
         TOOL_CRON_LIST.to_string(),
         TOOL_TOOL_SEARCH.to_string(),
         TOOL_STRUCTURED_OUTPUT.to_string(),
@@ -187,6 +189,19 @@ pub fn build_registry_with_services(
 /// 默认注册表：独立 `ToolServices`（每调用一次一个新实例；测试/简单场景可用）。
 pub fn build_default_registry(sandbox_mode: bool) -> HashMap<ToolName, Box<dyn Tool>> {
     build_registry(&ToolRegistryDeps::minimal(sandbox_mode))
+}
+
+#[cfg(test)]
+mod workspace_assistant_tools_tests {
+    use super::*;
+
+    #[test]
+    fn workspace_assistant_exposes_cron_create_delete_list() {
+        let tools = workspace_assistant_tool_names(false);
+        assert!(tools.contains(&TOOL_CRON_CREATE.to_string()));
+        assert!(tools.contains(&TOOL_CRON_DELETE.to_string()));
+        assert!(tools.contains(&TOOL_CRON_LIST.to_string()));
+    }
 }
 
 pub fn validate_default_registry(tools: &HashMap<ToolName, Box<dyn Tool>>) -> anyhow::Result<()> {

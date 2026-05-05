@@ -30,6 +30,7 @@ anycode config
 | 主题 | 页面 |
 |------|------|
 | `run` / `repl` / 全屏 TUI / 任务日志 | [run / REPL / TUI](./cli-sessions) |
+| `scheduler`、`CronCreate` 等 | [定时任务与调度器](./cli-scheduler) |
 | HTTP `daemon`（已移除） | [HTTP 守护进程（已移除）](./cli-daemon) |
 | `model` 子命令 | [模型子命令](./cli-model) |
 | `list-agents` / `list-tools` / `test-security` | [发现与 test-security](./cli-diagnostics) |

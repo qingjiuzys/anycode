@@ -20,6 +20,7 @@ const guideSidebarEn = [
     items: [
       { text: 'Overview', link: '/guide/cli' },
       { text: 'Run, REPL & TUI', link: '/guide/cli-sessions' },
+      { text: 'Cron & scheduler', link: '/guide/cli-scheduler' },
       { text: 'Model commands', link: '/guide/cli-model' },
       { text: 'Troubleshooting', link: '/guide/troubleshooting' }
     ]
@@ -73,6 +74,7 @@ const guideSidebarZh = [
     items: [
       { text: '总览', link: '/zh/guide/cli' },
       { text: 'run / REPL / TUI', link: '/zh/guide/cli-sessions' },
+      { text: '定时任务与调度器', link: '/zh/guide/cli-scheduler' },
       { text: '模型子命令', link: '/zh/guide/cli-model' },
       { text: '排错', link: '/zh/guide/troubleshooting' }
     ]

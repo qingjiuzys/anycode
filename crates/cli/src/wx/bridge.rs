@@ -43,6 +43,22 @@ const SESSION_EXPIRED: i64 = -14;
 const MAX_MSG_IDS: usize = 1000;
 const CHUNK_MAX: usize = 2048;
 
+fn resolve_cwd(session: &WcSession, wcc: &WccConfig) -> PathBuf {
+    let raw = if session.working_directory.is_empty() {
+        wcc.working_directory.clone()
+    } else {
+        session.working_directory.clone()
+    };
+    let raw = if let Some(rest) = raw.strip_prefix("~/") {
+        dirs::home_dir()
+            .map(|h| h.join(rest))
+            .unwrap_or_else(|| PathBuf::from(&raw))
+    } else {
+        PathBuf::from(&raw)
+    };
+    std::fs::canonicalize(&raw).unwrap_or(raw)
+}
+
 pub async fn run_wechat_daemon(
     app_config: &Config,
     config_file: Option<PathBuf>,
@@ -125,6 +141,27 @@ pub async fn run_wechat_daemon(
         api,
         agent_type,
     };
+
+    // 与 `CronCreate` / `anycode scheduler` 对齐：同机只应有一个调度循环；锁见 `scheduler::scheduler_lock_path`。
+    let cwd_sched = {
+        let session = st.session_arc.lock().await;
+        let wcc = st.wcc_arc.lock().await;
+        resolve_cwd(&session, &wcc)
+    };
+    let sched_cfg = app_config.clone();
+    tracing::info!(
+        target: "anycode_scheduler",
+        cwd = %cwd_sched.display(),
+        "embedding built-in scheduler beside WeChat bridge (or exit if lock held)"
+    );
+    tokio::spawn(async move {
+        let _ = crate::scheduler::run_builtin_scheduler(
+            sched_cfg,
+            cwd_sched,
+            std::time::Duration::from_secs(30),
+        )
+        .await;
+    });
 
     run_monitor(st).await
 }
@@ -707,6 +744,14 @@ fn build_wechat_system_append(
          - 禁止输出 <thought>、<thinking> 等标签或任何「推理草稿」块；只输出给用户的一句话/一小段结论。"
             .to_string(),
     );
+    sections.push(
+        "## Cron / scheduled tasks\n\
+         - Tools: `CronCreate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
+         - To actually run on schedule: a **scheduler** loop must hold `~/.anycode/tasks/scheduler.lock` — either **`anycode scheduler`** is running elsewhere, **or** this WeChat bridge already embeds one (only one scheduler per machine).\n\
+         - If the user expects a cron to execute, clarify that **`CronCreate` alone registers** the expression; firing requires the scheduler. Do not imply a schedule ran if they only saved it.\n\
+         - 中文：Cron 工具可在对话里新建/列出/删除；真正按点执行需要调度器常驻（与本机 **`anycode scheduler`** 共用单实例锁，微信桥一般会内嵌起一个）。不要说「已成功定时」unless 用户已知晓调度语义。"
+            .to_string(),
+    );
     if let Some(existing) = existing {
         if !existing.trim().is_empty() {
             sections.push(existing.trim().to_string());
@@ -764,22 +809,6 @@ fn sanitize_wechat_reply_output(text: &str) -> String {
         s = s.replace("。。", "。");
     }
     s
-}
-
-fn resolve_cwd(session: &WcSession, wcc: &WccConfig) -> PathBuf {
-    let raw = if session.working_directory.is_empty() {
-        wcc.working_directory.clone()
-    } else {
-        session.working_directory.clone()
-    };
-    let raw = if let Some(rest) = raw.strip_prefix("~/") {
-        dirs::home_dir()
-            .map(|h| h.join(rest))
-            .unwrap_or_else(|| PathBuf::from(&raw))
-    } else {
-        PathBuf::from(&raw)
-    };
-    std::fs::canonicalize(&raw).unwrap_or(raw)
 }
 
 fn split_message(text: &str, max_chars: usize) -> Vec<String> {

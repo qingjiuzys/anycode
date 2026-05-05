@@ -15,6 +15,7 @@ read_when:
 - [安装](./install)  
 - [CLI 总览](./cli)  
 - [run / REPL / TUI](./cli-sessions)  
+- [定时任务与调度器](./cli-scheduler)  
 - [HTTP 守护进程（已移除）](./cli-daemon)  
 - [模型子命令](./cli-model)  
 - [发现与 test-security](./cli-diagnostics)  

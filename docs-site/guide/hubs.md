@@ -15,6 +15,7 @@ English **`/guide/`** routes:
 - [Install](./install)  
 - [CLI overview](./cli)  
 - [Run, REPL & TUI](./cli-sessions)  
+- [Cron & scheduler](./cli-scheduler)  
 - [HTTP daemon (removed)](./cli-daemon)  
 - [Model commands](./cli-model)  
 - [Discovery & test-security](./cli-diagnostics)  

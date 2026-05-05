@@ -8,7 +8,9 @@ use crate::workspace;
 use anycode_tools::{read_cron_jobs_from_orchestration_file, CronJob};
 use chrono::{DateTime, TimeZone, Utc};
 use cron::Schedule;
+use fs4::fs_std::FileExt;
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -24,6 +26,11 @@ struct ParsedJob {
 
 fn orchestration_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".anycode/tasks/orchestration.json"))
+}
+
+/// 单实例互斥：与内嵌于微信桥的调度器或另一 `anycode scheduler` 进程共享，避免重复触发 cron。
+pub(crate) fn scheduler_lock_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".anycode/tasks/scheduler.lock"))
 }
 
 /// 6 字段：`sec min hour day month weekday`（与 `cron` crate 一致）。若为传统 5 字段（分 时 日 月 周），自动补 `0` 秒。
@@ -95,6 +102,36 @@ pub(crate) async fn run_builtin_scheduler(
     working_dir: PathBuf,
     reload_interval: Duration,
 ) -> anyhow::Result<()> {
+    let lock_path =
+        scheduler_lock_path().ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
+    if let Some(parent) = lock_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let lock_file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .map_err(anyhow::Error::from)?;
+
+    match lock_file.try_lock_exclusive() {
+        Ok(()) => {}
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::WouldBlock {
+                warn!(
+                    target: "anycode_scheduler",
+                    "scheduler lock busy (another process holds {}); exiting scheduler",
+                    lock_path.display()
+                );
+                return Ok(());
+            }
+            return Err(anyhow::Error::new(e));
+        }
+    }
+
+    let _scheduler_lock_holder = lock_file;
+
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
     workspace::apply_project_overlays(&mut config, &working_dir);
     let orch_path =
@@ -102,7 +139,8 @@ pub(crate) async fn run_builtin_scheduler(
 
     info!(
         target: "anycode_scheduler",
-        "starting built-in scheduler; orchestration={}; workdir={}",
+        "starting built-in scheduler; lock={}; orchestration={}; workdir={}",
+        lock_path.display(),
         orch_path.display(),
         working_dir.display()
     );

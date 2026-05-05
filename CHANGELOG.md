@@ -6,6 +6,7 @@
 
 - **WeChat bridge:** Align inbound body with OpenClaw `bodyFromItemList`; slash routing uses first plain TEXT segment; `ref_msg` quote lines and media selection/fallback (`IMAGE > VIDEO > FILE > VOICE` without STT); CDN decryption for video/file/voice when applicable; attachment prompts via `wx.ftl`.
 - **`anycode setup`:** Fourth interactive choice and `--channel skip` / `--channel none` to skip channel onboarding. Non-interactive setups without `--channel` skip channel; pass `--channel wechat|telegram|discord` explicitly when needed.
+- **Channel cron:** `workspace-assistant` exposes `CronCreate` / `CronDelete` (plus `CronList`). Built-in `anycode scheduler` uses `~/.anycode/tasks/scheduler.lock` for single-instance scheduling; **WeChat bridge** embeds a scheduler task so cron jobs fire without a separate `anycode scheduler` when the bridge runs alone.
 
 ### Breaking (terminal / session / env)
 
