@@ -22,7 +22,8 @@ const guideSidebarEn = [
       { text: 'Run, REPL & TUI', link: '/guide/cli-sessions' },
       { text: 'Cron & scheduler', link: '/guide/cli-scheduler' },
       { text: 'Model commands', link: '/guide/cli-model' },
-      { text: 'Troubleshooting', link: '/guide/troubleshooting' }
+      { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+      { text: 'Channels — AskUserQuestion (TG)', link: '/guide/channel-ask-user-question' }
     ]
   },
   {
@@ -76,7 +77,8 @@ const guideSidebarZh = [
       { text: 'run / REPL / TUI', link: '/zh/guide/cli-sessions' },
       { text: '定时任务与调度器', link: '/zh/guide/cli-scheduler' },
       { text: '模型子命令', link: '/zh/guide/cli-model' },
-      { text: '排错', link: '/zh/guide/troubleshooting' }
+      { text: '排错', link: '/zh/guide/troubleshooting' },
+      { text: '通道 — AskUserQuestion（TG）', link: '/zh/guide/channel-ask-user-question' }
     ]
   },
   {

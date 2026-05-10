@@ -1,7 +1,7 @@
 ---
 title: Cron & scheduler
 description: CronCreate persistence, anycode scheduler, and single-instance lock.
-summary: orchestration.json, scheduler.lock, embedded WeChat scheduler vs standalone CLI.
+summary: orchestration.json, scheduler.lock, IM bridges try to embed the scheduler vs standalone CLI.
 read_when:
   - You want scheduled agent tasks similar to OpenClaw orchestration.
 ---
@@ -20,7 +20,7 @@ Saving a job **does not** run it unless a scheduler loop is active.
 Only **one** scheduler loop should tick on a machine: **`~/.anycode/tasks/scheduler.lock`** (exclusive advisory lock).
 
 - If **`anycode scheduler`** is already running, a second `anycode scheduler` exits quietly (log: lock busy).
-- The **WeChat bridge** may **embed** a scheduler (`tokio::spawn` in `run_wechat_daemon`) so you do not need a separate `anycode scheduler` process on the same host **unless** you prefer isolation.
+- **WeChat, Telegram, and Discord** bridges **try** to embed the same built-in scheduler on startup (`tokio::spawn` → `run_builtin_scheduler`). Lock behaviour is identical: first process wins; the others skip embedding silently. Chat still runs, but **cron will only fire if some process holds the lock**.
 
 ## Standalone `anycode scheduler` (optional)
 
@@ -60,6 +60,10 @@ Do **not** start two schedulers on the same machine without understanding the lo
 
 ## Channel mode (WeChat / Telegram / Discord)
 
-The **`workspace-assistant`** agent exposes **`CronCreate` / `CronDelete` / `CronList`** so users can register jobs from chat. Remind users that **execution** still requires the embedded WeChat scheduler **or** a separately started **`anycode scheduler`**, and that **only one** lock holder runs ticks.
+The **`workspace-assistant`** agent exposes **`CronCreate` / `CronDelete` / `CronList`** so users can register jobs from chat.
+
+**Scheduler loop:** only **one** process per machine should own **`~/.anycode/tasks/scheduler.lock`** and tick jobs. The **WeChat**, **Telegram**, and **Discord** long-running bridges each **try to embed** the same built-in scheduler on startup (`tokio::spawn` → `run_builtin_scheduler`). If **`anycode scheduler`** is already running (or another bridge grabbed the lock first), the embed **exits quietly** — you still get chat, but **cron will not fire** unless some process holds the lock.
+
+If you prefer a **dedicated** scheduler process, run **`anycode scheduler`** and treat the bridge embed as a no-op when the lock is busy.
 
 Chinese: [定时任务与调度器](/zh/guide/cli-scheduler).

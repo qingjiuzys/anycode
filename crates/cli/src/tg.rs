@@ -7,8 +7,10 @@ use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Mutex as AsyncMutex;
 
 const TELEGRAM_BASE: &str = "https://api.telegram.org";
 const TELEGRAM_REPLY_CHUNK: usize = 3500;
@@ -34,6 +36,23 @@ struct TgGetUpdates {
 struct TgUpdate {
     update_id: i64,
     message: Option<TgMessage>,
+    #[serde(default)]
+    callback_query: Option<TgCallbackQuery>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TgCallbackQuery {
+    id: String,
+    #[serde(default)]
+    data: Option<String>,
+    #[serde(default)]
+    message: Option<TgCallbackMessageShell>,
+}
+
+/// Minimal shape: only need `chat.id` from the message attached to a callback.
+#[derive(Debug, Clone, Deserialize)]
+struct TgCallbackMessageShell {
+    chat: TgChat,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -198,6 +217,12 @@ fn save_state(path: &PathBuf, st: &TelegramState) {
     }
 }
 
+async fn tg_answer_callback_query(client: &Client, bot_token: &str, query_id: &str) {
+    let url = format!("{TELEGRAM_BASE}/bot{bot_token}/answerCallbackQuery");
+    let payload = json!({ "callback_query_id": query_id });
+    let _ = client.post(&url).json(&payload).send().await;
+}
+
 async fn execute_prompt(
     runtime: &Arc<AgentRuntime>,
     agent: &str,
@@ -245,13 +270,40 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
     .unwrap_or_else(|_| PathBuf::from("."));
     let working_directory = workdir.to_string_lossy().to_string();
 
-    let runtime = initialize_runtime(&config, None, None)
+    let cwd_sched = workdir.clone();
+    let sched_cfg = config.clone();
+    tracing::info!(
+        target: "anycode_scheduler",
+        cwd = %cwd_sched.display(),
+        "embedding built-in scheduler beside Telegram bridge (or exit if lock held)"
+    );
+    tokio::spawn(async move {
+        let _ = crate::scheduler::run_builtin_scheduler(
+            sched_cfg,
+            cwd_sched,
+            std::time::Duration::from_secs(30),
+        )
+        .await;
+    });
+
+    let client = Client::new();
+    let qbroker = Arc::new(crate::tg_ask::TelegramQuestionBroker::new());
+    let ask_host = crate::tg_ask::TelegramAskUserQuestionHost::new(
+        Arc::clone(&qbroker),
+        client.clone(),
+        bot_token.clone(),
+    )
+    .into_arc();
+    let runtime = initialize_runtime(&config, None, Some(ask_host))
         .await
         .context("initialize runtime for telegram")?;
-    let client = Client::new();
     let root = tg_data_root()?;
     let state_path = root.join("state.json");
     let mut state = load_state(&state_path);
+
+    // Serialize per-chat agent runs; callbacks stay on the polling task.
+    type ChatExecLocks = HashMap<i64, Arc<AsyncMutex<()>>>;
+    let chat_exec_locks: Arc<AsyncMutex<ChatExecLocks>> = Arc::new(AsyncMutex::new(HashMap::new()));
 
     println!("telegram bridge started (polling). Press Ctrl+C to stop.");
     loop {
@@ -261,7 +313,7 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
             .query(&[
                 ("timeout", "25"),
                 ("offset", &state.offset.to_string()),
-                ("allowed_updates", "[\"message\"]"),
+                ("allowed_updates", "[\"message\",\"callback_query\"]"),
             ])
             .send()
             .await
@@ -274,6 +326,21 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
 
         for upd in body.result {
             state.offset = upd.update_id + 1;
+            if let Some(cb) = upd.callback_query {
+                if let (Some(data), Some(msg_shell)) = (cb.data.as_deref(), cb.message.as_ref()) {
+                    if let Some(idx) = crate::tg_ask::parse_uq_callback_data(data) {
+                        let chat_id = msg_shell.chat.id;
+                        if let Some(only) = allowed_chat {
+                            if chat_id != only {
+                                continue;
+                            }
+                        }
+                        let _ = qbroker.resolve_callback(chat_id, idx).await;
+                        tg_answer_callback_query(&client, &bot_token, &cb.id).await;
+                    }
+                }
+                continue;
+            }
             let Some(msg) = upd.message else {
                 continue;
             };
@@ -286,30 +353,57 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
             let Some(text) = msg.text else {
                 continue;
             };
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
+            let prompt_text = text.trim().to_string();
+            if prompt_text.is_empty() {
                 continue;
             }
-            let user_id = msg.from.as_ref().map(|u| u.id).unwrap_or(chat_id);
-            let out = execute_prompt(
-                &runtime,
-                &args.agent,
-                &working_directory,
-                chat_id,
-                user_id,
-                trimmed.to_string(),
-            )
-            .await;
-            runtime.sync_memory_durability();
-            let reply_url = format!("{TELEGRAM_BASE}/bot{bot_token}/sendMessage");
-            for chunk in split_for_telegram(&out) {
-                let payload = json!({
-                    "chat_id": chat_id,
-                    "text": chunk,
-                    "reply_to_message_id": msg.message_id
-                });
-                let _ = client.post(&reply_url).json(&payload).send().await;
+            if prompt_text.len() == 1 {
+                if let Some(d @ b'1'..=b'8') = prompt_text.as_bytes().first().copied() {
+                    let idx = (d - b'1') as usize;
+                    if qbroker.resolve_callback(chat_id, idx).await {
+                        continue;
+                    }
+                }
             }
+            let user_id = msg.from.as_ref().map(|u| u.id).unwrap_or(chat_id);
+
+            let m = {
+                let mut g = chat_exec_locks.lock().await;
+                g.entry(chat_id)
+                    .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+                    .clone()
+            };
+            let runtime = runtime.clone();
+            let agent = args.agent.clone();
+            let working_directory = working_directory.clone();
+            let bot_token_sp = bot_token.clone();
+            let client_sp = client.clone();
+            let message_id = msg.message_id;
+            tokio::spawn(async move {
+                let _guard = m.lock().await;
+                let out = crate::tg_ask::with_telegram_chat_scope(
+                    chat_id,
+                    execute_prompt(
+                        &runtime,
+                        &agent,
+                        &working_directory,
+                        chat_id,
+                        user_id,
+                        prompt_text,
+                    ),
+                )
+                .await;
+                runtime.sync_memory_durability();
+                let reply_url = format!("{TELEGRAM_BASE}/bot{bot_token_sp}/sendMessage");
+                for chunk in split_for_telegram(&out) {
+                    let payload = json!({
+                        "chat_id": chat_id,
+                        "text": chunk,
+                        "reply_to_message_id": message_id
+                    });
+                    let _ = client_sp.post(&reply_url).json(&payload).send().await;
+                }
+            });
         }
         save_state(&state_path, &state);
     }

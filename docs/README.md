@@ -22,6 +22,8 @@ GitHub Actions 工作流 [`.github/workflows/docs.yml`](../.github/workflows/doc
 - [`004-session-rewind.md`](adr/004-session-rewind.md) — **会话 rewind / 撤销展示**（Proposed，待填决策）。
 - [`005-repl-clear-vs-transcript.md`](adr/005-repl-clear-vs-transcript.md) — **`/clear` 与纯文本 transcript**（Proposed，待填决策）。
 - [`006-transcript-virtual-scroll-rfc.md`](adr/006-transcript-virtual-scroll-rfc.md) — **虚拟滚动复启 RFC**（Proposed，待填决策）。
+- [`007-mcp-session-reconnect-policy.md`](adr/007-mcp-session-reconnect-policy.md) — **MCP stdio 健康 / 快速失败 / 受控重连策略**（**Accepted**，政策；代码层自动重连仍待定）。
+- [`008-channel-ask-user-question-phasing.md`](adr/008-channel-ask-user-question-phasing.md) — **IM 通道 AskUserQuestion** 分期实现（**Telegram MVP 已落地**；仍为 Proposed 以覆盖后续通道）。
 
 ## 开发备忘（非文档站）
 

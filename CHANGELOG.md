@@ -4,9 +4,12 @@
 
 ### Added
 
+- **Setup / config wizard:** TTY presets for memory — **`file`**, **`hybrid`**, **pipeline without vectors**, **`pipeline` + HTTP** embeddings, optional **local ONNX** with `--features embedding-local`; optional **embedding base URL probe** (HEAD/GET); **`anycode config`** reuses the same step before save; non‑TTY prints `setup-memory-non-tty-hint`.
 - **WeChat bridge:** Align inbound body with OpenClaw `bodyFromItemList`; slash routing uses first plain TEXT segment; `ref_msg` quote lines and media selection/fallback (`IMAGE > VIDEO > FILE > VOICE` without STT); CDN decryption for video/file/voice when applicable; attachment prompts via `wx.ftl`.
 - **`anycode setup`:** Fourth interactive choice and `--channel skip` / `--channel none` to skip channel onboarding. Non-interactive setups without `--channel` skip channel; pass `--channel wechat|telegram|discord` explicitly when needed.
-- **Channel cron:** `workspace-assistant` exposes `CronCreate` / `CronDelete` (plus `CronList`). Built-in `anycode scheduler` uses `~/.anycode/tasks/scheduler.lock` for single-instance scheduling; **WeChat bridge** embeds a scheduler task so cron jobs fire without a separate `anycode scheduler` when the bridge runs alone.
+- **Channel cron:** `workspace-assistant` exposes `CronCreate` / `CronDelete` (plus `CronList`). Built-in `anycode scheduler` uses `~/.anycode/tasks/scheduler.lock` for single-instance scheduling; **WeChat**, **Telegram**, and **Discord** bridges spawn the same scheduler task so cron can fire without a separate `anycode scheduler` when a bridge holds the lock.
+
+- **`tools-mcp`:** `McpStdioSession::call_tool_named` short-circuits when the stdio child has already exited (**`mcp_stdio_dead`** in JSON); reconnect policy stays **manual** — see [`docs/adr/007-mcp-session-reconnect-policy.md`](docs/adr/007-mcp-session-reconnect-policy.md).
 
 ### Breaking (terminal / session / env)
 

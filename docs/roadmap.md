@@ -36,18 +36,9 @@
 
 ## 2. 最近已交付（摘要）
 
-- **会话外向通知**：`config.json` **`notifications`** — 工具结果后 / 无后续 tool_calls 的 assistant 回合结束时，可选 **HTTP POST JSON** 或 **`shell_command`（stdin 为 JSON）**；与 **`memory.pipeline.hook_*`**（归根 ingest）独立；头 **`${ENV_VAR}`** 展开；失败不阻断 **`AgentRuntime`**（见 [`architecture.md`](architecture.md)）。  
-- **流式 REPL 模块化**：Inline dock / viewport / 事件 / 任务循环等拆至 `crates/cli/src/repl/`、`tasks/stream_repl_loop.rs`；布局与术语见 [`stream-repl-layout.md`](stream-repl-layout.md)；与 claude-code-rust 对照见 [`references/claude-code-rust-stream-repl.md`](references/claude-code-rust-stream-repl.md)。  
-- **微信桥中断提示**：**`SessionState::Processing`** 下新非斜杠消息 **abort** 上一段任务后发送 **`wx-interrupt-new-msg`**（Fluent）。  
-- **审计与清理**：移除默认路径未接线模块 `daemon_http`、`virtual_scroll`；主路径低风险去重（`main.rs`、`tui/run/event.rs`、`bootstrap/mod.rs`）；`LSP` / `MCP` / `AskUserQuestion` / `REPL` 降级返回统一 `status` / `hint`。  
-- **会话与用量**：流式 REPL 与全屏 TUI 对齐 **`TurnTokenUsage`** / **`TurnOutput.usage`**；HUD 与 **`/context`** 同源；**`/export`**、**`/cost`**（免责声明 + 与 context 一致的用量行）。  
-- **Inline 退出 scrollback**：**`ANYCODE_TERM_EXIT_SCROLLBACK_DUMP`** 支持 `0` / `anchor` / `full`（默认 full）；`anchor` 与 `turn_transcript_anchor` → **`ReplLineState::stream_exit_dump_anchor`**；**`/clear`** 重置 anchor。  
-- **文档站**：`cli-sessions` 默认入口、TUI vs `repl`、上述斜杠命令与环境变量与实现对齐。  
-- **HTTP daemon**：**不恢复** — 见 [ADR 003](adr/003-http-daemon-deprecated.md)。  
-- **嵌套协作取消 v2+v2.1**：**`TaskStop`** + **`Arc<AtomicBool>`**；**`execute_task` / `execute_turn_from_messages`** 在 turn、工具、**`chat`、流式 open+recv** 上与取消竞争（~20ms 轮询）。  
-- **主会话协作取消（TUI / stream REPL / stdio 行模式）**：全屏 TUI、TTY **`repl` Inline**、非 TTY stdio 逐行入口在回合进行中可将 **Ctrl+C** 置位 **`turn_coop_cancel`**，与上条同一 **`execute_turn_from_messages`** 机制；TUI 空闲仍为连按 **Ctrl+C** 退出。  
-- **MCP stdio（部分加固）**：**`ANYCODE_MCP_READ_TIMEOUT_SECS`**（按行读）；可选 **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（整次 **`tools/call`**）；超时 / EOF 错误含 **server** / **子进程退出**；**`McpStdioSession::stdio_child_is_running`**。  
-- **流式 REPL 总结可见性**：**`execute_turn_from_messages`** 在 **`llm_summary_receipt`** 路径将总结 **追加为末条 Assistant** 写入共享 **`messages`**，主区由 **`build_stream_turn_plain`** 渲染；并与 **`execute_task`** 对齐 **`[final_output]` / `== summary ==`** 任务日志及 summary 路径 **`pipeline_memory_hook_agent_turn`** / **`maybe_session_notify_agent_turn`**。**手测**：TTY **`anycode repl`** 用「多轮工具 + 末轮空正文」或易触发 summary 的模型，确认主区出现总结；Google / OpenAI 兼容各冒烟一条。
+- **Setup / 配置**：交互式记忆向导（`file` / `hybrid` / `pipeline` / HTTP 向量 / 可选 **`embedding-local`**）、**`noop` 禁用记忆** 向导项；实现见 `setup_memory.rs` / `app_config`。  
+- **Cron / 调度器**：`scheduler.lock`；WeChat / Telegram / Discord 内嵌 `run_builtin_scheduler`；`channel_task` + Cron 工具链。  
+- **会话与 CLI**：协作取消、流式 REPL 模块化、**Telegram `AskUserQuestion`**（`tg_ask` 内联键盘）、MCP stdio 超时 + **`mcp_stdio_dead` 快路径**、会话通知、HUD/`/context`/`/export`/`/cost`、审计清理等（细节见 `CHANGELOG` 与文档站）。
 
 ---
 
@@ -57,7 +48,7 @@
 |------|------------|
 | 子 Agent 真异步 **v1** | **`run_in_background`** + **`TaskOutput`** / **`TaskStop`**（进程内注册表；**`TaskStop`** 置协作式标志 + **`AbortHandle`** 兜底）。 |
 | **嵌套协作取消 v2+v2.1** | 见 §2；**`cancelled`** → **`background_status: cancelled`**；HTTP / syscall 边界见 **`CHANGELOG`**。 |
-| **AskUserQuestion** | TTY dialoguer、流式 REPL、全屏 TUI；无 host 时 **`unsupported_host`**。 |
+| **AskUserQuestion** | TTY dialoguer、流式 REPL、全屏 TUI；**Telegram 通道**内联键盘（`tg_ask`）；无 host 时 **`unsupported_host`**。 |
 | **LSP 一等配置** | **`config.json` `lsp`** + 文档；回退 **`ANYCODE_LSP_COMMAND`**。 |
 
 **Issue [#3](https://github.com/qingjiuzys/anycode/issues/3)** 正文草稿仍见 [`issue-drafts/001-ask-user-question.md`](issue-drafts/001-ask-user-question.md)（通道卡片选题为非目标）。
@@ -68,15 +59,17 @@
 
 | 主题 | 完成定义（简） |
 |------|----------------|
-| **MCP 超出 stdio v1（续）** | **仍可继续**：会话级健康 / 重连。**本版已做**：**`ANYCODE_MCP_CALL_TIMEOUT_SECS`**、**McpAuth** 无 GUI 文档（见文档站 **config-security** / **troubleshooting**）。**策略**：当前 **不自动重连**（见 [`mcp-stdio-lifecycle.md`](mcp-stdio-lifecycle.md) 与文档站 troubleshooting）；受控重连需另开 ADR + 实现。 |
-| **跨进程 / 持久后台 Agent** | 与 Claude 完整 parity 的队列或等价语义（超出当前进程内 **`HashMap`**）。 |
-| **通道 AskUserQuestion** | 微信 / Telegram / Discord 上卡片或键盘选题（需独立设计与鉴权）。**深做候选**：优先 **Telegram** 或 **Discord**（内联键盘 / 组件 API 成熟）；微信仍以文本与现有 **`PermissionBroker`** 为主；设计草案见 [`channel-ask-user-question-spike.md`](channel-ask-user-question-spike.md)。**实现切片**：`pub(crate)` 宿主或枚举扩展 **`AskUserQuestionHost`**；不接第二通道前不升 public trait。 |
+| **MCP stdio 超出 v1（续）** | **本版**：`ANYCODE_MCP_CALL_TIMEOUT_SECS`、子进程已退出时 **快速失败**（`mcp_stdio_dead`）；**[ADR 007](adr/007-mcp-session-reconnect-policy.md)**（**Accepted**，仅政策）— **不静默重连**；可选配置位与未来受控重连见 ADR。 |
+| **跨进程 / 持久后台 Agent** | 与 Claude 完整 parity 的队列或等价语义（超出当前进程内 **`HashMap`**）。仅排期，见 §5。 |
+| **通道 AskUserQuestion** | **Telegram（已交付）**：内联键盘 + callback，[`tg_ask`](crates/cli/src/tg_ask.rs)；**续**：Discord/微信等见 [ADR 008](adr/008-channel-ask-user-question-phasing.md)。 |
 
 ---
 
 ## 5. 后续（Later，不展开实现细节）
 
-- **Transcript 虚拟滚动**：复启前需定义性能目标与负载模型；基线见 [`term-smoothness-baseline.md`](term-smoothness-baseline.md) 末尾 backlog 段。  
+- **跨进程 / 持久后台 Agent**：独立 spike / ADR 后再写实现；与 §4 表同步。  
+- **Transcript 虚拟滚动（ADR 006）**：复启前需性能目标与负载模型；基线见 [`term-smoothness-baseline.md`](term-smoothness-baseline.md) 末尾。  
+- **会话 rewind（ADR 004）/ `/clear` 语义（ADR 005）**：暂缓至产品缺口明确。  
 - **`crates/onboard`**：独立 crate 或并入 CLI — 需单独决议或 ADR。
 
 ---
@@ -94,6 +87,8 @@
 
 | 主题 | 备注 | ADR / 下一步 |
 |------|------|----------------|
+| **MCP stdio 受控重连（实现）** | 政策已 **Accepted**（ADR 007）；**代码层自动重连**仍待 flag + 原子工具表更新后再开 | [ADR 007](adr/007-mcp-session-reconnect-policy.md) |
+| **通道 AskUserQuestion 扩展** | Telegram 已 MVP；Discord / 微信文本回落等 | [ADR 008](adr/008-channel-ask-user-question-phasing.md) |
 | 会话 **rewind** / 撤销展示 | 与 `sessions` 快照格式兼容性 | [ADR 004](adr/004-session-rewind.md)（Proposed）— **暂缓**：无实现排期前保持 Proposed，改快照前必读。 |
 | **`/clear` vs 纯文本 transcript 缓冲** | 是否需独立于 agent messages 的视口重置 | [ADR 005](adr/005-repl-clear-vs-transcript.md)（Proposed）— **暂缓**：流式 REPL 已有 `turn_transcript_anchor` / `stream_exit_dump_anchor`，产品缺口再开。 |
 | **virtual scroll** | 见 §5 Later | [ADR 006](adr/006-transcript-virtual-scroll-rfc.md)（Proposed）— **暂缓**：与 [`term-smoothness-baseline.md`](term-smoothness-baseline.md) 负载模型挂钩后再审。 |

@@ -31,7 +31,10 @@ cmd-setup-data-dir = WeChat data directory (default ~/.anycode/wechat)
 setup-memory-non-tty-hint = Non-interactive terminal: skipping the memory wizard. Use `anycode config` on a TTY or edit JSON `memory` later.
 setup-memory-prompt = Memory / vector retrieval (HTTP embeddings reuse chat `api_key`; set `embedding_base_url` for the embeddings host)
 setup-memory-opt-skip = Skip (keep current memory settings)
+setup-memory-opt-noop = Disable memory (`memory.backend=noop`)
 setup-memory-opt-file = Simple file backend (default onboarding)
+setup-memory-opt-hybrid = Hybrid backend (`memory.backend=hybrid`; resets pipeline embedding fields to defaults)
+setup-memory-opt-pipeline-no-embed = Pipeline memory without vectors (`embedding_enabled: false`)
 setup-memory-opt-pipeline-http = Pipeline + remote vectors (OpenAI-compatible `embedding_base_url` + `embedding_model`)
 setup-memory-opt-pipeline-local = Pipeline + local ONNX (requires embedding-local build)
 setup-memory-http-apikey-hint = Embedding HTTP calls reuse the configured `api_key` (same as chat). Override later in JSON if needed.
@@ -39,6 +42,9 @@ setup-memory-http-prompt-base-url = Embedding base URL (OpenAI-compatible API ro
 setup-memory-http-prompt-model = Embedding model id (e.g. text-embedding-3-small)
 setup-memory-http-empty-url = Embedding base URL must not be empty
 setup-memory-http-empty-model = Embedding model id must not be empty
+setup-memory-http-probe-warn = Quick connectivity check failed ({ $reason }). You can skip this on offline installs.
+setup-memory-http-probe-continue = Save this embedding base URL anyway?
+setup-memory-http-probe-aborted = HTTP embedding setup cancelled; nothing saved.
 setup-memory-local-prompt-ep = Model download endpoint (mirror if huggingface.co is slow from your region)
 setup-memory-ep-official = Hugging Face official (huggingface.co)
 setup-memory-ep-mirror = China mirror (hf-mirror.com)

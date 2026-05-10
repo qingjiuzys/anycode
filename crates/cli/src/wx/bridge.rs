@@ -744,14 +744,7 @@ fn build_wechat_system_append(
          - 禁止输出 <thought>、<thinking> 等标签或任何「推理草稿」块；只输出给用户的一句话/一小段结论。"
             .to_string(),
     );
-    sections.push(
-        "## Cron / scheduled tasks\n\
-         - Tools: `CronCreate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
-         - To actually run on schedule: a **scheduler** loop must hold `~/.anycode/tasks/scheduler.lock` — either **`anycode scheduler`** is running elsewhere, **or** this WeChat bridge already embeds one (only one scheduler per machine).\n\
-         - If the user expects a cron to execute, clarify that **`CronCreate` alone registers** the expression; firing requires the scheduler. Do not imply a schedule ran if they only saved it.\n\
-         - 中文：Cron 工具可在对话里新建/列出/删除；真正按点执行需要调度器常驻（与本机 **`anycode scheduler`** 共用单实例锁，微信桥一般会内嵌起一个）。不要说「已成功定时」unless 用户已知晓调度语义。"
-            .to_string(),
-    );
+    sections.push(crate::channel_task::im_channel_cron_scheduling_hint().to_string());
     if let Some(existing) = existing {
         if !existing.trim().is_empty() {
             sections.push(existing.trim().to_string());

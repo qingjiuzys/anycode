@@ -71,6 +71,11 @@ Expected output: task runs without interactive approval prompts in this process.
 ## Advanced diagnostics (optional)
 
 - **MCP / `McpAuth` / OAuth (no GUI):** anycode does not open a browser for you. Use the dynamic **`mcp__…__authenticate`** tool or **`McpAuth`**, read **stderr** from the MCP subprocess (same terminal as the CLI), then complete OAuth in your browser. See [Config & security — MCP OAuth](./config-security#mcp-oauth-mcpauth-no-gui) and env **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** if calls hang.
+- **`mcp_stdio_dead` (JSON on tool result):** the MCP stdio **child process has already exited** (or the session is no longer usable), so the CLI **does not** auto-reconnect the subprocess. What to do:
+  1. **Restart** the anycode process (or the session that started MCP) so servers are spawned again.
+  2. Check your MCP launch command / config (**`ANYCODE_MCP_COMMAND`** and related env) and fix crashes or wrong paths.
+  3. Read MCP **stderr** in the same terminal as the CLI for server-side errors.
+  Policy and future optional reconnect: [`ADR 007`](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/007-mcp-session-reconnect-policy.md); lifecycle details: repo [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md).
 - **MCP stdio session:** there is **no automatic reconnect** if the MCP child exits or the session hits repeated timeouts/EOF. Fix the server command or restart the CLI session; see repo [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md).
 - Developer logs/tests: see [Development](./development)
 

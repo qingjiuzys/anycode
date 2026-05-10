@@ -28,4 +28,4 @@
 
 ## 后续
 
-若产品化，建议补 **ADR**：超时默认值、Discord/Telegram 组件载荷映射、与 `SecurityLayer` 回调的边界。
+若产品化，建议补 **ADR**（见 [`adr/008-channel-ask-user-question-phasing.md`](adr/008-channel-ask-user-question-phasing.md)）：超时默认值、Discord/Telegram 组件载荷映射、与 `SecurityLayer` 回调的边界。

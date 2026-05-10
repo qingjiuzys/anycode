@@ -2,14 +2,20 @@
 
 use crate::app_config::{
     load_anycode_config_resolved, save_anycode_config_resolved, AnyCodeConfig, MemoryConfigFile,
+    MemoryPipelineConfigFile,
 };
-use crate::i18n::tr;
+use crate::i18n::{tr, tr_args};
+use fluent_bundle::FluentArgs;
 use std::path::PathBuf;
 
 /// Preset applied by the setup wizard and unit tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum MemorySetupPreset {
+    /// Disable persistent memory / recall (`memory.backend = noop`).
+    Noop,
     SimpleFile,
+    HybridBackend,
+    PipelineNoEmbedding,
     PipelineHttp {
         embedding_base_url: String,
         embedding_model: String,
@@ -27,6 +33,28 @@ fn clear_pipeline_embedding_local_fields(
     pipeline.embedding_local_model = None;
     pipeline.embedding_hf_endpoint = None;
     pipeline.embedding_local_cache_dir = None;
+}
+
+fn apply_noop_memory(cfg: &mut AnyCodeConfig) {
+    cfg.memory.backend = "noop".to_string();
+}
+
+fn apply_hybrid_memory(cfg: &mut AnyCodeConfig) {
+    let path = cfg.memory.path.clone();
+    let auto_save = cfg.memory.auto_save;
+    cfg.memory.backend = "hybrid".to_string();
+    cfg.memory.pipeline = MemoryPipelineConfigFile::default();
+    cfg.memory.path = path;
+    cfg.memory.auto_save = auto_save;
+}
+
+fn apply_pipeline_no_embedding_memory(cfg: &mut AnyCodeConfig) {
+    cfg.memory.backend = "pipeline".to_string();
+    cfg.memory.pipeline.embedding_enabled = Some(false);
+    cfg.memory.pipeline.embedding_model = None;
+    cfg.memory.pipeline.embedding_base_url = None;
+    cfg.memory.pipeline.embedding_provider = None;
+    clear_pipeline_embedding_local_fields(&mut cfg.memory.pipeline);
 }
 
 fn apply_simple_file_memory(cfg: &mut AnyCodeConfig) {
@@ -68,7 +96,10 @@ fn apply_pipeline_local_memory(
 /// Apply a memory preset to `cfg` (wizard branches and tests).
 pub(crate) fn apply_memory_preset(cfg: &mut AnyCodeConfig, preset: MemorySetupPreset) {
     match preset {
+        MemorySetupPreset::Noop => apply_noop_memory(cfg),
         MemorySetupPreset::SimpleFile => apply_simple_file_memory(cfg),
+        MemorySetupPreset::HybridBackend => apply_hybrid_memory(cfg),
+        MemorySetupPreset::PipelineNoEmbedding => apply_pipeline_no_embedding_memory(cfg),
         MemorySetupPreset::PipelineHttp {
             embedding_base_url,
             embedding_model,
@@ -158,6 +189,19 @@ fn interactive_http_embedding_prompts(
     if model.is_empty() {
         anyhow::bail!("{}", tr("setup-memory-http-empty-model"));
     }
+    if let Err(reason) = probe_embedding_url_quick_check(&url) {
+        let mut a = FluentArgs::new();
+        a.set("reason", reason.clone());
+        println!("{}", tr_args("setup-memory-http-probe-warn", &a));
+        use dialoguer::Confirm;
+        if !Confirm::with_theme(theme)
+            .with_prompt(tr("setup-memory-http-probe-continue"))
+            .default(true)
+            .interact()?
+        {
+            anyhow::bail!("{}", tr("setup-memory-http-probe-aborted"));
+        }
+    }
     apply_memory_preset(
         cfg,
         MemorySetupPreset::PipelineHttp {
@@ -168,6 +212,30 @@ fn interactive_http_embedding_prompts(
     Ok(())
 }
 
+/// Best-effort TCP/TLS reachability (HEAD, then GET) for embedding `base_url`. Failure is non-fatal for setup (user may continue).
+fn probe_embedding_url_quick_check(url_raw: &str) -> Result<(), String> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| e.to_string())?;
+    rt.block_on(async move {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(4))
+            .redirect(reqwest::redirect::Policy::limited(8))
+            .build()
+            .map_err(|e| e.to_string())?;
+        if client.head(url_raw).send().await.is_ok() {
+            return Ok(());
+        }
+        client
+            .get(url_raw)
+            .send()
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    })
+}
+
 fn interactive_memory_step(cfg: &mut AnyCodeConfig) -> anyhow::Result<bool> {
     use dialoguer::theme::ColorfulTheme;
     use dialoguer::Select;
@@ -175,19 +243,22 @@ fn interactive_memory_step(cfg: &mut AnyCodeConfig) -> anyhow::Result<bool> {
     #[cfg(not(feature = "embedding-local"))]
     let prompt_items = vec![
         tr("setup-memory-opt-skip"),
+        tr("setup-memory-opt-noop"),
         tr("setup-memory-opt-file"),
+        tr("setup-memory-opt-hybrid"),
+        tr("setup-memory-opt-pipeline-no-embed"),
         tr("setup-memory-opt-pipeline-http"),
     ];
     #[cfg(feature = "embedding-local")]
-    let prompt_items = {
-        let mut v = vec![
-            tr("setup-memory-opt-skip"),
-            tr("setup-memory-opt-file"),
-            tr("setup-memory-opt-pipeline-http"),
-        ];
-        v.push(tr("setup-memory-opt-pipeline-local"));
-        v
-    };
+    let prompt_items = vec![
+        tr("setup-memory-opt-skip"),
+        tr("setup-memory-opt-noop"),
+        tr("setup-memory-opt-file"),
+        tr("setup-memory-opt-hybrid"),
+        tr("setup-memory-opt-pipeline-no-embed"),
+        tr("setup-memory-opt-pipeline-http"),
+        tr("setup-memory-opt-pipeline-local"),
+    ];
 
     let theme = ColorfulTheme::default();
     let idx = Select::with_theme(&theme)
@@ -196,18 +267,55 @@ fn interactive_memory_step(cfg: &mut AnyCodeConfig) -> anyhow::Result<bool> {
         .default(0)
         .interact()?;
 
-    match idx {
+    #[cfg(not(feature = "embedding-local"))]
+    return match idx {
         0 => Ok(false),
         1 => {
-            apply_memory_preset(cfg, MemorySetupPreset::SimpleFile);
+            apply_memory_preset(cfg, MemorySetupPreset::Noop);
             Ok(true)
         }
         2 => {
+            apply_memory_preset(cfg, MemorySetupPreset::SimpleFile);
+            Ok(true)
+        }
+        3 => {
+            apply_memory_preset(cfg, MemorySetupPreset::HybridBackend);
+            Ok(true)
+        }
+        4 => {
+            apply_memory_preset(cfg, MemorySetupPreset::PipelineNoEmbedding);
+            Ok(true)
+        }
+        5 => {
             interactive_http_embedding_prompts(cfg, &theme)?;
             Ok(true)
         }
-        #[cfg(feature = "embedding-local")]
+        _ => unreachable!(),
+    };
+    #[cfg(feature = "embedding-local")]
+    match idx {
+        0 => Ok(false),
+        1 => {
+            apply_memory_preset(cfg, MemorySetupPreset::Noop);
+            Ok(true)
+        }
+        2 => {
+            apply_memory_preset(cfg, MemorySetupPreset::SimpleFile);
+            Ok(true)
+        }
         3 => {
+            apply_memory_preset(cfg, MemorySetupPreset::HybridBackend);
+            Ok(true)
+        }
+        4 => {
+            apply_memory_preset(cfg, MemorySetupPreset::PipelineNoEmbedding);
+            Ok(true)
+        }
+        5 => {
+            interactive_http_embedding_prompts(cfg, &theme)?;
+            Ok(true)
+        }
+        6 => {
             run_local_onnx_subwizard(cfg, &theme)?;
             Ok(true)
         }
@@ -260,6 +368,14 @@ mod tests {
     }
 
     #[test]
+    fn preset_noop_sets_backend() {
+        let mut cfg = dummy_config();
+        cfg.memory.backend = "file".into();
+        apply_memory_preset(&mut cfg, MemorySetupPreset::Noop);
+        assert_eq!(cfg.memory.backend, "noop");
+    }
+
+    #[test]
     fn preset_simple_file_resets_pipeline_defaults() {
         let mut cfg = dummy_config();
         cfg.memory.backend = "pipeline".to_string();
@@ -276,6 +392,36 @@ mod tests {
         assert!(cfg.memory.pipeline.embedding_model.is_none());
         assert!(cfg.memory.pipeline.embedding_base_url.is_none());
         assert!(cfg.memory.pipeline.embedding_local_model.is_none());
+    }
+
+    #[test]
+    fn preset_hybrid_sets_backend_and_resets_pipeline() {
+        let mut cfg = dummy_config();
+        cfg.memory.backend = "pipeline".to_string();
+        cfg.memory.pipeline.embedding_enabled = Some(true);
+        cfg.memory.pipeline.embedding_provider = Some("http".into());
+        cfg.memory.pipeline.embedding_model = Some("m".into());
+        cfg.memory.pipeline.embedding_base_url = Some("https://e".into());
+
+        apply_memory_preset(&mut cfg, MemorySetupPreset::HybridBackend);
+
+        assert_eq!(cfg.memory.backend, "hybrid");
+        assert!(cfg.memory.pipeline.embedding_model.is_none());
+        assert!(cfg.memory.pipeline.embedding_base_url.is_none());
+        assert!(cfg.memory.pipeline.embedding_provider.is_none());
+    }
+
+    #[test]
+    fn preset_pipeline_no_embedding_disables_vectors() {
+        let mut cfg = dummy_config();
+        cfg.memory.backend = "file".into();
+        cfg.memory.pipeline.embedding_model = Some("m".into());
+
+        apply_memory_preset(&mut cfg, MemorySetupPreset::PipelineNoEmbedding);
+
+        assert_eq!(cfg.memory.backend, "pipeline");
+        assert_eq!(cfg.memory.pipeline.embedding_enabled, Some(false));
+        assert!(cfg.memory.pipeline.embedding_model.is_none());
     }
 
     #[test]

@@ -262,6 +262,19 @@ impl McpStdioSession {
         name: &str,
         arguments: Value,
     ) -> Result<ToolOutput, CoreError> {
+        if !self.stdio_child_is_running().await {
+            return Ok(ToolOutput {
+                result: json!({
+                    "mcp_stdio_dead": true,
+                    "server": self.server_slug,
+                }),
+                error: Some(format!(
+                    "MCP stdio server {:?} is not running (subprocess exited); restart the CLI or fix ANYCODE_MCP_COMMAND. See docs/adr/007-mcp-session-reconnect-policy.md.",
+                    self.server_slug
+                )),
+                duration_ms: 0,
+            });
+        }
         let start = std::time::Instant::now();
         let params = json!({ "name": name, "arguments": arguments });
         let slug = self.server_slug.as_str();
@@ -362,7 +375,10 @@ mod connect_tests {
         let msg = err.to_string();
         assert!(
             msg.contains("MCP")
-                && (msg.contains("id=2") || msg.contains("stdout") || msg.contains("exited")),
+                && (msg.contains("id=2")
+                    || msg.contains("stdout")
+                    || msg.contains("exited")
+                    || msg.contains("unexpected end of stdout")),
             "unexpected error message: {msg}"
         );
     }

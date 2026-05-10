@@ -69,6 +69,11 @@ anycode run --ignore-approval --agent general-purpose "..."
 ## 进阶诊断（可选）
 
 - **MCP / `McpAuth` / OAuth（无 GUI）**：anycode 不会替你弹浏览器。用动态 **`mcp__…__authenticate`** 或 **`McpAuth`**，看 MCP 子进程 **stderr**（与 CLI 同一终端），再在系统浏览器里完成授权。详见 [配置与安全 — MCP OAuth](./config-security) 与环境变量 **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（调用挂起时）。
+- **`mcp_stdio_dead`（工具返回的 JSON）**：表示 MCP **stdio 子进程已退出**（或会话已不可用），当前实现 **不会** 自动重拉子进程。处理步骤：
+  1. **重启** anycode 进程（或重新启动发起 MCP 的会话），以便重新 `connect`。
+  2. 检查启动 MCP 的命令与配置（**`ANYCODE_MCP_COMMAND`** 等环境变量），修正崩溃或路径错误。
+  3. 在 **与 CLI 同一终端** 查看 MCP 的 **stderr**。
+  政策与未来可选受控重连：仓库 [`ADR 007`](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/007-mcp-session-reconnect-policy.md)；实现备忘：[`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md)。
 - **MCP stdio 会话**：子进程退出或反复超时/EOF 时 **不会自动重连**。请修正 server 命令或重启 CLI 会话；仓库 [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md)。
 - 开发者日志与测试：看 [开发与贡献](./development)
 

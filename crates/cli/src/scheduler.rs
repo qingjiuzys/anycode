@@ -119,7 +119,7 @@ pub(crate) async fn run_builtin_scheduler(
         Ok(()) => {}
         Err(e) => {
             if e.kind() == std::io::ErrorKind::WouldBlock {
-                warn!(
+                info!(
                     target: "anycode_scheduler",
                     "scheduler lock busy (another process holds {}); exiting scheduler",
                     lock_path.display()

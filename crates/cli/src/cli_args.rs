@@ -188,7 +188,7 @@ pub(crate) enum Commands {
         sub: MemoryCommands,
     },
 
-    /// 🚀  First-time setup: model first, then choose channel (wechat / telegram / discord) or skip
+    /// 🚀  First-time setup: model → memory / embeddings (TTY) → channel (wechat / telegram / discord) or skip
     Setup {
         /// Channel: wechat, telegram, discord, or skip/none to skip (optional)
         #[arg(long)]

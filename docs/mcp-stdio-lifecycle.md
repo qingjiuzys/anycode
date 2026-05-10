@@ -21,6 +21,7 @@
 
 | 情况 | 典型错误信息要点 |
 |------|------------------|
+| 子进程已退出（`stdio_child_is_running == false`）后仍调用 `tools/call` | JSON 中含 **`mcp_stdio_dead: true`**，错误串说明需重启 CLI 或修正命令 |
 | 子进程立即退出 / stdout 提前 EOF | `unexpected end of stdout`、`child exited: …` |
 | 单行读超时 | `MCP read timed out`、`id=…`、`ANYCODE_MCP_READ_TIMEOUT_SECS` |
 | 整次 `tools/call` 超时 | 墙钟超时文案（与 `ANYCODE_MCP_CALL_TIMEOUT_SECS` 相关） |

@@ -31,7 +31,10 @@ cmd-setup-data-dir = 微信数据目录（默认 ~/.anycode/wechat）
 setup-memory-non-tty-hint = 非交互环境：`anycode setup` 未展示记忆向量选项。稍后可用 `anycode config`（TTY）或编辑配置 `memory`/「记忆」小节。
 setup-memory-prompt = 记忆与向量检索（不改变 LLM chat 密钥；HTTP 向量与 chat 共用 `api_key`，另设 `embedding_base_url`）
 setup-memory-opt-skip = 跳过（保留当前记忆配置）
+setup-memory-opt-noop = 禁用记忆（`memory.backend=noop`）
 setup-memory-opt-file = 简易 file 后端（开箱默认）
+setup-memory-opt-hybrid = Hybrid 后端（`memory.backend=hybrid`；重置 pipeline 嵌入段为默认）
+setup-memory-opt-pipeline-no-embed = Pipeline 记忆但不启用向量（`embedding_enabled: false`）
 setup-memory-opt-pipeline-http = Pipeline + 远程向量（OpenAI 兼容，`embedding_base_url` + `embedding_model`）
 setup-memory-opt-pipeline-local = Pipeline + 本地 ONNX（需 embedding-local 构建）
 setup-memory-http-apikey-hint = HTTP 向量请求将使用配置中的 `api_key`（与聊天相同）。若需不同密钥，请事后编辑配置或换用渠道专用凭据。
@@ -39,6 +42,9 @@ setup-memory-http-prompt-base-url = 嵌入 API 根地址（OpenAI 兼容，含 /
 setup-memory-http-prompt-model = 嵌入模型 id（如 text-embedding-3-small）
 setup-memory-http-empty-url = 嵌入 base URL 不能为空
 setup-memory-http-empty-model = 嵌入模型 id 不能为空
+setup-memory-http-probe-warn = 无法快速探测嵌入地址是否可达（{ $reason }）。若处于离线安装可忽略。
+setup-memory-http-probe-continue = 仍保存该嵌入 base URL？
+setup-memory-http-probe-aborted = 已中止：未写入 HTTP 向量配置。
 setup-memory-local-prompt-ep = 模型下载端点（国内访问 HF 不稳定时可选用镜像）
 setup-memory-ep-official = Hugging Face 官方 (huggingface.co)
 setup-memory-ep-mirror = 国内镜像 (hf-mirror.com)

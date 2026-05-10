@@ -1,7 +1,7 @@
 ---
 title: 定时任务与调度器
-description: CronCreate 落盘、anycode scheduler 执行、单实例锁与微信内嵌。
-summary: orchestration.json、scheduler.lock、微信桥内嵌与独立 scheduler 二选一。
+description: CronCreate 落盘、anycode scheduler 执行、单实例锁与各 IM 桥内嵌尝试。
+summary: orchestration.json、scheduler.lock、IM 桥尝试内嵌 scheduler 与独立 anycode scheduler 二选一夺锁。
 read_when:
   - 你需要类似 OpenClaw 的定时 agent 任务。
 ---
@@ -20,11 +20,11 @@ read_when:
 同机只应有一个调度循环，通过 **`~/.anycode/tasks/scheduler.lock`** 独占锁实现。
 
 - 若已有一个 **`anycode scheduler`** 进程，再启动第二个会在日志中提示锁被占用并退出。
-- **微信桥**可在 **`run_wechat_daemon`** 里 **内嵌** 一个调度循环（`tokio::spawn`），这样多数用户**不必**再单独起 `anycode scheduler`；若你仍单独起了一个，第二个会因锁而不起作用（符合预期）。
+- **微信 / Telegram / Discord 长驻桥**在启动时可 **内嵌** 同一调度循环（`tokio::spawn` → `run_builtin_scheduler`），与 **`anycode scheduler`** 共用 **`scheduler.lock`**：先抢到锁的进程负责 tick；未抢到的静默结束嵌入任务（聊天不受影响，但若本机无任何持锁进程，cron 仍不会触发）。
 
 ## 独立运行 `anycode scheduler`（可选）
 
-适合与微信桥分离、或不在本机跑微信时。可用终端、**tmux**、**systemd user**、**macOS LaunchAgent** 等托管。
+适合与某一 IM 桥分离、或不跑任何桥时独占调度。可用终端、**tmux**、**systemd user**、**macOS LaunchAgent** 等托管。
 
 **systemd user 示例（Linux）** — 请改路径与工作目录：
 
@@ -60,6 +60,6 @@ WantedBy=default.target
 
 ## 通道模式（微信 / Telegram / Discord）
 
-**`workspace-assistant`** 已暴露 **`CronCreate` / `CronDelete` / `CronList`**，便于在对话里管理定时任务。向用户说明：**注册成功 ≠ 已到期执行**；真正按点跑需要 **内嵌调度器** 或 **单独的 `anycode scheduler`**，且 **同一时刻只有一个** 持锁进程在跑。
+**`workspace-assistant`** 已暴露 **`CronCreate` / `CronDelete` / `CronList`**。**注册成功不等于已到期执行**；必须由 **某个持锁进程**（`anycode scheduler` **或** 某一 IM 桥成功内嵌的调度循环）按计划触发，且 **同机只有一个**。
 
 English: [Cron & scheduler](/guide/cli-scheduler).

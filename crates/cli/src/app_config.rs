@@ -1286,7 +1286,7 @@ fn has_usable_model_config(cfg: &AnyCodeConfig) -> bool {
         .any(|v| has_non_empty_secret(v))
 }
 
-/// 首次安装聚合：先模型配置，再选择 channel（wechat/telegram/discord）。
+/// 首次安装聚合：模型向导 →（TTY）记忆/向量向导 → channel（wechat/telegram/discord）。
 pub(crate) async fn run_onboard_flow(
     config_file: Option<PathBuf>,
     data_dir: Option<PathBuf>,

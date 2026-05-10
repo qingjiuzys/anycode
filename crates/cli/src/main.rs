@@ -22,6 +22,7 @@ mod slash_commands;
 mod tasks;
 mod term;
 mod tg;
+mod tg_ask;
 mod wechat;
 mod wechat_ilink;
 mod wechat_service;
