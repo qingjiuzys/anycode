@@ -254,7 +254,19 @@ mod tests {
     fn manual_scroll_respects_scroll_up() {
         let mut pos = 15.0f32;
         let mut tgt = 15.0f32;
-        let (_g, local, _, _) = compute_stream_scroll(20, 5, false, 3, &mut pos, &mut tgt);
-        assert_eq!(local, 12);
+        // Default smooth scroll lerps scroll_pos toward the target each frame; one call is not guaranteed
+        // to land exactly on desired_first unless NO_COLOR/smooth-disable env is set. Converge like the UI loop.
+        let mut local_last = 0usize;
+        for _ in 0..200 {
+            let (_g, local, _, _) = compute_stream_scroll(20, 5, false, 3, &mut pos, &mut tgt);
+            local_last = local;
+            if local == 12 {
+                break;
+            }
+        }
+        assert_eq!(
+            local_last, 12,
+            "expected scroll_up=3 from bottom (max_scroll=15) to anchor at visual row offset 12"
+        );
     }
 }
