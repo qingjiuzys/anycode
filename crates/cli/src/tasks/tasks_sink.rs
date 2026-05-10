@@ -23,7 +23,11 @@ impl ReplSink {
     pub(crate) fn line(&mut self, line: impl AsRef<str>) {
         let s = line.as_ref();
         match self {
-            ReplSink::Stdio => println!("{s}"),
+            ReplSink::Stdio => {
+                // Piped stdout may be fully buffered (Linux); flush so callers see lines before exit.
+                println!("{s}");
+                let _ = std::io::stdout().flush();
+            }
             ReplSink::Stream {
                 state, render_tx, ..
             } => {
@@ -45,7 +49,10 @@ impl ReplSink {
     pub(crate) fn eprint_line(&mut self, line: impl AsRef<str>) {
         let s = line.as_ref();
         match self {
-            ReplSink::Stdio => eprintln!("{s}"),
+            ReplSink::Stdio => {
+                eprintln!("{s}");
+                let _ = std::io::stderr().flush();
+            }
             ReplSink::Stream { .. } => {}
         }
     }
