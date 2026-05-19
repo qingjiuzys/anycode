@@ -408,7 +408,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "qwen_cloud" | "qwen_api" => "qwen".to_string(),
         "volcengine_api" | "volc_engine" => "volcengine".to_string(),
         "alibaba_cloud" => "alibaba".to_string(),
-        "moonshotai" | "moonshot_ai" => "moonshot".to_string(),
+        "moonshotai" | "moonshot_ai" | "moonshot_api" => "moonshot".to_string(),
         "aws_bedrock" | "amazon_bedrock_api" => "amazon_bedrock".to_string(),
         "open_router" | "openrouter_ai" => "openrouter".to_string(),
         "together_ai" | "together_api" => "together".to_string(),
