@@ -418,7 +418,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "nim" | "nvidia_nim" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
         "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
-        "zhipu" | "zhipuai" | "glm4" => "z.ai".to_string(),
+        "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" => "z.ai".to_string(),
         "fireworks_ai" => "fireworks".to_string(),
         "togetherai" => "together".to_string(),
         _ => s,
