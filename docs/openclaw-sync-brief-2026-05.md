@@ -26,8 +26,8 @@
 | OpenClaw（5.x 要点） | anyCode | 决策 |
 |----------------------|---------|------|
 | Codex app-server 主路径、动态工具桥 | 自有 `AgentRuntime` + provider 抽象 | **Skip** Gateway/Codex 托管 |
-| Z.AI GLM manifest、DeepSeek `anyOf` 规范化（5.19） | `provider_catalog.rs`、z.ai 模块 | **Port** — 定期 diff catalog；DeepSeek schema 若启用则规范化 |
-| Failover 时 transcript 不重复（5.19） | 有 model fallback | **Port** — 见 agent 轨 |
+| Z.AI GLM manifest、DeepSeek `anyOf` 规范化（5.19） | `normalize_tool_parameters_schema` in z.ai OpenAI path | **Done**（2026-05） |
+| Failover 时 transcript 不重复（5.19） | stream→chat pop placeholder | **Done**（2026-05） |
 | `openclaw infer` CLI hub | `anycode model` | **Partial** — 文档对齐即可 |
 | Prompt cache / thinking 元数据 | 部分 provider 支持 | **Later** |
 
@@ -67,7 +67,7 @@
 |----------------------|---------|------|
 | Gateway cron：isolated、announce、failureDestination、doctor | 内嵌 `scheduler.rs` + `orchestration.json` | **Partial** |
 | Cron link 到稳定 session（5.19 #83606） | 每 fire 新 task id | **Later** |
-| `--tz` / IANA、per-job `--tools` | `CronCreate` local→UTC | **Port** — 校验、IANA、run 日志 |
+| `--tz` / IANA、per-job `--tools` | `CronCreate` local→UTC；`cron-runs.jsonl` | **Partial** — 校验 + run 日志 **Done**；IANA **Later** |
 | Webhook / TaskFlow / SQLite ledger | 无 | **Skip** |
 
 ### 6. Terminal / TUI
@@ -81,7 +81,7 @@
 
 | OpenClaw（5.x 要点） | anyCode | 决策 |
 |----------------------|---------|------|
-| SSRF、重定向丢 body、fetch guard | `WebFetch` | **Port** — 只读对照后挑 1–2 条 |
+| SSRF、重定向丢 body、fetch guard | `WebFetch` blocks private/loopback hosts | **Partial** — host literal check **Done**（2026-05）；redirect follow-up **Later** |
 | Host exec env 净化 | `SecurityLayer` + Bash | **Later** |
 | Gateway 禁止模型改 safeBins | 配置写盘路径不同 | **Skip** |
 
@@ -102,6 +102,7 @@
 - [weixin-plugin-parity.md](weixin-plugin-parity.md) — npm 插件 2.4.3 与 Rust 桥对照
 - [wx-streaming-bridge.md](wx-streaming-bridge.md) — 微信桥边界
 - [stream-repl-layout.md](stream-repl-layout.md) — 流式 REPL 不变量
+- [cron-observability.md](cron-observability.md) — `cron-runs.jsonl` 字段说明
 - [roadmap.md](roadmap.md) — 执行层 now/next/later
 
 ---
