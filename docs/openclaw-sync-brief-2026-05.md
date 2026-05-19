@@ -116,6 +116,8 @@
 - **Providers**：`claude-cli` / `anthropic-cli`→`anthropic`，`azure-openai`→`openai`，`venice-ai`→`venice`，`stepfun-ai` / `chutes-ai` / `sglang-ai`，`opencode-ai` / `synthetic-ai`，`litellm-ai` / `kilocode-ai`。
 - **WebFetch**：IPv4-mapped loopback（`::ffff:127.0.0.1`）拦截。
 - **微信桥**：入站媒体 `VIDEO` 优先于 `FILE` 单测；安全层跳过非法 deny 正则。
+- **Agent**：`pop_assistant_placeholder` 单测（stream→chat failover 不残留占位 assistant）。
+- **Cron**：`GMT` 作为 `utc` 别名；墙钟 `?` weekday 保留。
 
 ### 2026-05-19（anyCode 会话，续）
 
