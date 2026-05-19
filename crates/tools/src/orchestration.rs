@@ -565,6 +565,18 @@ impl Tool for CronCreateTool {
             });
         }
         let tz = c.schedule_timezone.trim().to_ascii_lowercase();
+        let tz = if tz.is_empty() { "local".to_string() } else { tz };
+        if tz != "local" && tz != "utc" && tz != "utc0" {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": format!(
+                        "unsupported schedule_timezone {tz:?}; use local (default) or utc (IANA not supported yet)"
+                    )
+                }),
+                error: Some("unsupported schedule_timezone".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         let (stored_schedule, tz_note) = if tz == "utc" || tz == "utc0" {
             (
                 crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
