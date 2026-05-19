@@ -814,6 +814,19 @@ mod tests {
     }
 
     #[test]
+    fn select_skips_voice_with_stt_text() {
+        let items = vec![
+            json!({ "type": 3, "voice_item": { "text": "转写", "media": { "encrypt_query_param": "v", "aes_key": "k" } } }),
+            json!({
+                "type": 4,
+                "file_item": { "file_name": "a.pdf", "media": { "encrypt_query_param": "f", "aes_key": "k" } }
+            }),
+        ];
+        let got = select_inbound_media_item(&items);
+        assert_eq!(item_type(got.unwrap()), 4);
+    }
+
+    #[test]
     fn voice_no_stt_flag() {
         let no = vec![json!({ "type": 3, "voice_item": { "playtime": 1000 } })];
         assert!(has_voice_item_without_stt(&no));
