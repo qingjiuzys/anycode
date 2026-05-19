@@ -146,6 +146,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn wall_clock_preserves_question_mark_weekday() {
+        let Some(utc_expr) = wall_clock_cron_to_utc_storage("0 0 9 1 1 ?") else {
+            panic!("expected conversion");
+        };
+        let parts: Vec<&str> = utc_expr.split_whitespace().collect();
+        assert_eq!(
+            parts[5], "?",
+            "one-shot ? weekday should be preserved; got {utc_expr}"
+        );
+    }
+
+    #[test]
     fn wall_clock_stores_wildcard_weekday_for_one_shot() {
         let Some(utc_expr) = wall_clock_cron_to_utc_storage("0 33 12 19 5 2") else {
             panic!("expected conversion");
