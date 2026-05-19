@@ -413,6 +413,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "hf" | "huggingface_hub" => "huggingface".to_string(),
         "gemini" | "vertex" => "google".to_string(),
         "kimi_coding" | "kimi_code_plan" => "kimi_code".to_string(),
+        "mini_max" => "minimax".to_string(),
+        "perplexity_ai" => "perplexity".to_string(),
         _ => s,
     }
 }
