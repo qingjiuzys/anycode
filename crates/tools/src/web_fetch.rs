@@ -410,6 +410,12 @@ mod tests {
     }
 
     #[test]
+    fn blocks_loopback_127_0_0_2() {
+        let url = url::Url::parse("http://127.0.0.2/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
     fn allows_public_hostnames() {
         let url = url::Url::parse("https://example.com/page").unwrap();
         assert!(fetch_url_host_blocked(&url).is_none());
