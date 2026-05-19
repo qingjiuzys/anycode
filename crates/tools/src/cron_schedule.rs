@@ -228,6 +228,20 @@ mod tests {
     }
 
     #[test]
+    fn wall_clock_iana_london_maps_noon_to_utc_eleven_in_may() {
+        let Some(utc_expr) =
+            wall_clock_cron_to_utc_storage_in_iana("0 0 12 19 5 *", chrono_tz::Europe::London)
+        else {
+            panic!("expected conversion");
+        };
+        let parts: Vec<&str> = utc_expr.split_whitespace().collect();
+        assert_eq!(
+            parts[2], "11",
+            "12:00 Europe/London in May is 11:00 UTC; got {utc_expr}"
+        );
+    }
+
+    #[test]
     fn wall_clock_iana_shanghai_maps_noon_to_utc_four() {
         let Some(utc_expr) =
             wall_clock_cron_to_utc_storage_in_iana("0 0 12 19 5 *", chrono_tz::Asia::Shanghai)
