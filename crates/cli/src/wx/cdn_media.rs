@@ -185,6 +185,11 @@ pub fn body_from_item_list(items: &[Value]) -> String {
                     return text;
                 }
                 return format!("[引用: {}]\n{}", parts.join(" | "), text);
+            } else if let Some(title) = refv.get("title").and_then(|x| x.as_str()) {
+                if !title.is_empty() {
+                    return format!("[引用: {}]\n{}", title, text);
+                }
+                return text;
             } else {
                 return text;
             }
@@ -622,6 +627,16 @@ mod tests {
         ];
         assert_eq!(body_from_item_list(&items), "转写");
         assert_eq!(first_plain_text_from_items(&items), "后文");
+    }
+
+    #[test]
+    fn body_text_ref_title_only() {
+        let items = vec![json!({
+            "type": 1,
+            "text_item": { "text": "回复" },
+            "ref_msg": { "title": "仅标题" }
+        })];
+        assert_eq!(body_from_item_list(&items), "[引用: 仅标题]\n回复");
     }
 
     #[test]
