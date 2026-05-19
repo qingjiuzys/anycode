@@ -377,4 +377,9 @@ mod tests {
         assert!(fetch_url_host_blocked(&next).is_some());
     }
 
+    #[test]
+    fn blocks_decimal_ipv4_hostname() {
+        let url = url::Url::parse("http://2130706433/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
 }
