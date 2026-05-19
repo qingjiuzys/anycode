@@ -129,12 +129,14 @@ async fn fetch_url_dns_blocked(url: &url::Url) -> Option<&'static str> {
 fn is_blocked_fetch_ip(ip: std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
             v4.is_private()
                 || v4.is_loopback()
                 || v4.is_link_local()
                 || v4.is_broadcast()
                 || v4.is_documentation()
-                || v4.octets() == [0, 0, 0, 0]
+                || o == [0, 0, 0, 0]
+                || (o[0] == 100 && (o[1] & 0xc0) == 0x40) // CGNAT 100.64.0.0/10
         }
         std::net::IpAddr::V6(v6) => {
             if let Some(v4) = v6.to_ipv4_mapped() {
@@ -392,6 +394,12 @@ mod tests {
     #[test]
     fn blocks_documentation_ipv4_test_net() {
         let url = url::Url::parse("http://192.0.2.1/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
+    fn blocks_carrier_grade_nat_ipv4() {
+        let url = url::Url::parse("http://100.64.0.1/").unwrap();
         assert!(fetch_url_host_blocked(&url).is_some());
     }
 
