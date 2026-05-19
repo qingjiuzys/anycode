@@ -153,20 +153,23 @@ mod tests {
     }
 
     #[test]
-    fn wall_clock_converts_hour_for_positive_offset() {
-        // 若本地为 UTC+8，12:15 local → 04:15 UTC（仅当测试机时区为东八区时稳定）
+    fn wall_clock_converts_using_local_timezone_offset() {
+        use chrono::{Local, TimeZone, Timelike};
         let Some(utc_expr) = wall_clock_cron_to_utc_storage("0 15 12 19 5 *") else {
-            return;
+            panic!("expected conversion");
         };
         let parts: Vec<&str> = utc_expr.split_whitespace().collect();
         assert_eq!(parts.len(), 6);
-        let h: u32 = parts[2].parse().unwrap();
-        let local_h: u32 = 12;
-        let offset_h = (local_h as i32 - h as i32).rem_euclid(24);
-        // 允许 UTC+7..+9
-        assert!(
-            (7..=9).contains(&offset_h),
-            "expected ~8h offset, got hour {h} from {utc_expr}"
+        let utc_h: u32 = parts[2].parse().unwrap();
+        let year = Local::now().year();
+        let local_dt = Local
+            .with_ymd_and_hms(year, 5, 19, 12, 15, 0)
+            .single()
+            .expect("local datetime");
+        let expected_h = local_dt.with_timezone(&Utc).hour();
+        assert_eq!(
+            utc_h, expected_h,
+            "wall clock 12:15 local should map to UTC hour {expected_h}, got {utc_expr}"
         );
     }
 }
