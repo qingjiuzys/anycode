@@ -577,6 +577,7 @@ mod tests {
         );
         assert_eq!(normalize_provider_id("vllm-api"), "vllm");
         assert_eq!(normalize_provider_id("groq-cloud"), "groq");
+        assert_eq!(normalize_provider_id("moonshot-api"), "moonshot");
         assert_eq!(normalize_provider_id("openai-api"), "openai");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
