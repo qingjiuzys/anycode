@@ -425,7 +425,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "perplexity_ai" | "perplexity_api" => "perplexity".to_string(),
         "nim" | "nvidia_nim" | "nvidia_api" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
-        "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
+        "chatgpt" | "gpt" | "open_ai" | "openai_api" => "openai".to_string(),
         "claude_cli" | "anthropic_cli" | "anthropic_api" => "anthropic".to_string(),
         "github_copilot_api" => "github_copilot".to_string(),
         "azure_openai" | "azure_open_ai" => "openai".to_string(),
@@ -575,6 +575,7 @@ mod tests {
             "amazon_bedrock"
         );
         assert_eq!(normalize_provider_id("vllm-api"), "vllm");
+        assert_eq!(normalize_provider_id("groq-cloud"), "groq");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
