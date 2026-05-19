@@ -1872,3 +1872,53 @@ mod streamed_provider_error_tests {
         assert!(super::provider_error_from_streamed_assistant_text(j).is_some());
     }
 }
+
+#[cfg(test)]
+mod placeholder_tests {
+    use super::*;
+    use anycode_core::{Message, MessageContent, MessageRole};
+    use chrono::Utc;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use uuid::Uuid;
+
+    fn msg(role: MessageRole, id: Uuid, text: &str) -> Message {
+        Message {
+            id,
+            role,
+            content: MessageContent::Text(text.to_string()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn pop_assistant_placeholder_removes_tail_match() {
+        let aid = Uuid::new_v4();
+        let msgs = Arc::new(Mutex::new(vec![
+            msg(MessageRole::User, Uuid::new_v4(), "hi"),
+            msg(MessageRole::Assistant, aid, ""),
+        ]));
+        pop_assistant_placeholder(&msgs, aid).await;
+        assert_eq!(msgs.lock().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pop_assistant_placeholder_skips_when_tail_id_differs() {
+        let aid = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let msgs = Arc::new(Mutex::new(vec![
+            msg(MessageRole::Assistant, aid, ""),
+            msg(MessageRole::Assistant, other, "final"),
+        ]));
+        pop_assistant_placeholder(&msgs, aid).await;
+        assert_eq!(msgs.lock().await.len(), 2);
+    }
+
+    #[test]
+    fn estimate_input_tokens_uses_text_char_count() {
+        let msgs = vec![msg(MessageRole::User, Uuid::new_v4(), "12345678")];
+        assert_eq!(estimate_input_tokens_for_messages(&msgs), 2);
+    }
+}
