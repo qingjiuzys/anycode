@@ -409,9 +409,9 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "volcengine_api" | "volc_engine" => "volcengine".to_string(),
         "alibaba_cloud" => "alibaba".to_string(),
         "moonshotai" | "moonshot_ai" => "moonshot".to_string(),
-        "aws_bedrock" => "amazon_bedrock".to_string(),
+        "aws_bedrock" | "amazon_bedrock_api" => "amazon_bedrock".to_string(),
         "open_router" | "openrouter_ai" => "openrouter".to_string(),
-        "together_ai" => "together".to_string(),
+        "together_ai" | "together_api" => "together".to_string(),
         "opencode_zen" => "opencode".to_string(),
         "open_code" => "opencode".to_string(),
         "open_code_go" | "opencodego_auth" => "opencode_go".to_string(),
@@ -570,6 +570,10 @@ mod tests {
         assert_eq!(normalize_provider_id("zai-api"), "z.ai");
         assert_eq!(normalize_provider_id("fireworks-api"), "fireworks");
         assert_eq!(normalize_provider_id("together-api"), "together");
+        assert_eq!(
+            normalize_provider_id("amazon-bedrock-api"),
+            "amazon_bedrock"
+        );
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
