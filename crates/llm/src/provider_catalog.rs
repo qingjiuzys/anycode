@@ -420,12 +420,13 @@ pub fn normalize_provider_id(raw: &str) -> String {
         }
         "kimi_coding" | "kimi_code_plan" | "kimi_code" => "kimi_code".to_string(),
         "mini_max" | "minimax_api" => "minimax".to_string(),
-        "mistral_ai" => "mistral".to_string(),
+        "mistral_ai" | "mistral_api" => "mistral".to_string(),
         "perplexity_ai" | "perplexity_api" => "perplexity".to_string(),
         "nim" | "nvidia_nim" | "nvidia_api" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
         "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
-        "claude_cli" | "anthropic_cli" => "anthropic".to_string(),
+        "claude_cli" | "anthropic_cli" | "anthropic_api" => "anthropic".to_string(),
+        "github_copilot_api" => "github_copilot".to_string(),
         "azure_openai" | "azure_open_ai" => "openai".to_string(),
         "venice_ai" => "venice".to_string(),
         "vllm_server" | "vllm_local" => "vllm".to_string(),
@@ -445,6 +446,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "chutes_ai" => "chutes".to_string(),
         "opencode_ai" => "opencode".to_string(),
         "synthetic_ai" => "synthetic".to_string(),
+        "cloudflare_ai" => "cloudflare_ai_gateway".to_string(),
+        "vercel_ai" => "vercel_ai_gateway".to_string(),
         _ => s,
     }
 }
@@ -549,6 +552,17 @@ mod tests {
         assert_eq!(normalize_provider_id("perplexity-api"), "perplexity");
         assert_eq!(normalize_provider_id("huggingface-api"), "huggingface");
         assert_eq!(normalize_provider_id("nvidia-api"), "nvidia");
+        assert_eq!(normalize_provider_id("mistral-api"), "mistral");
+        assert_eq!(normalize_provider_id("anthropic-api"), "anthropic");
+        assert_eq!(
+            normalize_provider_id("github-copilot-api"),
+            "github_copilot"
+        );
+        assert_eq!(
+            normalize_provider_id("cloudflare-ai"),
+            "cloudflare_ai_gateway"
+        );
+        assert_eq!(normalize_provider_id("vercel-ai"), "vercel_ai_gateway");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
