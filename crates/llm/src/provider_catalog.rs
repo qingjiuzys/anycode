@@ -414,7 +414,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "opencode_zen" => "opencode".to_string(),
         "open_code" => "opencode".to_string(),
         "open_code_go" | "opencodego_auth" => "opencode_go".to_string(),
-        "hf" | "hugging_face" | "huggingface_hub" => "huggingface".to_string(),
+        "hf" | "hugging_face" | "huggingface_hub" | "huggingface_api" => "huggingface".to_string(),
         "gemini" | "vertex" | "google_ai" | "google_gemini" | "google_ai_studio" => {
             "google".to_string()
         }
@@ -422,7 +422,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "mini_max" | "minimax_api" => "minimax".to_string(),
         "mistral_ai" => "mistral".to_string(),
         "perplexity_ai" | "perplexity_api" => "perplexity".to_string(),
-        "nim" | "nvidia_nim" => "nvidia".to_string(),
+        "nim" | "nvidia_nim" | "nvidia_api" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
         "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
         "claude_cli" | "anthropic_cli" => "anthropic".to_string(),
@@ -547,9 +547,19 @@ mod tests {
         assert_eq!(normalize_provider_id("volcengine-api"), "volcengine");
         assert_eq!(normalize_provider_id("alibaba-cloud"), "alibaba");
         assert_eq!(normalize_provider_id("perplexity-api"), "perplexity");
+        assert_eq!(normalize_provider_id("huggingface-api"), "huggingface");
+        assert_eq!(normalize_provider_id("nvidia-api"), "nvidia");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
+    }
+
+    #[test]
+    fn transport_unknown_provider_defaults_openai_completions() {
+        assert_eq!(
+            transport_for_provider_id("not-in-catalog"),
+            LlmTransport::OpenAiChatCompletions
+        );
     }
 
     #[test]
