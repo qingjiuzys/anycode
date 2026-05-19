@@ -10,7 +10,7 @@ read_when:
 
 ## What exists
 
-1. **`CronCreate` / `CronDelete` / `CronList`** (tools): persist cron rows under **`~/.anycode/tasks/orchestration.json`**. Expression format follows the **`cron`** crate (6 fields: `sec min hour day month weekday`; 5-field Unix-style is accepted with `0` seconds — see **`crates/cli/src/scheduler.rs`** `normalize_cron_schedule_expr`). On success, **`CronCreate`** also returns **`next_fire_utc`** and **`next_fire_local`** when the expression parses (handy to verify IM-scheduled reminders before the first tick). **`schedule_timezone`** accepts only **`local`** (default) or **`utc`**; IANA names are rejected.
+1. **`CronCreate` / `CronDelete` / `CronList`** (tools): persist cron rows under **`~/.anycode/tasks/orchestration.json`**. Expression format follows the **`cron`** crate (6 fields: `sec min hour day month weekday`; 5-field Unix-style is accepted with `0` seconds — see **`crates/cli/src/scheduler.rs`** `normalize_cron_schedule_expr`). On success, **`CronCreate`** also returns **`next_fire_utc`** and **`next_fire_local`** when the expression parses (handy to verify IM-scheduled reminders before the first tick). **`schedule_timezone`** accepts **`local`** (default), **`utc`** / **`utc0`**, or an **IANA** name (e.g. `Asia/Shanghai`) for wall-clock conversion before UTC storage.
 2. **`anycode scheduler`**: long-running CLI that reads the same JSON and fires each **`command`** as a one-shot agent task with the **`--directory`** working directory (`crates/cli/src/scheduler.rs`).
 
 Saving a job **does not** run it unless a scheduler loop is active.

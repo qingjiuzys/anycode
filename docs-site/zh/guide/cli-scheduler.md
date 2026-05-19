@@ -10,7 +10,7 @@ read_when:
 
 ## 能力说明
 
-1. **工具 `CronCreate` / `CronDelete` / `CronList`**：把规则写入 **`~/.anycode/tasks/orchestration.json`**。表达式为 `cron` crate 语义（6 段：`秒 分 时 日 月 周`；传统 5 段会在前补 `0` 秒，见源码 **`crates/cli/src/scheduler.rs`**）。登记成功时若表达式可解析，响应含 **`next_fire_utc`** / **`next_fire_local`**，便于在首次 tick 前核对时间。**`schedule_timezone`** 仅支持 **`local`**（默认）或 **`utc`**，不支持 IANA 时区名。
+1. **工具 `CronCreate` / `CronDelete` / `CronList`**：把规则写入 **`~/.anycode/tasks/orchestration.json`**。表达式为 `cron` crate 语义（6 段：`秒 分 时 日 月 周`；传统 5 段会在前补 `0` 秒，见源码 **`crates/cli/src/scheduler.rs`**）。登记成功时若表达式可解析，响应含 **`next_fire_utc`** / **`next_fire_local`**，便于在首次 tick 前核对时间。**`schedule_timezone`** 支持 **`local`**（默认）、**`utc`** / **`utc0`**，或 **IANA** 名称（如 `Asia/Shanghai`）按墙钟转为 UTC 存储。
 2. **`anycode scheduler`**：常驻子命令，读同一 JSON，到点把每条任务的 **`command`** 当作**单次** agent 提示执行（与 `anycode run` 同类）。
 
 **仅写 JSON 不会自动跑**：必须有一个调度循环在跑（见下）。
