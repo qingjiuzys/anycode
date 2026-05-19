@@ -109,6 +109,12 @@
 
 ## 增量（后续 pull 后追加）
 
+### 2026-05-20（anyCode 会话）
+
+- **Cron**：`CronCreate` 支持 IANA `schedule_timezone`（`chrono-tz` 墙钟→UTC）；文档与 CHANGELOG 同步。
+- **WebFetch**：十六进制 IPv4 主机名（`0x7f000001`）与十进制字面量同样拦截。
+- **Providers**：`claude-cli` / `anthropic-cli`→`anthropic`，`azure-openai`→`openai`，`venice-ai`→`venice`。
+
 ### 2026-05-19（anyCode 会话，续）
 
 - **CI**：`normalize_openclaw_aliases` 失败因 `zhipu-ai` → `zhipu_ai` 未映射；已修复并扩展 kebab 别名（`deepseek-ai`、`x-ai`、`byte-plus` 等）。
