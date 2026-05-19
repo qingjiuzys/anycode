@@ -40,7 +40,8 @@
 - **Cron / 微信**：`scheduler.lock`；桥内嵌调度器；`CronCreate` 本地墙钟→UTC；**先推送微信再跑 agent**（`cron_notify`）；`weekday *` 避免一次性任务永不触发。  
 - **微信 UX**：不再向会话推送 `🔧`/`✓` 工具进度行。  
 - **会话与 CLI**：协作取消、流式 REPL 模块化、**Telegram `AskUserQuestion`**（`tg_ask`）、MCP stdio 超时 + **`mcp_stdio_dead`**、会话通知、HUD/`/context`/`/export`/`/cost` 等。  
-- **OpenClaw 对标**：本地已拉至 **2026.5.19** 线（`ddeaebfc`）；见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)、[`weixin-plugin-parity.md`](weixin-plugin-parity.md)。
+- **OpenClaw 对标**：本地已拉至 **2026.5.19** 线（`ddeaebfc`）；见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)、[`weixin-plugin-parity.md`](weixin-plugin-parity.md)。  
+- **5.19 小步**：stream→chat 不重复 assistant；DeepSeek `anyOf` schema 规范化；pipeline 向量/嵌入降级 WARN；`cron-runs.jsonl` + `CronCreate` 校验；流式 REPL resize tick 顺序；`WebFetch` 拦截私网主机。
 
 ---
 
@@ -59,15 +60,14 @@
 
 ## 4. 下一迭代（2026-05，OpenClaw 5.19 对标后）
 
+**2026-05 已交付**（原 §4 槽位 1–2、4–7）：OpenClaw 对标简报、流式 REPL resize 不变量、DeepSeek `anyOf` schema 规范化、stream→chat fallback transcript、pipeline 向量 WARN、[`cron-runs.jsonl`](cron-observability.md) + `CronCreate` 校验。详见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)。
+
 | # | 轨 | 主题 | 完成定义（简） |
 |---|-----|------|----------------|
-| 1 | Docs | **OpenClaw 对标简报** | [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md) 七领域矩阵；[`weixin-plugin-parity.md`](weixin-plugin-parity.md) |
-| 2 | Terminal | **Stream REPL resize** | 执行中改尺寸不重复刷行；[`stream-repl-layout.md`](stream-repl-layout.md) 不变量 |
-| 3 | Channels | **Weixin 2.4.3 跟踪** | 插件 CHANGELOG 与 Rust 桥差异表；高优项可开 issue |
-| 4 | Providers | **Catalog / failover** | 对照 5.19：Z.ai、DeepSeek `anyOf` schema、failover 错误类 |
-| 5 | Agent | **Fallback transcript** | 模型 fallback 重试不重复写入 assistant 条 |
-| 6 | Memory | **Pipeline 向量 WARN** | sqlite-vec/嵌入降级时 `tracing::warn` + 文档一句 |
-| 7 | Automation | **Cron 可观测** | `~/.anycode/logs/cron-runs.jsonl`；`CronCreate` 校验与 `next_fire_*` |
+| 1 | Channels | **Weixin 2.4.3 跟踪** | 插件 CHANGELOG 与 Rust 桥差异表；高优项可开 issue（[`weixin-plugin-parity.md`](weixin-plugin-parity.md)） |
+| 2 | Providers | **Catalog 定期 diff** | 对照 OpenClaw 5.x 新增 provider id / 别名；Z.ai manifest |
+| 3 | Security | **WebFetch 续** | 重定向链、DNS rebinding 策略（主机字面量 SSRF 已拦） |
+| 4 | Automation | **Cron IANA tz** | 可选 `schedule_timezone` IANA（当前仅 `local` / `utc`） |
 
 **仍开放（不占 §4 槽位）**：MCP 受控重连实现（[ADR 007](adr/007-mcp-session-reconnect-policy.md)）；跨进程后台 Agent（§5）。
 
