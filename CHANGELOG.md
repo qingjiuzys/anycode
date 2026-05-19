@@ -11,6 +11,16 @@
 - **WeChat cron delivery:** `CronCreate` wall-clock jobs store weekday `*` (avoids ISO vs Sun=1 weekday mismatch). Scheduler pushes the reminder to the last WeChat chat **before** running the agent task; optional second message when the agent returns a long reply.
 
 - **`tools-mcp`:** `McpStdioSession::call_tool_named` short-circuits when the stdio child has already exited (**`mcp_stdio_dead`** in JSON); reconnect policy stays **manual** — see [`docs/adr/007-mcp-session-reconnect-policy.md`](docs/adr/007-mcp-session-reconnect-policy.md).
+- **Cron observability:** builtin scheduler appends `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error`); see [`docs/cron-observability.md`](docs/cron-observability.md).
+
+### Fixed
+
+- **Stream REPL:** run `tick_executing_stream_transcript` after `draw_stream_frame` and sync viewport width on alternate-screen resize so executing turns do not duplicate transcript lines when the terminal is resized.
+- **Agent runtime:** stream→chat fallback pops the streaming assistant placeholder before appending the final message (no duplicate assistant rows on model failover).
+- **OpenAI-compatible tools:** collapse nullable `anyOf` / `oneOf` branches in tool parameter schemas before requests (DeepSeek and similar gateways).
+- **Memory pipeline:** log `tracing::warn` when embedding or vector upsert/search fails; keyword and hot-store recall continue.
+- **`CronCreate`:** reject invalid cron expressions and unsupported `schedule_timezone` values (only `local` / `utc`; IANA names return a clear error).
+- **`WebFetch`:** block literal private, loopback, and link-local hosts before fetch.
 
 ### Breaking (terminal / session / env)
 
