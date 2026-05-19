@@ -450,6 +450,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "synthetic_ai" => "synthetic".to_string(),
         "cloudflare_ai" => "cloudflare_ai_gateway".to_string(),
         "vercel_ai" => "vercel_ai_gateway".to_string(),
+        "custom_api" | "custom_openai" => "custom".to_string(),
         _ => s,
     }
 }
@@ -576,6 +577,7 @@ mod tests {
         );
         assert_eq!(normalize_provider_id("vllm-api"), "vllm");
         assert_eq!(normalize_provider_id("groq-cloud"), "groq");
+        assert_eq!(normalize_provider_id("openai-api"), "openai");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
