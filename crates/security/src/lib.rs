@@ -808,6 +808,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bash_allow_list_rejects_unlisted_command() {
+        let system = ApprovalSystem::new();
+        system
+            .set_policy(
+                "Bash".to_string(),
+                SecurityPolicy {
+                    require_approval: false,
+                    allow_commands: vec![r"^git status".to_string()],
+                    deny_commands: vec![],
+                    sandbox_mode: false,
+                    timeout_ms: None,
+                },
+            )
+            .await;
+        let result = system
+            .check_tool_call("Bash", &serde_json::json!({"command": "curl https://evil"}))
+            .await;
+        assert!(matches!(result, ApprovalResult::Denied { .. }));
+    }
+
+    #[tokio::test]
     async fn bash_allow_list_permits_git_status() {
         let system = ApprovalSystem::new();
         system
