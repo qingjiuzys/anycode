@@ -422,6 +422,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
         "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
         "claude_cli" | "anthropic_cli" => "anthropic".to_string(),
+        "azure_openai" | "azure_open_ai" => "openai".to_string(),
+        "venice_ai" => "venice".to_string(),
         "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" => "z.ai".to_string(),
         "fireworks_ai" => "fireworks".to_string(),
         "togetherai" => "together".to_string(),
@@ -510,6 +512,8 @@ mod tests {
         assert_eq!(normalize_provider_id("google-gemini"), "google");
         assert_eq!(normalize_provider_id("claude-cli"), "anthropic");
         assert_eq!(normalize_provider_id("anthropic-cli"), "anthropic");
+        assert_eq!(normalize_provider_id("azure-openai"), "openai");
+        assert_eq!(normalize_provider_id("venice-ai"), "venice");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
