@@ -352,6 +352,7 @@ mod tests {
             "http://192.168.1.1/",
             "http://10.0.0.1/",
             "http://169.254.169.254/",
+            "http://0.0.0.0/",
             "http://metadata.google.internal/",
         ] {
             let url = url::Url::parse(u).unwrap();
