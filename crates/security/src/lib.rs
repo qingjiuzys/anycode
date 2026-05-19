@@ -766,6 +766,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn powershell_command_runs_deny_patterns() {
+        let system = ApprovalSystem::new();
+        let result = system
+            .check_tool_call(
+                "PowerShell",
+                &serde_json::json!({"command": "rm -rf C:\\temp"}),
+            )
+            .await;
+        assert!(matches!(result, ApprovalResult::Denied { .. }));
+    }
+
+    #[tokio::test]
     async fn non_shell_tools_skip_command_policy() {
         let system = ApprovalSystem::new();
         let result = system
