@@ -25,3 +25,25 @@ impl CompactPolicy {
         (last_input_tokens as f32) >= (context_window_tokens as f32 * self.trigger_ratio)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_compact_at_ratio_threshold() {
+        let p = CompactPolicy::default();
+        assert!(!p.should_compact(100_000, 80_000));
+        assert!(p.should_compact(100_000, 88_000));
+    }
+
+    #[test]
+    fn hard_token_threshold_overrides_ratio() {
+        let p = CompactPolicy {
+            hard_token_threshold: 50_000,
+            ..Default::default()
+        };
+        assert!(p.should_compact(1_000_000, 50_000));
+        assert!(!p.should_compact(1_000_000, 49_999));
+    }
+}
