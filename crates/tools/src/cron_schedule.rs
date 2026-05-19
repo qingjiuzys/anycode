@@ -189,6 +189,16 @@ mod tests {
     }
 
     #[test]
+    fn wall_clock_returns_none_for_wildcard_hour() {
+        assert!(wall_clock_cron_to_utc_storage("0 0 * * * *").is_none());
+    }
+
+    #[test]
+    fn validate_accepts_question_mark_weekday() {
+        assert!(validate_cron_schedule_expr("0 0 9 * * ?").is_ok());
+    }
+
+    #[test]
     fn validate_accepts_six_field_schedule() {
         assert!(validate_cron_schedule_expr("0 0 9 * * *").is_ok());
     }
