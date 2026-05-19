@@ -122,6 +122,15 @@ mod tests {
     }
 
     #[test]
+    fn next_fire_returns_future_utc_for_daily_schedule() {
+        let next = next_fire_utc_from_stored_schedule("0 0 9 * * *");
+        let Some(next) = next else {
+            panic!("expected next fire for daily 09:00 UTC");
+        };
+        assert!(next > Utc::now());
+    }
+
+    #[test]
     fn wall_clock_converts_hour_for_positive_offset() {
         // 若本地为 UTC+8，12:15 local → 04:15 UTC（仅当测试机时区为东八区时稳定）
         let Some(utc_expr) = wall_clock_cron_to_utc_storage("0 15 12 19 5 *") else {
