@@ -400,8 +400,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "amazon_bedrock" | "bedrock" => "amazon_bedrock".to_string(),
         "opencodego" => "opencode_go".to_string(),
         "glm" => "z.ai".to_string(),
-        "deep_seek" => "deepseek".to_string(),
-        "grok" => "xai".to_string(),
+        "deep_seek" | "deepseek_ai" => "deepseek".to_string(),
+        "grok" | "x_ai" => "xai".to_string(),
         "volc" | "volcano" | "bytedance" | "doubao" => "volcengine".to_string(),
         "dashscope" | "modelstudio" | "qwencloud" => "alibaba".to_string(),
         "qwen_cloud" => "qwen".to_string(),
@@ -410,10 +410,13 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "open_router" => "openrouter".to_string(),
         "together_ai" => "together".to_string(),
         "opencode_zen" => "opencode".to_string(),
-        "hf" | "huggingface_hub" => "huggingface".to_string(),
-        "gemini" | "vertex" => "google".to_string(),
-        "kimi_coding" | "kimi_code_plan" => "kimi_code".to_string(),
+        "open_code" => "opencode".to_string(),
+        "open_code_go" | "opencodego_auth" => "opencode_go".to_string(),
+        "hf" | "hugging_face" | "huggingface_hub" => "huggingface".to_string(),
+        "gemini" | "vertex" | "google_ai" | "google_gemini" => "google".to_string(),
+        "kimi_coding" | "kimi_code_plan" | "kimi_code" => "kimi_code".to_string(),
         "mini_max" => "minimax".to_string(),
+        "mistral_ai" => "mistral".to_string(),
         "perplexity_ai" => "perplexity".to_string(),
         "nim" | "nvidia_nim" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
@@ -421,6 +424,11 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" => "z.ai".to_string(),
         "fireworks_ai" => "fireworks".to_string(),
         "togetherai" => "together".to_string(),
+        "byte_plus" => "byteplus".to_string(),
+        "kilo_code" | "kilo_gateway" => "kilocode".to_string(),
+        "lite_llm" => "litellm".to_string(),
+        "step_fun" => "stepfun".to_string(),
+        "s_glang" => "sglang".to_string(),
         _ => s,
     }
 }
@@ -493,6 +501,12 @@ mod tests {
         assert_eq!(normalize_provider_id("zhipu-ai"), "z.ai");
         assert_eq!(normalize_provider_id("fireworks-ai"), "fireworks");
         assert_eq!(normalize_provider_id("togetherai"), "together");
+        assert_eq!(normalize_provider_id("deepseek-ai"), "deepseek");
+        assert_eq!(normalize_provider_id("x-ai"), "xai");
+        assert_eq!(normalize_provider_id("byte-plus"), "byteplus");
+        assert_eq!(normalize_provider_id("kilo-code"), "kilocode");
+        assert_eq!(normalize_provider_id("mistral-ai"), "mistral");
+        assert_eq!(normalize_provider_id("google-gemini"), "google");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
