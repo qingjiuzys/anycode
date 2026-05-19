@@ -640,6 +640,16 @@ mod tests {
     }
 
     #[test]
+    fn body_text_ref_empty_title_skips_quote_line() {
+        let items = vec![json!({
+            "type": 1,
+            "text_item": { "text": "回复" },
+            "ref_msg": { "title": "" }
+        })];
+        assert_eq!(body_from_item_list(&items), "回复");
+    }
+
+    #[test]
     fn body_text_with_ref_preamble() {
         let items = vec![json!({
             "type": 1,
