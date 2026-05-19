@@ -26,6 +26,7 @@
 | P1 | 媒体优先级 IMAGE > VIDEO > FILE > VOICE | 桥接层有 fallback | 对照插件解密/CDN 变更 |
 | P2 | 群聊诊断 / 未注册群提示（WhatsApp 5.19 同类） | 部分日志 | 改进 `wx.ftl` 与日志，不阻塞回复 |
 | P2 | 出站队列：连接时已排队消息需定时 drain（WhatsApp 5.19） | iLink `send_text` 直连 | **Done**（2026-05-19）：`send_text` 瞬态 HTTP 重试 + bridge 记录 chunk 失败 |
+| P2 | 入站媒体 IMAGE>VIDEO>FILE>VOICE | `cdn_media::select_inbound_media_item` | **Done**（2026-05-20）：`select_video_before_file` 单测锁定 VIDEO>FILE |
 | P2 | 多账号 / `normalizeAccountId` 迁移 | 单账号 LaunchAgent 为主 | 文档化多 profile 非目标，除非用户要 parity |
 | P3 | 插件 SDK 根别名桥 | N/A（非插件） | 仅当改共享协议时参考 |
 
