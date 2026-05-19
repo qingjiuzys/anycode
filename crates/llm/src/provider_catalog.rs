@@ -418,6 +418,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "nim" | "nvidia_nim" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
         "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
+        "zhipu" | "zhipuai" | "glm4" => "z.ai".to_string(),
         _ => s,
     }
 }
@@ -486,6 +487,8 @@ mod tests {
         assert_eq!(normalize_provider_id("baidu"), "qianfan");
         assert_eq!(normalize_provider_id("chatgpt"), "openai");
         assert_eq!(normalize_provider_id("open-ai"), "openai");
+        assert_eq!(normalize_provider_id("zhipu"), "z.ai");
+        assert_eq!(normalize_provider_id("zhipu-ai"), "z.ai");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
