@@ -65,10 +65,19 @@ pub fn wall_clock_cron_to_utc_storage(expr: &str) -> Option<String> {
 pub fn validate_cron_schedule_expr(expr: &str) -> Result<(), String> {
     use cron::Schedule;
     let normalized = normalize_cron_schedule_expr(expr);
-    if normalized.split_whitespace().count() < 5 {
-        return Err("schedule must have 5 or 6 fields (sec min hour day month weekday)".into());
+    let field_count = normalized.split_whitespace().count();
+    if field_count < 5 {
+        return Err(format!(
+            "schedule must have 5 or 6 fields (sec min hour day month weekday); got {field_count} in {:?}",
+            expr.trim()
+        ));
     }
-    Schedule::from_str(&normalized).map_err(|e| e.to_string())?;
+    Schedule::from_str(&normalized).map_err(|e| {
+        format!(
+            "invalid cron expression {:?} (normalized {normalized:?}): {e}",
+            expr.trim()
+        )
+    })?;
     Ok(())
 }
 
@@ -108,7 +117,14 @@ mod tests {
 
     #[test]
     fn validate_rejects_garbage_schedule() {
-        assert!(validate_cron_schedule_expr("not a cron").is_err());
+        let err = validate_cron_schedule_expr("not a cron").unwrap_err();
+        assert!(err.contains("5 or 6 fields"), "{err}");
+    }
+
+    #[test]
+    fn validate_error_includes_field_count() {
+        let err = validate_cron_schedule_expr("0 0").unwrap_err();
+        assert!(err.contains("got 2"), "{err}");
     }
 
     #[test]
