@@ -14,7 +14,8 @@
 - **Cron observability:** builtin scheduler appends `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error`); see [`docs/cron-observability.md`](docs/cron-observability.md).
 - **`CronCreate` IANA `schedule_timezone`:** `Asia/Shanghai`-style names convert wall-clock fields to UTC storage (in addition to `local` / `utc` / `utc0` / `gmt`).
 - **Agent stream failover:** `pop_assistant_placeholder` removes streaming assistant placeholders before non-stream chat fallback.
-- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, `ernie`→`qianfan`, `chatgpt`→`openai`, `zhipu`/`zhipu-ai`→`z.ai`, `deepseek-ai`, `x-ai`, `byte-plus`, `claude-cli`/`anthropic-cli`→`anthropic`, `azure-openai`→`openai`, `venice-ai`→`venice`, `stepfun-ai`/`chutes-ai`/`sglang-ai`, `opencode-ai`/`synthetic-ai`, `litellm-ai`/`kilocode-ai`, `deepseek-chat`, `byteplus-ai`, `moonshot-v1`, etc.).
+- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, `ernie`→`qianfan`, `chatgpt`→`openai`, `zhipu`/`zhipu-ai`→`z.ai`, `deepseek-ai`, `x-ai`, `byte-plus`, `claude-cli`/`anthropic-cli`→`anthropic`, `azure-openai`→`openai`, `venice-ai`→`venice`, `stepfun-ai`/`chutes-ai`/`sglang-ai`, `opencode-ai`/`synthetic-ai`, `litellm-ai`/`kilocode-ai`, `deepseek-chat`, `byteplus-ai`, `moonshot-v1`, `together-api`, `amazon-bedrock-api`, `vllm-api`, `groq-cloud`, `openai-api`, `custom-api`, `moonshot-api`, etc.).
+- **Cron:** `schedule_timezone` accepts `Zulu` as a UTC alias.
 - **WeChat bridge:** outbound `send_text` retries transient HTTP errors with capped backoff; reply chunk failures are logged after retries.
 
 ### Fixed
