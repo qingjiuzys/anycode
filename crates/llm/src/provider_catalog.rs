@@ -407,7 +407,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "qwen_cloud" => "qwen".to_string(),
         "moonshotai" | "moonshot_ai" => "moonshot".to_string(),
         "aws_bedrock" => "amazon_bedrock".to_string(),
-        "open_router" => "openrouter".to_string(),
+        "open_router" | "openrouter_ai" => "openrouter".to_string(),
         "together_ai" => "together".to_string(),
         "opencode_zen" => "opencode".to_string(),
         "open_code" => "opencode".to_string(),
@@ -539,6 +539,7 @@ mod tests {
         assert_eq!(normalize_provider_id("byteplus-ai"), "byteplus");
         assert_eq!(normalize_provider_id("moonshot-v1"), "moonshot");
         assert_eq!(normalize_provider_id("google-ai-studio"), "google");
+        assert_eq!(normalize_provider_id("openrouter-ai"), "openrouter");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
