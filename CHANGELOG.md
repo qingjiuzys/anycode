@@ -24,7 +24,7 @@
 - **OpenAI-compatible tools:** collapse nullable `anyOf` / `oneOf` branches in tool parameter schemas before requests (DeepSeek and similar gateways).
 - **Memory pipeline:** log `tracing::warn` when embedding or vector upsert/search fails; keyword and hot-store recall continue.
 - **`CronCreate`:** reject invalid cron expressions with field-count and parse hints; unknown `schedule_timezone` values return a clear error.
-- **`WebFetch`:** block literal private, loopback, and link-local hosts (including IPv6 `::1`, IPv4-mapped loopback, decimal and hexadecimal IPv4 hostnames) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
+- **`WebFetch`:** block literal private, loopback, link-local, CGNAT `100.64.0.0/10`, and documentation hosts (including IPv6 `::1`, IPv4-mapped loopback, decimal and hexadecimal IPv4 hostnames, `*.localhost`) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
 - **Providers:** fix `zhipu-ai` kebab alias mapping to `z.ai` (CI `normalize_openclaw_aliases`).
 - **cli_smoke:** line REPL test uses isolated noop-memory config so parallel WeChat bridge runs do not lock `memory.sled`.
 
