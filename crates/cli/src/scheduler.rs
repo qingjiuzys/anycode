@@ -22,6 +22,29 @@ use tracing::{info, warn};
 
 const MAX_CATCHUP_PER_WAKE: usize = 5;
 
+fn cron_runs_log_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".anycode/logs/cron-runs.jsonl"))
+}
+
+fn append_cron_run_log(job_id: &str, fired_at: DateTime<Utc>, status: &str, detail: Option<&str>) {
+    let Some(path) = cron_runs_log_path() else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let line = serde_json::json!({
+        "job_id": job_id,
+        "fired_at": fired_at.to_rfc3339(),
+        "status": status,
+        "detail": detail.unwrap_or(""),
+    });
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
+        use std::io::Write;
+        let _ = writeln!(f, "{line}");
+    }
+}
+
 /// 微信桥内嵌调度器：到点后把任务结果推回最近会话。
 #[derive(Clone)]
 pub(crate) struct SchedulerWechatHooks {
@@ -217,6 +240,7 @@ pub(crate) async fn run_builtin_scheduler(
                     pj.job.schedule,
                     next
                 );
+                append_cron_run_log(&pj.job.id, next, "started", None);
                 if let Some(hooks) = &wechat_hooks {
                     deliver_cron_to_wechat(
                         &hooks.data_root,
@@ -257,12 +281,17 @@ pub(crate) async fn run_builtin_scheduler(
                 )
                 .await
                 {
+                    let msg = e.to_string();
                     warn!(
                         target: "anycode_scheduler",
-                        "cron job {} execution error: {e}",
+                        "cron job {} execution error: {msg}",
                         pj.job.id
                     );
-                } else if let Some(hooks) = &wechat_hooks {
+                    append_cron_run_log(&pj.job.id, next, "error", Some(&msg));
+                } else {
+                    append_cron_run_log(&pj.job.id, next, "ok", captured.trim().get(..200));
+                }
+                if let Some(hooks) = &wechat_hooks {
                     let body = captured.trim();
                     if body.len() > 80 {
                         deliver_cron_to_wechat(
