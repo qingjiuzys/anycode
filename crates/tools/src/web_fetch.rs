@@ -367,6 +367,12 @@ mod tests {
     }
 
     #[test]
+    fn strip_tags_removes_html_and_collapses_whitespace() {
+        let out = strip_tags("<p>hello</p> <b>world</b>");
+        assert_eq!(out, "hello world");
+    }
+
+    #[test]
     fn allows_public_hostnames() {
         let url = url::Url::parse("https://example.com/page").unwrap();
         assert!(fetch_url_host_blocked(&url).is_none());
