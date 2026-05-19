@@ -766,6 +766,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bash_deny_takes_precedence_over_allow() {
+        let system = ApprovalSystem::new();
+        system
+            .set_policy(
+                "Bash".to_string(),
+                SecurityPolicy {
+                    require_approval: false,
+                    allow_commands: vec![r"^rm\s".to_string()],
+                    deny_commands: vec![r"rm\s+-rf".to_string()],
+                    sandbox_mode: false,
+                    timeout_ms: None,
+                },
+            )
+            .await;
+        let result = system
+            .check_tool_call("Bash", &serde_json::json!({"command": "rm -rf /tmp"}))
+            .await;
+        assert!(matches!(result, ApprovalResult::Denied { .. }));
+    }
+
+    #[tokio::test]
     async fn bash_allow_list_permits_git_status() {
         let system = ApprovalSystem::new();
         system
