@@ -400,6 +400,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "amazon_bedrock" | "bedrock" => "amazon_bedrock".to_string(),
         "opencodego" => "opencode_go".to_string(),
         "glm" => "z.ai".to_string(),
+        "deep_seek" => "deepseek".to_string(),
         _ => s,
     }
 }
@@ -451,6 +452,7 @@ mod tests {
         assert_eq!(normalize_provider_id("amazon-bedrock"), "amazon_bedrock");
         assert_eq!(normalize_provider_id("github-copilot"), "github_copilot");
         assert_eq!(normalize_provider_id("glm"), "z.ai");
+        assert_eq!(normalize_provider_id("deep-seek"), "deepseek");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
