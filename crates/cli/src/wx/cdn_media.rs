@@ -848,6 +848,19 @@ mod tests {
     }
 
     #[test]
+    fn pkcs7_unpad_valid_block() {
+        let mut block = vec![0u8; 16];
+        for (i, b) in block.iter_mut().enumerate().take(12) {
+            *b = b'x';
+        }
+        for b in block.iter_mut().skip(12) {
+            *b = 4;
+        }
+        let out = pkcs7_unpad(&block).expect("unpad");
+        assert_eq!(out.len(), 12);
+    }
+
+    #[test]
     fn normalize_media_aes_key_from_32_hex() {
         let b64 = normalize_media_aes_key("00112233445566778899aabbccddeeff");
         assert!(!b64.is_empty());
