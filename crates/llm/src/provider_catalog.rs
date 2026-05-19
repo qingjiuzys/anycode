@@ -400,7 +400,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "amazon_bedrock" | "bedrock" => "amazon_bedrock".to_string(),
         "opencodego" => "opencode_go".to_string(),
         "glm" => "z.ai".to_string(),
-        "deep_seek" | "deepseek_ai" => "deepseek".to_string(),
+        "deep_seek" | "deepseek_ai" | "deepseek_chat" => "deepseek".to_string(),
         "grok" | "x_ai" => "xai".to_string(),
         "volc" | "volcano" | "bytedance" | "doubao" => "volcengine".to_string(),
         "dashscope" | "modelstudio" | "qwencloud" => "alibaba".to_string(),
@@ -432,7 +432,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "togetherai" => "together".to_string(),
         "byte_plus" => "byteplus".to_string(),
         "kilo_code" | "kilo_gateway" => "kilocode".to_string(),
-        "lite_llm" => "litellm".to_string(),
+        "lite_llm" | "litellm_ai" => "litellm".to_string(),
+        "kilocode_ai" => "kilocode".to_string(),
         "step_fun" => "stepfun".to_string(),
         "s_glang" | "sglang_ai" => "sglang".to_string(),
         "stepfun_ai" => "stepfun".to_string(),
@@ -529,6 +530,9 @@ mod tests {
         assert_eq!(normalize_provider_id("sglang-ai"), "sglang");
         assert_eq!(normalize_provider_id("opencode-ai"), "opencode");
         assert_eq!(normalize_provider_id("synthetic-ai"), "synthetic");
+        assert_eq!(normalize_provider_id("litellm-ai"), "litellm");
+        assert_eq!(normalize_provider_id("kilocode-ai"), "kilocode");
+        assert_eq!(normalize_provider_id("deepseek-chat"), "deepseek");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
