@@ -843,6 +843,15 @@ mod tests {
     }
 
     #[test]
+    fn body_text_camel_case_text_item() {
+        let items = vec![json!({
+            "type": 1,
+            "textItem": { "text": "hello" }
+        })];
+        assert_eq!(body_from_item_list(&items), "hello");
+    }
+
+    #[test]
     fn cdn_get_url_trusted_rejects_untrusted_host() {
         assert!(!cdn_get_url_trusted("https://evil.example.com/steal"));
         assert!(!cdn_get_url_trusted("http://127.0.0.1/"));
