@@ -190,11 +190,7 @@ impl RootReturnMemoryPipeline {
             updated_at: chrono::Utc::now(),
         };
         self.hot.save(memory.clone()).await?;
-        if let Some(ref emb) = self.embedding {
-            if let Ok(vec) = emb.embed_one(&memory.content).await {
-                let _ = self.vector.upsert(&memory.id, &vec, memory.mem_type).await;
-            }
-        }
+        self.try_embed_upsert(&memory).await;
         Ok(())
     }
 
@@ -217,6 +213,30 @@ impl RootReturnMemoryPipeline {
             self.wal_put(&frag).await;
         }
         Ok(())
+    }
+
+    async fn try_embed_upsert(&self, memory: &Memory) {
+        let Some(ref emb) = self.embedding else {
+            return;
+        };
+        match emb.embed_one(&memory.content).await {
+            Ok(vec) => {
+                if let Err(e) = self.vector.upsert(&memory.id, &vec, memory.mem_type).await {
+                    tracing::warn!(
+                        target: "anycode_memory",
+                        id = %memory.id,
+                        "vector upsert failed (keyword/hot recall still active): {e}"
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    target: "anycode_memory",
+                    id = %memory.id,
+                    "embedding failed; vector recall degraded: {e}"
+                );
+            }
+        }
     }
 
     fn tick_decay_locked(
@@ -324,16 +344,29 @@ impl MemoryPipeline for RootReturnMemoryPipeline {
 
         let mut from_vector: Vec<Memory> = Vec::new();
         if let Some(ref emb) = self.embedding {
-            if let Ok(qvec) = emb.embed_one(query).await {
-                let ids = self
-                    .vector
-                    .search(&qvec, mem_type, 32)
-                    .await
-                    .unwrap_or_default();
-                for id in ids {
-                    if let Ok(Some(m)) = self.hot.get_by_id(&id, &mem_type).map_err(core_from_mem) {
-                        from_vector.push(m);
+            match emb.embed_one(query).await {
+                Ok(qvec) => match self.vector.search(&qvec, mem_type, 32).await {
+                    Ok(ids) => {
+                        for id in ids {
+                            if let Ok(Some(m)) =
+                                self.hot.get_by_id(&id, &mem_type).map_err(core_from_mem)
+                            {
+                                from_vector.push(m);
+                            }
+                        }
                     }
+                    Err(e) => {
+                        tracing::warn!(
+                            target: "anycode_memory",
+                            "vector search failed; recall uses hot/buffer/legacy only: {e}"
+                        );
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        target: "anycode_memory",
+                        "query embedding failed; vector recall skipped: {e}"
+                    );
                 }
             }
         }
@@ -419,11 +452,7 @@ impl MemoryStore for RootReturnMemoryPipeline {
         }
         self.wal_del(&memory.id).await;
         self.hot.save(memory.clone()).await?;
-        if let Some(ref emb) = self.embedding {
-            if let Ok(vec) = emb.embed_one(&memory.content).await {
-                let _ = self.vector.upsert(&memory.id, &vec, memory.mem_type).await;
-            }
-        }
+        self.try_embed_upsert(&memory).await;
         Ok(())
     }
 
@@ -438,11 +467,7 @@ impl MemoryStore for RootReturnMemoryPipeline {
         }
         self.wal_del(id).await;
         self.hot.update(id, memory.clone()).await?;
-        if let Some(ref emb) = self.embedding {
-            if let Ok(vec) = emb.embed_one(&memory.content).await {
-                let _ = self.vector.upsert(&memory.id, &vec, memory.mem_type).await;
-            }
-        }
+        self.try_embed_upsert(&memory).await;
         Ok(())
     }
 
