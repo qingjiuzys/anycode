@@ -598,6 +598,12 @@ mod tests {
     }
 
     #[test]
+    fn body_from_empty_item_list_is_empty() {
+        assert_eq!(body_from_item_list(&[]), "");
+        assert_eq!(first_plain_text_from_items(&[]), "");
+    }
+
+    #[test]
     fn voice_only_body_stt() {
         let items = vec![json!({
             "type": 3,
