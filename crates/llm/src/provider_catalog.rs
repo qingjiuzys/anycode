@@ -401,7 +401,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "opencodego" => "opencode_go".to_string(),
         "glm" => "z.ai".to_string(),
         "deep_seek" | "deepseek_ai" | "deepseek_chat" => "deepseek".to_string(),
-        "grok" | "x_ai" => "xai".to_string(),
+        "grok" | "x_ai" | "grok_api" => "xai".to_string(),
+        "kimi_api" => "moonshot".to_string(),
         "volc" | "volcano" | "bytedance" | "doubao" => "volcengine".to_string(),
         "dashscope" | "modelstudio" | "qwencloud" => "alibaba".to_string(),
         "qwen_cloud" | "qwen_api" => "qwen".to_string(),
@@ -563,6 +564,8 @@ mod tests {
             "cloudflare_ai_gateway"
         );
         assert_eq!(normalize_provider_id("vercel-ai"), "vercel_ai_gateway");
+        assert_eq!(normalize_provider_id("grok-api"), "xai");
+        assert_eq!(normalize_provider_id("kimi-api"), "moonshot");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
@@ -574,6 +577,12 @@ mod tests {
             transport_for_provider_id("not-in-catalog"),
             LlmTransport::OpenAiChatCompletions
         );
+    }
+
+    #[test]
+    fn is_known_provider_id_for_anthropic() {
+        assert!(is_known_provider_id("anthropic"));
+        assert!(is_known_provider_id("claude-cli"));
     }
 
     #[test]
