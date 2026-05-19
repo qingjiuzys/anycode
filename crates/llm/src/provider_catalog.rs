@@ -434,7 +434,9 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "kilo_code" | "kilo_gateway" => "kilocode".to_string(),
         "lite_llm" => "litellm".to_string(),
         "step_fun" => "stepfun".to_string(),
-        "s_glang" => "sglang".to_string(),
+        "s_glang" | "sglang_ai" => "sglang".to_string(),
+        "stepfun_ai" => "stepfun".to_string(),
+        "chutes_ai" => "chutes".to_string(),
         _ => s,
     }
 }
@@ -520,6 +522,9 @@ mod tests {
         assert_eq!(normalize_provider_id("vllm-server"), "vllm");
         assert_eq!(normalize_provider_id("groq-ai"), "groq");
         assert_eq!(normalize_provider_id("ollama-local"), "ollama");
+        assert_eq!(normalize_provider_id("stepfun-ai"), "stepfun");
+        assert_eq!(normalize_provider_id("chutes-ai"), "chutes");
+        assert_eq!(normalize_provider_id("sglang-ai"), "sglang");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
