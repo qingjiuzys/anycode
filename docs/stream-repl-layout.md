@@ -22,6 +22,7 @@ Stream REPL 栈可以演进通道与文件拆分，但须遵守：
 - **编排权威**（[ADR 000](adr/000-runtime-orchestration.md)）：多轮 LLM+工具仍只经 `AgentRuntime`，不另起第二套执行引擎。
 - **组合根**（[ADR 002](adr/002-cli-composition-root.md)）：runtime 仍由 `initialize_runtime` 组装。
 - **协作取消**：`Arc<AtomicBool>` 与 `CoreError::CooperativeCancel` 语义不变。
+- **Resize / 执行态 transcript**：每帧须 **先** `draw_stream_frame`（`autoresize` 回写 `stream_viewport_width`），**再** `tick_executing_stream_transcript`；禁止在视口宽更新前按旧宽 reflow（否则执行中改终端尺寸会出现重复行）。备用屏收到 `Event::Resize` 时同步 `sync_stream_repl_viewport_from_area`。
 
 ### 通道与类型依赖（只读清单）
 
