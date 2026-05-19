@@ -48,6 +48,16 @@ mod tests {
     }
 
     #[test]
+    fn custom_trigger_ratio_applies() {
+        let p = CompactPolicy {
+            trigger_ratio: 0.5,
+            ..Default::default()
+        };
+        assert!(!p.should_compact(10_000, 4_999));
+        assert!(p.should_compact(10_000, 5_000));
+    }
+
+    #[test]
     fn hard_token_threshold_overrides_ratio() {
         let p = CompactPolicy {
             hard_token_threshold: 50_000,
