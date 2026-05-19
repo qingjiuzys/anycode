@@ -41,7 +41,7 @@
 - **微信 UX**：不再向会话推送 `🔧`/`✓` 工具进度行。  
 - **会话与 CLI**：协作取消、流式 REPL 模块化、**Telegram `AskUserQuestion`**（`tg_ask`）、MCP stdio 超时 + **`mcp_stdio_dead`**、会话通知、HUD/`/context`/`/export`/`/cost` 等。  
 - **OpenClaw 对标**：本地已拉至 **2026.5.19** 线（`ddeaebfc`）；见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)、[`weixin-plugin-parity.md`](weixin-plugin-parity.md)。  
-- **5.19 小步**：stream→chat 不重复 assistant；DeepSeek `anyOf` schema 规范化；pipeline 向量/嵌入降级 WARN；`cron-runs.jsonl` + `CronCreate` 校验；流式 REPL resize tick 顺序；`WebFetch` 私网主机 + 重定向跳数上限。
+- **5.19 小步**：stream→chat 不重复 assistant；DeepSeek `anyOf` schema 规范化；pipeline 向量/嵌入降级 WARN；`cron-runs.jsonl` + `CronCreate` 校验；流式 REPL resize tick 顺序；`WebFetch` 私网主机 + 重定向跳数上限；provider kebab 别名补全（`zhipu-ai` 等）；微信出站 `send_text` 重试。
 
 ---
 
@@ -65,9 +65,10 @@
 | # | 轨 | 主题 | 完成定义（简） |
 |---|-----|------|----------------|
 | 1 | Channels | **Weixin 2.4.3 跟踪** | 插件 CHANGELOG 与 Rust 桥差异表；高优项可开 issue（[`weixin-plugin-parity.md`](weixin-plugin-parity.md)） |
-| 2 | Providers | **Catalog 定期 diff** | 对照 OpenClaw 5.x 新增 provider id / 别名（5.19 已补 doubao/gemini 等）；Z.ai manifest |
+| 2 | Providers | **Catalog 定期 diff** | 对照 OpenClaw 5.x 新增 provider id / 别名（5.19 已补 doubao/gemini、deepseek-ai、x-ai 等 kebab）；Z.ai manifest |
 | 3 | Security | **WebFetch 续** | DNS 解析后私网拦截 + 十进制 IPv4 主机名 **Done**（2026-05-19）；高级 rebinding 仍 **Later** |
-| 4 | Automation | **Cron IANA tz** | 可选 `schedule_timezone` IANA（当前仅 `local` / `utc`） |
+| 4 | Automation | **Cron IANA tz** | 可选 `schedule_timezone` IANA（当前仅 `local` / `utc` / `utc0`） |
+| 5 | Testing | **cli_smoke 隔离** | line REPL 冒烟用 temp `memory.backend=noop`，避免与运行中 bridge 争用 `memory.sled` **Done**（2026-05-19） |
 
 **仍开放（不占 §4 槽位）**：MCP 受控重连实现（[ADR 007](adr/007-mcp-session-reconnect-policy.md)）；跨进程后台 Agent（§5）。
 

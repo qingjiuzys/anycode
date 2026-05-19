@@ -109,6 +109,14 @@
 
 ## 增量（后续 pull 后追加）
 
+### 2026-05-19（anyCode 会话，续）
+
+- **CI**：`normalize_openclaw_aliases` 失败因 `zhipu-ai` → `zhipu_ai` 未映射；已修复并扩展 kebab 别名（`deepseek-ai`、`x-ai`、`byte-plus` 等）。
+- **微信桥**：出站 `send_text` 瞬态 HTTP 重试（ capped backoff）；bridge 记录 chunk 发送失败。
+- **cli_smoke**：line REPL 测试使用 temp `memory.backend=noop`，避免与运行中 bridge 争用 `~/.anycode/memory.sled`（本地 WouldBlock，非 CI 回归）。
+- **Agent**：compact policy 边界测试（87999 vs 88000、零窗口）。
+- **Cron**：校验拒绝 7 字段表达式。
+
 ### 2026-05-19（anyCode 会话）
 
 - **WebFetch**：DNS rebinding 防护（解析后拒绝私网/链路本地 A/AAAA）；十进制 IPv4 主机名拦截；与既有字面量 SSRF + 重定向跳校验叠加。
