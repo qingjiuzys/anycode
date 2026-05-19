@@ -34,7 +34,14 @@ mod tests {
     fn should_compact_at_ratio_threshold() {
         let p = CompactPolicy::default();
         assert!(!p.should_compact(100_000, 80_000));
+        assert!(!p.should_compact(100_000, 87_999));
         assert!(p.should_compact(100_000, 88_000));
+    }
+
+    #[test]
+    fn should_not_compact_on_zero_context_window() {
+        let p = CompactPolicy::default();
+        assert!(!p.should_compact(0, 10_000));
     }
 
     #[test]
