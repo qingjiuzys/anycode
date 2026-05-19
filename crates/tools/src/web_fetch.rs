@@ -390,6 +390,18 @@ mod tests {
     }
 
     #[test]
+    fn blocks_documentation_ipv4_test_net() {
+        let url = url::Url::parse("http://192.0.2.1/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
+    fn blocks_localhost_subdomain() {
+        let url = url::Url::parse("http://app.localhost/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
     fn allows_public_hostnames() {
         let url = url::Url::parse("https://example.com/page").unwrap();
         assert!(fetch_url_host_blocked(&url).is_none());
