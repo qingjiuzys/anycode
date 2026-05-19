@@ -3,9 +3,13 @@
 use crate::services::ToolServices;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
+use reqwest::redirect::Policy;
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Instant;
+
+/// Max HTTP redirects to follow (OpenClaw fetch-guard uses a small cap).
+const MAX_FETCH_REDIRECTS: usize = 5;
 
 pub struct WebFetchTool {
     security_policy: SecurityPolicy,
@@ -44,6 +48,20 @@ fn fetch_url_host_blocked(url: &url::Url) -> Option<&'static str> {
         }
     }
     None
+}
+
+/// Strip userinfo from URL before fetch and before persisting redirect targets.
+fn sanitize_fetch_url(mut url: url::Url) -> url::Url {
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    url
+}
+
+fn resolve_redirect_location(base: &url::Url, location: &str) -> Option<url::Url> {
+    url::Url::parse(location)
+        .ok()
+        .or_else(|| base.join(location).ok())
+        .map(sanitize_fetch_url)
 }
 
 fn is_blocked_fetch_ip(ip: std::net::IpAddr) -> bool {
@@ -123,6 +141,7 @@ impl Tool for WebFetchTool {
 
         let url = url::Url::parse(&wf.url)
             .map_err(|e| CoreError::Other(anyhow::anyhow!("bad url: {}", e)))?;
+        let url = sanitize_fetch_url(url);
         if !matches!(url.scheme(), "http" | "https") {
             return Ok(ToolOutput {
                 result: serde_json::json!({"error": "only http/https allowed"}),
@@ -138,13 +157,67 @@ impl Tool for WebFetchTool {
             });
         }
 
-        let resp = self
-            .services
-            .http
-            .get(wf.url.clone())
-            .send()
-            .await
-            .map_err(|e| CoreError::Other(anyhow::anyhow!("fetch failed: {}", e)))?;
+        let client = reqwest::Client::builder()
+            .user_agent("anycode-tools/0.1")
+            .redirect(Policy::none())
+            .build()
+            .map_err(|e| CoreError::Other(anyhow::anyhow!("http client: {}", e)))?;
+        let mut current = url.clone();
+        let mut redirects_followed = 0usize;
+        let resp = loop {
+            if let Some(reason) = fetch_url_host_blocked(&current) {
+                return Ok(ToolOutput {
+                    result: serde_json::json!({"error": reason}),
+                    error: Some(reason.into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            let resp = client
+                .get(current.clone())
+                .send()
+                .await
+                .map_err(|e| CoreError::Other(anyhow::anyhow!("fetch failed: {}", e)))?;
+            if resp.status().is_redirection() {
+                if redirects_followed >= MAX_FETCH_REDIRECTS {
+                    return Ok(ToolOutput {
+                        result: serde_json::json!({
+                            "error": format!("too many redirects (max {})", MAX_FETCH_REDIRECTS)
+                        }),
+                        error: Some("redirect_limit".into()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                }
+                let Some(loc) = resp
+                    .headers()
+                    .get(reqwest::header::LOCATION)
+                    .and_then(|v| v.to_str().ok())
+                else {
+                    return Ok(ToolOutput {
+                        result: serde_json::json!({"error": "redirect missing Location header"}),
+                        error: Some("redirect".into()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                };
+                let Some(next) = resolve_redirect_location(&current, loc) else {
+                    return Ok(ToolOutput {
+                        result: serde_json::json!({"error": "invalid redirect Location"}),
+                        error: Some("redirect".into()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                };
+                if !matches!(next.scheme(), "http" | "https") {
+                    return Ok(ToolOutput {
+                        result: serde_json::json!({"error": "only http/https allowed"}),
+                        error: Some("scheme".into()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                }
+                redirects_followed += 1;
+                current = next;
+                continue;
+            }
+            break resp;
+        };
 
         let code = resp.status().as_u16();
         let code_text = resp.status().canonical_reason().unwrap_or("").to_string();
@@ -215,5 +288,28 @@ mod tests {
     fn allows_public_hostnames() {
         let url = url::Url::parse("https://example.com/page").unwrap();
         assert!(fetch_url_host_blocked(&url).is_none());
+    }
+
+    #[test]
+    fn strips_credentials_from_url() {
+        let url = url::Url::parse("https://user:secret@example.com/path").unwrap();
+        let clean = sanitize_fetch_url(url);
+        assert!(clean.username().is_empty());
+        assert!(clean.password().is_none());
+        assert_eq!(clean.host_str(), Some("example.com"));
+    }
+
+    #[test]
+    fn resolves_relative_redirect_against_base() {
+        let base = url::Url::parse("https://example.com/a/b").unwrap();
+        let next = resolve_redirect_location(&base, "/c").unwrap();
+        assert_eq!(next.as_str(), "https://example.com/c");
+    }
+
+    #[test]
+    fn blocks_redirect_target_private_host() {
+        let base = url::Url::parse("https://example.com/").unwrap();
+        let next = resolve_redirect_location(&base, "http://127.0.0.1/").unwrap();
+        assert!(fetch_url_host_blocked(&next).is_some());
     }
 }

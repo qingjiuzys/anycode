@@ -20,7 +20,7 @@
 - **OpenAI-compatible tools:** collapse nullable `anyOf` / `oneOf` branches in tool parameter schemas before requests (DeepSeek and similar gateways).
 - **Memory pipeline:** log `tracing::warn` when embedding or vector upsert/search fails; keyword and hot-store recall continue.
 - **`CronCreate`:** reject invalid cron expressions and unsupported `schedule_timezone` values (only `local` / `utc`; IANA names return a clear error).
-- **`WebFetch`:** block literal private, loopback, and link-local hosts before fetch.
+- **`WebFetch`:** block literal private, loopback, and link-local hosts before fetch; cap redirects and strip URL credentials on each hop.
 
 ### Breaking (terminal / session / env)
 
