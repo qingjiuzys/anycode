@@ -900,13 +900,15 @@ impl AgentRuntime {
                     }),
                 }
             } else {
+                // Stream did not produce a final message: drop placeholder before non-stream
+                // chat so we never leave a stale assistant row (OpenClaw 5.19 failover parity).
+                pop_assistant_placeholder(&messages, assistant_id).await;
                 let chat_fut =
                     self.llm_client
                         .chat(messages_snapshot, tool_schemas.clone(), &model_config);
                 let r = tokio::select! {
                     biased;
                     () = coop_flag_wait_opt(coop_cancel.clone()) => {
-                        pop_assistant_placeholder(&messages, assistant_id).await;
                         logger.line(
                             task_id,
                             "[llm_response_end] status=cancelled reason=cooperative_in_flight",
@@ -916,14 +918,9 @@ impl AgentRuntime {
                     }
                     res = chat_fut => res?,
                 };
-                // Replace placeholder assistant with final assistant message.
                 {
                     let mut g = messages.lock().await;
-                    if let Some(last) = g.last_mut() {
-                        if last.id == assistant_id {
-                            *last = r.message.clone();
-                        }
-                    }
+                    g.push(r.message.clone());
                 }
                 r
             };
