@@ -646,6 +646,16 @@ mod tests {
     }
 
     #[test]
+    fn body_text_ref_camel_case_refmsg_title() {
+        let items = vec![json!({
+            "type": 1,
+            "text_item": { "text": "ok" },
+            "refMsg": { "title": "camel" }
+        })];
+        assert_eq!(body_from_item_list(&items), "[引用: camel]\nok");
+    }
+
+    #[test]
     fn body_text_ref_empty_title_skips_quote_line() {
         let items = vec![json!({
             "type": 1,
