@@ -24,7 +24,7 @@ pub fn resolve_schedule_timezone(raw: &str) -> Result<ScheduleTimezone, String> 
     let lower = t.to_ascii_lowercase();
     match lower.as_str() {
         "local" => Ok(ScheduleTimezone::Local),
-        "utc" | "utc0" | "gmt" => Ok(ScheduleTimezone::Utc),
+        "utc" | "utc0" | "gmt" | "zulu" => Ok(ScheduleTimezone::Utc),
         _ => chrono_tz::Tz::from_str(t)
             .map(ScheduleTimezone::Iana)
             .map_err(|_| {
