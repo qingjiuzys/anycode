@@ -28,6 +28,42 @@ struct WfInput {
     prompt: String,
 }
 
+/// Reject loopback, RFC1918, link-local, and metadata hosts (OpenClaw fetch-guard subset).
+fn fetch_url_host_blocked(url: &url::Url) -> Option<&'static str> {
+    let host = url.host_str()?;
+    let lower = host.to_ascii_lowercase();
+    if lower == "localhost" || lower.ends_with(".localhost") {
+        return Some("localhost host not allowed");
+    }
+    if lower == "metadata.google.internal" {
+        return Some("metadata host not allowed");
+    }
+    if let Ok(ip) = lower.parse::<std::net::IpAddr>() {
+        if is_blocked_fetch_ip(ip) {
+            return Some("private or link-local IP not allowed");
+        }
+    }
+    None
+}
+
+fn is_blocked_fetch_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || v4.octets() == [0, 0, 0, 0]
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unique_local()
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
 fn strip_tags(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut in_tag = false;
@@ -96,6 +132,13 @@ impl Tool for WebFetchTool {
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
+        if let Some(reason) = fetch_url_host_blocked(&url) {
+            return Ok(ToolOutput {
+                result: serde_json::json!({"error": reason}),
+                error: Some(reason.into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
 
         let resp = self
             .services
@@ -146,5 +189,33 @@ impl Tool for WebFetchTool {
             },
             duration_ms: start.elapsed().as_millis() as u64,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blocks_loopback_and_private_hosts() {
+        for u in [
+            "http://127.0.0.1/",
+            "http://localhost/",
+            "http://192.168.1.1/",
+            "http://10.0.0.1/",
+            "http://169.254.169.254/",
+        ] {
+            let url = url::Url::parse(u).unwrap();
+            assert!(
+                fetch_url_host_blocked(&url).is_some(),
+                "expected block for {u}"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_public_hostnames() {
+        let url = url::Url::parse("https://example.com/page").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_none());
     }
 }
