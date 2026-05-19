@@ -227,6 +227,12 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_invalid_day_of_month() {
+        let err = validate_cron_schedule_expr("0 0 9 32 * *").unwrap_err();
+        assert!(err.contains("invalid cron"), "{err}");
+    }
+
+    #[test]
     fn validate_rejects_seven_field_schedule() {
         let err = validate_cron_schedule_expr("0 0 9 * * * extra").unwrap_err();
         assert!(err.contains("invalid cron"), "{err}");
