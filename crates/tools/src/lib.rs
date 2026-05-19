@@ -2,6 +2,7 @@
 
 pub mod catalog;
 pub mod claude_rules;
+pub mod cron_schedule;
 mod limits;
 pub mod mcp_normalization;
 mod paths;
@@ -63,6 +64,10 @@ pub use catalog::{
     DEFAULT_TOOL_IDS, EXPLORE_PLAN_TOOL_IDS,
 };
 pub use claude_rules::CompiledClaudePermissionRules;
+pub use cron_schedule::{
+    format_next_fire_human, next_fire_utc_from_stored_schedule, normalize_cron_schedule_expr,
+    wall_clock_cron_to_utc_storage,
+};
 #[cfg(feature = "tools-mcp")]
 pub use mcp_connected::McpListedTool;
 #[cfg(feature = "tools-mcp")]

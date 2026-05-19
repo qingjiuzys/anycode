@@ -94,6 +94,7 @@ pub(super) async fn run_workflow_definition(
                     prompt.clone(),
                     working_dir.to_path_buf(),
                     &mut sink,
+                    None,
                 )
                 .await
             };
@@ -156,6 +157,7 @@ pub(super) async fn run_workflow_definition(
                     prompt,
                     working_dir.to_path_buf(),
                     &mut sink,
+                    None,
                 )
                 .await?;
             }

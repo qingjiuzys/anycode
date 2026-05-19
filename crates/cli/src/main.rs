@@ -248,6 +248,8 @@ async fn main() -> anyhow::Result<()> {
                 config,
                 working_dir,
                 std::time::Duration::from_secs(reload_secs),
+                None,
+                None,
             )
             .await?;
         }

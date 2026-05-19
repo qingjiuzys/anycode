@@ -29,14 +29,12 @@ setup-non-tty-skip-hint = Non-interactive, no --channel: skipping channel setup.
 cmd-setup-data-dir = WeChat data directory (default ~/.anycode/wechat)
 
 setup-memory-non-tty-hint = Non-interactive terminal: skipping the memory wizard. Use `anycode config` on a TTY or edit JSON `memory` later.
-setup-memory-prompt = Memory / vector retrieval (HTTP embeddings reuse chat `api_key`; set `embedding_base_url` for the embeddings host)
+setup-memory-prompt = Memory & vectors (noop disables persistence; Markdown = hybrid; vectors = pipeline + embeddings; HTTP embeddings reuse chat `api_key`)
 setup-memory-opt-skip = Skip (keep current memory settings)
 setup-memory-opt-noop = Disable memory (`memory.backend=noop`)
-setup-memory-opt-file = Simple file backend (default onboarding)
-setup-memory-opt-hybrid = Hybrid backend (`memory.backend=hybrid`; resets pipeline embedding fields to defaults)
-setup-memory-opt-pipeline-no-embed = Pipeline memory without vectors (`embedding_enabled: false`)
-setup-memory-opt-pipeline-http = Pipeline + remote vectors (OpenAI-compatible `embedding_base_url` + `embedding_model`)
-setup-memory-opt-pipeline-local = Pipeline + local ONNX (requires embedding-local build)
+setup-memory-opt-markdown = Markdown memories + keyword index (`memory.backend=hybrid`)
+setup-memory-opt-remote-vector = Pipeline + remote embeddings (OpenAI-compatible `embedding_base_url` + `embedding_model`)
+setup-memory-opt-local-vector = Pipeline + local ONNX (requires embedding-local build)
 setup-memory-http-apikey-hint = Embedding HTTP calls reuse the configured `api_key` (same as chat). Override later in JSON if needed.
 setup-memory-http-prompt-base-url = Embedding base URL (OpenAI-compatible API root incl. /v1, e.g. https://api.openai.com/v1)
 setup-memory-http-prompt-model = Embedding model id (e.g. text-embedding-3-small)

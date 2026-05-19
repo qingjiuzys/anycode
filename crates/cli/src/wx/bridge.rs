@@ -125,6 +125,8 @@ pub async fn run_wechat_daemon(
     println!("{}", tr_args("wx-bridge-started", &sa));
 
     let broker_for_state = gate.permission_broker();
+    let sched_runtime = Arc::clone(&runtime);
+    let sched_sender = sender.clone();
     let st = BridgeState {
         data_root: data_root.clone(),
         account,
@@ -149,18 +151,30 @@ pub async fn run_wechat_daemon(
         resolve_cwd(&session, &wcc)
     };
     let sched_cfg = app_config.clone();
+    let sched_wechat = crate::scheduler::SchedulerWechatHooks {
+        data_root: data_root.clone(),
+        sender: sched_sender,
+    };
     tracing::info!(
         target: "anycode_scheduler",
         cwd = %cwd_sched.display(),
         "embedding built-in scheduler beside WeChat bridge (or exit if lock held)"
     );
     tokio::spawn(async move {
-        let _ = crate::scheduler::run_builtin_scheduler(
+        if let Err(e) = crate::scheduler::run_builtin_scheduler(
             sched_cfg,
             cwd_sched,
             std::time::Duration::from_secs(30),
+            Some(sched_runtime),
+            Some(sched_wechat),
         )
-        .await;
+        .await
+        {
+            tracing::error!(
+                target: "anycode_scheduler",
+                "built-in scheduler exited: {e:#}"
+            );
+        }
     });
 
     run_monitor(st).await
@@ -324,6 +338,13 @@ async fn handle_message(
     context_token: String,
     items: Vec<serde_json::Value>,
 ) -> Result<()> {
+    let _ = crate::wx::cron_notify::save_cron_notify_target(
+        &st.data_root,
+        &crate::wx::cron_notify::CronNotifyTarget {
+            from_user_id: from_user_id.clone(),
+            context_token: context_token.clone(),
+        },
+    );
     let (body, media_item) = extract_user_text_and_image_item(&items);
     let cmd = first_plain_text_from_items(&items);
 

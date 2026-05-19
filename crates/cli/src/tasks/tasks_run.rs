@@ -59,6 +59,7 @@ pub(crate) async fn run_task(
         prompt,
         working_dir,
         &mut sink,
+        None,
     )
     .await
 }
@@ -72,6 +73,7 @@ pub(crate) async fn run_single_task_with_tail(
     prompt: String,
     working_dir: PathBuf,
     sink: &mut ReplSink,
+    capture_output: Option<&mut String>,
 ) -> anyhow::Result<()> {
     info!("Running task with agent: {}", agent_type);
     info!("Working directory: {:?}", working_dir);
@@ -139,6 +141,9 @@ pub(crate) async fn run_single_task_with_tail(
 
     match result {
         TaskResult::Success { output, artifacts } => {
+            if let Some(cap) = capture_output {
+                *cap = output.clone();
+            }
             sink.eprint_line(tr("repl-task-ok"));
             let skip_duplicate_block =
                 streamed_log_already_contains_output(&streamed_from_disk, &output);
@@ -169,6 +174,9 @@ pub(crate) async fn run_single_task_with_tail(
             }
         }
         TaskResult::Partial { success, remaining } => {
+            if let Some(cap) = capture_output {
+                *cap = format!("{success}\n{remaining}");
+            }
             sink.eprint_line(tr("repl-task-partial"));
             let mut ps = FluentArgs::new();
             ps.set("done", success.to_string());

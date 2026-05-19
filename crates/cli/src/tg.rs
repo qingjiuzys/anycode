@@ -10,7 +10,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, RwLock};
 
 const TELEGRAM_BASE: &str = "https://api.telegram.org";
 const TELEGRAM_REPLY_CHUNK: usize = 3500;
@@ -270,22 +270,6 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
     .unwrap_or_else(|_| PathBuf::from("."));
     let working_directory = workdir.to_string_lossy().to_string();
 
-    let cwd_sched = workdir.clone();
-    let sched_cfg = config.clone();
-    tracing::info!(
-        target: "anycode_scheduler",
-        cwd = %cwd_sched.display(),
-        "embedding built-in scheduler beside Telegram bridge (or exit if lock held)"
-    );
-    tokio::spawn(async move {
-        let _ = crate::scheduler::run_builtin_scheduler(
-            sched_cfg,
-            cwd_sched,
-            std::time::Duration::from_secs(30),
-        )
-        .await;
-    });
-
     let client = Client::new();
     let qbroker = Arc::new(crate::tg_ask::TelegramQuestionBroker::new());
     let ask_host = crate::tg_ask::TelegramAskUserQuestionHost::new(
@@ -297,6 +281,32 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
     let runtime = initialize_runtime(&config, None, Some(ask_host))
         .await
         .context("initialize runtime for telegram")?;
+    let runtime_for_sched = Arc::new(RwLock::new(Arc::clone(&runtime)));
+
+    let cwd_sched = workdir.clone();
+    let sched_cfg = config.clone();
+    let sched_runtime = Arc::clone(&runtime_for_sched);
+    tracing::info!(
+        target: "anycode_scheduler",
+        cwd = %cwd_sched.display(),
+        "embedding built-in scheduler beside Telegram bridge (or exit if lock held)"
+    );
+    tokio::spawn(async move {
+        if let Err(e) = crate::scheduler::run_builtin_scheduler(
+            sched_cfg,
+            cwd_sched,
+            std::time::Duration::from_secs(30),
+            Some(sched_runtime),
+            None,
+        )
+        .await
+        {
+            tracing::error!(
+                target: "anycode_scheduler",
+                "built-in scheduler exited: {e:#}"
+            );
+        }
+    });
     let root = tg_data_root()?;
     let state_path = root.join("state.json");
     let mut state = load_state(&state_path);

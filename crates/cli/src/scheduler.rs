@@ -5,8 +5,10 @@ use crate::app_config::Config;
 use crate::bootstrap;
 use crate::tasks::{run_single_task_with_tail, ReplSink};
 use crate::workspace;
+use crate::wx::cron_notify::deliver_cron_to_wechat;
+use crate::wx::WxSender;
 use anycode_tools::{read_cron_jobs_from_orchestration_file, CronJob};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use cron::Schedule;
 use fs4::fs_std::FileExt;
 use std::collections::HashMap;
@@ -15,9 +17,17 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 const MAX_CATCHUP_PER_WAKE: usize = 5;
+
+/// 微信桥内嵌调度器：到点后把任务结果推回最近会话。
+#[derive(Clone)]
+pub(crate) struct SchedulerWechatHooks {
+    pub data_root: PathBuf,
+    pub sender: Arc<WxSender>,
+}
 
 struct ParsedJob {
     job: CronJob,
@@ -72,10 +82,11 @@ fn duration_until_next_tick(
     now: DateTime<Utc>,
     reload_cap: Duration,
 ) -> Duration {
-    let epoch = Utc.timestamp_opt(0, 0).single().expect("epoch");
     let mut soonest: Option<DateTime<Utc>> = None;
     for pj in parsed {
-        let last = last_fire.get(&pj.job.id).cloned().unwrap_or(epoch);
+        // Anchor never-seen jobs at `now`, not Unix epoch: epoch makes every expression's
+        // first tick far in the past → zero sleep + unbounded historical catch-up attempts.
+        let last = last_fire.get(&pj.job.id).cloned().unwrap_or(now);
         if let Some(n) = pj.schedule.after(&last).next() {
             if n <= now {
                 return Duration::from_secs(0);
@@ -97,10 +108,14 @@ fn duration_until_next_tick(
     wait.max(Duration::from_millis(50))
 }
 
+/// When `shared_runtime` is set (IM bridge), reuse that runtime instead of a second
+/// `initialize_runtime` — opening hybrid/pipeline sled twice fails with "could not acquire lock".
 pub(crate) async fn run_builtin_scheduler(
     mut config: Config,
     working_dir: PathBuf,
     reload_interval: Duration,
+    shared_runtime: Option<Arc<RwLock<Arc<anycode_agent::AgentRuntime>>>>,
+    wechat_hooks: Option<SchedulerWechatHooks>,
 ) -> anyhow::Result<()> {
     let lock_path =
         scheduler_lock_path().ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
@@ -145,8 +160,11 @@ pub(crate) async fn run_builtin_scheduler(
         working_dir.display()
     );
 
-    let runtime: Arc<anycode_agent::AgentRuntime> =
-        bootstrap::initialize_runtime(&config, None, None).await?;
+    let owned_runtime = if shared_runtime.is_none() {
+        Some(bootstrap::initialize_runtime(&config, None, None).await?)
+    } else {
+        None
+    };
     let disk = anycode_core::DiskTaskOutput::new_default()?;
 
     let default_agent = config
@@ -169,10 +187,8 @@ pub(crate) async fn run_builtin_scheduler(
             }
         };
 
-        let epoch = Utc.timestamp_opt(0, 0).single().expect("epoch");
-
         for pj in &parsed {
-            let mut last = last_fire.get(&pj.job.id).cloned().unwrap_or(epoch);
+            let mut last = last_fire.get(&pj.job.id).cloned().unwrap_or(now);
             let mut catchup = 0usize;
             loop {
                 let next = match pj.schedule.after(&last).next() {
@@ -201,14 +217,43 @@ pub(crate) async fn run_builtin_scheduler(
                     pj.job.schedule,
                     next
                 );
+                if let Some(hooks) = &wechat_hooks {
+                    deliver_cron_to_wechat(
+                        &hooks.data_root,
+                        &hooks.sender,
+                        pj.job.command.as_str(),
+                        "",
+                    )
+                    .await;
+                }
+                let runtime = match &shared_runtime {
+                    Some(sr) => sr.read().await.clone(),
+                    None => owned_runtime
+                        .as_ref()
+                        .expect("owned_runtime when not embedded")
+                        .clone(),
+                };
                 let mut sink = ReplSink::Stdio;
+                let mut captured = String::new();
+                let cron_prompt = format!(
+                    "{}\n\n\
+                     [Scheduled cron — deliver to the user]\n\
+                     Execute the reminder above in concise Chinese. \
+                     Your final answer will be pushed to the user's WeChat chat automatically.",
+                    pj.job.command
+                );
                 if let Err(e) = run_single_task_with_tail(
                     runtime.as_ref(),
                     &disk,
                     default_agent.clone(),
-                    pj.job.command.clone(),
+                    cron_prompt,
                     working_dir.clone(),
                     &mut sink,
+                    if wechat_hooks.is_some() {
+                        Some(&mut captured)
+                    } else {
+                        None
+                    },
                 )
                 .await
                 {
@@ -217,6 +262,17 @@ pub(crate) async fn run_builtin_scheduler(
                         "cron job {} execution error: {e}",
                         pj.job.id
                     );
+                } else if let Some(hooks) = &wechat_hooks {
+                    let body = captured.trim();
+                    if body.len() > 80 {
+                        deliver_cron_to_wechat(
+                            &hooks.data_root,
+                            &hooks.sender,
+                            pj.job.command.as_str(),
+                            body,
+                        )
+                        .await;
+                    }
                 }
                 runtime.sync_memory_durability();
                 last = next;
@@ -231,9 +287,79 @@ pub(crate) async fn run_builtin_scheduler(
 
 #[cfg(test)]
 mod tests {
+    use super::duration_until_next_tick;
     use super::normalize_cron_schedule_expr;
+    use super::ParsedJob;
+    use anycode_tools::CronJob;
+    use chrono::{TimeZone, Utc};
     use cron::Schedule;
+    use std::collections::HashMap;
     use std::str::FromStr;
+    use std::time::Duration;
+
+    #[test]
+    fn duration_skips_historical_ticks_for_never_seen_job() {
+        let now = Utc.with_ymd_and_hms(2026, 5, 18, 12, 0, 0).unwrap();
+        let pj = ParsedJob {
+            job: CronJob {
+                id: "j1".into(),
+                schedule: "0 0 9 * * *".into(),
+                command: "ping".into(),
+            },
+            schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
+        };
+        let last_fire = HashMap::new();
+        let d = duration_until_next_tick(&[pj], &last_fire, now, Duration::from_secs(30));
+        assert_eq!(
+            d,
+            Duration::from_secs(30),
+            "next 9:00 UTC is tomorrow; should sleep reload_cap, not 0 (epoch backfill)"
+        );
+    }
+
+    #[test]
+    fn duration_after_prior_day_fire_waits_until_next_daily_tick() {
+        let pj = ParsedJob {
+            job: CronJob {
+                id: "j1".into(),
+                schedule: "0 0 9 * * *".into(),
+                command: "ping".into(),
+            },
+            schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
+        };
+        let mut last_fire = HashMap::new();
+        last_fire.insert(
+            "j1".into(),
+            Utc.with_ymd_and_hms(2026, 5, 17, 9, 0, 0).unwrap(),
+        );
+        let now = Utc.with_ymd_and_hms(2026, 5, 18, 8, 0, 0).unwrap();
+        let d = duration_until_next_tick(&[pj], &last_fire, now, Duration::from_secs(7200));
+        assert_eq!(
+            d,
+            Duration::from_secs(3600),
+            "next 9:00 UTC same day; should sleep 1h (capped below reload_cap)"
+        );
+    }
+
+    #[test]
+    fn duration_zero_when_daily_tick_overdue() {
+        let pj = ParsedJob {
+            job: CronJob {
+                id: "j1".into(),
+                schedule: "0 0 9 * * *".into(),
+                command: "ping".into(),
+            },
+            schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
+        };
+        let mut last_fire = HashMap::new();
+        last_fire.insert(
+            "j1".into(),
+            Utc.with_ymd_and_hms(2026, 5, 17, 9, 0, 0).unwrap(),
+        );
+        let now = Utc.with_ymd_and_hms(2026, 5, 18, 10, 0, 0).unwrap();
+        let d = duration_until_next_tick(&[pj], &last_fire, now, Duration::from_secs(30));
+        assert_eq!(d, Duration::from_secs(0));
+    }
 
     #[test]
     fn normalize_inserts_seconds_for_five_field() {

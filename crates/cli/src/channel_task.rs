@@ -15,8 +15,10 @@ pub(crate) fn im_channel_cron_scheduling_hint() -> &'static str {
     "## Cron / scheduled tasks\n\
      - Tools: `CronCreate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
      - Jobs only fire when a scheduler holds `~/.anycode/tasks/scheduler.lock`: run **`anycode scheduler`**, or rely on this long-running bridge (WeChat/Telegram/Discord each tries to embed the same built-in scheduler; **only one** ticks per machine).\n\
+     - **`CronCreate` default `schedule_timezone`: `local`** — `schedule` uses **this machine's local wall clock** (e.g. 12:15 in China = hour 12 in the expression); it is converted to UTC for storage. Do **not** subtract 8 hours yourself.\n\
+     - After a cron fires from the WeChat bridge, the result is sent to the **last chat** on this bridge (not only stdout).\n\
      - `CronCreate` registers the schedule; do not imply a job ran if the user only saved it.\n\
-     - 中文：Cron 可在对话里登记/列出/删除；真正按点执行需要调度器（本机单实例锁，各 IM 桥与 `anycode scheduler` 共用）。"
+     - 中文：登记定时任务用 `CronCreate`（默认按**本地时间**理解 `schedule`，无需自己减 8 小时）；到点需调度器在跑（微信桥内嵌即可）。触发后会向**最近一次对话的微信**推送结果。"
 }
 
 pub(crate) struct ChannelTaskInput {

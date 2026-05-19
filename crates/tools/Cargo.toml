@@ -34,6 +34,8 @@ urlencoding = "2.1"
 uuid = { workspace = true }
 base64 = "0.22"
 dirs = "5"
+chrono = { workspace = true }
+cron = "0.12"
 
 # File operations
 walkdir = { workspace = true }

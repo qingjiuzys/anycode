@@ -205,25 +205,35 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
     .unwrap_or_else(|_| PathBuf::from("."));
     let working_directory = workdir.to_string_lossy().to_string();
 
+    let runtime = initialize_runtime(&config, None, None)
+        .await
+        .context("initialize runtime for discord")?;
+    let runtime_for_sched = Arc::new(tokio::sync::RwLock::new(Arc::clone(&runtime)));
+
     let cwd_sched = workdir.clone();
     let sched_cfg = config.clone();
+    let sched_runtime = Arc::clone(&runtime_for_sched);
     tracing::info!(
         target: "anycode_scheduler",
         cwd = %cwd_sched.display(),
         "embedding built-in scheduler beside Discord bridge (or exit if lock held)"
     );
     tokio::spawn(async move {
-        let _ = crate::scheduler::run_builtin_scheduler(
+        if let Err(e) = crate::scheduler::run_builtin_scheduler(
             sched_cfg,
             cwd_sched,
             std::time::Duration::from_secs(30),
+            Some(sched_runtime),
+            None,
         )
-        .await;
-    });
-
-    let runtime = initialize_runtime(&config, None, None)
         .await
-        .context("initialize runtime for discord")?;
+        {
+            tracing::error!(
+                target: "anycode_scheduler",
+                "built-in scheduler exited: {e:#}"
+            );
+        }
+    });
     let client = Client::new();
     let mut last_seen: Option<String> = None;
     println!(

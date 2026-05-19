@@ -4,10 +4,11 @@
 
 ### Added
 
-- **Setup / config wizard:** TTY presets for memory — **`file`**, **`hybrid`**, **pipeline without vectors**, **`pipeline` + HTTP** embeddings, optional **local ONNX** with `--features embedding-local`; optional **embedding base URL probe** (HEAD/GET); **`anycode config`** reuses the same step before save; non‑TTY prints `setup-memory-non-tty-hint`.
+- **Setup / config wizard:** Memory step is **five choices** (`Skip`, `noop`, **Markdown/`hybrid`**, **pipeline + HTTP** embeddings with optional base-URL probe, optional **local ONNX** when `--features embedding-local`). Default menu highlight targets **Hybrid** Markdown preset; pure `file`, pipeline without vectors remain **JSON-only**. **`anycode config`** reuses the same step; non‑TTY prints `setup-memory-non-tty-hint`.
 - **WeChat bridge:** Align inbound body with OpenClaw `bodyFromItemList`; slash routing uses first plain TEXT segment; `ref_msg` quote lines and media selection/fallback (`IMAGE > VIDEO > FILE > VOICE` without STT); CDN decryption for video/file/voice when applicable; attachment prompts via `wx.ftl`.
 - **`anycode setup`:** Fourth interactive choice and `--channel skip` / `--channel none` to skip channel onboarding. Non-interactive setups without `--channel` skip channel; pass `--channel wechat|telegram|discord` explicitly when needed.
 - **Channel cron:** `workspace-assistant` exposes `CronCreate` / `CronDelete` (plus `CronList`). Built-in `anycode scheduler` uses `~/.anycode/tasks/scheduler.lock` for single-instance scheduling; **WeChat**, **Telegram**, and **Discord** bridges spawn the same scheduler task so cron can fire without a separate `anycode scheduler` when a bridge holds the lock.
+- **WeChat cron delivery:** `CronCreate` wall-clock jobs store weekday `*` (avoids ISO vs Sun=1 weekday mismatch). Scheduler pushes the reminder to the last WeChat chat **before** running the agent task; optional second message when the agent returns a long reply.
 
 - **`tools-mcp`:** `McpStdioSession::call_tool_named` short-circuits when the stdio child has already exited (**`mcp_stdio_dead`** in JSON); reconnect policy stays **manual** — see [`docs/adr/007-mcp-session-reconnect-policy.md`](docs/adr/007-mcp-session-reconnect-policy.md).
 

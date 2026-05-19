@@ -491,6 +491,13 @@ impl Tool for TeamDeleteTool {
 struct CronIn {
     schedule: String,
     command: String,
+    /// `local`（默认）：`schedule` 按本机墙钟理解并转为 UTC 存储；`utc`：字段已是 UTC。
+    #[serde(default = "default_cron_tz")]
+    schedule_timezone: String,
+}
+
+fn default_cron_tz() -> String {
+    "local".to_string()
 }
 
 #[derive(Deserialize)]
@@ -518,14 +525,24 @@ impl Tool for CronCreateTool {
         "CronCreate"
     }
     fn description(&self) -> &str {
-        "Register a cron-like job (persisted under ~/.anycode/tasks/orchestration.json). `schedule` is cron syntax (6 fields: sec min hour day month weekday; 5-field unix-style is accepted with 0 seconds). `command` is executed as a single agent task prompt when `anycode scheduler` is running."
+        "Register a cron job (persisted in ~/.anycode/tasks/orchestration.json). \
+         `schedule`: 6 fields sec min hour day month weekday (5-field unix gets leading 0 sec). \
+         Default `schedule_timezone` is `local` (wall clock on this machine, stored as UTC for the built-in scheduler). \
+         Use `utc` only if you already converted to UTC. \
+         `command` runs as one agent task when the scheduler holds ~/.anycode/tasks/scheduler.lock \
+         (WeChat bridge embeds it). For WeChat reminders, say in `command` that the assistant must notify the user clearly."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
             "properties": {
                 "schedule": { "type": "string" },
-                "command": { "type": "string" }
+                "command": { "type": "string" },
+                "schedule_timezone": {
+                    "type": "string",
+                    "enum": ["local", "utc"],
+                    "description": "local (default): interpret schedule as local wall time; utc: schedule already UTC"
+                }
             },
             "required": ["schedule", "command"]
         })
@@ -540,9 +557,35 @@ impl Tool for CronCreateTool {
         let start = Instant::now();
         let c: CronIn =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        let id = self.services.push_cron(c.schedule, c.command);
+        let tz = c.schedule_timezone.trim().to_ascii_lowercase();
+        let (stored_schedule, tz_note) = if tz == "utc" || tz == "utc0" {
+            (
+                crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
+                "stored as UTC (no conversion)",
+            )
+        } else {
+            match crate::cron_schedule::wall_clock_cron_to_utc_storage(&c.schedule) {
+                Some(utc_expr) => (utc_expr, "converted local wall time → UTC for scheduler"),
+                None => (
+                    crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
+                    "could not convert; stored verbatim (scheduler uses UTC)",
+                ),
+            }
+        };
+        let id = self.services.push_cron(stored_schedule.clone(), c.command);
+        let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&stored_schedule);
+        let (next_utc_s, next_local_s) = next_utc
+            .map(crate::cron_schedule::format_next_fire_human)
+            .unwrap_or_else(|| ("unknown".into(), "unknown".into()));
         Ok(ToolOutput {
-            result: json!({ "job_id": id }),
+            result: json!({
+                "job_id": id,
+                "schedule_stored_utc": stored_schedule,
+                "schedule_timezone_applied": tz_note,
+                "next_fire_utc": next_utc_s,
+                "next_fire_local": next_local_s,
+                "hint": "Requires scheduler (embedded in WeChat bridge or `anycode scheduler`). Cron output is pushed to the last WeChat chat when fired from the bridge."
+            }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })

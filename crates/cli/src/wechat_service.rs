@@ -101,6 +101,35 @@ fn launch_agents_plist_path() -> Result<PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
+fn launchctl_output(args: &[&str]) -> Result<std::process::Output> {
+    Command::new("launchctl")
+        .args(args)
+        .output()
+        .with_context(|| {
+            let mut a = FluentArgs::new();
+            a.set("cmd", format!("launchctl {}", args.join(" ")));
+            tr_args("wx-svc-ctx-launchctl-run", &a)
+        })
+}
+
+#[cfg(target_os = "macos")]
+fn launchd_job_loaded(domain: &str, label: &str) -> bool {
+    let target = format!("{domain}/{label}");
+    launchctl_output(&["print", &target])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// 卸载已加载的 LaunchAgent（首次安装时 bootout 会失败，属正常）。
+#[cfg(target_os = "macos")]
+fn launchd_bootout(domain: &str, plist_path: &Path, label: &str) {
+    let target = format!("{domain}/{label}");
+    let plist_s = plist_path.to_string_lossy();
+    let _ = launchctl_output(&["bootout", &target]);
+    let _ = launchctl_output(&["bootout", domain, &plist_s]);
+}
+
+#[cfg(target_os = "macos")]
 fn os_uid() -> Result<u32> {
     let o = Command::new("id")
         .arg("-u")
@@ -215,39 +244,58 @@ pub fn install(spec: WechatServiceSpec) -> Result<()> {
     let domain = format!("gui/{}", os_uid()?);
     let target = format!("{}/{}", domain, LAUNCHD_LABEL);
 
-    // 首次安装时任务未加载，bootout 会失败并往 stderr 打「No such process」；静默丢弃即可。
-    let _ = Command::new("launchctl")
-        .args(["bootout", &target])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
+    launchd_bootout(&domain, &plist_path, LAUNCHD_LABEL);
 
     let plist_s = plist_path.to_str().with_context(|| {
         let mut a = FluentArgs::new();
         a.set("path", format!("{:?}", plist_path));
         tr_args("wx-svc-ctx-plist-utf8", &a)
     })?;
-    let status = Command::new("launchctl")
-        .args(["bootstrap", &domain, plist_s])
-        .status()
-        .context(tr("wx-svc-ctx-launchctl-bootstrap"))?;
-    if !status.success() {
-        let mut a = FluentArgs::new();
-        a.set("code", format!("{:?}", status.code()));
-        anyhow::bail!("{}", tr_args("wx-svc-err-bootstrap", &a));
+
+    if !launchd_job_loaded(&domain, LAUNCHD_LABEL) {
+        let out = launchctl_output(&["bootstrap", &domain, plist_s])
+            .context(tr("wx-svc-ctx-launchctl-bootstrap"))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            // 已加载时 bootstrap 常报 exit 5（Input/output error）；若 print 显示已存在则视为成功。
+            if launchd_job_loaded(&domain, LAUNCHD_LABEL) {
+                eprintln!("{}", tr("wx-svc-warn-bootstrap-already-loaded"));
+            } else {
+                let mut a = FluentArgs::new();
+                a.set("code", format!("{:?}", out.status.code()));
+                a.set(
+                    "detail",
+                    if stderr.is_empty() {
+                        tr("wx-svc-err-bootstrap-no-detail")
+                    } else {
+                        stderr
+                    },
+                );
+                anyhow::bail!("{}", tr_args("wx-svc-err-bootstrap-detail", &a));
+            }
+        }
+    } else {
+        eprintln!("{}", tr("wx-svc-warn-bootstrap-already-loaded"));
     }
 
-    let _ = Command::new("launchctl").args(["enable", &target]).status();
+    let _ = launchctl_output(&["enable", &target]);
 
     if !spec.register_only {
-        let st = Command::new("launchctl")
-            .args(["kickstart", "-k", &target])
-            .status()
-            .context(tr("wx-svc-ctx-kickstart"))?;
-        if !st.success() {
+        let out =
+            launchctl_output(&["kickstart", "-k", &target]).context(tr("wx-svc-ctx-kickstart"))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
             let mut a = FluentArgs::new();
-            a.set("code", format!("{:?}", st.code()));
-            anyhow::bail!("{}", tr_args("wx-svc-err-kickstart", &a));
+            a.set("code", format!("{:?}", out.status.code()));
+            a.set(
+                "detail",
+                if stderr.is_empty() {
+                    tr("wx-svc-err-kickstart-no-detail")
+                } else {
+                    stderr
+                },
+            );
+            anyhow::bail!("{}", tr_args("wx-svc-err-kickstart-detail", &a));
         }
     }
 

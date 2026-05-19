@@ -1,41 +1,74 @@
 ---
 title: 记忆系统说明
 description: anyCode 记忆与 OpenClaw 式 memory 扩展的对照备忘。
-summary: 当前后端与 scope；后续可对标的改进清单。
+summary: 向导预设、后端对照与后续可对标的改进清单。
 read_when:
   - 对比 OpenClaw / Claude Code 的记忆行为。
 ---
 
 # 记忆系统说明
 
-## anyCode 现状
+## `anycode setup`（交互 TTY）
 
-交互式终端上运行 `anycode setup`，在模型配置之后会引导选择记忆 / 向量：远程 OpenAI 兼容向量、`file` 简易模式，或使用 **`embedding-local` 源码构建后才可用的本地 ONNX（见下文「向量」）**。
+模型鉴权之后会进入记忆步骤：
 
-- **后端**：`memory.backend` 支持 `file` / `hybrid` / `noop`，以及 **`pipeline`**（归根通道：虚态缓冲 → 强化 → 热层 Sled → 可选向量；实现见 `anycode_memory::RootReturnMemoryPipeline`）。别名：`layered`、`guigen`。
-- **旧版 Markdown**：在 `pipeline` 且 `memory.pipeline.merge_legacy_file_recall` 为 true（默认）时，记忆根目录下既有 `*.md` 会以**只读**方式并入召回，与热层并行。
-- **作用域**：项目 / 用户记忆经 `anycode_memory`；pipeline 在晋升前多一层「前语义」片段。
-- **自动保存**：由 `memory.auto_save` 与任务成功后的 runtime 钩子控制。使用 **`pipeline`** 时，自动保存走 **ingest**（先入缓冲）；多次触碰后才写入热层。
+- **跳过** — 不写 `memory`
+- **`noop`** — `memory.backend=noop`，关闭持久召回
+- **Markdown 预设（hybrid）** — `memory.path` 下 Markdown + 同名 **关键词 sled**；菜单默认高亮项
+- **远程嵌入（pipeline）** — OpenAI 兼容 `embedding_base_url` + 模型；HTTP 向量默认复用 **`llm.api_key`**，需独立密钥时请事后改 JSON
+- **本地 ONNX（pipeline + local）** — 仅在用 **`embedding-local`** 构建的二进制上出现
 
-可选 `memory.pipeline` 字段包括：`buffer_ttl_secs`、`max_buffer_fragments`、`promote_touch_threshold`、`reinforce_on_recall_match`、`merge_legacy_file_recall`、`buffer_wal_enabled`、`buffer_wal_fsync_every_n`、`hook_after_tool_result`、`hook_after_agent_turn`、`hook_max_bytes`、`hook_tool_deny_prefixes`、`embedding_enabled`、`embedding_model`、`embedding_base_url`、`embedding_provider`、`embedding_local_cache_dir`。
+向导中**不出现**：纯 **`file`**、**不开向量** 的 pipeline；高级用法直接编辑 `~/.anycode/config.json`。
 
-- **WAL**：默认 `buffer_wal_enabled` 为 true 时，虚态缓冲追加写入热层旁 `*.pipeline.buffer.wal`（JSONL），启动时重放；除按 `buffer_wal_fsync_every_n` 定期刷盘外，Telegram/Discord/内置调度器/微信桥单次任务、以及 `run`/编排触发的工作单元结束后也会刷盘，进程正常退出、管线释放时还会再 `fsync` 一次。
-- **向量**：`embedding_enabled`、非空 `embedding_model`，或 **`embedding_provider` 为 `local`** 时，向量写入 `*.pipeline.vec.sled`，余弦检索。  
-  - **`embedding_provider`**：`http`（默认）走 OpenAI 兼容 `…/embeddings`，复用 `llm.api_key`，可用 `embedding_base_url` 换主机。  
-  - **`local`**：通过 [FastEmbed](https://github.com/Anush008/fastembed-rs) 在本地跑 ONNX（默认 `all-MiniLM-L6-v2`，首次自动拉取）。需使用 **`cargo build -p anycode --features embedding-local`** 构建。可选 `embedding_local_cache_dir` 指定模型缓存目录（默认可为 `~/.cache/fastembed` 一带）。
-- **导入**：`anycode memory import [--dry-run] [--limit N]` 将 `memory.path` 下 legacy Markdown 批量写入 pipeline 热层（需 `memory.backend: pipeline`）。
+## 更轻：只要目录 Markdown（`file`）
+
+若你希望**仅** Markdown 文件、不要 Hybrid 的旁路 sled，可手写 **`memory.backend: file`**（JSON schema 默认值也是 `file`）。向导将 Hybrid 作为主推荐路径是为了「目录 + 检索」一体体验。
+
+## Hybrid 与 Pipeline
+
+| | **Hybrid** | **Pipeline** |
+|---|------------|----------------|
+| 主存储 | Markdown 目录 | 归根热层 + 可选只读并入 legacy `*.md` |
+| 附加 | 旁路 **关键词 sled** | 可选 **缓冲+WAL**、晋升、autosave ingest |
+| 向量 | 无（向导里选向量会切 pipeline） | 可选 `*.pipeline.vec.sled` + HTTP/本地嵌入 |
+
+```mermaid
+flowchart LR
+  subgraph hybrid [Hybrid]
+    md[Markdown目录]
+    sled_kw[Sled关键词索引]
+    md --- sled_kw
+  end
+  subgraph pipeline [Pipeline]
+    buf[缓冲_WAL可选]
+    hot[热层Sled]
+    vec[向量Sled可选]
+    buf --> hot --> vec
+  end
+```
+
+## 后端一览
+
+`memory.backend`：`noop` | `file` | `hybrid` | **`pipeline`**（别名 `layered`、`guigen`）。
+
+Pipeline 且 `merge_legacy_file_recall` 为默认 true 时，根目录既有 `*.md` **只读**并入召回。
+
+**自动保存**：`memory.auto_save` + runtime 钩子；Pipeline 下 autosave 走 **buffer ingest**，多次触碰后才入热层。
+
+可选 `memory.pipeline` 字段同英文文档所列（TTL、钩子、embedding 相关等）。
+
+### WAL 与向量
+
+- **WAL**：`buffer_wal_enabled` 时缓冲写入 `*.pipeline.buffer.wal`，启动重放并按策略 `fsync`。
+- **向量**：由 pipeline embedding 字段控制，落地 `*.pipeline.vec.sled`；本地依赖 **`embedding-local`** 构建。
+
+**导入**：`anycode memory import [--dry-run] [--limit N]` 需 `memory.backend: pipeline`。
 
 ## 与 OpenClaw 对标（研究 backlog）
 
-OpenClaw 将记忆做成**扩展**，保留策略与召回路径独立。可对标项：
-
-1. **写入时机**：仅在任务成功 vs 工具写入 vs 显式命令。
-2. **检索**：关键词 vs 向量 / 混合；项目隔离保证。
-3. **与压缩关系**：`/compact` 与会话自动压缩后记忆如何保留。
-
-建议在 issue 里程碑跟踪，而非在 CLI 二进制内复制 OpenClaw 全部实现。
+写入时机、检索策略、与 `/compact` 的关系等仍建议在 issue 跟踪。
 
 ## 相关
 
 - [架构](./architecture)  
-- [配置与安全](./config-security)  
+- [配置与安全](./config-security)

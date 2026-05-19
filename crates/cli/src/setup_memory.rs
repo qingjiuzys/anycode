@@ -236,62 +236,46 @@ fn probe_embedding_url_quick_check(url_raw: &str) -> Result<(), String> {
     })
 }
 
+/// Wizard shows Skip / noop plus three memory presets: Hybrid as “Markdown”, then remote vectors;
+/// with `embedding-local`, also local ONNX. Other [`MemorySetupPreset`] variants stay for tests and JSON-only flows.
 fn interactive_memory_step(cfg: &mut AnyCodeConfig) -> anyhow::Result<bool> {
     use dialoguer::theme::ColorfulTheme;
     use dialoguer::Select;
 
-    #[cfg(not(feature = "embedding-local"))]
-    let prompt_items = vec![
+    let theme = ColorfulTheme::default();
+    let mut prompt_items = vec![
         tr("setup-memory-opt-skip"),
         tr("setup-memory-opt-noop"),
-        tr("setup-memory-opt-file"),
-        tr("setup-memory-opt-hybrid"),
-        tr("setup-memory-opt-pipeline-no-embed"),
-        tr("setup-memory-opt-pipeline-http"),
+        tr("setup-memory-opt-markdown"),
+        tr("setup-memory-opt-remote-vector"),
     ];
     #[cfg(feature = "embedding-local")]
-    let prompt_items = vec![
-        tr("setup-memory-opt-skip"),
-        tr("setup-memory-opt-noop"),
-        tr("setup-memory-opt-file"),
-        tr("setup-memory-opt-hybrid"),
-        tr("setup-memory-opt-pipeline-no-embed"),
-        tr("setup-memory-opt-pipeline-http"),
-        tr("setup-memory-opt-pipeline-local"),
-    ];
+    prompt_items.push(tr("setup-memory-opt-local-vector"));
 
-    let theme = ColorfulTheme::default();
     let idx = Select::with_theme(&theme)
         .with_prompt(tr("setup-memory-prompt"))
         .items(&prompt_items)
-        .default(0)
+        .default(2)
         .interact()?;
 
     #[cfg(not(feature = "embedding-local"))]
-    return match idx {
+    match idx {
         0 => Ok(false),
         1 => {
             apply_memory_preset(cfg, MemorySetupPreset::Noop);
             Ok(true)
         }
         2 => {
-            apply_memory_preset(cfg, MemorySetupPreset::SimpleFile);
-            Ok(true)
-        }
-        3 => {
             apply_memory_preset(cfg, MemorySetupPreset::HybridBackend);
             Ok(true)
         }
-        4 => {
-            apply_memory_preset(cfg, MemorySetupPreset::PipelineNoEmbedding);
-            Ok(true)
-        }
-        5 => {
+        3 => {
             interactive_http_embedding_prompts(cfg, &theme)?;
             Ok(true)
         }
         _ => unreachable!(),
-    };
+    }
+
     #[cfg(feature = "embedding-local")]
     match idx {
         0 => Ok(false),
@@ -300,22 +284,14 @@ fn interactive_memory_step(cfg: &mut AnyCodeConfig) -> anyhow::Result<bool> {
             Ok(true)
         }
         2 => {
-            apply_memory_preset(cfg, MemorySetupPreset::SimpleFile);
-            Ok(true)
-        }
-        3 => {
             apply_memory_preset(cfg, MemorySetupPreset::HybridBackend);
             Ok(true)
         }
-        4 => {
-            apply_memory_preset(cfg, MemorySetupPreset::PipelineNoEmbedding);
-            Ok(true)
-        }
-        5 => {
+        3 => {
             interactive_http_embedding_prompts(cfg, &theme)?;
             Ok(true)
         }
-        6 => {
+        4 => {
             run_local_onnx_subwizard(cfg, &theme)?;
             Ok(true)
         }
