@@ -30,8 +30,9 @@ use crate::repl::{
     apply_stream_approval_key, apply_stream_user_question_key, drain_stream_repl_render_scrollback,
     handle_event, stream_repl_accept_key_event, ReplCtl, ReplLineState, StreamReplRenderMsg,
 };
-/// `poll` 之后单入口：先 `draw`（内含 `autoresize`、回写 `stream_viewport_width`）→ 再 `drain`/`insert_before`，
-/// 避免 reflow 当帧仍用旧视口宽算增量却用新终端宽刷 scrollback。
+/// `poll` 之后单入口：先 `draw`（内含 `autoresize`、回写 `stream_viewport_width`）→
+/// **再** [`tick_executing_stream_transcript`]（与视口宽一致）→ `drain`/`insert_before`，
+/// 避免 resize 当帧仍用旧宽 reflow 却在下一帧叠出重复行。
 fn paint_stream_frame(
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     state: &Arc<Mutex<ReplLineState>>,
@@ -40,6 +41,7 @@ fn paint_stream_frame(
     use_alternate_screen: bool,
 ) -> anyhow::Result<()> {
     draw_stream_frame(terminal, state)?;
+    crate::tasks::stream_repl_loop::tick_executing_stream_transcript(state);
     drain_stream_repl_render_scrollback(render_rx, scrollback_staging);
     flush_stream_scrollback_staging(terminal, state, scrollback_staging, use_alternate_screen)?;
     Ok(())
@@ -102,8 +104,6 @@ pub(crate) fn run_stream_repl_ui_thread(session: StreamReplUiSession) -> anyhow:
             crate::tasks::stream_repl_loop::drain_pending_stream_user_questions(g.as_mut(), &state);
         }
 
-        crate::tasks::stream_repl_loop::tick_executing_stream_transcript(&state);
-
         while let Ok(cmd) = ctrl_rx.try_recv() {
             match cmd {
                 StreamReplAsyncCtl::Shutdown => {
@@ -156,6 +156,13 @@ pub(crate) fn run_stream_repl_ui_thread(session: StreamReplUiSession) -> anyhow:
                 // 主缓冲 Inline（遗留）：忽略 Resize，避免 Inline 顶屏叠 scrollback。备用屏全屏：交给 ratatui draw 内 autoresize。
                 if !use_alternate_screen && matches!(&ev, Event::Resize(_, _)) {
                     continue;
+                }
+                if use_alternate_screen && matches!(&ev, Event::Resize(_, _)) {
+                    if let Ok(area) = t.size() {
+                        crate::repl::stream_paint::sync_stream_repl_viewport_from_area(
+                            &state, area,
+                        );
+                    }
                 }
                 let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
                 if s.pending_user_question.is_some() {
