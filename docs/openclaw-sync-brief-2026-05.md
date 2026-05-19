@@ -81,7 +81,7 @@
 
 | OpenClaw（5.x 要点） | anyCode | 决策 |
 |----------------------|---------|------|
-| SSRF、重定向丢 body、fetch guard | `WebFetch` blocks private/loopback hosts | **Partial** — host literal check **Done**（2026-05）；redirect follow-up **Later** |
+| SSRF、重定向丢 body、fetch guard | `WebFetch` blocks private/loopback + redirect cap + strip credentials | **Partial** — host literal + redirect hop guard **Done**（2026-05）；DNS rebinding **Later** |
 | Host exec env 净化 | `SecurityLayer` + Bash | **Later** |
 | Gateway 禁止模型改 safeBins | 配置写盘路径不同 | **Skip** |
 
