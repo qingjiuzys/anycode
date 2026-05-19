@@ -431,7 +431,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "azure_openai" | "azure_open_ai" => "openai".to_string(),
         "venice_ai" => "venice".to_string(),
         "vllm_server" | "vllm_local" | "vllm_api" => "vllm".to_string(),
-        "groq_ai" => "groq".to_string(),
+        "groq_ai" | "groq_cloud" | "groq_api" => "groq".to_string(),
         "ollama_local" | "ollama_server" => "ollama".to_string(),
         "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" | "zai_api" => "z.ai".to_string(),
         "fireworks_api" => "fireworks".to_string(),
