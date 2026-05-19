@@ -766,6 +766,15 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn non_shell_tools_skip_command_policy() {
+        let system = ApprovalSystem::new();
+        let result = system
+            .check_tool_call("FileRead", &serde_json::json!({"file_path": "/etc/passwd"}))
+            .await;
+        assert!(matches!(result, ApprovalResult::Approved));
+    }
+
+    #[tokio::test]
     async fn bash_deny_takes_precedence_over_allow() {
         let system = ApprovalSystem::new();
         system
