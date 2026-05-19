@@ -672,6 +672,40 @@ fn zai_tool_choice(
     Some("auto".to_string())
 }
 
+/// DeepSeek / 部分 OpenAI 兼容网关拒绝带 `null` 分支的 `anyOf`/`oneOf`；折叠为单 schema（对齐 OpenClaw 5.19）。
+pub(crate) fn normalize_tool_parameters_schema(schema: &Value) -> Value {
+    match schema {
+        Value::Object(map) => {
+            if let Some(any) = map.get("anyOf").or_else(|| map.get("oneOf")) {
+                if let Some(merged) = merge_nullable_union(any) {
+                    return normalize_tool_parameters_schema(&merged);
+                }
+            }
+            let mut out = serde_json::Map::new();
+            for (k, v) in map {
+                out.insert(k.clone(), normalize_tool_parameters_schema(v));
+            }
+            Value::Object(out)
+        }
+        Value::Array(items) => {
+            Value::Array(items.iter().map(normalize_tool_parameters_schema).collect())
+        }
+        _ => schema.clone(),
+    }
+}
+
+fn merge_nullable_union(any_of: &Value) -> Option<Value> {
+    let arr = any_of.as_array()?;
+    let non_null: Vec<&Value> = arr
+        .iter()
+        .filter(|v| v.get("type").and_then(|t| t.as_str()) != Some("null"))
+        .collect();
+    match non_null.len() {
+        1 => Some(non_null[0].clone()),
+        _ => None,
+    }
+}
+
 pub(crate) fn openai_tools_from_schemas(tools: &[ToolSchema]) -> Vec<Value> {
     tools
         .iter()
@@ -681,7 +715,7 @@ pub(crate) fn openai_tools_from_schemas(tools: &[ToolSchema]) -> Vec<Value> {
                 "function": {
                     "name": t.name,
                     "description": t.description,
-                    "parameters": t.input_schema
+                    "parameters": normalize_tool_parameters_schema(&t.input_schema)
                 }
             })
         })
@@ -1069,6 +1103,20 @@ mod tests {
         let obj = out[0].as_object().unwrap();
         assert_eq!(obj.get("role").and_then(|v| v.as_str()), Some("assistant"));
         assert!(obj.get("tool_calls").is_some());
+    }
+
+    #[test]
+    fn normalize_tool_schema_collapses_nullable_anyof() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "x": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+            }
+        });
+        let out = normalize_tool_parameters_schema(&schema);
+        let x = out.pointer("/properties/x").expect("x property");
+        assert_eq!(x.get("type").and_then(|t| t.as_str()), Some("string"));
+        assert!(x.get("anyOf").is_none());
     }
 
     #[test]
