@@ -430,7 +430,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "github_copilot_api" => "github_copilot".to_string(),
         "azure_openai" | "azure_open_ai" => "openai".to_string(),
         "venice_ai" => "venice".to_string(),
-        "vllm_server" | "vllm_local" => "vllm".to_string(),
+        "vllm_server" | "vllm_local" | "vllm_api" => "vllm".to_string(),
         "groq_ai" => "groq".to_string(),
         "ollama_local" | "ollama_server" => "ollama".to_string(),
         "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" | "zai_api" => "z.ai".to_string(),
@@ -574,6 +574,7 @@ mod tests {
             normalize_provider_id("amazon-bedrock-api"),
             "amazon_bedrock"
         );
+        assert_eq!(normalize_provider_id("vllm-api"), "vllm");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
