@@ -843,6 +843,13 @@ mod tests {
     }
 
     #[test]
+    fn normalize_media_aes_key_from_32_hex() {
+        let b64 = normalize_media_aes_key("00112233445566778899aabbccddeeff");
+        assert!(!b64.is_empty());
+        assert_eq!(parse_aes_key(&b64).unwrap().len(), 16);
+    }
+
+    #[test]
     fn body_text_camel_case_text_item() {
         let items = vec![json!({
             "type": 1,
