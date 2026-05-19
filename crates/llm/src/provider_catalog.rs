@@ -402,8 +402,17 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "glm" => "z.ai".to_string(),
         "deep_seek" => "deepseek".to_string(),
         "grok" => "xai".to_string(),
-        "volc" | "volcano" => "volcengine".to_string(),
-        "dashscope" => "alibaba".to_string(),
+        "volc" | "volcano" | "bytedance" | "doubao" => "volcengine".to_string(),
+        "dashscope" | "modelstudio" | "qwencloud" => "alibaba".to_string(),
+        "qwen_cloud" => "qwen".to_string(),
+        "moonshotai" | "moonshot_ai" => "moonshot".to_string(),
+        "aws_bedrock" => "amazon_bedrock".to_string(),
+        "open_router" => "openrouter".to_string(),
+        "together_ai" => "together".to_string(),
+        "opencode_zen" => "opencode".to_string(),
+        "hf" | "huggingface_hub" => "huggingface".to_string(),
+        "gemini" | "vertex" => "google".to_string(),
+        "kimi_coding" | "kimi_code_plan" => "kimi_code".to_string(),
         _ => s,
     }
 }
@@ -459,6 +468,11 @@ mod tests {
         assert_eq!(normalize_provider_id("grok"), "xai");
         assert_eq!(normalize_provider_id("volc"), "volcengine");
         assert_eq!(normalize_provider_id("dashscope"), "alibaba");
+        assert_eq!(normalize_provider_id("doubao"), "volcengine");
+        assert_eq!(normalize_provider_id("modelstudio"), "alibaba");
+        assert_eq!(normalize_provider_id("moonshot-ai"), "moonshot");
+        assert_eq!(normalize_provider_id("open-router"), "openrouter");
+        assert_eq!(normalize_provider_id("gemini"), "google");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
