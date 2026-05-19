@@ -31,4 +31,7 @@ GitHub Actions 工作流 [`.github/workflows/docs.yml`](../.github/workflows/doc
 - [`issue-drafts/`](issue-drafts/) — GitHub issue 正文草稿（与 §3 主线对齐时可复制或 `gh issue create --body-file`）。
 - [`term-smoothness-baseline.md`](term-smoothness-baseline.md) — 流式终端观感迭代基线与终端矩阵清单（与 `ANYCODE_TERM_*` 等环境变量对照）。
 - [`stream-repl-layout.md`](stream-repl-layout.md) — **`anycode repl` 流式 TTY**：自上而下页面结构、宿主 scrollback 与 Inline 视口、Dock 栈与 Tokio/UI 线程数据流。
+- [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md) — OpenClaw **2026.5.19** 对标矩阵（维护者）。
+- [`weixin-plugin-parity.md`](weixin-plugin-parity.md) — 微信 npm 插件 vs Rust 桥差异表。
+- [`cron-observability.md`](cron-observability.md) — 内置调度器 `cron-runs.jsonl` 字段说明。
 - [`implementation-audit-checklist.md`](implementation-audit-checklist.md) — 重定向至 [`roadmap.md`](roadmap.md)（勿重复编辑清单正文）。
