@@ -113,7 +113,9 @@
 
 - **Cron**：`CronCreate` 支持 IANA `schedule_timezone`（`chrono-tz` 墙钟→UTC）；文档与 CHANGELOG 同步。
 - **WebFetch**：十六进制 IPv4 主机名（`0x7f000001`）与十进制字面量同样拦截。
-- **Providers**：`claude-cli` / `anthropic-cli`→`anthropic`，`azure-openai`→`openai`，`venice-ai`→`venice`。
+- **Providers**：`claude-cli` / `anthropic-cli`→`anthropic`，`azure-openai`→`openai`，`venice-ai`→`venice`，`stepfun-ai` / `chutes-ai` / `sglang-ai`，`opencode-ai` / `synthetic-ai`，`litellm-ai` / `kilocode-ai`。
+- **WebFetch**：IPv4-mapped loopback（`::ffff:127.0.0.1`）拦截。
+- **微信桥**：入站媒体 `VIDEO` 优先于 `FILE` 单测；安全层跳过非法 deny 正则。
 
 ### 2026-05-19（anyCode 会话，续）
 
