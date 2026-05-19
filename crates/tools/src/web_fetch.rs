@@ -34,17 +34,23 @@ struct WfInput {
 
 /// Reject loopback, RFC1918, link-local, and metadata hosts (OpenClaw fetch-guard subset).
 fn fetch_url_host_blocked(url: &url::Url) -> Option<&'static str> {
-    let host = url.host_str()?;
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost" || lower.ends_with(".localhost") {
-        return Some("localhost host not allowed");
-    }
-    if lower == "metadata.google.internal" {
-        return Some("metadata host not allowed");
-    }
-    if let Ok(ip) = lower.parse::<std::net::IpAddr>() {
-        if is_blocked_fetch_ip(ip) {
-            return Some("private or link-local IP not allowed");
+    if let Some(host) = url.host() {
+        if let url::Host::Domain(name) = host {
+            let lower = name.to_ascii_lowercase();
+            if lower == "localhost" || lower.ends_with(".localhost") {
+                return Some("localhost host not allowed");
+            }
+            if lower == "metadata.google.internal" {
+                return Some("metadata host not allowed");
+            }
+        } else if let url::Host::Ipv4(ip) = host {
+            if is_blocked_fetch_ip(std::net::IpAddr::V4(ip)) {
+                return Some("private or link-local IP not allowed");
+            }
+        } else if let url::Host::Ipv6(ip) = host {
+            if is_blocked_fetch_ip(std::net::IpAddr::V6(ip)) {
+                return Some("private or link-local IP not allowed");
+            }
         }
     }
     None
@@ -271,10 +277,12 @@ mod tests {
     fn blocks_loopback_and_private_hosts() {
         for u in [
             "http://127.0.0.1/",
+            "http://[::1]/",
             "http://localhost/",
             "http://192.168.1.1/",
             "http://10.0.0.1/",
             "http://169.254.169.254/",
+            "http://metadata.google.internal/",
         ] {
             let url = url::Url::parse(u).unwrap();
             assert!(
