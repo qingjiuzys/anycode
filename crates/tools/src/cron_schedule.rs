@@ -193,6 +193,22 @@ mod tests {
     }
 
     #[test]
+    fn resolve_schedule_timezone_trims_iana_name() {
+        assert_eq!(
+            resolve_schedule_timezone("  Asia/Shanghai  ").unwrap(),
+            ScheduleTimezone::Iana(chrono_tz::Asia::Shanghai)
+        );
+    }
+
+    #[test]
+    fn format_next_fire_human_includes_utc_label() {
+        let utc = Utc.with_ymd_and_hms(2026, 5, 20, 4, 0, 0).unwrap();
+        let (utc_s, _local) = format_next_fire_human(utc);
+        assert!(utc_s.contains("UTC"), "{utc_s}");
+        assert!(utc_s.starts_with("2026-05-20"), "{utc_s}");
+    }
+
+    #[test]
     fn next_fire_returns_future_utc_for_daily_schedule() {
         let next = next_fire_utc_from_stored_schedule("0 0 9 * * *");
         let Some(next) = next else {
