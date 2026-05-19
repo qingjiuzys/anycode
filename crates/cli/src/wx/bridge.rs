@@ -627,23 +627,6 @@ async fn run_agent_pipeline(
     let active_task = st.active_task.clone();
     let wx_turn_cancel_slot = st.wx_turn_cancel.clone();
 
-    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let progress_user = from_user_id.clone();
-    let progress_ctx = context_token.clone();
-    let progress_sender = sender.clone();
-    let progress_worker = tokio::spawn(async move {
-        while let Some(line) = progress_rx.recv().await {
-            let line = strip_llm_reasoning_for_display(&line);
-            let t = line.trim();
-            if t.is_empty() {
-                continue;
-            }
-            let _ = progress_sender
-                .send_text(&progress_user, &progress_ctx, t)
-                .await;
-        }
-    });
-
     let h = tokio::spawn(async move {
         let coop = Arc::new(AtomicBool::new(false));
         *wx_turn_cancel_slot.lock().unwrap() = Some(coop.clone());
@@ -668,14 +651,13 @@ async fn run_agent_pipeline(
                 nested_worktree_path: None,
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
-                channel_progress_tx: Some(progress_tx),
+                channel_progress_tx: None,
             },
             created_at: chrono::Utc::now(),
         };
 
         let result = rt.execute_task(task).await;
         *wx_turn_cancel_slot.lock().unwrap() = None;
-        let _ = progress_worker.await;
         rt.sync_memory_durability();
         gate.set_active_chat(None).await;
 

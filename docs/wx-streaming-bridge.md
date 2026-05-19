@@ -8,14 +8,12 @@
 ## 消息分片与速率
 
 - 助手**最终回复**经 `split_message(..., CHUNK_MAX)`（默认 2048 字符）分片，经 iLink **`send_text`** 顺序发送。
-- **工具进度**：通过 `TaskContext::channel_progress_tx` 发送短行（如 `🔧 tool`、`✓ tool`），独立任务 `recv` 后逐行 `send_text`；不包含大段 tool 输出，以减轻通道压力。
-- **可选后续（未实现）**：若 iLink / 侧观察到限流或乱序，可对进度行做 **最小节流**（例如相邻 `send_text` 间隔下限，或合并同一工具的重复「进行中」行）；需实机压测后再定常量或配置，避免与 ADR000 分叉第二条编排路径。**与 `execute_turn_from_messages` 全量流式对齐**仍属大项：须维持单 `AgentRuntime` 入口，仅扩展桥侧状态机，见上文「编排路径」。
+- **工具进度**：不向微信推送 `🔧 tool` / `✓ tool` 等中间行；用户仅收到助手最终回复（及权限审批、定时提醒等显式消息）。
+- **可选后续（未实现）**：若需可配置的轻量进度（节流后的单行状态），可复用 `TaskContext::channel_progress_tx` 并在桥侧过滤；**与 `execute_turn_from_messages` 全量流式对齐**仍属大项，见上文「编排路径」。
 
 ## 推理与展示策略
 
 - 最终回复经 **`strip_llm_reasoning_for_display`** 与 `sanitize_wechat_reply_output` 去掉 `<thought>` 等及常见废话前缀。
-- 工具进度行同样过 **`strip_llm_reasoning_for_display`**，与上述策略对齐。
-
 ## 取消语义
 
 - **新消息打断**或处理中 **`/clear`**：对当前回合的 **`nested_cancel`**（`Arc<AtomicBool>`）置位，并 **`JoinHandle::abort`** 运行中任务，使 LLM/工具循环在协作边界尽快结束。
@@ -24,5 +22,5 @@
 ## 相关文件
 
 - `crates/cli/src/wx/bridge.rs`
-- `crates/core/src/task.rs`（`channel_progress_tx`、`nested_cancel`）
-- `crates/agent/src/runtime/mod.rs`（`channel_progress_send`、工具边界）
+- `crates/core/src/task.rs`（`nested_cancel`；`channel_progress_tx` 保留供后续可选进度）
+- `crates/agent/src/runtime/mod.rs`（工具边界）
