@@ -421,7 +421,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "kimi_coding" | "kimi_code_plan" | "kimi_code" => "kimi_code".to_string(),
         "mini_max" | "minimax_api" => "minimax".to_string(),
         "mistral_ai" => "mistral".to_string(),
-        "perplexity_ai" => "perplexity".to_string(),
+        "perplexity_ai" | "perplexity_api" => "perplexity".to_string(),
         "nim" | "nvidia_nim" => "nvidia".to_string(),
         "baidu" | "ernie" | "qianfan_bce" => "qianfan".to_string(),
         "chatgpt" | "gpt" | "open_ai" => "openai".to_string(),
@@ -545,6 +545,8 @@ mod tests {
         assert_eq!(normalize_provider_id("minimax-api"), "minimax");
         assert_eq!(normalize_provider_id("qwen-api"), "qwen");
         assert_eq!(normalize_provider_id("volcengine-api"), "volcengine");
+        assert_eq!(normalize_provider_id("alibaba-cloud"), "alibaba");
+        assert_eq!(normalize_provider_id("perplexity-api"), "perplexity");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
