@@ -437,6 +437,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "s_glang" | "sglang_ai" => "sglang".to_string(),
         "stepfun_ai" => "stepfun".to_string(),
         "chutes_ai" => "chutes".to_string(),
+        "opencode_ai" => "opencode".to_string(),
+        "synthetic_ai" => "synthetic".to_string(),
         _ => s,
     }
 }
@@ -525,6 +527,8 @@ mod tests {
         assert_eq!(normalize_provider_id("stepfun-ai"), "stepfun");
         assert_eq!(normalize_provider_id("chutes-ai"), "chutes");
         assert_eq!(normalize_provider_id("sglang-ai"), "sglang");
+        assert_eq!(normalize_provider_id("opencode-ai"), "opencode");
+        assert_eq!(normalize_provider_id("synthetic-ai"), "synthetic");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
