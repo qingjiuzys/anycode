@@ -37,8 +37,10 @@
 ## 2. 最近已交付（摘要）
 
 - **Setup / 配置**：交互式记忆向导（`file` / `hybrid` / `pipeline` / HTTP 向量 / 可选 **`embedding-local`**）、**`noop` 禁用记忆** 向导项；实现见 `setup_memory.rs` / `app_config`。  
-- **Cron / 调度器**：`scheduler.lock`；WeChat / Telegram / Discord 内嵌 `run_builtin_scheduler`；`channel_task` + Cron 工具链。  
-- **会话与 CLI**：协作取消、流式 REPL 模块化、**Telegram `AskUserQuestion`**（`tg_ask` 内联键盘）、MCP stdio 超时 + **`mcp_stdio_dead` 快路径**、会话通知、HUD/`/context`/`/export`/`/cost`、审计清理等（细节见 `CHANGELOG` 与文档站）。
+- **Cron / 微信**：`scheduler.lock`；桥内嵌调度器；`CronCreate` 本地墙钟→UTC；**先推送微信再跑 agent**（`cron_notify`）；`weekday *` 避免一次性任务永不触发。  
+- **微信 UX**：不再向会话推送 `🔧`/`✓` 工具进度行。  
+- **会话与 CLI**：协作取消、流式 REPL 模块化、**Telegram `AskUserQuestion`**（`tg_ask`）、MCP stdio 超时 + **`mcp_stdio_dead`**、会话通知、HUD/`/context`/`/export`/`/cost` 等。  
+- **OpenClaw 对标**：本地已拉至 **2026.5.19** 线（`ddeaebfc`）；见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)、[`weixin-plugin-parity.md`](weixin-plugin-parity.md)。
 
 ---
 
@@ -55,22 +57,32 @@
 
 ---
 
-## 4. 下一迭代候选
+## 4. 下一迭代（2026-05，OpenClaw 5.19 对标后）
 
-| 主题 | 完成定义（简） |
-|------|----------------|
-| **MCP stdio 超出 v1（续）** | **本版**：`ANYCODE_MCP_CALL_TIMEOUT_SECS`、子进程已退出时 **快速失败**（`mcp_stdio_dead`）；**[ADR 007](adr/007-mcp-session-reconnect-policy.md)**（**Accepted**，仅政策）— **不静默重连**；可选配置位与未来受控重连见 ADR。 |
-| **跨进程 / 持久后台 Agent** | 与 Claude 完整 parity 的队列或等价语义（超出当前进程内 **`HashMap`**）。仅排期，见 §5。 |
-| **通道 AskUserQuestion** | **Telegram（已交付）**：内联键盘 + callback，[`tg_ask`](crates/cli/src/tg_ask.rs)；**续**：Discord/微信等见 [ADR 008](adr/008-channel-ask-user-question-phasing.md)。 |
+| # | 轨 | 主题 | 完成定义（简） |
+|---|-----|------|----------------|
+| 1 | Docs | **OpenClaw 对标简报** | [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md) 七领域矩阵；[`weixin-plugin-parity.md`](weixin-plugin-parity.md) |
+| 2 | Terminal | **Stream REPL resize** | 执行中改尺寸不重复刷行；[`stream-repl-layout.md`](stream-repl-layout.md) 不变量 |
+| 3 | Channels | **Weixin 2.4.3 跟踪** | 插件 CHANGELOG 与 Rust 桥差异表；高优项可开 issue |
+| 4 | Providers | **Catalog / failover** | 对照 5.19：Z.ai、DeepSeek `anyOf` schema、failover 错误类 |
+| 5 | Agent | **Fallback transcript** | 模型 fallback 重试不重复写入 assistant 条 |
+| 6 | Memory | **Pipeline 向量 WARN** | sqlite-vec/嵌入降级时 `tracing::warn` + 文档一句 |
+| 7 | Automation | **Cron 可观测** | `~/.anycode/logs/cron-runs.jsonl`；`CronCreate` 校验与 `next_fire_*` |
+
+**仍开放（不占 §4 槽位）**：MCP 受控重连实现（[ADR 007](adr/007-mcp-session-reconnect-policy.md)）；跨进程后台 Agent（§5）。
 
 ---
 
-## 5. 后续（Later，不展开实现细节）
+## 5. 后续（Later）
 
-- **跨进程 / 持久后台 Agent**：独立 spike / ADR 后再写实现；与 §4 表同步。  
-- **Transcript 虚拟滚动（ADR 006）**：复启前需性能目标与负载模型；基线见 [`term-smoothness-baseline.md`](term-smoothness-baseline.md) 末尾。  
-- **会话 rewind（ADR 004）/ `/clear` 语义（ADR 005）**：暂缓至产品缺口明确。  
-- **`crates/onboard`**：独立 crate 或并入 CLI — 需单独决议或 ADR。
+- **跨进程 / 持久后台 Agent**：独立 spike / ADR。  
+- **Compaction checkpoint**（CLI 快照，无 Web UI）。  
+- **Telegram 可选 draft 工具进度**（默认关）。  
+- **Discord / 微信 AskUserQuestion**（[ADR 008](adr/008-channel-ask-user-question-phasing.md)）。  
+- **memory-wiki / dreaming** 子集 — 需 spike。  
+- **Transcript 虚拟滚动（ADR 006）**：见 [`term-smoothness-baseline.md`](term-smoothness-baseline.md)。  
+- **会话 rewind（ADR 004）/ `/clear`（ADR 005）**。  
+- **`crates/onboard`** — 单独决议。
 
 ---
 
