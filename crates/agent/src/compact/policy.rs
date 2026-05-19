@@ -19,6 +19,9 @@ impl Default for CompactPolicy {
 
 impl CompactPolicy {
     pub fn should_compact(&self, context_window_tokens: u32, last_input_tokens: u32) -> bool {
+        if context_window_tokens == 0 {
+            return false;
+        }
         if self.hard_token_threshold > 0 {
             return last_input_tokens >= self.hard_token_threshold;
         }
