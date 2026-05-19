@@ -410,6 +410,12 @@ mod tests {
     }
 
     #[test]
+    fn blocks_link_local_169_254_169_254() {
+        let url = url::Url::parse("http://169.254.169.254/latest/meta-data/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
     fn blocks_loopback_127_0_0_2() {
         let url = url::Url::parse("http://127.0.0.2/").unwrap();
         assert!(fetch_url_host_blocked(&url).is_some());
