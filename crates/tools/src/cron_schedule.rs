@@ -49,9 +49,22 @@ fn parse_u32_field(s: &str) -> Option<u32> {
     s.parse().ok()
 }
 
-/// 将「墙钟」6 段 cron（全为具体数字，非 `*`/`*/n`）转为下一次触发的 UTC 6 段表达式。
-/// 用于 IM 里「3 分钟后 12:15 提醒」类登记；复杂周期表达式请显式传 `schedule_timezone: "utc"`。
+/// 将「墙钟」6 段 cron（全为具体数字，非 `*`/`*/n`）按本机 `Local` 转为 UTC 存储表达式。
 pub fn wall_clock_cron_to_utc_storage(expr: &str) -> Option<String> {
+    wall_clock_cron_to_utc_storage_in_tz(expr, &Local, Local::now())
+}
+
+/// 将墙钟 cron 按指定 IANA 时区转为 UTC 存储表达式（与 [`wall_clock_cron_to_utc_storage`] 规则相同）。
+pub fn wall_clock_cron_to_utc_storage_in_iana(expr: &str, tz: chrono_tz::Tz) -> Option<String> {
+    let now = Utc::now().with_timezone(&tz);
+    wall_clock_cron_to_utc_storage_in_tz(expr, &tz, now)
+}
+
+fn wall_clock_cron_to_utc_storage_in_tz<Tz: TimeZone>(
+    expr: &str,
+    tz: &Tz,
+    now: chrono::DateTime<Tz>,
+) -> Option<String> {
     let normalized = normalize_cron_schedule_expr(expr);
     let parts: Vec<&str> = normalized.split_whitespace().collect();
     if parts.len() != 6 {
@@ -65,14 +78,13 @@ pub fn wall_clock_cron_to_utc_storage(expr: &str) -> Option<String> {
     // weekday 保留原样（一次性任务常为 `*`）
     let dow = parts[5];
 
-    let now = Local::now();
     let mut year = now.year();
-    let mut dt = Local
+    let mut dt = tz
         .with_ymd_and_hms(year, month, day, hour, min, sec)
         .single()?;
     if dt <= now {
         year += 1;
-        dt = Local
+        dt = tz
             .with_ymd_and_hms(year, month, day, hour, min, sec)
             .single()?;
     }
@@ -207,6 +219,21 @@ mod tests {
     fn resolve_schedule_timezone_rejects_unknown_iana() {
         let err = resolve_schedule_timezone("Not/AZone").unwrap_err();
         assert!(err.contains("unsupported schedule_timezone"), "{err}");
+    }
+
+    #[test]
+    fn wall_clock_iana_shanghai_maps_noon_to_utc_four() {
+        let Some(utc_expr) =
+            wall_clock_cron_to_utc_storage_in_iana("0 0 12 19 5 *", chrono_tz::Asia::Shanghai)
+        else {
+            panic!("expected conversion");
+        };
+        let parts: Vec<&str> = utc_expr.split_whitespace().collect();
+        assert_eq!(parts.len(), 6);
+        assert_eq!(
+            parts[2], "4",
+            "12:00 Asia/Shanghai is 04:00 UTC; got {utc_expr}"
+        );
     }
 
     #[test]
