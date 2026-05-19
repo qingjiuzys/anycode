@@ -57,9 +57,7 @@ fn is_blocked_fetch_ip(ip: std::net::IpAddr) -> bool {
                 || v4.octets() == [0, 0, 0, 0]
         }
         std::net::IpAddr::V6(v6) => {
-            v6.is_loopback()
-                || v6.is_unique_local()
-                || (v6.segments()[0] & 0xffc0) == 0xfe80
+            v6.is_loopback() || v6.is_unique_local() || (v6.segments()[0] & 0xffc0) == 0xfe80
         }
     }
 }

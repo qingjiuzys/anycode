@@ -565,7 +565,11 @@ impl Tool for CronCreateTool {
             });
         }
         let tz = c.schedule_timezone.trim().to_ascii_lowercase();
-        let tz = if tz.is_empty() { "local".to_string() } else { tz };
+        let tz = if tz.is_empty() {
+            "local".to_string()
+        } else {
+            tz
+        };
         if tz != "local" && tz != "utc" && tz != "utc0" {
             return Ok(ToolOutput {
                 result: json!({
