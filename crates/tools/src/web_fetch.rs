@@ -38,6 +38,18 @@ fn parse_domain_as_ip_literal(name: &str) -> Option<std::net::IpAddr> {
     if let Ok(ip) = name.parse::<std::net::IpAddr>() {
         return Some(ip);
     }
+    if name.len() > 2 {
+        let hex = name.strip_prefix("0x").or_else(|| name.strip_prefix("0X"));
+        if let Some(digits) = hex {
+            if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_hexdigit()) {
+                if let Ok(n) = u32::from_str_radix(digits, 16) {
+                    return Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
+                        n.to_be_bytes(),
+                    )));
+                }
+            }
+        }
+    }
     if !name.is_empty() && name.chars().all(|c| c.is_ascii_digit()) {
         if let Ok(n) = name.parse::<u32>() {
             return Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
@@ -382,6 +394,12 @@ mod tests {
     #[test]
     fn blocks_decimal_ipv4_hostname() {
         let url = url::Url::parse("http://2130706433/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
+    fn blocks_hex_ipv4_hostname() {
+        let url = url::Url::parse("http://0x7f000001/").unwrap();
         assert!(fetch_url_host_blocked(&url).is_some());
     }
 }
