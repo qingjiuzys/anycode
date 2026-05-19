@@ -475,6 +475,8 @@ mod tests {
         assert_eq!(normalize_provider_id("moonshot-ai"), "moonshot");
         assert_eq!(normalize_provider_id("open-router"), "openrouter");
         assert_eq!(normalize_provider_id("gemini"), "google");
+        assert_eq!(normalize_provider_id("mini-max"), "minimax");
+        assert_eq!(normalize_provider_id("perplexity-ai"), "perplexity");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
