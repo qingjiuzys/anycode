@@ -138,6 +138,12 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_seven_field_schedule() {
+        let err = validate_cron_schedule_expr("0 0 9 * * * extra").unwrap_err();
+        assert!(err.contains("invalid cron"), "{err}");
+    }
+
+    #[test]
     fn next_fire_returns_future_utc_for_daily_schedule() {
         let next = next_fire_utc_from_stored_schedule("0 0 9 * * *");
         let Some(next) = next else {
