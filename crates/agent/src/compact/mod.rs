@@ -259,6 +259,11 @@ mod tests {
     }
 
     #[test]
+    fn compact_ptl_retry_budget_matches_claude() {
+        assert_eq!(MAX_COMPACT_PTL_RETRIES, 3);
+    }
+
+    #[test]
     fn format_strips_analysis_and_expands_summary() {
         let raw = r#"<analysis>
 x
