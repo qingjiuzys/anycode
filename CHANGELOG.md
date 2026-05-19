@@ -5,7 +5,7 @@
 ### Added
 
 - **Setup / config wizard:** Memory step is **five choices** (`Skip`, `noop`, **Markdown/`hybrid`**, **pipeline + HTTP** embeddings with optional base-URL probe, optional **local ONNX** when `--features embedding-local`). Default menu highlight targets **Hybrid** Markdown preset; pure `file`, pipeline without vectors remain **JSON-only**. **`anycode config`** reuses the same step; non‑TTY prints `setup-memory-non-tty-hint`.
-- **WeChat bridge:** Align inbound body with OpenClaw `bodyFromItemList`; slash routing uses first plain TEXT segment; `ref_msg` quote lines and media selection/fallback (`IMAGE > VIDEO > FILE > VOICE` without STT); CDN decryption for video/file/voice when applicable; attachment prompts via `wx.ftl`.
+- **WeChat bridge:** Align inbound body with OpenClaw `bodyFromItemList`; slash routing uses first plain TEXT segment; `ref_msg` quote lines (including title-only quotes) and media selection/fallback (`IMAGE > VIDEO > FILE > VOICE` without STT); CDN decryption for video/file/voice when applicable; attachment prompts via `wx.ftl`.
 - **`anycode setup`:** Fourth interactive choice and `--channel skip` / `--channel none` to skip channel onboarding. Non-interactive setups without `--channel` skip channel; pass `--channel wechat|telegram|discord` explicitly when needed.
 - **Channel cron:** `workspace-assistant` exposes `CronCreate` / `CronDelete` (plus `CronList`). Built-in `anycode scheduler` uses `~/.anycode/tasks/scheduler.lock` for single-instance scheduling; **WeChat**, **Telegram**, and **Discord** bridges spawn the same scheduler task so cron can fire without a separate `anycode scheduler` when a bridge holds the lock.
 - **WeChat cron delivery:** `CronCreate` wall-clock jobs store weekday `*` (avoids ISO vs Sun=1 weekday mismatch). Scheduler pushes the reminder to the last WeChat chat **before** running the agent task; optional second message when the agent returns a long reply.
@@ -20,7 +20,7 @@
 - **Agent runtime:** stream→chat fallback pops the streaming assistant placeholder before appending the final message (no duplicate assistant rows on model failover).
 - **OpenAI-compatible tools:** collapse nullable `anyOf` / `oneOf` branches in tool parameter schemas before requests (DeepSeek and similar gateways).
 - **Memory pipeline:** log `tracing::warn` when embedding or vector upsert/search fails; keyword and hot-store recall continue.
-- **`CronCreate`:** reject invalid cron expressions and unsupported `schedule_timezone` values (only `local` / `utc`; IANA names return a clear error).
+- **`CronCreate`:** reject invalid cron expressions with field-count and parse hints; unsupported `schedule_timezone` values (only `local` / `utc`; IANA names return a clear error).
 - **`WebFetch`:** block literal private, loopback, and link-local hosts (including IPv6 `::1` and decimal IPv4 hostnames) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
 
 ### Breaking (terminal / session / env)
