@@ -202,6 +202,35 @@ impl WxSender {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let client_id = format!("anycode-{}-{}", chrono::Utc::now().timestamp_millis(), n);
         let msg = build_outbound_text(&self.bot_id, to_user_id, context_token, text, &client_id);
-        self.api.send_message(msg).await
+        let mut delay_ms: u64 = 2_000;
+        for attempt in 0..=3 {
+            match self.api.send_message(msg.clone()).await {
+                Ok(()) => return Ok(()),
+                Err(e) if attempt < 3 => {
+                    tracing::warn!(
+                        attempt = attempt + 1,
+                        delay_ms,
+                        error = %e,
+                        "wx send_text transient failure, retrying"
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                    delay_ms = (delay_ms * 2).min(30_000);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod send_retry_tests {
+    #[test]
+    fn send_retry_backoff_caps_at_thirty_seconds() {
+        let mut delay_ms: u64 = 2_000;
+        for _ in 0..5 {
+            delay_ms = (delay_ms * 2).min(30_000);
+        }
+        assert_eq!(delay_ms, 30_000);
     }
 }

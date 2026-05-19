@@ -8,6 +8,23 @@ fn anycode() -> Command {
     Command::new(env!("CARGO_BIN_EXE_anycode"))
 }
 
+/// Isolated config so smoke tests do not contend for `~/.anycode/memory.sled` when a bridge runs.
+fn smoke_config_with_noop_memory() -> tempfile::NamedTempFile {
+    let f = tempfile::NamedTempFile::new().expect("temp config");
+    std::fs::write(
+        f.path(),
+        r#"{"memory":{"backend":"noop"}}"#,
+    )
+    .expect("write temp config");
+    f
+}
+
+fn anycode_with_smoke_config(cfg: &tempfile::NamedTempFile) -> Command {
+    let mut cmd = anycode();
+    cmd.arg("--config").arg(cfg.path());
+    cmd
+}
+
 #[test]
 fn help_prints_usage() {
     let out = anycode()
@@ -70,7 +87,8 @@ fn status_exits_zero() {
 /// 非 TTY 默认入口为行式 REPL；`/help` 中 run 示例须为真换行（Fluent 不会把 `\n` 当转义）。
 #[test]
 fn line_repl_help_no_literal_backslash_n() {
-    let mut child = anycode()
+    let cfg = smoke_config_with_noop_memory();
+    let mut child = anycode_with_smoke_config(&cfg)
         .current_dir(std::env::temp_dir())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

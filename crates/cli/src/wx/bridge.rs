@@ -697,9 +697,16 @@ async fn run_agent_pipeline(
         drop(session);
 
         for chunk in split_message(&reply, CHUNK_MAX) {
-            let _ = sender
+            if let Err(e) = sender
                 .send_text(&from_user_id, &context_token, &chunk)
-                .await;
+                .await
+            {
+                tracing::error!(
+                    error = %e,
+                    chunk_len = chunk.len(),
+                    "wx reply chunk send failed after retries"
+                );
+            }
         }
         let _ = active_task.lock().await.take();
     });
