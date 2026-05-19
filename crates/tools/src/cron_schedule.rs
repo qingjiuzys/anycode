@@ -1,4 +1,5 @@
 //! Cron 表达式：调度器按 **UTC** 求值；`CronCreate` 默认把用户/模型的「本地墙钟」转为 UTC 存储。
+//! `schedule_timezone` 仅支持 `local` 与 `utc`（IANA 如 `Asia/Shanghai` 尚未实现，见 `docs/cron-observability.md`）。
 
 use chrono::{Datelike, Local, TimeZone, Timelike, Utc};
 use std::str::FromStr;
@@ -113,6 +114,11 @@ mod tests {
     #[test]
     fn validate_accepts_six_field_schedule() {
         assert!(validate_cron_schedule_expr("0 0 9 * * *").is_ok());
+    }
+
+    #[test]
+    fn validate_normalizes_five_field_schedule() {
+        assert!(validate_cron_schedule_expr("0 9 * * *").is_ok());
     }
 
     #[test]
