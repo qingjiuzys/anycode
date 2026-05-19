@@ -413,7 +413,9 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "open_code" => "opencode".to_string(),
         "open_code_go" | "opencodego_auth" => "opencode_go".to_string(),
         "hf" | "hugging_face" | "huggingface_hub" => "huggingface".to_string(),
-        "gemini" | "vertex" | "google_ai" | "google_gemini" => "google".to_string(),
+        "gemini" | "vertex" | "google_ai" | "google_gemini" | "google_ai_studio" => {
+            "google".to_string()
+        }
         "kimi_coding" | "kimi_code_plan" | "kimi_code" => "kimi_code".to_string(),
         "mini_max" => "minimax".to_string(),
         "mistral_ai" => "mistral".to_string(),
@@ -536,9 +538,15 @@ mod tests {
         assert_eq!(normalize_provider_id("deepseek-chat"), "deepseek");
         assert_eq!(normalize_provider_id("byteplus-ai"), "byteplus");
         assert_eq!(normalize_provider_id("moonshot-v1"), "moonshot");
+        assert_eq!(normalize_provider_id("google-ai-studio"), "google");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
+    }
+
+    #[test]
+    fn catalog_lookup_unknown_returns_none() {
+        assert!(catalog_lookup("not-a-real-provider").is_none());
     }
 
     #[test]
