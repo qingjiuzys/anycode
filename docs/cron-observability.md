@@ -18,6 +18,6 @@ Each line is a JSON object:
 ## Related
 
 - `CronCreate` rejects invalid cron expressions before persisting (`validate_cron_schedule_expr`).
-- `schedule_timezone`: `local` (default), `utc` / `utc0`, or an **IANA** name (e.g. `Asia/Shanghai`) for wall-clock conversion before UTC storage.
+- `schedule_timezone`: `local` (default), `utc` / `utc0` / `gmt`, or an **IANA** name (e.g. `Asia/Shanghai`) for wall-clock conversion before UTC storage.
 - **`CronCreate` response** includes `next_fire_utc` and `next_fire_local` when the expression parses (recurring or one-shot after storage conversion). Use these to confirm IM-scheduled reminders before the first scheduler tick.
 - [roadmap.md](roadmap.md) §4 automation row
