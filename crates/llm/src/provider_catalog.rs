@@ -433,7 +433,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "vllm_server" | "vllm_local" => "vllm".to_string(),
         "groq_ai" => "groq".to_string(),
         "ollama_local" | "ollama_server" => "ollama".to_string(),
-        "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" => "z.ai".to_string(),
+        "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" | "zai_api" => "z.ai".to_string(),
+        "fireworks_api" => "fireworks".to_string(),
         "fireworks_ai" => "fireworks".to_string(),
         "togetherai" => "together".to_string(),
         "byte_plus" | "byteplus_ai" => "byteplus".to_string(),
@@ -566,6 +567,8 @@ mod tests {
         assert_eq!(normalize_provider_id("vercel-ai"), "vercel_ai_gateway");
         assert_eq!(normalize_provider_id("grok-api"), "xai");
         assert_eq!(normalize_provider_id("kimi-api"), "moonshot");
+        assert_eq!(normalize_provider_id("zai-api"), "z.ai");
+        assert_eq!(normalize_provider_id("fireworks-api"), "fireworks");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
