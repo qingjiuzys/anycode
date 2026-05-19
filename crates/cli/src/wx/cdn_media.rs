@@ -835,6 +835,11 @@ mod tests {
     }
 
     #[test]
+    fn cdn_get_url_trusted_accepts_wechat_com() {
+        assert!(cdn_get_url_trusted("https://file.wechat.com/attach"));
+    }
+
+    #[test]
     fn cdn_get_url_trusted_accepts_weixin_qq_com() {
         assert!(cdn_get_url_trusted(
             "https://szfile.weixin.qq.com/cgi-bin/download"
