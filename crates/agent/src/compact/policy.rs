@@ -58,6 +58,17 @@ mod tests {
     }
 
     #[test]
+    fn hard_token_threshold_zero_uses_ratio() {
+        let p = CompactPolicy {
+            hard_token_threshold: 0,
+            trigger_ratio: 0.88,
+            ..Default::default()
+        };
+        assert!(!p.should_compact(100, 87));
+        assert!(p.should_compact(100, 88));
+    }
+
+    #[test]
     fn hard_token_threshold_overrides_ratio() {
         let p = CompactPolicy {
             hard_token_threshold: 50_000,
