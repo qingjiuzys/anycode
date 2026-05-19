@@ -404,4 +404,23 @@ mod tests {
         assert_eq!(s, "0 0 12 * * *");
         assert!(Schedule::from_str(&s).is_ok());
     }
+
+    #[test]
+    fn duration_for_every_fifteen_minutes_never_fired() {
+        let pj = ParsedJob {
+            job: CronJob {
+                id: "j15".into(),
+                schedule: "0 */15 * * * *".into(),
+                command: "tick".into(),
+            },
+            schedule: Schedule::from_str("0 */15 * * * *").unwrap(),
+        };
+        let now = Utc.with_ymd_and_hms(2026, 5, 19, 10, 7, 30).unwrap();
+        let d = duration_until_next_tick(&[pj], &HashMap::new(), now, Duration::from_secs(30));
+        assert!(
+            d <= Duration::from_secs(8 * 60),
+            "next */15 tick should be within ~8m, got {d:?}"
+        );
+        assert!(d >= Duration::from_secs(1));
+    }
 }
