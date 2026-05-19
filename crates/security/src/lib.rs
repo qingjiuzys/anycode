@@ -730,6 +730,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invalid_deny_regex_is_skipped_valid_still_matches() {
+        let system = ApprovalSystem::new();
+        system
+            .set_policy(
+                "Bash".to_string(),
+                SecurityPolicy {
+                    require_approval: false,
+                    allow_commands: vec![],
+                    deny_commands: vec!["[invalid".to_string(), r"rm\s+-rf".to_string()],
+                    sandbox_mode: false,
+                    timeout_ms: None,
+                },
+            )
+            .await;
+        let result = system
+            .check_tool_call("Bash", &serde_json::json!({"command": "rm -rf /tmp/x"}))
+            .await;
+        assert!(matches!(result, ApprovalResult::Denied { .. }));
+    }
+
+    #[tokio::test]
     async fn test_approval_system() {
         let system = ApprovalSystem::new();
 
