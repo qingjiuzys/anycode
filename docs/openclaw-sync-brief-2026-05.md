@@ -109,4 +109,11 @@
 
 ## 增量（后续 pull 后追加）
 
-_（留空；下次同步在此追加 Unreleased + 新版本块摘要。）_
+### 2026-05-19（anyCode 会话）
+
+- **WebFetch**：DNS rebinding 防护（解析后拒绝私网/链路本地 A/AAAA）；十进制 IPv4 主机名拦截；与既有字面量 SSRF + 重定向跳校验叠加。
+- **Providers**：`nim`→`nvidia`、`ernie`/`baidu`→`qianfan`、`chatgpt`/`open-ai`→`openai`、`zhipu`→`z.ai` 等别名。
+- **CronCreate**：无效表达式错误含字段数与 normalized 提示。
+- **微信桥**：`ref_msg` 仅 `title`、无 `message_item` 时仍输出 `[引用: …]` 行。
+
+_（下次 OpenClaw 上游 pull 后在此继续追加。）_
