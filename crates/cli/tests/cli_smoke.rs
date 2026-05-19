@@ -11,11 +11,7 @@ fn anycode() -> Command {
 /// Isolated config so smoke tests do not contend for `~/.anycode/memory.sled` when a bridge runs.
 fn smoke_config_with_noop_memory() -> tempfile::NamedTempFile {
     let f = tempfile::NamedTempFile::new().expect("temp config");
-    std::fs::write(
-        f.path(),
-        r#"{"memory":{"backend":"noop"}}"#,
-    )
-    .expect("write temp config");
+    std::fs::write(f.path(), r#"{"memory":{"backend":"noop"}}"#).expect("write temp config");
     f
 }
 
