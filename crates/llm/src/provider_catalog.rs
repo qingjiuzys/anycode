@@ -401,6 +401,9 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "opencodego" => "opencode_go".to_string(),
         "glm" => "z.ai".to_string(),
         "deep_seek" => "deepseek".to_string(),
+        "grok" => "xai".to_string(),
+        "volc" | "volcano" => "volcengine".to_string(),
+        "dashscope" => "alibaba".to_string(),
         _ => s,
     }
 }
@@ -453,6 +456,9 @@ mod tests {
         assert_eq!(normalize_provider_id("github-copilot"), "github_copilot");
         assert_eq!(normalize_provider_id("glm"), "z.ai");
         assert_eq!(normalize_provider_id("deep-seek"), "deepseek");
+        assert_eq!(normalize_provider_id("grok"), "xai");
+        assert_eq!(normalize_provider_id("volc"), "volcengine");
+        assert_eq!(normalize_provider_id("dashscope"), "alibaba");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
