@@ -557,6 +557,13 @@ impl Tool for CronCreateTool {
         let start = Instant::now();
         let c: CronIn =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        if let Err(e) = crate::cron_schedule::validate_cron_schedule_expr(&c.schedule) {
+            return Ok(ToolOutput {
+                result: json!({ "error": format!("invalid cron schedule: {e}") }),
+                error: Some(format!("invalid cron schedule: {e}")),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         let tz = c.schedule_timezone.trim().to_ascii_lowercase();
         let (stored_schedule, tz_note) = if tz == "utc" || tz == "utc0" {
             (

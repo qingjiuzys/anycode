@@ -60,6 +60,17 @@ pub fn wall_clock_cron_to_utc_storage(expr: &str) -> Option<String> {
     ))
 }
 
+/// 校验 5/6 字段 cron 能否被内置调度器解析。
+pub fn validate_cron_schedule_expr(expr: &str) -> Result<(), String> {
+    use cron::Schedule;
+    let normalized = normalize_cron_schedule_expr(expr);
+    if normalized.split_whitespace().count() < 5 {
+        return Err("schedule must have 5 or 6 fields (sec min hour day month weekday)".into());
+    }
+    Schedule::from_str(&normalized).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 下一次触发时间（按 **UTC** 解释已存储的表达式）。
 pub fn next_fire_utc_from_stored_schedule(expr: &str) -> Option<chrono::DateTime<Utc>> {
     use cron::Schedule;
@@ -92,6 +103,16 @@ mod tests {
             parts[5], "*",
             "weekday must be * so job fires on calendar day; got {utc_expr}"
         );
+    }
+
+    #[test]
+    fn validate_rejects_garbage_schedule() {
+        assert!(validate_cron_schedule_expr("not a cron").is_err());
+    }
+
+    #[test]
+    fn validate_accepts_six_field_schedule() {
+        assert!(validate_cron_schedule_expr("0 0 9 * * *").is_ok());
     }
 
     #[test]
