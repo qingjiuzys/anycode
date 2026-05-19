@@ -209,6 +209,13 @@ mod tests {
     }
 
     #[test]
+    fn next_fire_hourly_schedule_has_future_tick() {
+        let next = next_fire_utc_from_stored_schedule("0 0 * * * *");
+        assert!(next.is_some());
+        assert!(next.unwrap() > Utc::now());
+    }
+
+    #[test]
     fn normalize_prepends_zero_seconds_for_five_field() {
         assert_eq!(normalize_cron_schedule_expr("15 10 * * 1"), "0 15 10 * * 1");
     }
