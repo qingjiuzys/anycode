@@ -12,7 +12,7 @@
 
 - **`tools-mcp`:** `McpStdioSession::call_tool_named` short-circuits when the stdio child has already exited (**`mcp_stdio_dead`** in JSON); reconnect policy stays **manual** — see [`docs/adr/007-mcp-session-reconnect-policy.md`](docs/adr/007-mcp-session-reconnect-policy.md).
 - **Cron observability:** builtin scheduler appends `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error`); see [`docs/cron-observability.md`](docs/cron-observability.md).
-- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, etc.).
+- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, etc.).
 
 ### Fixed
 
@@ -21,7 +21,7 @@
 - **OpenAI-compatible tools:** collapse nullable `anyOf` / `oneOf` branches in tool parameter schemas before requests (DeepSeek and similar gateways).
 - **Memory pipeline:** log `tracing::warn` when embedding or vector upsert/search fails; keyword and hot-store recall continue.
 - **`CronCreate`:** reject invalid cron expressions and unsupported `schedule_timezone` values (only `local` / `utc`; IANA names return a clear error).
-- **`WebFetch`:** block literal private, loopback, and link-local hosts (including IPv6 `::1`) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
+- **`WebFetch`:** block literal private, loopback, and link-local hosts (including IPv6 `::1` and decimal IPv4 hostnames) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
 
 ### Breaking (terminal / session / env)
 

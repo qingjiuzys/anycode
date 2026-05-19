@@ -415,6 +415,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "kimi_coding" | "kimi_code_plan" => "kimi_code".to_string(),
         "mini_max" => "minimax".to_string(),
         "perplexity_ai" => "perplexity".to_string(),
+        "nim" | "nvidia_nim" => "nvidia".to_string(),
         _ => s,
     }
 }
@@ -477,6 +478,8 @@ mod tests {
         assert_eq!(normalize_provider_id("gemini"), "google");
         assert_eq!(normalize_provider_id("mini-max"), "minimax");
         assert_eq!(normalize_provider_id("perplexity-ai"), "perplexity");
+        assert_eq!(normalize_provider_id("nim"), "nvidia");
+        assert_eq!(normalize_provider_id("nvidia-nim"), "nvidia");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
