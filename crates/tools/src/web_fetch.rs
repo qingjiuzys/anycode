@@ -70,6 +70,29 @@ fn resolve_redirect_location(base: &url::Url, location: &str) -> Option<url::Url
         .map(sanitize_fetch_url)
 }
 
+/// DNS rebinding guard: resolve hostname and reject if any A/AAAA is private/link-local.
+async fn fetch_url_dns_blocked(url: &url::Url) -> Option<&'static str> {
+    let url::Host::Domain(name) = url.host()? else {
+        return None;
+    };
+    let port = url.port_or_known_default().unwrap_or(443);
+    let addrs = match tokio::net::lookup_host((name, port)).await {
+        Ok(a) => a,
+        Err(_) => return Some("DNS resolution failed"),
+    };
+    let mut any = false;
+    for addr in addrs {
+        any = true;
+        if is_blocked_fetch_ip(addr.ip()) {
+            return Some("resolved to private or link-local IP not allowed");
+        }
+    }
+    if !any {
+        return Some("DNS resolution failed");
+    }
+    None
+}
+
 fn is_blocked_fetch_ip(ip: std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {
@@ -162,6 +185,13 @@ impl Tool for WebFetchTool {
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
+        if let Some(reason) = fetch_url_dns_blocked(&url).await {
+            return Ok(ToolOutput {
+                result: serde_json::json!({"error": reason}),
+                error: Some(reason.into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
 
         let client = reqwest::Client::builder()
             .user_agent("anycode-tools/0.1")
@@ -172,6 +202,13 @@ impl Tool for WebFetchTool {
         let mut redirects_followed = 0usize;
         let resp = loop {
             if let Some(reason) = fetch_url_host_blocked(&current) {
+                return Ok(ToolOutput {
+                    result: serde_json::json!({"error": reason}),
+                    error: Some(reason.into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            if let Some(reason) = fetch_url_dns_blocked(&current).await {
                 return Ok(ToolOutput {
                     result: serde_json::json!({"error": reason}),
                     error: Some(reason.into()),
@@ -320,4 +357,5 @@ mod tests {
         let next = resolve_redirect_location(&base, "http://127.0.0.1/").unwrap();
         assert!(fetch_url_host_blocked(&next).is_some());
     }
+
 }
