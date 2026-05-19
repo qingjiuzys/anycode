@@ -72,7 +72,7 @@ fn normalize_media_aes_key(s: &str) -> String {
 }
 
 /// 仅允许微信 CDN 与 ilink 相关主机，防 SSRF（与 OpenClaw 只拉协议 URL 的假设一致）。
-fn cdn_get_url_trusted(u: &str) -> bool {
+pub(crate) fn cdn_get_url_trusted(u: &str) -> bool {
     let Ok(parsed) = url::Url::parse(u) else {
         return false;
     };
@@ -832,5 +832,19 @@ mod tests {
         assert!(has_voice_item_without_stt(&no));
         let ok = vec![json!({ "type": 3, "voice_item": { "text": "x" } })];
         assert!(!has_voice_item_without_stt(&ok));
+    }
+
+    #[test]
+    fn cdn_get_url_trusted_accepts_weixin_qq_com() {
+        assert!(cdn_get_url_trusted(
+            "https://szfile.weixin.qq.com/cgi-bin/download"
+        ));
+        assert!(cdn_get_url_trusted("https://dev.weixin.qq.com/ilink"));
+    }
+
+    #[test]
+    fn cdn_get_url_trusted_rejects_untrusted_host() {
+        assert!(!cdn_get_url_trusted("https://evil.example.com/steal"));
+        assert!(!cdn_get_url_trusted("http://127.0.0.1/"));
     }
 }
