@@ -417,7 +417,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
             "google".to_string()
         }
         "kimi_coding" | "kimi_code_plan" | "kimi_code" => "kimi_code".to_string(),
-        "mini_max" => "minimax".to_string(),
+        "mini_max" | "minimax_api" => "minimax".to_string(),
         "mistral_ai" => "mistral".to_string(),
         "perplexity_ai" => "perplexity".to_string(),
         "nim" | "nvidia_nim" => "nvidia".to_string(),
@@ -540,6 +540,7 @@ mod tests {
         assert_eq!(normalize_provider_id("moonshot-v1"), "moonshot");
         assert_eq!(normalize_provider_id("google-ai-studio"), "google");
         assert_eq!(normalize_provider_id("openrouter-ai"), "openrouter");
+        assert_eq!(normalize_provider_id("minimax-api"), "minimax");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
