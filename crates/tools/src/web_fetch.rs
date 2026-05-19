@@ -378,6 +378,12 @@ mod tests {
     }
 
     #[test]
+    fn blocks_ipv6_unique_local_literal() {
+        let url = url::Url::parse("http://[fc00::1]/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
     fn allows_public_hostnames() {
         let url = url::Url::parse("https://example.com/page").unwrap();
         assert!(fetch_url_host_blocked(&url).is_none());
