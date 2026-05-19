@@ -734,6 +734,23 @@ mod tests {
         );
     }
 
+    /// VIDEO > FILE：主列表同时有视频与文件时选视频。
+    #[test]
+    fn select_video_before_file() {
+        let items = vec![
+            json!({
+                "type": 4,
+                "file_item": { "file_name": "a.pdf", "media": { "encrypt_query_param": "f", "aes_key": "k" } }
+            }),
+            json!({
+                "type": 5,
+                "video_item": { "media": { "encrypt_query_param": "v", "aes_key": "k", "full_url": "https://v.wechat.com/x" } }
+            }),
+        ];
+        let got = select_inbound_media_item(&items);
+        assert_eq!(item_type(got.unwrap()), 5);
+    }
+
     /// IMAGE > VIDEO：主列表同时有图与视频时选图。
     #[test]
     fn select_image_before_video() {
