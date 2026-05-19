@@ -137,6 +137,9 @@ fn is_blocked_fetch_ip(ip: std::net::IpAddr) -> bool {
                 || v4.octets() == [0, 0, 0, 0]
         }
         std::net::IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_blocked_fetch_ip(std::net::IpAddr::V4(v4));
+            }
             v6.is_loopback() || v6.is_unique_local() || (v6.segments()[0] & 0xffc0) == 0xfe80
         }
     }
@@ -402,5 +405,20 @@ mod tests {
     fn blocks_hex_ipv4_hostname() {
         let url = url::Url::parse("http://0x7f000001/").unwrap();
         assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
+    fn blocks_ipv4_mapped_loopback_in_ipv6_literal() {
+        let url = url::Url::parse("http://[::ffff:127.0.0.1]/").unwrap();
+        assert!(fetch_url_host_blocked(&url).is_some());
+    }
+
+    #[test]
+    fn redirect_location_strips_embedded_credentials() {
+        let base = url::Url::parse("https://example.com/").unwrap();
+        let next =
+            resolve_redirect_location(&base, "https://user:secret@example.com/next").unwrap();
+        assert!(next.username().is_empty());
+        assert!(next.password().is_none());
     }
 }
