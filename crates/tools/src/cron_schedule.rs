@@ -187,6 +187,11 @@ mod tests {
     }
 
     #[test]
+    fn normalize_prepends_zero_seconds_for_five_field() {
+        assert_eq!(normalize_cron_schedule_expr("15 10 * * 1"), "0 15 10 * * 1");
+    }
+
+    #[test]
     fn validate_rejects_four_field_schedule() {
         let err = validate_cron_schedule_expr("0 0 9 *").unwrap_err();
         assert!(err.contains("got 4"), "{err}");
