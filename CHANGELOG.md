@@ -13,7 +13,7 @@
 - **`tools-mcp`:** `McpStdioSession::call_tool_named` short-circuits when the stdio child has already exited (**`mcp_stdio_dead`** in JSON); reconnect policy stays **manual** — see [`docs/adr/007-mcp-session-reconnect-policy.md`](docs/adr/007-mcp-session-reconnect-policy.md).
 - **Cron observability:** builtin scheduler appends `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error`); see [`docs/cron-observability.md`](docs/cron-observability.md).
 - **`CronCreate` IANA `schedule_timezone`:** `Asia/Shanghai`-style names convert wall-clock fields to UTC storage (in addition to `local` / `utc` / `utc0`).
-- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, `ernie`→`qianfan`, `chatgpt`→`openai`, `zhipu`/`zhipu-ai`→`z.ai`, `deepseek-ai`, `x-ai`, `byte-plus`, etc.).
+- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, `ernie`→`qianfan`, `chatgpt`→`openai`, `zhipu`/`zhipu-ai`→`z.ai`, `deepseek-ai`, `x-ai`, `byte-plus`, `claude-cli`/`anthropic-cli`→`anthropic`, `azure-openai`→`openai`, `venice-ai`→`venice`, etc.).
 - **WeChat bridge:** outbound `send_text` retries transient HTTP errors with capped backoff; reply chunk failures are logged after retries.
 
 ### Fixed
@@ -23,7 +23,7 @@
 - **OpenAI-compatible tools:** collapse nullable `anyOf` / `oneOf` branches in tool parameter schemas before requests (DeepSeek and similar gateways).
 - **Memory pipeline:** log `tracing::warn` when embedding or vector upsert/search fails; keyword and hot-store recall continue.
 - **`CronCreate`:** reject invalid cron expressions with field-count and parse hints; unknown `schedule_timezone` values return a clear error.
-- **`WebFetch`:** block literal private, loopback, and link-local hosts (including IPv6 `::1` and decimal IPv4 hostnames) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
+- **`WebFetch`:** block literal private, loopback, and link-local hosts (including IPv6 `::1`, decimal and hexadecimal IPv4 hostnames) before fetch; cap redirects and strip URL credentials on each hop; resolve hostnames and reject DNS answers that map to private/link-local IPs (redirect hops included).
 - **Providers:** fix `zhipu-ai` kebab alias mapping to `z.ai` (CI `normalize_openclaw_aliases`).
 - **cli_smoke:** line REPL test uses isolated noop-memory config so parallel WeChat bridge runs do not lock `memory.sled`.
 
