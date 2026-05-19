@@ -569,6 +569,7 @@ mod tests {
         assert_eq!(normalize_provider_id("kimi-api"), "moonshot");
         assert_eq!(normalize_provider_id("zai-api"), "z.ai");
         assert_eq!(normalize_provider_id("fireworks-api"), "fireworks");
+        assert_eq!(normalize_provider_id("together-api"), "together");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
