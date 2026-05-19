@@ -17,6 +17,7 @@ pub(crate) fn im_channel_cron_scheduling_hint() -> &'static str {
      - Jobs only fire when a scheduler holds `~/.anycode/tasks/scheduler.lock`: run **`anycode scheduler`**, or rely on this long-running bridge (WeChat/Telegram/Discord each tries to embed the same built-in scheduler; **only one** ticks per machine).\n\
      - **`CronCreate` default `schedule_timezone`: `local`** — `schedule` uses **this machine's local wall clock** (e.g. 12:15 in China = hour 12 in the expression); it is converted to UTC for storage. Do **not** subtract 8 hours yourself. Use **`utc`** only if the expression is already UTC. **IANA zones are not supported** (e.g. `Asia/Shanghai` is rejected).\n\
      - Scheduler append-only log: `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error` per fire).\n\
+     - `CronCreate` returns `next_fire_utc` / `next_fire_local` when the schedule parses—use them to confirm the first run time.\n\
      - After a cron fires from the WeChat bridge, the result is sent to the **last chat** on this bridge (not only stdout).\n\
      - `CronCreate` registers the schedule; do not imply a job ran if the user only saved it.\n\
      - 中文：登记定时任务用 `CronCreate`（默认按**本地时间**理解 `schedule`，无需自己减 8 小时）；到点需调度器在跑（微信桥内嵌即可）。触发后会向**最近一次对话的微信**推送结果。"
