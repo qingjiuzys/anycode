@@ -118,6 +118,9 @@
 - **微信桥**：入站媒体 `VIDEO` 优先于 `FILE` 单测；安全层跳过非法 deny 正则。
 - **Agent**：`pop_assistant_placeholder` 单测（stream→chat failover 不残留占位 assistant）。
 - **Cron**：`GMT` 作为 `utc` 别名；墙钟 `?` weekday 保留。
+- **WebFetch**：CGNAT `100.64.0.0/10`、TEST-NET、`*.localhost` 拦截。
+- **Providers**：`mistral-api`、`grok-api`、`kimi-api`、`zai-api`、`cloudflare-ai`、`vercel-ai` 等。
+- **微信桥**：`cdn_get_url_trusted` 单测；`textItem` camelCase 正文。
 
 ### 2026-05-19（anyCode 会话，续）
 
