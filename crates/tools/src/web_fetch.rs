@@ -40,7 +40,9 @@ fn parse_domain_as_ip_literal(name: &str) -> Option<std::net::IpAddr> {
     }
     if !name.is_empty() && name.chars().all(|c| c.is_ascii_digit()) {
         if let Ok(n) = name.parse::<u32>() {
-            return Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(n.to_be_bytes()));
+            return Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(
+                n.to_be_bytes(),
+            )));
         }
     }
     None
