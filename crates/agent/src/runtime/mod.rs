@@ -1843,6 +1843,12 @@ mod streamed_provider_error_tests {
     }
 
     #[test]
+    fn detects_overloaded_error_in_streamed_json() {
+        let j = r#"{"error":{"message":"The engine is currently overloaded","type":"overloaded_error"}}"#;
+        assert!(super::provider_error_from_streamed_assistant_text(j).is_some());
+    }
+
+    #[test]
     fn detects_rate_limit_in_streamed_json() {
         let j = r#"{"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}"#;
         assert!(super::provider_error_from_streamed_assistant_text(j).is_some());
