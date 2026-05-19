@@ -710,6 +710,24 @@ mod tests {
 
     /// 主列表无图、仅 `TEXT+ref` 内嵌可下 CDN 的图时择引用内 `message_item`。
     #[test]
+    fn select_media_accepts_refmsg_camel_case() {
+        let items = vec![json!({
+            "type": 1,
+            "text_item": { "text": "caption" },
+            "refMsg": {
+                "message_item": {
+                    "type": 2,
+                    "image_item": {
+                        "aeskey": "00112233445566778899aabbccddeeff",
+                        "media": { "encrypt_query_param": "encq", "aes_key": "k" }
+                    }
+                }
+            }
+        })];
+        assert!(select_inbound_media_item(&items).is_some());
+    }
+
+    #[test]
     fn select_media_falls_back_to_ref_image() {
         let items = vec![json!({
             "type": 1,
