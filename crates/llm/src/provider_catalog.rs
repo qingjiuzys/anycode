@@ -430,7 +430,8 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "zhipu" | "zhipuai" | "zhipu_ai" | "glm4" => "z.ai".to_string(),
         "fireworks_ai" => "fireworks".to_string(),
         "togetherai" => "together".to_string(),
-        "byte_plus" => "byteplus".to_string(),
+        "byte_plus" | "byteplus_ai" => "byteplus".to_string(),
+        "moonshot_v1" => "moonshot".to_string(),
         "kilo_code" | "kilo_gateway" => "kilocode".to_string(),
         "lite_llm" | "litellm_ai" => "litellm".to_string(),
         "kilocode_ai" => "kilocode".to_string(),
@@ -533,6 +534,8 @@ mod tests {
         assert_eq!(normalize_provider_id("litellm-ai"), "litellm");
         assert_eq!(normalize_provider_id("kilocode-ai"), "kilocode");
         assert_eq!(normalize_provider_id("deepseek-chat"), "deepseek");
+        assert_eq!(normalize_provider_id("byteplus-ai"), "byteplus");
+        assert_eq!(normalize_provider_id("moonshot-v1"), "moonshot");
         assert!(catalog_lookup("amazon_bedrock").is_some());
         assert!(catalog_lookup("groq").is_some());
         assert!(catalog_lookup("fireworks").is_some());
