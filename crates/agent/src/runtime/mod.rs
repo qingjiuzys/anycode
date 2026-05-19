@@ -1921,4 +1921,9 @@ mod placeholder_tests {
         let msgs = vec![msg(MessageRole::User, Uuid::new_v4(), "12345678")];
         assert_eq!(estimate_input_tokens_for_messages(&msgs), 2);
     }
+
+    #[test]
+    fn estimate_input_tokens_empty_messages_is_zero() {
+        assert_eq!(estimate_input_tokens_for_messages(&[]), 0);
+    }
 }
