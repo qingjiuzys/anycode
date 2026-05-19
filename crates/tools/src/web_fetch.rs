@@ -347,6 +347,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn max_fetch_redirects_is_five() {
+        assert_eq!(MAX_FETCH_REDIRECTS, 5);
+    }
+
+    #[test]
     fn blocks_loopback_and_private_hosts() {
         for u in [
             "http://127.0.0.1/",
