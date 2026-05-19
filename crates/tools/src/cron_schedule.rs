@@ -1,8 +1,39 @@
 //! Cron 表达式：调度器按 **UTC** 求值；`CronCreate` 默认把用户/模型的「本地墙钟」转为 UTC 存储。
-//! `schedule_timezone` 仅支持 `local` 与 `utc`（IANA 如 `Asia/Shanghai` 尚未实现，见 `docs/cron-observability.md`）。
+//! `schedule_timezone` 支持 `local`、`utc`/`utc0`，以及 IANA 名称（如 `Asia/Shanghai`）。
 
 use chrono::{Datelike, Local, TimeZone, Timelike, Utc};
 use std::str::FromStr;
+
+/// `CronCreate` 的 `schedule_timezone` 语义。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScheduleTimezone {
+    /// 本机 `chrono::Local` 墙钟。
+    Local,
+    /// 表达式字段已是 UTC（`utc` / `utc0` 同义）。
+    Utc,
+    /// 指定 IANA 时区的墙钟。
+    Iana(chrono_tz::Tz),
+}
+
+/// 解析 `schedule_timezone`：`local`（空串同义）、`utc`/`utc0`，或 IANA 名称（大小写敏感）。
+pub fn resolve_schedule_timezone(raw: &str) -> Result<ScheduleTimezone, String> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return Ok(ScheduleTimezone::Local);
+    }
+    let lower = t.to_ascii_lowercase();
+    match lower.as_str() {
+        "local" => Ok(ScheduleTimezone::Local),
+        "utc" | "utc0" => Ok(ScheduleTimezone::Utc),
+        _ => chrono_tz::Tz::from_str(t)
+            .map(ScheduleTimezone::Iana)
+            .map_err(|_| {
+                format!(
+                    "unsupported schedule_timezone {t:?}; use local, utc, or an IANA name like Asia/Shanghai"
+                )
+            }),
+    }
+}
 
 /// 6 字段：`sec min hour day month weekday`（与 CLI scheduler 一致）。
 pub fn normalize_cron_schedule_expr(expr: &str) -> String {
@@ -150,6 +181,32 @@ mod tests {
             panic!("expected next fire for daily 09:00 UTC");
         };
         assert!(next > Utc::now());
+    }
+
+    #[test]
+    fn resolve_schedule_timezone_accepts_local_utc_and_iana() {
+        assert_eq!(
+            resolve_schedule_timezone("local").unwrap(),
+            ScheduleTimezone::Local
+        );
+        assert_eq!(
+            resolve_schedule_timezone("utc").unwrap(),
+            ScheduleTimezone::Utc
+        );
+        assert_eq!(
+            resolve_schedule_timezone("utc0").unwrap(),
+            ScheduleTimezone::Utc
+        );
+        assert_eq!(
+            resolve_schedule_timezone("Asia/Shanghai").unwrap(),
+            ScheduleTimezone::Iana(chrono_tz::Asia::Shanghai)
+        );
+    }
+
+    #[test]
+    fn resolve_schedule_timezone_rejects_unknown_iana() {
+        let err = resolve_schedule_timezone("Not/AZone").unwrap_err();
+        assert!(err.contains("unsupported schedule_timezone"), "{err}");
     }
 
     #[test]

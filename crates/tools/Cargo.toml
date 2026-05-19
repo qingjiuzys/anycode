@@ -35,6 +35,7 @@ uuid = { workspace = true }
 base64 = "0.22"
 dirs = "5"
 chrono = { workspace = true }
+chrono-tz = { workspace = true }
 cron = "0.12"
 
 # File operations
