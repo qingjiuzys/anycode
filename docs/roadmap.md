@@ -67,7 +67,7 @@
 | 1 | Channels | **Weixin 2.4.3 跟踪** | 插件 CHANGELOG 与 Rust 桥差异表；高优项可开 issue（[`weixin-plugin-parity.md`](weixin-plugin-parity.md)） |
 | 2 | Providers | **Catalog 定期 diff** | 对照 OpenClaw 5.x 新增 provider id / 别名（5.19 已补 doubao/gemini、deepseek-ai、x-ai 等 kebab）；Z.ai manifest |
 | 3 | Security | **WebFetch 续** | DNS 解析后私网拦截 + 十进制 IPv4 主机名 **Done**（2026-05-19）；高级 rebinding 仍 **Later** |
-| 4 | Automation | **Cron IANA tz** | 可选 `schedule_timezone` IANA（当前仅 `local` / `utc` / `utc0`） |
+| 4 | Automation | **Cron IANA tz** | **Done**（2026-05-20）：`CronCreate` 支持 IANA 墙钟→UTC（`local` / `utc` / `utc0` 仍可用） |
 | 5 | Testing | **cli_smoke 隔离** | line REPL 冒烟用 temp `memory.backend=noop`，避免与运行中 bridge 争用 `memory.sled` **Done**（2026-05-19） |
 
 **仍开放（不占 §4 槽位）**：MCP 受控重连实现（[ADR 007](adr/007-mcp-session-reconnect-policy.md)）；跨进程后台 Agent（§5）。
