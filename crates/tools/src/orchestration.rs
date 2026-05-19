@@ -528,7 +528,7 @@ impl Tool for CronCreateTool {
         "Register a cron job (persisted in ~/.anycode/tasks/orchestration.json). \
          `schedule`: 6 fields sec min hour day month weekday (5-field unix gets leading 0 sec). \
          Default `schedule_timezone` is `local` (wall clock on this machine, stored as UTC for the built-in scheduler). \
-         Use `utc` only if you already converted to UTC. \
+         Use `utc` only if you already converted to UTC, or an IANA name (e.g. `Asia/Shanghai`) for wall clock in that zone. \
          `command` runs as one agent task when the scheduler holds ~/.anycode/tasks/scheduler.lock \
          (WeChat bridge embeds it). For WeChat reminders, say in `command` that the assistant must notify the user clearly."
     }
@@ -540,8 +540,7 @@ impl Tool for CronCreateTool {
                 "command": { "type": "string" },
                 "schedule_timezone": {
                     "type": "string",
-                    "enum": ["local", "utc"],
-                    "description": "local (default): interpret schedule as local wall time; utc: schedule already UTC"
+                    "description": "local (default): machine wall clock; utc: schedule already UTC; or IANA e.g. Asia/Shanghai"
                 }
             },
             "required": ["schedule", "command"]
@@ -564,35 +563,46 @@ impl Tool for CronCreateTool {
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
-        let tz = c.schedule_timezone.trim().to_ascii_lowercase();
-        let tz = if tz.is_empty() {
-            "local".to_string()
-        } else {
-            tz
+        let tz_raw = c.schedule_timezone.trim();
+        let resolved = match crate::cron_schedule::resolve_schedule_timezone(tz_raw) {
+            Ok(t) => t,
+            Err(e) => {
+                return Ok(ToolOutput {
+                    result: json!({ "error": e }),
+                    error: Some("unsupported schedule_timezone".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
         };
-        if tz != "local" && tz != "utc" && tz != "utc0" {
-            return Ok(ToolOutput {
-                result: json!({
-                    "error": format!(
-                        "unsupported schedule_timezone {tz:?}; use local (default) or utc (IANA not supported yet)"
-                    )
-                }),
-                error: Some("unsupported schedule_timezone".into()),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
-        }
-        let (stored_schedule, tz_note) = if tz == "utc" || tz == "utc0" {
-            (
+        let (stored_schedule, tz_note) = match resolved {
+            crate::cron_schedule::ScheduleTimezone::Utc => (
                 crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
-                "stored as UTC (no conversion)",
-            )
-        } else {
-            match crate::cron_schedule::wall_clock_cron_to_utc_storage(&c.schedule) {
-                Some(utc_expr) => (utc_expr, "converted local wall time → UTC for scheduler"),
-                None => (
-                    crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
-                    "could not convert; stored verbatim (scheduler uses UTC)",
-                ),
+                "stored as UTC (no conversion)".to_string(),
+            ),
+            crate::cron_schedule::ScheduleTimezone::Local => {
+                match crate::cron_schedule::wall_clock_cron_to_utc_storage(&c.schedule) {
+                    Some(utc_expr) => (
+                        utc_expr,
+                        "converted local wall time → UTC for scheduler".to_string(),
+                    ),
+                    None => (
+                        crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
+                        "could not convert; stored verbatim (scheduler uses UTC)".to_string(),
+                    ),
+                }
+            }
+            crate::cron_schedule::ScheduleTimezone::Iana(tz) => {
+                match crate::cron_schedule::wall_clock_cron_to_utc_storage_in_iana(&c.schedule, tz)
+                {
+                    Some(utc_expr) => (
+                        utc_expr,
+                        format!("converted {tz} wall time → UTC for scheduler"),
+                    ),
+                    None => (
+                        crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
+                        format!("could not convert {tz}; stored verbatim (scheduler uses UTC)"),
+                    ),
+                }
             }
         };
         let id = self.services.push_cron(stored_schedule.clone(), c.command);
