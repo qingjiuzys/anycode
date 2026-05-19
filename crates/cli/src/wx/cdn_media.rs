@@ -604,6 +604,16 @@ mod tests {
     }
 
     #[test]
+    fn first_plain_text_ignores_ref_msg_for_slash_commands() {
+        let items = vec![json!({
+            "type": 1,
+            "text_item": { "text": "/help" },
+            "ref_msg": { "title": "noise" }
+        })];
+        assert_eq!(first_plain_text_from_items(&items), "/help");
+    }
+
+    #[test]
     fn voice_only_body_stt() {
         let items = vec![json!({
             "type": 3,
