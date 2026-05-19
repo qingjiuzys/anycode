@@ -288,6 +288,10 @@ mod tests {
             ScheduleTimezone::Utc
         );
         assert_eq!(
+            resolve_schedule_timezone("Zulu").unwrap(),
+            ScheduleTimezone::Utc
+        );
+        assert_eq!(
             resolve_schedule_timezone("Asia/Shanghai").unwrap(),
             ScheduleTimezone::Iana(chrono_tz::Asia::Shanghai)
         );
