@@ -12,7 +12,7 @@
 
 - **`tools-mcp`:** `McpStdioSession::call_tool_named` short-circuits when the stdio child has already exited (**`mcp_stdio_dead`** in JSON); reconnect policy stays **manual** — see [`docs/adr/007-mcp-session-reconnect-policy.md`](docs/adr/007-mcp-session-reconnect-policy.md).
 - **Cron observability:** builtin scheduler appends `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error`); see [`docs/cron-observability.md`](docs/cron-observability.md).
-- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, etc.).
+- **Providers:** OpenClaw-style aliases (`doubao`→`volcengine`, `modelstudio`→`alibaba`, `gemini`→`google`, `open-router`, `nim`→`nvidia`, `ernie`→`qianfan`, etc.).
 
 ### Fixed
 
