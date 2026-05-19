@@ -159,6 +159,12 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_empty_schedule() {
+        let err = validate_cron_schedule_expr("   ").unwrap_err();
+        assert!(err.contains("5 or 6 fields"), "{err}");
+    }
+
+    #[test]
     fn validate_rejects_garbage_schedule() {
         let err = validate_cron_schedule_expr("not a cron").unwrap_err();
         assert!(err.contains("5 or 6 fields"), "{err}");
