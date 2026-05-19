@@ -32,6 +32,20 @@ struct WfInput {
     prompt: String,
 }
 
+/// Decimal IPv4 hostnames (e.g. `2130706433` → 127.0.0.1) bypass dotted-quad checks unless handled here.
+fn parse_domain_as_ip_literal(name: &str) -> Option<std::net::IpAddr> {
+    let name = name.trim();
+    if let Ok(ip) = name.parse::<std::net::IpAddr>() {
+        return Some(ip);
+    }
+    if !name.is_empty() && name.chars().all(|c| c.is_ascii_digit()) {
+        if let Ok(n) = name.parse::<u32>() {
+            return Some(std::net::IpAddr::V4(std::net::Ipv4Addr::from(n.to_be_bytes()));
+        }
+    }
+    None
+}
+
 /// Reject loopback, RFC1918, link-local, and metadata hosts (OpenClaw fetch-guard subset).
 fn fetch_url_host_blocked(url: &url::Url) -> Option<&'static str> {
     if let Some(host) = url.host() {
@@ -42,6 +56,11 @@ fn fetch_url_host_blocked(url: &url::Url) -> Option<&'static str> {
             }
             if lower == "metadata.google.internal" {
                 return Some("metadata host not allowed");
+            }
+            if let Some(ip) = parse_domain_as_ip_literal(name) {
+                if is_blocked_fetch_ip(ip) {
+                    return Some("private or link-local IP not allowed");
+                }
             }
         } else if let url::Host::Ipv4(ip) = host {
             if is_blocked_fetch_ip(std::net::IpAddr::V4(ip)) {
