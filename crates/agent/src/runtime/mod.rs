@@ -1837,6 +1837,12 @@ impl SubAgentExecutor for AgentRuntime {
 #[cfg(test)]
 mod streamed_provider_error_tests {
     #[test]
+    fn detects_rate_limit_in_streamed_json() {
+        let j = r#"{"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}"#;
+        assert!(super::provider_error_from_streamed_assistant_text(j).is_some());
+    }
+
+    #[test]
     fn detects_array_wrapped_google_json() {
         let j = r#"[{"error":{"code":400,"message":"User location is not supported for the API use.","status":"FAILED_PRECONDITION"}}]"#;
         let e = super::provider_error_from_streamed_assistant_text(j).expect("should detect");
