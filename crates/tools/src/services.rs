@@ -118,6 +118,24 @@ pub struct CronJob {
     pub id: String,
     pub schedule: String,
     pub command: String,
+    /// Stable session id for all future runs of this cron job. The scheduler still
+    /// executes independent task ids today; this id is the durable correlation key.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// Future failure routing: `log` (default), `same_channel`, `shell`, `http`.
+    #[serde(default)]
+    pub failure_destination: Option<String>,
+    /// Future tool subset hint: `default`, `read_only`, or a custom profile id.
+    #[serde(default)]
+    pub tool_profile: Option<String>,
+}
+
+/// Optional production fields when creating cron jobs via `CronCreate` or scheduler APIs.
+#[derive(Debug, Clone, Default)]
+pub struct CronJobCreateOptions {
+    pub session_id: Option<String>,
+    pub failure_destination: Option<String>,
+    pub tool_profile: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -222,6 +240,35 @@ impl Default for ToolServices {
 }
 
 impl ToolServices {
+    fn background_state_path(id: Uuid) -> Option<PathBuf> {
+        dirs::home_dir().map(|h| {
+            h.join(".anycode/tasks")
+                .join(id.to_string())
+                .join("state.json")
+        })
+    }
+
+    fn persist_background_state(id: Uuid, status: BackgroundAgentStatus, summary: Option<&str>) {
+        let Some(path) = Self::background_state_path(id) else {
+            return;
+        };
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let body = serde_json::json!({
+            "version": 1,
+            "task_id": id,
+            "kind": "background_agent",
+            "status": status.as_json_str(),
+            "summary": summary.unwrap_or(""),
+            "updated_at": chrono::Utc::now().to_rfc3339(),
+            "diagnostic_only": true,
+        });
+        if let Ok(text) = serde_json::to_string_pretty(&body) {
+            let _ = fs::write(path, text);
+        }
+    }
+
     /// 无编排文件路径（如无 HOME），与 `default()` 相同字段，但可挂接 MCP 延迟门控。
     pub fn new_ephemeral(mcp_defer_allowlist: Option<Arc<Mutex<HashSet<String>>>>) -> Self {
         Self::new_ephemeral_with_skills(mcp_defer_allowlist, Arc::new(SkillCatalog::empty()))
@@ -358,6 +405,7 @@ impl ToolServices {
             .lock()
             .expect("background_agents")
             .insert(id, job.clone());
+        Self::persist_background_state(id, BackgroundAgentStatus::Running, Some("running"));
         job
     }
 
@@ -371,6 +419,7 @@ impl ToolServices {
         if *st == BackgroundAgentStatus::Running {
             *st = BackgroundAgentStatus::Cancelled;
             *j.summary.lock().expect("bg summary") = Some("aborted".into());
+            Self::persist_background_state(id, BackgroundAgentStatus::Cancelled, Some("aborted"));
         }
     }
 
@@ -408,12 +457,16 @@ impl ToolServices {
                 *st = new_status;
                 drop(st);
                 *job.summary.lock().expect("bg summary") = Some(summary);
+                let persisted_summary = job.summary.lock().expect("bg summary").clone();
+                Self::persist_background_state(id, new_status, persisted_summary.as_deref());
             }
             Err(e) => {
                 let mut st = job.status.lock().expect("bg status");
                 *st = BackgroundAgentStatus::Failed;
                 drop(st);
-                *job.summary.lock().expect("bg summary") = Some(e.to_string());
+                let summary = e.to_string();
+                *job.summary.lock().expect("bg summary") = Some(summary.clone());
+                Self::persist_background_state(id, BackgroundAgentStatus::Failed, Some(&summary));
             }
         }
     }
@@ -431,6 +484,8 @@ impl ToolServices {
         }
         *st = BackgroundAgentStatus::Cancelled;
         drop(st);
+        *job.summary.lock().expect("bg summary") = Some("cancelled".into());
+        Self::persist_background_state(id, BackgroundAgentStatus::Cancelled, Some("cancelled"));
         if let Some(a) = job.abort.lock().expect("abort").as_ref() {
             a.abort();
         }
@@ -643,16 +698,41 @@ impl ToolServices {
             .collect()
     }
 
+    /// Optional production fields for new cron jobs (`CronCreate` / scheduler).
     pub fn push_cron(&self, schedule: String, command: String) -> String {
+        self.push_cron_with_options(schedule, command, CronJobCreateOptions::default())
+            .id
+    }
+
+    pub fn push_cron_with_options(
+        &self,
+        schedule: String,
+        command: String,
+        opts: CronJobCreateOptions,
+    ) -> CronJob {
         let id = Uuid::new_v4().to_string();
         let job = CronJob {
             id: id.clone(),
             schedule,
             command,
+            session_id: opts
+                .session_id
+                .filter(|s| !s.trim().is_empty())
+                .or_else(|| Some(Uuid::new_v4().to_string())),
+            failure_destination: Some(
+                opts.failure_destination
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| "log".to_string()),
+            ),
+            tool_profile: Some(
+                opts.tool_profile
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| "default".to_string()),
+            ),
         };
-        self.crons.lock().expect("crons mutex").push(job);
+        self.crons.lock().expect("crons mutex").push(job.clone());
         self.try_persist();
-        id
+        job
     }
 
     pub fn remove_cron(&self, id: &str) -> bool {
@@ -789,6 +869,28 @@ mod orchestration_persist_tests {
         let list = s2.list_tasks();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].subject, "subj");
+    }
+
+    #[test]
+    fn push_cron_with_options_persists_production_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        let s = ToolServices::load_or_new(path).unwrap();
+        let job = s.push_cron_with_options(
+            "0 0 12 * * *".into(),
+            "check health".into(),
+            CronJobCreateOptions {
+                session_id: Some("sess-abc".into()),
+                failure_destination: Some("http".into()),
+                tool_profile: Some("observability".into()),
+            },
+        );
+        assert_eq!(job.session_id.as_deref(), Some("sess-abc"));
+        assert_eq!(job.failure_destination.as_deref(), Some("http"));
+        assert_eq!(job.tool_profile.as_deref(), Some("observability"));
+        let listed = s.list_crons();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, job.id);
     }
 
     #[test]

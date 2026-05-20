@@ -104,6 +104,16 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
             } else {
                 slug
             };
+            for finding in crate::mcp_tool_scan::scan_listed_tools(&slug, mcp.listed_tools()) {
+                tracing::warn!(
+                    target: "anycode_mcp_scan",
+                    server = %finding.server,
+                    tool = %finding.tool,
+                    risk = %finding.risk,
+                    detail = %finding.detail,
+                    "MCP tool scanner finding"
+                );
+            }
             for meta in mcp.listed_tools() {
                 let tn = normalize_name_for_mcp(&meta.name);
                 if tn.is_empty() {

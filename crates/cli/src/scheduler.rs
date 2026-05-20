@@ -3,7 +3,7 @@
 
 use crate::app_config::Config;
 use crate::bootstrap;
-use crate::tasks::{run_single_task_with_tail, ReplSink};
+use crate::tasks::{run_single_task_with_tail, ReplSink, RunTaskOptions};
 use crate::workspace;
 use crate::wx::cron_notify::deliver_cron_to_wechat;
 use crate::wx::WxSender;
@@ -26,7 +26,13 @@ fn cron_runs_log_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".anycode/logs/cron-runs.jsonl"))
 }
 
-fn append_cron_run_log(job_id: &str, fired_at: DateTime<Utc>, status: &str, detail: Option<&str>) {
+fn append_cron_run_log_with_session(
+    job_id: &str,
+    session_id: Option<&str>,
+    fired_at: DateTime<Utc>,
+    status: &str,
+    detail: Option<&str>,
+) {
     let Some(path) = cron_runs_log_path() else {
         return;
     };
@@ -35,6 +41,7 @@ fn append_cron_run_log(job_id: &str, fired_at: DateTime<Utc>, status: &str, deta
     }
     let line = serde_json::json!({
         "job_id": job_id,
+        "session_id": session_id.unwrap_or(""),
         "fired_at": fired_at.to_rfc3339(),
         "status": status,
         "detail": detail.unwrap_or(""),
@@ -240,7 +247,13 @@ pub(crate) async fn run_builtin_scheduler(
                     pj.job.schedule,
                     next
                 );
-                append_cron_run_log(&pj.job.id, next, "started", None);
+                append_cron_run_log_with_session(
+                    &pj.job.id,
+                    pj.job.session_id.as_deref(),
+                    next,
+                    "started",
+                    None,
+                );
                 if let Some(hooks) = &wechat_hooks {
                     deliver_cron_to_wechat(
                         &hooks.data_root,
@@ -266,6 +279,15 @@ pub(crate) async fn run_builtin_scheduler(
                      Your final answer will be pushed to the user's WeChat chat automatically.",
                     pj.job.command
                 );
+                let cron_session_id = pj
+                    .job
+                    .session_id
+                    .as_deref()
+                    .and_then(|s| uuid::Uuid::parse_str(s).ok());
+                let run_options = RunTaskOptions {
+                    session_id: cron_session_id,
+                    tool_profile: pj.job.tool_profile.clone(),
+                };
                 if let Err(e) = run_single_task_with_tail(
                     runtime.as_ref(),
                     &disk,
@@ -278,6 +300,7 @@ pub(crate) async fn run_builtin_scheduler(
                     } else {
                         None
                     },
+                    run_options,
                 )
                 .await
                 {
@@ -287,9 +310,44 @@ pub(crate) async fn run_builtin_scheduler(
                         "cron job {} execution error: {msg}",
                         pj.job.id
                     );
-                    append_cron_run_log(&pj.job.id, next, "error", Some(&msg));
+                    append_cron_run_log_with_session(
+                        &pj.job.id,
+                        pj.job.session_id.as_deref(),
+                        next,
+                        "error",
+                        Some(&msg),
+                    );
+                    let failure_detail = crate::cron_failure::sanitize_failure_detail(&msg);
+                    match pj.job.failure_destination.as_deref() {
+                        Some("same_channel") => {
+                            if let Some(hooks) = &wechat_hooks {
+                                deliver_cron_to_wechat(
+                                    &hooks.data_root,
+                                    &hooks.sender,
+                                    pj.job.command.as_str(),
+                                    &format!("❌ 定时任务失败\n\n{failure_detail}"),
+                                )
+                                .await;
+                            }
+                        }
+                        Some("shell") => {
+                            crate::cron_failure::route_cron_failure_shell(&pj.job, &failure_detail)
+                                .await;
+                        }
+                        Some("http") => {
+                            crate::cron_failure::route_cron_failure_http(&pj.job, &failure_detail)
+                                .await;
+                        }
+                        _ => {}
+                    }
                 } else {
-                    append_cron_run_log(&pj.job.id, next, "ok", captured.trim().get(..200));
+                    append_cron_run_log_with_session(
+                        &pj.job.id,
+                        pj.job.session_id.as_deref(),
+                        next,
+                        "ok",
+                        captured.trim().get(..200),
+                    );
                 }
                 if let Some(hooks) = &wechat_hooks {
                     let body = captured.trim();
@@ -334,6 +392,9 @@ mod tests {
                 id: "j1".into(),
                 schedule: "0 0 9 * * *".into(),
                 command: "ping".into(),
+                session_id: None,
+                failure_destination: None,
+                tool_profile: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -353,6 +414,9 @@ mod tests {
                 id: "j1".into(),
                 schedule: "0 0 9 * * *".into(),
                 command: "ping".into(),
+                session_id: None,
+                failure_destination: None,
+                tool_profile: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -377,6 +441,9 @@ mod tests {
                 id: "j1".into(),
                 schedule: "0 0 9 * * *".into(),
                 command: "ping".into(),
+                session_id: None,
+                failure_destination: None,
+                tool_profile: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -412,6 +479,9 @@ mod tests {
                 id: "j15".into(),
                 schedule: "0 */15 * * * *".into(),
                 command: "tick".into(),
+                session_id: None,
+                failure_destination: None,
+                tool_profile: None,
             },
             schedule: Schedule::from_str("0 */15 * * * *").unwrap(),
         };

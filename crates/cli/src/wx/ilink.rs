@@ -185,6 +185,7 @@ pub struct WxSender {
     api: Arc<WeChatApi>,
     bot_id: String,
     counter: std::sync::atomic::AtomicU64,
+    outbound_log: Option<std::path::PathBuf>,
 }
 
 impl WxSender {
@@ -193,20 +194,60 @@ impl WxSender {
             api,
             bot_id,
             counter: std::sync::atomic::AtomicU64::new(0),
+            outbound_log: None,
         }
     }
 
+    pub fn with_outbound_log(mut self, path: std::path::PathBuf) -> Self {
+        self.outbound_log = Some(path);
+        self
+    }
+
     pub async fn send_text(&self, to_user_id: &str, context_token: &str, text: &str) -> Result<()> {
+        use crate::wx::outbound_queue::{append_outbound_record, OutboundRecord};
+
         let n = self
             .counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let client_id = format!("anycode-{}-{}", chrono::Utc::now().timestamp_millis(), n);
         let msg = build_outbound_text(&self.bot_id, to_user_id, context_token, text, &client_id);
         let mut delay_ms: u64 = 2_000;
+        let mut retry_count = 0u32;
+        if let Some(path) = &self.outbound_log {
+            append_outbound_record(
+                path,
+                &OutboundRecord {
+                    ts: chrono::Utc::now().to_rfc3339(),
+                    channel: "wechat".into(),
+                    to_user_id: to_user_id.to_string(),
+                    status: "pending".into(),
+                    retry_count,
+                    last_error: String::new(),
+                    chars: text.chars().count(),
+                },
+            );
+        }
         for attempt in 0..=3 {
             match self.api.send_message(msg.clone()).await {
-                Ok(()) => return Ok(()),
+                Ok(()) => {
+                    if let Some(path) = &self.outbound_log {
+                        append_outbound_record(
+                            path,
+                            &OutboundRecord {
+                                ts: chrono::Utc::now().to_rfc3339(),
+                                channel: "wechat".into(),
+                                to_user_id: to_user_id.to_string(),
+                                status: "sent".into(),
+                                retry_count,
+                                last_error: String::new(),
+                                chars: text.chars().count(),
+                            },
+                        );
+                    }
+                    return Ok(());
+                }
                 Err(e) if attempt < 3 => {
+                    retry_count += 1;
                     tracing::warn!(
                         attempt = attempt + 1,
                         delay_ms,
@@ -216,7 +257,23 @@ impl WxSender {
                     tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                     delay_ms = (delay_ms * 2).min(30_000);
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    if let Some(path) = &self.outbound_log {
+                        append_outbound_record(
+                            path,
+                            &OutboundRecord {
+                                ts: chrono::Utc::now().to_rfc3339(),
+                                channel: "wechat".into(),
+                                to_user_id: to_user_id.to_string(),
+                                status: "failed".into(),
+                                retry_count,
+                                last_error: e.to_string(),
+                                chars: text.chars().count(),
+                            },
+                        );
+                    }
+                    return Err(e);
+                }
             }
         }
         Ok(())

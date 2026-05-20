@@ -6,6 +6,7 @@
 mod dump_message;
 mod pipeline;
 mod stream_plain;
+mod synthetic;
 mod tool_render;
 mod types;
 mod workspace_draw;
@@ -22,6 +23,7 @@ pub(crate) use pipeline::{
     ctrl_o_fold_cycle, normalize_transcript_global,
 };
 pub(crate) use stream_plain::build_stream_turn_plain;
+pub(crate) use synthetic::synthetic_tool_turn_entries;
 pub(crate) use tool_render::assistant_markdown_meaningful_eq;
 pub(crate) use types::{CollapsibleToolBlock, TranscriptEntry, WorkspaceLiveLayout};
 pub(crate) use workspace_draw::layout_workspace;

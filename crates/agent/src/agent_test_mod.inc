@@ -328,6 +328,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -454,6 +456,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -556,6 +560,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -646,6 +652,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1175,6 +1183,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1334,6 +1344,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1463,6 +1475,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1587,6 +1601,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1763,6 +1779,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1976,6 +1994,8 @@ mod tests {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };

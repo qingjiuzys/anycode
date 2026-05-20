@@ -44,6 +44,7 @@ pub mod mcp_rmcp_session;
 pub mod mcp_session;
 #[cfg(feature = "tools-mcp")]
 mod mcp_stdio;
+mod mcp_tool_scan;
 mod mcp_tools;
 mod mode_tools;
 mod notebook_edit;
@@ -58,10 +59,10 @@ pub use ask_user_question_host::{
     AskUserQuestionRequest, AskUserQuestionResponse,
 };
 pub use catalog::{
-    build_default_registry, build_registry_with_services, explore_plan_tool_names,
-    explore_plan_tool_names_with_skill, general_purpose_tool_names, iter_cli_tool_help,
-    sidebar_tool_lines, validate_default_registry, workspace_assistant_tool_names,
-    DEFAULT_TOOL_IDS, EXPLORE_PLAN_TOOL_IDS,
+    build_default_registry, build_registry_with_services, cron_tool_profile_filters,
+    explore_plan_tool_names, explore_plan_tool_names_with_skill, general_purpose_tool_names,
+    iter_cli_tool_help, sidebar_tool_lines, validate_default_registry,
+    workspace_assistant_tool_names, DEFAULT_TOOL_IDS, EXPLORE_PLAN_TOOL_IDS,
 };
 pub use claude_rules::CompiledClaudePermissionRules;
 pub use cron_schedule::{
@@ -80,6 +81,9 @@ pub use mcp_normalization::{
 pub use mcp_oauth_login::{mcp_oauth_login, McpOAuthLoginError, McpOAuthLoginOptions};
 #[cfg(feature = "tools-mcp")]
 pub use mcp_rmcp_session::McpRmcpSession;
+#[cfg(feature = "tools-mcp")]
+pub use mcp_tool_scan::scan_listed_tools;
+pub use mcp_tool_scan::{scan_tool_entry, McpToolScanFinding};
 pub use registry::build_registry;
 pub use services::{
     read_cron_jobs_from_orchestration_file, CronJob, LspConnectionConfig, ToolRegistryDeps,

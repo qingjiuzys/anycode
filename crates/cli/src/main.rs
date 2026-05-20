@@ -9,6 +9,8 @@ mod channel_task;
 mod cli_args;
 mod commands;
 mod copilot_auth;
+mod cron_failure;
+mod discord_ask;
 mod discord_channel;
 mod i18n;
 mod md_render;
@@ -28,6 +30,7 @@ mod wechat_ilink;
 mod wechat_service;
 mod workspace;
 mod wx;
+mod wx_ask;
 
 use app_config::{load_config_for_session, run_onboard_flow};
 #[cfg(feature = "mcp-oauth")]
@@ -81,7 +84,13 @@ fn tracing_env_filter(repl_quiet: bool, debug: bool) -> EnvFilter {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
+    if let Err(err) = run_cli().await {
+        commands::cli_error::emit_and_exit(&err);
+    }
+}
+
+async fn run_cli() -> anyhow::Result<()> {
     let args = cli_args::parse_args();
 
     // Default interactive terminal / channel bots: keep stdout clean; INFO logs pollute the UI.
@@ -140,6 +149,9 @@ async fn main() -> anyhow::Result<()> {
             run_onboard_flow(args.config.clone(), data_dir, channel, args.debug).await?;
         }
         Some(Commands::Channel { sub }) => match sub {
+            ChannelCommands::Status { channel, json } => {
+                commands::doctor::print_channel(&channel, json)?;
+            }
             ChannelCommands::Wechat {
                 data_dir,
                 run_as_bridge,
@@ -208,6 +220,46 @@ async fn main() -> anyhow::Result<()> {
                     load_config_with_cwd_overlays(args.config.clone(), ignore_approval).await?;
                 commands::memory_import::run_import(&config, dry_run, limit).await?;
             }
+            MemoryCommands::Doctor { json } => {
+                let config =
+                    load_config_with_cwd_overlays(args.config.clone(), ignore_approval).await?;
+                commands::doctor::print_memory(&config, json)?;
+            }
+        },
+        Some(Commands::Eval { sub }) => match sub {
+            cli_args::EvalCommands::List { json } => commands::eval::list(json)?,
+            cli_args::EvalCommands::Run { json, mock } => commands::eval::run(json, mock)?,
+        },
+        Some(Commands::Doctor { sub }) => {
+            let config =
+                load_config_with_cwd_overlays(args.config.clone(), ignore_approval).await?;
+            match sub {
+                cli_args::DoctorCommands::All { json } => {
+                    commands::doctor::print_all(&config, json)?;
+                }
+                cli_args::DoctorCommands::Memory { json } => {
+                    commands::doctor::print_memory(&config, json)?;
+                }
+                cli_args::DoctorCommands::Channel { channel, json } => {
+                    commands::doctor::print_channel(&channel, json)?;
+                }
+                cli_args::DoctorCommands::Mcp { json } => {
+                    commands::doctor::print_mcp(json)?;
+                }
+                cli_args::DoctorCommands::Errors { json } => {
+                    commands::cli_error::print_taxonomy(json)?;
+                }
+            }
+        }
+        Some(Commands::Cron { sub }) => match sub {
+            cli_args::CronCommands::Runs {
+                job,
+                session,
+                limit,
+                json,
+            } => {
+                commands::cron::print_runs(job, session, limit, json)?;
+            }
         },
         Some(Commands::Workspace { sub }) => match sub {
             cli_args::WorkspaceCommands::List { json } => {
@@ -273,9 +325,10 @@ async fn main() -> anyhow::Result<()> {
         Some(Commands::TestSecurity { tool, input }) => {
             tasks::test_security_system(tool, input).await?;
         }
-        #[cfg(feature = "mcp-oauth")]
         Some(Commands::Mcp { sub }) => match sub {
-            McpCommands::OauthLogin {
+            cli_args::McpCommands::Status { json } => commands::mcp::print_status(json)?,
+            #[cfg(feature = "mcp-oauth")]
+            cli_args::McpCommands::OauthLogin {
                 url,
                 host,
                 port,

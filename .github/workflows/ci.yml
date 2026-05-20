@@ -37,6 +37,12 @@ jobs:
       - name: cargo test (tools-mcp)
         run: cargo test -p anycode-tools --features tools-mcp
 
+      - name: Build release binary
+        run: cargo build --release -p anycode
+
+      - name: Eval harness (mock scenarios)
+        run: python3 scripts/eval/run.py --with-mock
+
   docs:
     runs-on: ubuntu-latest
     steps:

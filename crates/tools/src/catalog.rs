@@ -130,6 +130,97 @@ pub const SECURITY_SENSITIVE_TOOL_IDS: &[&str] = &[
 
 pub const EXPLORE_PLAN_TOOL_IDS: [&str; 4] = [TOOL_FILE_READ, TOOL_GLOB, TOOL_GREP, TOOL_BASH];
 
+/// Tools denied when a cron job uses the `read_only` profile.
+pub const CRON_READ_ONLY_DENIED_TOOL_IDS: &[&str] = &[
+    TOOL_FILE_WRITE,
+    TOOL_BASH,
+    TOOL_EDIT,
+    TOOL_NOTEBOOK_EDIT,
+    TOOL_TODO_WRITE,
+    TOOL_POWERSHELL,
+    TOOL_AGENT,
+    TOOL_LEGACY_TASK_AGENT,
+    TOOL_TASK_CREATE,
+    TOOL_TASK_UPDATE,
+    TOOL_TASK_STOP,
+    TOOL_TEAM_CREATE,
+    TOOL_TEAM_DELETE,
+    TOOL_CRON_CREATE,
+    TOOL_CRON_DELETE,
+    TOOL_REMOTE_TRIGGER,
+    TOOL_ENTER_PLAN,
+    TOOL_EXIT_PLAN,
+    TOOL_ENTER_WORKTREE,
+    TOOL_EXIT_WORKTREE,
+    TOOL_REPL,
+    TOOL_CONFIG,
+    TOOL_MCP,
+    TOOL_MCP_AUTH,
+    TOOL_SEND_MESSAGE,
+    TOOL_LSP,
+];
+
+/// Tools allowed when a cron job uses the `observability` profile (monitoring-only).
+pub const CRON_OBSERVABILITY_ALLOWED_TOOL_IDS: &[&str] = &[
+    TOOL_FILE_READ,
+    TOOL_GLOB,
+    TOOL_GREP,
+    TOOL_WEB_FETCH,
+    TOOL_WEB_SEARCH,
+    TOOL_TASK_LIST,
+    TOOL_TASK_GET,
+    TOOL_TASK_OUTPUT,
+    TOOL_CRON_LIST,
+];
+
+/// Known persisted cron tool profiles (`CronJob.tool_profile` / `CronCreate`).
+pub fn known_cron_tool_profiles() -> &'static [&'static str] {
+    &["default", "read_only", "observability"]
+}
+
+pub fn is_known_cron_tool_profile(profile: &str) -> bool {
+    known_cron_tool_profiles().contains(&profile.trim())
+}
+
+/// Known failure routing targets for cron jobs.
+pub fn known_cron_failure_destinations() -> &'static [&'static str] {
+    &["log", "same_channel", "shell", "http"]
+}
+
+pub fn is_known_cron_failure_destination(dest: &str) -> bool {
+    known_cron_failure_destinations().contains(&dest.trim())
+}
+
+/// Resolve per-cron tool deny lists from `CronJob.tool_profile`.
+pub fn cron_tool_profile_filters(profile: Option<&str>) -> (Vec<String>, Vec<String>) {
+    match profile.map(str::trim).filter(|s| !s.is_empty()) {
+        None | Some("default") => (vec![], vec![]),
+        Some("read_only") => (
+            CRON_READ_ONLY_DENIED_TOOL_IDS
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect(),
+            vec!["mcp__".to_string()],
+        ),
+        Some("observability") => {
+            let deny: Vec<String> = DEFAULT_TOOL_IDS
+                .iter()
+                .filter(|id| !CRON_OBSERVABILITY_ALLOWED_TOOL_IDS.contains(id))
+                .map(|s| (*s).to_string())
+                .collect();
+            (deny, vec!["mcp__".to_string()])
+        }
+        Some(other) => {
+            tracing::warn!(
+                target: "anycode_tools",
+                profile = other,
+                "unknown cron tool_profile; using default tool surface"
+            );
+            (vec![], vec![])
+        }
+    }
+}
+
 pub fn general_purpose_tool_names() -> Vec<ToolName> {
     DEFAULT_TOOL_IDS.iter().map(|s| (*s).to_string()).collect()
 }
@@ -279,6 +370,28 @@ pub fn sidebar_tool_lines() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cron_observability_profile_allows_task_list_only_subset() {
+        let (names, prefixes) = cron_tool_profile_filters(Some("observability"));
+        assert!(!names.iter().any(|n| n == "TaskList"));
+        assert!(!names.iter().any(|n| n == "CronList"));
+        assert!(names.iter().any(|n| n == "Bash"));
+        assert!(prefixes.iter().any(|p| p == "mcp__"));
+    }
+
+    #[test]
+    fn known_cron_profiles_include_observability() {
+        assert!(is_known_cron_tool_profile("observability"));
+        assert!(!is_known_cron_tool_profile("custom"));
+    }
+
+    #[test]
+    fn cron_read_only_profile_denies_bash_and_mcp_prefix() {
+        let (names, prefixes) = cron_tool_profile_filters(Some("read_only"));
+        assert!(names.iter().any(|n| n == "Bash"));
+        assert!(prefixes.iter().any(|p| p == "mcp__"));
+    }
 
     #[test]
     fn explore_plan_subset_of_default() {

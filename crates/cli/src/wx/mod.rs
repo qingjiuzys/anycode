@@ -8,6 +8,7 @@ mod config_watch;
 pub(crate) mod cron_notify;
 mod fields;
 mod ilink;
+pub(crate) mod outbound_queue;
 mod permission;
 mod store;
 

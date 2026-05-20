@@ -58,31 +58,40 @@
 
 ---
 
-## 4. 下一迭代（2026-05，OpenClaw 5.19 对标后）
+## 4. 生产级下一阶段（2026-05 起）
 
-**2026-05 已交付**（原 §4 槽位 1–2、4–7）：OpenClaw 对标简报、流式 REPL resize 不变量、DeepSeek `anyOf` schema 规范化、stream→chat fallback transcript、pipeline 向量 WARN、[`cron-runs.jsonl`](cron-observability.md) + `CronCreate` 校验。详见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)。
+**方向切换**：OpenClaw 5.19 parity 的短线修补已基本完成；下一阶段按生产级能力推进，避免继续以 provider alias / 小单测数量作为主目标。每个 Epic 的完成定义必须包含：用户场景、失败场景、targeted tests、日志/诊断入口、文档/CHANGELOG、禁用或回滚边界。
 
-| # | 轨 | 主题 | 完成定义（简） |
-|---|-----|------|----------------|
-| 1 | Channels | **Weixin 2.4.3 跟踪** | 插件 CHANGELOG 与 Rust 桥差异表；高优项可开 issue（[`weixin-plugin-parity.md`](weixin-plugin-parity.md)） |
-| 2 | Providers | **Catalog 定期 diff** | 对照 OpenClaw 5.x 新增 provider id / 别名（5.19 已补 doubao/gemini、deepseek-ai、x-ai 等 kebab）；Z.ai manifest |
-| 3 | Security | **WebFetch 续** | DNS 解析后私网拦截 + 十进制 IPv4 主机名 **Done**（2026-05-19）；高级 rebinding 仍 **Later** |
-| 4 | Automation | **Cron IANA tz** | **Done**（2026-05-20）：`CronCreate` 支持 IANA 墙钟→UTC（`local` / `utc` / `utc0` 仍可用） |
-| 5 | Testing | **cli_smoke 隔离** | line REPL 冒烟用 temp `memory.backend=noop`，避免与运行中 bridge 争用 `memory.sled` **Done**（2026-05-19） |
+| # | Epic | 主题 | 完成定义（简） |
+|---|------|------|----------------|
+| A | Eval / Release | **可重复评测与发布验收** | `anycode eval` 最小场景、mock LLM / fixture repo、release readiness 文档；CI 分层 |
+| B | Security / Tools | **工具治理控制面** | `tool-calls.jsonl` 审计、WebFetch/MCP sanitizer 与 scanner、Bash env policy |
+| C | Agent Runtime | **长任务与持久后台诊断** | overflow single-retry、compaction checkpoint metadata、background task state |
+| D | MCP / LSP | **受控 MCP 与工具生态** | `doctor mcp` / `mcp status`、ADR 007 controlled reconnect、resource UX |
+| E | Automation / Cron | **可审计自动化** | stable cron session、`cron runs` 查询、failure destination、per-job tool profile |
+| F | Channels | **IM 生产可靠性** | WeChat parity closure、Discord / WeChat AskUserQuestion、outbound queue、`channel status` |
+| G | Memory / Terminal / Ops | **上下文、终端与诊断** | evidence index、memory doctor、transcript 负载模型、error taxonomy、doctor 命令 |
 
-**仍开放（不占 §4 槽位）**：MCP 受控重连实现（[ADR 007](adr/007-mcp-session-reconnect-policy.md)）；跨进程后台 Agent（§5）。
+**2026-05 已交付**：OpenClaw 对标简报、流式 REPL resize 不变量、DeepSeek `anyOf` schema 规范化、stream→chat fallback transcript、pipeline 向量 WARN、[`cron-runs.jsonl`](cron-observability.md)、`CronCreate` 校验 + IANA 时区、WebFetch 私网/DNS/redirect 防护、provider kebab 别名、微信出站重试、cli_smoke 隔离。详见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)。
+
+### 4.1 执行顺序
+
+1. **Epic A** 先行：评测 harness 会约束后续大改，避免只靠 `cargo test --workspace`。
+2. **Epic B + D** 第二批：工具/MCP 是生产风险面，先做审计和诊断，再做 reconnect。
+3. **Epic C** 第三批：overflow retry 与 durable state，不承诺一步到位恢复执行。
+4. **Epic E + F** 第四批：cron stable session、WeChat / Discord 可靠性。
+5. **Epic G** 收束 release candidate：memory evidence、terminal 负载模型、doctor / release readiness。
 
 ---
 
 ## 5. 后续（Later）
 
-- **跨进程 / 持久后台 Agent**：独立 spike / ADR。  
-- **Compaction checkpoint**（CLI 快照，无 Web UI）。  
-- **Telegram 可选 draft 工具进度**（默认关）。  
-- **Discord / 微信 AskUserQuestion**（[ADR 008](adr/008-channel-ask-user-question-phasing.md)）。  
-- **memory-wiki / dreaming** 子集 — 需 spike。  
-- **Transcript 虚拟滚动（ADR 006）**：见 [`term-smoothness-baseline.md`](term-smoothness-baseline.md)。  
-- **会话 rewind（ADR 004）/ `/clear`（ADR 005）**。  
+- **真正恢复执行的跨进程后台 Agent**：先完成 diagnostic state，再决定是否恢复执行。
+- **Telegram 可选 draft 工具进度**（默认关）。
+- **memory-wiki / dreaming 全栈**：仍不做；只保留 graph memory spike。
+- **Transcript 虚拟滚动（ADR 006）**：先跑负载模型，再实现。
+- **会话 rewind（ADR 004）/ `/clear`（ADR 005）**：先统一语义，再改快照。
+- **Webhook / TaskFlow / SQLite ledger**：除非 cron 使用场景明确，不复制 Gateway。
 - **`crates/onboard`** — 单独决议。
 
 ---

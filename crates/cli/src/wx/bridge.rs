@@ -77,8 +77,16 @@ pub async fn run_wechat_daemon(
         account.bot_token.clone(),
         account.base_url.clone(),
     ));
-    let sender = Arc::new(WxSender::new(api.clone(), account.account_id.clone()));
+    let sender = Arc::new(
+        WxSender::new(api.clone(), account.account_id.clone()).with_outbound_log(
+            crate::wx::outbound_queue::wechat_outbound_log_path(&data_root),
+        ),
+    );
     let broker = PermissionBroker::new(account.account_id.clone());
+    let qbroker = Arc::new(crate::wx_ask::WechatQuestionBroker::new());
+    let ask_host =
+        crate::wx_ask::WechatAskUserQuestionHost::new(Arc::clone(&qbroker), sender.clone())
+            .into_arc();
 
     let session_arc = Arc::new(Mutex::new(session));
     let wcc_arc = Arc::new(Mutex::new(wcc.clone()));
@@ -98,7 +106,7 @@ pub async fn run_wechat_daemon(
     // 通道模式与 Telegram/Discord 一致：工具走自动策略（无终端交互审批）。
     // `WechatApprovalGate` 仍用于会话路由与其它微信侧逻辑。
     let runtime = Arc::new(RwLock::new(
-        initialize_runtime(app_config, None, None)
+        initialize_runtime(app_config, None, Some(ask_host.clone()))
             .await
             .context("initialize_runtime")?,
     ));
@@ -115,6 +123,7 @@ pub async fn run_wechat_daemon(
         config_file: config_file.clone(),
         ignore_approval,
         last_config_mtime: Arc::clone(&last_config_mtime),
+        ask_user_question_host: Some(ask_host),
     };
     if let Ok(p) = resolve_config_path(config_file.clone()) {
         spawn_config_file_watcher(reload.clone(), p);
@@ -137,6 +146,7 @@ pub async fn run_wechat_daemon(
         wx_turn_cancel,
         gate,
         broker: broker_for_state,
+        qbroker,
         runtime,
         reload,
         sender,
@@ -192,6 +202,7 @@ struct BridgeState {
     wx_turn_cancel: Arc<StdMutex<Option<Arc<AtomicBool>>>>,
     gate: WechatApprovalGate,
     broker: crate::wx::permission::PermissionBroker,
+    qbroker: Arc<crate::wx_ask::WechatQuestionBroker>,
     /// 与 `config.json` 同步；热更新时整实例替换，进行中任务仍持有旧 `Arc`。
     runtime: Arc<RwLock<Arc<AgentRuntime>>>,
     reload: ConfigReloadHandle,
@@ -316,6 +327,7 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
                 wx_turn_cancel: st.wx_turn_cancel.clone(),
                 gate: st.gate.clone(),
                 broker: st.broker.clone(),
+                qbroker: st.qbroker.clone(),
                 runtime: st.runtime.clone(),
                 reload: st.reload.clone(),
                 sender: st.sender.clone(),
@@ -347,6 +359,10 @@ async fn handle_message(
     );
     let (body, media_item) = extract_user_text_and_image_item(&items);
     let cmd = first_plain_text_from_items(&items);
+
+    if st.qbroker.try_resolve_numeric(&from_user_id, &body).await {
+        return Ok(());
+    }
 
     let mut session = st.session_arc.lock().await;
     let wcc = st.wcc_arc.lock().await.clone();
@@ -652,11 +668,18 @@ async fn run_agent_pipeline(
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
 
-        let result = rt.execute_task(task).await;
+        let result = crate::wx_ask::with_wechat_task_scope(
+            from_user_id.clone(),
+            context_token.clone(),
+            rt.execute_task(task),
+        )
+        .await;
         *wx_turn_cancel_slot.lock().unwrap() = None;
         rt.sync_memory_durability();
         gate.set_active_chat(None).await;

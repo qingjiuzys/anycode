@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Cron + scheduler semantics shared by WeChat, Telegram, Discord channel agents.
-fn telegram_ask_user_question_hint(channel_name: &str) -> &'static str {
-    if channel_name == "telegram" {
-        "\n\n## Telegram AskUserQuestion\nWhen you call AskUserQuestion, the user chooses via inline buttons. Prefer that tool over asking for free-form replies; if the UI fails, the user may still reply with a digit 1–N matching the listed options."
-    } else {
-        ""
+fn channel_ask_user_question_hint(channel_name: &str) -> &'static str {
+    match channel_name {
+        "telegram" => "\n\n## Telegram AskUserQuestion\nWhen you call AskUserQuestion, the user chooses via inline buttons. Prefer that tool over asking for free-form replies; if the UI fails, the user may still reply with a digit 1–N matching the listed options.",
+        "discord" => "\n\n## Discord AskUserQuestion\nWhen you call AskUserQuestion, the user receives numbered options and replies with a digit 1–N.",
+        "wechat" => "\n\n## WeChat AskUserQuestion\nWhen you call AskUserQuestion, the user receives numbered options and replies with a digit 1–N in chat.",
+        _ => "",
     }
 }
 
@@ -62,7 +63,7 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
             system_prompt_append: Some(format!(
                 "## Channel Runtime\nchannel={}\nchannel_id={}\nuser_id={}\nFor channel requests, prefer concise, directly actionable answers and avoid UI-only instructions.{}\n\n{}",
                 input.channel_name, input.channel_id, input.user_id,
-                telegram_ask_user_question_hint(input.channel_name),
+                channel_ask_user_question_hint(input.channel_name),
                 im_channel_cron_scheduling_hint(),
             )),
             context_injections: vec![format!(
@@ -74,6 +75,8 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
         },
         created_at: chrono::Utc::now(),
     }

@@ -57,15 +57,26 @@ fn mcp_tool_visible_to_llm(name: &str, gating: &AgentClaudeToolGating) -> bool {
     g.lock().map(|set| set.contains(name)).unwrap_or(false)
 }
 
-/// Apply deny regexes, Claude blanket deny, MCP defer allowlist, then stable ordering.
+/// Apply deny regexes, Claude blanket deny, MCP defer allowlist, per-task deny lists, then stable ordering.
 pub(crate) fn prepare_tool_names_for_llm(
     names: Vec<ToolName>,
     tool_name_deny: &[Regex],
     gating: &AgentClaudeToolGating,
+    extra_deny_names: &[String],
+    extra_deny_prefixes: &[String],
 ) -> Vec<ToolName> {
     let names: Vec<_> = names
         .into_iter()
         .filter(|n| {
+            if extra_deny_names.iter().any(|d| d == n) {
+                return false;
+            }
+            if extra_deny_prefixes
+                .iter()
+                .any(|prefix| !prefix.is_empty() && n.starts_with(prefix))
+            {
+                return false;
+            }
             if tool_name_deny.iter().any(|re| re.is_match(n)) {
                 return false;
             }
@@ -191,8 +202,37 @@ mod tests {
         let re = Regex::new("^mcp__").unwrap();
         let names = vec!["Glob".to_string(), "mcp__a".to_string()];
         let gating = AgentClaudeToolGating::default();
-        let out = prepare_tool_names_for_llm(names, std::slice::from_ref(&re), &gating);
+        let out = prepare_tool_names_for_llm(names, std::slice::from_ref(&re), &gating, &[], &[]);
         assert_eq!(out, vec!["Glob".to_string()]);
+    }
+
+    #[test]
+    fn prepare_applies_cron_observability_extra_deny() {
+        let reg = reg_with(&["FileRead", "Bash", "TaskList", "CronList", "mcp__srv__tool"]);
+        let names = resolve_agent_tool_names("general-purpose", vec![], &reg);
+        let (deny_names, deny_prefixes) =
+            anycode_tools::cron_tool_profile_filters(Some("observability"));
+        let gating = AgentClaudeToolGating::default();
+        let out = prepare_tool_names_for_llm(names, &[], &gating, &deny_names, &deny_prefixes);
+        assert!(out.contains(&"FileRead".to_string()));
+        assert!(out.contains(&"TaskList".to_string()));
+        assert!(out.contains(&"CronList".to_string()));
+        assert!(!out.iter().any(|n| n == "Bash"));
+        assert!(!out.iter().any(|n| n.starts_with("mcp__")));
+    }
+
+    #[test]
+    fn prepare_applies_cron_read_only_extra_deny() {
+        let reg = reg_with(&["FileRead", "Bash", "Glob", "mcp__srv__tool"]);
+        let names = resolve_agent_tool_names("general-purpose", vec![], &reg);
+        let (deny_names, deny_prefixes) =
+            anycode_tools::cron_tool_profile_filters(Some("read_only"));
+        let gating = AgentClaudeToolGating::default();
+        let out = prepare_tool_names_for_llm(names, &[], &gating, &deny_names, &deny_prefixes);
+        assert!(out.contains(&"FileRead".to_string()));
+        assert!(out.contains(&"Glob".to_string()));
+        assert!(!out.iter().any(|n| n == "Bash"));
+        assert!(!out.iter().any(|n| n.starts_with("mcp__")));
     }
 
     #[test]

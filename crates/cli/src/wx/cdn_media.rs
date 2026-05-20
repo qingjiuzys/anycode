@@ -868,7 +868,7 @@ mod tests {
     #[test]
     fn pkcs7_unpad_valid_block() {
         let mut block = vec![0u8; 16];
-        for (i, b) in block.iter_mut().enumerate().take(12) {
+        for b in block.iter_mut().take(12) {
             *b = b'x';
         }
         for b in block.iter_mut().skip(12) {

@@ -494,6 +494,15 @@ struct CronIn {
     /// `local`（默认）：`schedule` 按本机墙钟理解并转为 UTC 存储；`utc`：字段已是 UTC。
     #[serde(default = "default_cron_tz")]
     schedule_timezone: String,
+    /// Stable session correlation id for all future runs (auto-generated when omitted).
+    #[serde(default)]
+    session_id: Option<String>,
+    /// Failure routing: `log` (default), `same_channel`, `shell`, `http`.
+    #[serde(default)]
+    failure_destination: Option<String>,
+    /// Tool surface profile: `default`, `read_only`, or `observability`.
+    #[serde(default)]
+    tool_profile: Option<String>,
 }
 
 fn default_cron_tz() -> String {
@@ -530,7 +539,8 @@ impl Tool for CronCreateTool {
          Default `schedule_timezone` is `local` (wall clock on this machine, stored as UTC for the built-in scheduler). \
          Use `utc` only if you already converted to UTC, or an IANA name (e.g. `Asia/Shanghai`) for wall clock in that zone. \
          `command` runs as one agent task when the scheduler holds ~/.anycode/tasks/scheduler.lock \
-         (WeChat bridge embeds it). For WeChat reminders, say in `command` that the assistant must notify the user clearly."
+         (WeChat bridge embeds it). For WeChat reminders, say in `command` that the assistant must notify the user clearly. \
+         Optional `session_id`, `failure_destination` (`log`|`same_channel`|`shell`|`http`), and `tool_profile` (`default`|`read_only`|`observability`)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -541,6 +551,18 @@ impl Tool for CronCreateTool {
                 "schedule_timezone": {
                     "type": "string",
                     "description": "local (default): machine wall clock; utc: schedule already UTC; or IANA e.g. Asia/Shanghai"
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Stable session correlation id for all future runs (auto-generated when omitted)"
+                },
+                "failure_destination": {
+                    "type": "string",
+                    "description": "log (default), same_channel, shell, or http"
+                },
+                "tool_profile": {
+                    "type": "string",
+                    "description": "default, read_only, or observability"
                 }
             },
             "required": ["schedule", "command"]
@@ -605,14 +627,53 @@ impl Tool for CronCreateTool {
                 }
             }
         };
-        let id = self.services.push_cron(stored_schedule.clone(), c.command);
+        if let Some(ref profile) = c.tool_profile {
+            if !crate::catalog::is_known_cron_tool_profile(profile) {
+                return Ok(ToolOutput {
+                    result: json!({
+                        "error": format!(
+                            "unsupported tool_profile: {profile}; use one of {}",
+                            crate::catalog::known_cron_tool_profiles().join(", ")
+                        )
+                    }),
+                    error: Some("unsupported tool_profile".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
+        if let Some(ref dest) = c.failure_destination {
+            if !crate::catalog::is_known_cron_failure_destination(dest) {
+                return Ok(ToolOutput {
+                    result: json!({
+                        "error": format!(
+                            "unsupported failure_destination: {dest}; use one of {}",
+                            crate::catalog::known_cron_failure_destinations().join(", ")
+                        )
+                    }),
+                    error: Some("unsupported failure_destination".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
+        let job = self.services.push_cron_with_options(
+            stored_schedule.clone(),
+            c.command,
+            crate::services::CronJobCreateOptions {
+                session_id: c.session_id,
+                failure_destination: c.failure_destination,
+                tool_profile: c.tool_profile,
+            },
+        );
         let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&stored_schedule);
         let (next_utc_s, next_local_s) = next_utc
             .map(crate::cron_schedule::format_next_fire_human)
             .unwrap_or_else(|| ("unknown".into(), "unknown".into()));
         Ok(ToolOutput {
             result: json!({
-                "job_id": id,
+                "job_id": job.id,
+                "session_id": job.session_id,
+                "failure_destination": job.failure_destination,
+                "tool_profile": job.tool_profile,
                 "schedule_stored_utc": stored_schedule,
                 "schedule_timezone_applied": tz_note,
                 "next_fire_utc": next_utc_s,

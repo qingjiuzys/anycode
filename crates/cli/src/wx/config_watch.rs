@@ -24,6 +24,7 @@ pub(crate) struct ConfigReloadHandle {
     pub config_file: Option<PathBuf>,
     pub ignore_approval: bool,
     pub last_config_mtime: Arc<StdMutex<Option<SystemTime>>>,
+    pub ask_user_question_host: Option<anycode_tools::AskUserQuestionHostArc>,
 }
 
 /// `config.json` 保存后 mtime 变化则重建 `AgentRuntime`（与 notify 共用同一套 mtime 去重）。
@@ -62,7 +63,7 @@ pub(crate) async fn reload_runtime_if_config_changed(handle: &ConfigReloadHandle
             }
         };
     apply_wechat_bridge_no_tool_approval(&mut cfg);
-    let new_rt = match initialize_runtime(&cfg, None, None).await {
+    let new_rt = match initialize_runtime(&cfg, None, handle.ask_user_question_host.clone()).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(

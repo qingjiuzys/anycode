@@ -3,6 +3,7 @@
 use super::AgentRuntime;
 use crate::compact::{self, CompactionPostContext, CompactionPreContext, SessionCompactionState};
 use anycode_core::prelude::*;
+use std::sync::Arc;
 
 impl AgentRuntime {
     /// 会话压缩（Claude Code `/compact`）：折叠为 `[system, compact_summary_user]`。
@@ -56,6 +57,33 @@ impl AgentRuntime {
                 compacted_messages: &mut out,
                 state: &mut compaction_state,
             })?;
+        compact::append_compaction_checkpoint(session, &out, "manual_compact");
         Ok((out, usage))
+    }
+
+    /// One-shot overflow recovery: compact in place and replace `messages`.
+    pub(crate) async fn recover_from_context_overflow(
+        &self,
+        task_id: TaskId,
+        agent_type: &AgentType,
+        working_directory: &str,
+        messages: &Arc<tokio::sync::Mutex<Vec<Message>>>,
+    ) -> Result<(), CoreError> {
+        let snapshot = { messages.lock().await.clone() };
+        if snapshot.len() < 2 {
+            return Err(CoreError::LLMError(
+                "context overflow with insufficient messages to compact".into(),
+            ));
+        }
+        self.log_task_line(
+            task_id,
+            "[overflow_recovery] compacting session after context overflow",
+        );
+        let (compacted, _) = self
+            .compact_session_messages(agent_type, working_directory, &snapshot, None, true, None)
+            .await?;
+        compact::append_compaction_checkpoint(&snapshot, &compacted, "overflow_recovery");
+        *messages.lock().await = compacted;
+        Ok(())
     }
 }

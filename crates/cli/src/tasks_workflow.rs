@@ -95,6 +95,7 @@ pub(super) async fn run_workflow_definition(
                     working_dir.to_path_buf(),
                     &mut sink,
                     None,
+                    crate::tasks::RunTaskOptions::default(),
                 )
                 .await
             };
@@ -158,6 +159,7 @@ pub(super) async fn run_workflow_definition(
                     working_dir.to_path_buf(),
                     &mut sink,
                     None,
+                    crate::tasks::RunTaskOptions::default(),
                 )
                 .await?;
             }

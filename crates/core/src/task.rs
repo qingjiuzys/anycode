@@ -51,6 +51,12 @@ pub struct TaskContext {
     /// 可选：工具进度短行（如微信桥）；`execute_task` 在工具开始/结束时 **try-send** UTF-8 行。
     #[serde(skip, default)]
     pub channel_progress_tx: Option<UnboundedSender<String>>,
+    /// Per-task extra tool names to hide from the LLM (e.g. cron `read_only` profile).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_deny_names: Vec<String>,
+    /// Per-task tool name prefixes to hide (e.g. `mcp__` for cron read-only).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_deny_prefixes: Vec<String>,
 }
 
 /// Parameters for [`crate::SubAgentExecutor::run_nested_task`] (Claude Code `Agent` / `Task` tool parity).

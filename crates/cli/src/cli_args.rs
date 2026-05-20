@@ -188,6 +188,24 @@ pub(crate) enum Commands {
         sub: MemoryCommands,
     },
 
+    /// 🧪  Production eval harness (mock scenarios; no real API key)
+    Eval {
+        #[command(subcommand)]
+        sub: EvalCommands,
+    },
+
+    /// 🩺  Diagnose local anyCode runtime state
+    Doctor {
+        #[command(subcommand)]
+        sub: DoctorCommands,
+    },
+
+    /// ⏱️  Inspect persisted cron jobs and run ledger
+    Cron {
+        #[command(subcommand)]
+        sub: CronCommands,
+    },
+
     /// 🚀  First-time setup: model → memory / embeddings (TTY) → channel (wechat / telegram / discord) or skip
     Setup {
         /// Channel: wechat, telegram, discord, or skip/none to skip (optional)
@@ -221,8 +239,7 @@ pub(crate) enum Commands {
         input: String,
     },
 
-    /// 🔌  MCP helpers (e.g. OAuth login; build with `--features mcp-oauth`)
-    #[cfg(feature = "mcp-oauth")]
+    /// 🔌  MCP helpers (status always; OAuth login needs `--features mcp-oauth`)
     Mcp {
         #[command(subcommand)]
         sub: McpCommands,
@@ -231,6 +248,15 @@ pub(crate) enum Commands {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum ChannelCommands {
+    /// Print local channel bridge status hints (credentials, last cron target, scheduler lock)
+    Status {
+        /// Channel name: wechat / telegram / discord / all
+        #[arg(default_value = "all")]
+        channel: String,
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// WeChat: scan to bind; installs login autostart bridge on success
     Wechat {
         /// Data directory (default ~/.anycode/wechat; `WCC_DATA_DIR` for legacy wechat-claude-code paths)
@@ -289,10 +315,15 @@ pub(crate) enum ChannelCommands {
     },
 }
 
-#[cfg(feature = "mcp-oauth")]
 #[derive(Subcommand, Debug)]
 pub(crate) enum McpCommands {
+    /// Print MCP env/policy diagnostics (no live server connection required)
+    Status {
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// Browser OAuth for remote MCP; prints access token (for ANYCODE_MCP_SERVERS `bearer_token`)
+    #[cfg(feature = "mcp-oauth")]
     OauthLogin {
         /// MCP endpoint URL, e.g. https://example.com/mcp
         #[arg(long)]
@@ -378,6 +409,87 @@ pub(crate) enum MemoryCommands {
         /// Maximum number of memories to import (across all types)
         #[arg(long)]
         limit: Option<usize>,
+    },
+    /// Diagnose configured memory paths and common lock/vector issues
+    Doctor {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum EvalCommands {
+    /// List built-in production readiness scenarios
+    List {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Run the built-in eval scenarios that do not require real provider credentials
+    Run {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+        /// Also run mock-LLM fixture repo task (local TCP mock; nightly/CI extended set)
+        #[arg(long, default_value_t = false)]
+        mock: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum DoctorCommands {
+    /// Run all lightweight local diagnostics
+    All {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Diagnose memory backend state
+    Memory {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Diagnose channel bridge state
+    Channel {
+        /// Channel name: wechat / telegram / discord / all
+        #[arg(default_value = "all")]
+        channel: String,
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Diagnose MCP configuration and lifecycle policy
+    Mcp {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Print structured CLI error taxonomy reference
+    Errors {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum CronCommands {
+    /// Print recent scheduler run ledger entries from ~/.anycode/logs/cron-runs.jsonl
+    Runs {
+        /// Filter by job id
+        #[arg(long)]
+        job: Option<String>,
+        /// Filter by stable cron session id
+        #[arg(long)]
+        session: Option<String>,
+        /// Maximum rows to print
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 }
 

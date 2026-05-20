@@ -205,7 +205,16 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
     .unwrap_or_else(|_| PathBuf::from("."));
     let working_directory = workdir.to_string_lossy().to_string();
 
-    let runtime = initialize_runtime(&config, None, None)
+    let client = Client::new();
+    let qbroker = Arc::new(crate::discord_ask::DiscordQuestionBroker::new());
+    let ask_host = crate::discord_ask::DiscordAskUserQuestionHost::new(
+        Arc::clone(&qbroker),
+        client.clone(),
+        token.clone(),
+        channel_id.clone(),
+    )
+    .into_arc();
+    let runtime = initialize_runtime(&config, None, Some(ask_host))
         .await
         .context("initialize runtime for discord")?;
     let runtime_for_sched = Arc::new(tokio::sync::RwLock::new(Arc::clone(&runtime)));
@@ -234,7 +243,7 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
             );
         }
     });
-    let client = Client::new();
+    let qbroker_for_poll = Arc::clone(&qbroker);
     let mut last_seen: Option<String> = None;
     println!(
         "discord bridge started (polling channel {}). Press Ctrl+C to stop.",
@@ -299,19 +308,28 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
             if content.is_empty() {
                 continue;
             }
+            if qbroker_for_poll
+                .try_resolve_numeric(&channel_id, &content)
+                .await
+            {
+                continue;
+            }
             let user_id = m
                 .get("author")
                 .and_then(|a| a.get("id"))
                 .and_then(|x| x.as_str())
                 .unwrap_or("unknown")
                 .to_string();
-            let out = execute_prompt(
-                &runtime,
-                &args.agent,
-                &working_directory,
-                &channel_id,
-                &user_id,
-                content,
+            let out = crate::discord_ask::with_discord_channel_scope(
+                channel_id.clone(),
+                execute_prompt(
+                    &runtime,
+                    &args.agent,
+                    &working_directory,
+                    &channel_id,
+                    &user_id,
+                    content,
+                ),
             )
             .await;
             runtime.sync_memory_durability();

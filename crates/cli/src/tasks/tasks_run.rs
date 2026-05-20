@@ -13,6 +13,19 @@ use uuid::Uuid;
 use super::tasks_sink::ReplSink;
 use super::workflow_exec::run_workflow_path;
 
+/// Optional knobs for headless single-task runs (cron, workflows).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RunTaskOptions {
+    pub session_id: Option<Uuid>,
+    pub tool_profile: Option<String>,
+}
+
+impl RunTaskOptions {
+    pub(crate) fn tool_filters(&self) -> (Vec<String>, Vec<String>) {
+        anycode_tools::cron_tool_profile_filters(self.tool_profile.as_deref())
+    }
+}
+
 /// `execute_task` 已将总结逐行写入磁盘 tail；若再原样 `sink.line(output)` 会与流式 stdout 叠一份。
 fn streamed_log_already_contains_output(streamed: &str, output: &str) -> bool {
     let o = output.trim();
@@ -60,6 +73,7 @@ pub(crate) async fn run_task(
         working_dir,
         &mut sink,
         None,
+        RunTaskOptions::default(),
     )
     .await
 }
@@ -74,6 +88,7 @@ pub(crate) async fn run_single_task_with_tail(
     working_dir: PathBuf,
     sink: &mut ReplSink,
     capture_output: Option<&mut String>,
+    options: RunTaskOptions,
 ) -> anyhow::Result<()> {
     info!("Running task with agent: {}", agent_type);
     info!("Working directory: {:?}", working_dir);
@@ -81,12 +96,15 @@ pub(crate) async fn run_single_task_with_tail(
 
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
 
+    let (tool_deny_names, tool_deny_prefixes) = options.tool_filters();
+    let session_id = options.session_id.unwrap_or_else(Uuid::new_v4);
+
     let task = Task {
         id: Uuid::new_v4(),
         agent_type: AgentType::new(agent_type),
         prompt,
         context: TaskContext {
-            session_id: Uuid::new_v4(),
+            session_id,
             working_directory: working_dir.to_string_lossy().to_string(),
             environment: HashMap::new(),
             user_id: None,
@@ -97,6 +115,8 @@ pub(crate) async fn run_single_task_with_tail(
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            tool_deny_names,
+            tool_deny_prefixes,
         },
         created_at: chrono::Utc::now(),
     };
@@ -256,6 +276,8 @@ fn build_task(
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            tool_deny_names: vec![],
+            tool_deny_prefixes: vec![],
         },
         created_at: chrono::Utc::now(),
     }

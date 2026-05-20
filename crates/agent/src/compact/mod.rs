@@ -5,6 +5,7 @@
 
 #![allow(unused_imports)] // barrel `pub use`，供 `crate::compact::` / `anycode_agent::` 与 `hooks` 子模块使用
 
+mod checkpoint;
 mod hooks;
 mod microcompact;
 mod policy;
@@ -12,6 +13,7 @@ mod post_compact;
 mod snippets;
 mod state;
 
+pub use checkpoint::append_compaction_checkpoint;
 pub use hooks::{
     CompactionHooks, CompactionPostContext, CompactionPreContext, DefaultCompactionHooks,
 };

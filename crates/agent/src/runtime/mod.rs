@@ -1,6 +1,7 @@
 //! Agent 运行时（LLM + 工具循环、落盘、回执）。
 
 mod artifacts;
+mod evidence;
 mod limits;
 mod logging;
 mod nested_worktree;
@@ -8,7 +9,9 @@ mod receipt;
 mod session;
 mod session_notify;
 mod task_summary;
+mod tool_audit;
 mod tool_gating;
+mod tool_output_sanitize;
 mod tool_surface;
 
 mod runtime_options;
@@ -255,6 +258,30 @@ fn provider_error_from_streamed_assistant_text(text: &str) -> Option<String> {
         ));
     }
     None
+}
+
+fn error_indicates_context_overflow(msg: &str) -> bool {
+    let l = msg.to_ascii_lowercase();
+    [
+        "context_length_exceeded",
+        "context length exceeded",
+        "maximum context length",
+        "prompt is too long",
+        "prompt too long",
+        "too many tokens",
+        "token limit",
+        "context window",
+        "max context",
+    ]
+    .iter()
+    .any(|needle| l.contains(needle))
+}
+
+fn core_error_is_context_overflow(err: &CoreError) -> bool {
+    match err {
+        CoreError::LLMError(s) => error_indicates_context_overflow(s),
+        _ => false,
+    }
 }
 
 /// Agent 运行时
@@ -738,6 +765,8 @@ impl AgentRuntime {
             raw,
             &self.tool_name_deny,
             &self.claude_gating,
+            &[],
+            &[],
         );
         let tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
         drop(tools);
@@ -773,142 +802,41 @@ impl AgentRuntime {
                 ),
             );
 
-            let t0 = std::time::Instant::now();
-            let messages_snapshot = {
-                let g = messages.lock().await;
-                g.clone()
-            };
-            // Prefer streaming: TUI can render deltas incrementally via shared `messages`.
-            // Fallback to non-stream chat if streaming is not supported / fails.
-            let mut tool_calls: Vec<ToolCall> = vec![];
-            let mut streamed = false;
-            let assistant_id = Uuid::new_v4();
-            let mut stream_usage: Option<Usage> = None;
-
-            // Insert an empty assistant message first so UI can show deltas as they arrive.
-            {
-                let mut g = messages.lock().await;
-                g.push(Message {
-                    id: assistant_id,
-                    role: MessageRole::Assistant,
-                    content: MessageContent::Text(String::new()),
-                    timestamp: chrono::Utc::now(),
-                    metadata: HashMap::new(),
-                });
-            }
-
-            let stream_open = self.llm_client.chat_stream(
-                messages_snapshot.clone(),
-                tool_schemas.clone(),
-                &model_config,
-            );
-            let stream_open = tokio::select! {
-                biased;
-                () = coop_flag_wait_opt(coop_cancel.clone()) => {
-                    pop_assistant_placeholder(&messages, assistant_id).await;
-                    logger.line(
-                        task_id,
-                        "[llm_response_end] status=cancelled reason=cooperative_in_flight",
-                    );
-                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::CooperativeCancel);
-                }
-                r = stream_open => r,
-            };
-
-            if let Ok(mut rx) = stream_open {
-                streamed = true;
-                let mut received_any = false;
-                let mut stream_cancelled = false;
-                loop {
-                    tokio::select! {
-                        biased;
-                        () = coop_flag_wait_opt(coop_cancel.clone()) => {
-                            stream_cancelled = true;
-                            break;
-                        }
-                        ev = rx.recv() => {
-                            match ev {
-                                None => break,
-                                Some(ev) => match ev {
-                                    StreamEvent::Delta(d) => {
-                                        if !d.is_empty() {
-                                            received_any = true;
-                                            let mut g = messages.lock().await;
-                                            if let Some(last) = g.last_mut() {
-                                                if last.id == assistant_id {
-                                                    if let MessageContent::Text(t) = &mut last.content {
-                                                        t.push_str(&d);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    StreamEvent::ToolCall(tc) => {
-                                        received_any = true;
-                                        tool_calls.push(tc)
-                                    }
-                                    StreamEvent::Usage(u) => {
-                                        received_any = true;
-                                        stream_usage = Some(u);
-                                    }
-                                    StreamEvent::Done => break,
-                                },
-                            }
-                        }
-                    }
-                }
-                if stream_cancelled {
-                    pop_assistant_placeholder(&messages, assistant_id).await;
-                    logger.line(
-                        task_id,
-                        "[llm_response_end] status=cancelled reason=cooperative_in_flight",
-                    );
-                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::CooperativeCancel);
-                }
-                if !received_any {
-                    streamed = false;
-                }
-            }
-
-            // If streaming didn't work, do the normal one-shot request and replace the placeholder assistant message.
-            let response = if streamed {
-                // Rehydrate a response-like tuple from current message + tool_calls.
-                let assistant_msg = {
+            let mut overflow_retried_this_turn = false;
+            let llm_t0 = std::time::Instant::now();
+            let (response, llm_streamed) = 'llm_attempt: loop {
+                let messages_snapshot = {
                     let g = messages.lock().await;
-                    g.iter()
-                        .rev()
-                        .find(|m| m.id == assistant_id)
-                        .cloned()
-                        .unwrap_or(Message {
-                            id: assistant_id,
-                            role: MessageRole::Assistant,
-                            content: MessageContent::Text(String::new()),
-                            timestamp: chrono::Utc::now(),
-                            metadata: HashMap::new(),
-                        })
+                    g.clone()
                 };
-                LLMResponse {
-                    message: assistant_msg,
-                    tool_calls,
-                    usage: stream_usage.unwrap_or_else(|| Usage {
-                        input_tokens: estimate_input_tokens_for_messages(&messages_snapshot),
-                        output_tokens: 0,
-                        cache_creation_tokens: None,
-                        cache_read_tokens: None,
-                    }),
+                // Prefer streaming: TUI can render deltas incrementally via shared `messages`.
+                // Fallback to non-stream chat if streaming is not supported / fails.
+                let mut tool_calls: Vec<ToolCall> = vec![];
+                let mut streamed = false;
+                let assistant_id = Uuid::new_v4();
+                let mut stream_usage: Option<Usage> = None;
+
+                // Insert an empty assistant message first so UI can show deltas as they arrive.
+                {
+                    let mut g = messages.lock().await;
+                    g.push(Message {
+                        id: assistant_id,
+                        role: MessageRole::Assistant,
+                        content: MessageContent::Text(String::new()),
+                        timestamp: chrono::Utc::now(),
+                        metadata: HashMap::new(),
+                    });
                 }
-            } else {
-                // Stream did not produce a final message: drop placeholder before non-stream
-                // chat so we never leave a stale assistant row (OpenClaw 5.19 failover parity).
-                pop_assistant_placeholder(&messages, assistant_id).await;
-                let chat_fut =
-                    self.llm_client
-                        .chat(messages_snapshot, tool_schemas.clone(), &model_config);
-                let r = tokio::select! {
+
+                let stream_open = self.llm_client.chat_stream(
+                    messages_snapshot.clone(),
+                    tool_schemas.clone(),
+                    &model_config,
+                );
+                let stream_open = tokio::select! {
                     biased;
                     () = coop_flag_wait_opt(coop_cancel.clone()) => {
+                        pop_assistant_placeholder(&messages, assistant_id).await;
                         logger.line(
                             task_id,
                             "[llm_response_end] status=cancelled reason=cooperative_in_flight",
@@ -916,13 +844,180 @@ impl AgentRuntime {
                         logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
                         return Err(CoreError::CooperativeCancel);
                     }
-                    res = chat_fut => res?,
+                    r = stream_open => r,
                 };
-                {
-                    let mut g = messages.lock().await;
-                    g.push(r.message.clone());
+
+                if let Ok(mut rx) = stream_open {
+                    streamed = true;
+                    let mut received_any = false;
+                    let mut stream_cancelled = false;
+                    loop {
+                        tokio::select! {
+                            biased;
+                            () = coop_flag_wait_opt(coop_cancel.clone()) => {
+                                stream_cancelled = true;
+                                break;
+                            }
+                            ev = rx.recv() => {
+                                match ev {
+                                    None => break,
+                                    Some(ev) => match ev {
+                                        StreamEvent::Delta(d) => {
+                                            if !d.is_empty() {
+                                                received_any = true;
+                                                let mut g = messages.lock().await;
+                                                if let Some(last) = g.last_mut() {
+                                                    if last.id == assistant_id {
+                                                        if let MessageContent::Text(t) = &mut last.content {
+                                                            t.push_str(&d);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        StreamEvent::ToolCall(tc) => {
+                                            received_any = true;
+                                            tool_calls.push(tc)
+                                        }
+                                        StreamEvent::Usage(u) => {
+                                            received_any = true;
+                                            stream_usage = Some(u);
+                                        }
+                                        StreamEvent::Done => break,
+                                    },
+                                }
+                            }
+                        }
+                    }
+                    if stream_cancelled {
+                        pop_assistant_placeholder(&messages, assistant_id).await;
+                        logger.line(
+                            task_id,
+                            "[llm_response_end] status=cancelled reason=cooperative_in_flight",
+                        );
+                        logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                        return Err(CoreError::CooperativeCancel);
+                    }
+                    if !received_any {
+                        streamed = false;
+                    }
                 }
-                r
+
+                // If streaming didn't work, do the normal one-shot request and replace the placeholder assistant message.
+                let response = if streamed {
+                    // Rehydrate a response-like tuple from current message + tool_calls.
+                    let assistant_msg = {
+                        let g = messages.lock().await;
+                        g.iter()
+                            .rev()
+                            .find(|m| m.id == assistant_id)
+                            .cloned()
+                            .unwrap_or(Message {
+                                id: assistant_id,
+                                role: MessageRole::Assistant,
+                                content: MessageContent::Text(String::new()),
+                                timestamp: chrono::Utc::now(),
+                                metadata: HashMap::new(),
+                            })
+                    };
+                    LLMResponse {
+                        message: assistant_msg,
+                        tool_calls,
+                        usage: stream_usage.unwrap_or_else(|| Usage {
+                            input_tokens: estimate_input_tokens_for_messages(&messages_snapshot),
+                            output_tokens: 0,
+                            cache_creation_tokens: None,
+                            cache_read_tokens: None,
+                        }),
+                    }
+                } else {
+                    // Stream did not produce a final message: drop placeholder before non-stream
+                    // chat so we never leave a stale assistant row (OpenClaw 5.19 failover parity).
+                    pop_assistant_placeholder(&messages, assistant_id).await;
+                    let chat_fut = self.llm_client.chat(
+                        messages_snapshot,
+                        tool_schemas.clone(),
+                        &model_config,
+                    );
+                    let r = tokio::select! {
+                        biased;
+                        () = coop_flag_wait_opt(coop_cancel.clone()) => {
+                            logger.line(
+                                task_id,
+                                "[llm_response_end] status=cancelled reason=cooperative_in_flight",
+                            );
+                            logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
+                            return Err(CoreError::CooperativeCancel);
+                        }
+                        res = chat_fut => match res {
+                            Ok(r) => r,
+                            Err(e) if !overflow_retried_this_turn && core_error_is_context_overflow(&e) => {
+                                overflow_retried_this_turn = true;
+                                self.recover_from_context_overflow(
+                                    task_id,
+                                    agent_type,
+                                    working_directory,
+                                    &messages,
+                                )
+                                .await?;
+                                continue 'llm_attempt;
+                            }
+                            Err(e) => return Err(e),
+                        },
+                    };
+                    {
+                        let mut g = messages.lock().await;
+                        g.push(r.message.clone());
+                    }
+                    r
+                };
+
+                let raw_assistant_probe = match &response.message.content {
+                    MessageContent::Text(t) => t.as_str(),
+                    _ => "",
+                };
+                let text_probe = strip_llm_reasoning_xml_blocks(raw_assistant_probe);
+                if response.tool_calls.is_empty() {
+                    if let Some(err) = provider_error_from_streamed_assistant_text(&text_probe)
+                        .or_else(|| {
+                            provider_error_from_streamed_assistant_text(raw_assistant_probe)
+                        })
+                    {
+                        if !overflow_retried_this_turn && error_indicates_context_overflow(&err) {
+                            overflow_retried_this_turn = true;
+                            {
+                                let mut g = messages.lock().await;
+                                if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
+                                    g.pop();
+                                }
+                            }
+                            self.recover_from_context_overflow(
+                                task_id,
+                                agent_type,
+                                working_directory,
+                                &messages,
+                            )
+                            .await?;
+                            continue 'llm_attempt;
+                        }
+                        logger.line(
+                            task_id,
+                            &format!(
+                                "[llm_response_end] status=stream_error_as_body turn={} detail={}",
+                                turn, err
+                            ),
+                        );
+                        {
+                            let mut g = messages.lock().await;
+                            if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
+                                g.pop();
+                            }
+                        }
+                        logger.line(task_id, "[task_end] status=failed");
+                        return Err(CoreError::LLMError(err));
+                    }
+                }
+                break (response, streamed);
             };
 
             turn_usage.max_input_tokens =
@@ -937,10 +1032,10 @@ impl AgentRuntime {
                 &format!(
                     "[llm_response_end] turn={} elapsed_ms={} input_tokens={} output_tokens={} streamed={}",
                     turn,
-                    t0.elapsed().as_millis(),
+                    llm_t0.elapsed().as_millis(),
                     response.usage.input_tokens,
                     response.usage.output_tokens,
-                    streamed
+                    llm_streamed
                 ),
             );
 
@@ -966,27 +1061,6 @@ impl AgentRuntime {
                 _ => "",
             };
             let text = strip_llm_reasoning_xml_blocks(raw_assistant);
-            if response.tool_calls.is_empty() {
-                let stream_err = provider_error_from_streamed_assistant_text(&text)
-                    .or_else(|| provider_error_from_streamed_assistant_text(raw_assistant));
-                if let Some(err) = stream_err {
-                    logger.line(
-                        task_id,
-                        &format!(
-                            "[llm_response_end] status=stream_error_as_body turn={} detail={}",
-                            turn, err
-                        ),
-                    );
-                    {
-                        let mut g = messages.lock().await;
-                        if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
-                            g.pop();
-                        }
-                    }
-                    logger.line(task_id, "[task_end] status=failed");
-                    return Err(CoreError::LLMError(err));
-                }
-            }
             if !text.trim().is_empty() {
                 last_assistant_text = text;
             }
@@ -1090,6 +1164,8 @@ impl AgentRuntime {
                 } else {
                     format!("{}", tool_result.result)
                 };
+                let (tool_text, sanitize_report) =
+                    tool_output_sanitize::sanitize_tool_output(&tool_text);
                 let (tool_text, truncated) = truncate_text(tool_text, TOOL_RESULT_MAX_BYTES);
                 if truncated {
                     logger.line(
@@ -1102,11 +1178,24 @@ impl AgentRuntime {
                 }
 
                 let for_hook = tool_text.clone();
+                evidence::append_tool_evidence(task_id, &tool_call.name, &for_hook);
                 let mut metadata = HashMap::new();
                 metadata.insert(
                     "tool_name".to_string(),
                     serde_json::Value::String(tool_call.name.clone()),
                 );
+                if sanitize_report.redacted_secret_patterns > 0 {
+                    metadata.insert(
+                        "sanitizer_redacted".to_string(),
+                        serde_json::json!(sanitize_report.redacted_secret_patterns),
+                    );
+                }
+                if sanitize_report.marked_prompt_injection {
+                    metadata.insert(
+                        "sanitizer_prompt_injection".to_string(),
+                        serde_json::Value::Bool(true),
+                    );
+                }
 
                 {
                     let mut g = messages.lock().await;
@@ -1192,6 +1281,8 @@ impl AgentRuntime {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };
@@ -1322,6 +1413,8 @@ impl AgentRuntime {
             raw,
             &self.tool_name_deny,
             &self.claude_gating,
+            &task.context.tool_deny_names,
+            &task.context.tool_deny_prefixes,
         );
         let tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
         drop(tools);
@@ -1525,6 +1618,8 @@ impl AgentRuntime {
                 } else {
                     format!("{}", tool_result.result)
                 };
+                let (tool_text, sanitize_report) =
+                    tool_output_sanitize::sanitize_tool_output(&tool_text);
                 let (tool_text, truncated) = truncate_text(tool_text, TOOL_RESULT_MAX_BYTES);
                 if truncated {
                     logger.line(
@@ -1541,6 +1636,18 @@ impl AgentRuntime {
                     "tool_name".to_string(),
                     serde_json::Value::String(tool_call.name.clone()),
                 );
+                if sanitize_report.redacted_secret_patterns > 0 {
+                    tool_meta.insert(
+                        "sanitizer_redacted".to_string(),
+                        serde_json::json!(sanitize_report.redacted_secret_patterns),
+                    );
+                }
+                if sanitize_report.marked_prompt_injection {
+                    tool_meta.insert(
+                        "sanitizer_prompt_injection".to_string(),
+                        serde_json::Value::Bool(true),
+                    );
+                }
                 messages.push(Message {
                     id: Uuid::new_v4(),
                     role: MessageRole::Tool,
@@ -1697,6 +1804,14 @@ impl AgentRuntime {
         working_directory: &str,
         tool_call: &ToolCall,
     ) -> Result<ToolOutput, CoreError> {
+        tool_audit::append_tool_audit(
+            task_id,
+            "pre_check",
+            working_directory,
+            tool_call,
+            "pending",
+            None,
+        );
         let tools = self.tools.read().await;
         let tool = tools
             .get(&tool_call.name)
@@ -1709,6 +1824,14 @@ impl AgentRuntime {
         {
             Ok(_) => {}
             Err(CoreError::PermissionDenied(reason)) => {
+                tool_audit::append_tool_audit(
+                    task_id,
+                    "policy",
+                    working_directory,
+                    tool_call,
+                    "denied",
+                    Some(&reason),
+                );
                 self.log_task_line(
                     task_id,
                     &format!("[tool_denied] name={} reason={}", tool_call.name, reason),
@@ -1732,6 +1855,14 @@ impl AgentRuntime {
                     let reason =
                         "Permission deny rule matched (tool arguments matched ruleContent)"
                             .to_string();
+                    tool_audit::append_tool_audit(
+                        task_id,
+                        "policy",
+                        working_directory,
+                        tool_call,
+                        "denied",
+                        Some(&reason),
+                    );
                     self.log_task_line(
                         task_id,
                         &format!("[tool_denied] name={} reason={}", tool_call.name, reason),
@@ -1755,6 +1886,14 @@ impl AgentRuntime {
                         {
                             Ok(()) => {}
                             Err(CoreError::PermissionDenied(reason)) => {
+                                tool_audit::append_tool_audit(
+                                    task_id,
+                                    "approval",
+                                    working_directory,
+                                    tool_call,
+                                    "denied",
+                                    Some(&reason),
+                                );
                                 self.log_task_line(
                                     task_id,
                                     &format!(
@@ -1786,7 +1925,38 @@ impl AgentRuntime {
             sandbox_mode: self.sandbox_mode,
         };
 
-        tool.execute(input).await
+        tool_audit::append_tool_audit(
+            task_id,
+            "execute",
+            working_directory,
+            tool_call,
+            "allowed",
+            None,
+        );
+        let out = tool.execute(input).await;
+        match &out {
+            Ok(o) => tool_audit::append_tool_audit(
+                task_id,
+                "result",
+                working_directory,
+                tool_call,
+                if o.error.is_some() {
+                    "tool_error"
+                } else {
+                    "ok"
+                },
+                o.error.as_deref(),
+            ),
+            Err(e) => tool_audit::append_tool_audit(
+                task_id,
+                "result",
+                working_directory,
+                tool_call,
+                "runtime_error",
+                Some(&e.to_string()),
+            ),
+        }
+        out
     }
 }
 
@@ -1825,6 +1995,8 @@ impl SubAgentExecutor for AgentRuntime {
                 nested_worktree_path: wt_roots.as_ref().map(|(_, p)| p.clone()),
                 nested_cancel: invoke.cancel.clone(),
                 channel_progress_tx: None,
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
             },
             created_at: chrono::Utc::now(),
         };

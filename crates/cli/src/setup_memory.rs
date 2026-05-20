@@ -243,12 +243,14 @@ fn interactive_memory_step(cfg: &mut AnyCodeConfig) -> anyhow::Result<bool> {
     use dialoguer::Select;
 
     let theme = ColorfulTheme::default();
-    let mut prompt_items = vec![
+    let prompt_items = vec![
         tr("setup-memory-opt-skip"),
         tr("setup-memory-opt-noop"),
         tr("setup-memory-opt-markdown"),
         tr("setup-memory-opt-remote-vector"),
     ];
+    #[cfg(feature = "embedding-local")]
+    let mut prompt_items = prompt_items;
     #[cfg(feature = "embedding-local")]
     prompt_items.push(tr("setup-memory-opt-local-vector"));
 
