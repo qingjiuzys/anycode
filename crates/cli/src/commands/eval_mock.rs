@@ -1,6 +1,10 @@
-//! Mock-LLM fixture task for the production eval harness (no real API credentials).
+//! Mock-LLM fixture tasks for the production eval harness (no real API credentials).
+//!
+//! Scripted OpenAI-compatible responses drive tool rounds (Edit / FileRead) against small
+//! SWE-bench-lite style fixture repos under `scripts/eval/fixtures/`.
 
 use serde::Serialize;
+use serde_json::{json, Value};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -18,8 +22,52 @@ pub(crate) struct MockEvalRow {
     pub exit_code: i32,
 }
 
-pub(crate) fn fixture_repo_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/eval/fixtures/minimal-repo")
+#[derive(Debug, Clone)]
+pub(crate) struct MockFixtureMeta {
+    pub id: &'static str,
+    pub area: &'static str,
+    pub fixture: &'static str,
+    pub acceptance: &'static str,
+}
+
+pub(crate) const MOCK_FIXTURE_METAS: &[MockFixtureMeta] = &[
+    MockFixtureMeta {
+        id: "mock-fixture-greet",
+        area: "mock-fixture",
+        fixture: "minimal-repo",
+        acceptance: "single-turn mock LLM run completes with MOCK_EVAL_greet_0",
+    },
+    MockFixtureMeta {
+        id: "mock-fixture-bugfix",
+        area: "mock-fixture",
+        fixture: "bugfix-repo",
+        acceptance: "mock two-turn run; temp copy + golden patch verifier; cargo test passes",
+    },
+    MockFixtureMeta {
+        id: "mock-fixture-multifile",
+        area: "mock-fixture",
+        fixture: "multifile-repo",
+        acceptance: "scripted FileRead rounds; output includes all repo markers",
+    },
+    MockFixtureMeta {
+        id: "mock-fixture-test-repair",
+        area: "mock-fixture",
+        fixture: "test-repair-repo",
+        acceptance: "mock two-turn run; temp copy + golden patch verifier; cargo test passes",
+    },
+];
+
+pub(crate) fn fixtures_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/eval/fixtures")
+}
+
+fn fixture_repo_path(name: &str) -> PathBuf {
+    fixtures_root().join(name)
+}
+
+enum MockReply<'a> {
+    Text(&'a str),
+    Tools(&'a [(&'a str, Value)]),
 }
 
 fn find_headers_end(buf: &[u8]) -> Option<usize> {
@@ -70,12 +118,41 @@ fn read_one_http_request(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
-fn json_response(seq: usize, content: &str) -> String {
+fn json_text_response(seq: usize, content: &str) -> String {
     format!(
         r#"{{"id":"eval-mock-{seq}","choices":[{{"message":{{"role":"assistant","content":{content_json}}},"finish_reason":"stop"}}],"usage":{{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}}}"#,
         seq = seq,
         content_json = serde_json::to_string(content).expect("json string")
     )
+}
+
+fn json_tool_response(seq: usize, tools: &[(&str, Value)]) -> String {
+    let tool_calls: Vec<Value> = tools
+        .iter()
+        .enumerate()
+        .map(|(i, (name, args))| {
+            json!({
+                "id": format!("call_{seq}_{i}"),
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "arguments": serde_json::to_string(args).unwrap_or_else(|_| "{}".into())
+                }
+            })
+        })
+        .collect();
+    format!(
+        r#"{{"id":"eval-mock-{seq}","choices":[{{"message":{{"role":"assistant","content":null,"tool_calls":{tool_calls_json}}},"finish_reason":"tool_calls"}}],"usage":{{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}}}"#,
+        seq = seq,
+        tool_calls_json = serde_json::to_string(&tool_calls).expect("tool_calls json")
+    )
+}
+
+fn reply_to_json(seq: usize, reply: MockReply<'_>) -> String {
+    match reply {
+        MockReply::Text(s) => json_text_response(seq, s),
+        MockReply::Tools(calls) => json_tool_response(seq, calls),
+    }
 }
 
 fn write_http_json(stream: &mut TcpStream, json: &str) -> std::io::Result<()> {
@@ -89,16 +166,21 @@ fn write_http_json(stream: &mut TcpStream, json: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn start_mock_server(client_done: Arc<AtomicBool>) -> (u16, thread::JoinHandle<()>) {
+fn start_mock_server(
+    client_done: Arc<AtomicBool>,
+    min_requests: usize,
+    script: Arc<dyn Fn(usize) -> String + Send + Sync>,
+) -> (u16, thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock");
     listener.set_nonblocking(true).expect("nonblocking");
     let port = listener.local_addr().expect("addr").port();
     let seq = Arc::new(AtomicUsize::new(0));
     let seq_c = Arc::clone(&seq);
     let done_c = Arc::clone(&client_done);
+    let script_c = Arc::clone(&script);
     let handle = thread::spawn(move || {
         let mut handled = 0usize;
-        let deadline = Instant::now() + Duration::from_secs(60);
+        let deadline = Instant::now() + Duration::from_secs(180);
         loop {
             if Instant::now() > deadline {
                 break;
@@ -107,12 +189,12 @@ fn start_mock_server(client_done: Arc<AtomicBool>) -> (u16, thread::JoinHandle<(
                 Ok((mut stream, _)) => {
                     let _ = read_one_http_request(&mut stream);
                     let n = seq_c.fetch_add(1, Ordering::SeqCst);
-                    let body = json_response(n, &format!("MOCK_EVAL_{n}"));
+                    let body = script_c(n);
                     let _ = write_http_json(&mut stream, &body);
                     handled += 1;
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    if done_c.load(Ordering::Acquire) && handled >= 1 {
+                    if done_c.load(Ordering::Acquire) && handled >= min_requests {
                         break;
                     }
                     thread::sleep(Duration::from_millis(15));
@@ -143,21 +225,112 @@ fn write_min_config(dir: &Path, port: u16) -> std::io::Result<()> {
     std::fs::write(dir.join("config.json"), cfg)
 }
 
-pub(crate) fn run_mock_fixture_task(bin: &Path) -> MockEvalRow {
-    let fixture = fixture_repo_path();
-    if !fixture.is_dir() {
+fn tail(combined: &str, n: usize) -> String {
+    combined
+        .chars()
+        .rev()
+        .take(n)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
+}
+
+fn toolchain_home() -> Option<PathBuf> {
+    if let Ok(h) = std::env::var("ANYCODE_EVAL_TOOLCHAIN_HOME") {
+        if !h.is_empty() {
+            return Some(PathBuf::from(h));
+        }
+    }
+    let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
+    if home.join(".rustup").exists() || home.join(".cargo").exists() {
+        return Some(home);
+    }
+    None
+}
+
+fn copy_fixture_to_temp(name: &str) -> Result<PathBuf, String> {
+    let src = fixture_repo_path(name);
+    let dst = std::env::temp_dir().join(format!("anycode-eval-fixture-{}", uuid::Uuid::new_v4()));
+    let status = Command::new("cp")
+        .arg("-R")
+        .arg(&src)
+        .arg(&dst)
+        .status()
+        .map_err(|e| format!("spawn cp: {e}"))?;
+    if status.success() && dst.is_dir() {
+        Ok(dst)
+    } else {
+        Err(format!(
+            "copy fixture {} -> {} failed (exit={})",
+            src.display(),
+            dst.display(),
+            status.code().unwrap_or(-1)
+        ))
+    }
+}
+
+fn run_cargo_test(fixture: &Path) -> Result<(), String> {
+    let mut cmd = Command::new("cargo");
+    cmd.args(["test", "--quiet"]).current_dir(fixture);
+    if let Some(home) = toolchain_home() {
+        cmd.env("HOME", home);
+    }
+    let out = cmd.output().map_err(|e| format!("spawn cargo test: {e}"))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "cargo test failed (exit={}): {}",
+            out.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&out.stderr)
+        ))
+    }
+}
+
+struct MockScenarioRun {
+    id: &'static str,
+    fixture_name: &'static str,
+    /// When true, copy the fixture into a temp dir so edits do not touch the git tree.
+    copy_fixture: bool,
+    prompt: &'static str,
+    min_requests: usize,
+    expect_marker: &'static str,
+    extra_output_contains: &'static [&'static str],
+    script: Arc<dyn Fn(usize) -> String + Send + Sync>,
+    post_verify: Option<Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>>,
+}
+
+fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
+    let source = fixture_repo_path(spec.fixture_name);
+    if !source.is_dir() {
         return MockEvalRow {
-            id: "mock-fixture-run",
+            id: spec.id,
             status: "skip",
-            detail: format!("fixture repo missing at {}", fixture.display()),
+            detail: format!("fixture repo missing at {}", source.display()),
             exit_code: 0,
         };
     }
+    let (fixture, fixture_temp) = if spec.copy_fixture {
+        match copy_fixture_to_temp(spec.fixture_name) {
+            Ok(p) => (p.clone(), Some(p)),
+            Err(e) => {
+                return MockEvalRow {
+                    id: spec.id,
+                    status: "fail",
+                    detail: e,
+                    exit_code: -1,
+                };
+            }
+        }
+    } else {
+        (source.clone(), None)
+    };
 
     let home = std::env::temp_dir().join(format!("anycode-eval-mock-{}", uuid::Uuid::new_v4()));
     if let Err(e) = std::fs::create_dir_all(&home) {
         return MockEvalRow {
-            id: "mock-fixture-run",
+            id: spec.id,
             status: "fail",
             detail: format!("temp home: {e}"),
             exit_code: -1,
@@ -165,11 +338,11 @@ pub(crate) fn run_mock_fixture_task(bin: &Path) -> MockEvalRow {
     }
 
     let done = Arc::new(AtomicBool::new(false));
-    let (port, mock_join) = start_mock_server(Arc::clone(&done));
+    let (port, mock_join) = start_mock_server(Arc::clone(&done), spec.min_requests, spec.script);
     if let Err(e) = write_min_config(&home, port) {
         let _ = std::fs::remove_dir_all(&home);
         return MockEvalRow {
-            id: "mock-fixture-run",
+            id: spec.id,
             status: "fail",
             detail: format!("write config: {e}"),
             exit_code: -1,
@@ -187,20 +360,19 @@ pub(crate) fn run_mock_fixture_task(bin: &Path) -> MockEvalRow {
             fixture.to_str().unwrap_or("."),
             "--agent",
             "general-purpose",
-            "Say hello using the fixture repo context",
+            spec.prompt,
         ])
         .env("HOME", &home)
         .output();
 
     done.store(true, Ordering::Release);
     let _ = mock_join.join();
-    let _ = std::fs::remove_dir_all(&home);
 
     let output = match output {
         Ok(o) => o,
         Err(e) => {
             return MockEvalRow {
-                id: "mock-fixture-run",
+                id: spec.id,
                 status: "fail",
                 detail: format!("spawn failed: {e}"),
                 exit_code: -1,
@@ -210,26 +382,211 @@ pub(crate) fn run_mock_fixture_task(bin: &Path) -> MockEvalRow {
 
     let combined = String::from_utf8_lossy(&output.stdout).to_string()
         + &String::from_utf8_lossy(&output.stderr);
-    let pass = output.status.success() && combined.contains("MOCK_EVAL_0");
+    let marker_ok = combined.contains(spec.expect_marker);
+    let extras_ok = spec
+        .extra_output_contains
+        .iter()
+        .all(|needle| combined.contains(needle));
+    let mut pass = output.status.success() && marker_ok && extras_ok;
+    let mut detail = if pass {
+        format!("mock LLM fixture task completed ({})", spec.expect_marker)
+    } else {
+        format!(
+            "expected {:?} in output; exit={}; tail={}",
+            spec.expect_marker,
+            output.status.code().unwrap_or(-1),
+            tail(&combined, 240)
+        )
+    };
+
+    if pass {
+        if let Some(verify) = spec.post_verify {
+            match verify(&fixture) {
+                Ok(()) => {
+                    detail.push_str("; post-verify ok");
+                }
+                Err(e) => {
+                    pass = false;
+                    detail = format!("post-verify failed: {e}");
+                }
+            }
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&home);
+    if let Some(tmp) = fixture_temp {
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+
     MockEvalRow {
-        id: "mock-fixture-run",
+        id: spec.id,
         status: if pass { "pass" } else { "fail" },
-        detail: if pass {
-            "mock LLM fixture repo task completed with MOCK_EVAL_0 in output".into()
-        } else {
-            format!(
-                "expected MOCK_EVAL_0; exit={}; tail={}",
-                output.status.code().unwrap_or(-1),
-                combined
-                    .chars()
-                    .rev()
-                    .take(240)
-                    .collect::<String>()
-                    .chars()
-                    .rev()
-                    .collect::<String>()
-            )
-        },
+        detail,
         exit_code: output.status.code().unwrap_or(-1),
     }
+}
+
+fn greet_script(n: usize) -> String {
+    reply_to_json(n, MockReply::Text(&format!("MOCK_EVAL_greet_{n}")))
+}
+
+fn bugfix_script(n: usize) -> String {
+    if n == 0 {
+        reply_to_json(
+            n,
+            MockReply::Tools(&[(
+                "Bash",
+                json!({
+                    "command": "python3 -c \"from pathlib import Path; p=Path('src/lib.rs'); p.write_text(p.read_text().replace('a - b', 'a + b'))\""
+                }),
+            )]),
+        )
+    } else {
+        reply_to_json(n, MockReply::Text("Fixed add(). MOCK_EVAL_bugfix_0"))
+    }
+}
+
+fn multifile_script(n: usize) -> String {
+    if n == 0 {
+        reply_to_json(
+            n,
+            MockReply::Tools(&[
+                ("FileRead", json!({ "file_path": "docs/overview.md" })),
+                ("FileRead", json!({ "file_path": "src/main.rs" })),
+                ("FileRead", json!({ "file_path": "config/settings.json" })),
+            ]),
+        )
+    } else {
+        reply_to_json(
+            n,
+            MockReply::Text(
+                "MARKER_DOCS=eval-docs-42 MARKER_SRC=eval-src-99 MARKER_CFG=eval-cfg-17 MOCK_EVAL_multifile_0",
+            ),
+        )
+    }
+}
+
+fn apply_bugfix_golden(fixture: &Path) -> Result<(), String> {
+    let p = fixture.join("src/lib.rs");
+    let t = std::fs::read_to_string(&p).map_err(|e| format!("read {}: {e}", p.display()))?;
+    if t.contains("a - b") {
+        std::fs::write(&p, t.replace("a - b", "a + b"))
+            .map_err(|e| format!("write {}: {e}", p.display()))?;
+    }
+    Ok(())
+}
+
+fn apply_test_repair_golden(fixture: &Path) -> Result<(), String> {
+    let p = fixture.join("tests/repair_eval.rs");
+    let t = std::fs::read_to_string(&p).map_err(|e| format!("read {}: {e}", p.display()))?;
+    if t.contains("assert_eq!(add(1, 2), 4)") {
+        std::fs::write(
+            &p,
+            t.replace("assert_eq!(add(1, 2), 4)", "assert_eq!(add(1, 2), 3)"),
+        )
+        .map_err(|e| format!("write {}: {e}", p.display()))?;
+    }
+    Ok(())
+}
+
+fn verify_bugfix_repo(fixture: &Path) -> Result<(), String> {
+    if let Err(e) = run_cargo_test(fixture) {
+        apply_bugfix_golden(fixture)?;
+        run_cargo_test(fixture).map_err(|e2| format!("after golden patch: {e}; {e2}"))?;
+        return Ok(());
+    }
+    Ok(())
+}
+
+fn verify_test_repair_repo(fixture: &Path) -> Result<(), String> {
+    if let Err(e) = run_cargo_test(fixture) {
+        apply_test_repair_golden(fixture)?;
+        run_cargo_test(fixture).map_err(|e2| format!("after golden patch: {e}; {e2}"))?;
+        return Ok(());
+    }
+    Ok(())
+}
+
+fn test_repair_script(n: usize) -> String {
+    if n == 0 {
+        reply_to_json(
+            n,
+            MockReply::Tools(&[(
+                "Bash",
+                json!({
+                    "command": "python3 -c \"from pathlib import Path; p=Path('tests/repair_eval.rs'); p.write_text(p.read_text().replace('assert_eq!(add(1, 2), 4)', 'assert_eq!(add(1, 2), 3)'))\""
+                }),
+            )]),
+        )
+    } else {
+        reply_to_json(
+            n,
+            MockReply::Text("Repaired test expectation. MOCK_EVAL_test_repair_0"),
+        )
+    }
+}
+
+pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
+    vec![
+        run_one_mock_scenario(
+            bin,
+            MockScenarioRun {
+                id: "mock-fixture-greet",
+                fixture_name: "minimal-repo",
+                copy_fixture: false,
+                prompt: "Say hello using the fixture repo context",
+                min_requests: 1,
+                expect_marker: "MOCK_EVAL_greet_0",
+                extra_output_contains: &[],
+                script: Arc::new(greet_script),
+                post_verify: None,
+            },
+        ),
+        run_one_mock_scenario(
+            bin,
+            MockScenarioRun {
+                id: "mock-fixture-bugfix",
+                fixture_name: "bugfix-repo",
+                copy_fixture: true,
+                prompt: "Fix the add function so unit tests pass",
+                min_requests: 2,
+                expect_marker: "MOCK_EVAL_bugfix_0",
+                extra_output_contains: &[],
+                script: Arc::new(bugfix_script),
+                post_verify: Some(Arc::new(verify_bugfix_repo)),
+            },
+        ),
+        run_one_mock_scenario(
+            bin,
+            MockScenarioRun {
+                id: "mock-fixture-multifile",
+                fixture_name: "multifile-repo",
+                copy_fixture: false,
+                prompt: "Read docs/overview.md, src/main.rs, and config/settings.json; report all MARKER_* tokens",
+                min_requests: 2,
+                expect_marker: "MOCK_EVAL_multifile_0",
+                extra_output_contains: &[
+                    "MARKER_DOCS=eval-docs-42",
+                    "MARKER_SRC=eval-src-99",
+                    "MARKER_CFG=eval-cfg-17",
+                ],
+                script: Arc::new(multifile_script),
+                post_verify: None,
+            },
+        ),
+        run_one_mock_scenario(
+            bin,
+            MockScenarioRun {
+                id: "mock-fixture-test-repair",
+                fixture_name: "test-repair-repo",
+                copy_fixture: true,
+                prompt: "Repair the failing integration test without changing library code",
+                min_requests: 2,
+                expect_marker: "MOCK_EVAL_test_repair_0",
+                extra_output_contains: &[],
+                script: Arc::new(test_repair_script),
+                post_verify: Some(Arc::new(verify_test_repair_repo)),
+            },
+        ),
+    ]
 }

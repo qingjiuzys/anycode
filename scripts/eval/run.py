@@ -71,6 +71,8 @@ def main() -> int:
     if with_mock:
         mock_cmd = [BIN, "eval", "run", "--mock", "--json"]
         env = os.environ.copy()
+        if "ANYCODE_EVAL_TOOLCHAIN_HOME" not in env and "HOME" in env:
+            env["ANYCODE_EVAL_TOOLCHAIN_HOME"] = env["HOME"]
         with tempfile.TemporaryDirectory(prefix="anycode-eval-home-") as home:
             env["HOME"] = home
             p = subprocess.run(
@@ -83,13 +85,21 @@ def main() -> int:
                 timeout=120,
             )
         combined = p.stdout + p.stderr
+        mock_ids = [
+            "mock-fixture-greet",
+            "mock-fixture-bugfix",
+            "mock-fixture-multifile",
+            "mock-fixture-test-repair",
+        ]
         rows.append(
             {
-                "id": "mock-fixture-run",
+                "id": "mock-fixture-scenarios",
                 "command": mock_cmd,
                 "expect": "MOCK_EVAL",
                 "status": "pass"
-                if p.returncode == 0 and "MOCK_EVAL" in combined
+                if p.returncode == 0
+                and "MOCK_EVAL" in combined
+                and all(mid in combined for mid in mock_ids)
                 else "fail",
                 "exit_code": p.returncode,
                 "stdout_tail": p.stdout[-500:],

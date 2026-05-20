@@ -71,6 +71,11 @@ pub(crate) struct ReplLineState {
     pub stream_exec_prev_len: usize,
     /// 本轮写入前 `transcript` 字节偏移（与 worker 侧 `turn_transcript_anchor` 同步）。
     pub stream_exec_transcript_anchor: usize,
+    /// 当前会话 / cron 关联 id（底栏 `sess` / `cron` 片段）。
+    pub stream_session_correlation: Option<String>,
+    pub stream_session_is_cron: bool,
+    /// 已写入 transcript 分节头的关联 id（避免重复 `── session · … ──`）。
+    pub stream_last_section_correlation: Option<String>,
 }
 
 impl Default for ReplLineState {
@@ -104,6 +109,9 @@ impl Default for ReplLineState {
             stream_exec_messages: None,
             stream_exec_prev_len: 0,
             stream_exec_transcript_anchor: 0,
+            stream_session_correlation: None,
+            stream_session_is_cron: false,
+            stream_last_section_correlation: None,
         }
     }
 }

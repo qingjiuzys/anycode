@@ -225,20 +225,24 @@ async fn tg_answer_callback_query(client: &Client, bot_token: &str, query_id: &s
 
 async fn execute_prompt(
     runtime: &Arc<AgentRuntime>,
+    config: &Config,
     agent: &str,
     working_directory: &str,
     chat_id: i64,
     user_id: i64,
     prompt: String,
 ) -> String {
-    let task = build_channel_task(ChannelTaskInput {
-        agent_type: agent.to_string(),
-        prompt,
-        working_directory: working_directory.to_string(),
-        channel_id: chat_id.to_string(),
-        user_id: user_id.to_string(),
-        channel_name: "telegram",
-    });
+    let task = build_channel_task(
+        ChannelTaskInput {
+            agent_type: agent.to_string(),
+            prompt,
+            working_directory: working_directory.to_string(),
+            channel_id: chat_id.to_string(),
+            user_id: user_id.to_string(),
+            channel_name: "telegram",
+        },
+        config,
+    );
     match runtime.execute_task(task).await {
         Ok(TaskResult::Success { output, .. }) => output,
         Ok(TaskResult::Failure { error, details }) => {
@@ -386,6 +390,7 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
             let runtime = runtime.clone();
             let agent = args.agent.clone();
             let working_directory = working_directory.clone();
+            let config_sp = config.clone();
             let bot_token_sp = bot_token.clone();
             let client_sp = client.clone();
             let message_id = msg.message_id;
@@ -395,6 +400,7 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
                     chat_id,
                     execute_prompt(
                         &runtime,
+                        &config_sp,
                         &agent,
                         &working_directory,
                         chat_id,

@@ -176,6 +176,12 @@ pub(crate) struct RuntimeSettings {
     pub(crate) default_mode: RuntimeMode,
     pub(crate) features: FeatureRegistry,
     pub(crate) model_routes: ModelRouteProfile,
+    /// Per-surface tool profiles (`headless` / `ci` / `channel`); see `runtime.tool_policy_profiles`.
+    pub(crate) tool_policy_profiles: anycode_tools::ToolPolicyProfiles,
+    /// Additive tool-name deny list merged into every task (after profile resolution).
+    pub(crate) tool_deny_names: Vec<String>,
+    /// Additive tool-name prefix deny list merged into every task.
+    pub(crate) tool_deny_prefixes: Vec<String>,
     /// 当前工作目录在 `~/.anycode/workspace/projects/index.json` 中匹配到的项目标签（仅内存叠加，不写回全局配置）。
     pub(crate) workspace_project_label: Option<String>,
     /// 同上：项目级通道 profile 提示（如 `web` / `wechat`）。
@@ -697,6 +703,26 @@ fn default_runtime_model_routes() -> ModelRouteProfile {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct ToolPolicyProfilesFile {
+    #[serde(default)]
+    pub(crate) headless: Option<String>,
+    #[serde(default)]
+    pub(crate) ci: Option<String>,
+    #[serde(default)]
+    pub(crate) channel: Option<String>,
+}
+
+impl From<ToolPolicyProfilesFile> for anycode_tools::ToolPolicyProfiles {
+    fn from(f: ToolPolicyProfilesFile) -> Self {
+        Self {
+            headless: f.headless,
+            ci: f.ci,
+            channel: f.channel,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RuntimeSettingsFile {
     #[serde(default = "default_runtime_mode")]
@@ -705,6 +731,15 @@ pub(crate) struct RuntimeSettingsFile {
     pub(crate) enabled_features: Vec<String>,
     #[serde(default = "default_runtime_model_routes")]
     pub(crate) model_routes: ModelRouteProfile,
+    /// Named tool profiles per execution surface (`default`|`read_only`|`observability`|`allowlist`).
+    #[serde(default)]
+    pub(crate) tool_policy_profiles: ToolPolicyProfilesFile,
+    /// Additive deny-by-name list for all tasks (merged after profile resolution).
+    #[serde(default)]
+    pub(crate) tool_deny_names: Vec<String>,
+    /// Additive deny-by-prefix list for all tasks.
+    #[serde(default)]
+    pub(crate) tool_deny_prefixes: Vec<String>,
 }
 
 impl Default for RuntimeSettingsFile {
@@ -713,6 +748,9 @@ impl Default for RuntimeSettingsFile {
             default_mode: default_runtime_mode(),
             enabled_features: default_runtime_enabled_features(),
             model_routes: default_runtime_model_routes(),
+            tool_policy_profiles: ToolPolicyProfilesFile::default(),
+            tool_deny_names: vec![],
+            tool_deny_prefixes: vec![],
         }
     }
 }

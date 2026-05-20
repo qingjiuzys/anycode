@@ -4,6 +4,7 @@ use crate::app_config::{
     apply_wechat_bridge_no_tool_approval, load_config_for_session, resolve_config_path,
 };
 use crate::bootstrap::initialize_runtime;
+use crate::tool_policy::ToolPolicyConfigSnapshot;
 use anycode_agent::AgentRuntime;
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
@@ -25,6 +26,7 @@ pub(crate) struct ConfigReloadHandle {
     pub ignore_approval: bool,
     pub last_config_mtime: Arc<StdMutex<Option<SystemTime>>>,
     pub ask_user_question_host: Option<anycode_tools::AskUserQuestionHostArc>,
+    pub tool_policy: Arc<StdMutex<ToolPolicyConfigSnapshot>>,
 }
 
 /// `config.json` 保存后 mtime 变化则重建 `AgentRuntime`（与 notify 共用同一套 mtime 去重）。
@@ -63,6 +65,7 @@ pub(crate) async fn reload_runtime_if_config_changed(handle: &ConfigReloadHandle
             }
         };
     apply_wechat_bridge_no_tool_approval(&mut cfg);
+    *handle.tool_policy.lock().expect("tool_policy lock") = ToolPolicyConfigSnapshot::from(&cfg);
     let new_rt = match initialize_runtime(&cfg, None, handle.ask_user_question_host.clone()).await {
         Ok(r) => r,
         Err(e) => {

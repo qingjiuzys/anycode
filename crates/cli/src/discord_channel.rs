@@ -165,20 +165,24 @@ fn split_for_discord(s: &str) -> Vec<String> {
 
 async fn execute_prompt(
     runtime: &Arc<AgentRuntime>,
+    config: &Config,
     agent: &str,
     working_directory: &str,
     channel_id: &str,
     user_id: &str,
     prompt: String,
 ) -> String {
-    let task = build_channel_task(ChannelTaskInput {
-        agent_type: agent.to_string(),
-        prompt,
-        working_directory: working_directory.to_string(),
-        channel_id: channel_id.to_string(),
-        user_id: user_id.to_string(),
-        channel_name: "discord",
-    });
+    let task = build_channel_task(
+        ChannelTaskInput {
+            agent_type: agent.to_string(),
+            prompt,
+            working_directory: working_directory.to_string(),
+            channel_id: channel_id.to_string(),
+            user_id: user_id.to_string(),
+            channel_name: "discord",
+        },
+        config,
+    );
     match runtime.execute_task(task).await {
         Ok(TaskResult::Success { output, .. }) => output,
         Ok(TaskResult::Failure { error, details }) => {
@@ -324,6 +328,7 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
                 channel_id.clone(),
                 execute_prompt(
                     &runtime,
+                    &config,
                     &args.agent,
                     &working_directory,
                     &channel_id,

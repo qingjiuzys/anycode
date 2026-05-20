@@ -66,6 +66,7 @@ mod tests {
     }
 
     /// Tier L proxy (~8k tool turns). Run with `cargo test tier_l -- --ignored`.
+    /// Runtime virtual-scroll Tier S/M tests live in `repl/stream_viewport.rs`.
     #[test]
     #[ignore = "tier L load benchmark; run in nightly or with ANYCODE_BENCH=1"]
     fn tier_l_transcript_pipeline_degrades_gracefully() {

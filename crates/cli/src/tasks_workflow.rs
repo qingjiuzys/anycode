@@ -96,6 +96,7 @@ pub(super) async fn run_workflow_definition(
                     &mut sink,
                     None,
                     crate::tasks::RunTaskOptions::default(),
+                    None,
                 )
                 .await
             };
@@ -160,6 +161,7 @@ pub(super) async fn run_workflow_definition(
                     &mut sink,
                     None,
                     crate::tasks::RunTaskOptions::default(),
+                    None,
                 )
                 .await?;
             }

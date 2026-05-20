@@ -3,6 +3,7 @@
 use crate::app_config::{resolve_config_path, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::i18n::{tr, tr_args};
+use crate::tool_policy::ToolPolicyConfigSnapshot;
 use crate::wx::approval::{ActiveChat, WechatApprovalGate};
 use crate::wx::cdn_media::{
     download_cdn_item_to_b64, extract_user_text_and_image_item, first_plain_text_from_items,
@@ -124,6 +125,7 @@ pub async fn run_wechat_daemon(
         ignore_approval,
         last_config_mtime: Arc::clone(&last_config_mtime),
         ask_user_question_host: Some(ask_host),
+        tool_policy: Arc::new(StdMutex::new(ToolPolicyConfigSnapshot::from(app_config))),
     };
     if let Ok(p) = resolve_config_path(config_file.clone()) {
         spawn_config_file_watcher(reload.clone(), p);
@@ -630,6 +632,10 @@ async fn run_agent_pipeline(
     };
 
     let rt = st.runtime.read().await.clone();
+    let (tool_deny_names, tool_deny_prefixes) = {
+        let snap = st.reload.tool_policy.lock().expect("tool_policy lock");
+        crate::tool_policy::channel_tool_filters_from_snapshot(&snap)
+    };
     let agent = resolve_channel_agent(
         &runtime_mode,
         &st.agent_type,
@@ -668,8 +674,8 @@ async fn run_agent_pipeline(
                 nested_worktree_repo_root: None,
                 nested_cancel: Some(coop),
                 channel_progress_tx: None,
-                tool_deny_names: vec![],
-                tool_deny_prefixes: vec![],
+                tool_deny_names,
+                tool_deny_prefixes,
             },
             created_at: chrono::Utc::now(),
         };

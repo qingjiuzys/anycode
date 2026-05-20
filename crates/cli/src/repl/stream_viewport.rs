@@ -18,6 +18,12 @@ use crate::term::palette;
 const SCROLL_EASE: f32 = 0.3;
 const OVERSCROLL_CLAMP_EASE: f32 = 0.2;
 const SCROLL_EPS: f32 = 0.01;
+/// ADR 006: extra display rows built above/below the viewport to reduce pop-in while scrolling.
+const VIRTUAL_SCROLL_OVERSCAN_ROWS: usize = 32;
+
+fn virtual_scroll_overscan(viewport_h: usize) -> usize {
+    VIRTUAL_SCROLL_OVERSCAN_ROWS.max(viewport_h / 4)
+}
 
 /// 与主区绘制一致：清洗后按 `width` 折行的总行数（单测断言用）。
 #[cfg(test)]
@@ -73,13 +79,79 @@ pub(crate) fn stream_cleaned_to_wrapped_styled_text(cleaned: &str, width: u16) -
     let w = width.max(1) as usize;
     let mut lines: Vec<Line<'static>> = Vec::new();
     for line in cleaned.lines() {
+        push_wrapped_logical_line(line, w, &mut lines);
+    }
+    Text::from(lines)
+}
+
+fn push_wrapped_logical_line(line: &str, w: usize, out: &mut Vec<Line<'static>>) {
+    let t = line.trim_start();
+    let style = stream_transcript_line_style(t, line);
+    for row in wrap_string_to_width(line, w) {
+        out.push(Line::from(ratatui::text::Span::styled(row, style)));
+    }
+}
+
+/// 全局显示行 `row` 所在的逻辑行下标（`prefix_row[i]` 单调）。
+fn logical_line_at_global_row(cache: &StreamTranscriptLayoutCache, row: usize) -> usize {
+    let n = cache.prefix_row.len();
+    if n == 0 {
+        return 0;
+    }
+    if row >= cache.total_rows {
+        return n.saturating_sub(1);
+    }
+    let mut lo = 0usize;
+    let mut hi = n;
+    while lo + 1 < hi {
+        let mid = lo + (hi - lo) / 2;
+        if cache.prefix_row[mid] <= row {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
+}
+
+/// 仅展开 `[global_start, global_end)` 范围内的显示行（虚拟滚动窗口）。
+fn stream_cleaned_to_wrapped_styled_text_window(
+    cleaned: &str,
+    width: u16,
+    cache: &StreamTranscriptLayoutCache,
+    global_start: usize,
+    global_end: usize,
+) -> (Text<'static>, usize) {
+    let logical: Vec<&str> = cleaned.lines().collect();
+    if logical.is_empty() || global_start >= global_end {
+        return (Text::from(Vec::<Line<'static>>::new()), 0);
+    }
+    let start_logical = logical_line_at_global_row(cache, global_start);
+    let window_base = cache.prefix_row.get(start_logical).copied().unwrap_or(0);
+    let w = width.max(1) as usize;
+    let mut out: Vec<Line<'static>> = Vec::new();
+    let mut built_global = window_base;
+
+    for (i, line) in logical.iter().enumerate().skip(start_logical) {
         let t = line.trim_start();
         let style = stream_transcript_line_style(t, line);
         for row in wrap_string_to_width(line, w) {
-            lines.push(Line::from(ratatui::text::Span::styled(row, style)));
+            if built_global >= global_end && !out.is_empty() {
+                break;
+            }
+            out.push(Line::from(ratatui::text::Span::styled(row, style)));
+            built_global += 1;
+        }
+        let next_global = cache
+            .prefix_row
+            .get(i + 1)
+            .copied()
+            .unwrap_or(cache.total_rows);
+        if next_global >= global_end && built_global >= global_end {
+            break;
         }
     }
-    Text::from(lines)
+    (Text::from(out), window_base)
 }
 
 fn reduced_motion_effective() -> bool {
@@ -189,7 +261,7 @@ pub(crate) fn render_stream_scrollbar(
     }
 }
 
-/// 准备主区绘制：返回 `Paragraph`（全量折行文本 + wrap）、全局滚动偏移、是否贴底。
+/// 准备主区绘制：返回 `Paragraph`（视口窗口或短内容全量折行）、全局滚动偏移、是否贴底。
 pub(crate) fn prepare_stream_transcript_paragraph(
     raw: &str,
     viewport_w: u16,
@@ -200,15 +272,67 @@ pub(crate) fn prepare_stream_transcript_paragraph(
     scroll_pos: &mut f32,
     scroll_target: &mut f32,
 ) -> (Paragraph<'static>, usize, usize, usize, bool) {
+    let view = prepare_stream_transcript_view(
+        raw,
+        viewport_w,
+        viewport_h,
+        layout_cache,
+        auto_scroll,
+        scroll_up,
+        scroll_pos,
+        scroll_target,
+    );
+    let para = Paragraph::new(view.text).scroll((paragraph_scroll_y(view.local_scroll), 0));
+    (
+        para,
+        view.global_off,
+        view.max_scroll,
+        view.total_rows,
+        view.at_bottom,
+    )
+}
+
+struct StreamTranscriptView {
+    text: Text<'static>,
+    local_scroll: usize,
+    global_off: usize,
+    max_scroll: usize,
+    total_rows: usize,
+    at_bottom: bool,
+}
+
+fn prepare_stream_transcript_view(
+    raw: &str,
+    viewport_w: u16,
+    viewport_h: u16,
+    layout_cache: &mut StreamTranscriptLayoutCache,
+    auto_scroll: bool,
+    scroll_up: usize,
+    scroll_pos: &mut f32,
+    scroll_target: &mut f32,
+) -> StreamTranscriptView {
     let scrubbed = scrub_stream_transcript_llm_raw_dumps(raw);
     let cleaned = sanitize_stream_transcript_visual_noise(&scrubbed);
     let key = hash_raw(&scrubbed, viewport_w);
     update_stream_layout_cache(&cleaned, viewport_w, key, layout_cache);
 
+    if cleaned.trim().is_empty() {
+        *scroll_pos = 0.0;
+        *scroll_target = 0.0;
+        return StreamTranscriptView {
+            text: Text::from(Vec::new()),
+            local_scroll: 0,
+            global_off: 0,
+            max_scroll: 0,
+            total_rows: 0,
+            at_bottom: true,
+        };
+    }
+
     let total_rows = layout_cache.total_rows;
     let vh = viewport_h.max(1) as usize;
 
-    let (global_off, local_scroll, max_scroll, at_bottom) = compute_stream_scroll(
+    let (global_off, _local_scroll, max_scroll, at_bottom) = compute_stream_scroll(
         total_rows,
         vh,
         auto_scroll,
@@ -217,21 +341,103 @@ pub(crate) fn prepare_stream_transcript_paragraph(
         scroll_target,
     );
 
-    let text = if cleaned.trim().is_empty() {
-        Text::raw(String::new())
-    } else {
-        stream_cleaned_to_wrapped_styled_text(&cleaned, viewport_w)
-    };
-    // 每行已按 `wrap_string_to_width` 预折到 `viewport_w`；勿再 `.wrap()`，否则 ratatui `WordWrapper`
-    // 会与行高缓存不一致。`Paragraph` 无 wrap 时按行截断，单行宽度 ≤ 视口故不会二次断行。
-    let para = Paragraph::new(text).scroll((paragraph_scroll_y(local_scroll), 0));
+    let overscan = virtual_scroll_overscan(vh);
+    let use_virtual = total_rows > vh.saturating_add(overscan.saturating_mul(2));
 
-    (para, global_off, max_scroll, total_rows, at_bottom)
+    let (text, window_base) = if cleaned.trim().is_empty() {
+        (Text::from(Vec::<Line<'static>>::new()), 0)
+    } else if use_virtual {
+        let win_start = global_off.saturating_sub(overscan);
+        let win_end = (global_off + vh + overscan).min(total_rows);
+        stream_cleaned_to_wrapped_styled_text_window(
+            &cleaned,
+            viewport_w,
+            layout_cache,
+            win_start,
+            win_end,
+        )
+    } else {
+        (
+            stream_cleaned_to_wrapped_styled_text(&cleaned, viewport_w),
+            0,
+        )
+    };
+    let local_scroll = global_off.saturating_sub(window_base);
+    StreamTranscriptView {
+        text,
+        local_scroll,
+        global_off,
+        max_scroll,
+        total_rows,
+        at_bottom,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repl::line_state::StreamTranscriptLayoutCache;
+
+    fn synthetic_raw_transcript(logical_lines: usize) -> String {
+        (0..logical_lines)
+            .map(|i| format!("bench line {i}: {}", "x".repeat(48)))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn text_plain_rows(text: &Text<'static>, skip: usize, take: usize) -> Vec<String> {
+        text.lines
+            .iter()
+            .skip(skip)
+            .take(take)
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|s| s.content.to_string())
+                    .collect::<String>()
+            })
+            .collect()
+    }
+
+    fn full_visible_rows(
+        cleaned: &str,
+        width: u16,
+        viewport_h: usize,
+        global_off: usize,
+    ) -> Vec<String> {
+        let all = stream_cleaned_to_wrapped_styled_text(cleaned, width);
+        text_plain_rows(&all, global_off, viewport_h)
+    }
+
+    fn prepare_visible_plain_rows(
+        raw: &str,
+        width: u16,
+        viewport_h: u16,
+        cache: &mut StreamTranscriptLayoutCache,
+        auto_scroll: bool,
+        scroll_up: usize,
+        pos: &mut f32,
+        tgt: &mut f32,
+    ) -> (Vec<String>, usize, usize, usize, bool) {
+        let view = prepare_stream_transcript_view(
+            raw,
+            width,
+            viewport_h,
+            cache,
+            auto_scroll,
+            scroll_up,
+            pos,
+            tgt,
+        );
+        let visible = text_plain_rows(&view.text, view.local_scroll, viewport_h as usize);
+        (
+            visible,
+            view.global_off,
+            view.max_scroll,
+            view.total_rows,
+            view.at_bottom,
+        )
+    }
 
     #[test]
     fn total_rows_counts_wrapped_lines() {
@@ -268,5 +474,112 @@ mod tests {
             local_last, 12,
             "expected scroll_up=3 from bottom (max_scroll=15) to anchor at visual row offset 12"
         );
+    }
+
+    #[test]
+    fn virtual_window_matches_full_render_while_scrolling() {
+        let raw = synthetic_raw_transcript(400);
+        let width = 60u16;
+        let viewport_h = 20u16;
+        let scrubbed = scrub_stream_transcript_llm_raw_dumps(&raw);
+        let cleaned = sanitize_stream_transcript_visual_noise(&scrubbed);
+        let scroll_positions = [0, 50, 120, 200, 350];
+
+        for scroll_up in scroll_positions {
+            let mut cache = StreamTranscriptLayoutCache::default();
+            let mut pos = 0.0f32;
+            let mut tgt = 0.0f32;
+            let (windowed, global_off, _, _, _) = prepare_visible_plain_rows(
+                &raw, width, viewport_h, &mut cache, false, scroll_up, &mut pos, &mut tgt,
+            );
+            let full = full_visible_rows(&cleaned, width, viewport_h as usize, global_off);
+            assert_eq!(
+                windowed, full,
+                "scroll_up={scroll_up} global_off={global_off}"
+            );
+        }
+    }
+
+    #[test]
+    fn virtual_window_matches_full_render_at_bottom() {
+        let raw = synthetic_raw_transcript(500);
+        let width = 72u16;
+        let viewport_h = 24u16;
+        let scrubbed = scrub_stream_transcript_llm_raw_dumps(&raw);
+        let cleaned = sanitize_stream_transcript_visual_noise(&scrubbed);
+        let mut cache = StreamTranscriptLayoutCache::default();
+        let mut pos = 0.0f32;
+        let mut tgt = 0.0f32;
+        let (windowed, global_off, _, _, at_bottom) = prepare_visible_plain_rows(
+            &raw, width, viewport_h, &mut cache, true, 0, &mut pos, &mut tgt,
+        );
+        assert!(at_bottom);
+        let full = full_visible_rows(&cleaned, width, viewport_h as usize, global_off);
+        assert_eq!(windowed, full);
+    }
+
+    #[test]
+    fn resize_invalidates_layout_and_keeps_visible_tail() {
+        let raw = synthetic_raw_transcript(300);
+        let viewport_h = 18u16;
+        let mut cache = StreamTranscriptLayoutCache::default();
+        let mut pos = 0.0f32;
+        let mut tgt = 0.0f32;
+
+        let (narrow, off_narrow, _, _, _) = prepare_visible_plain_rows(
+            &raw, 40, viewport_h, &mut cache, true, 0, &mut pos, &mut tgt,
+        );
+        let key_before = cache.key;
+        let (wide, off_wide, _, _, _) = prepare_visible_plain_rows(
+            &raw, 100, viewport_h, &mut cache, true, 0, &mut pos, &mut tgt,
+        );
+        assert_ne!(key_before, cache.key);
+        assert!(off_wide <= off_narrow || cache.total_rows <= viewport_h as usize);
+        assert!(!narrow.is_empty());
+        assert!(!wide.is_empty());
+    }
+
+    #[test]
+    fn cleared_transcript_renders_empty_paragraph() {
+        let raw = synthetic_raw_transcript(200);
+        let mut cache = StreamTranscriptLayoutCache::default();
+        let mut pos = 0.0f32;
+        let mut tgt = 0.0f32;
+        let _ = prepare_visible_plain_rows(&raw, 80, 20, &mut cache, true, 0, &mut pos, &mut tgt);
+        let (visible, global_off, max_scroll, total_rows, at_bottom) =
+            prepare_visible_plain_rows("", 80, 20, &mut cache, true, 0, &mut pos, &mut tgt);
+        assert_eq!(total_rows, 0);
+        assert_eq!(max_scroll, 0);
+        assert_eq!(global_off, 0);
+        assert!(at_bottom);
+        assert!(visible.is_empty());
+    }
+
+    #[test]
+    fn tier_s_virtual_scroll_prepare_completes_quickly() {
+        let raw = synthetic_raw_transcript(10_000);
+        let mut cache = StreamTranscriptLayoutCache::default();
+        let mut pos = 0.0f32;
+        let mut tgt = 0.0f32;
+        let start = std::time::Instant::now();
+        let (_, _, _, total_rows, _) =
+            prepare_visible_plain_rows(&raw, 80, 24, &mut cache, false, 500, &mut pos, &mut tgt);
+        assert!(start.elapsed() < std::time::Duration::from_secs(2));
+        assert!(total_rows >= 10_000);
+        assert!(cache.prefix_row.len() >= 10_000);
+    }
+
+    #[test]
+    fn tier_m_virtual_scroll_prepare_completes() {
+        let raw = synthetic_raw_transcript(50_000);
+        let mut cache = StreamTranscriptLayoutCache::default();
+        let mut pos = 0.0f32;
+        let mut tgt = 0.0f32;
+        let start = std::time::Instant::now();
+        let (visible, _, _, total_rows, _) =
+            prepare_visible_plain_rows(&raw, 80, 24, &mut cache, false, 2_000, &mut pos, &mut tgt);
+        assert!(start.elapsed() < std::time::Duration::from_secs(10));
+        assert!(total_rows >= 50_000);
+        assert_eq!(visible.len(), 24);
     }
 }

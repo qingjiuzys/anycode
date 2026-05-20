@@ -8,6 +8,7 @@ pub mod mcp_normalization;
 mod paths;
 pub mod permission_rule_parser;
 mod registry;
+pub mod runtime_tool_policy;
 mod sandbox;
 pub mod services;
 pub mod shell_rule_match;
@@ -85,6 +86,10 @@ pub use mcp_rmcp_session::McpRmcpSession;
 pub use mcp_tool_scan::scan_listed_tools;
 pub use mcp_tool_scan::{scan_tool_entry, McpToolScanFinding};
 pub use registry::build_registry;
+pub use runtime_tool_policy::{
+    detect_ci_environment, resolve_runtime_tool_filters, RuntimeToolPolicyInput,
+    ToolExecutionSurface, ToolPolicyProfiles,
+};
 pub use services::{
     read_cron_jobs_from_orchestration_file, CronJob, LspConnectionConfig, ToolRegistryDeps,
     ToolServices,

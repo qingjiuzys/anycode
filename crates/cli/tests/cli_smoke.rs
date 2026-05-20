@@ -99,11 +99,24 @@ fn run_json_subcommand(args: &[&str]) -> serde_json::Value {
 #[test]
 fn production_eval_list_json_exits_zero() {
     let v = run_json_subcommand(&["eval", "list", "--json"]);
-    let rows = v.as_array().expect("eval list array");
+    let rows = v
+        .get("cli")
+        .and_then(|c| c.as_array())
+        .expect("eval list cli array");
     assert!(
         rows.iter()
             .any(|row| row.get("id").and_then(|v| v.as_str()) == Some("doctor-all")),
         "expected doctor-all scenario: {v}"
+    );
+    let mock_rows = v
+        .get("mock_fixtures")
+        .and_then(|c| c.as_array())
+        .expect("eval list mock_fixtures array");
+    assert!(
+        mock_rows
+            .iter()
+            .any(|row| row.get("id").and_then(|v| v.as_str()) == Some("mock-fixture-bugfix")),
+        "expected mock-fixture-bugfix: {v}"
     );
 }
 

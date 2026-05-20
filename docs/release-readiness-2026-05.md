@@ -7,8 +7,9 @@ burst and the production readiness roadmap landing (`b86e583`).
 
 | Job | Run | Result |
 |-----|-----|--------|
-| CI (rust + docs) | [GitHub Actions run 26143655616](https://github.com/qingjiuzys/anycode/actions/runs/26143655616) | **success** on `main` after push |
-| Eval harness step | `python3 scripts/eval/run.py --with-mock` in CI rust job | **pass** (8/8 scenarios) |
+| CI (rust + docs) — production readiness | [GitHub Actions run 26143655616](https://github.com/qingjiuzys/anycode/actions/runs/26143655616) | **success** on `main` after `b86e583` |
+| CI (rust + docs) — audit / cron allowlist (`c27f2e1`) | [GitHub Actions run 26144013132](https://github.com/qingjiuzys/anycode/actions/runs/26144013132) | **success** on `main` after `c27f2e1` |
+| Eval harness step | `python3 scripts/eval/run.py --with-mock` in CI rust job | **pass** (8/8 scenarios) on both runs |
 
 Local pre-push verification (same commit):
 
@@ -50,7 +51,7 @@ Local pre-push verification (same commit):
 | Cron `allowlist` with `mcp__*` entries disables blanket MCP deny | Documented; use only for trusted monitoring jobs |
 | Virtual scroll not implemented at runtime | Tier S/M synthetic tests only; large transcripts may still be slow |
 | MCP silent reconnect intentionally disabled | ADR 007; use `anycode mcp status` + manual reconnect |
-| GitHub Actions Node 20 deprecation warning on docs job | Upgrade `actions/checkout` / `actions/setup-node` before June 2026 |
+| GitHub Actions Node 20 deprecation warning on docs job | Bumped to `actions/checkout@v5` + `actions/setup-node@v5` (Node 24 runtime) |
 
 ## Rollback
 

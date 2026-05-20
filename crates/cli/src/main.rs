@@ -25,6 +25,7 @@ mod tasks;
 mod term;
 mod tg;
 mod tg_ask;
+mod tool_policy;
 mod wechat;
 mod wechat_ilink;
 mod wechat_service;

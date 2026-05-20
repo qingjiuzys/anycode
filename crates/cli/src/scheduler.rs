@@ -302,6 +302,7 @@ pub(crate) async fn run_builtin_scheduler(
                         None
                     },
                     run_options,
+                    Some(&config),
                 )
                 .await
                 {

@@ -1,9 +1,12 @@
 //! `anycode run` / 单次任务执行与 goal 循环（与 REPL 解耦）。
 
+use crate::app_config::Config;
 use crate::i18n::{tr, tr_args};
+use crate::tool_policy::{headless_task_surface, resolve_task_tool_filters};
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
+use anycode_tools::{resolve_runtime_tool_filters, RuntimeToolPolicyInput, ToolPolicyProfiles};
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,12 +24,21 @@ pub(crate) struct RunTaskOptions {
     pub tool_allowlist: Option<Vec<String>>,
 }
 
-impl RunTaskOptions {
-    pub(crate) fn tool_filters(&self) -> (Vec<String>, Vec<String>) {
-        anycode_tools::cron_tool_profile_filters(
-            self.tool_profile.as_deref(),
-            self.tool_allowlist.as_deref(),
-        )
+fn resolve_headless_tool_filters(
+    config: Option<&Config>,
+    options: &RunTaskOptions,
+) -> (Vec<String>, Vec<String>) {
+    let surface = headless_task_surface();
+    match config {
+        Some(cfg) => resolve_task_tool_filters(cfg, surface, options),
+        None => resolve_runtime_tool_filters(RuntimeToolPolicyInput {
+            surface,
+            profiles: &ToolPolicyProfiles::default(),
+            explicit_profile: options.tool_profile.as_deref(),
+            explicit_allowlist: options.tool_allowlist.as_deref(),
+            extra_deny_names: &[],
+            extra_deny_prefixes: &[],
+        }),
     }
 }
 
@@ -78,6 +90,7 @@ pub(crate) async fn run_task(
         &mut sink,
         None,
         RunTaskOptions::default(),
+        Some(&config),
     )
     .await
 }
@@ -93,6 +106,7 @@ pub(crate) async fn run_single_task_with_tail(
     sink: &mut ReplSink,
     capture_output: Option<&mut String>,
     options: RunTaskOptions,
+    config: Option<&Config>,
 ) -> anyhow::Result<()> {
     info!("Running task with agent: {}", agent_type);
     info!("Working directory: {:?}", working_dir);
@@ -100,7 +114,7 @@ pub(crate) async fn run_single_task_with_tail(
 
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
 
-    let (tool_deny_names, tool_deny_prefixes) = options.tool_filters();
+    let (tool_deny_names, tool_deny_prefixes) = resolve_headless_tool_filters(config, &options);
     let session_id = options.session_id.unwrap_or_else(Uuid::new_v4);
 
     let task = Task {

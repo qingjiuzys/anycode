@@ -1,3 +1,5 @@
+use crate::app_config::Config;
+use crate::tool_policy::channel_task_tool_filters;
 use anycode_core::prelude::*;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -50,7 +52,8 @@ pub(crate) fn im_task_failure_detail_excerpt(
     })
 }
 
-pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
+pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Task {
+    let (tool_deny_names, tool_deny_prefixes) = channel_task_tool_filters(config);
     Task {
         id: Uuid::new_v4(),
         agent_type: AgentType::new(input.agent_type),
@@ -75,8 +78,8 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
-                tool_deny_names: vec![],
-                tool_deny_prefixes: vec![],
+            tool_deny_names,
+            tool_deny_prefixes,
         },
         created_at: chrono::Utc::now(),
     }
@@ -85,6 +88,68 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput) -> Task {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_config::{Config, LLMConfig, MemoryConfig, RuntimeSettings, SecurityConfig};
+    use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    fn minimal_test_config() -> Config {
+        Config {
+            llm: LLMConfig {
+                provider: "mock".into(),
+                plan: "coding".into(),
+                model: "mock".into(),
+                api_key: "k".into(),
+                base_url: None,
+                temperature: 0.7,
+                max_tokens: 4096,
+                provider_credentials: HashMap::new(),
+                zai_tool_choice_first_turn: false,
+            },
+            memory: MemoryConfig {
+                path: PathBuf::from("/tmp"),
+                auto_save: false,
+                backend: "noop".into(),
+                pipeline: anycode_core::MemoryPipelineSettings::default(),
+                embedding_model: None,
+                embedding_base_url: None,
+                embedding_provider: "http".into(),
+                embedding_local_cache_dir: None,
+                embedding_local_model: None,
+                embedding_hf_endpoint: None,
+            },
+            security: SecurityConfig {
+                permission_mode: "default".into(),
+                require_approval: true,
+                sandbox_mode: false,
+                mcp_tool_deny_patterns: vec![],
+                mcp_tool_deny_rules: vec![],
+                always_allow_rules: vec![],
+                always_ask_rules: vec![],
+                defer_mcp_tools: false,
+                session_skip_interactive_approval: false,
+            },
+            routing: Default::default(),
+            runtime: RuntimeSettings {
+                default_mode: RuntimeMode::Code,
+                features: FeatureRegistry::default(),
+                model_routes: ModelRouteProfile::default(),
+                tool_policy_profiles: Default::default(),
+                tool_deny_names: vec![],
+                tool_deny_prefixes: vec![],
+                workspace_project_label: None,
+                workspace_channel_profile: None,
+            },
+            prompt: Default::default(),
+            skills: Default::default(),
+            session: Default::default(),
+            status_line: Default::default(),
+            terminal: Default::default(),
+            channels: Default::default(),
+            lsp: Default::default(),
+            notifications: Default::default(),
+        }
+    }
 
     #[test]
     fn im_detail_excerpt_skips_blank() {
@@ -102,14 +167,18 @@ mod tests {
 
     #[test]
     fn channel_task_append_includes_shared_cron_hint() {
-        let t = build_channel_task(ChannelTaskInput {
-            agent_type: "workspace-assistant".into(),
-            prompt: "hi".into(),
-            working_directory: "/tmp".into(),
-            channel_id: "9".into(),
-            user_id: "1".into(),
-            channel_name: "telegram",
-        });
+        let config = minimal_test_config();
+        let t = build_channel_task(
+            ChannelTaskInput {
+                agent_type: "workspace-assistant".into(),
+                prompt: "hi".into(),
+                working_directory: "/tmp".into(),
+                channel_id: "9".into(),
+                user_id: "1".into(),
+                channel_name: "telegram",
+            },
+            &config,
+        );
         let s = t.context.system_prompt_append.as_deref().expect("append");
         assert!(s.contains("CronCreate"));
         assert!(s.contains("scheduler.lock"));
@@ -117,14 +186,18 @@ mod tests {
 
     #[test]
     fn channel_task_telegram_includes_ask_user_hint() {
-        let t = build_channel_task(ChannelTaskInput {
-            agent_type: "workspace-assistant".into(),
-            prompt: "hi".into(),
-            working_directory: "/tmp".into(),
-            channel_id: "9".into(),
-            user_id: "1".into(),
-            channel_name: "telegram",
-        });
+        let config = minimal_test_config();
+        let t = build_channel_task(
+            ChannelTaskInput {
+                agent_type: "workspace-assistant".into(),
+                prompt: "hi".into(),
+                working_directory: "/tmp".into(),
+                channel_id: "9".into(),
+                user_id: "1".into(),
+                channel_name: "telegram",
+            },
+            &config,
+        );
         let s = t.context.system_prompt_append.as_deref().expect("append");
         assert!(s.contains("Telegram AskUserQuestion"));
     }

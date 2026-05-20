@@ -8,6 +8,7 @@ pub(crate) use approval::{ApprovalDecision, InteractiveApprovalCallback, Pending
 pub(crate) mod hud_text;
 pub(crate) mod input;
 pub(crate) mod palette;
+pub(crate) mod session_group;
 pub(crate) mod session_persist;
 pub(crate) mod status_line;
 pub(crate) mod styles;

@@ -155,9 +155,37 @@ fn run_scenario(bin: &std::path::Path, s: &EvalScenario) -> EvalRunRow {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct MockFixtureListRow {
+    id: &'static str,
+    area: &'static str,
+    fixture: &'static str,
+    acceptance: &'static str,
+    requires_mock: bool,
+}
+
 pub(crate) fn list(json: bool) -> anyhow::Result<()> {
+    let mock_rows: Vec<MockFixtureListRow> = super::eval_mock::MOCK_FIXTURE_METAS
+        .iter()
+        .map(|m| MockFixtureListRow {
+            id: m.id,
+            area: m.area,
+            fixture: m.fixture,
+            acceptance: m.acceptance,
+            requires_mock: true,
+        })
+        .collect();
     if json {
-        println!("{}", serde_json::to_string_pretty(SCENARIOS)?);
+        #[derive(Serialize)]
+        struct EvalListPayload<'a> {
+            cli: &'a [EvalScenario],
+            mock_fixtures: Vec<MockFixtureListRow>,
+        }
+        let payload = EvalListPayload {
+            cli: SCENARIOS,
+            mock_fixtures: mock_rows,
+        };
+        println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
     for s in SCENARIOS {
@@ -166,30 +194,44 @@ pub(crate) fn list(json: bool) -> anyhow::Result<()> {
             s.id, s.area, s.command, s.acceptance
         );
     }
+    println!("\nMock fixture repo tasks (run with `anycode eval run --mock`):");
+    for m in super::eval_mock::MOCK_FIXTURE_METAS {
+        println!(
+            "{} [{}]\n  fixture: scripts/eval/fixtures/{}\n  acceptance: {}",
+            m.id, m.area, m.fixture, m.acceptance
+        );
+    }
     Ok(())
 }
 
 pub(crate) fn run(json: bool, include_mock: bool) -> anyhow::Result<()> {
+    if std::env::var("ANYCODE_EVAL_TOOLCHAIN_HOME").is_err() {
+        if let Ok(home) = std::env::var("HOME") {
+            std::env::set_var("ANYCODE_EVAL_TOOLCHAIN_HOME", home);
+        }
+    }
     let bin = eval_binary()?;
     let mut rows: Vec<EvalRunRow> = SCENARIOS.iter().map(|s| run_scenario(&bin, s)).collect();
     if include_mock {
-        let mock = super::eval_mock::run_mock_fixture_task(&bin);
-        rows.push(EvalRunRow {
-            id: mock.id,
-            status: mock.status,
-            detail: mock.detail,
-            exit_code: mock.exit_code,
-            error_code: if mock.status == "fail" {
-                Some(
-                    crate::commands::cli_error::classify(&anyhow::anyhow!(
-                        "eval harness scenario mock-fixture-run failed"
-                    ))
-                    .code,
-                )
-            } else {
-                None
-            },
-        });
+        for mock in super::eval_mock::run_mock_fixture_scenarios(&bin) {
+            rows.push(EvalRunRow {
+                id: mock.id,
+                status: mock.status,
+                detail: mock.detail,
+                exit_code: mock.exit_code,
+                error_code: if mock.status == "fail" {
+                    Some(
+                        crate::commands::cli_error::classify(&anyhow::anyhow!(
+                            "eval harness scenario {} failed",
+                            mock.id
+                        ))
+                        .code,
+                    )
+                } else {
+                    None
+                },
+            });
+        }
     }
     let failed = rows.iter().any(|r| r.status == "fail");
     if json {

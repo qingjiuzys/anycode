@@ -23,6 +23,9 @@ Cron has moved beyond reminder creation into production observability.
   `ANYCODE_CRON_ERROR` (detail truncated to 500 chars).
 - `failure_destination = http` POSTs a short JSON payload to
   `ANYCODE_CRON_FAILURE_WEBHOOK`.
+- Stream REPL transcript inserts `── cron · <id> ──` / `── session · <id> ──`
+  section headers when correlation changes; dock footer shows `cron` / `sess`
+  plus short id (`ANYCODE_CRON_SESSION_ID` when set, else persisted session uuid).
 
 ## Tool profiles
 
@@ -35,4 +38,4 @@ Cron has moved beyond reminder creation into production observability.
 
 ## Next
 
-- Use `session_id` to group recurring runs in stream UI and diagnostics.
+- (none — stream UI session/cron grouping shipped; see Implemented above)

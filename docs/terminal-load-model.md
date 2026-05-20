@@ -29,6 +29,16 @@ For each tier record:
 1. ~~Add a synthetic transcript generator test helper.~~ (`term/transcript/synthetic.rs`)
 2. ~~Measure current transcript pipeline on Tier S/M fixtures.~~ (`tier_*_transcript_pipeline_*` tests)
 3. ~~Tier L proxy benchmark~~ (`tier_l_transcript_pipeline_degrades_gracefully`, `cargo test tier_l -- --ignored`)
-4. Decide whether ADR 006 virtual scroll is required.
+4. ~~Wire ADR 006 virtual scroll into stream REPL transcript rendering.~~ (`repl/stream_viewport.rs`: viewport windowing + overscan; runtime tests in `stream_viewport` Tier S/M)
 5. Only then change transcript storage or session rewind semantics.
+
+## Implementation Status (2026-05)
+
+| Component | Status |
+|-----------|--------|
+| Synthetic fixtures (`synthetic.rs`) | Done |
+| Pipeline Tier S/M/L benchmarks | Done (L: `--ignored`) |
+| Virtual scroll runtime (stream REPL) | **Done** — `prepare_stream_transcript_view` builds only `[global_off − overscan, global_off + viewport + overscan)` styled rows; layout cache still tracks full prefix sums |
+| Tier S/M scroll+resize+clear correctness | Covered by `stream_viewport` unit tests |
+| Tier L (100k lines) runtime | **Gap** — layout cache still O(n) wrap on content change; no dedicated 100k runtime benchmark yet |
 

@@ -23,8 +23,16 @@ fn eval_run_mock_fixture_passes() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
+    for id in [
+        "mock-fixture-greet",
+        "mock-fixture-bugfix",
+        "mock-fixture-multifile",
+        "mock-fixture-test-repair",
+    ] {
+        assert!(combined.contains(id), "expected row {id}: {combined}");
+    }
     assert!(
-        combined.contains("mock-fixture-run") && combined.contains("MOCK_EVAL"),
-        "expected mock fixture row: {combined}"
+        combined.contains("MOCK_EVAL"),
+        "expected mock markers: {combined}"
     );
 }

@@ -81,6 +81,16 @@ fn sync_repl_dock_status(
             .unwrap_or((0u32, 0u32));
         let mut left =
             crate::term::hud_text::footer_context_fragment_for_tokens(win, last_in, last_out);
+        if let Some(ref sid) = s.stream_session_correlation {
+            let corr = crate::term::session_group::StreamSessionCorrelation {
+                id: sid.clone(),
+                is_cron: s.stream_session_is_cron,
+            };
+            left.push_str(" · ");
+            left.push_str(&crate::term::session_group::dock_correlation_fragment(
+                &corr,
+            ));
+        }
         left.push_str(" · ");
         left.push_str(&tr("term-footer-help-hint"));
         if s.stream_transcript_scroll > 0 {
@@ -462,6 +472,10 @@ fn run_interactive_tty_stream_blocking(
         use_repl_alt,
     } = axis;
 
+    let correlation = crate::term::session_group::resolve_stream_session_correlation(
+        line_session.session_file_id,
+    );
+    crate::term::session_group::set_stream_session_correlation(&state, correlation);
     sync_repl_dock_status(&state, config, agent, false);
 
     let approval_shared = Arc::new(Mutex::new(approval_rx.take()));
@@ -662,6 +676,15 @@ async fn stream_repl_tokio_worker(
                         };
                         repl_clear_session(&runtime, line_session, agent, &mut sink).await?;
                         stream_repl_loop::clear_scrollback_queue(&stream_render_tx);
+                        crate::term::session_group::clear_stream_session_grouping(&state);
+                        let correlation =
+                            crate::term::session_group::resolve_stream_session_correlation(
+                                line_session.session_file_id,
+                            );
+                        crate::term::session_group::set_stream_session_correlation(
+                            &state,
+                            correlation,
+                        );
                         if let Ok(mut st) = state.lock() {
                             stream_repl_scroll_reset_to_bottom(&mut st);
                             st.executing_since = None;
@@ -740,6 +763,13 @@ async fn stream_repl_tokio_worker(
                                         sink.line(tr("repl-busy-natural"));
                                     } else {
                                         {
+                                            let correlation = crate::term::session_group::resolve_stream_session_correlation(
+                                                line_session.session_file_id,
+                                            );
+                                            crate::term::session_group::maybe_append_stream_session_header(
+                                                &state,
+                                                &correlation,
+                                            );
                                             let mut st = state.lock().unwrap();
                                             turn_transcript_anchor = {
                                                 let t = st.transcript.lock().unwrap();
@@ -1013,6 +1043,18 @@ async fn repl_dispatch_inner(
                     }
                 };
                 line_session.apply_snapshot(snap, agent).await;
+                if let Some(st_arc) = stream_paste_state.as_ref() {
+                    let correlation =
+                        crate::term::session_group::resolve_stream_session_correlation(
+                            line_session.session_file_id,
+                        );
+                    crate::term::session_group::maybe_append_stream_session_header(
+                        st_arc,
+                        &correlation,
+                    );
+                    crate::term::session_group::set_stream_session_correlation(st_arc, correlation);
+                    sync_repl_dock_status(st_arc, config, agent, false);
+                }
                 let mut a = FluentArgs::new();
                 a.set("id", line_session.session_file_id.to_string());
                 sink.line(tr_args("repl-session-applied", &a));
