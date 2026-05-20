@@ -2,13 +2,11 @@
 
 use crate::app_config::Config;
 use crate::i18n::{tr, tr_args};
-use crate::tool_policy::{headless_task_surface, resolve_task_tool_filters};
+use crate::task_builders::build_headless_task;
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
-use anycode_tools::{resolve_runtime_tool_filters, RuntimeToolPolicyInput, ToolPolicyProfiles};
 use fluent_bundle::FluentArgs;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::info;
 use uuid::Uuid;
@@ -22,24 +20,6 @@ pub(crate) struct RunTaskOptions {
     pub session_id: Option<Uuid>,
     pub tool_profile: Option<String>,
     pub tool_allowlist: Option<Vec<String>>,
-}
-
-fn resolve_headless_tool_filters(
-    config: Option<&Config>,
-    options: &RunTaskOptions,
-) -> (Vec<String>, Vec<String>) {
-    let surface = headless_task_surface();
-    match config {
-        Some(cfg) => resolve_task_tool_filters(cfg, surface, options),
-        None => resolve_runtime_tool_filters(RuntimeToolPolicyInput {
-            surface,
-            profiles: &ToolPolicyProfiles::default(),
-            explicit_profile: options.tool_profile.as_deref(),
-            explicit_allowlist: options.tool_allowlist.as_deref(),
-            extra_deny_names: &[],
-            extra_deny_prefixes: &[],
-        }),
-    }
 }
 
 /// `execute_task` 已将总结逐行写入磁盘 tail；若再原样 `sink.line(output)` 会与流式 stdout 叠一份。
@@ -112,32 +92,7 @@ pub(crate) async fn run_single_task_with_tail(
     info!("Working directory: {:?}", working_dir);
     info!("Prompt: {}", prompt);
 
-    let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
-
-    let (tool_deny_names, tool_deny_prefixes) = resolve_headless_tool_filters(config, &options);
-    let session_id = options.session_id.unwrap_or_else(Uuid::new_v4);
-
-    let task = Task {
-        id: Uuid::new_v4(),
-        agent_type: AgentType::new(agent_type),
-        prompt,
-        context: TaskContext {
-            session_id,
-            working_directory: working_dir.to_string_lossy().to_string(),
-            environment: HashMap::new(),
-            user_id: None,
-            system_prompt_append: None,
-            context_injections: vec![],
-            nested_model_override: None,
-            nested_worktree_path: None,
-            nested_worktree_repo_root: None,
-            nested_cancel: None,
-            channel_progress_tx: None,
-            tool_deny_names,
-            tool_deny_prefixes,
-        },
-        created_at: chrono::Utc::now(),
-    };
+    let task = build_headless_task(agent_type, prompt, working_dir, &options, config);
 
     let output_path = disk.ensure_initialized(task.id)?;
     let mut po = FluentArgs::new();
@@ -278,27 +233,7 @@ fn build_task(
     working_dir: PathBuf,
     system_prompt_append: Option<String>,
 ) -> Task {
-    Task {
-        id: Uuid::new_v4(),
-        agent_type: AgentType::new(agent_type),
-        prompt,
-        context: TaskContext {
-            session_id: Uuid::new_v4(),
-            working_directory: working_dir.to_string_lossy().to_string(),
-            environment: HashMap::new(),
-            user_id: None,
-            system_prompt_append,
-            context_injections: vec![],
-            nested_model_override: None,
-            nested_worktree_path: None,
-            nested_worktree_repo_root: None,
-            nested_cancel: None,
-            channel_progress_tx: None,
-            tool_deny_names: vec![],
-            tool_deny_prefixes: vec![],
-        },
-        created_at: chrono::Utc::now(),
-    }
+    crate::task_builders::build_minimal_task(agent_type, prompt, working_dir, system_prompt_append)
 }
 
 #[cfg(test)]

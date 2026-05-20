@@ -1,0 +1,79 @@
+{
+  "cli_scenarios": [
+    {
+      "id": "cli-help",
+      "area": "cli",
+      "command": ["--help"],
+      "expect": "anyCode",
+      "acceptance": "prints top-level command help without loading provider credentials"
+    },
+    {
+      "id": "status-json",
+      "area": "config",
+      "command": ["status", "--json"],
+      "expect": "model",
+      "acceptance": "prints machine-readable model/mode/security status"
+    },
+    {
+      "id": "cron-ledger",
+      "area": "automation",
+      "command": ["cron", "runs", "--limit", "5", "--json"],
+      "expect": "[",
+      "acceptance": "reads cron-runs.jsonl or reports an empty ledger"
+    },
+    {
+      "id": "doctor-all",
+      "area": "ops",
+      "command": ["doctor", "all", "--json"],
+      "expect": "memory.backend",
+      "acceptance": "reports local config, memory, channel, and MCP diagnostics"
+    },
+    {
+      "id": "memory-doctor",
+      "area": "memory",
+      "command": ["memory", "doctor", "--json"],
+      "expect": "memory.backend",
+      "acceptance": "reports backend, path, and common lock-risk hints"
+    },
+    {
+      "id": "doctor-errors",
+      "area": "ops",
+      "command": ["doctor", "errors", "--json"],
+      "expect": "eval.scenario_failed",
+      "acceptance": "prints structured CLI error taxonomy reference"
+    },
+    {
+      "id": "mcp-status",
+      "area": "mcp",
+      "command": ["mcp", "status", "--json"],
+      "expect": "policy.reconnect",
+      "acceptance": "reports MCP reconnect policy and env hints without live servers"
+    }
+  ],
+  "mock_fixtures": [
+    {
+      "id": "mock-fixture-greet",
+      "area": "mock-fixture",
+      "fixture": "minimal-repo",
+      "acceptance": "single-turn mock LLM run completes with MOCK_EVAL_greet_0"
+    },
+    {
+      "id": "mock-fixture-bugfix",
+      "area": "mock-fixture",
+      "fixture": "bugfix-repo",
+      "acceptance": "mock two-turn run; temp copy + golden patch verifier; cargo test passes"
+    },
+    {
+      "id": "mock-fixture-multifile",
+      "area": "mock-fixture",
+      "fixture": "multifile-repo",
+      "acceptance": "scripted FileRead rounds; output includes all repo markers"
+    },
+    {
+      "id": "mock-fixture-test-repair",
+      "area": "mock-fixture",
+      "fixture": "test-repair-repo",
+      "acceptance": "mock two-turn run; temp copy + golden patch verifier; cargo test passes"
+    }
+  ]
+}

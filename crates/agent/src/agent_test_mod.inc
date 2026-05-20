@@ -735,6 +735,8 @@ mod tests {
                 messages.clone(),
                 ".",
                 Some(coop),
+                &[],
+                &[],
             ),
         )
         .await
@@ -828,6 +830,8 @@ mod tests {
                 messages.clone(),
                 ".",
                 Some(coop),
+                &[],
+                &[],
             ),
         )
         .await
@@ -921,7 +925,7 @@ mod tests {
 
         let task_id = Uuid::new_v4();
         let out = runtime
-            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None)
+            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None, &[], &[])
             .await
             .unwrap();
 
@@ -1035,7 +1039,7 @@ mod tests {
 
         let task_id = Uuid::new_v4();
         let out = runtime
-            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None)
+            .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None, &[], &[])
             .await
             .unwrap();
 
@@ -1853,6 +1857,8 @@ mod tests {
                 messages,
                 ".",
                 None,
+                &[],
+                &[],
             )
             .await
             .unwrap();
@@ -1919,6 +1925,8 @@ mod tests {
                 messages,
                 ".",
                 None,
+                &[],
+                &[],
             )
             .await
             .unwrap();

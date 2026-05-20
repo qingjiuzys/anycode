@@ -22,40 +22,14 @@ pub(crate) struct MockEvalRow {
     pub exit_code: i32,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct MockFixtureMeta {
-    pub id: &'static str,
-    pub area: &'static str,
-    pub fixture: &'static str,
-    pub acceptance: &'static str,
+pub(crate) fn mock_fixture_ids() -> Vec<&'static str> {
+    vec![
+        "mock-fixture-greet",
+        "mock-fixture-bugfix",
+        "mock-fixture-multifile",
+        "mock-fixture-test-repair",
+    ]
 }
-
-pub(crate) const MOCK_FIXTURE_METAS: &[MockFixtureMeta] = &[
-    MockFixtureMeta {
-        id: "mock-fixture-greet",
-        area: "mock-fixture",
-        fixture: "minimal-repo",
-        acceptance: "single-turn mock LLM run completes with MOCK_EVAL_greet_0",
-    },
-    MockFixtureMeta {
-        id: "mock-fixture-bugfix",
-        area: "mock-fixture",
-        fixture: "bugfix-repo",
-        acceptance: "mock two-turn run; temp copy + golden patch verifier; cargo test passes",
-    },
-    MockFixtureMeta {
-        id: "mock-fixture-multifile",
-        area: "mock-fixture",
-        fixture: "multifile-repo",
-        acceptance: "scripted FileRead rounds; output includes all repo markers",
-    },
-    MockFixtureMeta {
-        id: "mock-fixture-test-repair",
-        area: "mock-fixture",
-        fixture: "test-repair-repo",
-        acceptance: "mock two-turn run; temp copy + golden patch verifier; cargo test passes",
-    },
-];
 
 pub(crate) fn fixtures_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/eval/fixtures")

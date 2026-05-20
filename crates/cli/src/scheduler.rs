@@ -145,8 +145,9 @@ pub(crate) async fn run_builtin_scheduler(
     working_dir: PathBuf,
     reload_interval: Duration,
     shared_runtime: Option<Arc<RwLock<Arc<anycode_agent::AgentRuntime>>>>,
-    wechat_hooks: Option<SchedulerWechatHooks>,
+    delivery: CronDelivery,
 ) -> anyhow::Result<()> {
+    let wechat_hooks = delivery.wechat_hooks();
     let lock_path =
         scheduler_lock_path().ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
     if let Some(parent) = lock_path.parent() {
@@ -322,15 +323,9 @@ pub(crate) async fn run_builtin_scheduler(
                     let failure_detail = crate::cron_failure::sanitize_failure_detail(&msg);
                     match pj.job.failure_destination.as_deref() {
                         Some("same_channel") => {
-                            if let Some(hooks) = &wechat_hooks {
-                                deliver_cron_to_wechat(
-                                    &hooks.data_root,
-                                    &hooks.sender,
-                                    pj.job.command.as_str(),
-                                    &format!("❌ 定时任务失败\n\n{failure_detail}"),
-                                )
+                            delivery
+                                .route_same_channel_failure(&pj.job, &failure_detail)
                                 .await;
-                            }
                         }
                         Some("shell") => {
                             crate::cron_failure::route_cron_failure_shell(&pj.job, &failure_detail)
@@ -372,6 +367,70 @@ pub(crate) async fn run_builtin_scheduler(
         let sleep_d = duration_until_next_tick(&parsed, &last_fire, Utc::now(), reload_interval);
         tokio::time::sleep(sleep_d).await;
     }
+}
+
+/// How cron jobs deliver success/failure notifications.
+#[derive(Clone)]
+pub(crate) enum CronDelivery {
+    None,
+    Wechat(SchedulerWechatHooks),
+}
+
+impl CronDelivery {
+    pub(crate) fn wechat_hooks(&self) -> Option<SchedulerWechatHooks> {
+        match self {
+            CronDelivery::None => None,
+            CronDelivery::Wechat(h) => Some(h.clone()),
+        }
+    }
+
+    /// `failure_destination == "same_channel"` routes through the active delivery adapter.
+    pub(crate) async fn route_same_channel_failure(&self, job: &CronJob, detail: &str) {
+        match self {
+            CronDelivery::Wechat(hooks) => {
+                deliver_cron_to_wechat(
+                    &hooks.data_root,
+                    &hooks.sender,
+                    job.command.as_str(),
+                    &format!("❌ 定时任务失败\n\n{detail}"),
+                )
+                .await;
+            }
+            CronDelivery::None => {}
+        }
+    }
+}
+
+/// Embed the built-in scheduler beside a long-running channel bridge (single lock per machine).
+pub(crate) fn spawn_embedded_scheduler(
+    config: Config,
+    working_dir: PathBuf,
+    shared_runtime: Arc<RwLock<Arc<anycode_agent::AgentRuntime>>>,
+    delivery: CronDelivery,
+    reload_secs: u64,
+) {
+    tracing::info!(
+        target: "anycode_scheduler",
+        cwd = %working_dir.display(),
+        delivery = ?matches!(delivery, CronDelivery::Wechat(_)),
+        "embedding built-in scheduler beside channel bridge (or exit if lock held)"
+    );
+    tokio::spawn(async move {
+        if let Err(e) = run_builtin_scheduler(
+            config,
+            working_dir,
+            Duration::from_secs(reload_secs),
+            Some(shared_runtime),
+            delivery,
+        )
+        .await
+        {
+            tracing::error!(
+                target: "anycode_scheduler",
+                "built-in scheduler exited: {e:#}"
+            );
+        }
+    });
 }
 
 #[cfg(test)]

@@ -68,6 +68,14 @@ pub(crate) fn channel_task_tool_filters(config: &Config) -> (Vec<String>, Vec<St
     )
 }
 
+pub(crate) fn interactive_tool_filters(config: &Config) -> (Vec<String>, Vec<String>) {
+    resolve_task_tool_filters(
+        config,
+        ToolExecutionSurface::Interactive,
+        &RunTaskOptions::default(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

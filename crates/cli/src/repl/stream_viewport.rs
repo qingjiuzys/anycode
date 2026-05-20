@@ -49,6 +49,21 @@ fn hash_raw(raw: &str, width: u16) -> u64 {
     h.finish()
 }
 
+/// Incremental scrub/sanitize: rebuild `layout_cache.cleaned` only when transcript bytes change.
+fn ensure_stream_transcript_cleaned(
+    raw: &str,
+    viewport_w: u16,
+    layout_cache: &mut StreamTranscriptLayoutCache,
+) {
+    let raw_hash = hash_raw(raw, viewport_w);
+    if layout_cache.raw_hash != raw_hash {
+        let scrubbed = scrub_stream_transcript_llm_raw_dumps(raw);
+        layout_cache.cleaned = sanitize_stream_transcript_visual_noise(&scrubbed);
+        layout_cache.raw_hash = raw_hash;
+        layout_cache.key = 0;
+    }
+}
+
 /// 清洗后的 transcript：按 `wrap_string_to_width` 与渲染路径一致地统计行高与前缀和。
 pub(crate) fn update_stream_layout_cache(
     cleaned: &str,
@@ -311,9 +326,9 @@ fn prepare_stream_transcript_view(
     scroll_pos: &mut f32,
     scroll_target: &mut f32,
 ) -> StreamTranscriptView {
-    let scrubbed = scrub_stream_transcript_llm_raw_dumps(raw);
-    let cleaned = sanitize_stream_transcript_visual_noise(&scrubbed);
-    let key = hash_raw(&scrubbed, viewport_w);
+    ensure_stream_transcript_cleaned(raw, viewport_w, layout_cache);
+    let cleaned = layout_cache.cleaned.clone();
+    let key = layout_cache.raw_hash;
     update_stream_layout_cache(&cleaned, viewport_w, key, layout_cache);
 
     if cleaned.trim().is_empty() {
@@ -581,5 +596,31 @@ mod tests {
         assert!(start.elapsed() < std::time::Duration::from_secs(10));
         assert!(total_rows >= 50_000);
         assert_eq!(visible.len(), 24);
+    }
+
+    /// Tier L: ~100k logical lines; incremental scrub cache must stay hot on repeated prepare.
+    #[test]
+    fn tier_l_incremental_cache_repeated_prepare() {
+        let raw = synthetic_raw_transcript(100_000);
+        let mut cache = StreamTranscriptLayoutCache::default();
+        let mut pos = 0.0f32;
+        let mut tgt = 0.0f32;
+        let (_, _, _, total_rows, _) =
+            prepare_visible_plain_rows(&raw, 80, 24, &mut cache, true, 0, &mut pos, &mut tgt);
+        assert!(total_rows >= 100_000);
+        let key_after_first = cache.key;
+        let start = std::time::Instant::now();
+        for _ in 0..20 {
+            let _ =
+                prepare_visible_plain_rows(&raw, 80, 24, &mut cache, true, 0, &mut pos, &mut tgt);
+        }
+        assert_eq!(
+            cache.key, key_after_first,
+            "layout key stable when raw unchanged"
+        );
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(3),
+            "repeated prepare should reuse scrub/layout cache"
+        );
     }
 }

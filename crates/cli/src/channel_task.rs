@@ -1,11 +1,9 @@
 use crate::app_config::Config;
-use crate::tool_policy::channel_task_tool_filters;
 use anycode_core::prelude::*;
 use std::collections::HashMap;
-use uuid::Uuid;
 
 /// Cron + scheduler semantics shared by WeChat, Telegram, Discord channel agents.
-fn channel_ask_user_question_hint(channel_name: &str) -> &'static str {
+pub(crate) fn channel_ask_user_question_hint(channel_name: &str) -> &'static str {
     match channel_name {
         "telegram" => "\n\n## Telegram AskUserQuestion\nWhen you call AskUserQuestion, the user chooses via inline buttons. Prefer that tool over asking for free-form replies; if the UI fails, the user may still reply with a digit 1–N matching the listed options.",
         "discord" => "\n\n## Discord AskUserQuestion\nWhen you call AskUserQuestion, the user receives numbered options and replies with a digit 1–N.",
@@ -53,36 +51,7 @@ pub(crate) fn im_task_failure_detail_excerpt(
 }
 
 pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Task {
-    let (tool_deny_names, tool_deny_prefixes) = channel_task_tool_filters(config);
-    Task {
-        id: Uuid::new_v4(),
-        agent_type: AgentType::new(input.agent_type),
-        prompt: input.prompt,
-        context: TaskContext {
-            session_id: Uuid::new_v4(),
-            working_directory: input.working_directory,
-            environment: HashMap::new(),
-            user_id: Some(input.user_id.clone()),
-            system_prompt_append: Some(format!(
-                "## Channel Runtime\nchannel={}\nchannel_id={}\nuser_id={}\nFor channel requests, prefer concise, directly actionable answers and avoid UI-only instructions.{}\n\n{}",
-                input.channel_name, input.channel_id, input.user_id,
-                channel_ask_user_question_hint(input.channel_name),
-                im_channel_cron_scheduling_hint(),
-            )),
-            context_injections: vec![format!(
-                "## Channel Session\nplatform={}\nchat_or_channel={}\nuser={}",
-                input.channel_name, input.channel_id, input.user_id
-            )],
-            nested_model_override: None,
-            nested_worktree_path: None,
-            nested_worktree_repo_root: None,
-            nested_cancel: None,
-            channel_progress_tx: None,
-            tool_deny_names,
-            tool_deny_prefixes,
-        },
-        created_at: chrono::Utc::now(),
-    }
+    crate::task_builders::build_channel_task(input, config)
 }
 
 #[cfg(test)]

@@ -222,6 +222,19 @@ mod tests {
     }
 
     #[test]
+    fn execute_task_and_turn_paths_share_extra_deny_lists() {
+        let reg = reg_with(&["FileRead", "Bash", "Glob", "mcp__srv__tool"]);
+        let raw = resolve_agent_tool_names("general-purpose", vec![], &reg);
+        let gating = AgentClaudeToolGating::default();
+        let deny_names = vec!["Bash".to_string()];
+        let deny_prefixes = vec!["mcp__".to_string()];
+        let task_path =
+            prepare_tool_names_for_llm(raw.clone(), &[], &gating, &deny_names, &deny_prefixes);
+        let turn_path = prepare_tool_names_for_llm(raw, &[], &gating, &deny_names, &deny_prefixes);
+        assert_eq!(task_path, turn_path);
+    }
+
+    #[test]
     fn prepare_applies_cron_read_only_extra_deny() {
         let reg = reg_with(&["FileRead", "Bash", "Glob", "mcp__srv__tool"]);
         let names = resolve_agent_tool_names("general-purpose", vec![], &reg);

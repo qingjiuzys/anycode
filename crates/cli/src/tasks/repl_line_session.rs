@@ -25,6 +25,8 @@ pub(crate) struct ReplLineSession {
     pub model_persist: String,
     /// 与全屏 TUI / `execute_turn_from_messages` 一致：流式 REPL 在回合进行中可置位以协作结束本轮。
     pub turn_coop_cancel: Arc<AtomicBool>,
+    pub tool_deny_names: Vec<String>,
+    pub tool_deny_prefixes: Vec<String>,
 }
 
 impl ReplLineSession {
@@ -34,6 +36,8 @@ impl ReplLineSession {
         agent: &str,
         resume: Option<Uuid>,
         model: &str,
+        tool_deny_names: Vec<String>,
+        tool_deny_prefixes: Vec<String>,
     ) -> anyhow::Result<Self> {
         let working_dir_str = std::fs::canonicalize(working_dir)
             .unwrap_or_else(|_| working_dir.to_path_buf())
@@ -64,6 +68,8 @@ impl ReplLineSession {
             working_dir_str,
             model_persist: model.to_string(),
             turn_coop_cancel,
+            tool_deny_names,
+            tool_deny_prefixes,
         })
     }
 
@@ -142,7 +148,15 @@ pub(crate) async fn run_line_repl_turn(
     });
 
     let exec_res = runtime
-        .execute_turn_from_messages(task_id, &at, msgs, &wd, Some(coop))
+        .execute_turn_from_messages(
+            task_id,
+            &at,
+            msgs,
+            &wd,
+            Some(coop),
+            &session.tool_deny_names,
+            &session.tool_deny_prefixes,
+        )
         .await;
 
     sig_watch.abort();
@@ -233,10 +247,20 @@ pub(crate) async fn append_user_spawn_turn(
     let msgs = session.messages.clone();
     let wd = session.working_dir_str.clone();
     let coop = session.turn_coop_cancel.clone();
+    let deny_names = session.tool_deny_names.clone();
+    let deny_prefixes = session.tool_deny_prefixes.clone();
     let handle = tokio::spawn(async move {
-        rt.execute_turn_from_messages(task_id, &at, msgs, &wd, Some(coop))
-            .await
-            .map_err(anyhow::Error::from)
+        rt.execute_turn_from_messages(
+            task_id,
+            &at,
+            msgs,
+            &wd,
+            Some(coop),
+            &deny_names,
+            &deny_prefixes,
+        )
+        .await
+        .map_err(anyhow::Error::from)
     });
     Ok((handle, exec_prev_len))
 }

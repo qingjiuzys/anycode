@@ -72,6 +72,9 @@ pub struct NestedTaskInvoke {
     pub task_id: Option<crate::ids::TaskId>,
     /// Shared flag for cooperative cancel (e.g. background nested agent + **`TaskStop`**).
     pub cancel: Option<Arc<AtomicBool>>,
+    /// Inherited from parent `execute_task` tool surface (cron/channel/profile denies).
+    pub tool_deny_names: Vec<String>,
+    pub tool_deny_prefixes: Vec<String>,
 }
 
 /// 嵌套 Agent / `Task` 工具一次调用的结果：携带与 `DiskTaskOutput` / `output.log` 一致的 **`task_id`**。

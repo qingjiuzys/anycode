@@ -213,6 +213,7 @@ impl AgentTool {
         let model_echo = model.clone();
         let isolation_echo = isolation.clone();
 
+        let (parent_deny_names, parent_deny_prefixes) = self.services.parent_task_tool_deny();
         let invoke = NestedTaskInvoke {
             agent_type: AgentType::new(agent_type_owned.clone()),
             prompt: prompt.clone(),
@@ -221,6 +222,8 @@ impl AgentTool {
             isolation,
             task_id: None,
             cancel: None,
+            tool_deny_names: parent_deny_names,
+            tool_deny_prefixes: parent_deny_prefixes,
         };
 
         if v.run_in_background == Some(true) {

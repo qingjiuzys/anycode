@@ -12,6 +12,7 @@ mod copilot_auth;
 mod cron_failure;
 mod discord_ask;
 mod discord_channel;
+mod eval_manifest;
 mod i18n;
 mod md_render;
 mod repl;
@@ -21,6 +22,7 @@ mod scheduler;
 mod session_transcript_export;
 mod setup_memory;
 mod slash_commands;
+mod task_builders;
 mod tasks;
 mod term;
 mod tg;
@@ -312,7 +314,7 @@ async fn run_cli() -> anyhow::Result<()> {
                 working_dir,
                 std::time::Duration::from_secs(reload_secs),
                 None,
-                None,
+                scheduler::CronDelivery::None,
             )
             .await?;
         }

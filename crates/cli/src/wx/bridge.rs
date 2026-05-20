@@ -25,7 +25,6 @@ use anycode_core::prelude::*;
 use anycode_core::strip_llm_reasoning_for_display;
 use anyhow::{Context, Result};
 use fluent_bundle::FluentArgs;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,7 +33,6 @@ use std::sync::Mutex as StdMutex;
 use std::time::SystemTime;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use super::config_watch::{
     reload_runtime_if_config_changed, spawn_config_file_watcher, ConfigReloadHandle,
@@ -163,31 +161,11 @@ pub async fn run_wechat_daemon(
         resolve_cwd(&session, &wcc)
     };
     let sched_cfg = app_config.clone();
-    let sched_wechat = crate::scheduler::SchedulerWechatHooks {
+    let delivery = crate::scheduler::CronDelivery::Wechat(crate::scheduler::SchedulerWechatHooks {
         data_root: data_root.clone(),
         sender: sched_sender,
-    };
-    tracing::info!(
-        target: "anycode_scheduler",
-        cwd = %cwd_sched.display(),
-        "embedding built-in scheduler beside WeChat bridge (or exit if lock held)"
-    );
-    tokio::spawn(async move {
-        if let Err(e) = crate::scheduler::run_builtin_scheduler(
-            sched_cfg,
-            cwd_sched,
-            std::time::Duration::from_secs(30),
-            Some(sched_runtime),
-            Some(sched_wechat),
-        )
-        .await
-        {
-            tracing::error!(
-                target: "anycode_scheduler",
-                "built-in scheduler exited: {e:#}"
-            );
-        }
     });
+    crate::scheduler::spawn_embedded_scheduler(sched_cfg, cwd_sched, sched_runtime, delivery, 30);
 
     run_monitor(st).await
 }
@@ -653,32 +631,21 @@ async fn run_agent_pipeline(
         let coop = Arc::new(AtomicBool::new(false));
         *wx_turn_cancel_slot.lock().unwrap() = Some(coop.clone());
 
-        let task = Task {
-            id: Uuid::new_v4(),
-            agent_type: AgentType::new(agent),
-            prompt: prompt_body,
-            context: TaskContext {
-                session_id: Uuid::new_v4(),
-                working_directory: cwd.to_string_lossy().to_string(),
-                environment: HashMap::new(),
-                user_id: None,
+        let task =
+            crate::task_builders::build_wechat_task(crate::task_builders::WechatTaskParams {
+                agent,
+                prompt: prompt_body,
+                working_directory: cwd,
                 system_prompt_append: Some(build_wechat_system_append(
                     wx_system_append.as_deref(),
                     &runtime_mode,
                     channel_profile.id,
                     channel_profile.assistant_agent,
                 )),
-                context_injections: vec![],
-                nested_model_override: None,
-                nested_worktree_path: None,
-                nested_worktree_repo_root: None,
-                nested_cancel: Some(coop),
-                channel_progress_tx: None,
                 tool_deny_names,
                 tool_deny_prefixes,
-            },
-            created_at: chrono::Utc::now(),
-        };
+                nested_cancel: Some(coop),
+            });
 
         let result = crate::wx_ask::with_wechat_task_scope(
             from_user_id.clone(),

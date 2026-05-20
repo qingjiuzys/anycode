@@ -290,27 +290,13 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
     let cwd_sched = workdir.clone();
     let sched_cfg = config.clone();
     let sched_runtime = Arc::clone(&runtime_for_sched);
-    tracing::info!(
-        target: "anycode_scheduler",
-        cwd = %cwd_sched.display(),
-        "embedding built-in scheduler beside Telegram bridge (or exit if lock held)"
+    crate::scheduler::spawn_embedded_scheduler(
+        sched_cfg,
+        cwd_sched,
+        sched_runtime,
+        crate::scheduler::CronDelivery::None,
+        30,
     );
-    tokio::spawn(async move {
-        if let Err(e) = crate::scheduler::run_builtin_scheduler(
-            sched_cfg,
-            cwd_sched,
-            std::time::Duration::from_secs(30),
-            Some(sched_runtime),
-            None,
-        )
-        .await
-        {
-            tracing::error!(
-                target: "anycode_scheduler",
-                "built-in scheduler exited: {e:#}"
-            );
-        }
-    });
     let root = tg_data_root()?;
     let state_path = root.join("state.json");
     let mut state = load_state(&state_path);

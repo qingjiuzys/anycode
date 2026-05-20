@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Minimal anyCode production eval harness.
 
-The harness is intentionally credential-free. It checks deterministic CLI
-scenarios first; model-backed repository tasks can be appended later without
-changing the result schema.
+Scenarios are loaded from `scripts/eval/scenarios.json` (shared with `anycode eval`).
 """
 
 from __future__ import annotations
@@ -13,11 +11,12 @@ import os
 import subprocess
 import sys
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = Path(__file__).resolve().parent / "scenarios.json"
 BIN = os.environ.get("ANYCODE_EVAL_BIN", str(ROOT / "target" / "debug" / "anycode"))
 
 
@@ -28,15 +27,25 @@ class Scenario:
     expect: str
 
 
-SCENARIOS = [
-    Scenario("help", [BIN, "--help"], "anyCode"),
-    Scenario("status-json", [BIN, "status", "--json"], "model"),
-    Scenario("doctor-all", [BIN, "doctor", "all", "--json"], "memory.backend"),
-    Scenario("doctor-errors", [BIN, "doctor", "errors", "--json"], "eval.scenario_failed"),
-    Scenario("mcp-status", [BIN, "mcp", "status", "--json"], "policy.reconnect"),
-    Scenario("cron-runs", [BIN, "cron", "runs", "--limit", "1", "--json"], "["),
-    Scenario("memory-doctor", [BIN, "memory", "doctor", "--json"], "memory.backend"),
-]
+def load_manifest() -> dict:
+    return json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+
+def cli_scenarios() -> list[Scenario]:
+    rows = []
+    for row in load_manifest()["cli_scenarios"]:
+        rows.append(
+            Scenario(
+                id=row["id"],
+                command=[BIN, *row["command"]],
+                expect=row["expect"],
+            )
+        )
+    return rows
+
+
+def mock_fixture_ids() -> list[str]:
+    return [row["id"] for row in load_manifest()["mock_fixtures"]]
 
 
 def run_one(s: Scenario) -> dict:
@@ -54,7 +63,9 @@ def run_one(s: Scenario) -> dict:
         )
     out = p.stdout + p.stderr
     return {
-        **asdict(s),
+        "id": s.id,
+        "command": s.command,
+        "expect": s.expect,
         "status": "pass" if p.returncode == 0 and s.expect in out else "fail",
         "exit_code": p.returncode,
         "stdout_tail": p.stdout[-500:],
@@ -64,10 +75,11 @@ def run_one(s: Scenario) -> dict:
 
 def main() -> int:
     if "--list" in sys.argv:
-        print(json.dumps([asdict(s) for s in SCENARIOS], indent=2))
+        manifest = load_manifest()
+        print(json.dumps(manifest, indent=2))
         return 0
     with_mock = "--with-mock" in sys.argv
-    rows = [run_one(s) for s in SCENARIOS]
+    rows = [run_one(s) for s in cli_scenarios()]
     if with_mock:
         mock_cmd = [BIN, "eval", "run", "--mock", "--json"]
         env = os.environ.copy()
@@ -85,12 +97,7 @@ def main() -> int:
                 timeout=120,
             )
         combined = p.stdout + p.stderr
-        mock_ids = [
-            "mock-fixture-greet",
-            "mock-fixture-bugfix",
-            "mock-fixture-multifile",
-            "mock-fixture-test-repair",
-        ]
+        mock_ids = mock_fixture_ids()
         rows.append(
             {
                 "id": "mock-fixture-scenarios",

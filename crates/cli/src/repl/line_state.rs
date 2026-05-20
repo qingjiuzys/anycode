@@ -15,9 +15,12 @@ pub(crate) const TRANSCRIPT_MAX_DISPLAY_LINES: usize = 256;
 /// 流式 REPL 主区折行缓存（与 `claude-code-rust` 视口高度测量同思路）。
 #[derive(Clone, Debug, Default)]
 pub(crate) struct StreamTranscriptLayoutCache {
+    pub raw_hash: u64,
     pub key: u64,
     pub width: u16,
     pub total_rows: usize,
+    /// Scrubbed + sanitized transcript; rebuilt only when `raw_hash` changes.
+    pub cleaned: String,
     /// `prefix_row[i]` = 全局显示行下标到第 `i` 条逻辑行起点。
     pub prefix_row: Vec<usize>,
     pub logical_heights: Vec<usize>,

@@ -374,6 +374,7 @@ pub(crate) async fn initialize_runtime(
     ));
 
     tool_services.attach_sub_agent_executor(runtime.clone());
+    runtime.attach_tool_services(tool_services.clone());
 
     let ask_host: Option<std::sync::Arc<dyn AskUserQuestionHost>> = ask_user_question_host_override
         .or_else(|| {

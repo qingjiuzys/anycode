@@ -207,9 +207,18 @@ pub(crate) async fn run_interactive(
     let disk = DiskTaskOutput::new_default()?;
 
     let mut agent = agent;
-    let mut line_session =
-        ReplLineSession::bootstrap(&runtime, &working_dir, &agent, resume, &config.llm.model)
-            .await?;
+    let (tool_deny_names, tool_deny_prefixes) =
+        crate::tool_policy::interactive_tool_filters(&config);
+    let mut line_session = ReplLineSession::bootstrap(
+        &runtime,
+        &working_dir,
+        &agent,
+        resume,
+        &config.llm.model,
+        tool_deny_names,
+        tool_deny_prefixes,
+    )
+    .await?;
 
     if is_tty {
         run_interactive_tty(

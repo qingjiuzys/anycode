@@ -208,6 +208,8 @@ pub struct ToolServices {
     mcp_defer_allowlist: Option<Arc<Mutex<HashSet<String>>>>,
     /// Startup scan of `SKILL.md` skills + resolution rules for the `Skill` tool.
     pub skill_catalog: Arc<SkillCatalog>,
+    /// Parent `execute_task` tool surface for nested Agent/Task inheritance.
+    parent_task_tool_deny: Mutex<Option<(Vec<String>, Vec<String>)>>,
 }
 
 impl Default for ToolServices {
@@ -239,6 +241,7 @@ impl Default for ToolServices {
             mcp_sessions: Mutex::new(vec![]),
             mcp_defer_allowlist: None,
             skill_catalog: Arc::new(SkillCatalog::empty()),
+            parent_task_tool_deny: Mutex::new(None),
         }
     }
 }
@@ -343,6 +346,29 @@ impl ToolServices {
 
     pub fn attach_sub_agent_executor(&self, ex: Arc<dyn SubAgentExecutor>) {
         *self.sub_agent_executor.lock().expect("sub_agent_executor") = Some(ex);
+    }
+
+    /// Set while a parent [`anycode_core::Task`] is executing so nested agents inherit tool denies.
+    pub fn set_parent_task_tool_deny(&self, names: Vec<String>, prefixes: Vec<String>) {
+        *self
+            .parent_task_tool_deny
+            .lock()
+            .expect("parent_task_tool_deny") = Some((names, prefixes));
+    }
+
+    pub fn clear_parent_task_tool_deny(&self) {
+        *self
+            .parent_task_tool_deny
+            .lock()
+            .expect("parent_task_tool_deny") = None;
+    }
+
+    pub fn parent_task_tool_deny(&self) -> (Vec<String>, Vec<String>) {
+        self.parent_task_tool_deny
+            .lock()
+            .expect("parent_task_tool_deny")
+            .clone()
+            .unwrap_or_default()
     }
 
     pub fn attach_ask_user_question_host(&self, host: AskUserQuestionHostArc) {

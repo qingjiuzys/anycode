@@ -1,75 +1,14 @@
 //! Minimal production-readiness eval harness.
 //!
-//! This intentionally starts with deterministic, no-credential checks. Model-backed
-//! SWE-style evals can build on the same scenario schema later.
+//! Scenarios are loaded from `scripts/eval/scenarios.json` (shared with `scripts/eval/run.py`).
 
+use crate::eval_manifest::{cli_scenarios, mock_fixture_scenarios, CliEvalScenario};
 use serde::Serialize;
 use std::process::Command;
 
-#[derive(Debug, Clone, Serialize)]
-struct EvalScenario {
-    id: &'static str,
-    area: &'static str,
-    command: &'static str,
-    expect: &'static str,
-    acceptance: &'static str,
-}
-
-const SCENARIOS: &[EvalScenario] = &[
-    EvalScenario {
-        id: "cli-help",
-        area: "cli",
-        command: "--help",
-        expect: "anyCode",
-        acceptance: "prints top-level command help without loading provider credentials",
-    },
-    EvalScenario {
-        id: "status-json",
-        area: "config",
-        command: "status --json",
-        expect: "model",
-        acceptance: "prints machine-readable model/mode/security status",
-    },
-    EvalScenario {
-        id: "cron-ledger",
-        area: "automation",
-        command: "cron runs --limit 5 --json",
-        expect: "[",
-        acceptance: "reads cron-runs.jsonl or reports an empty ledger",
-    },
-    EvalScenario {
-        id: "doctor-all",
-        area: "ops",
-        command: "doctor all --json",
-        expect: "memory.backend",
-        acceptance: "reports local config, memory, channel, and MCP diagnostics",
-    },
-    EvalScenario {
-        id: "memory-doctor",
-        area: "memory",
-        command: "memory doctor --json",
-        expect: "memory.backend",
-        acceptance: "reports backend, path, and common lock-risk hints",
-    },
-    EvalScenario {
-        id: "doctor-errors",
-        area: "ops",
-        command: "doctor errors --json",
-        expect: "eval.scenario_failed",
-        acceptance: "prints structured CLI error taxonomy reference",
-    },
-    EvalScenario {
-        id: "mcp-status",
-        area: "mcp",
-        command: "mcp status --json",
-        expect: "policy.reconnect",
-        acceptance: "reports MCP reconnect policy and env hints without live servers",
-    },
-];
-
 #[derive(Debug, Serialize)]
 struct EvalRunRow {
-    id: &'static str,
+    id: String,
     status: &'static str,
     detail: String,
     exit_code: i32,
@@ -87,11 +26,11 @@ fn eval_binary() -> anyhow::Result<std::path::PathBuf> {
     std::env::current_exe().map_err(Into::into)
 }
 
-fn run_scenario(bin: &std::path::Path, s: &EvalScenario) -> EvalRunRow {
+fn run_scenario(bin: &std::path::Path, s: &CliEvalScenario) -> EvalRunRow {
     let home = std::env::temp_dir().join(format!("anycode-eval-{}", uuid::Uuid::new_v4()));
     if let Err(e) = std::fs::create_dir_all(&home) {
         return EvalRunRow {
-            id: s.id,
+            id: s.id.clone(),
             status: "fail",
             detail: format!("temp home: {e}"),
             exit_code: -1,
@@ -99,7 +38,7 @@ fn run_scenario(bin: &std::path::Path, s: &EvalScenario) -> EvalRunRow {
         };
     }
     let mut cmd = Command::new(bin);
-    for part in s.command.split_whitespace() {
+    for part in &s.command {
         cmd.arg(part);
     }
     cmd.env("HOME", &home);
@@ -108,7 +47,7 @@ fn run_scenario(bin: &std::path::Path, s: &EvalScenario) -> EvalRunRow {
         Err(e) => {
             let _ = std::fs::remove_dir_all(&home);
             return EvalRunRow {
-                id: s.id,
+                id: s.id.clone(),
                 status: "fail",
                 detail: format!("spawn failed: {e}"),
                 exit_code: -1,
@@ -119,12 +58,12 @@ fn run_scenario(bin: &std::path::Path, s: &EvalScenario) -> EvalRunRow {
     let _ = std::fs::remove_dir_all(&home);
     let combined = String::from_utf8_lossy(&output.stdout).to_string()
         + &String::from_utf8_lossy(&output.stderr);
-    let pass = output.status.success() && combined.contains(s.expect);
+    let pass = output.status.success() && combined.contains(&s.expect);
     EvalRunRow {
-        id: s.id,
+        id: s.id.clone(),
         status: if pass { "pass" } else { "fail" },
         detail: if pass {
-            s.acceptance.to_string()
+            s.acceptance.clone()
         } else {
             format!(
                 "expected {:?} in output; exit={}; tail={}",
@@ -157,16 +96,17 @@ fn run_scenario(bin: &std::path::Path, s: &EvalScenario) -> EvalRunRow {
 
 #[derive(Debug, Serialize)]
 struct MockFixtureListRow {
-    id: &'static str,
-    area: &'static str,
-    fixture: &'static str,
-    acceptance: &'static str,
+    id: String,
+    area: String,
+    fixture: String,
+    acceptance: String,
     requires_mock: bool,
 }
 
 pub(crate) fn list(json: bool) -> anyhow::Result<()> {
-    let mock_rows: Vec<MockFixtureListRow> = super::eval_mock::MOCK_FIXTURE_METAS
-        .iter()
+    let cli = cli_scenarios();
+    let mock_rows: Vec<MockFixtureListRow> = mock_fixture_scenarios()
+        .into_iter()
         .map(|m| MockFixtureListRow {
             id: m.id,
             area: m.area,
@@ -177,25 +117,28 @@ pub(crate) fn list(json: bool) -> anyhow::Result<()> {
         .collect();
     if json {
         #[derive(Serialize)]
-        struct EvalListPayload<'a> {
-            cli: &'a [EvalScenario],
+        struct EvalListPayload {
+            cli: Vec<CliEvalScenario>,
             mock_fixtures: Vec<MockFixtureListRow>,
         }
         let payload = EvalListPayload {
-            cli: SCENARIOS,
+            cli,
             mock_fixtures: mock_rows,
         };
         println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
-    for s in SCENARIOS {
+    for s in cli_scenarios() {
         println!(
             "{} [{}]\n  command: anycode {}\n  acceptance: {}",
-            s.id, s.area, s.command, s.acceptance
+            s.id,
+            s.area,
+            s.command.join(" "),
+            s.acceptance
         );
     }
     println!("\nMock fixture repo tasks (run with `anycode eval run --mock`):");
-    for m in super::eval_mock::MOCK_FIXTURE_METAS {
+    for m in mock_fixture_scenarios() {
         println!(
             "{} [{}]\n  fixture: scripts/eval/fixtures/{}\n  acceptance: {}",
             m.id, m.area, m.fixture, m.acceptance
@@ -211,11 +154,14 @@ pub(crate) fn run(json: bool, include_mock: bool) -> anyhow::Result<()> {
         }
     }
     let bin = eval_binary()?;
-    let mut rows: Vec<EvalRunRow> = SCENARIOS.iter().map(|s| run_scenario(&bin, s)).collect();
+    let mut rows: Vec<EvalRunRow> = cli_scenarios()
+        .iter()
+        .map(|s| run_scenario(&bin, s))
+        .collect();
     if include_mock {
         for mock in super::eval_mock::run_mock_fixture_scenarios(&bin) {
             rows.push(EvalRunRow {
-                id: mock.id,
+                id: mock.id.to_string(),
                 status: mock.status,
                 detail: mock.detail,
                 exit_code: mock.exit_code,
