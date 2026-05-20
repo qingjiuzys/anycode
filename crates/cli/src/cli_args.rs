@@ -135,6 +135,14 @@ pub(crate) enum Commands {
         #[arg(long)]
         goal: Option<String>,
 
+        /// Goal completion marker: retry until assistant output contains this substring
+        #[arg(long)]
+        done_when: Option<String>,
+
+        /// Cap goal retry attempts (default 12 when --goal is set)
+        #[arg(long)]
+        max_goal_attempts: Option<usize>,
+
         /// Task description
         prompt: String,
 

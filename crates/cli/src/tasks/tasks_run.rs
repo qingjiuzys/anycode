@@ -39,12 +39,20 @@ pub(crate) async fn run_task(
     mode: Option<String>,
     workflow: Option<PathBuf>,
     goal: Option<String>,
+    done_when: Option<String>,
+    max_goal_attempts: Option<usize>,
     prompt: String,
     working_dir: PathBuf,
 ) -> anyhow::Result<()> {
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
     workspace::apply_project_overlays(&mut config, &working_dir);
-    let runtime = crate::bootstrap::initialize_runtime(&config, None, None).await?;
+    let runtime = crate::bootstrap::initialize_runtime(
+        &config,
+        None,
+        None,
+        crate::bootstrap::MemoryAttachMode::Shared,
+    )
+    .await?;
     let disk = DiskTaskOutput::new_default()?;
     if let Some(workflow_path) = workflow {
         return run_workflow_path(&runtime, &disk, &working_dir, &workflow_path, Some(prompt))
@@ -57,8 +65,17 @@ pub(crate) async fn run_task(
     let resolved_agent =
         agent_type.unwrap_or_else(|| resolved_mode.default_agent().as_str().to_string());
     if let Some(goal) = goal {
-        return run_goal_task_with_tail(&runtime, &disk, resolved_agent, prompt, working_dir, goal)
-            .await;
+        return run_goal_task_with_tail(
+            &runtime,
+            &disk,
+            resolved_agent,
+            prompt,
+            working_dir,
+            goal,
+            done_when,
+            max_goal_attempts,
+        )
+        .await;
     }
     let mut sink = ReplSink::Stdio;
     run_single_task_with_tail(
@@ -190,19 +207,28 @@ pub(crate) async fn run_goal_task_with_tail(
     prompt: String,
     working_dir: PathBuf,
     goal: String,
+    done_when: Option<String>,
+    max_goal_attempts: Option<usize>,
 ) -> anyhow::Result<()> {
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
     let task = build_task(agent_type, prompt, working_dir, None);
     let output_path = disk.ensure_initialized(task.id)?;
     eprintln!("goal output log: {}", output_path.display());
+    let done_when = done_when.filter(|s| !s.trim().is_empty());
+    let max_cap = max_goal_attempts
+        .map(|n| n.min(u32::MAX as usize) as u32)
+        .or(Some(12));
+    if let Some(ref marker) = done_when {
+        eprintln!("goal done_when: {marker:?} (max_attempts={max_cap:?})");
+    }
     let (result, progress) = runtime
         .execute_goal_task(
             task,
             GoalSpec {
                 objective: goal,
-                done_when: None,
-                allow_infinite_retries: true,
-                max_attempts_cap: None,
+                done_when,
+                allow_infinite_retries: max_cap.is_none(),
+                max_attempts_cap: max_cap,
             },
         )
         .await?;

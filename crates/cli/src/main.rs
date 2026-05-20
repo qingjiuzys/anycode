@@ -323,13 +323,26 @@ async fn run_cli() -> anyhow::Result<()> {
             mode,
             workflow,
             goal,
+            done_when,
+            max_goal_attempts,
             prompt,
             directory,
         }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;
             let working_dir = resolve_working_dir(directory);
             workspace::touch_project_dir(working_dir.clone());
-            tasks::run_task(config, agent, mode, workflow, goal, prompt, working_dir).await?;
+            tasks::run_task(
+                config,
+                agent,
+                mode,
+                workflow,
+                goal,
+                done_when,
+                max_goal_attempts,
+                prompt,
+                working_dir,
+            )
+            .await?;
         }
         Some(Commands::Skills { sub }) => {
             let config = load_config_for_session(args.config.clone(), ignore_approval).await?;

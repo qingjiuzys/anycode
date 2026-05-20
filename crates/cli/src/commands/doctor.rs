@@ -48,12 +48,12 @@ fn memory_rows(config: &Config) -> Vec<CheckRow> {
         },
     ];
     if matches!(config.memory.backend.as_str(), "hybrid" | "pipeline") {
-        let sled_path = config.memory.path.join("memory.sled");
+        let sled_path = crate::bootstrap::memory_sled_path_for_diagnostics(&config.memory.path);
         rows.push(CheckRow {
             name: "memory.sled".into(),
             status: exists_status(&sled_path).into(),
             detail: format!(
-                "{} (single-writer; stop long-running bridges if WouldBlock appears)",
+                "{} (exclusive attach: channel bridges; local REPL/run use shared=file on same path)",
                 sled_path.display()
             ),
         });

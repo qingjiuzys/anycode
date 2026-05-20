@@ -19,7 +19,10 @@ pub(crate) async fn run_import(
     let file =
         FileMemoryStore::new(config.memory.path.clone()).map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    let (dest, _) = crate::bootstrap::build_memory_layer(config)?;
+    let (dest, _) = crate::bootstrap::build_memory_layer(
+        config,
+        crate::bootstrap::MemoryAttachMode::Exclusive,
+    )?;
 
     let mut total = 0usize;
     for mt in [

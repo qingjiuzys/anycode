@@ -189,7 +189,13 @@ pub(crate) async fn run_interactive(
         } else {
             None
         };
-        let runtime = initialize_runtime(&config, approval_override, Some(uq_host)).await?;
+        let runtime = initialize_runtime(
+            &config,
+            approval_override,
+            Some(uq_host),
+            crate::bootstrap::MemoryAttachMode::Shared,
+        )
+        .await?;
         (
             runtime,
             if require_approval {
@@ -200,7 +206,13 @@ pub(crate) async fn run_interactive(
             Some(uq_rx),
         )
     } else {
-        let runtime = initialize_runtime(&config, None, None).await?;
+        let runtime = initialize_runtime(
+            &config,
+            None,
+            None,
+            crate::bootstrap::MemoryAttachMode::Shared,
+        )
+        .await?;
         (runtime, None, None)
     };
 

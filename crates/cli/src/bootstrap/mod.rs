@@ -8,6 +8,47 @@ mod skills_registry;
 
 pub(crate) use runtime::initialize_runtime;
 
+/// How this process attaches to configured memory (Sled is single-writer per machine).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MemoryAttachMode {
+    /// Channel bridges: open hybrid/pipeline sled when configured.
+    Exclusive,
+    /// Local REPL/run: same Markdown tree as Exclusive; use `file` when config is hybrid/pipeline.
+    Shared,
+}
+
+impl MemoryAttachMode {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Exclusive => "exclusive",
+            Self::Shared => "shared",
+        }
+    }
+}
+
+/// Effective store backend after attach policy (`config.memory.backend` may stay `hybrid`).
+pub(crate) fn effective_memory_backend(config: &Config, attach: MemoryAttachMode) -> &str {
+    match attach {
+        MemoryAttachMode::Exclusive => config.memory.backend.as_str(),
+        MemoryAttachMode::Shared => match config.memory.backend.as_str() {
+            "hybrid" | "pipeline" | "layered" | "guigen" => "file",
+            other => other,
+        },
+    }
+}
+
+fn resolve_memory_attach(requested: MemoryAttachMode) -> MemoryAttachMode {
+    match std::env::var("ANYCODE_MEMORY_ATTACH")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("exclusive") => MemoryAttachMode::Exclusive,
+        Some("shared") => MemoryAttachMode::Shared,
+        _ => requested,
+    }
+}
+
 use crate::app_config::{default_base_url_for, Config};
 use crate::i18n::tr_args;
 use anycode_core::prelude::*;
@@ -73,6 +114,10 @@ impl MemoryStore for NoopMemoryStore {
     }
 }
 
+pub(crate) fn memory_sled_path_for_diagnostics(file_memory_root: &Path) -> std::path::PathBuf {
+    sibling_sled_path(file_memory_root)
+}
+
 fn sibling_sled_path(file_memory_root: &Path) -> std::path::PathBuf {
     let name = file_memory_root
         .file_name()
@@ -122,8 +167,10 @@ fn open_file_memory_store(path: PathBuf) -> anyhow::Result<FileMemoryStore> {
 
 pub(crate) fn build_memory_layer(
     config: &Config,
+    attach: MemoryAttachMode,
 ) -> anyhow::Result<(Arc<dyn MemoryStore>, Option<Arc<dyn MemoryPipeline>>)> {
-    match config.memory.backend.as_str() {
+    let attach = resolve_memory_attach(attach);
+    match effective_memory_backend(config, attach) {
         "noop" => Ok((Arc::new(NoopMemoryStore), None)),
         "file" => {
             let store = open_file_memory_store(config.memory.path.clone())?;
@@ -302,4 +349,38 @@ pub(crate) fn build_preview_model_router(config: &Config) -> ModelRouter {
         model_overrides,
         config.runtime.model_routes.clone(),
     )
+}
+
+#[cfg(test)]
+mod memory_attach_tests {
+    use super::MemoryAttachMode;
+
+    #[test]
+    fn shared_attach_maps_sled_backends_to_file() {
+        for b in ["hybrid", "pipeline", "layered", "guigen"] {
+            assert_eq!(
+                super::effective_memory_backend_for_test(b, MemoryAttachMode::Shared),
+                "file"
+            );
+            assert_eq!(
+                super::effective_memory_backend_for_test(b, MemoryAttachMode::Exclusive),
+                b
+            );
+        }
+        assert_eq!(
+            super::effective_memory_backend_for_test("noop", MemoryAttachMode::Shared),
+            "noop"
+        );
+    }
+}
+
+#[cfg(test)]
+fn effective_memory_backend_for_test(configured: &str, attach: MemoryAttachMode) -> &str {
+    match attach {
+        MemoryAttachMode::Exclusive => configured,
+        MemoryAttachMode::Shared => match configured {
+            "hybrid" | "pipeline" | "layered" | "guigen" => "file",
+            other => other,
+        },
+    }
 }

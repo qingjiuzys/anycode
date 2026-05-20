@@ -66,7 +66,14 @@ pub(crate) async fn reload_runtime_if_config_changed(handle: &ConfigReloadHandle
         };
     apply_wechat_bridge_no_tool_approval(&mut cfg);
     *handle.tool_policy.lock().expect("tool_policy lock") = ToolPolicyConfigSnapshot::from(&cfg);
-    let new_rt = match initialize_runtime(&cfg, None, handle.ask_user_question_host.clone()).await {
+    let new_rt = match initialize_runtime(
+        &cfg,
+        None,
+        handle.ask_user_question_host.clone(),
+        crate::bootstrap::MemoryAttachMode::Exclusive,
+    )
+    .await
+    {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(

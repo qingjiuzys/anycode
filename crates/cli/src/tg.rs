@@ -282,9 +282,14 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
         bot_token.clone(),
     )
     .into_arc();
-    let runtime = initialize_runtime(&config, None, Some(ask_host))
-        .await
-        .context("initialize runtime for telegram")?;
+    let runtime = initialize_runtime(
+        &config,
+        None,
+        Some(ask_host),
+        crate::bootstrap::MemoryAttachMode::Exclusive,
+    )
+    .await
+    .context("initialize runtime for telegram")?;
     let runtime_for_sched = Arc::new(RwLock::new(Arc::clone(&runtime)));
 
     let cwd_sched = workdir.clone();

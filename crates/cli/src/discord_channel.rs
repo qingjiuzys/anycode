@@ -218,9 +218,14 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
         channel_id.clone(),
     )
     .into_arc();
-    let runtime = initialize_runtime(&config, None, Some(ask_host))
-        .await
-        .context("initialize runtime for discord")?;
+    let runtime = initialize_runtime(
+        &config,
+        None,
+        Some(ask_host),
+        crate::bootstrap::MemoryAttachMode::Exclusive,
+    )
+    .await
+    .context("initialize runtime for discord")?;
     let runtime_for_sched = Arc::new(tokio::sync::RwLock::new(Arc::clone(&runtime)));
 
     let cwd_sched = workdir.clone();

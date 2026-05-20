@@ -27,7 +27,10 @@ use super::llm_session::{
     resolve_github_copilot_primary_config, resolve_openai_shell_config, scan_session_llm_needs,
 };
 use super::skills_registry;
-use super::{build_memory_layer, build_model_routing_parts, compile_tool_name_deny_regexes};
+use super::{
+    build_memory_layer, build_model_routing_parts, compile_tool_name_deny_regexes,
+    effective_memory_backend, MemoryAttachMode,
+};
 
 /// Shared by the WeChat bridge, TUI, `run`, and other CLI entrypoints that need a full runtime.
 ///
@@ -37,6 +40,7 @@ pub(crate) async fn initialize_runtime(
     config: &Config,
     approval_override: Option<Box<dyn ApprovalCallback>>,
     ask_user_question_host_override: Option<std::sync::Arc<dyn AskUserQuestionHost>>,
+    memory_attach: MemoryAttachMode,
 ) -> anyhow::Result<Arc<AgentRuntime>> {
     let (need_openai, need_anthropic, need_bedrock, need_github_copilot) =
         scan_session_llm_needs(config);
@@ -77,9 +81,14 @@ pub(crate) async fn initialize_runtime(
     ls.set("copilot", format!("{need_github_copilot}"));
     info!(target: "anycode_cli", "{}", tr_args("log-llm-session", &ls));
 
-    let (memory_store, memory_pipeline) = build_memory_layer(config)?;
+    let (memory_store, memory_pipeline) = build_memory_layer(config, memory_attach)?;
     let mut mi = FluentArgs::new();
     mi.set("backend", config.memory.backend.clone());
+    mi.set("attach", memory_attach.as_str().to_string());
+    mi.set(
+        "effective",
+        effective_memory_backend(config, memory_attach).to_string(),
+    );
     mi.set("path", config.memory.path.display().to_string());
     mi.set("auto", format!("{}", config.memory.auto_save));
     info!(target: "anycode_cli", "{}", tr_args("log-memory-info", &mi));

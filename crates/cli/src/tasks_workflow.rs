@@ -83,6 +83,10 @@ pub(super) async fn run_workflow_definition(
                         .clone()
                         .or_else(|| workflow.done_when.clone())
                         .unwrap_or_else(|| step.prompt.clone()),
+                    step.done_when
+                        .clone()
+                        .or_else(|| workflow.done_when.clone()),
+                    None,
                 )
                 .await
             } else {
@@ -148,6 +152,8 @@ pub(super) async fn run_workflow_definition(
                         .done_when
                         .clone()
                         .unwrap_or_else(|| message.clone()),
+                    workflow.done_when.clone(),
+                    None,
                 )
                 .await?;
             } else {

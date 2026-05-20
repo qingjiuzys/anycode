@@ -139,7 +139,7 @@ fn duration_until_next_tick(
 }
 
 /// When `shared_runtime` is set (IM bridge), reuse that runtime instead of a second
-/// `initialize_runtime` — opening hybrid/pipeline sled twice fails with "could not acquire lock".
+/// `initialize_runtime`. Standalone scheduler uses `MemoryAttachMode::Shared` (file on same path).
 pub(crate) async fn run_builtin_scheduler(
     mut config: Config,
     working_dir: PathBuf,
@@ -192,7 +192,10 @@ pub(crate) async fn run_builtin_scheduler(
     );
 
     let owned_runtime = if shared_runtime.is_none() {
-        Some(bootstrap::initialize_runtime(&config, None, None).await?)
+        Some(
+            bootstrap::initialize_runtime(&config, None, None, bootstrap::MemoryAttachMode::Shared)
+                .await?,
+        )
     } else {
         None
     };

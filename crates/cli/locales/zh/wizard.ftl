@@ -113,7 +113,7 @@ log-mcp-stdio-fail = MCP stdio 连接失败 slug={$slug} err={$err}
 log-mcp-http-ok = MCP Streamable HTTP 已连接 slug={$slug} url={$url}
 log-mcp-http-fail = MCP HTTP 连接失败 slug={$slug} url={$url} err={$err}
 log-llm-session = 🧠 LLM 会话: openai_compat_stack={$openai} anthropic={$anthropic} bedrock={$bedrock} github_copilot={$copilot}
-log-memory-info = 🗃 memory backend={$backend} path={$path} auto_save={$auto}
+log-memory-info = 🗃 memory backend={$backend} attach={$attach} effective={$effective} path={$path} auto_save={$auto}
 log-model-instructions-fail = ⚠️ 无法加载 model_instructions_file {$path}: {$err}
 err-memory-file-store = FileMemoryStore: {$err}
 err-memory-hybrid-store = HybridMemoryStore: {$err}

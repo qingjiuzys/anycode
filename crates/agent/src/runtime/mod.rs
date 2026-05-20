@@ -54,6 +54,7 @@ use receipt::ReceiptGenerator;
 use regex::Regex;
 use session_notify::{build_notification_value, spawn_dispatch};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use task_summary::{last_assistant_plain_text, llm_summary_receipt};
@@ -1583,9 +1584,10 @@ impl AgentRuntime {
             details: None,
         };
 
+        let working_dir = PathBuf::from(&current_task.context.working_directory);
         while engine.should_continue(&progress) {
             let result = self.execute_task(current_task.clone()).await?;
-            engine.update(&mut progress, &result);
+            engine.update(&mut progress, &result, &working_dir);
             last_result = result.clone();
             if progress.completed {
                 break;
