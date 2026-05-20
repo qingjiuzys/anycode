@@ -18,11 +18,15 @@ use super::workflow_exec::run_workflow_path;
 pub(crate) struct RunTaskOptions {
     pub session_id: Option<Uuid>,
     pub tool_profile: Option<String>,
+    pub tool_allowlist: Option<Vec<String>>,
 }
 
 impl RunTaskOptions {
     pub(crate) fn tool_filters(&self) -> (Vec<String>, Vec<String>) {
-        anycode_tools::cron_tool_profile_filters(self.tool_profile.as_deref())
+        anycode_tools::cron_tool_profile_filters(
+            self.tool_profile.as_deref(),
+            self.tool_allowlist.as_deref(),
+        )
     }
 }
 

@@ -211,7 +211,7 @@ mod tests {
         let reg = reg_with(&["FileRead", "Bash", "TaskList", "CronList", "mcp__srv__tool"]);
         let names = resolve_agent_tool_names("general-purpose", vec![], &reg);
         let (deny_names, deny_prefixes) =
-            anycode_tools::cron_tool_profile_filters(Some("observability"));
+            anycode_tools::cron_tool_profile_filters(Some("observability"), None);
         let gating = AgentClaudeToolGating::default();
         let out = prepare_tool_names_for_llm(names, &[], &gating, &deny_names, &deny_prefixes);
         assert!(out.contains(&"FileRead".to_string()));
@@ -226,7 +226,7 @@ mod tests {
         let reg = reg_with(&["FileRead", "Bash", "Glob", "mcp__srv__tool"]);
         let names = resolve_agent_tool_names("general-purpose", vec![], &reg);
         let (deny_names, deny_prefixes) =
-            anycode_tools::cron_tool_profile_filters(Some("read_only"));
+            anycode_tools::cron_tool_profile_filters(Some("read_only"), None);
         let gating = AgentClaudeToolGating::default();
         let out = prepare_tool_names_for_llm(names, &[], &gating, &deny_names, &deny_prefixes);
         assert!(out.contains(&"FileRead".to_string()));

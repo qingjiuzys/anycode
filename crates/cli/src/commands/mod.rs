@@ -1,3 +1,4 @@
+pub(crate) mod audit;
 pub(crate) mod cli_error;
 pub(crate) mod cron;
 pub(crate) mod doctor;

@@ -287,6 +287,7 @@ pub(crate) async fn run_builtin_scheduler(
                 let run_options = RunTaskOptions {
                     session_id: cron_session_id,
                     tool_profile: pj.job.tool_profile.clone(),
+                    tool_allowlist: pj.job.tool_allowlist.clone(),
                 };
                 if let Err(e) = run_single_task_with_tail(
                     runtime.as_ref(),
@@ -395,6 +396,7 @@ mod tests {
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
+                tool_allowlist: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -417,6 +419,7 @@ mod tests {
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
+                tool_allowlist: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -444,6 +447,7 @@ mod tests {
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
+                tool_allowlist: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -482,6 +486,7 @@ mod tests {
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
+                tool_allowlist: None,
             },
             schedule: Schedule::from_str("0 */15 * * * *").unwrap(),
         };

@@ -125,9 +125,12 @@ pub struct CronJob {
     /// Future failure routing: `log` (default), `same_channel`, `shell`, `http`.
     #[serde(default)]
     pub failure_destination: Option<String>,
-    /// Future tool subset hint: `default`, `read_only`, or a custom profile id.
+    /// Future tool subset hint: `default`, `read_only`, `observability`, or `allowlist`.
     #[serde(default)]
     pub tool_profile: Option<String>,
+    /// Explicit tool ids when `tool_profile` is `allowlist`.
+    #[serde(default)]
+    pub tool_allowlist: Option<Vec<String>>,
 }
 
 /// Optional production fields when creating cron jobs via `CronCreate` or scheduler APIs.
@@ -136,6 +139,7 @@ pub struct CronJobCreateOptions {
     pub session_id: Option<String>,
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
+    pub tool_allowlist: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -729,6 +733,15 @@ impl ToolServices {
                     .filter(|s| !s.trim().is_empty())
                     .unwrap_or_else(|| "default".to_string()),
             ),
+            tool_allowlist: opts
+                .tool_allowlist
+                .filter(|list| !list.is_empty())
+                .map(|list| {
+                    list.into_iter()
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                }),
         };
         self.crons.lock().expect("crons mutex").push(job.clone());
         self.try_persist();
@@ -882,12 +895,17 @@ mod orchestration_persist_tests {
             CronJobCreateOptions {
                 session_id: Some("sess-abc".into()),
                 failure_destination: Some("http".into()),
-                tool_profile: Some("observability".into()),
+                tool_profile: Some("allowlist".into()),
+                tool_allowlist: Some(vec!["FileRead".into(), "Glob".into()]),
             },
         );
         assert_eq!(job.session_id.as_deref(), Some("sess-abc"));
         assert_eq!(job.failure_destination.as_deref(), Some("http"));
-        assert_eq!(job.tool_profile.as_deref(), Some("observability"));
+        assert_eq!(job.tool_profile.as_deref(), Some("allowlist"));
+        assert_eq!(
+            job.tool_allowlist,
+            Some(vec!["FileRead".into(), "Glob".into()])
+        );
         let listed = s.list_crons();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].id, job.id);

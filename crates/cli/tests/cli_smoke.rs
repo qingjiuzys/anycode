@@ -142,6 +142,16 @@ fn doctor_all_json_exits_zero() {
 }
 
 #[test]
+fn audit_tail_json_empty_log_exits_zero() {
+    let v = run_json_subcommand(&["audit", "tail", "--limit", "1", "--json"]);
+    assert_eq!(
+        v.as_array().map(Vec::len),
+        Some(0),
+        "expected empty audit log: {v}"
+    );
+}
+
+#[test]
 fn cron_runs_session_filter_matches_ledger() {
     let (home, mut cmd) = anycode_with_isolated_home();
     let log_dir = home.path().join(".anycode/logs");

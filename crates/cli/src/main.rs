@@ -261,6 +261,16 @@ async fn run_cli() -> anyhow::Result<()> {
                 commands::cron::print_runs(job, session, limit, json)?;
             }
         },
+        Some(Commands::Audit { sub }) => match sub {
+            cli_args::AuditCommands::Tail {
+                task,
+                tool,
+                limit,
+                json,
+            } => {
+                commands::audit::print_tail(task, tool, limit, json)?;
+            }
+        },
         Some(Commands::Workspace { sub }) => match sub {
             cli_args::WorkspaceCommands::List { json } => {
                 commands::workspace::handle_list(json).await?;

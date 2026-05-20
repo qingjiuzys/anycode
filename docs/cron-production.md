@@ -31,8 +31,8 @@ Cron has moved beyond reminder creation into production observability.
 | `default` | Full agent tool surface |
 | `read_only` | Denies mutation tools and `mcp__*` |
 | `observability` | Monitoring-only allowlist: read/search/list tools |
+| `allowlist` | Custom explicit tool ids via `tool_allowlist` on the job |
 
 ## Next
 
 - Use `session_id` to group recurring runs in stream UI and diagnostics.
-- Custom allowlist profiles beyond the three built-ins.

@@ -27,10 +27,10 @@ for production debugging.
   (`crates/tools/src/mcp_tool_scan.rs`, wired when `tools-mcp` is enabled).
 - Tool output sanitizer metadata for WebFetch, MCP, and Bash outputs
   (`crates/agent/src/runtime/tool_output_sanitize.rs`).
-- Per-cron tool profiles (`default`, `read_only`, `observability`) enforced at
+- Per-cron tool profiles (`default`, `read_only`, `observability`, `allowlist`) enforced at
   task execution via `TaskContext.tool_deny_names` / `tool_deny_prefixes`.
+- Operator-facing audit query CLI: `anycode audit tail`.
 
 ## Next
 
 - Policy profiles for headless / CI / channel modes beyond cron profiles.
-- Operator-facing audit query CLI (`anycode audit tail`).

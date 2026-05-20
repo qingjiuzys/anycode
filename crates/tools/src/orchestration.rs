@@ -500,9 +500,12 @@ struct CronIn {
     /// Failure routing: `log` (default), `same_channel`, `shell`, `http`.
     #[serde(default)]
     failure_destination: Option<String>,
-    /// Tool surface profile: `default`, `read_only`, or `observability`.
+    /// Tool surface profile: `default`, `read_only`, `observability`, or `allowlist`.
     #[serde(default)]
     tool_profile: Option<String>,
+    /// Required when `tool_profile` is `allowlist`.
+    #[serde(default)]
+    tool_allowlist: Option<Vec<String>>,
 }
 
 fn default_cron_tz() -> String {
@@ -540,7 +543,8 @@ impl Tool for CronCreateTool {
          Use `utc` only if you already converted to UTC, or an IANA name (e.g. `Asia/Shanghai`) for wall clock in that zone. \
          `command` runs as one agent task when the scheduler holds ~/.anycode/tasks/scheduler.lock \
          (WeChat bridge embeds it). For WeChat reminders, say in `command` that the assistant must notify the user clearly. \
-         Optional `session_id`, `failure_destination` (`log`|`same_channel`|`shell`|`http`), and `tool_profile` (`default`|`read_only`|`observability`)."
+         Optional `session_id`, `failure_destination` (`log`|`same_channel`|`shell`|`http`), \
+         `tool_profile` (`default`|`read_only`|`observability`|`allowlist`), and `tool_allowlist` when using allowlist."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -562,7 +566,12 @@ impl Tool for CronCreateTool {
                 },
                 "tool_profile": {
                     "type": "string",
-                    "description": "default, read_only, or observability"
+                    "description": "default, read_only, observability, or allowlist"
+                },
+                "tool_allowlist": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Required when tool_profile is allowlist"
                 }
             },
             "required": ["schedule", "command"]
@@ -655,6 +664,21 @@ impl Tool for CronCreateTool {
                 });
             }
         }
+        if c.tool_profile.as_deref() == Some("allowlist") {
+            let has_tools = c
+                .tool_allowlist
+                .as_ref()
+                .is_some_and(|list| list.iter().any(|s| !s.trim().is_empty()));
+            if !has_tools {
+                return Ok(ToolOutput {
+                    result: json!({
+                        "error": "tool_profile allowlist requires non-empty tool_allowlist"
+                    }),
+                    error: Some("missing tool_allowlist".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
         let job = self.services.push_cron_with_options(
             stored_schedule.clone(),
             c.command,
@@ -662,6 +686,7 @@ impl Tool for CronCreateTool {
                 session_id: c.session_id,
                 failure_destination: c.failure_destination,
                 tool_profile: c.tool_profile,
+                tool_allowlist: c.tool_allowlist,
             },
         );
         let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&stored_schedule);
@@ -674,6 +699,7 @@ impl Tool for CronCreateTool {
                 "session_id": job.session_id,
                 "failure_destination": job.failure_destination,
                 "tool_profile": job.tool_profile,
+                "tool_allowlist": job.tool_allowlist,
                 "schedule_stored_utc": stored_schedule,
                 "schedule_timezone_applied": tz_note,
                 "next_fire_utc": next_utc_s,

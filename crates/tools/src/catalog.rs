@@ -175,7 +175,7 @@ pub const CRON_OBSERVABILITY_ALLOWED_TOOL_IDS: &[&str] = &[
 
 /// Known persisted cron tool profiles (`CronJob.tool_profile` / `CronCreate`).
 pub fn known_cron_tool_profiles() -> &'static [&'static str] {
-    &["default", "read_only", "observability"]
+    &["default", "read_only", "observability", "allowlist"]
 }
 
 pub fn is_known_cron_tool_profile(profile: &str) -> bool {
@@ -191,8 +191,37 @@ pub fn is_known_cron_failure_destination(dest: &str) -> bool {
     known_cron_failure_destinations().contains(&dest.trim())
 }
 
+fn cron_allowlist_filters(allowlist: Option<&[String]>) -> (Vec<String>, Vec<String>) {
+    let allow: Vec<&str> = allowlist
+        .unwrap_or(&[])
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if allow.is_empty() {
+        return (
+            DEFAULT_TOOL_IDS.iter().map(|s| (*s).to_string()).collect(),
+            vec!["mcp__".to_string()],
+        );
+    }
+    let deny: Vec<String> = DEFAULT_TOOL_IDS
+        .iter()
+        .filter(|id| !allow.contains(id))
+        .map(|s| (*s).to_string())
+        .collect();
+    let prefixes = if allow.iter().any(|a| a.starts_with("mcp__")) {
+        vec![]
+    } else {
+        vec!["mcp__".to_string()]
+    };
+    (deny, prefixes)
+}
+
 /// Resolve per-cron tool deny lists from `CronJob.tool_profile`.
-pub fn cron_tool_profile_filters(profile: Option<&str>) -> (Vec<String>, Vec<String>) {
+pub fn cron_tool_profile_filters(
+    profile: Option<&str>,
+    allowlist: Option<&[String]>,
+) -> (Vec<String>, Vec<String>) {
     match profile.map(str::trim).filter(|s| !s.is_empty()) {
         None | Some("default") => (vec![], vec![]),
         Some("read_only") => (
@@ -210,6 +239,7 @@ pub fn cron_tool_profile_filters(profile: Option<&str>) -> (Vec<String>, Vec<Str
                 .collect();
             (deny, vec!["mcp__".to_string()])
         }
+        Some("allowlist") => cron_allowlist_filters(allowlist),
         Some(other) => {
             tracing::warn!(
                 target: "anycode_tools",
@@ -372,8 +402,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn cron_allowlist_profile_denies_unlisted_tools() {
+        let allow = vec!["FileRead".to_string(), "Glob".to_string()];
+        let (names, prefixes) = cron_tool_profile_filters(Some("allowlist"), Some(&allow));
+        assert!(!names.iter().any(|n| n == "FileRead"));
+        assert!(!names.iter().any(|n| n == "Glob"));
+        assert!(names.iter().any(|n| n == "Bash"));
+        assert!(prefixes.iter().any(|p| p == "mcp__"));
+    }
+
+    #[test]
     fn cron_observability_profile_allows_task_list_only_subset() {
-        let (names, prefixes) = cron_tool_profile_filters(Some("observability"));
+        let (names, prefixes) = cron_tool_profile_filters(Some("observability"), None);
         assert!(!names.iter().any(|n| n == "TaskList"));
         assert!(!names.iter().any(|n| n == "CronList"));
         assert!(names.iter().any(|n| n == "Bash"));
@@ -388,7 +428,7 @@ mod tests {
 
     #[test]
     fn cron_read_only_profile_denies_bash_and_mcp_prefix() {
-        let (names, prefixes) = cron_tool_profile_filters(Some("read_only"));
+        let (names, prefixes) = cron_tool_profile_filters(Some("read_only"), None);
         assert!(names.iter().any(|n| n == "Bash"));
         assert!(prefixes.iter().any(|p| p == "mcp__"));
     }
