@@ -30,7 +30,7 @@ jobs:
             target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -40,8 +40,17 @@ jobs:
         with:
           key: release-${{ matrix.target }}
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: crates/dashboard-ui/package-lock.json
+
+      - name: Build dashboard UI
+        run: ./scripts/build-dashboard-ui.sh
+
       - name: cargo build
-        run: cargo build -p anycode --release --target ${{ matrix.target }}
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build -p anycode --release --features embedded-ui --target ${{ matrix.target }}
 
       - name: Package tarball (unix)
         if: runner.os != 'Windows'

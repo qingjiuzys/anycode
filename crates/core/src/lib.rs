@@ -6,6 +6,7 @@
 mod agent_type;
 mod channel;
 mod error;
+mod execution_trace;
 mod feature_flags;
 mod goal;
 mod ids;
@@ -21,13 +22,16 @@ mod security_policy;
 mod session_notification;
 mod slash_command;
 mod task;
+mod task_gate_log;
 mod task_output;
+mod tool_catalog;
 mod traits;
 mod workflow;
 
 pub use agent_type::AgentType;
 pub use channel::{ChannelMessage, ChannelType};
 pub use error::{anyhow_error_is_cooperative_cancel, CoreError};
+pub use execution_trace::{ExecutionTraceEvent, EXECUTION_TRACE_SCHEMA_VERSION};
 pub use feature_flags::{FeatureFlag, FeatureRegistry};
 pub use goal::{GoalProgress, GoalSpec};
 pub use ids::{
@@ -52,29 +56,41 @@ pub use security_policy::SecurityPolicy;
 pub use session_notification::SessionNotificationSettings;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 pub use task::{
-    Artifact, NestedTaskInvoke, NestedTaskRun, Task, TaskContext, TaskResult, TurnOutput,
-    TurnTokenUsage, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+    Artifact, NestedTaskInvoke, NestedTaskRun, Task, TaskBudget, TaskContext, TaskResult,
+    TurnOutput, TurnTokenUsage, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+};
+pub use task_gate_log::{
+    append_gate_log, decode_log_text, encode_log_text, format_assistant_response_log_line,
+    format_gate_log_line, format_user_prompt_log_line,
 };
 pub use task_output::DiskTaskOutput;
+pub use tool_catalog::{
+    tool_catalog, tool_catalog_entry, ToolCatalogEntry, DEFAULT_TOOL_IDS,
+    SECURITY_SENSITIVE_TOOL_IDS,
+};
 pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor, Tool};
-pub use workflow::{WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep};
+pub use workflow::{
+    PlanValidationIssue, PlanValidationResult, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
+    WorkflowStep,
+};
 
 pub mod prelude {
     pub use super::anyhow_error_is_cooperative_cancel;
     pub use super::CoreError;
     pub use super::{
         Agent, AgentType, ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput,
-        EmbeddingProvider, FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient,
-        LLMProvider, LLMResponse, Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope,
-        MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
-        ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PreSemanticFragment,
+        EmbeddingProvider, ExecutionTraceEvent, FeatureFlag, FeatureRegistry, GoalProgress,
+        GoalSpec, LLMClient, LLMProvider, LLMResponse, Memory, MemoryPipeline,
+        MemoryPipelineSettings, MemoryScope, MemoryStore, MemoryType, Message, MessageContent,
+        MessageRole, ModelConfig, ModelRouteProfile, NestedTaskInvoke, NestedTaskRun,
+        PermissionMode, PlanValidationIssue, PlanValidationResult, PreSemanticFragment,
         RuntimeMode, RuntimeProfile, SecretRef, SecretResolver, SecurityPolicy,
         SessionNotificationSettings, SlashCommand, SlashCommandScope, StreamEvent,
-        SubAgentExecutor, Task, TaskContext, TaskId, TaskResult, Tool, ToolCall, ToolInput,
-        ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage, VectorMemoryBackend,
-        WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep,
+        SubAgentExecutor, Task, TaskBudget, TaskContext, TaskId, TaskResult, Tool, ToolCall,
+        ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage,
+        VectorMemoryBackend, WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep,
         ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
-        ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS,
+        ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS, EXECUTION_TRACE_SCHEMA_VERSION,
         NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
     };
 }

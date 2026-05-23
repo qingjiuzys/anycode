@@ -1,0 +1,48 @@
+import { useT } from "@/i18n/context";
+
+export type SettingsSection =
+  | "auth"
+  | "data"
+  | "service"
+  | "model"
+  | "skills"
+  | "assets"
+  | "security"
+  | "notify"
+  | "ops";
+
+const SECTIONS: SettingsSection[] = [
+  "auth",
+  "data",
+  "service",
+  "model",
+  "skills",
+  "assets",
+  "security",
+  "notify",
+  "ops",
+];
+
+export function SettingsNav({
+  active,
+  onChange,
+}: {
+  active: SettingsSection;
+  onChange: (s: SettingsSection) => void;
+}) {
+  const t = useT();
+  return (
+    <nav className="dw-settings-nav">
+      {SECTIONS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          className={`dw-settings-nav-link${active === id ? " active" : ""}`}
+          onClick={() => onChange(id)}
+        >
+          {t(`settings.tabs.${id}`)}
+        </button>
+      ))}
+    </nav>
+  );
+}

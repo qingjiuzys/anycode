@@ -63,6 +63,7 @@ pub(crate) fn build_headless_task(
             channel_progress_tx: None,
             tool_deny_names,
             tool_deny_prefixes,
+            budget: options.budget,
         },
         created_at: chrono::Utc::now(),
     }
@@ -98,6 +99,7 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Ta
             channel_progress_tx: None,
             tool_deny_names,
             tool_deny_prefixes,
+            budget: TaskBudget::default(),
         },
         created_at: chrono::Utc::now(),
     }
@@ -124,6 +126,7 @@ pub(crate) fn build_wechat_task(params: WechatTaskParams) -> Task {
             channel_progress_tx: None,
             tool_deny_names: params.tool_deny_names,
             tool_deny_prefixes: params.tool_deny_prefixes,
+            budget: TaskBudget::default(),
         },
         created_at: chrono::Utc::now(),
     }
@@ -155,6 +158,7 @@ pub(crate) fn build_minimal_task(
             channel_progress_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
+            budget: TaskBudget::default(),
         },
         created_at: chrono::Utc::now(),
     }

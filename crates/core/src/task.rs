@@ -57,6 +57,62 @@ pub struct TaskContext {
     /// Per-task tool name prefixes to hide (e.g. `mcp__` for cron read-only).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_deny_prefixes: Vec<String>,
+    /// Optional runtime budget enforced by the harness during task execution.
+    #[serde(default, skip_serializing_if = "TaskBudget::is_empty")]
+    pub budget: TaskBudget,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct TaskBudget {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_budget_total: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_budget_usd: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_duration_secs: Option<u64>,
+    #[serde(default = "TaskBudget::default_warn_ratio")]
+    pub warn_ratio: f32,
+    #[serde(default = "TaskBudget::default_degrade_ratio")]
+    pub degrade_ratio: f32,
+    #[serde(default = "TaskBudget::default_hard_stop_ratio")]
+    pub hard_stop_ratio: f32,
+}
+
+impl Default for TaskBudget {
+    fn default() -> Self {
+        Self {
+            token_budget_total: None,
+            cost_budget_usd: None,
+            max_duration_secs: None,
+            warn_ratio: Self::default_warn_ratio(),
+            degrade_ratio: Self::default_degrade_ratio(),
+            hard_stop_ratio: Self::default_hard_stop_ratio(),
+        }
+    }
+}
+
+impl TaskBudget {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.token_budget_total.is_none()
+            && self.cost_budget_usd.is_none()
+            && self.max_duration_secs.is_none()
+    }
+
+    #[must_use]
+    pub fn default_warn_ratio() -> f32 {
+        0.5
+    }
+
+    #[must_use]
+    pub fn default_degrade_ratio() -> f32 {
+        0.8
+    }
+
+    #[must_use]
+    pub fn default_hard_stop_ratio() -> f32 {
+        1.0
+    }
 }
 
 /// Parameters for [`crate::SubAgentExecutor::run_nested_task`] (Claude Code `Agent` / `Task` tool parity).

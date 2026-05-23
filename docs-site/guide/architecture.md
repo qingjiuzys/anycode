@@ -25,6 +25,19 @@ flowchart TB
 ```
 
 - **CLI (`crates/cli`)**: argument parsing, config, bootstrap, TUI modules, REPL, WeChat bridge wiring.
+
+### CLI binary layout (`crates/cli`)
+
+Keep `main.rs` thin: parse args, dispatch subcommands, delegate to modules.
+
+- `cli_args/`: Clap top-level args and subcommands
+- `app_config/`: `schema/` (types + validation), `user_config.rs`, `prompts.rs`, `model_wizard.rs`, `config_wizard.rs`, `load.rs`, `onboard.rs`; `~/.anycode/config.json` and runtime `Config`
+- `commands/dispatch/`: CLI dispatch (`channel_cmds` / `ops` / `task_cmds`)
+- `channels/`: WeChat / Telegram / Discord bridges
+- `bootstrap/`: `initialize_runtime` (LLM + tools + `SecurityLayer` + `AgentRuntime`)
+- `tasks/`: default interactive mode, `run`, REPL, workflow execution
+- `term/`: styles, input, transcript helpers, approval plumbing, session snapshots
+- `repl/`: stream ratatui REPL (`stream_ratatui`, `dock_render`, etc.)
 - **Agent (`crates/agent`)**: `AgentRuntime`, tool loop, persistence, summaries.
 - **Core / security / tools / llm / memory**: shared types, policies, tool implementations, LLM adapters, memory backends.
 
@@ -59,7 +72,7 @@ Multi-turn **LLM + tool** orchestration lives only in **`AgentRuntime::execute_t
 
 ### Cooperative cancel (turns and nested agents)
 
-Main-session and line/stream REPL turns pass an optional `Arc<AtomicBool>` into **`execute_turn_from_messages`**. Nested **`execute_task`** runs use **`TaskContext.nested_cancel`** (from **`NestedTaskInvoke.cancel`**). Background nested agents register a job flag; **`TaskStop`** sets that flag and aborts the spawned task. Outcomes use **`CoreError::CooperativeCancel`** (same display as legacy `LLM error: cancelled`); use **`CoreError::is_cooperative_cancel`** or **`anycode_core::anyhow_error_is_cooperative_cancel`** when handling **`anyhow::Error`**. See **`docs/adr/002-cooperative-cancel-and-nested-agents.md`**.
+Main-session and line/stream REPL turns pass an optional `Arc<AtomicBool>` into **`execute_turn_from_messages`**. Nested **`execute_task`** runs use **`TaskContext.nested_cancel`** (from **`NestedTaskInvoke.cancel`**). Background nested agents register a job flag; **`TaskStop`** sets that flag and aborts the spawned task. Outcomes use **`CoreError::CooperativeCancel`** (same display as legacy `LLM error: cancelled`); use **`CoreError::is_cooperative_cancel`** or **`anycode_core::anyhow_error_is_cooperative_cancel`** when handling **`anyhow::Error`**. See **`docs/adr/010-cooperative-cancel-and-nested-agents.md`**.
 
 ### Session notifications (HTTP / shell)
 
@@ -84,7 +97,7 @@ Optional **`config.json`** **`notifications`** block posts versioned JSON (**`sc
 
 ### `runtime/` layout
 
-Besides the tool loop, `crates/agent/src/runtime/` includes **`tool_surface.rs`**: resolving which tool names an agent exposes to the LLM (including `mcp__*` merge for `general-purpose`), deny-regex filtering, Claude permission gating, and stable ordering—so `execute_task` and TUI turns stay in sync.
+Besides the tool loop, `crates/agent/src/runtime/` includes **`tool_surface.rs`** (tool name resolution and gating shared by `execute_task` / `execute_turn_from_messages`) and **`tool_result_injection.rs`** (sanitize, truncate, and build tool-result messages so both execution paths stay aligned).
 
 ---
 

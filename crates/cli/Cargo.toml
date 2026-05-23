@@ -9,9 +9,10 @@ name = "anycode"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["embedded-ui"]
 # 本地 ONNX 嵌入（FastEmbed / MiniLM），与 `memory.pipeline.embedding_provider: "local"` 联用。
 embedding-local = ["anycode-memory/embedding-local"]
+embedded-ui = ["anycode-dashboard/embedded-ui"]
 openai = ["anycode-llm/openai"]
 tools-mcp = ["anycode-tools/tools-mcp"]
 mcp-oauth = ["anycode-tools/tools-mcp-oauth"]
@@ -26,6 +27,7 @@ anycode-llm = { path = "../llm" }
 anycode-security = { path = "../security" }
 anycode-memory = { path = "../memory" }
 anycode-channels = { path = "../channels" }
+anycode-dashboard = { path = "../dashboard" }
 
 aes = "0.8"
 cipher = { version = "0.4", features = ["block-padding"] }

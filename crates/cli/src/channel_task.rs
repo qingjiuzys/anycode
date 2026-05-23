@@ -1,6 +1,5 @@
 use crate::app_config::Config;
 use anycode_core::prelude::*;
-use std::collections::HashMap;
 
 /// Cron + scheduler semantics shared by WeChat, Telegram, Discord channel agents.
 pub(crate) fn channel_ask_user_question_hint(channel_name: &str) -> &'static str {

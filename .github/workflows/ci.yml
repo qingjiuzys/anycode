@@ -31,6 +31,9 @@ jobs:
       - name: cargo test
         run: cargo test --workspace
 
+      - name: Build dashboard UI (embedded release)
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
+
       - name: cargo test (tools-lsp)
         run: cargo test -p anycode-tools --features tools-lsp
 
@@ -38,10 +41,44 @@ jobs:
         run: cargo test -p anycode-tools --features tools-mcp
 
       - name: Build release binary
-        run: cargo build --release -p anycode
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
 
       - name: Eval harness (mock scenarios)
         run: python3 scripts/eval/run.py --with-mock
+
+  dashboard-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: crates/dashboard-ui/package-lock.json
+
+      - name: Install dashboard-ui deps
+        working-directory: crates/dashboard-ui
+        run: npm ci
+
+      - name: dashboard-ui test
+        working-directory: crates/dashboard-ui
+        run: npm test
+
+      - name: dashboard-ui build
+        working-directory: crates/dashboard-ui
+        run: npm run build
+
+      - name: Install Playwright browsers
+        working-directory: crates/dashboard-ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Build anycode for e2e
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
+
+      - name: dashboard-ui e2e
+        working-directory: crates/dashboard-ui
+        run: npm run test:e2e
 
   docs:
     runs-on: ubuntu-latest

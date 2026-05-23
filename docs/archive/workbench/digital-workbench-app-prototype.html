@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anycode Enterprise Workbench Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070a12;
+      --surface: #0d1324;
+      --surface-2: #111a30;
+      --surface-3: #162038;
+      --line: rgba(148, 163, 184, .16);
+      --line-2: rgba(148, 163, 184, .28);
+      --text: #edf4ff;
+      --muted: #91a4be;
+      --brand: #38bdf8;
+      --brand-2: #8b5cf6;
+      --good: #6ee7b7;
+      --warn: #fde68a;
+      --bad: #fb7185;
+      --radius: 18px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% -10%, rgba(56, 189, 248, .18), transparent 30rem),
+        radial-gradient(circle at 90% 8%, rgba(139, 92, 246, .16), transparent 30rem),
+        var(--bg);
+      overflow: hidden;
+    }
+
+    body.light {
+      color-scheme: light;
+      --bg: #edf3fb;
+      --surface: rgba(255, 255, 255, .84);
+      --surface-2: #ffffff;
+      --surface-3: #f1f5f9;
+      --line: rgba(15, 23, 42, .12);
+      --line-2: rgba(15, 23, 42, .22);
+      --text: #0f172a;
+      --muted: #64748b;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: rgba(7, 10, 18, .72);
+      backdrop-filter: blur(18px);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    body.light .sidebar { background: rgba(255,255,255,.72); }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: #020617;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    }
+
+    .brand h1 { margin: 0; font-size: 16px; }
+    .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav button {
+      width: 100%;
+      border: 1px solid transparent;
+      color: var(--muted);
+      background: transparent;
+      border-radius: 14px;
+      padding: 11px 12px;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav button.active {
+      color: var(--text);
+      border-color: rgba(56, 189, 248, .38);
+      background: rgba(56, 189, 248, .1);
+    }
+
+    .count {
+      font-size: 11px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    .workspaceCard {
+      margin-top: auto;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .workspaceCard strong { display: block; font-size: 13px; }
+    .workspaceCard span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    .content {
+      min-width: 0;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      height: 72px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 26px;
+      background: rgba(7, 10, 18, .58);
+      backdrop-filter: blur(16px);
+    }
+
+    body.light .topbar { background: rgba(255,255,255,.66); }
+
+    .search {
+      width: min(520px, 42vw);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 11px 16px;
+      color: var(--text);
+      outline: 0;
+    }
+
+    .topActions { display: flex; align-items: center; gap: 10px; }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 13px;
+      padding: 10px 13px;
+    }
+
+    .btn.primary {
+      border-color: rgba(56, 189, 248, .45);
+      background: linear-gradient(135deg, #0284c7, #6d28d9);
+      color: white;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      background: var(--surface-3);
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+    }
+
+    .page {
+      display: none;
+      overflow: auto;
+      padding: 26px;
+    }
+
+    .page.active { display: block; }
+
+    .pageHeader {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .pageHeader h2 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -.03em;
+    }
+
+    .pageHeader p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .grid { display: grid; gap: 16px; }
+    .cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cols2 { grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr); }
+
+    .card {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 22px;
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin: 0 0 14px;
+      font-size: 15px;
+    }
+
+    .statLabel { color: var(--muted); font-size: 12px; }
+    .statValue { margin-top: 8px; font-size: 30px; font-weight: 800; letter-spacing: -.04em; }
+    .statSub { margin-top: 6px; font-size: 12px; color: var(--muted); }
+
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .brandText { color: var(--brand); }
+
+    .barChart { display: grid; gap: 12px; }
+    .barRow {
+      display: grid;
+      grid-template-columns: 110px 1fr 50px;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .bar {
+      height: 10px;
+      background: var(--surface-3);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--brand), var(--brand-2));
+    }
+
+    .lineChart {
+      height: 220px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      background:
+        linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 25%,
+        var(--surface-2);
+    }
+    .lineChart i {
+      flex: 1;
+      min-width: 8px;
+      border-radius: 9px 9px 0 0;
+      background: linear-gradient(180deg, var(--brand), rgba(56,189,248,.18));
+    }
+
+    .projectCard, .assetRow, .sessionRow, .policyRow {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+      padding: 16px;
+    }
+
+    .projectCard header, .assetRow, .sessionRow, .policyRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .projectCard h3, .assetRow strong, .sessionRow strong, .policyRow strong {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pill.good { color: var(--good); border-color: rgba(110,231,183,.35); }
+    .pill.warn { color: var(--warn); border-color: rgba(253,230,138,.35); }
+    .pill.bad { color: var(--bad); border-color: rgba(251,113,133,.35); }
+
+    .projectMetrics {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .projectMetrics div {
+      padding: 10px;
+      border-radius: 14px;
+      background: var(--surface-3);
+    }
+
+    .chatLayout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      min-height: calc(100vh - 150px);
+    }
+    .chatList, .chatPanel {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .chatList { padding: 14px; }
+    .chatItem {
+      padding: 12px;
+      border-radius: 15px;
+      margin-bottom: 8px;
+      background: transparent;
+      border: 1px solid transparent;
+    }
+    .chatItem.active {
+      border-color: rgba(56,189,248,.38);
+      background: rgba(56,189,248,.09);
+    }
+    .messages {
+      height: calc(100% - 82px);
+      min-height: 520px;
+      padding: 18px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 76%;
+      padding: 12px 14px;
+      border-radius: 18px;
+      line-height: 1.6;
+      background: var(--surface-3);
+    }
+    .msg.user {
+      margin-left: auto;
+      background: rgba(56,189,248,.16);
+    }
+    .msg.agent {
+      margin-right: auto;
+    }
+    .composer {
+      display: flex;
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid var(--line);
+    }
+    .composer input {
+      flex: 1;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: var(--text);
+      background: var(--surface-2);
+      padding: 12px;
+      outline: 0;
+    }
+
+    .settingsLayout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 16px;
+    }
+    .settingsNav {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 12px;
+      background: var(--surface);
+      height: fit-content;
+    }
+    .settingsNav button {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      color: var(--muted);
+      background: transparent;
+      padding: 11px;
+      border-radius: 13px;
+    }
+    .settingsNav button.active {
+      color: var(--text);
+      background: var(--surface-3);
+    }
+    .formGrid {
+      display: grid;
+      gap: 14px;
+    }
+    .field {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 14px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .field label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 10px 12px;
+      outline: 0;
+    }
+    textarea { min-height: 88px; resize: vertical; }
+
+    .loginOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      place-items: center;
+      background:
+        radial-gradient(circle at 30% 0%, rgba(56,189,248,.24), transparent 28rem),
+        rgba(7,10,18,.82);
+      backdrop-filter: blur(18px);
+    }
+    .loginOverlay.open { display: grid; }
+    .loginCard {
+      width: min(440px, calc(100vw - 32px));
+      border: 1px solid var(--line-2);
+      border-radius: 28px;
+      background: var(--surface);
+      padding: 26px;
+    }
+    .loginCard h2 { margin: 0 0 8px; font-size: 26px; }
+    .loginCard p { margin: 0 0 20px; color: var(--muted); line-height: 1.6; }
+
+    @media (max-width: 1180px) {
+      body { overflow: auto; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .cols4, .cols3, .cols2, .chatLayout, .settingsLayout { grid-template-columns: 1fr; }
+      .page { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">A</div>
+        <div>
+          <h1>anycode Workbench</h1>
+          <p>Enterprise AI automation</p>
+        </div>
+      </div>
+
+      <nav class="nav" id="mainNav">
+        <button class="active" data-page="dashboard">首页图表 <span class="count">live</span></button>
+        <button data-page="projects">项目 <span class="count">6</span></button>
+        <button data-page="conversations">对话 <span class="count">12</span></button>
+        <button data-page="automations">自动化 <span class="count">37</span></button>
+        <button data-page="assets">成果资产 <span class="count">96</span></button>
+        <button data-page="agents">Agent 团队 <span class="count">8</span></button>
+        <button data-page="settings">设置 <span class="count">独立</span></button>
+      </nav>
+
+      <div class="workspaceCard">
+        <strong>当前组织：Qingjiu Lab</strong>
+        <span>已登录。项目成果统一存入 SQLite 项目库，支持多会话沉淀和企业自动化策略。</span>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <input class="search" placeholder="搜索项目、会话、文件、门禁、agent..." />
+        <div class="topActions">
+          <button class="btn" id="themeBtn">切换主题</button>
+          <button class="btn" id="loginBtn">登录 / 组织</button>
+          <div class="avatar">Q</div>
+        </div>
+      </header>
+
+      <main class="page active" id="dashboard">
+        <div class="pageHeader">
+          <div>
+            <h2>项目首页</h2>
+            <p>这里不承载所有配置，只展示项目级健康度、自动化效率、风险、成本和成果趋势。</p>
+          </div>
+          <button class="btn primary">新建自动化项目</button>
+        </div>
+
+        <div class="grid cols4">
+          <div class="card"><div class="statLabel">项目资产</div><div class="statValue">96</div><div class="statSub good">+18 本周新增</div></div>
+          <div class="card"><div class="statLabel">自动化成功率</div><div class="statValue">84%</div><div class="statSub warn">Provider 修复仍在进行</div></div>
+          <div class="card"><div class="statLabel">节省人工工时</div><div class="statValue">42h</div><div class="statSub good">按项目累计</div></div>
+          <div class="card"><div class="statLabel">阻塞风险</div><div class="statValue bad">7</div><div class="statSub">测试覆盖、配额、审批</div></div>
+        </div>
+
+        <div class="grid cols2" style="margin-top:16px">
+          <section class="card">
+            <h3>项目交付趋势</h3>
+            <div class="lineChart" aria-label="项目交付趋势柱状图">
+              <i style="height:35%"></i><i style="height:44%"></i><i style="height:38%"></i>
+              <i style="height:58%"></i><i style="height:64%"></i><i style="height:72%"></i>
+              <i style="height:62%"></i><i style="height:86%"></i><i style="height:78%"></i>
+              <i style="height:92%"></i>
+            </div>
+          </section>
+          <section class="card">
+            <h3>自动化分布</h3>
+            <div class="barChart">
+              <div class="barRow"><span>代码生成</span><div class="bar"><i style="width:84%"></i></div><b>84%</b></div>
+              <div class="barRow"><span>测试验收</span><div class="bar"><i style="width:71%"></i></div><b>71%</b></div>
+              <div class="barRow"><span>文档报告</span><div class="bar"><i style="width:92%"></i></div><b>92%</b></div>
+              <div class="barRow"><span>运行验证</span><div class="bar"><i style="width:48%"></i></div><b>48%</b></div>
+              <div class="barRow"><span>人工审批</span><div class="bar"><i style="width:23%"></i></div><b>23%</b></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="grid cols3" style="margin-top:16px">
+          <section class="card">
+            <h3>Top 风险</h3>
+            <p class="muted">app-02 Provider 修复仍未完成 widget tap 验收，项目可信度降低。</p>
+          </section>
+          <section class="card">
+            <h3>最近成果</h3>
+            <p class="muted">新增 Flutter MVP、README、测试报告、Provider 修复分支记录。</p>
+          </section>
+          <section class="card">
+            <h3>系统建议</h3>
+            <p class="muted">将 onboarding tap 测试升级为项目模板，所有 Flutter 项目默认启用。</p>
+          </section>
+        </div>
+      </main>
+
+      <main class="page" id="projects">
+        <div class="pageHeader">
+          <div>
+            <h2>项目</h2>
+            <p>成果、会话、agent、资产都归属于项目。企业团队从这里管理 AI 自动化项目组合。</p>
+          </div>
+          <button class="btn primary">创建项目</button>
+        </div>
+        <div class="grid cols3">
+          <article class="projectCard">
+            <header><h3>test-apps 自动化交付</h3><span class="pill warn">运行中</span></header>
+            <p class="muted small">Flutter MVP、Provider 修复、运行时验证，12 个会话。</p>
+            <div class="projectMetrics"><div><b>96</b><br><span class="muted small">资产</span></div><div><b>184</b><br><span class="muted small">门禁</span></div><div><b>62%</b><br><span class="muted small">可信度</span></div></div>
+          </article>
+          <article class="projectCard">
+            <header><h3>anycode CLI 研发</h3><span class="pill good">健康</span></header>
+            <p class="muted small">Goal 引擎、Memory、Tool policy、Release 构建。</p>
+            <div class="projectMetrics"><div><b>41</b><br><span class="muted small">PR/变更</span></div><div><b>98%</b><br><span class="muted small">测试</span></div><div><b>91%</b><br><span class="muted small">可信度</span></div></div>
+          </article>
+          <article class="projectCard">
+            <header><h3>企业知识库接入</h3><span class="pill">计划中</span></header>
+            <p class="muted small">RAG、权限、审计、跨项目记忆。</p>
+            <div class="projectMetrics"><div><b>8</b><br><span class="muted small">需求</span></div><div><b>3</b><br><span class="muted small">agent</span></div><div><b>0</b><br><span class="muted small">运行</span></div></div>
+          </article>
+        </div>
+      </main>
+
+      <main class="page" id="conversations">
+        <div class="pageHeader">
+          <div>
+            <h2>项目对话</h2>
+            <p>先选择项目，再与项目 AI 团队对话。对话会沉淀为项目 session，而不是孤立聊天。</p>
+          </div>
+          <select id="projectSelect" style="width:260px">
+            <option>test-apps 自动化交付</option>
+            <option>anycode CLI 研发</option>
+            <option>企业知识库接入</option>
+          </select>
+        </div>
+        <div class="chatLayout">
+          <aside class="chatList">
+            <div class="chatItem active"><strong>Provider 修复会话</strong><div class="muted small">Verifier 阻止伪完成</div></div>
+            <div class="chatItem"><strong>app-02 生成会话</strong><div class="muted small">生成增长型 Flutter MVP</div></div>
+            <div class="chatItem"><strong>app-01 生成会话</strong><div class="muted small">已完成交付</div></div>
+          </aside>
+          <section class="chatPanel">
+            <div class="messages">
+              <div class="msg agent">项目上下文已加载：app-02 存在 Provider 树不一致问题，当前门禁要求点击 Onboarding 并通过 flutter test。</div>
+              <div class="msg user">继续让 anycode 自动修复，不要人工改代码。</div>
+              <div class="msg agent">已创建修复目标，Builder 负责代码，Verifier 负责测试，Reviewer 负责检查状态层混用。</div>
+            </div>
+            <div class="composer">
+              <input placeholder="对当前项目提要求，例如：把所有 Flutter 项目加上浏览器点击验收..." />
+              <button class="btn primary">发送</button>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <main class="page" id="automations">
+        <div class="pageHeader">
+          <div><h2>自动化策略</h2><p>企业使用的关键：让 AI 自动重试、自动验收、自动归档、自动升级审批。</p></div>
+          <button class="btn primary">新增策略</button>
+        </div>
+        <div class="grid">
+          <div class="policyRow"><div><strong>测试失败自动重试</strong><div class="muted small">失败时注入真实 stderr 给下一轮 agent。</div></div><span class="pill good">enabled</span></div>
+          <div class="policyRow"><div><strong>模型配额兜底</strong><div class="muted small">遇到 quota error 自动切换备用 provider/model。</div></div><span class="pill warn">draft</span></div>
+          <div class="policyRow"><div><strong>交付报告生成</strong><div class="muted small">每个项目完成后生成可审计报告。</div></div><span class="pill good">enabled</span></div>
+          <div class="policyRow"><div><strong>高风险操作审批</strong><div class="muted small">删除文件、发布、支付、外部 API 调用需要审批。</div></div><span class="pill good">enabled</span></div>
+        </div>
+      </main>
+
+      <main class="page" id="assets">
+        <div class="pageHeader">
+          <div><h2>项目成果资产</h2><p>资产是项目级的：文件、测试、截图、报告、PR、决策记录都可追溯。</p></div>
+          <button class="btn">导出资产清单</button>
+        </div>
+        <div class="grid">
+          <div class="assetRow"><div><strong>test/app-02/lib/main.dart</strong><div class="muted small">Provider 根节点变更，等待点击验收。</div></div><span class="pill warn">needs verify</span></div>
+          <div class="assetRow"><div><strong>test/app-02/test/widget_test.dart</strong><div class="muted small">项目模板候选：Onboarding tap + pumpAndSettle。</div></div><span class="pill bad">blocking</span></div>
+          <div class="assetRow"><div><strong>docs/digital-workbench-prototype.html</strong><div class="muted small">项目工作台原型，可交互配置版。</div></div><span class="pill good">prototype</span></div>
+        </div>
+      </main>
+
+      <main class="page" id="agents">
+        <div class="pageHeader">
+          <div><h2>Agent 团队</h2><p>项目可配置不同角色的 agent，形成自动化协作网络。</p></div>
+          <button class="btn primary">添加 Agent</button>
+        </div>
+        <div class="grid cols4">
+          <div class="card"><h3>Builder</h3><p class="muted">实现、编辑、运行命令。</p><span class="pill good">active</span></div>
+          <div class="card"><h3>Verifier</h3><p class="muted">测试、浏览器、验收门禁。</p><span class="pill warn">strict</span></div>
+          <div class="card"><h3>Reviewer</h3><p class="muted">风险、回归、代码质量。</p><span class="pill">idle</span></div>
+          <div class="card"><h3>Planner</h3><p class="muted">目标拆解、策略、交接。</p><span class="pill good">active</span></div>
+        </div>
+      </main>
+
+      <main class="page" id="settings">
+        <div class="pageHeader">
+          <div><h2>设置</h2><p>设置独立成页，避免污染首页。企业配置、数据源、登录、安全、自动化都在这里。</p></div>
+        </div>
+        <div class="settingsLayout">
+          <aside class="settingsNav">
+            <button class="active">组织与登录</button>
+            <button>数据源与 SQLite</button>
+            <button>自动化策略</button>
+            <button>模型与配额</button>
+            <button>安全与审计</button>
+            <button>通知与集成</button>
+          </aside>
+          <section class="card">
+            <h3>生产级数据源</h3>
+            <div class="formGrid">
+              <div class="field"><label>SQLite 数据库</label><input value="~/.anycode/projects.db" /></div>
+              <div class="field"><label>事件流</label><select><option>events.jsonl + SSE</option><option>SQLite polling</option></select></div>
+              <div class="field"><label>组织登录</label><select><option>Local account</option><option>OIDC / SSO</option><option>GitHub OAuth</option></select></div>
+              <div class="field"><label>默认项目策略</label><textarea>测试失败自动重试；README 不能单独完成；浏览器路径失败则阻断交付。</textarea></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <div class="loginOverlay" id="loginOverlay">
+    <div class="loginCard">
+      <h2>登录 anycode 工作台</h2>
+      <p>企业模式下可接入 OIDC / SSO / GitHub OAuth。原型中点击登录会模拟进入组织空间。</p>
+      <div class="formGrid">
+        <input value="qingjiu@example.com" />
+        <input type="password" value="password" />
+        <button class="btn primary" id="doLogin">进入 Qingjiu Lab</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const pages = document.querySelectorAll(".page");
+    const navButtons = document.querySelectorAll("#mainNav button");
+    const loginOverlay = document.getElementById("loginOverlay");
+
+    navButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset.page;
+        navButtons.forEach((item) => item.classList.toggle("active", item === button));
+        pages.forEach((page) => page.classList.toggle("active", page.id === id));
+      });
+    });
+
+    document.getElementById("themeBtn").addEventListener("click", () => {
+      document.body.classList.toggle("light");
+      localStorage.setItem("anycode.workbench.theme", document.body.classList.contains("light") ? "light" : "dark");
+    });
+
+    document.getElementById("loginBtn").addEventListener("click", () => {
+      loginOverlay.classList.add("open");
+    });
+
+    document.getElementById("doLogin").addEventListener("click", () => {
+      loginOverlay.classList.remove("open");
+      localStorage.setItem("anycode.workbench.loggedIn", "true");
+    });
+
+    loginOverlay.addEventListener("click", (event) => {
+      if (event.target === loginOverlay) loginOverlay.classList.remove("open");
+    });
+
+    if (localStorage.getItem("anycode.workbench.theme") === "light") {
+      document.body.classList.add("light");
+    }
+  </script>
+</body>
+</html>

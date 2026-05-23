@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>资产 · anycode Workbench</title><link rel="stylesheet" href="styles.css" /></head>
+<body data-page="assets">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a><a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a><a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a><a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a><a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a><a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a><a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>资产可信度</strong><span>README、代码、测试、截图、PR 都要有验证链。</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><input class="search" placeholder="搜索文件、报告、测试、截图、PR..." /><div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div></header>
+      <section class="page">
+        <div class="pageHeader"><div><h2>项目成果资产</h2><p>资产是项目级的：文件、测试、报告、截图、运行日志、PR、决策记录都可追溯。</p></div><button class="btn">导出资产清单</button></div>
+        <div class="grid">
+          <div class="row"><div><strong>test/app-02/lib/main.dart</strong><p>Provider 根节点变更；关联 provider-fix 会话和 flutter test 门禁。</p></div><span class="pill warn">needs verify</span></div>
+          <div class="row"><div><strong>test/app-02/test/widget_test.dart</strong><p>项目模板候选：Onboarding tap + pumpAndSettle。</p></div><span class="pill bad">blocking</span></div>
+          <div class="row"><div><strong>docs/digital-workbench-product-plan.md</strong><p>项目级数字工作台产品方案。</p></div><span class="pill good">approved draft</span></div>
+          <div class="row"><div><strong>~/.anycode/tasks/*/output.log</strong><p>会话审计流；后续归并入 project_events。</p></div><span class="pill">audit</span></div>
+        </div>
+        <div class="grid cols3" style="margin-top:16px;">
+          <section class="card"><h3>本地文件</h3><p class="muted">项目内默认可读，项目外需授权。</p></section>
+          <section class="card"><h3>外部系统</h3><p class="muted">GitHub、Linear、Slack、Sentry、Datadog 通过 connector 接入。</p></section>
+          <section class="card"><h3>知识库</h3><p class="muted">Markdown、PDF、网页和内部文档进入索引队列。</p></section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

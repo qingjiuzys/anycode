@@ -8,9 +8,7 @@ use anycode_agent::{
 use anycode_core::prelude::*;
 use anycode_core::DiskTaskOutput;
 use anycode_llm::{build_multi_llm_stack, ModelRouter};
-use anycode_security::{
-    ApprovalCallback, InteractiveApprovalCallback, PromptFormat, SecurityLayer, SecurityPolicy,
-};
+use anycode_security::{ApprovalCallback, SecurityLayer, SecurityPolicy};
 use anycode_tools::{
     build_registry_with_services, catalog, default_skill_roots, validate_default_registry,
     AskUserQuestionHost, CompiledClaudePermissionRules, LspConnectionConfig, SkillCatalog,
@@ -104,14 +102,10 @@ pub(crate) async fn initialize_runtime(
         Some(cb)
     } else if !crate::app_config::security_wants_interactive_approval_callback(config) {
         None
-    } else if stdout().is_terminal() {
-        Some(Box::new(InteractiveApprovalCallback::new(
-            PromptFormat::CLI,
-        )))
     } else {
-        Some(Box::new(InteractiveApprovalCallback::new(
-            PromptFormat::Silent,
-        )))
+        Some(Box::new(
+            crate::workbench_approval::WorkbenchApprovalCallback::web_and_cli(),
+        ))
     };
     let security = Arc::new(SecurityLayer::new_with_optional_callback(
         permission_mode,

@@ -127,6 +127,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
                 }
                 let b: Box<dyn Tool> = Box::new(McpProxiedTool::new(
                     mcp.clone(),
+                    slug.to_string(),
                     logical.clone(),
                     meta.name.clone(),
                     meta.description.clone(),
@@ -139,6 +140,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
             if !tools.contains_key(&auth_logical) {
                 let b: Box<dyn Tool> = Box::new(McpProxiedTool::new(
                     mcp.clone(),
+                    slug.to_string(),
                     auth_logical.clone(),
                     "authenticate".to_string(),
                     "MCP OAuth or session authentication for this server (if supported)."

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>自动化 · anycode Workbench</title><link rel="stylesheet" href="styles.css" /></head>
+<body data-page="automations">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a><a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a><a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a><a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a><a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a><a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a><a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>自动化等级</strong><span>Level 0 只读，Level 4 跨系统自动交付。</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><input class="search" placeholder="搜索策略、workflow、cron..." /><div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div></header>
+      <section class="page">
+        <div class="pageHeader"><div><h2>自动化策略</h2><p>企业使用的关键不是能看，而是能自动推进：失败重试、真实验收、模型兜底、审批升级、报告归档。</p></div><button class="btn primary">新增策略</button></div>
+        <div class="grid">
+          <div class="row"><div><strong>测试失败自动重试</strong><p>失败时注入真实 stderr 给下一轮 agent，直到项目门禁通过。</p></div><span class="pill good">enabled</span></div>
+          <div class="row"><div><strong>模型配额兜底</strong><p>遇到 quota error 自动切换备用 provider/model，避免无限空转。</p></div><span class="pill warn">draft</span></div>
+          <div class="row"><div><strong>高风险操作审批</strong><p>删除文件、发布、支付、外部 API 调用需要审批和审计。</p></div><span class="pill good">enabled</span></div>
+          <div class="row"><div><strong>交付报告自动生成</strong><p>每个项目完成后生成项目级审计报告，包括资产、门禁和成本。</p></div><span class="pill good">enabled</span></div>
+        </div>
+        <div class="grid cols4" style="margin-top:16px;">
+          <div class="card"><h3>Level 1</h3><p class="muted">自动验收和报告。</p></div>
+          <div class="card"><h3>Level 2</h3><p class="muted">自动修复和重试。</p></div>
+          <div class="card"><h3>Level 3</h3><p class="muted">多 Agent 并行协作。</p></div>
+          <div class="card"><h3>Level 4</h3><p class="muted">跨系统自动交付。</p></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录 · anycode Workbench</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="loginShell">
+    <section class="loginHero">
+      <div class="brand" style="border:0; padding:0; margin-bottom:34px;">
+        <div class="mark">A</div>
+        <div>
+          <h1 style="font-size:15px; letter-spacing:0;">anycode Workbench</h1>
+          <p>Enterprise AI automation platform</p>
+        </div>
+      </div>
+      <h1>把 AI 自动化变成项目级生产力系统</h1>
+      <p>
+        登录后进入组织空间，管理项目、会话、Agent 团队、Skills、资产、验收门禁与自动化策略。
+        本地版默认使用 SQLite 项目库，企业版可接入 OIDC / SSO。
+      </p>
+      <div class="grid cols3" style="max-width:760px; margin-top:28px;">
+        <div class="card"><h3>项目沉淀</h3><p class="muted small">所有会话、成果和门禁归属项目。</p></div>
+        <div class="card"><h3>自动化策略</h3><p class="muted small">失败重试、换模型、审批、交付报告。</p></div>
+        <div class="card"><h3>企业治理</h3><p class="muted small">登录、权限、端口、审计、资产授权。</p></div>
+      </div>
+    </section>
+    <section class="loginPanel">
+      <h2>登录组织</h2>
+      <p>原型支持本地账号流程。正式版预留 OIDC / SSO / GitHub OAuth。</p>
+      <div class="formGrid">
+        <div>
+          <label class="small muted">邮箱</label>
+          <input value="qingjiu@example.com" />
+        </div>
+        <div>
+          <label class="small muted">密码</label>
+          <input type="password" value="password" />
+        </div>
+        <a class="btn primary" href="index.html" style="text-align:center;">进入工作台</a>
+        <button class="btn">使用 GitHub 登录</button>
+        <button class="btn">企业 SSO</button>
+        <div class="row">
+          <div>
+            <strong>忘记密码？</strong>
+            <p>本地模式通过 CLI 验证码重置，企业模式走邮件或 SSO。</p>
+          </div>
+          <button class="btn" data-save="发送重置">发送重置</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

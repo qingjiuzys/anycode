@@ -9,6 +9,7 @@ members = [
     "crates/memory",
     "crates/onboard",
     "crates/locale",
+    "crates/dashboard",
     "crates/cli",
 ]
 resolver = "2"

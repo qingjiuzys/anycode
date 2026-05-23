@@ -7,9 +7,10 @@ pub struct GoalSpec {
     pub objective: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub done_when: Option<String>,
+    /// When true and `max_attempts_cap` is unset, the goal loop retries without an upper bound.
     #[serde(default)]
     pub allow_infinite_retries: bool,
-    /// When set, stop after this many attempts even if `allow_infinite_retries` is true.
+    /// When set, stop after this many attempts (CLI: `--max-goal-attempts`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_attempts_cap: Option<u32>,
 }

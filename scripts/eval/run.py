@@ -78,7 +78,7 @@ def main() -> int:
         manifest = load_manifest()
         print(json.dumps(manifest, indent=2))
         return 0
-    with_mock = "--with-mock" in sys.argv
+    with_mock = "--with-mock" in sys.argv or "--trajectory" in sys.argv
     rows = [run_one(s) for s in cli_scenarios()]
     if with_mock:
         mock_cmd = [BIN, "eval", "run", "--mock", "--json"]
@@ -102,10 +102,11 @@ def main() -> int:
             {
                 "id": "mock-fixture-scenarios",
                 "command": mock_cmd,
-                "expect": "MOCK_EVAL",
+                "expect": "MOCK_EVAL + trajectory",
                 "status": "pass"
                 if p.returncode == 0
                 and "MOCK_EVAL" in combined
+                and "trajectory ok" in combined
                 and all(mid in combined for mid in mock_ids)
                 else "fail",
                 "exit_code": p.returncode,

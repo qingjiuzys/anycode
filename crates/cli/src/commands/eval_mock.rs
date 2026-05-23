@@ -5,6 +5,7 @@
 
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -271,8 +272,18 @@ struct MockScenarioRun {
     min_requests: usize,
     expect_marker: &'static str,
     extra_output_contains: &'static [&'static str],
+    trajectory: TrajectoryExpect,
     script: Arc<dyn Fn(usize) -> String + Send + Sync>,
     post_verify: Option<Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct TrajectoryExpect {
+    required_tools: &'static [&'static str],
+    forbidden_tools: &'static [&'static str],
+    max_tool_calls: Option<usize>,
+    max_repeated_tool_calls: Option<usize>,
+    max_total_tokens: Option<u32>,
 }
 
 fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
@@ -374,6 +385,19 @@ fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
     };
 
     if pass {
+        match verify_trajectory(&home, spec.trajectory) {
+            Ok(summary) => {
+                detail.push_str("; trajectory ");
+                detail.push_str(&summary);
+            }
+            Err(e) => {
+                pass = false;
+                detail = format!("trajectory failed: {e}");
+            }
+        }
+    }
+
+    if pass {
         if let Some(verify) = spec.post_verify {
             match verify(&fixture) {
                 Ok(()) => {
@@ -398,6 +422,99 @@ fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
         detail,
         exit_code: output.status.code().unwrap_or(-1),
     }
+}
+
+fn verify_trajectory(home: &Path, expect: TrajectoryExpect) -> Result<String, String> {
+    let events = read_eval_trace_events(home)?;
+    let mut tool_counts: HashMap<String, usize> = HashMap::new();
+    let mut total_tool_calls = 0usize;
+    let mut total_tokens = 0u32;
+    for event in &events {
+        let event_type = event
+            .get("event_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let payload = event.get("payload").unwrap_or(&Value::Null);
+        if event_type == "tool_call_end" {
+            total_tool_calls += 1;
+            if let Some(name) = payload.get("name").and_then(|v| v.as_str()) {
+                *tool_counts.entry(name.to_string()).or_default() += 1;
+            }
+        }
+        if event_type == "llm_response_end" {
+            total_tokens = total_tokens
+                .saturating_add(json_u32(payload, "input_tokens"))
+                .saturating_add(json_u32(payload, "output_tokens"));
+        }
+    }
+
+    for tool in expect.required_tools {
+        if !tool_counts.contains_key(*tool) {
+            return Err(format!("required tool {tool} was not called"));
+        }
+    }
+    for tool in expect.forbidden_tools {
+        if tool_counts.contains_key(*tool) {
+            return Err(format!("forbidden tool {tool} was called"));
+        }
+    }
+    if let Some(max) = expect.max_tool_calls {
+        if total_tool_calls > max {
+            return Err(format!("tool calls {total_tool_calls} exceeded max {max}"));
+        }
+    }
+    if let Some(max) = expect.max_repeated_tool_calls {
+        if let Some((tool, count)) = tool_counts.iter().find(|(_, count)| **count > max) {
+            return Err(format!("tool {tool} repeated {count} times, max {max}"));
+        }
+    }
+    if let Some(max) = expect.max_total_tokens {
+        if total_tokens > max {
+            return Err(format!("tokens {total_tokens} exceeded max {max}"));
+        }
+    }
+    Ok(format!(
+        "ok (tool_calls={total_tool_calls}, tokens={total_tokens})"
+    ))
+}
+
+fn read_eval_trace_events(home: &Path) -> Result<Vec<Value>, String> {
+    let tasks_dir = home.join(".anycode").join("tasks");
+    let mut events = Vec::new();
+    let entries = std::fs::read_dir(&tasks_dir)
+        .map_err(|e| format!("read tasks dir {}: {e}", tasks_dir.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("read task entry: {e}"))?;
+        let path = entry.path().join("events.jsonl");
+        if !path.exists() {
+            continue;
+        }
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+        for line in text.lines().filter(|line| !line.trim().is_empty()) {
+            let value: Value =
+                serde_json::from_str(line).map_err(|e| format!("parse {}: {e}", path.display()))?;
+            events.push(value);
+        }
+    }
+    if events.is_empty() {
+        return Err("no execution trace events found".into());
+    }
+    Ok(events)
+}
+
+fn json_u32(payload: &Value, key: &str) -> u32 {
+    payload
+        .get(key)
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<u32>().ok())
+        .or_else(|| {
+            payload
+                .get(key)
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        })
+        .unwrap_or(0)
 }
 
 fn greet_script(n: usize) -> String {
@@ -512,6 +629,12 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 min_requests: 1,
                 expect_marker: "MOCK_EVAL_greet_0",
                 extra_output_contains: &[],
+                trajectory: TrajectoryExpect {
+                    max_tool_calls: Some(0),
+                    max_repeated_tool_calls: Some(1),
+                    max_total_tokens: Some(32),
+                    ..TrajectoryExpect::default()
+                },
                 script: Arc::new(greet_script),
                 post_verify: None,
             },
@@ -526,6 +649,13 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 min_requests: 2,
                 expect_marker: "MOCK_EVAL_bugfix_0",
                 extra_output_contains: &[],
+                trajectory: TrajectoryExpect {
+                    required_tools: &["Bash"],
+                    forbidden_tools: &["FileWrite"],
+                    max_tool_calls: Some(1),
+                    max_repeated_tool_calls: Some(1),
+                    max_total_tokens: Some(64),
+                },
                 script: Arc::new(bugfix_script),
                 post_verify: Some(Arc::new(verify_bugfix_repo)),
             },
@@ -544,6 +674,13 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                     "MARKER_SRC=eval-src-99",
                     "MARKER_CFG=eval-cfg-17",
                 ],
+                trajectory: TrajectoryExpect {
+                    required_tools: &["FileRead"],
+                    forbidden_tools: &["Bash", "FileWrite", "Edit"],
+                    max_tool_calls: Some(3),
+                    max_repeated_tool_calls: Some(3),
+                    max_total_tokens: Some(64),
+                },
                 script: Arc::new(multifile_script),
                 post_verify: None,
             },
@@ -558,6 +695,13 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 min_requests: 2,
                 expect_marker: "MOCK_EVAL_test_repair_0",
                 extra_output_contains: &[],
+                trajectory: TrajectoryExpect {
+                    required_tools: &["Bash"],
+                    forbidden_tools: &["FileWrite"],
+                    max_tool_calls: Some(1),
+                    max_repeated_tool_calls: Some(1),
+                    max_total_tokens: Some(64),
+                },
                 script: Arc::new(test_repair_script),
                 post_verify: Some(Arc::new(verify_test_repair_repo)),
             },

@@ -21,6 +21,8 @@ const guideSidebarEn = [
       { text: 'Overview', link: '/guide/cli' },
       { text: 'Run, REPL & TUI', link: '/guide/cli-sessions' },
       { text: 'Cron & scheduler', link: '/guide/cli-scheduler' },
+      { text: 'Digital Workbench', link: '/guide/dashboard' },
+      { text: 'Workbench planning (V3)', link: '/guide/dashboard-planning' },
       { text: 'Model commands', link: '/guide/cli-model' },
       { text: 'Troubleshooting', link: '/guide/troubleshooting' },
       { text: 'Channels — AskUserQuestion (TG)', link: '/guide/channel-ask-user-question' }
@@ -76,6 +78,8 @@ const guideSidebarZh = [
       { text: '总览', link: '/zh/guide/cli' },
       { text: 'run / REPL / TUI', link: '/zh/guide/cli-sessions' },
       { text: '定时任务与调度器', link: '/zh/guide/cli-scheduler' },
+      { text: '数字工作台', link: '/zh/guide/dashboard' },
+      { text: '工作台规划 (V3)', link: '/zh/guide/dashboard-planning' },
       { text: '模型子命令', link: '/zh/guide/cli-model' },
       { text: '排错', link: '/zh/guide/troubleshooting' },
       { text: '通道 — AskUserQuestion（TG）', link: '/zh/guide/channel-ask-user-question' }
@@ -120,8 +124,11 @@ export default defineConfig({
   description: 'Terminal AI agent for developers',
   lastUpdated: true,
   cleanUrls: true,
-  // zh/guide links point at repo `crates/` (outside docs-site); VitePress cannot resolve them.
-  ignoreDeadLinks: [/^\.?\/?(?:\.\.\/)+crates\//],
+  // zh/guide links point at repo `crates/` and `docs/` (outside docs-site); VitePress cannot resolve them.
+  ignoreDeadLinks: [
+    /^\.?\/?(?:\.\.\/)+crates\//,
+    /^\.?\/?(?:\.\.\/)+docs\//,
+  ],
 
   locales: {
     root: {

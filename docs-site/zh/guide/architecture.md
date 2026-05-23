@@ -36,8 +36,10 @@ CLI 的 `run`、**交互式终端** 与行式/流式 `repl` 路径 **共用**同
 
 避免单文件 `main.rs` 膨胀：入口只做解析与分发，配置与运行时装配拆分模块。
 
-- `cli_args.rs`：Clap 顶层参数与子命令
-- `app_config.rs`：`~/.anycode/config.json`、`Config` 聚合体、`model`/`config` 子命令与 serde 测试
+- `cli_args/`：Clap 顶层参数与子命令
+- `app_config/`：`schema/{types,validation}` + `prompts.rs` + `user_config.rs` + wizard/load/onboard 模块
+- `commands/dispatch/`：CLI 分发（`channel_cmds` / `ops` / `task_cmds`）
+- `channels/`：WeChat / Telegram / Discord 桥接
 - `bootstrap.rs`：`initialize_runtime`（LLM + `Arc<ToolServices>` + `build_registry_with_services` 构建全量工具表 + `SecurityLayer` + `AgentRuntime`）
 - `tasks.rs`：默认交互、可选 `run`、`list-*`、`test-security` 等
 - `term/`：样式、输入、transcript 辅助、审批回调与会话 `session_persist`（`~/.anycode/sessions` JSON）
@@ -47,8 +49,8 @@ CLI 的 `run`、**交互式终端** 与行式/流式 `repl` 路径 **共用**同
 ### Agent crate 分层（`crates/agent`）
 
 - `agents.rs`：内置 `Agent` 实现（general-purpose / explore / plan）
-- `runtime/`：`AgentRuntime` 与工具循环、落盘、回执（多文件模块）
-- `lib.rs`：对外 `pub use`；单元测试体量大时置于 `agent_test_mod.inc` 由 `include!` 拉入，避免淹没入口文件
+- `runtime/`：`AgentRuntime` 与工具循环、落盘、回执；`tool_surface.rs` / `tool_result_injection.rs` 保证 `execute_task` 与 `execute_turn` 不漂移
+- `lib.rs`：对外 `pub use`；单元测试在 `tests/{support,unit,integration}.rs`
 
 ### 安全策略单一来源（`crates/core` + `crates/security`）
 
@@ -84,7 +86,7 @@ CLI 的 `run`、**交互式终端** 与行式/流式 `repl` 路径 **共用**同
 | **Strategy（策略）** | `LLMClient` 实现、`ApprovalCallback` | 换厂商或审批 UI 而不改工具循环骨架。 |
 | **Registry（注册表）** | `build_registry*`、`catalog` | 扩展默认工具的唯一入口（见 `registry.rs` checklist）。 |
 | **Dependency injection** | `ToolServices` / `ToolRegistryDeps` | 工具通过 `Arc` 服务取依赖，避免全局单例。 |
-| **过程式模板** | `execute_task` / `execute_turn_from_messages` | 固定阶段：LLM → tool_calls → 回注；**工具名/schema 解析**内聚在 `runtime/tool_surface.rs`，避免两条路径漂移。 |
+| **过程式模板** | `execute_task` / `execute_turn_from_messages` | 固定阶段：LLM → tool_calls → 回注；**工具名/schema** 内聚在 `tool_surface.rs`，**tool_result  sanitize/截断/回注** 内聚在 `tool_result_injection.rs`。 |
 
 **扩展白名单**：默认工具 = `crates/tools` 的 `registry.rs` + `catalog.rs` + `SECURITY_SENSITIVE_TOOL_IDS`；LLM = `crates/llm` 的 transport/provider；审批 = `SecurityLayer` 与 `bootstrap` 回调。
 
@@ -92,7 +94,7 @@ CLI 的 `run`、**交互式终端** 与行式/流式 `repl` 路径 **共用**同
 
 ### 协作式取消（主会话与嵌套）
 
-主会话与行式/流式 REPL 将可选的 `Arc<AtomicBool>` 传入 **`execute_turn_from_messages`**。嵌套 **`execute_task`** 使用 **`TaskContext.nested_cancel`**（来自 **`NestedTaskInvoke.cancel`**）。后台嵌套任务注册任务级标志；**`TaskStop`** 置位并 `abort` 后台任务。取消结果用 **`CoreError::CooperativeCancel`**（展示文案与历史 **`LLM error: cancelled`** 一致）；处理 **`anyhow::Error`** 时用 **`CoreError::is_cooperative_cancel`** 或 **`anycode_core::anyhow_error_is_cooperative_cancel`**。详见仓库 **`docs/adr/002-cooperative-cancel-and-nested-agents.md`**。
+主会话与行式/流式 REPL 将可选的 `Arc<AtomicBool>` 传入 **`execute_turn_from_messages`**。嵌套 **`execute_task`** 使用 **`TaskContext.nested_cancel`**（来自 **`NestedTaskInvoke.cancel`**）。后台嵌套任务注册任务级标志；**`TaskStop`** 置位并 `abort` 后台任务。取消结果用 **`CoreError::CooperativeCancel`**（展示文案与历史 **`LLM error: cancelled`** 一致）；处理 **`anyhow::Error`** 时用 **`CoreError::is_cooperative_cancel`** 或 **`anycode_core::anyhow_error_is_cooperative_cancel`**。详见仓库 **`docs/adr/010-cooperative-cancel-and-nested-agents.md`**。
 
 ### 会话通知（HTTP / shell）
 

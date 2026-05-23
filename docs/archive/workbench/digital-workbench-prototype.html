@@ -1,0 +1,1299 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anycode 项目级数字工作台原型</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050711;
+      --panel: rgba(13, 20, 37, 0.76);
+      --panel-strong: rgba(15, 23, 42, 0.94);
+      --line: rgba(148, 163, 184, 0.16);
+      --line-strong: rgba(148, 163, 184, 0.28);
+      --text: #e5edf7;
+      --muted: #8ea0ba;
+      --blue: #38bdf8;
+      --violet: #a78bfa;
+      --green: #7ddf9a;
+      --yellow: #f6d365;
+      --red: #fb7185;
+      --orange: #fb923c;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    body.theme-light {
+      color-scheme: light;
+      --bg: #eef4ff;
+      --panel: rgba(255, 255, 255, 0.78);
+      --panel-strong: rgba(255, 255, 255, 0.96);
+      --line: rgba(15, 23, 42, 0.12);
+      --line-strong: rgba(15, 23, 42, 0.2);
+      --text: #0f172a;
+      --muted: #64748b;
+      --shadow: 0 28px 80px rgba(15, 23, 42, 0.16);
+    }
+
+    body.accent-violet {
+      --blue: #a78bfa;
+      --violet: #38bdf8;
+    }
+
+    body.accent-green {
+      --blue: #22c55e;
+      --violet: #14b8a6;
+    }
+
+    body.density-compact .panel,
+    body.density-compact .mission,
+    body.density-compact .asset,
+    body.density-compact .agent,
+    body.density-compact .metric {
+      padding: 11px;
+      border-radius: 15px;
+    }
+
+    body.density-compact .hero {
+      padding: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 6% 4%, rgba(56, 189, 248, 0.22), transparent 28rem),
+        radial-gradient(circle at 80% 10%, rgba(167, 139, 250, 0.18), transparent 30rem),
+        radial-gradient(circle at 50% 92%, rgba(34, 197, 94, 0.08), transparent 24rem),
+        var(--bg);
+      overflow: hidden;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 300px minmax(680px, 1fr) 390px;
+      height: 100vh;
+    }
+
+    .sidebar,
+    .main,
+    .inspector {
+      min-height: 0;
+      overflow: auto;
+      padding: 22px;
+      border-right: 1px solid var(--line);
+      backdrop-filter: blur(18px);
+    }
+
+    .inspector {
+      border-right: 0;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin: -22px -22px 22px;
+      padding: 18px 22px;
+      background: linear-gradient(180deg, rgba(5, 7, 17, 0.96), rgba(5, 7, 17, 0.72));
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(22px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(135deg, rgba(56, 189, 248, 0.95), rgba(167, 139, 250, 0.92));
+      color: #05111f;
+      font-weight: 900;
+      box-shadow: 0 18px 45px rgba(56, 189, 248, 0.22);
+    }
+
+    .brand h1,
+    .hero h2,
+    .panel h3,
+    .sectionTitle {
+      margin: 0;
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      letter-spacing: 0.02em;
+    }
+
+    .brand p,
+    .muted {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .pill,
+    .miniPill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+      white-space: nowrap;
+    }
+
+    .pill {
+      padding: 7px 11px;
+      font-size: 12px;
+    }
+
+    .miniPill {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: currentColor;
+      box-shadow: 0 0 22px currentColor;
+    }
+
+    .ok { color: var(--green); }
+    .run { color: var(--blue); }
+    .warn { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .violet { color: var(--violet); }
+
+    .missionList {
+      display: grid;
+      gap: 12px;
+    }
+
+    .mission {
+      padding: 15px;
+      border-radius: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
+      cursor: default;
+    }
+
+    .mission.active {
+      border-color: rgba(56, 189, 248, 0.62);
+      background:
+        linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(167, 139, 250, 0.08)),
+        var(--panel);
+    }
+
+    .mission h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .missionFooter,
+    .agentHead,
+    .assetHead,
+    .gateRow,
+    .metricGrid {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .missionFooter {
+      margin-top: 14px;
+    }
+
+    .sideSection {
+      margin-top: 24px;
+    }
+
+    .sideSection h3 {
+      color: #cbd5e1;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 0 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .kv {
+      display: grid;
+      gap: 10px;
+    }
+
+    .kv div {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    .kv span:first-child {
+      color: var(--muted);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 24px;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(167, 139, 250, 0.08) 42%, rgba(34, 197, 94, 0.06)),
+        var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -120px;
+      top: -120px;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.18);
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .heroTop {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 22px;
+    }
+
+    .hero h2 {
+      margin-top: 12px;
+      font-size: clamp(26px, 3vw, 42px);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      max-width: 760px;
+      margin: 14px 0 0;
+      color: #bdd0e9;
+      line-height: 1.7;
+    }
+
+    .heroActions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 13px;
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.84);
+    }
+
+    .btn.primary {
+      border-color: rgba(56, 189, 248, 0.5);
+      background: linear-gradient(135deg, #0891b2, #7c3aed);
+      box-shadow: 0 18px 46px rgba(56, 189, 248, 0.18);
+    }
+
+    .btn.ghost {
+      background: transparent;
+    }
+
+    .metrics {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .metric {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(2, 6, 23, 0.52);
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .metric strong {
+      font-size: 26px;
+      letter-spacing: -0.04em;
+    }
+
+    .contentGrid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .panel {
+      padding: 18px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2);
+    }
+
+    .panel + .panel {
+      margin-top: 16px;
+    }
+
+    .panel h3 {
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+
+    .agentGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .agent {
+      position: relative;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(2, 6, 23, 0.56);
+      min-height: 132px;
+    }
+
+    .agent::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      border-radius: 18px 0 0 18px;
+      background: currentColor;
+      opacity: 0.78;
+    }
+
+    .agent strong {
+      font-size: 14px;
+    }
+
+    .agent p {
+      margin: 10px 0 0;
+      color: #b9c8dd;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .map {
+      display: grid;
+      grid-template-columns: 1fr 32px 1fr 32px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .node {
+      min-height: 96px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(2, 6, 23, 0.62);
+      color: #dbeafe;
+      line-height: 1.5;
+    }
+
+    .arrow {
+      text-align: center;
+      color: #64748b;
+      font-size: 22px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+      max-height: 440px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 86px 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 13px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      border-left: 3px solid #64748b;
+      background: rgba(2, 6, 23, 0.56);
+    }
+
+    .event.tool { border-left-color: var(--violet); }
+    .event.pass { border-left-color: var(--green); }
+    .event.fail { border-left-color: var(--red); }
+    .event.warn { border-left-color: var(--yellow); }
+
+    .eventTime {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .eventTitle {
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .eventBody {
+      color: #b8c7db;
+      font-size: 12px;
+      line-height: 1.55;
+      margin-top: 4px;
+    }
+
+    .gateList {
+      display: grid;
+      gap: 2px;
+    }
+
+    .gateRow {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .gateRow:last-child {
+      border-bottom: 0;
+    }
+
+    .gateName {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .statusIcon {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid currentColor;
+      font-size: 12px;
+    }
+
+    .asset {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(2, 6, 23, 0.54);
+      margin-bottom: 10px;
+    }
+
+    .asset:last-child {
+      margin-bottom: 0;
+    }
+
+    .assetHead strong {
+      font-size: 13px;
+    }
+
+    .asset p {
+      margin: 8px 0 0;
+      color: #b8c7db;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .schema {
+      display: grid;
+      gap: 10px;
+    }
+
+    .tableCard {
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(2, 6, 23, 0.62);
+    }
+
+    .tableCard code {
+      color: #bae6fd;
+      font-size: 12px;
+    }
+
+    .tableCard p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .trustRing {
+      width: 104px;
+      height: 104px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background:
+        conic-gradient(var(--yellow) 0 63%, rgba(30, 41, 59, 0.88) 63% 100%);
+      box-shadow: inset 0 0 0 12px rgba(2, 6, 23, 0.9);
+    }
+
+    .trustRing strong {
+      font-size: 26px;
+    }
+
+    .split {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .insight {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(246, 211, 101, 0.28);
+      background: rgba(246, 211, 101, 0.08);
+      color: #fde68a;
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .configOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      background: rgba(2, 6, 23, 0.58);
+      backdrop-filter: blur(12px);
+    }
+
+    .configOverlay.open {
+      display: block;
+    }
+
+    .configDrawer {
+      position: absolute;
+      right: 18px;
+      top: 18px;
+      bottom: 18px;
+      width: min(520px, calc(100vw - 36px));
+      overflow: auto;
+      padding: 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 28px;
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
+    }
+
+    .configHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    .configHeader h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .fieldGroup {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(2, 6, 23, 0.26);
+    }
+
+    body.theme-light .fieldGroup {
+      background: rgba(248, 250, 252, 0.7);
+    }
+
+    .fieldGroup h3 {
+      margin: 0 0 4px;
+      font-size: 14px;
+    }
+
+    .field {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 12px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .field label {
+      color: var(--muted);
+    }
+
+    select,
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.72);
+      padding: 9px 10px;
+      outline: none;
+    }
+
+    body.theme-light select,
+    body.theme-light input[type="number"],
+    body.theme-light input[type="text"] {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .toggleGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .switch {
+      appearance: none;
+      width: 42px;
+      height: 24px;
+      border-radius: 999px;
+      background: #334155;
+      position: relative;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: white;
+      transition: 0.18s ease;
+    }
+
+    .switch:checked {
+      background: var(--blue);
+    }
+
+    .switch:checked::after {
+      transform: translateX(18px);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      z-index: 40;
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      padding: 10px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--text);
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
+      transition: 0.2s ease;
+      pointer-events: none;
+      font-size: 13px;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    [data-module].hiddenModule {
+      display: none;
+    }
+
+    @media (max-width: 1280px) {
+      body { overflow: auto; }
+      .app { grid-template-columns: 1fr; height: auto; }
+      .sidebar, .main, .inspector { border-right: 0; border-bottom: 1px solid var(--line); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .contentGrid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">A</div>
+        <div>
+          <h1>anycode 项目工作台</h1>
+          <p>Project automation cockpit</p>
+        </div>
+      </div>
+
+      <button class="btn primary" id="openConfig" style="width:100%; margin-bottom: 18px;">
+        配置我的工作台
+      </button>
+
+      <div class="sideSection" style="margin-top: 0;">
+        <h3>当前项目</h3>
+        <div class="mission active">
+          <h2>anycode / test-apps 自动化交付</h2>
+          <p class="muted">统一管理 app-01、app-02、多次会话、验收资产和自动化策略。</p>
+          <div class="missionFooter">
+            <span class="pill run"><i class="dot"></i> 项目运行中</span>
+            <span class="miniPill">12 sessions</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="missionList">
+        <article class="mission">
+          <h2>会话：Provider 修复</h2>
+          <p class="muted">一次执行记录：真实点击 Onboarding，消灭 ProviderNotFound。</p>
+          <div class="missionFooter">
+            <span class="pill run"><i class="dot"></i> 运行中</span>
+            <span class="miniPill">42 turns</span>
+          </div>
+        </article>
+        <article class="mission">
+          <h2>会话：增长型 Flutter MVP</h2>
+          <p class="muted">一次执行记录：每日灵感卡片，含分享、收藏、留存。</p>
+          <div class="missionFooter">
+            <span class="pill warn"><i class="dot"></i> 需复核</span>
+            <span class="miniPill">可信度 62%</span>
+          </div>
+        </article>
+        <article class="mission">
+          <h2>会话：app-01 日记 MVP</h2>
+          <p class="muted">一次执行记录：一行日记，analyze/test/README 已通过。</p>
+          <div class="missionFooter">
+            <span class="pill ok"><i class="dot"></i> 已交付</span>
+            <span class="miniPill">100%</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="sideSection" data-module="storage">
+        <h3>工作台视角</h3>
+        <div class="kv">
+          <div><span>数据源</span><strong>Project SQLite</strong></div>
+          <div><span>实时通道</span><strong>SSE</strong></div>
+          <div><span>默认端口</span><strong>127.0.0.1</strong></div>
+          <div><span>自动化</span><strong>策略驱动</strong></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <span class="pill run"><i class="dot"></i> Project live stream</span>
+        <span class="pill">Project anycode · 12 sessions · model pool active</span>
+      </div>
+
+      <section class="hero" data-module="hero">
+        <div class="heroTop">
+          <div>
+            <span class="pill violet"><i class="dot"></i> Enterprise AI project cockpit</span>
+            <h2>项目级 AI 自动化工作台</h2>
+            <p>
+              成果不属于某一次会话，而属于项目。工作台会把多个会话、多个 agent、
+              验收门禁、文件资产、自动化策略和交付结果统一沉淀到项目数据库，
+              让企业团队可以持续、可信、自动地把 AI 应用到真实工作流。
+            </p>
+            <div class="heroActions">
+              <button class="btn primary">查看项目风险</button>
+              <button class="btn">打开自动化策略</button>
+              <button class="btn">导出项目交付报告</button>
+            </div>
+          </div>
+          <div class="trustRing"><strong>62%</strong></div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><span>项目会话</span><strong>12</strong></div>
+          <div class="metric"><span>自动化任务</span><strong>37</strong></div>
+          <div class="metric"><span>验收门禁</span><strong>184</strong></div>
+          <div class="metric"><span>阻塞风险</span><strong class="bad">7</strong></div>
+          <div class="metric"><span>项目资产</span><strong>96</strong></div>
+        </div>
+      </section>
+
+      <div class="contentGrid">
+        <section class="panel" data-module="missionMap">
+          <h3>项目成果地图</h3>
+          <div class="map">
+            <div class="node">项目目标<br><span class="muted">AI 自动化交付 Flutter MVP</span></div>
+            <div class="arrow">→</div>
+            <div class="node">跨会话执行<br><span class="muted">app-01 / app-02 / provider-fix</span></div>
+            <div class="arrow">→</div>
+            <div class="node">项目资产<br><span class="muted">代码 / 测试 / 报告 / 验收记录</span></div>
+          </div>
+          <div style="height:12px"></div>
+          <div class="insight">
+            项目是一级实体：会话只是执行轨迹。README、测试、文件变更、报告、失败根因都归档到项目资产库。
+          </div>
+        </section>
+
+        <section class="panel" data-module="automation">
+          <h3>企业自动化策略</h3>
+          <div class="gateList">
+            <div class="gateRow">
+              <div class="gateName"><span class="statusIcon ok">✓</span>失败自动重试</div>
+              <span class="miniPill ok">enabled</span>
+            </div>
+            <div class="gateRow">
+              <div class="gateName"><span class="statusIcon ok">✓</span>测试门禁强制通过</div>
+              <span class="miniPill ok">required</span>
+            </div>
+            <div class="gateRow">
+              <div class="gateName"><span class="statusIcon warn">!</span>配额耗尽自动换模型</div>
+              <span class="miniPill warn">policy draft</span>
+            </div>
+            <div class="gateRow">
+              <div class="gateName"><span class="statusIcon ok">✓</span>交付报告自动生成</div>
+              <span class="miniPill ok">enabled</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="contentGrid">
+        <section class="panel" data-module="agents">
+          <h3>多 agent 协作图</h3>
+          <div class="agentGrid">
+            <article class="agent run">
+              <div class="agentHead">
+                <strong>Builder Agent</strong>
+                <span class="miniPill run">coding</span>
+              </div>
+              <p>统一 Provider 根节点、路由和页面状态依赖，正在修复 main.dart 与 onboarding。</p>
+            </article>
+            <article class="agent warn">
+              <div class="agentHead">
+                <strong>Verifier Agent</strong>
+                <span class="miniPill warn">gate</span>
+              </div>
+              <p>拒绝 README-only 完成。要求 flutter test 包含 tap 开始探索与 pumpAndSettle。</p>
+            </article>
+            <article class="agent violet">
+              <div class="agentHead">
+                <strong>Reviewer Agent</strong>
+                <span class="miniPill violet">risk</span>
+              </div>
+              <p>发现 AppProvider 与 InspirationService 双状态源，标记为运行时高风险。</p>
+            </article>
+            <article class="agent ok">
+              <div class="agentHead">
+                <strong>Planner Agent</strong>
+                <span class="miniPill ok">route</span>
+              </div>
+              <p>将目标拆成 Provider 根、Onboarding 点击、Main Shell、测试门禁四个节点。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel" data-module="sessions">
+          <h3>跨会话沉淀</h3>
+          <div class="map">
+            <div class="node">Session 01<br><span class="muted">生成 app-01</span></div>
+            <div class="arrow">→</div>
+            <div class="node">Session 02<br><span class="muted">生成 app-02</span></div>
+            <div class="arrow">→</div>
+            <div class="node">Session 03<br><span class="muted">修 Provider</span></div>
+          </div>
+          <div style="height:12px"></div>
+          <div class="insight">
+            每次会话产生的上下文、决策、失败、测试、文件都进入同一个项目知识库，后续 agent 不再从零开始。
+          </div>
+        </section>
+      </div>
+
+      <section class="panel" data-module="timeline">
+        <h3>实时因果时间线</h3>
+        <div class="timeline">
+          <div class="event fail">
+            <div class="eventTime">05:46</div>
+            <div>
+              <div class="eventTitle">验收门禁拒绝完成</div>
+              <div class="eventBody">widget_test.dart 没有 tester.tap + pumpAndSettle，不能证明运行时点击路径可用。</div>
+            </div>
+            <span class="miniPill bad">gate</span>
+          </div>
+          <div class="event tool">
+            <div class="eventTime">05:41</div>
+            <div>
+              <div class="eventTitle">Bash · flutter test</div>
+              <div class="eventBody">失败：旧测试仍使用 InspirationService 包装 MyApp，与 AppProvider 根节点不一致。</div>
+            </div>
+            <span class="miniPill violet">tool</span>
+          </div>
+          <div class="event pass">
+            <div class="eventTime">05:33</div>
+            <div>
+              <div class="eventTitle">Edit · main.dart</div>
+              <div class="eventBody">Builder 将根状态切换到 AppProvider，并补充 /onboarding /home /today 路由。</div>
+            </div>
+            <span class="miniPill ok">asset</span>
+          </div>
+          <div class="event warn">
+            <div class="eventTime">05:20</div>
+            <div>
+              <div class="eventTitle">LLM provider 限流</div>
+              <div class="eventBody">任务未终止；Goal unlimited 继续重试，但工作台将其标记为外部资源阻塞。</div>
+            </div>
+            <span class="miniPill warn">quota</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="inspector">
+      <section class="panel" data-module="gates">
+        <div class="split">
+          <div>
+            <h3>验收门禁</h3>
+            <p class="muted">项目级门禁会跨会话保留，避免同类问题反复出现。</p>
+          </div>
+          <span class="pill warn">2/5 passed</span>
+        </div>
+        <div class="gateList">
+          <div class="gateRow">
+            <div class="gateName"><span class="statusIcon ok">✓</span>README marker</div>
+            <span class="miniPill ok">pass</span>
+          </div>
+          <div class="gateRow">
+            <div class="gateName"><span class="statusIcon ok">✓</span>flutter analyze</div>
+            <span class="miniPill ok">pass</span>
+          </div>
+          <div class="gateRow">
+            <div class="gateName"><span class="statusIcon bad">×</span>flutter test</div>
+            <span class="miniPill bad">fail</span>
+          </div>
+          <div class="gateRow">
+            <div class="gateName"><span class="statusIcon bad">×</span>runtime click path</div>
+            <span class="miniPill bad">missing</span>
+          </div>
+          <div class="gateRow">
+            <div class="gateName"><span class="statusIcon warn">!</span>browser/manual verify</div>
+            <span class="miniPill warn">pending</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" data-module="assets">
+        <h3>项目成果资产库</h3>
+        <article class="asset">
+          <div class="assetHead">
+            <strong>lib/main.dart</strong>
+            <span class="miniPill warn">needs test</span>
+          </div>
+          <p>归属项目 anycode/test-apps；最近由 provider-fix 会话修改，等待 Verifier 复测。</p>
+        </article>
+        <article class="asset">
+          <div class="assetHead">
+            <strong>test/widget_test.dart</strong>
+            <span class="miniPill bad">blocking</span>
+          </div>
+          <p>项目级质量资产；要求所有 onboarding 类项目复用该测试模板。</p>
+        </article>
+        <article class="asset">
+          <div class="assetHead">
+            <strong>README.md</strong>
+            <span class="miniPill warn">low trust</span>
+          </div>
+          <p>项目交付说明；只有关联门禁全部通过后，才提升为可信交付资产。</p>
+        </article>
+      </section>
+
+      <section class="panel" data-module="storage">
+        <h3>生产级 SQLite 存储模型</h3>
+        <div class="schema">
+          <div class="tableCard"><code>projects</code><p>项目根、业务目标、自动化等级、企业策略、长期状态。</p></div>
+          <div class="tableCard"><code>sessions</code><p>项目下的每次会话、运行、goal、workflow 执行记录。</p></div>
+          <div class="tableCard"><code>agents</code><p>跨会话 agent 身份、角色、模型、能力、成本与绩效。</p></div>
+          <div class="tableCard"><code>project_events</code><p>结构化事件流：turn、tool、gate、artifact、quota、handoff。</p></div>
+          <div class="tableCard"><code>artifacts</code><p>项目资产：文件、报告、测试结果、截图、交付包、PR。</p></div>
+          <div class="tableCard"><code>gates</code><p>项目级验收门禁：analyze、test、browser、security、review。</p></div>
+          <div class="tableCard"><code>automation_policies</code><p>自动化策略：失败重试、换模型、审批、交付标准。</p></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="configOverlay" id="configOverlay" aria-hidden="true">
+    <div class="configDrawer" role="dialog" aria-modal="true" aria-labelledby="configTitle">
+      <div class="configHeader">
+        <div>
+          <h2 id="configTitle">工作台配置</h2>
+          <p class="muted">这些配置会保存到浏览器 localStorage。后续接入 SQLite 后会同步到用户配置表。</p>
+        </div>
+        <button class="btn ghost" id="closeConfig">关闭</button>
+      </div>
+
+      <div class="fieldGroup">
+        <h3>外观</h3>
+        <div class="field">
+          <label for="themeSelect">主题</label>
+          <select id="themeSelect">
+            <option value="dark">深色宇宙</option>
+            <option value="light">浅色仪表盘</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="accentSelect">强调色</label>
+          <select id="accentSelect">
+            <option value="blue">蓝紫科技</option>
+            <option value="violet">紫蓝智能</option>
+            <option value="green">绿色验证</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="densitySelect">信息密度</label>
+          <select id="densitySelect">
+            <option value="comfortable">舒适</option>
+            <option value="compact">紧凑</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fieldGroup">
+        <h3>数据源</h3>
+        <div class="field">
+          <label for="sourceSelect">来源</label>
+          <select id="sourceSelect">
+            <option value="mock">Mock 演示数据</option>
+            <option value="sqlite">SQLite: ~/.anycode/projects.db</option>
+            <option value="events">events.jsonl 实时事件</option>
+            <option value="hybrid">SQLite + SSE 混合</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="refreshInput">刷新间隔 ms</label>
+          <input id="refreshInput" type="number" min="250" step="250" value="1000" />
+        </div>
+        <div class="field">
+          <label for="workspaceInput">工作区</label>
+          <input id="workspaceInput" type="text" value="/Users/qingjiu/workspace/research/llm-cli/anycode" />
+        </div>
+      </div>
+
+      <div class="fieldGroup">
+        <h3>模块开关</h3>
+        <div class="toggleGrid">
+          <label class="toggle">英雄指标 <input class="switch moduleToggle" type="checkbox" data-target="hero" checked /></label>
+          <label class="toggle">多 Agent <input class="switch moduleToggle" type="checkbox" data-target="agents" checked /></label>
+          <label class="toggle">项目地图 <input class="switch moduleToggle" type="checkbox" data-target="missionMap" checked /></label>
+          <label class="toggle">跨会话 <input class="switch moduleToggle" type="checkbox" data-target="sessions" checked /></label>
+          <label class="toggle">自动化 <input class="switch moduleToggle" type="checkbox" data-target="automation" checked /></label>
+          <label class="toggle">时间线 <input class="switch moduleToggle" type="checkbox" data-target="timeline" checked /></label>
+          <label class="toggle">验收门禁 <input class="switch moduleToggle" type="checkbox" data-target="gates" checked /></label>
+          <label class="toggle">成果资产 <input class="switch moduleToggle" type="checkbox" data-target="assets" checked /></label>
+          <label class="toggle">存储模型 <input class="switch moduleToggle" type="checkbox" data-target="storage" checked /></label>
+        </div>
+      </div>
+
+      <div class="fieldGroup">
+        <h3>交互演示</h3>
+        <button class="btn primary" id="simulateEvent">模拟一条实时事件</button>
+        <button class="btn" id="resetConfig">恢复默认配置</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">已保存配置</div>
+
+  <script>
+    const defaultConfig = {
+      theme: "dark",
+      accent: "blue",
+      density: "comfortable",
+      source: "mock",
+      refresh: 1000,
+      workspace: "/Users/qingjiu/workspace/research/llm-cli/anycode",
+      modules: {
+        hero: true,
+        agents: true,
+        missionMap: true,
+        sessions: true,
+        automation: true,
+        timeline: true,
+        gates: true,
+        assets: true,
+        storage: true
+      }
+    };
+
+    const storageKey = "anycode.digitalWorkbench.prototype.config";
+    const $ = (id) => document.getElementById(id);
+
+    function loadConfig() {
+      try {
+        return { ...defaultConfig, ...JSON.parse(localStorage.getItem(storageKey) || "{}") };
+      } catch {
+        return defaultConfig;
+      }
+    }
+
+    function saveConfig(config) {
+      localStorage.setItem(storageKey, JSON.stringify(config));
+      showToast("配置已保存");
+    }
+
+    function showToast(text) {
+      const toast = $("toast");
+      toast.textContent = text;
+      toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 1400);
+    }
+
+    function applyConfig(config) {
+      document.body.classList.toggle("theme-light", config.theme === "light");
+      document.body.classList.toggle("accent-violet", config.accent === "violet");
+      document.body.classList.toggle("accent-green", config.accent === "green");
+      document.body.classList.toggle("density-compact", config.density === "compact");
+
+      for (const [name, enabled] of Object.entries(config.modules || {})) {
+        document.querySelectorAll(`[data-module="${name}"]`).forEach((el) => {
+          el.classList.toggle("hiddenModule", !enabled);
+        });
+      }
+
+      $("themeSelect").value = config.theme;
+      $("accentSelect").value = config.accent;
+      $("densitySelect").value = config.density;
+      $("sourceSelect").value = config.source;
+      $("refreshInput").value = config.refresh;
+      $("workspaceInput").value = config.workspace;
+
+      document.querySelectorAll(".moduleToggle").forEach((input) => {
+        input.checked = config.modules[input.dataset.target] !== false;
+      });
+    }
+
+    function currentConfigFromForm() {
+      const config = loadConfig();
+      config.theme = $("themeSelect").value;
+      config.accent = $("accentSelect").value;
+      config.density = $("densitySelect").value;
+      config.source = $("sourceSelect").value;
+      config.refresh = Number($("refreshInput").value || 1000);
+      config.workspace = $("workspaceInput").value;
+      config.modules = { ...defaultConfig.modules };
+      document.querySelectorAll(".moduleToggle").forEach((input) => {
+        config.modules[input.dataset.target] = input.checked;
+      });
+      return config;
+    }
+
+    function bindConfig() {
+      $("openConfig").addEventListener("click", () => {
+        $("configOverlay").classList.add("open");
+        $("configOverlay").setAttribute("aria-hidden", "false");
+      });
+      $("closeConfig").addEventListener("click", closeConfig);
+      $("configOverlay").addEventListener("click", (event) => {
+        if (event.target === $("configOverlay")) closeConfig();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeConfig();
+      });
+
+      document.querySelectorAll("select, input").forEach((input) => {
+        input.addEventListener("change", () => {
+          const config = currentConfigFromForm();
+          applyConfig(config);
+          saveConfig(config);
+        });
+      });
+
+      $("resetConfig").addEventListener("click", () => {
+        localStorage.removeItem(storageKey);
+        applyConfig(defaultConfig);
+        showToast("已恢复默认配置");
+      });
+
+      $("simulateEvent").addEventListener("click", addSimulatedEvent);
+    }
+
+    function closeConfig() {
+      $("configOverlay").classList.remove("open");
+      $("configOverlay").setAttribute("aria-hidden", "true");
+    }
+
+    function addSimulatedEvent() {
+      const timeline = document.querySelector(".timeline");
+      const now = new Date();
+      const stamp = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+      const event = document.createElement("div");
+      event.className = "event pass";
+      event.innerHTML = `
+        <div class="eventTime">${stamp}</div>
+        <div>
+          <div class="eventTitle">模拟实时事件 · 项目数据库写入成功</div>
+          <div class="eventBody">projects.db 接收一条 project_event，关联 project_id、session_id、agent_id 与 gate_id。</div>
+        </div>
+        <span class="miniPill ok">live</span>
+      `;
+      timeline.prepend(event);
+      showToast("已模拟实时事件");
+    }
+
+    bindConfig();
+    applyConfig(loadConfig());
+  </script>
+</body>
+</html>

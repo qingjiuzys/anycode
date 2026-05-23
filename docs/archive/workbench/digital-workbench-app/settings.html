@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>设置 · anycode Workbench</title><link rel="stylesheet" href="styles.css" /></head>
+<body data-page="settings">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a><a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a><a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a><a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a><a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a><a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a><a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>设置独立</strong><span>登录、安全、端口、数据源、模型、skills、资产读取都在这里。</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><input class="search" placeholder="搜索设置..." /><div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div></header>
+      <section class="page">
+        <div class="pageHeader"><div><h2>设置</h2><p>设置独立成页，避免污染首页。企业配置、端口治理、登录、安全、资产读取和 Skills 管理都在这里。</p></div><button class="btn primary" data-save="保存设置">保存设置</button></div>
+        <div class="settings">
+          <aside class="settingsNav">
+            <a class="active">组织与登录</a><a>数据源与 SQLite</a><a>服务与端口</a><a>模型与配额</a><a>Skills 权限</a><a>资产读取</a><a>安全与审计</a><a>通知与集成</a>
+          </aside>
+          <section class="card">
+            <h3>组织、登录与生产级数据源</h3>
+            <div class="formGrid">
+              <div class="field"><label>组织名称</label><input value="Qingjiu Lab" /></div>
+              <div class="field"><label>登录模式</label><select><option>Local account</option><option>OIDC / SSO</option><option>GitHub OAuth</option></select></div>
+              <div class="field"><label>重置密码</label><select><option>CLI reset token</option><option>Email reset</option><option>SSO managed</option></select></div>
+              <div class="field"><label>SQLite 项目库</label><input value="~/.anycode/projects.db" /></div>
+              <div class="field"><label>Dashboard Host</label><input value="127.0.0.1" /></div>
+              <div class="field"><label>Dashboard Port</label><input value="43180" /></div>
+              <div class="field"><label>SSE Endpoint</label><input value="/api/projects/:id/events/stream" /></div>
+              <div class="field"><label>资产读取范围</label><textarea>项目内默认可读；项目外文件、外部系统、知识库 connector 需要显式授权并进入审计。</textarea></div>
+              <div class="field"><label>默认自动化策略</label><textarea>测试失败自动重试；配额耗尽切换模型；README 不能单独完成；浏览器路径失败阻断交付。</textarea></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

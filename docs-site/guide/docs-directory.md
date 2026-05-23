@@ -26,6 +26,8 @@ Short paths for common goals:
 | Nested **Agent** / **Task** (Claude-style tool fields) | [Roadmap](./roadmap) (**P5** matrix + **P5 Agent / Skill** section) |
 | No TTY, WeChat QR, MCP quirks | [Troubleshooting](./troubleshooting) |
 | WeChat bridge & `setup` | [WeChat & setup](./wechat) |
+| Local project dashboard (sessions, gates, artifacts) | [Digital Workbench](./dashboard) |
+| Workbench done + **V3 planning** | [Workbench planning (V3)](./dashboard-planning) · repo [`digital-workbench-STATUS.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-STATUS.md) |
 | Contribute, tests, registry checklist | [Development](./development) |
 | Maintainer backlog (now / next / later) | Repo [`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md) · [stub](./implementation-checklist) |
 | MVP scope, tools matrix, future work | [Roadmap](./roadmap) |

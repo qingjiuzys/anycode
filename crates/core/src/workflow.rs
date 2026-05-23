@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::task::TaskBudget;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkflowDefinition {
     pub name: String,
@@ -27,15 +29,43 @@ pub struct WorkflowStep {
     pub id: String,
     pub prompt: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub depends_on: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parallel_group: Option<String>,
+    #[serde(default, skip_serializing_if = "TaskBudget::is_empty")]
+    pub budget: TaskBudget,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_gates: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_tools: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub done_when: Option<String>,
     #[serde(default)]
     pub vars: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlanValidationIssue {
+    pub severity: String,
+    pub step_id: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlanValidationResult {
+    pub ok: bool,
+    #[serde(default)]
+    pub issues: Vec<PlanValidationIssue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

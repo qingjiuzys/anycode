@@ -352,6 +352,17 @@ pub(crate) fn build_preview_model_router(config: &Config) -> ModelRouter {
 }
 
 #[cfg(test)]
+fn effective_memory_backend_for_test(configured: &str, attach: MemoryAttachMode) -> &str {
+    match attach {
+        MemoryAttachMode::Exclusive => configured,
+        MemoryAttachMode::Shared => match configured {
+            "hybrid" | "pipeline" | "layered" | "guigen" => "file",
+            other => other,
+        },
+    }
+}
+
+#[cfg(test)]
 mod memory_attach_tests {
     use super::MemoryAttachMode;
 
@@ -371,16 +382,5 @@ mod memory_attach_tests {
             super::effective_memory_backend_for_test("noop", MemoryAttachMode::Shared),
             "noop"
         );
-    }
-}
-
-#[cfg(test)]
-fn effective_memory_backend_for_test(configured: &str, attach: MemoryAttachMode) -> &str {
-    match attach {
-        MemoryAttachMode::Exclusive => configured,
-        MemoryAttachMode::Shared => match configured {
-            "hybrid" | "pipeline" | "layered" | "guigen" => "file",
-            other => other,
-        },
     }
 }

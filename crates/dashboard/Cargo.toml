@@ -1,0 +1,40 @@
+[package]
+name = "anycode-dashboard"
+version.workspace = true
+edition = "2021"
+description = "Local Digital Workbench API and SQLite persistence for anycode"
+license = "MIT"
+build = "build.rs"
+
+[features]
+default = []
+embedded-ui = ["dep:rust-embed"]
+
+[lib]
+name = "anycode_dashboard"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+anycode-core = { path = "../core" }
+async-stream = "0.3"
+axum = { version = "0.8", features = ["json", "macros"] }
+chrono = { workspace = true, features = ["serde"] }
+futures = "0.3"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { workspace = true, features = ["runtime-tokio", "sqlite", "migrate"] }
+tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "signal"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+tracing = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+sha2 = "0.10"
+reqwest = { workspace = true, features = ["json"] }
+rust-embed = { version = "8.9", optional = true }
+
+[dev-dependencies]
+tempfile = "3.10"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }

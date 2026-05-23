@@ -1,13 +1,17 @@
 //! `anycode run` / 单次任务执行与 goal 循环（与 REPL 解耦）。
 
 use crate::app_config::Config;
+use crate::dashboard_record::DashboardRecorderHandle;
 use crate::i18n::{tr, tr_args};
 use crate::task_builders::build_headless_task;
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
+use anycode_dashboard::{DashboardRecorder, RunSessionKind};
 use fluent_bundle::FluentArgs;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use tracing::info;
 use uuid::Uuid;
 
@@ -15,11 +19,18 @@ use super::tasks_sink::ReplSink;
 use super::workflow_exec::run_workflow_path;
 
 /// Optional knobs for headless single-task runs (cron, workflows).
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub(crate) struct RunTaskOptions {
     pub session_id: Option<Uuid>,
     pub tool_profile: Option<String>,
     pub tool_allowlist: Option<Vec<String>>,
+    pub budget: TaskBudget,
+    /// When set, tail `output.log` into this recorder and do not open a nested session.
+    pub dashboard_parent: Option<DashboardRecorderHandle>,
+    /// Session kind when creating a new dashboard session (default `Run`; cron uses `Cron`).
+    pub dashboard_kind: Option<RunSessionKind>,
+    /// Optional session title in the workbench (e.g. `Cron job_id`).
+    pub dashboard_title: Option<String>,
 }
 
 /// `execute_task` 已将总结逐行写入磁盘 tail；若再原样 `sink.line(output)` 会与流式 stdout 叠一份。
@@ -41,6 +52,9 @@ pub(crate) async fn run_task(
     goal: Option<String>,
     done_when: Option<String>,
     max_goal_attempts: Option<usize>,
+    token_budget: Option<u32>,
+    cost_budget_usd: Option<f64>,
+    max_duration_secs: Option<u64>,
     prompt: String,
     working_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -64,8 +78,17 @@ pub(crate) async fn run_task(
         .unwrap_or(config.runtime.default_mode);
     let resolved_agent =
         agent_type.unwrap_or_else(|| resolved_mode.default_agent().as_str().to_string());
+    let run_options = RunTaskOptions {
+        budget: TaskBudget {
+            token_budget_total: token_budget,
+            cost_budget_usd,
+            max_duration_secs,
+            ..TaskBudget::default()
+        },
+        ..RunTaskOptions::default()
+    };
     if let Some(goal) = goal {
-        return run_goal_task_with_tail(
+        run_goal_task_with_tail(
             &runtime,
             &disk,
             resolved_agent,
@@ -74,11 +97,13 @@ pub(crate) async fn run_task(
             goal,
             done_when,
             max_goal_attempts,
+            run_options,
         )
-        .await;
+        .await?;
+        return Ok(());
     }
     let mut sink = ReplSink::Stdio;
-    run_single_task_with_tail(
+    let _task_id = run_single_task_with_tail(
         &runtime,
         &disk,
         resolved_agent,
@@ -86,10 +111,11 @@ pub(crate) async fn run_task(
         working_dir,
         &mut sink,
         None,
-        RunTaskOptions::default(),
+        run_options,
         Some(&config),
     )
-    .await
+    .await?;
+    Ok(())
 }
 
 /// Single task execution shared by `run` / `repl` (disk tail + result printing)。
@@ -104,17 +130,34 @@ pub(crate) async fn run_single_task_with_tail(
     capture_output: Option<&mut String>,
     options: RunTaskOptions,
     config: Option<&Config>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<TaskId> {
     info!("Running task with agent: {}", agent_type);
     info!("Working directory: {:?}", working_dir);
     info!("Prompt: {}", prompt);
 
-    let task = build_headless_task(agent_type, prompt, working_dir, &options, config);
+    let mut task = build_headless_task(agent_type, prompt, working_dir, &options, config);
 
     let output_path = disk.ensure_initialized(task.id)?;
     let mut po = FluentArgs::new();
     po.set("path", output_path.display().to_string());
     sink.eprint_line(tr_args("repl-task-out", &po));
+
+    let dashboard_cancel = Arc::new(AtomicBool::new(false));
+    let mut recorder = None;
+    if let Some(parent) = options.dashboard_parent.clone() {
+        recorder = Some(parent);
+    } else if let Some(db) = DashboardRecorder::open().await {
+        let kind = options.dashboard_kind.unwrap_or(RunSessionKind::Run);
+        let title_hint = options.dashboard_title.as_deref().unwrap_or(&task.prompt);
+        match DashboardRecorder::begin(db, kind, &task, title_hint).await {
+            Ok(r) => {
+                task.context.nested_cancel = Some(dashboard_cancel.clone());
+                std::env::set_var(anycode_dashboard::approval_ipc::SESSION_ENV, r.session_id());
+                recorder = Some(Arc::new(tokio::sync::Mutex::new(r)));
+            }
+            Err(e) => tracing::debug!(error = %e, "dashboard recorder begin skipped"),
+        }
+    }
 
     sink.eprint_line(tr("repl-task-run"));
     let exec = runtime.execute_task(task.clone());
@@ -122,9 +165,9 @@ pub(crate) async fn run_single_task_with_tail(
     let mut offset: u64 = 0;
     let mut streamed_from_disk = String::new();
     tokio::pin!(exec);
-    let result = loop {
+    let exec_result = loop {
         tokio::select! {
-            res = &mut exec => break res?,
+            res = &mut exec => break res,
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(300)) => {
                 let (delta, new_offset) = disk.read_delta(task.id, offset, 16 * 1024).unwrap_or_default();
                 if !delta.is_empty() {
@@ -132,9 +175,29 @@ pub(crate) async fn run_single_task_with_tail(
                     sink.push_stdout_str(&delta);
                     offset = new_offset;
                 }
+                if let Some(r) = recorder.as_ref() {
+                    if let Ok(mut guard) = r.try_lock() {
+                        crate::dashboard_record::poll_dashboard_cancel_ipc(
+                            &guard,
+                            &dashboard_cancel,
+                        );
+                        guard.ingest_delta(disk, task.id).await;
+                    }
+                }
             }
         }
     };
+    if let Err(e) = exec_result {
+        if options.dashboard_parent.is_none() {
+            if let Some(r) = recorder.as_ref() {
+                let guard = r.lock().await;
+                guard.finish_run(disk, task.id, Some(&e.to_string())).await;
+            }
+            std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+        }
+        return Err(e.into());
+    }
+    let result = exec_result?;
 
     // 最后一轮 `sleep` 与 `exec` 完成之间可能仍有 tail；补读避免漏段后误判「未流式输出」再整段打印一遍。
     loop {
@@ -149,20 +212,26 @@ pub(crate) async fn run_single_task_with_tail(
         offset = new_offset;
     }
 
-    match result {
+    let summary_for_db = match &result {
+        TaskResult::Success { output, .. } => Some(output.as_str()),
+        TaskResult::Failure { error, .. } => Some(error.as_str()),
+        TaskResult::Partial { success, .. } => Some(success.as_str()),
+    };
+
+    match &result {
         TaskResult::Success { output, artifacts } => {
             if let Some(cap) = capture_output {
                 *cap = output.clone();
             }
             sink.eprint_line(tr("repl-task-ok"));
             let skip_duplicate_block =
-                streamed_log_already_contains_output(&streamed_from_disk, &output);
+                streamed_log_already_contains_output(&streamed_from_disk, output);
             if !skip_duplicate_block && !output.trim().is_empty() {
                 sink.line("");
                 sink.line(tr("repl-output-header"));
                 sink.line(output);
             }
-            let written = crate::artifact_summary::claude_turn_written_lines(&artifacts);
+            let written = crate::artifact_summary::claude_turn_written_lines(artifacts);
             if !written.is_empty() {
                 sink.line("");
                 sink.eprint_line(tr("repl-written-header"));
@@ -197,7 +266,15 @@ pub(crate) async fn run_single_task_with_tail(
         }
     }
 
-    Ok(())
+    if options.dashboard_parent.is_none() {
+        if let Some(r) = recorder.as_ref() {
+            let guard = r.lock().await;
+            guard.finish_run(disk, task.id, summary_for_db).await;
+        }
+        std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+    }
+
+    Ok(task.id)
 }
 
 pub(crate) async fn run_goal_task_with_tail(
@@ -209,29 +286,90 @@ pub(crate) async fn run_goal_task_with_tail(
     goal: String,
     done_when: Option<String>,
     max_goal_attempts: Option<usize>,
-) -> anyhow::Result<()> {
+    options: RunTaskOptions,
+) -> anyhow::Result<TaskId> {
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
-    let task = build_task(agent_type, prompt, working_dir, None);
+    let mut task = build_task(agent_type, prompt, working_dir.clone(), None);
+    task.context.budget = options.budget;
     let output_path = disk.ensure_initialized(task.id)?;
     eprintln!("goal output log: {}", output_path.display());
     let done_when = done_when.filter(|s| !s.trim().is_empty());
-    let max_cap = max_goal_attempts
-        .map(|n| n.min(u32::MAX as usize) as u32)
-        .or(Some(12));
+    let max_cap = max_goal_attempts.map(|n| n.min(u32::MAX as usize) as u32);
     if let Some(ref marker) = done_when {
-        eprintln!("goal done_when: {marker:?} (max_attempts={max_cap:?})");
+        match max_cap {
+            Some(cap) => eprintln!("goal done_when: {marker:?} (max_attempts={cap})"),
+            None => eprintln!("goal done_when: {marker:?} (max_attempts=unlimited)"),
+        }
+    } else if max_cap.is_some() {
+        eprintln!("goal max_attempts={}", max_cap.unwrap());
+    } else {
+        eprintln!("goal retries: unlimited until objective is met");
     }
-    let (result, progress) = runtime
-        .execute_goal_task(
-            task,
-            GoalSpec {
-                objective: goal,
-                done_when,
-                allow_infinite_retries: max_cap.is_none(),
-                max_attempts_cap: max_cap,
-            },
-        )
-        .await?;
+    let spec = GoalSpec {
+        objective: goal.clone(),
+        done_when: done_when.clone(),
+        allow_infinite_retries: max_cap.is_none(),
+        max_attempts_cap: max_cap,
+    };
+
+    let dashboard_cancel = Arc::new(AtomicBool::new(false));
+    let mut recorder = None;
+    if let Some(parent) = options.dashboard_parent.clone() {
+        recorder = Some(parent);
+    } else if let Some(db) = DashboardRecorder::open().await {
+        let title = format!("Goal: {}", truncate_goal_title(&goal));
+        match DashboardRecorder::begin(db, RunSessionKind::Goal, &task, &title).await {
+            Ok(r) => {
+                task.context.nested_cancel = Some(dashboard_cancel.clone());
+                std::env::set_var(anycode_dashboard::approval_ipc::SESSION_ENV, r.session_id());
+                recorder = Some(Arc::new(tokio::sync::Mutex::new(r)));
+            }
+            Err(e) => tracing::debug!(error = %e, "dashboard recorder begin skipped"),
+        }
+    }
+
+    let exec = runtime.execute_goal_task(task.clone(), spec);
+    tokio::pin!(exec);
+    let goal_outcome = loop {
+        tokio::select! {
+            res = &mut exec => break res,
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(300)) => {
+                if let Some(r) = recorder.as_ref() {
+                    if let Ok(mut guard) = r.try_lock() {
+                        crate::dashboard_record::poll_dashboard_cancel_ipc(
+                            &guard,
+                            &dashboard_cancel,
+                        );
+                        guard.ingest_delta(disk, task.id).await;
+                    }
+                }
+            }
+        }
+    };
+    let (result, progress) = match goal_outcome {
+        Ok(v) => v,
+        Err(e) => {
+            if options.dashboard_parent.is_none() {
+                if let Some(r) = recorder.as_ref() {
+                    let guard = r.lock().await;
+                    guard.finish_run(disk, task.id, Some(&e.to_string())).await;
+                }
+                std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+            }
+            return Err(e.into());
+        }
+    };
+
+    if options.dashboard_parent.is_none() {
+        if let Some(r) = recorder.as_ref() {
+            let mut guard = r.lock().await;
+            guard
+                .finish_goal(disk, task.id, &progress, done_when.as_deref(), &working_dir)
+                .await;
+        }
+        std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+    }
+
     match result {
         TaskResult::Success { output, .. } => {
             println!("{}", output);
@@ -250,7 +388,16 @@ pub(crate) async fn run_goal_task_with_tail(
         "goal progress: attempts={} completed={} last_error={:?}",
         progress.attempts, progress.completed, progress.last_error
     );
-    Ok(())
+    Ok(task.id)
+}
+
+fn truncate_goal_title(goal: &str) -> String {
+    let one_line = goal.lines().next().unwrap_or(goal).trim();
+    if one_line.chars().count() > 100 {
+        format!("{}…", one_line.chars().take(100).collect::<String>())
+    } else {
+        one_line.to_string()
+    }
 }
 
 fn build_task(

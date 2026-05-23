@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>项目 · anycode Workbench</title><link rel="stylesheet" href="styles.css" /></head>
+<body data-page="projects">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a><a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a><a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a><a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a><a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a><a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a><a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>Qingjiu Lab</strong><span>项目是一级实体，会话是执行记录。</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><input class="search" placeholder="搜索项目..." /><div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div></header>
+      <section class="page">
+        <div class="pageHeader"><div><h2>项目</h2><p>成果、会话、Agent、资产、门禁和自动化策略都归属项目。企业团队从这里管理 AI 自动化项目组合。</p></div><button class="btn primary">创建项目</button></div>
+        <div class="grid cols3">
+          <article class="card">
+            <div class="row" style="padding:0;border:0;background:transparent"><div><strong>test-apps 自动化交付</strong><p>Flutter MVP、Provider 修复、运行时验证，12 个会话。</p></div><span class="pill warn">运行中</span></div>
+            <div class="grid cols3" style="margin-top:14px;"><div><b>96</b><p class="muted small">资产</p></div><div><b>184</b><p class="muted small">门禁</p></div><div><b>62%</b><p class="muted small">可信度</p></div></div>
+          </article>
+          <article class="card">
+            <div class="row" style="padding:0;border:0;background:transparent"><div><strong>anycode CLI 研发</strong><p>Goal 引擎、Memory、Tool policy、Release 构建。</p></div><span class="pill good">健康</span></div>
+            <div class="grid cols3" style="margin-top:14px;"><div><b>41</b><p class="muted small">变更</p></div><div><b>98%</b><p class="muted small">测试</p></div><div><b>91%</b><p class="muted small">可信度</p></div></div>
+          </article>
+          <article class="card">
+            <div class="row" style="padding:0;border:0;background:transparent"><div><strong>企业知识库接入</strong><p>RAG、权限、审计、跨项目记忆。</p></div><span class="pill">计划中</span></div>
+            <div class="grid cols3" style="margin-top:14px;"><div><b>8</b><p class="muted small">需求</p></div><div><b>3</b><p class="muted small">Agent</p></div><div><b>0</b><p class="muted small">运行</p></div></div>
+          </article>
+        </div>
+        <div class="grid cols2" style="margin-top:16px;">
+          <section class="card"><h3>项目结构</h3><p class="muted">Project → Sessions → Tasks → Events → Gates → Artifacts。任何会话产物都回写项目库。</p></section>
+          <section class="card"><h3>项目策略</h3><p class="muted">项目可以绑定 Skills、Agent 团队、默认模型、审批规则、验收模板和资产读取范围。</p></section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

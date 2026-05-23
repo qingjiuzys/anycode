@@ -128,6 +128,303 @@ pub const SECURITY_SENSITIVE_TOOL_IDS: &[&str] = &[
     TOOL_REPL,
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToolCatalogEntry {
+    pub id: &'static str,
+    pub category: &'static str,
+    pub risk_tier: &'static str,
+    pub default_agents: &'static [&'static str],
+    pub requires_approval: bool,
+    pub audit_level: &'static str,
+}
+
+const ALL_AGENTS: &[&str] = &["general-purpose", "workspace", "goal"];
+const EXPLORE_PLAN_AGENTS: &[&str] = &["explore", "plan"];
+const ORCHESTRATION_AGENTS: &[&str] = &["general-purpose", "workspace"];
+
+const fn tool_entry(
+    id: &'static str,
+    category: &'static str,
+    risk_tier: &'static str,
+    default_agents: &'static [&'static str],
+    requires_approval: bool,
+    audit_level: &'static str,
+) -> ToolCatalogEntry {
+    ToolCatalogEntry {
+        id,
+        category,
+        risk_tier,
+        default_agents,
+        requires_approval,
+        audit_level,
+    }
+}
+
+pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
+    tool_entry(TOOL_FILE_READ, "read", "low", ALL_AGENTS, false, "standard"),
+    tool_entry(TOOL_FILE_WRITE, "write", "high", ALL_AGENTS, true, "full"),
+    tool_entry(TOOL_BASH, "shell", "critical", ALL_AGENTS, true, "full"),
+    tool_entry(TOOL_GLOB, "read", "low", ALL_AGENTS, false, "standard"),
+    tool_entry(TOOL_GREP, "read", "low", ALL_AGENTS, false, "standard"),
+    tool_entry(TOOL_EDIT, "write", "high", ALL_AGENTS, true, "full"),
+    tool_entry(
+        TOOL_NOTEBOOK_EDIT,
+        "write",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(TOOL_TODO_WRITE, "ui", "low", ALL_AGENTS, false, "standard"),
+    tool_entry(
+        TOOL_WEB_FETCH,
+        "network",
+        "medium",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_WEB_SEARCH,
+        "network",
+        "medium",
+        ALL_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(TOOL_MCP, "mcp", "high", ALL_AGENTS, true, "full"),
+    tool_entry(
+        TOOL_LIST_MCP_RESOURCES,
+        "mcp",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_READ_MCP_RESOURCE,
+        "mcp",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(TOOL_MCP_AUTH, "mcp", "high", ALL_AGENTS, true, "full"),
+    tool_entry(TOOL_LSP, "read", "medium", ALL_AGENTS, true, "standard"),
+    tool_entry(
+        TOOL_AGENT,
+        "orchestration",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_SKILL,
+        "orchestration",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_SEND_MESSAGE,
+        "ui",
+        "medium",
+        ALL_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_LEGACY_TASK_AGENT,
+        "orchestration",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_TASK_CREATE,
+        "orchestration",
+        "medium",
+        ORCHESTRATION_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_TASK_UPDATE,
+        "orchestration",
+        "medium",
+        ORCHESTRATION_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_TASK_LIST,
+        "orchestration",
+        "low",
+        ORCHESTRATION_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_TASK_GET,
+        "orchestration",
+        "low",
+        ORCHESTRATION_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_TASK_STOP,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_TASK_OUTPUT,
+        "orchestration",
+        "low",
+        ORCHESTRATION_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_TEAM_CREATE,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_TEAM_DELETE,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_CRON_CREATE,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_CRON_DELETE,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_CRON_LIST,
+        "orchestration",
+        "low",
+        ORCHESTRATION_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_REMOTE_TRIGGER,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_ENTER_PLAN,
+        "mode",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_EXIT_PLAN,
+        "mode",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_ENTER_WORKTREE,
+        "workspace",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_EXIT_WORKTREE,
+        "workspace",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_TOOL_SEARCH,
+        "read",
+        "low",
+        EXPLORE_PLAN_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(TOOL_SLEEP, "control", "low", ALL_AGENTS, false, "minimal"),
+    tool_entry(
+        TOOL_STRUCTURED_OUTPUT,
+        "control",
+        "low",
+        ALL_AGENTS,
+        false,
+        "minimal",
+    ),
+    tool_entry(
+        TOOL_POWERSHELL,
+        "shell",
+        "critical",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(TOOL_CONFIG, "write", "high", ALL_AGENTS, true, "full"),
+    tool_entry(
+        TOOL_SEND_USER_MESSAGE,
+        "ui",
+        "low",
+        ALL_AGENTS,
+        false,
+        "minimal",
+    ),
+    tool_entry(TOOL_BRIEF, "ui", "low", ALL_AGENTS, false, "minimal"),
+    tool_entry(
+        TOOL_ASK_USER_QUESTION,
+        "ui",
+        "medium",
+        ALL_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(TOOL_REPL, "shell", "critical", ALL_AGENTS, true, "full"),
+];
+
+pub fn tool_catalog() -> &'static [ToolCatalogEntry] {
+    TOOL_CATALOG
+}
+
+pub fn tool_catalog_entry(id: &str) -> Option<&'static ToolCatalogEntry> {
+    TOOL_CATALOG.iter().find(|entry| entry.id == id)
+}
+
 pub const EXPLORE_PLAN_TOOL_IDS: [&str; 4] = [TOOL_FILE_READ, TOOL_GLOB, TOOL_GREP, TOOL_BASH];
 
 /// Tools denied when a cron job uses the `read_only` profile.
@@ -315,6 +612,7 @@ pub fn build_default_registry(sandbox_mode: bool) -> HashMap<ToolName, Box<dyn T
 #[cfg(test)]
 mod workspace_assistant_tools_tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn workspace_assistant_exposes_cron_create_delete_list() {
@@ -322,6 +620,28 @@ mod workspace_assistant_tools_tests {
         assert!(tools.contains(&TOOL_CRON_CREATE.to_string()));
         assert!(tools.contains(&TOOL_CRON_DELETE.to_string()));
         assert!(tools.contains(&TOOL_CRON_LIST.to_string()));
+    }
+
+    #[test]
+    fn tool_catalog_covers_default_tools() {
+        let catalog: HashSet<&str> = tool_catalog().iter().map(|entry| entry.id).collect();
+        for id in DEFAULT_TOOL_IDS {
+            assert!(
+                catalog.contains(id),
+                "missing tool catalog metadata for {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn sensitive_tools_require_approval_metadata() {
+        for id in SECURITY_SENSITIVE_TOOL_IDS {
+            let entry = tool_catalog_entry(id).expect("sensitive tool must be cataloged");
+            assert!(
+                entry.requires_approval,
+                "sensitive tool {id} must require approval"
+            );
+        }
     }
 }
 

@@ -29,4 +29,4 @@ pub use system_prompt::RuntimePromptConfig;
 pub use workspace_assistant::{GoalAgent, WorkspaceAssistantAgent};
 
 #[cfg(test)]
-include!("agent_test_mod.inc");
+mod tests;

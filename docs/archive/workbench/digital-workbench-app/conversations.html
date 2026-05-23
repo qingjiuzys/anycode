@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>对话 · anycode Workbench</title><link rel="stylesheet" href="styles.css" /></head>
+<body data-page="conversations">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a><a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a><a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a><a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a><a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a><a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a><a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>项目对话</strong><span>先选项目，再对话；所有内容沉淀为项目 session。</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><input class="search" placeholder="搜索会话、消息、决策..." /><div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div></header>
+      <section class="page">
+        <div class="pageHeader">
+          <div><h2>项目对话</h2><p>对话不是孤立聊天。每次对话都会绑定项目、Agent 团队、资产、门禁和自动化策略。</p></div>
+          <select style="width:280px"><option>test-apps 自动化交付</option><option>anycode CLI 研发</option><option>企业知识库接入</option></select>
+        </div>
+        <div class="chat">
+          <aside class="chatList">
+            <div class="chatItem active"><strong>Provider 修复会话</strong><div class="muted small">Verifier 阻止伪完成</div></div>
+            <div class="chatItem"><strong>app-02 生成会话</strong><div class="muted small">增长型 Flutter MVP</div></div>
+            <div class="chatItem"><strong>app-01 生成会话</strong><div class="muted small">已交付</div></div>
+            <div class="chatItem"><strong>测试策略会话</strong><div class="muted small">沉淀 Flutter tap 模板</div></div>
+          </aside>
+          <section class="chatPanel">
+            <div class="messages">
+              <div class="msg agent">项目上下文已加载：app-02 存在 Provider 树不一致问题，当前门禁要求点击 Onboarding 并通过 flutter test。</div>
+              <div class="msg user">继续让 anycode 自动修复，不要人工改代码。</div>
+              <div class="msg agent">已创建修复目标：Builder 负责代码，Verifier 负责测试，Reviewer 检查状态层混用，Planner 维护项目策略。</div>
+              <div class="msg agent">建议将 onboarding tap 测试升级为项目模板，后续 Flutter 项目自动启用。</div>
+            </div>
+            <div class="composer"><input placeholder="对当前项目提要求，例如：把所有 Flutter 项目加上浏览器点击验收..." /><button class="btn primary">发送</button></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

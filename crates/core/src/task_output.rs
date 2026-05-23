@@ -31,6 +31,25 @@ impl DiskTaskOutput {
         self.task_dir(task_id).join("output.log")
     }
 
+    pub fn events_path(&self, task_id: TaskId) -> PathBuf {
+        self.task_dir(task_id).join("events.jsonl")
+    }
+
+    /// Append one JSON object per line (structured event sidecar; `output.log` unchanged).
+    pub fn append_event_json(
+        &self,
+        task_id: TaskId,
+        value: &serde_json::Value,
+    ) -> Result<(), CoreError> {
+        let _ = self.ensure_initialized(task_id)?;
+        let path = self.events_path(task_id);
+        let line = serde_json::to_string(value).map_err(CoreError::SerializationError)?;
+        let mut f = OpenOptions::new().create(true).append(true).open(&path)?;
+        f.write_all(line.as_bytes())?;
+        f.write_all(b"\n")?;
+        Ok(())
+    }
+
     pub fn ensure_initialized(&self, task_id: TaskId) -> Result<PathBuf, CoreError> {
         let dir = self.task_dir(task_id);
         fs::create_dir_all(&dir)?;

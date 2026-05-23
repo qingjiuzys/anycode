@@ -110,6 +110,7 @@ Usage: install.sh [options]
   --method MODE         binary | auto | source (default: binary)
                          binary: only install GitHub Release tarball (no cargo fallback)
                          auto: try GitHub Release tarball, then cargo install --git
+  --with-dashboard      When using source install, build dashboard-ui and enable embedded-ui
   --source-dir PATH     Use `cargo install --path PATH/crates/cli` instead of git (for local dev clone)
   --dry-run             Print actions only
   --setup               After install, run `anycode setup` (interactive; default)
@@ -136,6 +137,7 @@ BIN_DIR_EXPLICIT=0
 [[ -n "${ANYCODE_INSTALL_BIN:-}" ]] && BIN_DIR_EXPLICIT=1
 METHOD=binary
 SOURCE_DIR=""
+WITH_DASHBOARD=0
 DRY_RUN=0
 RUN_SETUP=1
 QUIET=0
@@ -148,6 +150,7 @@ while [[ $# -gt 0 ]]; do
     --bin-dir) BIN_DIR="${2:-}"; BIN_DIR_EXPLICIT=1; shift 2 ;;
     --method) METHOD="${2:-}"; shift 2 ;;
     --source-dir) SOURCE_DIR="${2:-}"; shift 2 ;;
+    --with-dashboard) WITH_DASHBOARD=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --setup) RUN_SETUP=1; shift ;;
     --no-setup) RUN_SETUP=0; shift ;;
@@ -298,8 +301,21 @@ install_from_source_dir() {
   local cli="${dir}/crates/cli"
   [[ -f "${cli}/Cargo.toml" ]] || die "--source-dir must point to repo root containing crates/cli (got $dir)"
   command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs"
+  if [[ "$WITH_DASHBOARD" -eq 1 ]]; then
+    if [[ -x "${dir}/scripts/build-dashboard-ui.sh" ]]; then
+      warn "Building dashboard-ui (embedded-ui)…"
+      run bash "${dir}/scripts/build-dashboard-ui.sh"
+      export ANYCODE_BUILD_DASHBOARD_UI=1
+    else
+      warn "--with-dashboard: build-dashboard-ui.sh not found; skipping UI build"
+    fi
+  fi
+  local -a features=()
+  if [[ "$WITH_DASHBOARD" -eq 1 ]]; then
+    features+=(--features embedded-ui)
+  fi
   warn "cargo install --path $(printf '%q' "$cli") -> $(printf '%q' "${BIN_DIR}/anycode")"
-  cargo_install_copy install --locked --path "$cli"
+  cargo_install_copy install --locked --path "$cli" "${features[@]}"
 }
 
 main() {

@@ -58,7 +58,7 @@ Always run CI-equivalent checks to avoid remote failures:
 - `crates/cli/src/bootstrap/runtime.rs::initialize_runtime` assembles the runtime: LLM client, tool registry, security layer, memory backends
 - All CLI entry points (interactive terminal, REPL, `run`) share this single runtime construction path
 
-**Cooperative Cancel (ADR 002):**
+**Cooperative Cancel (ADR 010):**
 - Use `Arc<AtomicBool>` for cooperative cancellation at turn/tool boundaries
 - `CoreError::CooperativeCancel` for cancellation results (same display as legacy "cancelled")
 - `anyhow_error_is_cooperative_cancel` helper for handling `anyhow::Error`
@@ -84,7 +84,7 @@ The shared layer (`crates/cli/src/term/`) provides styles, input, session snapsh
 
 ### Configuration
 
-- Main config: `~/.anycode/config.json` (schema in `crates/cli/src/app_config_schema.rs`)
+- Main config: `~/.anycode/config.json` (schema in `crates/cli/src/app_config/schema/`; user file in `user_config.rs`; wizards in `prompts.rs`, `model_wizard.rs`, `config_wizard.rs`)
 - Session-level overlays via `.anycode/config.json` in workspace directories
 - Environment variables: `ANYCODE_IGNORE_APPROVAL`, `ANYCODE_TERM_ALT_SCREEN`, `ANYCODE_TERM_REPL_*`, etc. (see `CHANGELOG.md` for renames)
 

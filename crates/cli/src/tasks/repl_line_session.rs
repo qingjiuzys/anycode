@@ -2,13 +2,15 @@
 
 use super::tasks_sink::ReplSink;
 use crate::artifact_summary::claude_turn_written_lines;
+use crate::dashboard_record::DashboardRecorderHandle;
 use crate::i18n::{tr, tr_args};
 use crate::term::session_persist::{
     list_session_index_entries, load_session, resolve_session_for_reopen, sessions_dir,
     workspace_paths_equal_for_session, SessionSnapshot,
 };
 use anycode_agent::AgentRuntime;
-use anycode_core::{AgentType, Message, MessageContent, MessageRole, TurnOutput};
+use anycode_core::{AgentType, DiskTaskOutput, Message, MessageContent, MessageRole, TurnOutput};
+use anycode_dashboard::RunSessionKind;
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
 use std::path::Path;
@@ -27,6 +29,10 @@ pub(crate) struct ReplLineSession {
     pub turn_coop_cancel: Arc<AtomicBool>,
     pub tool_deny_names: Vec<String>,
     pub tool_deny_prefixes: Vec<String>,
+    /// Active Digital Workbench recorder for the current stream/line turn (if any).
+    pub dashboard_recorder: Option<DashboardRecorderHandle>,
+    pub dashboard_task_id: Option<Uuid>,
+    pub dashboard_session_kind: RunSessionKind,
 }
 
 impl ReplLineSession {
@@ -70,6 +76,9 @@ impl ReplLineSession {
             turn_coop_cancel,
             tool_deny_names,
             tool_deny_prefixes,
+            dashboard_recorder: None,
+            dashboard_task_id: None,
+            dashboard_session_kind: RunSessionKind::Repl,
         })
     }
 
@@ -115,7 +124,7 @@ async fn pop_trailing_assistant_if_present(session: &ReplLineSession) {
 
 pub(crate) async fn run_line_repl_turn(
     runtime: &AgentRuntime,
-    session: &ReplLineSession,
+    session: &mut ReplLineSession,
     agent: &str,
     prompt: &str,
     sink: &mut ReplSink,
@@ -134,6 +143,16 @@ pub(crate) async fn run_line_repl_turn(
     }
     session.turn_coop_cancel.store(false, Ordering::Release);
     let task_id = Uuid::new_v4();
+    session.dashboard_task_id = Some(task_id);
+    session.dashboard_recorder = crate::dashboard_record::begin_repl_turn(
+        agent,
+        prompt,
+        &session.working_dir_str,
+        task_id,
+        session.dashboard_session_kind,
+    )
+    .await;
+    let disk = DiskTaskOutput::new_default()?;
     let msgs = session.messages.clone();
     let wd = session.working_dir_str.clone();
     let coop = session.turn_coop_cancel.clone();
@@ -147,17 +166,27 @@ pub(crate) async fn run_line_repl_turn(
         }
     });
 
-    let exec_res = runtime
-        .execute_turn_from_messages(
+    let exec_fut = runtime.execute_turn_from_messages(
+        task_id,
+        &at,
+        msgs,
+        &wd,
+        Some(coop),
+        &session.tool_deny_names,
+        &session.tool_deny_prefixes,
+    );
+    let exec_res = if let Some(ref rec) = session.dashboard_recorder {
+        crate::dashboard_record::run_with_dashboard_tail_arc(
+            rec,
+            &disk,
             task_id,
-            &at,
-            msgs,
-            &wd,
-            Some(coop),
-            &session.tool_deny_names,
-            &session.tool_deny_prefixes,
+            session.turn_coop_cancel.clone(),
+            exec_fut,
         )
-        .await;
+        .await
+    } else {
+        exec_fut.await
+    };
 
     sig_watch.abort();
     let _ = sig_watch.await;
@@ -172,6 +201,8 @@ pub(crate) async fn run_line_repl_turn(
                 sink.eprint_line(&msg);
                 sink.line("");
                 sink.line(&msg);
+                crate::dashboard_record::finish_repl_session(session, &disk, Some(msg.as_str()))
+                    .await;
                 crate::term::session_persist::spawn_persist_session(
                     session.session_file_id,
                     session.working_dir_str.clone(),
@@ -181,6 +212,8 @@ pub(crate) async fn run_line_repl_turn(
                 );
                 return Ok(());
             }
+            crate::dashboard_record::finish_repl_session(session, &disk, Some(&e.to_string()))
+                .await;
             return Err(anyhow::anyhow!("{}", e));
         }
     };
@@ -211,6 +244,8 @@ pub(crate) async fn run_line_repl_turn(
             }
         }
     }
+    crate::dashboard_record::finish_repl_session(session, &disk, Some(out.final_text.as_str()))
+        .await;
     crate::term::session_persist::spawn_persist_session(
         session.session_file_id,
         session.working_dir_str.clone(),
@@ -224,7 +259,7 @@ pub(crate) async fn run_line_repl_turn(
 /// 追加用户消息并 `spawn` 回合（与 TUI `append_user_line_and_spawn_turn` 对齐）。返回 `(handle, exec_prev_len)`。
 pub(crate) async fn append_user_spawn_turn(
     runtime: &Arc<AgentRuntime>,
-    session: &ReplLineSession,
+    session: &mut ReplLineSession,
     agent: &str,
     prompt: &str,
 ) -> anyhow::Result<(JoinHandle<anyhow::Result<TurnOutput>>, usize)> {
@@ -243,6 +278,15 @@ pub(crate) async fn append_user_spawn_turn(
     };
     session.turn_coop_cancel.store(false, Ordering::Release);
     let task_id = Uuid::new_v4();
+    session.dashboard_task_id = Some(task_id);
+    session.dashboard_recorder = crate::dashboard_record::begin_repl_turn(
+        agent,
+        prompt,
+        &session.working_dir_str,
+        task_id,
+        session.dashboard_session_kind,
+    )
+    .await;
     let rt = Arc::clone(runtime);
     let msgs = session.messages.clone();
     let wd = session.working_dir_str.clone();

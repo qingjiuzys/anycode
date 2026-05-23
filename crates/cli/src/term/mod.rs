@@ -4,7 +4,7 @@
 mod terminal_guard;
 
 pub(crate) mod approval;
-pub(crate) use approval::{ApprovalDecision, InteractiveApprovalCallback, PendingApproval};
+pub(crate) use approval::{ApprovalDecision, PendingApproval};
 pub(crate) mod hud_text;
 pub(crate) mod input;
 pub(crate) mod palette;

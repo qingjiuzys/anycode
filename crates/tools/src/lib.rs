@@ -62,8 +62,9 @@ pub use ask_user_question_host::{
 pub use catalog::{
     build_default_registry, build_registry_with_services, cron_tool_profile_filters,
     explore_plan_tool_names, explore_plan_tool_names_with_skill, general_purpose_tool_names,
-    iter_cli_tool_help, sidebar_tool_lines, validate_default_registry,
-    workspace_assistant_tool_names, DEFAULT_TOOL_IDS, EXPLORE_PLAN_TOOL_IDS,
+    iter_cli_tool_help, sidebar_tool_lines, tool_catalog, tool_catalog_entry,
+    validate_default_registry, workspace_assistant_tool_names, ToolCatalogEntry, DEFAULT_TOOL_IDS,
+    EXPLORE_PLAN_TOOL_IDS,
 };
 pub use claude_rules::CompiledClaudePermissionRules;
 pub use cron_schedule::{

@@ -15,7 +15,7 @@ use crate::repl::{
 use crate::repl_banner::{self, ReplWelcomeKind};
 use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::term::transcript::build_stream_turn_plain;
-use crate::term::{InteractiveApprovalCallback, PendingApproval, PendingUserQuestion};
+use crate::term::{PendingApproval, PendingUserQuestion};
 use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
@@ -185,7 +185,9 @@ pub(crate) async fn run_interactive(
         let (uq_tx, uq_rx) = mpsc::channel::<PendingUserQuestion>(4);
         let uq_host = crate::ask_user_host::ChannelAskUserQuestionHost::new(uq_tx).into_arc();
         let approval_override: Option<Box<dyn ApprovalCallback>> = if require_approval {
-            Some(Box::new(InteractiveApprovalCallback::new(approval_tx)))
+            Some(Box::new(
+                crate::workbench_approval::WorkbenchApprovalCallback::with_tui_channel(approval_tx),
+            ))
         } else {
             None
         };
@@ -427,21 +429,34 @@ async fn pop_trailing_assistant_after_failed_turn(session: &ReplLineSession) {
 
 async fn finish_stream_spawned_turn(
     result: Result<anyhow::Result<anycode_core::TurnOutput>, tokio::task::JoinError>,
-    line_session: &ReplLineSession,
+    line_session: &mut ReplLineSession,
     agent: &str,
     sink: &mut ReplSink,
 ) -> anyhow::Result<()> {
+    let owned_err;
+    let summary_for_db = match &result {
+        Ok(Ok(out)) => Some(out.final_text.as_str()),
+        Ok(Err(e)) => {
+            owned_err = e.to_string();
+            Some(owned_err.as_str())
+        }
+        Err(e) => {
+            owned_err = e.to_string();
+            Some(owned_err.as_str())
+        }
+    };
+
     let turn_failed = matches!(&result, Ok(Err(_)) | Err(_));
     if turn_failed {
         pop_trailing_assistant_after_failed_turn(line_session).await;
     }
-    match result {
+    match &result {
         Ok(Ok(_out)) => {
             // 主区唯一源：`messages` → 随后 `build_stream_turn_plain` 整段重建 transcript。
             // 勿再 `sink.line` 写入 task-ok / Output / Written：会与消息派生正文叠成多块重复，或先写再被截断造成逻辑双轨。
         }
         Ok(Err(e)) => {
-            let is_coop = anyhow_error_is_cooperative_cancel(&e);
+            let is_coop = anyhow_error_is_cooperative_cancel(e);
             if is_coop {
                 let msg = tr("term-turn-cooperative-cancelled");
                 sink.eprint_line(&msg);
@@ -454,6 +469,9 @@ async fn finish_stream_spawned_turn(
         Err(e) => {
             write_stream_turn_failure(sink, "Turn join error: ", e);
         }
+    }
+    if let Ok(disk) = anycode_core::DiskTaskOutput::new_default() {
+        crate::dashboard_record::finish_repl_session(line_session, &disk, summary_for_db).await;
     }
     crate::term::session_persist::spawn_persist_session(
         line_session.session_file_id,
@@ -496,7 +514,13 @@ fn run_interactive_tty_stream_blocking(
     let correlation = crate::term::session_group::resolve_stream_session_correlation(
         line_session.session_file_id,
     );
+    let is_cron = correlation.is_cron;
     crate::term::session_group::set_stream_session_correlation(&state, correlation);
+    line_session.dashboard_session_kind = if is_cron {
+        anycode_dashboard::RunSessionKind::Cron
+    } else {
+        anycode_dashboard::RunSessionKind::Repl
+    };
     sync_repl_dock_status(&state, config, agent, false);
 
     let approval_shared = Arc::new(Mutex::new(approval_rx.take()));
@@ -574,6 +598,8 @@ async fn stream_repl_tokio_worker(
     // 执行态 `transcript` 刷新已由轴心线程 `tick_executing_stream_transcript` 承担。
     let mut stream_tick = tokio::time::interval(Duration::from_millis(16));
     stream_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut dashboard_tail = tokio::time::interval(Duration::from_millis(300));
+    dashboard_tail.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     loop {
         if let Some(h) = exec_handle.as_ref() {
@@ -702,10 +728,16 @@ async fn stream_repl_tokio_worker(
                             crate::term::session_group::resolve_stream_session_correlation(
                                 line_session.session_file_id,
                             );
+                        let is_cron = correlation.is_cron;
                         crate::term::session_group::set_stream_session_correlation(
                             &state,
                             correlation,
                         );
+                        line_session.dashboard_session_kind = if is_cron {
+                            anycode_dashboard::RunSessionKind::Cron
+                        } else {
+                            anycode_dashboard::RunSessionKind::Repl
+                        };
                         if let Ok(mut st) = state.lock() {
                             stream_repl_scroll_reset_to_bottom(&mut st);
                             st.executing_since = None;
@@ -831,6 +863,20 @@ async fn stream_repl_tokio_worker(
                 }
             }
             _ = stream_tick.tick() => {}
+            _ = dashboard_tail.tick(), if executing => {
+                if let (Some(rec), Some(tid)) = (
+                    line_session.dashboard_recorder.as_ref(),
+                    line_session.dashboard_task_id,
+                ) {
+                    crate::dashboard_record::tail_tick_with_cancel(
+                        rec,
+                        &disk,
+                        tid,
+                        &line_session.turn_coop_cancel,
+                    )
+                    .await;
+                }
+            }
         }
     }
 

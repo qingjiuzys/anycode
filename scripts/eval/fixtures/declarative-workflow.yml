@@ -1,0 +1,34 @@
+name: declarative-plan-build-verify
+mode: code
+steps:
+  - id: plan
+    intent: inspect the requested change and produce a short implementation plan
+    agent: plan
+    prompt: Plan the change before editing.
+    allowed_tools:
+      - FileRead
+      - Glob
+      - Grep
+  - id: build
+    intent: implement the planned change
+    agent: general-purpose
+    prompt: Apply the planned implementation.
+    depends_on:
+      - plan
+    allowed_tools:
+      - FileRead
+      - Edit
+      - Bash
+    budget:
+      token_budget_total: 2000
+      max_duration_secs: 300
+  - id: verify
+    intent: run verification and report results
+    agent: general-purpose
+    prompt: Run the verification command and summarize the result.
+    depends_on:
+      - build
+    required_gates:
+      - cargo-test
+    allowed_tools:
+      - Bash

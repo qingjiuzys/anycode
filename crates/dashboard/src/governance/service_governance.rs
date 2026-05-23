@@ -1,0 +1,271 @@
+//! Dashboard service status and doctor diagnostics.
+
+use crate::schema::{DoctorCheck, DoctorReport, ServiceStatusDetail};
+use std::net::{SocketAddr, TcpListener as StdTcpListener};
+use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
+
+pub fn is_loopback_host(host: &str) -> bool {
+    host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+pub fn build_service_status(
+    host: &str,
+    port: u16,
+    version: &str,
+    db_path: &Path,
+    static_dir: Option<&Path>,
+    started_at: &str,
+    pid: u32,
+    sse_subscribers: usize,
+    last_event_at: Option<&str>,
+) -> ServiceStatusDetail {
+    let ui_dist = static_dir.map(|p| p.display().to_string());
+    let ui_dist_present = static_dir.is_some_and(|p| p.join("index.html").is_file());
+    ServiceStatusDetail {
+        name: "dashboard".into(),
+        host: host.into(),
+        port,
+        status: "running".into(),
+        auth_mode: if is_loopback_host(host) {
+            "local_trusted".into()
+        } else {
+            "token_required".into()
+        },
+        version: version.into(),
+        pid: Some(pid),
+        started_at: started_at.into(),
+        db_path: db_path.display().to_string(),
+        ui_dist,
+        ui_dist_present,
+        sse_subscribers,
+        last_event_at: last_event_at.map(str::to_string),
+        loopback: is_loopback_host(host),
+    }
+}
+
+pub fn doctor_overall_status(checks: &[DoctorCheck]) -> &'static str {
+    if checks.iter().any(|c| c.status == "error") {
+        "error"
+    } else if checks.iter().any(|c| c.status == "warn") {
+        "warn"
+    } else {
+        "ok"
+    }
+}
+
+pub fn run_doctor_checks(
+    host: &str,
+    port: u16,
+    db_path: &Path,
+    static_dir: Option<&Path>,
+) -> DoctorReport {
+    let mut checks = Vec::new();
+
+    let db_exists = db_path.is_file();
+    checks.push(DoctorCheck {
+        id: "db_exists".into(),
+        status: if db_exists { "ok" } else { "warn" }.into(),
+        message: if db_exists {
+            format!("Database found at {}", db_path.display())
+        } else {
+            format!(
+                "Database not found at {} (will be created on first run)",
+                db_path.display()
+            )
+        },
+    });
+
+    if db_exists {
+        let writable = db_path
+            .parent()
+            .map(|p| {
+                p.metadata()
+                    .map(|m| !m.permissions().readonly())
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+        checks.push(DoctorCheck {
+            id: "db_writable".into(),
+            status: if writable { "ok" } else { "error" }.into(),
+            message: if writable {
+                "Database directory is writable".into()
+            } else {
+                "Database directory is not writable".into()
+            },
+        });
+    }
+
+    let ui_present = static_dir.is_some_and(|d| d.join("index.html").is_file());
+    checks.push(DoctorCheck {
+        id: "ui_dist".into(),
+        status: if ui_present { "ok" } else { "warn" }.into(),
+        message: if ui_present {
+            format!("UI dist found: {}", static_dir.unwrap().display())
+        } else {
+            "UI dist missing — run ./scripts/build-dashboard-ui.sh".into()
+        },
+    });
+
+    let loopback = is_loopback_host(host);
+    checks.push(DoctorCheck {
+        id: "loopback_binding".into(),
+        status: if loopback { "ok" } else { "warn" }.into(),
+        message: if loopback {
+            format!("Bound to loopback {host}:{port}")
+        } else {
+            format!("Non-loopback binding {host}:{port} — API token required")
+        },
+    });
+
+    let trigger_ok = crate::task_trigger::triggers_enabled()
+        && (loopback
+            || std::env::var("ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE")
+                .ok()
+                .is_some_and(|v| v == "1"));
+    checks.push(DoctorCheck {
+        id: "ui_trigger_run".into(),
+        status: if !crate::task_trigger::triggers_enabled() {
+            "warn"
+        } else if trigger_ok {
+            "ok"
+        } else {
+            "warn"
+        }
+        .into(),
+        message: if !crate::task_trigger::triggers_enabled() {
+            "UI trigger run disabled (ANYCODE_DASHBOARD_TRIGGER_RUN=0)".into()
+        } else if trigger_ok {
+            "UI trigger run allowed for this binding".into()
+        } else {
+            "UI trigger run blocked on non-loopback — set ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1 to override".into()
+        },
+    });
+
+    let approval_ok = crate::approval_ipc::web_approvals_enabled()
+        && (loopback
+            || std::env::var("ANYCODE_DASHBOARD_WEB_APPROVAL_REMOTE")
+                .ok()
+                .is_some_and(|v| v == "1"));
+    checks.push(DoctorCheck {
+        id: "ui_web_approval".into(),
+        status: if !crate::approval_ipc::web_approvals_enabled() {
+            "warn"
+        } else if approval_ok {
+            "ok"
+        } else {
+            "warn"
+        }
+        .into(),
+        message: if !crate::approval_ipc::web_approvals_enabled() {
+            "Web tool approval disabled (ANYCODE_DASHBOARD_WEB_APPROVAL=0)".into()
+        } else if approval_ok {
+            "Web tool approval respond allowed for this binding".into()
+        } else {
+            "Web approval respond blocked on non-loopback — set ANYCODE_DASHBOARD_WEB_APPROVAL_REMOTE=1".into()
+        },
+    });
+
+    let port_free = port_available(host, port);
+    checks.push(DoctorCheck {
+        id: "port_available".into(),
+        status: if port_free { "ok" } else { "error" }.into(),
+        message: if port_free {
+            format!("Port {port} is available")
+        } else {
+            format!("Port {port} is already in use")
+        },
+    });
+
+    let overall = doctor_overall_status(&checks);
+
+    DoctorReport {
+        status: overall.into(),
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        checks,
+        next_steps: Vec::new(),
+    }
+}
+
+pub fn doctor_next_steps(
+    report: &DoctorReport,
+    has_projects: bool,
+    active_tokens: i64,
+    loopback: bool,
+) -> Vec<String> {
+    let mut steps = Vec::new();
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id == "ui_dist" && c.status == "warn")
+    {
+        steps.push("Run ./scripts/build-dashboard-ui.sh to build the UI".into());
+    }
+    if !has_projects {
+        steps.push("Run `anycode run` or `anycode goal` in a project directory".into());
+    }
+    if !loopback && active_tokens == 0 {
+        steps.push("Create an API token: `anycode dashboard token create`".into());
+    }
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id == "port_available" && c.status == "error")
+    {
+        steps.push("Free the dashboard port or use `--port` with another value".into());
+    }
+    if steps.is_empty() && report.status == "ok" {
+        steps.push("Start dashboard: `anycode dashboard --open`".into());
+    }
+    if report.status == "ok" {
+        steps.push("Digital Workbench status: docs/digital-workbench-STATUS.md".into());
+    }
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id.starts_with("connector_") && c.status == "warn")
+    {
+        steps.push(
+            "Set connector API tokens (GITHUB_TOKEN / LINEAR_API_KEY) to verify reachability"
+                .into(),
+        );
+    }
+    steps
+}
+
+fn port_available(host: &str, port: u16) -> bool {
+    let addr: SocketAddr = match format!("{host}:{port}").parse() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    StdTcpListener::bind(addr).is_ok()
+}
+
+pub fn dist_build_time(static_dir: &Path) -> Option<String> {
+    let index = static_dir.join("index.html");
+    let meta = std::fs::metadata(index).ok()?;
+    let modified = meta.modified().ok()?;
+    let secs = modified.duration_since(UNIX_EPOCH).ok()?.as_secs();
+    Some(format!("{secs}"))
+}
+
+pub fn suggest_backup_path(db_path: &Path) -> PathBuf {
+    let stem = db_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("projects");
+    let ts = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    db_path.with_file_name(format!("{stem}.backup.{ts}.db"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loopback_detection() {
+        assert!(is_loopback_host("127.0.0.1"));
+        assert!(is_loopback_host("localhost"));
+        assert!(!is_loopback_host("0.0.0.0"));
+    }
+}

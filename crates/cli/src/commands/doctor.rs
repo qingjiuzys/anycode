@@ -92,7 +92,7 @@ fn channel_rows(channel: &str) -> Vec<CheckRow> {
                 detail: p.display().to_string(),
             });
             let outbound = p.join("outbound.jsonl");
-            let stats = crate::wx::outbound_queue::summarize_outbound_log(&outbound);
+            let stats = crate::channels::wx::outbound_queue::summarize_outbound_log(&outbound);
             rows.push(CheckRow {
                 name: "channel.wechat.outbound".into(),
                 status: if outbound.exists() { "ok" } else { "empty" }.into(),
@@ -161,7 +161,78 @@ fn mcp_rows() -> Vec<CheckRow> {
             .into(),
             detail: "ANYCODE_MCP_SERVERS".into(),
         },
+        CheckRow {
+            name: "mcp.policy.strict".into(),
+            status: if std::env::var_os("ANYCODE_MCP_STRICT").is_some() {
+                "configured"
+            } else {
+                "compat"
+            }
+            .into(),
+            detail: "ANYCODE_MCP_STRICT + ANYCODE_MCP_ALLOWED_TOOLS".into(),
+        },
+        CheckRow {
+            name: "mcp.policy.quota".into(),
+            status: if std::env::var_os("ANYCODE_MCP_MAX_CALLS_PER_SERVER").is_some() {
+                "configured"
+            } else {
+                "unlimited"
+            }
+            .into(),
+            detail: "ANYCODE_MCP_MAX_CALLS_PER_SERVER".into(),
+        },
     ]
+}
+
+fn tool_rows() -> Vec<CheckRow> {
+    let mut rows = Vec::new();
+    let catalog = anycode_tools::tool_catalog();
+    let total = catalog.len();
+    let high_risk = catalog
+        .iter()
+        .filter(|entry| matches!(entry.risk_tier, "high" | "critical"))
+        .count();
+    let approval_gaps = anycode_tools::catalog::SECURITY_SENSITIVE_TOOL_IDS
+        .iter()
+        .filter(|id| {
+            anycode_tools::tool_catalog_entry(id)
+                .map(|entry| !entry.requires_approval)
+                .unwrap_or(true)
+        })
+        .count();
+    rows.push(CheckRow {
+        name: "tools.catalog.total".into(),
+        status: "ok".into(),
+        detail: format!("{total} default tool metadata entries"),
+    });
+    rows.push(CheckRow {
+        name: "tools.catalog.high_risk".into(),
+        status: if high_risk > 0 { "warn" } else { "ok" }.into(),
+        detail: format!("{high_risk} high/critical tools require close approval review"),
+    });
+    rows.push(CheckRow {
+        name: "tools.catalog.approval_gaps".into(),
+        status: if approval_gaps == 0 { "ok" } else { "error" }.into(),
+        detail: format!("{approval_gaps} sensitive tools missing approval metadata"),
+    });
+    for entry in catalog {
+        rows.push(CheckRow {
+            name: format!("tool.{}", entry.id),
+            status: entry.risk_tier.into(),
+            detail: format!(
+                "category={} approval={} audit={} agents={}",
+                entry.category,
+                entry.requires_approval,
+                entry.audit_level,
+                entry.default_agents.join(",")
+            ),
+        });
+    }
+    rows
+}
+
+pub(crate) fn print_tools(json: bool) -> anyhow::Result<()> {
+    print_rows(&tool_rows(), json)
 }
 
 pub(crate) fn print_memory(config: &Config, json: bool) -> anyhow::Result<()> {
@@ -181,6 +252,7 @@ pub(crate) fn print_all(config: &Config, json: bool) -> anyhow::Result<()> {
     rows.extend(memory_rows(config));
     rows.extend(channel_rows("all"));
     rows.extend(mcp_rows());
+    rows.extend(tool_rows());
     if let Some(p) = home_path(".anycode/tasks/scheduler.lock") {
         rows.push(CheckRow {
             name: "scheduler.lock".into(),

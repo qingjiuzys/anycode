@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>首页 · anycode Workbench</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="dashboard">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a>
+        <a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a>
+        <a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a>
+        <a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a>
+        <a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a>
+        <a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a>
+        <a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>Qingjiu Lab</strong><span>本地 SQLite：~/.anycode/projects.db</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <input class="search" placeholder="搜索项目、资产、会话、门禁..." />
+        <div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div>
+      </header>
+      <section class="page">
+        <div class="pageHeader">
+          <div><h2>项目首页</h2><p>首页只放项目级图表、健康度、自动化效率、成本、风险和最近成果。设置、对话和资产都拆到独立页面。</p></div>
+          <a class="btn primary" href="projects.html">新建项目</a>
+        </div>
+        <div class="grid cols4">
+          <div class="card"><div class="statLabel">项目资产</div><div class="statValue">96</div><div class="statSub good">+18 本周新增</div></div>
+          <div class="card"><div class="statLabel">自动化成功率</div><div class="statValue">84%</div><div class="statSub warn">Provider 修复未完成</div></div>
+          <div class="card"><div class="statLabel">节省人工工时</div><div class="statValue">42h</div><div class="statSub">按项目累计</div></div>
+          <div class="card"><div class="statLabel">阻塞风险</div><div class="statValue bad">7</div><div class="statSub">测试、配额、审批</div></div>
+        </div>
+        <div class="grid cols2" style="margin-top:16px;">
+          <section class="card">
+            <h3>项目交付趋势</h3>
+            <div class="trend"><i style="height:34%"></i><i style="height:44%"></i><i style="height:39%"></i><i style="height:58%"></i><i style="height:68%"></i><i style="height:72%"></i><i style="height:66%"></i><i style="height:88%"></i><i style="height:79%"></i><i style="height:94%"></i></div>
+          </section>
+          <section class="card">
+            <h3>自动化分布</h3>
+            <div class="barRows">
+              <div class="barRow"><span>代码生成</span><div class="bar"><i style="width:84%"></i></div><b>84%</b></div>
+              <div class="barRow"><span>测试验收</span><div class="bar"><i style="width:71%"></i></div><b>71%</b></div>
+              <div class="barRow"><span>文档报告</span><div class="bar"><i style="width:92%"></i></div><b>92%</b></div>
+              <div class="barRow"><span>运行验证</span><div class="bar"><i style="width:48%"></i></div><b>48%</b></div>
+              <div class="barRow"><span>人工审批</span><div class="bar"><i style="width:23%"></i></div><b>23%</b></div>
+            </div>
+          </section>
+        </div>
+        <div class="grid cols3" style="margin-top:16px;">
+          <section class="card"><h3>Top 风险</h3><p class="muted">app-02 Provider 修复仍未完成 widget tap 验收，项目可信度降低。</p></section>
+          <section class="card"><h3>最近成果</h3><p class="muted">新增 Flutter MVP、README、测试报告、Provider 修复记录。</p></section>
+          <section class="card"><h3>系统建议</h3><p class="muted">将 onboarding tap 测试升级为项目模板，Flutter 项目默认启用。</p></section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

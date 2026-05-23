@@ -76,7 +76,7 @@ pub(crate) fn augment_prompt_runtime(
             .to_string(),
     );
     prompt_runtime.goal_section = Some(
-        "## Goal Mode\nFor goal-oriented tasks, keep iterating until completion criteria are met, but stop and surface hard blockers such as missing approvals, missing credentials, or impossible environment requirements.\nWhen `done_when` is set on the goal spec, treat assistant output as complete only if it contains that substring (case-sensitive). Use `GoalSpec.max_attempts_cap` in API/CLI integrations to bound attempts even when infinite retries are enabled."
+        "## Goal Mode\nFor goal-oriented tasks, keep iterating until completion criteria are met (retries are unlimited by default; use `--max-goal-attempts` only when a cap is needed). Retry after tool/LLM failures unless the user cancels. Stop and surface hard blockers such as missing approvals, missing credentials, or impossible environment requirements.\nWhen `done_when` is set for a `test/...` Flutter directory, completion requires the marker in assistant output, on that directory's README.md, and passing `flutter analyze` + `flutter test` in that directory (the engine re-runs these checks). Use `GoalSpec.max_attempts_cap` to bound attempts when required."
             .to_string(),
     );
     prompt_runtime.prompt_fragments.push(format!(

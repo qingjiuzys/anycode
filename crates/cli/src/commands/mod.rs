@@ -1,12 +1,16 @@
 pub(crate) mod audit;
 pub(crate) mod cli_error;
 pub(crate) mod cron;
+pub(crate) mod dashboard;
+pub(crate) mod dispatch;
 pub(crate) mod doctor;
 pub(crate) mod eval;
 pub(crate) mod eval_mock;
 pub(crate) mod feature;
 pub(crate) mod mcp;
 pub(crate) mod memory_import;
+pub(crate) mod memory_retention;
 pub(crate) mod status;
 pub(crate) mod statusline;
+pub(crate) mod workflow;
 pub(crate) mod workspace;

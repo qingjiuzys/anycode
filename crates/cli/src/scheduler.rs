@@ -3,10 +3,11 @@
 
 use crate::app_config::Config;
 use crate::bootstrap;
+use crate::channels::wx::cron_notify::deliver_cron_to_wechat;
+use crate::channels::wx::WxSender;
 use crate::tasks::{run_single_task_with_tail, ReplSink, RunTaskOptions};
 use crate::workspace;
-use crate::wx::cron_notify::deliver_cron_to_wechat;
-use crate::wx::WxSender;
+use anycode_dashboard::RunSessionKind;
 use anycode_tools::{read_cron_jobs_from_orchestration_file, CronJob};
 use chrono::{DateTime, Utc};
 use cron::Schedule;
@@ -277,11 +278,11 @@ pub(crate) async fn run_builtin_scheduler(
                 let mut sink = ReplSink::Stdio;
                 let mut captured = String::new();
                 let cron_prompt = format!(
-                    "{}\n\n\
+                    "Cron {}\n{}\n\n\
                      [Scheduled cron — deliver to the user]\n\
                      Execute the reminder above in concise Chinese. \
                      Your final answer will be pushed to the user's WeChat chat automatically.",
-                    pj.job.command
+                    pj.job.id, pj.job.command
                 );
                 let cron_session_id = pj
                     .job
@@ -292,6 +293,9 @@ pub(crate) async fn run_builtin_scheduler(
                     session_id: cron_session_id,
                     tool_profile: pj.job.tool_profile.clone(),
                     tool_allowlist: pj.job.tool_allowlist.clone(),
+                    dashboard_kind: Some(RunSessionKind::Cron),
+                    dashboard_title: Some(format!("Cron {}", pj.job.id)),
+                    ..RunTaskOptions::default()
                 };
                 if let Err(e) = run_single_task_with_tail(
                     runtime.as_ref(),

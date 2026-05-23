@@ -1,0 +1,20 @@
+import { coreClient } from "./core";
+import { governanceClient } from "./governance";
+import { projectsClient } from "./projects";
+import { sessionsClient } from "./sessions";
+import { settingsClient } from "./settings";
+
+export type {
+  ArtifactListOpts,
+  AuthUser,
+  EventListOpts,
+  SessionListOpts,
+} from "./shared";
+
+export const api = {
+  ...coreClient,
+  ...projectsClient,
+  ...sessionsClient,
+  ...settingsClient,
+  ...governanceClient,
+};

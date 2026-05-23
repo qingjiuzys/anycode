@@ -1,0 +1,50 @@
+pub mod api;
+pub mod asset_index;
+pub mod audit;
+pub mod auth_session;
+pub mod bootstrap;
+pub mod config_patch;
+pub mod connector_health;
+pub mod connectors;
+pub mod control;
+pub mod cron_ledger;
+pub mod data_health;
+pub mod db;
+pub mod db_ops;
+pub mod embedded_ui;
+pub mod events;
+pub mod governance;
+pub mod ipc;
+pub mod notifications;
+pub mod notify;
+pub mod observability;
+pub mod preferences;
+pub mod recorder;
+pub mod report;
+pub mod report_archive;
+pub mod runtime_config;
+pub mod schema;
+pub mod search;
+pub mod server;
+pub mod skills_scan;
+pub mod static_ui;
+pub mod tokens;
+
+pub use control::{gate_runner, task_trigger};
+pub use governance::{automation_policy, security_events, service_governance, skills_governance};
+pub use ipc::{approval_ipc, cancel_ipc};
+pub use observability::{ingest, log_parser, metrics, session_replay};
+
+#[cfg(test)]
+mod test_util;
+
+pub use db::DashboardDb;
+pub use db_ops::{backup_db, db_operations};
+pub use events::{EventBus, EventSink};
+pub use log_parser::parse_line;
+pub use preferences::{load_preferences, preferences_path, restart_command, save_preferences};
+pub use recorder::{DashboardRecorder, RunSessionKind};
+pub use server::{default_db_path, run, DashboardConfig};
+pub use service_governance::{is_loopback_host, run_doctor_checks, suggest_backup_path};
+pub use static_ui::{discover_ui_dist, ui_available};
+pub use tokens::{create_token, list_tokens, revoke_token, token_count_active};

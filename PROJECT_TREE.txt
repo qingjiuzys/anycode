@@ -1,17 +1,32 @@
 anycode/
-├── Cargo.toml                 # Workspace
-├── .github/workflows/ci.yml   # fmt / clippy / test
+├── Cargo.toml                 # Rust workspace
+├── .github/workflows/         # CI, docs publish, release binaries
 ├── README.md
-├── docs/                      # 架构、CLI、模型、路由等（见 docs/architecture.md）
+├── WORKBENCH.md               # Digital Workbench quick-start and operator notes
+├── docs/                      # Maintainer docs, ADRs, roadmap, workbench planning/archive
+├── docs-site/                 # User-facing VitePress docs site
+├── scripts/                   # Install/build/dashboard/eval scripts and fixtures
+├── examples/                  # Small runnable examples
 │
 └── crates/
     ├── core/                  # 领域与 trait：子模块 ids/message/task/llm_types/traits 等，lib.rs 聚合
-    ├── agent/                 # AgentRuntime；runtime/session.rs 为任务/会话编排，余见 runtime/* 子模块
-    ├── tools/                 # FileRead/Write、Bash、Glob、Grep、sandbox 路径
-    ├── llm/                   # build_llm_client：z.ai（OpenAI tools）、Anthropic
+    ├── agent/                 # AgentRuntime；runtime/*（含 tool_result_injection）为 LLM + 工具循环
+    ├── tools/                 # File/Bash/Glob/Grep/MCP/LSP tools and registry
+    ├── llm/                   # LLM transports and provider adapters
     ├── security/              # SecurityLayer、审批、策略
-    ├── channels/              # 多通道（预留；CLI 当前未依赖）
+    ├── channels/              # Channel abstractions
+    ├── memory/                # Memory store and embedding pipeline
     ├── onboard/               # 配置向导等
-    └── cli/                   # anycode 二进制：main / app_config / bootstrap / tasks / tui/… / md_tui
+    ├── locale/                # Fluent bundles and localization support
+    ├── dashboard/             # Digital Workbench backend; db/store/{open,*} + API handlers
+    ├── dashboard-ui/          # React/Vite workbench UI embedded into release builds
+    └── cli/                   # anycode binary: composition root
+        ├── app_config/        # schema/{types,validation}, prompts, wizards, load/onboard
+        ├── channels/          # WeChat / Telegram / Discord bridges
+        ├── commands/dispatch/ # CLI dispatch (channel_cmds, ops, task_cmds)
+        ├── cli_args/          # Clap args and subcommands
+        ├── tasks/             # run / REPL / workflow execution
+        ├── repl/              # stream ratatui REPL
+        └── term/              # transcript, styles, session persist
 
-说明：历史文档若提到独立 memory crate，以本仓库实际 members 为准。
+说明：`docs/` 是维护者文档与 ADR；面向用户的文档以 `docs-site/` 为准。`crates/dashboard-ui/` 是 Node/Vite 项目，不是 Cargo workspace member，但由 `crates/dashboard/build.rs` 和 `scripts/build-dashboard-ui.sh` 嵌入发布产物。

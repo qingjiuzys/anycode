@@ -5,9 +5,9 @@ pub(crate) mod stream_repl_loop;
 mod tasks_repl;
 mod tasks_run;
 mod tasks_sink;
-#[path = "../tasks_workflow.rs"]
 mod workflow_exec;
 
+pub(crate) use repl_line_session::ReplLineSession;
 pub(crate) use tasks_repl::run_interactive;
 pub(crate) use tasks_run::{run_single_task_with_tail, run_task, RunTaskOptions};
 pub(crate) use tasks_sink::ReplSink;
@@ -167,6 +167,7 @@ mod workflow_runtime_tests {
             model: None,
             done_when: None,
             vars: HashMap::new(),
+            ..WorkflowStep::default()
         }
     }
 
@@ -203,6 +204,7 @@ mod workflow_runtime_tests {
             model: None,
             done_when: Some("done".to_string()),
             vars,
+            ..WorkflowStep::default()
         };
         let rendered =
             render_workflow_prompt("ctx".to_string(), "wf", &step, step.done_when.as_deref());

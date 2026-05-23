@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Agent / Skills · anycode Workbench</title><link rel="stylesheet" href="styles.css" /></head>
+<body data-page="agents">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">A</div><div><h1>anycode Workbench</h1><p>项目级 AI 自动化</p></div></div>
+      <nav class="nav">
+        <a href="index.html" data-nav="dashboard">首页图表 <span class="badge">live</span></a><a href="projects.html" data-nav="projects">项目 <span class="badge">6</span></a><a href="conversations.html" data-nav="conversations">对话 <span class="badge">12</span></a><a href="automations.html" data-nav="automations">自动化 <span class="badge">37</span></a><a href="assets.html" data-nav="assets">资产 <span class="badge">96</span></a><a href="agents.html" data-nav="agents">Agent / Skills <span class="badge">8</span></a><a href="settings.html" data-nav="settings">设置 <span class="badge">独立</span></a>
+      </nav>
+      <div class="workspace"><strong>Skill Registry</strong><span>Skill 需要权限、运行记录、成功率和项目启用状态。</span></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><input class="search" placeholder="搜索 agent、skill、权限..." /><div class="topActions"><button class="btn" data-theme-toggle>主题</button><button class="btn" data-login>登录 / 组织</button><div class="avatar">Q</div></div></header>
+      <section class="page">
+        <div class="pageHeader"><div><h2>Agent 团队 / Skills</h2><p>项目可配置不同角色的 agent 和 skill 包，形成可审计、可授权、可复用的自动化能力。</p></div><button class="btn primary">添加 Skill Pack</button></div>
+        <div class="grid cols4">
+          <div class="card"><h3>Builder</h3><p class="muted">实现、编辑、运行命令。</p><span class="pill good">active</span></div>
+          <div class="card"><h3>Verifier</h3><p class="muted">测试、浏览器、验收门禁。</p><span class="pill warn">strict</span></div>
+          <div class="card"><h3>Reviewer</h3><p class="muted">风险、回归、代码质量。</p><span class="pill">idle</span></div>
+          <div class="card"><h3>Planner</h3><p class="muted">目标拆解、策略、交接。</p><span class="pill good">active</span></div>
+        </div>
+        <div class="grid" style="margin-top:16px;">
+          <div class="row"><div><strong>Flutter App Pack</strong><p>create、analyze/test 修复、widget/browser 验收、打包发布。</p></div><span class="pill good">enabled</span></div>
+          <div class="row"><div><strong>Rust CLI Pack</strong><p>fmt、clippy、test、release build、CI 对齐。</p></div><span class="pill good">enabled</span></div>
+          <div class="row"><div><strong>Docs Pack</strong><p>文档构建、双语文档、API 参考生成。</p></div><span class="pill">available</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
