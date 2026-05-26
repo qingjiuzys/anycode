@@ -80,6 +80,7 @@ pub async fn list_recent_notifications(
             event_type LIKE 'notification_%'
             OR event_type IN (
               'gate_failed',
+              'session_blocked',
               'session_completed',
               'session_report_generated',
               'blocked_threshold_exceeded'
@@ -109,10 +110,15 @@ pub async fn list_recent_notifications(
                 .to_string();
             let detail = meta
                 .get("detail")
-                .or_else(|| meta.get("message"))
                 .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+                .map(str::to_string)
+                .or_else(|| {
+                    meta.get("payload")
+                        .and_then(|p| p.get("message"))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
+                .unwrap_or_default();
             Some(RecentNotification {
                 id: r.get("id"),
                 action,

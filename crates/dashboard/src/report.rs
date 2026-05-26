@@ -353,6 +353,7 @@ mod tests {
                 root_path: "/tmp/report-test".into(),
                 name: Some("ReportTest".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -396,6 +397,7 @@ mod tests {
                 root_path: "/tmp/art".into(),
                 name: Some("Art".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();

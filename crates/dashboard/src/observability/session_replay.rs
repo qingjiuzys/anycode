@@ -234,6 +234,7 @@ mod tests {
                 root_path: "/tmp/replay".into(),
                 name: Some("Replay".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -267,6 +268,7 @@ mod tests {
                 root_path: "/tmp/meta".into(),
                 name: Some("Meta".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();

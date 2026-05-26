@@ -80,6 +80,7 @@ pub struct SessionsQuery {
 mod assets;
 mod auth;
 mod connectors;
+mod conversations;
 mod events;
 mod gates;
 mod governance;
@@ -93,6 +94,7 @@ mod system;
 pub use assets::*;
 pub use auth::*;
 pub use connectors::*;
+pub use conversations::*;
 pub use events::*;
 pub use gates::*;
 pub use governance::*;

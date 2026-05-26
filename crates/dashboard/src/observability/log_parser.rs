@@ -272,6 +272,41 @@ pub fn task_end_status(lines: &[&str]) -> Option<String> {
     None
 }
 
+/// Extract assistant prose sections written as `== assistant_final ==` / `== summary ==` blocks.
+#[must_use]
+pub fn parse_prose_sections(content: &str) -> Vec<(usize, String)> {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i < lines.len() {
+        let line = lines[i].trim();
+        if line == "== assistant_final ==" || line == "== summary ==" {
+            i += 1;
+            let start_line = i.saturating_add(1);
+            let mut body = String::new();
+            while i < lines.len() {
+                let l = lines[i];
+                let trimmed = l.trim();
+                if trimmed.starts_with("== ") || trimmed.starts_with('[') {
+                    break;
+                }
+                if !body.is_empty() {
+                    body.push('\n');
+                }
+                body.push_str(l);
+                i += 1;
+            }
+            let body = body.trim().to_string();
+            if !body.is_empty() {
+                out.push((start_line, body));
+            }
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
 fn parse_kv(kv: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for part in kv.split_whitespace() {
@@ -297,6 +332,15 @@ fn field(fields: &HashMap<String, String>, key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_prose_sections_from_legacy_logs() {
+        let log = "== assistant_final ==\nHello world\n\n== summary ==\nDone.";
+        let sections = parse_prose_sections(log);
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].1, "Hello world");
+        assert_eq!(sections[1].1, "Done.");
+    }
 
     #[test]
     fn parses_tool_denied() {

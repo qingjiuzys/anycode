@@ -55,6 +55,21 @@ pub fn triggers_allowed(host: &str) -> bool {
         .is_some_and(|v| v == "1")
 }
 
+/// When kind=goal and goal is empty, reuse the prompt as the objective.
+pub fn normalize_trigger_request(req: &mut TriggerRunRequest) {
+    if req.kind.trim() != "goal" {
+        return;
+    }
+    let has_goal = req
+        .goal
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|s| !s.is_empty());
+    if !has_goal {
+        req.goal = Some(req.prompt.trim().to_string());
+    }
+}
+
 pub fn validate_request(req: &TriggerRunRequest) -> Result<()> {
     let prompt = req.prompt.trim();
     if prompt.is_empty() {
@@ -98,10 +113,80 @@ pub fn validate_request(req: &TriggerRunRequest) -> Result<()> {
     Ok(())
 }
 
+fn find_on_path(name: &str) -> Option<PathBuf> {
+    let paths = std::env::var_os("PATH")?;
+    std::env::split_paths(&paths).find_map(|dir| {
+        let candidate = dir.join(name);
+        candidate.is_file().then_some(candidate)
+    })
+}
+
+fn exe_looks_like_anycode_cli(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n == "anycode" || n.starts_with("anycode-"))
+}
+
+fn release_binary_sibling(exe: &Path) -> Option<PathBuf> {
+    let parent = exe.parent()?;
+    if parent.ends_with("debug") {
+        let candidate = parent.parent()?.join("release").join("anycode");
+        return candidate.is_file().then_some(candidate);
+    }
+    None
+}
+
+/// Default `ANYCODE_BIN` for UI triggers when unset (prefer release sibling in dev trees).
+pub fn init_default_anycode_bin() {
+    if std::env::var_os("ANYCODE_BIN").is_some() {
+        return;
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(release) = release_binary_sibling(&exe) {
+            tracing::info!(
+                path = %release.display(),
+                "ANYCODE_BIN defaulted to release sibling for UI triggers"
+            );
+            std::env::set_var("ANYCODE_BIN", release);
+        }
+    }
+}
+
+/// Resolve the `anycode` CLI for UI-triggered subprocesses.
+///
+/// Prefers `ANYCODE_BIN`, then `current_exe` when it is the real CLI, then `PATH`.
+pub fn resolve_anycode_binary() -> Result<PathBuf> {
+    if let Ok(raw) = std::env::var("ANYCODE_BIN") {
+        let path = PathBuf::from(raw.trim());
+        if path.is_file() {
+            return Ok(path);
+        }
+        bail!("ANYCODE_BIN points to a missing file: {}", path.display());
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if exe_looks_like_anycode_cli(&exe) {
+            return Ok(exe);
+        }
+    }
+
+    if let Some(found) = find_on_path("anycode") {
+        return Ok(found);
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        return Ok(exe);
+    }
+
+    bail!("anycode CLI not found; set ANYCODE_BIN or start dashboard via the anycode binary")
+}
+
 pub fn build_argv(project_root: &Path, req: &TriggerRunRequest) -> Result<Vec<String>> {
-    validate_request(req)?;
-    let exe = std::env::current_exe().context("resolve anycode binary")?;
-    let mut argv = vec![exe.display().to_string(), "run".into(), "-I".into()];
+    let mut req = req.clone();
+    normalize_trigger_request(&mut req);
+    validate_request(&req)?;
+    let exe = resolve_anycode_binary().context("resolve anycode binary")?;
+    let mut argv = vec![exe.display().to_string(), "run".into()];
     argv.push("-C".into());
     argv.push(project_root.display().to_string());
     if let Some(agent) = req
@@ -127,14 +212,51 @@ fn triggers_dir() -> PathBuf {
     dashboard_state_dir().join("triggers")
 }
 
+fn spawn_attach_watch(
+    db: crate::db::DashboardDb,
+    session_id: String,
+    log_path: PathBuf,
+    mut child: tokio::process::Child,
+) {
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let Ok(Some(sess)) = db.get_session(&session_id).await else {
+            return;
+        };
+        if sess.status != "pending" {
+            return;
+        }
+        if sess
+            .task_id
+            .as_deref()
+            .is_some_and(|task_id| !task_id.trim().is_empty())
+        {
+            return;
+        }
+        let excerpt = crate::db::read_log_excerpt(&log_path);
+        let summary = excerpt.unwrap_or_else(|| {
+            format!(
+                "Task subprocess exited before attaching. See trigger log: {}",
+                log_path.display()
+            )
+        });
+        let _ = db
+            .finish_session(&session_id, "failed", Some(&summary))
+            .await;
+    });
+}
+
 pub async fn trigger_run(
     project_id: &str,
     project_root: &Path,
-    req: TriggerRunRequest,
+    mut req: TriggerRunRequest,
+    dashboard_session_id: Option<&str>,
+    db: Option<&crate::db::DashboardDb>,
 ) -> Result<TriggerRunResult> {
+    normalize_trigger_request(&mut req);
     validate_request(&req)?;
-    let root = std::fs::canonicalize(project_root)
-        .with_context(|| format!("project root {}", project_root.display()))?;
+    let root = crate::project_root::ensure_project_root(project_root, false)?;
     if !root.is_dir() {
         bail!("project root is not a directory");
     }
@@ -157,10 +279,23 @@ pub async fn trigger_run(
         .stdin(Stdio::null())
         .stdout(Stdio::from(log_file))
         .stderr(Stdio::from(err_file))
-        .env("ANYCODE_DASHBOARD_RECORD", "1");
+        .env("ANYCODE_DASHBOARD_RECORD", "1")
+        .env("ANYCODE_MEMORY_ATTACH", "shared");
+    if let Some(session_id) = dashboard_session_id.filter(|s| !s.trim().is_empty()) {
+        cmd.env(crate::ipc::approval_ipc::SESSION_ENV, session_id);
+    }
 
-    let child = cmd.spawn().context("spawn anycode run")?;
+    let mut child = cmd.spawn().context("spawn anycode run")?;
     let pid = child.id().unwrap_or(0);
+    if let (Some(db), Some(session_id)) =
+        (db, dashboard_session_id.filter(|s| !s.trim().is_empty()))
+    {
+        spawn_attach_watch(db.clone(), session_id.to_string(), log_path.clone(), child);
+    } else {
+        tokio::spawn(async move {
+            let _ = child.wait().await;
+        });
+    }
     let command_preview = argv.join(" ");
     let started_at = chrono::Utc::now().to_rfc3339();
     let result = TriggerRunResult {
@@ -171,7 +306,7 @@ pub async fn trigger_run(
         command_preview: command_preview.clone(),
         log_path: log_path.display().to_string(),
         started_at: started_at.clone(),
-        sandbox_note: "Detached subprocess in project root with -I (headless approvals). Watch Conversations for the new session.".into(),
+        sandbox_note: "Detached subprocess in project root. Sensitive tools use the Web approval inbox when approval is required; watch Conversations for the new session.".into(),
     };
     std::fs::write(
         &meta_path,
@@ -265,7 +400,7 @@ mod tests {
         )
         .unwrap();
         assert!(argv.iter().any(|a| a == "run"));
-        assert!(argv.iter().any(|a| a == "-I"));
+        assert!(!argv.iter().any(|a| a == "-I"));
         assert!(argv.iter().any(|a| a == "--agent"));
         assert!(argv.last().is_some_and(|a| a == "fix tests"));
     }
@@ -276,5 +411,29 @@ mod tests {
         std::env::set_var("ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE", "1");
         assert!(triggers_allowed("0.0.0.0"));
         std::env::remove_var("ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE");
+    }
+
+    #[test]
+    fn goal_defaults_objective_from_prompt() {
+        let mut req = TriggerRunRequest {
+            prompt: "ship feature".into(),
+            kind: "goal".into(),
+            goal: None,
+            agent: None,
+        };
+        normalize_trigger_request(&mut req);
+        validate_request(&req).unwrap();
+        assert_eq!(req.goal.as_deref(), Some("ship feature"));
+    }
+
+    #[test]
+    fn resolve_binary_honors_anycode_bin() {
+        let dir = tempdir().unwrap();
+        let fake = dir.path().join("anycode");
+        std::fs::write(&fake, b"").unwrap();
+        std::env::set_var("ANYCODE_BIN", fake.to_str().unwrap());
+        let resolved = resolve_anycode_binary().unwrap();
+        assert_eq!(resolved, fake);
+        std::env::remove_var("ANYCODE_BIN");
     }
 }

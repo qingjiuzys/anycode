@@ -511,6 +511,7 @@ async fn execute_turn_from_messages_in_flight_stream_cooperative_cancel() {
             Some(coop),
             &[],
             &[],
+            TaskBudget::default(),
         ),
     )
     .await
@@ -603,6 +604,7 @@ async fn execute_turn_from_messages_in_flight_chat_cooperative_cancel() {
             Some(coop),
             &[],
             &[],
+            TaskBudget::default(),
         ),
     )
     .await
@@ -693,7 +695,16 @@ async fn test_execute_turn_from_messages_returns_final_text_and_injects_tool_res
 
     let task_id = Uuid::new_v4();
     let out = runtime
-        .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None, &[], &[])
+        .execute_turn_from_messages(
+            task_id,
+            &agent_type,
+            messages.clone(),
+            ".",
+            None,
+            &[],
+            &[],
+            TaskBudget::default(),
+        )
         .await
         .unwrap();
 
@@ -806,7 +817,16 @@ async fn test_execute_turn_summary_receipt_appends_assistant_to_messages() {
 
     let task_id = Uuid::new_v4();
     let out = runtime
-        .execute_turn_from_messages(task_id, &agent_type, messages.clone(), ".", None, &[], &[])
+        .execute_turn_from_messages(
+            task_id,
+            &agent_type,
+            messages.clone(),
+            ".",
+            None,
+            &[],
+            &[],
+            TaskBudget::default(),
+        )
         .await
         .unwrap();
 
@@ -1623,6 +1643,7 @@ async fn execute_turn_streaming_sets_non_zero_max_input_tokens() {
             None,
             &[],
             &[],
+            TaskBudget::default(),
         )
         .await
         .unwrap();
@@ -1691,6 +1712,7 @@ async fn execute_turn_streaming_prefers_usage_event_input_tokens() {
             None,
             &[],
             &[],
+            TaskBudget::default(),
         )
         .await
         .unwrap();

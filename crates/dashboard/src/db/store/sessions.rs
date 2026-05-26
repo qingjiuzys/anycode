@@ -1,6 +1,44 @@
 use super::*;
 
 impl DashboardDb {
+    pub async fn session_facets(&self) -> Result<SessionFacetsResponse> {
+        let status = label_counts(
+            &self,
+            "SELECT status AS label, COUNT(*) AS cnt FROM sessions GROUP BY status ORDER BY cnt DESC",
+        )
+        .await?;
+        let trusted_status = label_counts(
+            &self,
+            "SELECT trusted_status AS label, COUNT(*) AS cnt FROM sessions GROUP BY trusted_status ORDER BY cnt DESC",
+        )
+        .await?;
+        let kind = label_counts(
+            &self,
+            "SELECT kind AS label, COUNT(*) AS cnt FROM sessions GROUP BY kind ORDER BY cnt DESC",
+        )
+        .await?;
+        let pending_approval_total = crate::approval_ipc::pending_summary().pending_total as i64;
+        Ok(SessionFacetsResponse {
+            status,
+            trusted_status,
+            kind,
+            pending_approval_total,
+        })
+    }
+}
+
+async fn label_counts(db: &DashboardDb, sql: &str) -> Result<Vec<LabelCount>> {
+    let rows = sqlx::query(sql).fetch_all(&db.pool).await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| LabelCount {
+            label: r.get("label"),
+            count: r.get("cnt"),
+        })
+        .collect())
+}
+
+impl DashboardDb {
     pub async fn list_all_sessions(
         &self,
         limit: i64,
@@ -76,8 +114,125 @@ impl DashboardDb {
                 model: r.get("model"),
                 started_at: r.get("started_at"),
                 ended_at: r.get("ended_at"),
+                block_reason: None,
+                block_kind: None,
             })
             .collect())
+    }
+
+    async fn enrich_session_with_project(
+        &self,
+        mut session: SessionWithProject,
+    ) -> Result<SessionWithProject> {
+        if session.trusted_status == "blocked"
+            || session.status == "failed"
+            || session.status == "pending"
+        {
+            let ctx = crate::db::resolve_block_context(
+                self,
+                &session.id,
+                &session.status,
+                &session.trusted_status,
+                "",
+            )
+            .await?;
+            session.block_reason = ctx.reason;
+            session.block_kind = ctx.kind;
+        }
+        Ok(session)
+    }
+
+    async fn enrich_session_summary(&self, mut session: SessionSummary) -> Result<SessionSummary> {
+        if session.trusted_status == "blocked"
+            || session.status == "failed"
+            || session.status == "pending"
+        {
+            let ctx = crate::db::resolve_block_context(
+                self,
+                &session.id,
+                &session.status,
+                &session.trusted_status,
+                "",
+            )
+            .await?;
+            session.block_reason = ctx.reason;
+            session.block_kind = ctx.kind;
+        }
+        Ok(session)
+    }
+
+    async fn enrich_session_detail(&self, mut session: SessionDetail) -> Result<SessionDetail> {
+        if session.trusted_status == "blocked"
+            || session.status == "failed"
+            || session.status == "pending"
+        {
+            let ctx = crate::db::resolve_block_context(
+                self,
+                &session.id,
+                &session.status,
+                &session.trusted_status,
+                &session.summary,
+            )
+            .await?;
+            session.block_reason = ctx.reason;
+            session.block_kind = ctx.kind;
+        }
+        Ok(session)
+    }
+
+    pub async fn list_all_sessions_enriched(
+        &self,
+        limit: i64,
+        kinds: Option<&[String]>,
+        status: Option<&str>,
+        trusted_status: Option<&str>,
+        project_id: Option<&str>,
+    ) -> Result<Vec<SessionWithProject>> {
+        let mut rows = self
+            .list_all_sessions(limit, kinds, status, trusted_status, project_id)
+            .await?;
+        for row in &mut rows {
+            *row = self.enrich_session_with_project(row.clone()).await?;
+        }
+        Ok(rows)
+    }
+
+    pub async fn list_sessions_enriched(
+        &self,
+        project_id: &str,
+        limit: i64,
+    ) -> Result<Vec<SessionSummary>> {
+        let mut rows = self.list_sessions(project_id, limit).await?;
+        for row in &mut rows {
+            *row = self.enrich_session_summary(row.clone()).await?;
+        }
+        Ok(rows)
+    }
+
+    pub async fn sweep_stale_pending_sessions(&self, max_age_minutes: i64) -> Result<u64> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id FROM sessions
+            WHERE status = 'pending'
+              AND (task_id IS NULL OR TRIM(task_id) = '')
+              AND datetime(started_at) <= datetime('now', ?)
+            "#,
+        )
+        .bind(format!("-{max_age_minutes} minutes"))
+        .fetch_all(&self.pool)
+        .await?;
+        let mut updated = 0u64;
+        for row in rows {
+            let id: String = row.get("id");
+            self.finish_session(
+                &id,
+                "failed",
+                Some("Task did not start within timeout — check trigger logs or CLI availability."),
+            )
+            .await?;
+            updated += 1;
+        }
+        Ok(updated)
     }
 
     pub async fn list_sessions(&self, project_id: &str, limit: i64) -> Result<Vec<SessionSummary>> {
@@ -108,8 +263,17 @@ impl DashboardDb {
                 model: r.get("model"),
                 started_at: r.get("started_at"),
                 ended_at: r.get("ended_at"),
+                block_reason: None,
+                block_kind: None,
             })
             .collect())
+    }
+
+    pub async fn get_session_enriched(&self, session_id: &str) -> Result<Option<SessionDetail>> {
+        match self.get_session(session_id).await? {
+            Some(session) => Ok(Some(self.enrich_session_detail(session).await?)),
+            None => Ok(None),
+        }
     }
 
     pub async fn get_session(&self, session_id: &str) -> Result<Option<SessionDetail>> {
@@ -142,10 +306,51 @@ impl DashboardDb {
             ended_at: r.get("ended_at"),
             summary: r.get("summary"),
             metadata_json: r.get("metadata_json"),
+            block_reason: None,
+            block_kind: None,
         }))
     }
 
+    pub async fn get_session_by_task_id(&self, task_id: &str) -> Result<Option<SessionDetail>> {
+        if task_id.trim().is_empty() {
+            return Ok(None);
+        }
+        let row: Option<String> =
+            sqlx::query_scalar("SELECT id FROM sessions WHERE task_id = ? LIMIT 1")
+                .bind(task_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        match row {
+            Some(id) => self.get_session(&id).await,
+            None => Ok(None),
+        }
+    }
+
+    pub async fn create_or_get_session_by_task_id(
+        &self,
+        req: CreateSessionRequest,
+    ) -> Result<SessionDetail> {
+        if let Some(task_id) = req.task_id.as_deref().filter(|t| !t.trim().is_empty()) {
+            if let Some(existing) = self.get_session_by_task_id(task_id).await? {
+                return Ok(existing);
+            }
+        }
+        self.create_session(req).await
+    }
+
     pub async fn create_session(&self, req: CreateSessionRequest) -> Result<SessionDetail> {
+        self.create_session_with_status(req, "running").await
+    }
+
+    pub async fn create_planned_session(&self, req: CreateSessionRequest) -> Result<SessionDetail> {
+        self.create_session_with_status(req, "pending").await
+    }
+
+    async fn create_session_with_status(
+        &self,
+        req: CreateSessionRequest,
+        status: &str,
+    ) -> Result<SessionDetail> {
         let id = format!("sess_{}", Uuid::new_v4().simple());
         let prompt_preview = req.prompt_preview.unwrap_or_default();
         let agent_type = req.agent_type.unwrap_or_default();
@@ -153,8 +358,8 @@ impl DashboardDb {
         let metadata_json = req.metadata_json.unwrap_or_else(|| "{}".into());
         sqlx::query(
             r#"
-            INSERT INTO sessions (id, project_id, kind, task_id, title, prompt_preview, agent_type, model, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (id, project_id, kind, task_id, title, prompt_preview, agent_type, model, metadata_json, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&id)
@@ -166,12 +371,70 @@ impl DashboardDb {
         .bind(&agent_type)
         .bind(&model)
         .bind(&metadata_json)
+        .bind(status)
         .execute(&self.pool)
         .await?;
         self.refresh_session_trusted_status(&id).await?;
         self.get_session(&id)
             .await?
             .context("session missing after create")
+    }
+
+    pub async fn attach_task_to_session(
+        &self,
+        session_id: &str,
+        task_id: &str,
+        agent_type: Option<&str>,
+        prompt_preview: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE sessions
+            SET task_id = ?,
+                status = 'running',
+                ended_at = NULL,
+                agent_type = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE agent_type END,
+                prompt_preview = CASE WHEN ? IS NOT NULL AND TRIM(?) != '' THEN ? ELSE prompt_preview END
+            WHERE id = ?
+            "#,
+        )
+        .bind(task_id)
+        .bind(agent_type)
+        .bind(agent_type)
+        .bind(agent_type)
+        .bind(prompt_preview)
+        .bind(prompt_preview)
+        .bind(prompt_preview)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        self.refresh_session_trusted_status(session_id).await?;
+        Ok(())
+    }
+
+    pub async fn update_session_metadata(
+        &self,
+        session_id: &str,
+        title: Option<&str>,
+        prompt_preview: Option<&str>,
+    ) -> Result<()> {
+        if title.is_none() && prompt_preview.is_none() {
+            return Ok(());
+        }
+        sqlx::query(
+            r#"
+            UPDATE sessions
+            SET title = COALESCE(?, title),
+                prompt_preview = COALESCE(?, prompt_preview)
+            WHERE id = ?
+            "#,
+        )
+        .bind(title)
+        .bind(prompt_preview)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     pub async fn finish_session(
@@ -415,7 +678,49 @@ impl DashboardDb {
                 model: r.get("model"),
                 started_at: r.get("started_at"),
                 ended_at: r.get("ended_at"),
+                block_reason: None,
+                block_kind: None,
             })
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::CreateSessionRequest;
+
+    #[tokio::test]
+    async fn create_or_get_session_by_task_id_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("sessions.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/idempotent".into(),
+                name: Some("demo".into()),
+                description: None,
+                create_root: None,
+            })
+            .await
+            .unwrap();
+        let req = CreateSessionRequest {
+            project_id: project.id,
+            kind: "run".into(),
+            task_id: Some("task-abc".into()),
+            title: "first title".into(),
+            prompt_preview: Some("hello".into()),
+            agent_type: Some("general".into()),
+            model: None,
+            metadata_json: None,
+        };
+        let first = db
+            .create_or_get_session_by_task_id(req.clone())
+            .await
+            .unwrap();
+        let second = db.create_or_get_session_by_task_id(req).await.unwrap();
+        assert_eq!(first.id, second.id);
+        assert_eq!(second.title, "first title");
     }
 }

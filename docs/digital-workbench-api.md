@@ -202,13 +202,55 @@ Trigger body:
 }
 ```
 
-Response: `{ "trigger": TriggerRunResult }` with `pid`, `command_preview`, `log_path`. Spawns detached `anycode run -I -C {root}`. Loopback-only unless `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1`.
+Response: `{ "trigger": TriggerRunResult }` with `pid`, `command_preview`, `log_path`, and `sandbox_note`. Spawns detached `anycode run -C {root}` with dashboard recording enabled; sensitive tools use the Web approval inbox when approval is required. Loopback-only unless `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1`.
+
+### Start conversation (session first, then run)
+
+```http
+POST /api/projects/:project_id/conversations/start
+```
+
+Creates a **pending** session in SQLite, then spawns the same detached CLI as `runs/trigger` with `ANYCODE_DASHBOARD_SESSION_ID` set so [`DashboardRecorder::begin`](../../crates/dashboard/src/recorder.rs) attaches to the pre-created row (preserves user `title`, sets `task_id`, moves status to `running`).
+
+Request body:
+
+```json
+{
+  "title": "Optional session name — defaults to first 120 chars of prompt",
+  "prompt": "Fix the failing unit test in src/foo.rs",
+  "kind": "run",
+  "goal": "optional when kind=goal",
+  "agent": "general"
+}
+```
+
+Response: `{ "session": SessionDetail, "trigger": TriggerRunResult }`. On spawn failure the session is marked `failed` and the handler returns an error with `session_id`.
+
+Use this from the Conversations page empty state or **New session** when a project is selected. The legacy `POST .../runs/trigger` path remains for project detail; it does not pre-create a session row.
 
 ### Events
 
 ```http
 GET /api/sessions/:session_id/events?after=<event_id>&limit=200
 ```
+
+```http
+GET /api/sessions/:session_id/trace
+GET /api/sessions/:session_id/execution-log?offset=0&limit=200
+```
+
+**Data layering (session SSOT):**
+
+| Layer | Store | Contents |
+|-------|--------|----------|
+| Index | SQLite `projects.db` | projects, sessions (`title`, `prompt_preview`, unique `task_id`), index events (`user_prompt`, `assistant_response`, `task_*`, `gate`, `budget_*`, approvals) |
+| Stack detail | `~/.anycode/tasks/{task_id}/output.log` | turn / LLM / tool_call trace; read on demand via `execution-log` |
+
+Trace response: `{ "trace": { "schema_version": 1, "session_id": "...", "source": "output.log"|"database", "events": [...] } }`. Prefers `output.log` when `task_id` is set; falls back to DB for legacy rows.
+
+Execution-log response: `{ "execution_log": { "offset", "next_offset", "has_more", "lines": [{ "line_no", "raw", "event_type", ... }] } }`.
+
+`POST /api/projects/scan` syncs workspace paths and skills only (no bulk log import).
 
 ```http
 GET /api/projects/:project_id/events/stream

@@ -23,7 +23,7 @@ export function ReportsPage() {
   const [sessionId, setSessionId] = useState(params.get("session_id") ?? "");
   const [report, setReport] = useState<ReportDocument | null>(null);
 
-  const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects });
+  const projects = useQuery({ queryKey: ["projects"], queryFn: () => api.projects({ limit: 500 }) });
   const sessions = useQuery({
     queryKey: ["report-sessions", projectId],
     queryFn: () => api.allSessions({ projectId, limit: 100 }),

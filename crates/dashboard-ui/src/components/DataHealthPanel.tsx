@@ -47,7 +47,13 @@ export function DataHealthPanel({
         )}
         {compact && health.checks.length > 0 && (
           <p className="text-xs text-secondary m-0">
-            {health.checks.length} {t("common.checks")} · {(health.db_size_bytes / 1024).toFixed(0)} KB
+            {health.checks
+              .filter((c) => c.status !== "ok")
+              .slice(0, 1)
+              .map((c) => `${translateHealthField(t, c.name)}: ${translateHealthField(t, c.message)}`)
+              .join("") ||
+              `${health.checks.length} ${t("common.checks")}`}{" "}
+            · {(health.db_size_bytes / 1024).toFixed(0)} KB
           </p>
         )}
       </div>

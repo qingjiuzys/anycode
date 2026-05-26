@@ -24,6 +24,41 @@ pub struct ProjectSummary {
     pub sessions_count: i64,
     pub artifacts_count: i64,
     pub updated_at: String,
+    #[serde(default)]
+    pub root_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionFacetsResponse {
+    pub status: Vec<LabelCount>,
+    pub trusted_status: Vec<LabelCount>,
+    pub kind: Vec<LabelCount>,
+    pub pending_approval_total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptBlock {
+    pub id: String,
+    pub block_type: String,
+    pub at: String,
+    pub title: String,
+    pub body: String,
+    #[serde(default)]
+    pub meta: Value,
+    #[serde(default)]
+    pub collapsible: bool,
+    #[serde(default)]
+    pub default_collapsed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionTranscriptResponse {
+    pub schema_version: u32,
+    pub session_id: String,
+    pub blocks: Vec<TranscriptBlock>,
+    pub lifecycle: Vec<TranscriptBlock>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +87,10 @@ pub struct SessionSummary {
     pub model: String,
     pub started_at: String,
     pub ended_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +107,10 @@ pub struct SessionWithProject {
     pub model: String,
     pub started_at: String,
     pub ended_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +130,10 @@ pub struct SessionDetail {
     pub ended_at: Option<String>,
     pub summary: String,
     pub metadata_json: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +153,7 @@ pub struct OverviewStats {
     pub sessions_total: i64,
     pub sessions_running: i64,
     pub sessions_blocked: i64,
+    pub sessions_budget_exceeded: i64,
     pub artifacts_count: i64,
     pub skills_count: i64,
     pub gates_failed: i64,
@@ -259,6 +307,8 @@ pub struct UpsertProjectRequest {
     pub root_path: String,
     pub name: Option<String>,
     pub description: Option<String>,
+    /// When true, create `root_path` on disk if it does not exist yet.
+    pub create_root: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,6 +321,26 @@ pub struct CreateSessionRequest {
     pub agent_type: Option<String>,
     pub model: Option<String>,
     pub metadata_json: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StartConversationRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    pub prompt: String,
+    #[serde(default = "default_start_kind")]
+    pub kind: String,
+    pub goal: Option<String>,
+    pub agent: Option<String>,
+}
+
+fn default_start_kind() -> String {
+    "run".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendConversationMessageRequest {
+    pub prompt: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

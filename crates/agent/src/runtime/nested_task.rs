@@ -44,12 +44,30 @@ impl SubAgentExecutor for AgentRuntime {
                 channel_progress_tx: None,
                 tool_deny_names: invoke.tool_deny_names.clone(),
                 tool_deny_prefixes: invoke.tool_deny_prefixes.clone(),
-                budget: TaskBudget::default(),
+                budget: nested_budget_from_env(),
             },
             created_at: chrono::Utc::now(),
         };
         let task_id = task.id;
         let result = self.execute_task(task).await?;
         Ok(NestedTaskRun { task_id, result })
+    }
+}
+
+fn nested_budget_from_env() -> TaskBudget {
+    TaskBudget {
+        token_budget_total: std::env::var("ANYCODE_NESTED_TOKEN_BUDGET")
+            .or_else(|_| std::env::var("ANYCODE_TASK_TOKEN_BUDGET"))
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok()),
+        cost_budget_usd: std::env::var("ANYCODE_NESTED_COST_BUDGET_USD")
+            .or_else(|_| std::env::var("ANYCODE_TASK_COST_BUDGET_USD"))
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok()),
+        max_duration_secs: std::env::var("ANYCODE_NESTED_MAX_DURATION_SECS")
+            .or_else(|_| std::env::var("ANYCODE_TASK_MAX_DURATION_SECS"))
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok()),
+        ..TaskBudget::default()
     }
 }

@@ -1,6 +1,6 @@
 import type { GateRecord } from "@/api/types";
 import { useT } from "@/i18n/context";
-import { StatusBadge } from "./ui/StatusBadge";
+import { SessionStatusBadges, StatusBadge } from "./ui/StatusBadge";
 
 interface Props {
   gates: GateRecord[];
@@ -49,7 +49,10 @@ export function GateStatusBar({ gates, trustedStatus, sessionStatus }: Props) {
             </span>
           )}
         </span>
-        <StatusBadge status={sessionStatus === "running" ? "running" : trustedStatus} />
+        <SessionStatusBadges
+          status={sessionStatus}
+          trustedStatus={trustedStatus}
+        />
       </div>
 
       {required.length > 0 && (

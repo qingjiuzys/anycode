@@ -3,6 +3,7 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::UNIX_EPOCH;
 use uuid::Uuid;
 
 pub const SESSION_ENV: &str = "ANYCODE_DASHBOARD_SESSION_ID";
@@ -78,6 +79,7 @@ pub fn list_pending_for_session(
     session_id: Option<&str>,
     limit: usize,
 ) -> Vec<PendingApprovalRecord> {
+    let _ = sweep_stale_pending(STALE_PENDING_MAX_AGE_SECS);
     let dir = pending_dir();
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return vec![];
@@ -175,6 +177,46 @@ pub fn clear_pending(approval_id: &str) {
     let _ = std::fs::remove_file(path);
 }
 
+/// Default max age for orphan pending approval files (CLI crash / timeout).
+pub const STALE_PENDING_MAX_AGE_SECS: u64 = 30 * 60;
+
+/// Remove pending approval files older than `max_age_secs` or with invalid JSON.
+#[must_use]
+pub fn sweep_stale_pending(max_age_secs: u64) -> usize {
+    let dir = pending_dir();
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return 0;
+    };
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(max_age_secs))
+        .unwrap_or(UNIX_EPOCH);
+    let mut removed = 0usize;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|x| x != "json") {
+            continue;
+        }
+        let stale = entry
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .map(|mtime| mtime < cutoff)
+            .unwrap_or(true);
+        let invalid = match std::fs::read_to_string(&path) {
+            Ok(raw) => serde_json::from_str::<PendingApprovalRecord>(&raw)
+                .map(|rec| rec.status != "pending")
+                .unwrap_or(true),
+            Err(_) => true,
+        };
+        if stale || invalid {
+            if std::fs::remove_file(&path).is_ok() {
+                removed += 1;
+            }
+        }
+    }
+    removed
+}
+
 fn truncate_preview(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         return s.to_string();
@@ -227,5 +269,15 @@ mod tests {
         let _ = register_pending("sess_a", "Bash", "{}").unwrap();
         let _ = register_pending("sess_b", "Edit", "{}").unwrap();
         assert_eq!(list_pending_for_session(Some("sess_a"), 10).len(), 1);
+    }
+
+    #[test]
+    fn sweep_stale_pending_removes_invalid_json() {
+        let _guard = test_util::lock_state_dir_env();
+        let dir = tempdir().unwrap();
+        test_state(&dir);
+        std::fs::create_dir_all(pending_dir()).unwrap();
+        std::fs::write(pending_dir().join("apr_bad.json"), "{not json").unwrap();
+        assert_eq!(sweep_stale_pending(STALE_PENDING_MAX_AGE_SECS), 1);
     }
 }

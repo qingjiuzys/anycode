@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Reports - Digital Workbench</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-highest": "#dae2fd",
+                      "on-primary-container": "#eeefff",
+                      "inverse-on-surface": "#eef0ff",
+                      "on-primary-fixed-variant": "#003ea8",
+                      "surface": "#faf8ff",
+                      "primary": "#004ac6",
+                      "primary-container": "#2563eb",
+                      "outline-variant": "#c3c6d7",
+                      "on-tertiary-fixed": "#360f00",
+                      "error-container": "#ffdad6",
+                      "on-secondary": "#ffffff",
+                      "on-error-container": "#93000a",
+                      "inverse-primary": "#b4c5ff",
+                      "surface-bright": "#faf8ff",
+                      "on-surface-variant": "#434655",
+                      "secondary-fixed-dim": "#b7c8e1",
+                      "surface-container-low": "#f2f3ff",
+                      "inverse-surface": "#283044",
+                      "tertiary-fixed-dim": "#ffb596",
+                      "surface-variant": "#dae2fd",
+                      "on-secondary-fixed": "#0b1c30",
+                      "on-primary-fixed": "#00174b",
+                      "surface-tint": "#0053db",
+                      "secondary": "#505f76",
+                      "primary-fixed-dim": "#b4c5ff",
+                      "secondary-fixed": "#d3e4fe",
+                      "tertiary": "#943700",
+                      "on-tertiary-container": "#ffede6",
+                      "surface-container-high": "#e2e7ff",
+                      "on-tertiary": "#ffffff",
+                      "on-background": "#131b2e",
+                      "surface-container-lowest": "#ffffff",
+                      "primary-fixed": "#dbe1ff",
+                      "secondary-container": "#d0e1fb",
+                      "background": "#faf8ff",
+                      "on-surface": "#131b2e",
+                      "tertiary-container": "#bc4800",
+                      "outline": "#737686",
+                      "tertiary-fixed": "#ffdbcd",
+                      "surface-container": "#eaedff",
+                      "surface-dim": "#d2d9f4",
+                      "on-primary": "#ffffff",
+                      "on-secondary-fixed-variant": "#38485d",
+                      "on-secondary-container": "#54647a",
+                      "on-tertiary-fixed-variant": "#7d2d00",
+                      "on-error": "#ffffff",
+                      "error": "#ba1a1a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "md": "16px",
+                      "sidebar_width": "240px",
+                      "gutter": "16px",
+                      "xl": "32px",
+                      "base": "4px",
+                      "lg": "24px",
+                      "xs": "4px",
+                      "sm": "8px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "code-sm": [
+                              "JetBrains Mono"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-sm": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "code-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .markdown-preview h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 32px;
+            letter-spacing: -0.02em;
+            color: #131b2e;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #c3c6d7;
+        }
+        .markdown-preview h2 {
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 28px;
+            letter-spacing: -0.01em;
+            color: #131b2e;
+            margin-top: 24px;
+            margin-bottom: 12px;
+        }
+        .markdown-preview p {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            line-height: 20px;
+            color: #434655;
+            margin-bottom: 16px;
+        }
+        .markdown-preview ul {
+            list-style-type: disc;
+            padding-left: 24px;
+            margin-bottom: 16px;
+            color: #434655;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            line-height: 20px;
+        }
+        .markdown-preview li {
+            margin-bottom: 8px;
+        }
+        .markdown-preview code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            background-color: #f2f3ff;
+            padding: 2px 4px;
+            border-radius: 4px;
+            color: #0b1c30;
+        }
+        .markdown-preview pre code {
+            display: block;
+            padding: 16px;
+            background-color: #f2f3ff;
+            border: 1px solid #c3c6d7;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+        }
+      </style>
+</head>
+<body class="bg-background text-on-surface flex h-screen overflow-hidden antialiased">
+<!-- SideNavBar -->
+<nav class="w-sidebar_width h-full fixed left-0 top-0 bg-surface border-r border-outline-variant flex flex-col py-lg z-50">
+<div class="px-lg mb-xl">
+<h1 class="font-headline-lg text-headline-lg font-bold text-primary">Workbench</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">v2.4.0-stable</p>
+</div>
+<div class="px-md mb-md">
+<button class="w-full flex items-center justify-center gap-sm bg-surface text-primary border border-outline-variant rounded py-sm px-md hover:bg-surface-container transition-colors duration-150 ease-in-out font-label-md text-label-md font-medium">
+<span class="material-symbols-outlined" style="font-size: 16px;">search</span>
+                Global Search
+            </button>
+</div>
+<ul class="flex-1 overflow-y-auto flex flex-col gap-xs px-sm">
+<!-- Overview -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                    Overview
+                </a>
+</li>
+<!-- Projects -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">folder</span>
+                    Projects
+                </a>
+</li>
+<!-- Conversations -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">chat</span>
+                    Conversations
+                </a>
+</li>
+<!-- Automations -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">settings_suggest</span>
+                    Automations
+                </a>
+</li>
+<!-- Assets -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                    Assets
+                </a>
+</li>
+<!-- Reports (ACTIVE) -->
+<li>
+<a class="flex items-center gap-md px-md py-sm bg-surface-container-high text-primary border-l-2 border-primary transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bar_chart</span>
+                    Reports
+                </a>
+</li>
+<!-- Audit -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">verified_user</span>
+                    Audit
+                </a>
+</li>
+<!-- Agents/Skills -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">robot_2</span>
+                    Agents/Skills
+                </a>
+</li>
+<!-- Settings -->
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+                    Settings
+                </a>
+</li>
+</ul>
+<div class="mt-auto px-sm pt-md border-t border-outline-variant">
+<ul class="flex flex-col gap-xs">
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">description</span>
+                        Documentation
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+                        Support
+                    </a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col ml-sidebar_width min-h-screen">
+<!-- TopNavBar -->
+<header class="docked full-width top-0 sticky z-40 border-b border-outline-variant bg-surface flex justify-between items-center h-16 px-lg transition-all duration-200">
+<div class="flex items-center gap-md">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Digital Workbench</span>
+</div>
+<div class="flex items-center gap-md">
+<button class="font-label-md text-label-md font-medium text-primary hover:text-primary-container px-md py-sm rounded transition-colors">
+                    Support
+                </button>
+<button class="bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md font-medium px-md py-sm rounded transition-colors shadow-sm">
+                    New Project
+                </button>
+<div class="h-6 w-px bg-outline-variant mx-sm"></div>
+<button class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-sm rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center p-sm rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 overflow-y-auto p-lg bg-background">
+<!-- Page Header -->
+<div class="mb-lg">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-xs">报告管理</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">生成、查看和归档项目与会话报告。</p>
+</div>
+<!-- Controls Section -->
+<section class="bg-surface border border-outline-variant rounded-lg p-lg mb-lg shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-md flex-1">
+<!-- Scope Selector -->
+<div class="flex flex-col gap-xs w-48">
+<label class="font-label-md text-label-md text-on-surface-variant">分析范围</label>
+<select class="w-full bg-surface border border-outline-variant text-on-surface font-body-md text-body-md rounded px-md py-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+<option>项目 (Project)</option>
+<option>会话 (Session)</option>
+<option>全局审核 (Global Audit)</option>
+</select>
+</div>
+<!-- Target Selector (Cascading) -->
+<div class="flex flex-col gap-xs w-64">
+<label class="font-label-md text-label-md text-on-surface-variant">目标选择</label>
+<select class="w-full bg-surface border border-outline-variant text-on-surface font-body-md text-body-md rounded px-md py-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+<option>Nexus Core Services</option>
+<option>Frontend Dashboard v2</option>
+<option>Data Pipeline Alpha</option>
+</select>
+</div>
+<!-- Date Range -->
+<div class="flex flex-col gap-xs w-48">
+<label class="font-label-md text-label-md text-on-surface-variant">时间范围</label>
+<select class="w-full bg-surface border border-outline-variant text-on-surface font-body-md text-body-md rounded px-md py-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+<option>过去 7 天</option>
+<option>过去 30 天</option>
+<option>自定义范围...</option>
+</select>
+</div>
+</div>
+<div class="flex items-end h-full pt-6">
+<button class="flex items-center gap-sm bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md font-medium px-lg py-sm rounded transition-colors shadow-sm">
+<span class="material-symbols-outlined" style="font-size: 18px;">magic_button</span>
+                            生成报告
+                        </button>
+</div>
+</div>
+</section>
+<!-- Document-centric Layout: Grid -->
+<div class="grid grid-cols-12 gap-lg h-auto">
+<!-- Left Column: Recently Archived -->
+<div class="col-span-12 xl:col-span-4 flex flex-col gap-md">
+<h3 class="font-headline-md text-headline-md text-on-surface">最近归档</h3>
+<div class="bg-surface border border-outline-variant rounded-lg overflow-hidden">
+<ul class="divide-y divide-outline-variant">
+<!-- Item 1 -->
+<li>
+<a class="block p-md hover:bg-surface-container transition-colors group" href="#">
+<div class="flex items-start gap-md">
+<div class="p-sm bg-surface-container-low rounded text-primary group-hover:bg-primary-fixed transition-colors">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-md text-body-md font-medium text-on-surface truncate mb-xs">Nexus Core_SecurityAudit_Q3</p>
+<div class="flex items-center gap-sm font-label-md text-label-md text-on-surface-variant">
+<span>项目</span>
+<span>•</span>
+<span>今天 10:42 AM</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" style="font-size: 18px;">download</span>
+</div>
+</a>
+</li>
+<!-- Item 2 -->
+<li>
+<a class="block p-md hover:bg-surface-container transition-colors group" href="#">
+<div class="flex items-start gap-md">
+<div class="p-sm bg-surface-container-low rounded text-secondary group-hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined">article</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-md text-body-md font-medium text-on-surface truncate mb-xs">Frontend_SessionLog_W42</p>
+<div class="flex items-center gap-sm font-label-md text-label-md text-on-surface-variant">
+<span>会话</span>
+<span>•</span>
+<span>昨天 16:15 PM</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" style="font-size: 18px;">download</span>
+</div>
+</a>
+</li>
+<!-- Item 3 -->
+<li>
+<a class="block p-md hover:bg-surface-container transition-colors group" href="#">
+<div class="flex items-start gap-md">
+<div class="p-sm bg-surface-container-low rounded text-primary group-hover:bg-primary-fixed transition-colors">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-md text-body-md font-medium text-on-surface truncate mb-xs">DataPipeline_Coverage_Final</p>
+<div class="flex items-center gap-sm font-label-md text-label-md text-on-surface-variant">
+<span>项目</span>
+<span>•</span>
+<span>2023-10-20</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" style="font-size: 18px;">download</span>
+</div>
+</a>
+</li>
+<!-- Item 4 -->
+<li>
+<a class="block p-md hover:bg-surface-container transition-colors group" href="#">
+<div class="flex items-start gap-md">
+<div class="p-sm bg-surface-container-low rounded text-primary group-hover:bg-primary-fixed transition-colors">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-md text-body-md font-medium text-on-surface truncate mb-xs">System_Architecture_Review_v2</p>
+<div class="flex items-center gap-sm font-label-md text-label-md text-on-surface-variant">
+<span>全局审计</span>
+<span>•</span>
+<span>2023-10-18</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors" style="font-size: 18px;">download</span>
+</div>
+</a>
+</li>
+</ul>
+<div class="p-sm border-t border-outline-variant bg-surface-bright text-center">
+<button class="font-label-md text-label-md text-primary hover:text-primary-container font-medium py-xs px-md transition-colors">
+                                查看所有归档
+                            </button>
+</div>
+</div>
+</div>
+<!-- Right Column: Report Preview (Document Area) -->
+<div class="col-span-12 xl:col-span-8 flex flex-col gap-md">
+<div class="flex items-center justify-between">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-size: 20px;">preview</span>
+                            报告预览
+                        </h3>
+<div class="flex gap-sm">
+<button class="bg-surface hover:bg-surface-container border border-outline-variant text-on-surface font-label-md text-label-md px-md py-xs rounded transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined" style="font-size: 16px;">print</span>
+                                打印
+                            </button>
+<button class="bg-surface hover:bg-surface-container border border-outline-variant text-on-surface font-label-md text-label-md px-md py-xs rounded transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined" style="font-size: 16px;">share</span>
+                                分享
+                            </button>
+</div>
+</div>
+<!-- The "Paper" -->
+<div class="bg-surface border border-outline-variant rounded-lg shadow-sm p-xl max-w-4xl mx-auto w-full markdown-preview">
+<!-- Markdown Content Simulated -->
+<h1>Nexus Core Services - 综合审计报告</h1>
+<div class="flex gap-lg mb-lg border-b border-outline-variant pb-md">
+<div class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">生成日期</span>
+<span class="font-body-md text-body-md font-medium text-on-surface">2023-10-24 14:30 CST</span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">目标版本</span>
+<span class="font-body-md text-body-md font-medium text-on-surface"><code class="font-code-sm text-code-sm bg-surface-container-low px-1 rounded">v2.1.4-rc.2</code></span>
+</div>
+<div class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">审计状态</span>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-highest text-primary font-label-md text-label-md font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    已完成
+                                </span>
+</div>
+</div>
+<h2>1. 执行摘要 (Executive Summary)</h2>
+<p>本次审计覆盖了 <strong>Nexus Core Services</strong> 的核心模块，重点关注了最新的鉴权中间件更新及数据库查询优化策略。总体代码质量保持在较高水平，未发现 <code>CRITICAL</code> 级别的安全漏洞。但在并发处理机制上存在部分性能瓶颈，建议在下个 Sprint 中优先解决。</p>
+<h2>2. 质量门禁结果 (Gate Results)</h2>
+<div class="bg-surface-bright border border-outline-variant rounded p-md mb-md">
+<div class="flex flex-col gap-sm">
+<!-- Gate Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-size: 18px;">verified</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">静态代码分析 (SonarQube)</span>
+</div>
+<span class="font-label-md text-label-md bg-[#e6f4ea] text-[#137333] px-2 py-0.5 rounded">通过 (Passed)</span>
+</div>
+<!-- Gate Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-size: 18px;">shield_lock</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">依赖漏洞扫描 (Snyk)</span>
+</div>
+<span class="font-label-md text-label-md bg-[#e6f4ea] text-[#137333] px-2 py-0.5 rounded">通过 (Passed)</span>
+</div>
+<!-- Gate Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary" style="font-size: 18px;">speed</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">性能基准测试 (JMeter)</span>
+</div>
+<span class="font-label-md text-label-md bg-[#fce8e6] text-[#c5221f] px-2 py-0.5 rounded">警告 (Warning)</span>
+</div>
+</div>
+</div>
+<h2>3. 安全审计 (Security Audit)</h2>
+<p>检测到 3 个低级别漏洞，主要集中在非关键日志输出的信息泄露风险上。</p>
+<ul>
+<li><strong>低风险 (Low):</strong> <code>auth.service.ts:142</code> - 日志中包含了未脱敏的用户 UUID。</li>
+<li><strong>低风险 (Low):</strong> <code>http.client.ts:55</code> - 缺少严格的重试退避策略，可能引发内部微服务雪崩。</li>
+<li><strong>信息 (Info):</strong> 建议升级 <code>lodash</code> 库至最新版本以消除潜在的原型链污染风险。</li>
+</ul>
+<h2>4. 代码覆盖率 (Code Coverage)</h2>
+<p>当前整体测试覆盖率为 <strong>87.4%</strong>，较上一版本提升 1.2%。</p>
+<pre><code>----------------------|---------|----------|---------|---------|-------------------
+File                  | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+----------------------|---------|----------|---------|---------|-------------------
+All files             |    87.4 |     82.1 |    89.5 |   87.89 |                   
+ src/core             |   92.31 |    85.71 |     100 |   92.31 |                   
+  auth.middleware.ts  |     100 |      100 |     100 |     100 |                   
+  db.connection.ts    |   88.24 |       75 |     100 |   88.24 | 42-45             
+ src/utils            |   81.48 |       75 |   83.33 |    82.6 |                   
+  logger.ts           |   76.92 |    66.67 |      75 |   76.92 | 22-26             
+----------------------|---------|----------|---------|---------|-------------------</code></pre>
+<p class="mt-lg text-on-surface-variant font-label-md text-label-md text-center">-- 报告结束 --</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="full-width bottom-0 border-t border-outline-variant bg-surface flex justify-between items-center py-md px-lg transition-colors duration-200 z-40">
+<div class="font-label-md text-label-md font-bold text-secondary">
+                © 2024 Workbench Console • v2.4.0
+            </div>
+<div class="flex gap-md">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Changelog</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">API Status</a>
+</div>
+</footer>
+</div>
+</body></html>

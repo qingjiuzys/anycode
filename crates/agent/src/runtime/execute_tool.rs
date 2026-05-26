@@ -163,6 +163,20 @@ impl AgentRuntime {
                 Some(&e.to_string()),
             ),
         }
-        out
+        match out {
+            Ok(o) => Ok(o),
+            Err(CoreError::PermissionDenied(reason)) => {
+                self.log_task_line(
+                    task_id,
+                    &format!("[tool_denied] name={} reason={}", tool_call.name, reason),
+                );
+                Ok(ToolOutput {
+                    result: serde_json::json!({ "error": reason.clone() }),
+                    error: Some(reason),
+                    duration_ms: 0,
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 }

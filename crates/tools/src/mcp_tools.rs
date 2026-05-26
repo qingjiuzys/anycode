@@ -104,6 +104,11 @@ impl Tool for McpTool {
                         .map(str::trim)
                         .filter(|s| !s.is_empty());
                     if let Some(n) = name {
+                        crate::mcp_proxied_tool::mcp_governance_check(
+                            sess.server_slug(),
+                            "mcp",
+                            n,
+                        )?;
                         let arguments = input
                             .input
                             .get("arguments")
@@ -121,6 +126,13 @@ impl Tool for McpTool {
             if let Ok(cmd) = std::env::var("ANYCODE_MCP_COMMAND") {
                 let cmd = cmd.trim();
                 if !cmd.is_empty() {
+                    let name = input
+                        .input
+                        .get("name")
+                        .or_else(|| input.input.get("tool"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("tools/call");
+                    crate::mcp_proxied_tool::mcp_governance_check("command", "mcp", name)?;
                     return crate::mcp_stdio::mcp_tools_call_shell(&input.input, cmd).await;
                 }
             }

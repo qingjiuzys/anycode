@@ -127,6 +127,7 @@ pub(super) fn sse_filtered_events(
     session_filter: Option<String>,
 ) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
     let stream = stream! {
+        yield Ok(Event::default().event("connected").data("{}"));
         loop {
             match rx.recv().await {
                 Ok(evt)

@@ -19,6 +19,7 @@ pub mod notifications;
 pub mod notify;
 pub mod observability;
 pub mod preferences;
+pub mod project_root;
 pub mod recorder;
 pub mod report;
 pub mod report_archive;
@@ -29,11 +30,15 @@ pub mod server;
 pub mod skills_scan;
 pub mod static_ui;
 pub mod tokens;
+pub mod workspace_index;
 
 pub use control::{gate_runner, task_trigger};
 pub use governance::{automation_policy, security_events, service_governance, skills_governance};
 pub use ipc::{approval_ipc, cancel_ipc};
-pub use observability::{ingest, log_parser, metrics, session_replay};
+pub use observability::{event_tier, execution_log};
+pub use observability::{
+    ingest, log_parser, metrics, session_replay, session_trace, session_transcript,
+};
 
 #[cfg(test)]
 mod test_util;
@@ -48,3 +53,7 @@ pub use server::{default_db_path, run, DashboardConfig};
 pub use service_governance::{is_loopback_host, run_doctor_checks, suggest_backup_path};
 pub use static_ui::{discover_ui_dist, ui_available};
 pub use tokens::{create_token, list_tokens, revoke_token, token_count_active};
+pub use workspace_index::{
+    collect_scan_workspace_paths, discover_paths_from_sessions, load_workspace_paths,
+    workspace_index_path,
+};

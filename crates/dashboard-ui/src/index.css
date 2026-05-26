@@ -82,23 +82,10 @@
 }
 
 @layer components {
-  .material-symbols-outlined {
-    font-family: "Material Symbols Outlined";
-    font-weight: normal;
-    font-style: normal;
-    font-size: 20px;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
+  .dw-icon {
     display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
-  }
-
-  .material-symbols-outlined.fill {
-    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+    overflow: visible;
+    vertical-align: -0.125em;
   }
 
   .dw-sidebar {
@@ -120,15 +107,19 @@
   }
 
   .dw-nav-link {
-    @apply flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant border-l-2 border-transparent transition-colors duration-150 text-sm hover:bg-surface-container;
+    @apply flex min-w-0 items-center gap-3 px-3 py-2 rounded text-on-surface-variant border-l-2 border-transparent transition-colors duration-150 text-sm hover:bg-surface-container;
   }
 
   .dw-nav-link.active {
     @apply bg-surface-container-high text-primary border-primary;
   }
 
-  .dw-nav-link.active .material-symbols-outlined {
-    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  .dw-nav-link .dw-icon {
+    @apply text-secondary;
+  }
+
+  .dw-nav-link.active .dw-icon {
+    @apply text-primary;
   }
 
   .dw-section-card {

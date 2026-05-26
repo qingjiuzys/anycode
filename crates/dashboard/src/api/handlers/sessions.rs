@@ -5,7 +5,7 @@ pub async fn list_project_sessions(
     Path(project_id): Path<String>,
     Query(q): Query<LimitQuery>,
 ) -> impl IntoResponse {
-    match state.db.list_sessions(&project_id, q.limit).await {
+    match state.db.list_sessions_enriched(&project_id, q.limit).await {
         Ok(sessions) => Json(json!({ "sessions": sessions })).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -19,7 +19,7 @@ pub async fn get_session(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
-    match state.db.get_session(&session_id).await {
+    match state.db.get_session_enriched(&session_id).await {
         Ok(Some(s)) => Json(json!({ "session": s })).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -32,6 +32,140 @@ pub async fn get_session(
         )
             .into_response(),
     }
+}
+
+pub async fn send_session_message(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Json(body): Json<crate::schema::SendConversationMessageRequest>,
+) -> impl IntoResponse {
+    let prompt = body.prompt.trim();
+    if prompt.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "message is required" })),
+        )
+            .into_response();
+    }
+    let session = match state.db.get_session(&session_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "session not found" })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let project = match state.db.get_project(&session.project_id).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "project not found" })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let root_path = std::path::PathBuf::from(&project.root_path);
+    let (root, created_root) = match crate::project_root::ensure_project_root_for_chat(&root_path) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+    if created_root {
+        let _ = state
+            .db
+            .insert_event(crate::schema::InsertEventRequest {
+                project_id: session.project_id.clone(),
+                session_id: Some(session_id.clone()),
+                task_id: None,
+                agent_id: None,
+                event_type: "project_root_created".into(),
+                severity: Some("info".into()),
+                title: "Project root created".into(),
+                body: Some(root.display().to_string()),
+                payload: Some(json!({ "source": "conversation_message" })),
+            })
+            .await;
+        let _ = crate::audit::record_audit(
+            &state.db,
+            crate::audit::AuditEventInput {
+                project_id: Some(session.project_id.clone()),
+                session_id: Some(session_id.clone()),
+                action: "project_root_created".into(),
+                risk: "medium".into(),
+                detail: json!({
+                    "root_path": root.display().to_string(),
+                    "source": "conversation_message",
+                }),
+            },
+        )
+        .await;
+    }
+    let dashboard_url = dashboard_loopback_url(&state.host, state.port);
+    match state
+        .web_chat
+        .send(
+            state.db.clone(),
+            &session_id,
+            &root,
+            Some(session.agent_type.as_str()),
+            &dashboard_url,
+            prompt,
+        )
+        .await
+    {
+        Ok(chat) => {
+            let _ = state
+                .db
+                .insert_event(crate::schema::InsertEventRequest {
+                    project_id: session.project_id.clone(),
+                    session_id: Some(session_id.clone()),
+                    task_id: None,
+                    agent_id: None,
+                    event_type: "user_prompt".into(),
+                    severity: Some("info".into()),
+                    title: "User prompt".into(),
+                    body: Some(prompt.chars().take(8000).collect()),
+                    payload: Some(json!({ "source": "web_chat" })),
+                })
+                .await;
+            Json(json!({ "ok": true, "session_id": session_id, "chat": chat })).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string(), "session_id": session_id })),
+        )
+            .into_response(),
+    }
+}
+
+fn dashboard_loopback_url(host: &str, port: u16) -> String {
+    let host = match host {
+        "0.0.0.0" | "::" => "127.0.0.1",
+        other => other,
+    };
+    format!("http://{host}:{port}")
 }
 
 pub async fn cancel_session(
@@ -109,7 +243,7 @@ pub async fn list_all_sessions(
     let kinds_ref = kinds.as_deref();
     match state
         .db
-        .list_all_sessions(
+        .list_all_sessions_enriched(
             q.limit,
             kinds_ref,
             q.status.as_deref(),
@@ -119,6 +253,17 @@ pub async fn list_all_sessions(
         .await
     {
         Ok(sessions) => Json(json!({ "sessions": sessions })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn list_session_facets(State(state): State<AppState>) -> impl IntoResponse {
+    match state.db.session_facets().await {
+        Ok(facets) => Json(json!({ "facets": facets })).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
@@ -245,6 +390,75 @@ pub async fn get_session_replay(
         Ok(replay) => Json(json!({ "replay": replay })).into_response(),
         Err(e) => (
             StatusCode::NOT_FOUND,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_session_trace(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match crate::session_trace::session_trace(&state.db, &session_id).await {
+        Ok(trace) => Json(json!({ "trace": trace })).into_response(),
+        Err(e) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_session_transcript(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match crate::session_transcript::session_transcript(&state.db, &session_id).await {
+        Ok(transcript) => Json(json!({ "transcript": transcript })).into_response(),
+        Err(e) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ExecutionLogQuery {
+    #[serde(default)]
+    pub offset: usize,
+    #[serde(default = "default_execution_log_limit")]
+    pub limit: usize,
+}
+
+fn default_execution_log_limit() -> usize {
+    200
+}
+
+pub async fn get_session_execution_log(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Query(q): Query<ExecutionLogQuery>,
+) -> impl IntoResponse {
+    match state.db.get_session(&session_id).await {
+        Ok(Some(session)) => {
+            match crate::execution_log::read_execution_log(&session, q.offset, Some(q.limit)) {
+                Ok(log) => Json(json!({ "execution_log": log })).into_response(),
+                Err(e) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": e.to_string() })),
+                )
+                    .into_response(),
+            }
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "session not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
         )
             .into_response(),

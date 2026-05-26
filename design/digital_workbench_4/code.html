@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Automations - Digital Workbench</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#dae2fd",
+                        "on-primary-container": "#eeefff",
+                        "inverse-on-surface": "#eef0ff",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface": "#faf8ff",
+                        "primary": "#004ac6",
+                        "primary-container": "#2563eb",
+                        "outline-variant": "#c3c6d7",
+                        "on-tertiary-fixed": "#360f00",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#b4c5ff",
+                        "surface-bright": "#faf8ff",
+                        "on-surface-variant": "#434655",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-container-low": "#f2f3ff",
+                        "inverse-surface": "#283044",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "surface-variant": "#dae2fd",
+                        "on-secondary-fixed": "#0b1c30",
+                        "on-primary-fixed": "#00174b",
+                        "surface-tint": "#0053db",
+                        "secondary": "#505f76",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "tertiary": "#943700",
+                        "on-tertiary-container": "#ffede6",
+                        "surface-container-high": "#e2e7ff",
+                        "on-tertiary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dbe1ff",
+                        "secondary-container": "#d0e1fb",
+                        "background": "#faf8ff",
+                        "on-surface": "#131b2e",
+                        "tertiary-container": "#bc4800",
+                        "outline": "#737686",
+                        "tertiary-fixed": "#ffdbcd",
+                        "surface-container": "#eaedff",
+                        "surface-dim": "#d2d9f4",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-secondary-container": "#54647a",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "sidebar_width": "240px",
+                        "gutter": "16px",
+                        "xl": "32px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "xs": "4px",
+                        "sm": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "code-sm": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["18px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "code-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[style*="'FILL' 1"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Custom Scrollbar for modern look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c3c6d7;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #737686;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased flex">
+<!-- SideNavBar -->
+<nav class="w-sidebar_width h-full fixed left-0 top-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant flex flex-col py-lg z-50">
+<!-- Brand/Header -->
+<div class="px-md mb-xl flex items-center gap-sm">
+<div class="w-8 h-8 rounded bg-primary-container text-on-primary-container flex items-center justify-center font-bold">W</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg font-bold text-primary dark:text-inverse-primary truncate">Workbench</h1>
+<p class="font-label-md text-label-md text-on-surface-variant truncate">v2.4.0-stable</p>
+</div>
+</div>
+<!-- CTA -->
+<div class="px-md mb-lg">
+<button class="w-full flex items-center justify-center gap-sm py-sm px-md bg-surface-container-high rounded text-on-surface hover:bg-surface-container transition-colors duration-150 ease-in-out border border-outline-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="search">search</span>
+<span class="font-label-md text-label-md">Global Search</span>
+</button>
+</div>
+<!-- Main Nav Tabs -->
+<div class="flex-1 overflow-y-auto px-sm flex flex-col gap-xs">
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Overview
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="folder">folder</span>
+                Projects
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="chat">chat</span>
+                Conversations
+            </a>
+<!-- Active Tab: Automations -->
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-inverse-primary border-l-2 border-primary transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="settings_suggest" style="font-variation-settings: 'FILL' 1;">settings_suggest</span>
+                Automations
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+                Assets
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+                Reports
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+                Audit
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="robot_2">robot_2</span>
+                Agents/Skills
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+</div>
+<!-- Footer Tabs -->
+<div class="mt-auto px-sm pt-md border-t border-outline-variant flex flex-col gap-xs">
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+                Documentation
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-r-full font-body-md text-body-md text-on-surface-variant dark:text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-container transition-colors duration-150 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+                Support
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 ml-sidebar_width flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant docked full-width top-0 sticky z-40 flex justify-between items-center h-16 px-lg transition-all duration-200">
+<!-- Left: Breadcrumb / Search Placeholder (Search is in sidebar per schema, but left area often holds context) -->
+<div class="flex items-center gap-sm">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface dark:text-on-surface">Digital Workbench</span>
+<span class="material-symbols-outlined text-outline-variant text-[20px]" data-icon="chevron_right">chevron_right</span>
+<span class="font-headline-md text-headline-md font-semibold text-on-surface-variant">Automations</span>
+</div>
+<!-- Right Actions -->
+<div class="flex items-center gap-md">
+<button class="font-label-md text-label-md text-primary dark:text-inverse-primary hover:bg-surface-container px-md py-sm rounded transition-colors duration-200 flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                    New Project
+                </button>
+<button class="font-label-md text-label-md text-on-surface hover:bg-surface-container px-md py-sm rounded border border-outline-variant transition-colors duration-200">
+                    Support
+                </button>
+<div class="h-6 w-px bg-outline-variant mx-sm"></div>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200 flex items-center justify-center p-sm rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200 flex items-center justify-center p-sm rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Page Canvas -->
+<main class="flex-1 p-lg flex flex-col gap-lg overflow-x-hidden">
+<!-- Page Header & Risk Warning -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md mb-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg font-bold text-on-surface">自动化管理 (Automations)</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">配置项目策略、定时任务及审计日志</p>
+</div>
+<!-- Risk Warning Badge -->
+<div class="flex items-center gap-sm bg-error-container/20 border border-error/30 text-error px-md py-sm rounded">
+<span class="material-symbols-outlined text-[18px]" data-icon="warning">warning</span>
+<span class="font-label-md text-label-md">仅配置与审计，Dashboard 不执行 shell</span>
+</div>
+</div>
+<!-- Bento Grid Layout for Main Content -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Left Column (Larger) -->
+<div class="lg:col-span-2 flex flex-col gap-lg">
+<!-- 项目自动化策略 (Project Policies) -->
+<section class="bg-surface border border-outline-variant rounded-lg p-md">
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="policy">policy</span>
+                                项目自动化策略
+                            </h3>
+<button class="font-label-md text-label-md text-primary hover:bg-primary-container/10 px-sm py-xs rounded transition-colors">
+                                + 新增策略
+                            </button>
+</div>
+<!-- Policy Form (Simplified inline filter/add) -->
+<div class="flex gap-sm mb-md items-end">
+<div class="flex-1">
+<label class="block font-label-md text-label-md text-on-surface-variant mb-xs">选择项目</label>
+<select class="w-full bg-surface-container-lowest border border-outline-variant text-body-sm rounded px-sm py-xs focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+<option>Project Alpha (prod)</option>
+<option>Project Beta (staging)</option>
+<option>Core API (prod)</option>
+</select>
+</div>
+<div class="flex-1">
+<label class="block font-label-md text-label-md text-on-surface-variant mb-xs">策略类型</label>
+<select class="w-full bg-surface-container-lowest border border-outline-variant text-body-sm rounded px-sm py-xs focus:ring-1 focus:ring-primary focus:border-primary outline-none">
+<option>Gate Block (门禁阻断)</option>
+<option>Cron Notify (定时通知)</option>
+<option>Auto Remediation (自动恢复)</option>
+</select>
+</div>
+<button class="bg-primary text-on-primary font-label-md text-label-md px-md py-[6px] rounded hover:bg-primary/90 transition-colors h-[30px]">
+                                配置
+                            </button>
+</div>
+<!-- Policy Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low font-label-md text-label-md text-on-surface-variant border-y border-outline-variant">
+<tr>
+<th class="py-sm px-sm font-medium">策略名</th>
+<th class="py-sm px-sm font-medium">项目</th>
+<th class="py-sm px-sm font-medium">类型</th>
+<th class="py-sm px-sm font-medium">状态</th>
+<th class="py-sm px-sm font-medium text-right">操作</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-on-surface">
+<tr class="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-sm">Deploy Freeze Block</td>
+<td class="py-sm px-sm text-on-surface-variant">Core API</td>
+<td class="py-sm px-sm"><span class="bg-surface-container px-xs py-[2px] rounded text-[11px] font-code-sm border border-outline-variant/30">Gate Block</span></td>
+<td class="py-sm px-sm">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-[#10b981]"></div> Active
+                                            </div>
+</td>
+<td class="py-sm px-sm text-right">
+<button class="text-secondary hover:text-primary"><span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span></button>
+</td>
+</tr>
+<tr class="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-sm">Daily DB Backup Check</td>
+<td class="py-sm px-sm text-on-surface-variant">Project Alpha</td>
+<td class="py-sm px-sm"><span class="bg-surface-container px-xs py-[2px] rounded text-[11px] font-code-sm border border-outline-variant/30">Cron Notify</span></td>
+<td class="py-sm px-sm">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-[#10b981]"></div> Active
+                                            </div>
+</td>
+<td class="py-sm px-sm text-right">
+<button class="text-secondary hover:text-primary"><span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Cron 任务 (Cron Tasks) -->
+<section class="bg-surface border border-outline-variant rounded-lg p-md">
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="schedule">schedule</span>
+                                Cron 任务配置
+                            </h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low font-label-md text-label-md text-on-surface-variant border-y border-outline-variant">
+<tr>
+<th class="py-sm px-sm font-medium">任务 ID</th>
+<th class="py-sm px-sm font-medium">调度规则 (Schedule)</th>
+<th class="py-sm px-sm font-medium">关联会话 (Session)</th>
+<th class="py-sm px-sm font-medium">指令摘要 (Command)</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-on-surface">
+<tr class="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-sm font-code-sm text-secondary">cron-8a7b9c</td>
+<td class="py-sm px-sm font-code-sm bg-surface-container-lowest">0 2 * * *</td>
+<td class="py-sm px-sm text-primary hover:underline cursor-pointer">sess-db-dump-01</td>
+<td class="py-sm px-sm font-code-sm text-on-surface-variant truncate max-w-[200px]">./scripts/backup.sh --full</td>
+</tr>
+<tr class="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-sm font-code-sm text-secondary">cron-2f4e1a</td>
+<td class="py-sm px-sm font-code-sm bg-surface-container-lowest">*/15 * * * *</td>
+<td class="py-sm px-sm text-primary hover:underline cursor-pointer">sess-health-chk</td>
+<td class="py-sm px-sm font-code-sm text-on-surface-variant truncate max-w-[200px]">curl -f http://api.internal/health</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+<!-- Right Column (Smaller) -->
+<div class="flex flex-col gap-lg">
+<!-- Cron 触发账本 (Cron Ledger/History) -->
+<section class="bg-surface border border-outline-variant rounded-lg p-md flex-1 flex flex-col">
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="history">history</span>
+                                Cron 触发账本
+                            </h3>
+<button class="text-secondary hover:text-primary"><span class="material-symbols-outlined text-[18px]" data-icon="refresh">refresh</span></button>
+</div>
+<div class="flex-1 overflow-y-auto pr-xs space-y-sm">
+<!-- Ledger Item Success -->
+<div class="p-sm bg-surface-container-lowest border border-outline-variant/50 rounded flex flex-col gap-xs">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-[#10b981]"></div>
+<span class="font-label-md text-label-md text-on-surface">cron-8a7b9c</span>
+</div>
+<span class="font-code-sm text-xs text-on-surface-variant">10:00:01 AM</span>
+</div>
+<div class="font-body-sm text-secondary flex justify-between items-center">
+<span>Triggered successfully.</span>
+<a class="text-primary hover:underline font-label-md" href="#">sess_tx_992</a>
+</div>
+</div>
+<!-- Ledger Item Error -->
+<div class="p-sm bg-error-container/10 border border-error/20 rounded flex flex-col gap-xs">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-error"></div>
+<span class="font-label-md text-label-md text-on-surface">cron-2f4e1a</span>
+</div>
+<span class="font-code-sm text-xs text-on-surface-variant">09:45:00 AM</span>
+</div>
+<div class="font-body-sm text-secondary flex justify-between items-center">
+<span class="text-error">Trigger failed (Timeout).</span>
+<a class="text-error hover:underline font-label-md" href="#">sess_tx_991</a>
+</div>
+</div>
+<!-- Ledger Item Pending/Running -->
+<div class="p-sm bg-surface-container-lowest border border-outline-variant/50 rounded flex flex-col gap-xs">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-xs">
+<div class="w-2 h-2 rounded-full bg-[#3b82f6] animate-pulse"></div>
+<span class="font-label-md text-label-md text-on-surface">cron-8a7b9c</span>
+</div>
+<span class="font-code-sm text-xs text-on-surface-variant">09:00:02 AM</span>
+</div>
+<div class="font-body-sm text-secondary flex justify-between items-center">
+<span>Running...</span>
+<a class="text-primary hover:underline font-label-md" href="#">sess_tx_990</a>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Two Columns: Workflow 会话 | Cron 会话 -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg mt-md">
+<!-- Workflow 会话 (Workflow Sessions) -->
+<section class="bg-surface border border-outline-variant rounded-lg p-md">
+<h3 class="font-headline-md text-headline-md text-on-surface border-b border-outline-variant pb-sm mb-md flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary" data-icon="account_tree">account_tree</span>
+                        Workflow 会话
+                    </h3>
+<div class="space-y-xs">
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30 last:border-0">
+<div>
+<div class="font-label-md text-on-surface">Build &amp; Deploy UI</div>
+<div class="font-code-sm text-on-surface-variant text-[10px]">wf-sess-1029</div>
+</div>
+<span class="px-sm py-xs bg-[#10b981]/10 text-[#10b981] rounded font-label-md text-[10px] border border-[#10b981]/20">Success</span>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30 last:border-0">
+<div>
+<div class="font-label-md text-on-surface">Data Migration Prod</div>
+<div class="font-code-sm text-on-surface-variant text-[10px]">wf-sess-1028</div>
+</div>
+<span class="px-sm py-xs bg-error/10 text-error rounded font-label-md text-[10px] border border-error/20">Failed</span>
+</div>
+</div>
+</section>
+<!-- Cron 会话 (Cron Sessions) -->
+<section class="bg-surface border border-outline-variant rounded-lg p-md">
+<h3 class="font-headline-md text-headline-md text-on-surface border-b border-outline-variant pb-sm mb-md flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary" data-icon="update">update</span>
+                        Cron 会话
+                    </h3>
+<div class="space-y-xs">
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30 last:border-0">
+<div>
+<div class="font-label-md text-on-surface">sess-db-dump-01</div>
+<div class="font-code-sm text-on-surface-variant text-[10px]">Triggered by: cron-8a7b9c</div>
+</div>
+<span class="px-sm py-xs bg-[#3b82f6]/10 text-[#3b82f6] rounded font-label-md text-[10px] border border-[#3b82f6]/20">Running</span>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30 last:border-0">
+<div>
+<div class="font-label-md text-on-surface">sess-health-chk</div>
+<div class="font-code-sm text-on-surface-variant text-[10px]">Triggered by: cron-2f4e1a</div>
+</div>
+<span class="px-sm py-xs bg-[#10b981]/10 text-[#10b981] rounded font-label-md text-[10px] border border-[#10b981]/20">Completed</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface dark:bg-surface border-t border-outline-variant dark:border-outline-variant flex justify-between items-center py-md px-lg mt-auto transition-colors duration-200">
+<div class="font-label-md text-label-md font-bold text-secondary dark:text-secondary-fixed-dim">
+                © 2024 Workbench Console • v2.4.0
+            </div>
+<div class="flex gap-md">
+<a class="font-label-md text-label-md text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">Documentation</a>
+<a class="font-label-md text-label-md text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">Changelog</a>
+<a class="font-label-md text-label-md text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">API Status</a>
+</div>
+</footer>
+</div>
+</body></html>

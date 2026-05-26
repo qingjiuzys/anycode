@@ -52,7 +52,7 @@ export function AuditPage() {
   const [action, setAction] = useState("");
   const [risk, setRisk] = useState("");
 
-  const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects });
+  const projects = useQuery({ queryKey: ["projects"], queryFn: () => api.projects({ limit: 500 }) });
   const audit = useQuery({
     queryKey: ["audit", projectId, action, risk],
     queryFn: () =>

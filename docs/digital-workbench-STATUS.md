@@ -1,6 +1,6 @@
 # Digital Workbench — Status (one page)
 
-**Last updated:** 2026-05 · **Phase:** V3 **Week 1–10 done**
+**Last updated:** 2026-05-24 · **Phase:** V3 Week 1–10 done · **Production convergence:** Local/single-machine production ready, Tier 1.5 harness closed for default scope ([log](production-convergence-log.md))
 
 **Repo root:** [WORKBENCH.md](../WORKBENCH.md) · **Closure archive:** [archive/workbench/digital-workbench-closure-report.md](archive/workbench/digital-workbench-closure-report.md)
 
@@ -24,7 +24,7 @@
 | V3-W9 Session-scoped inbox + pending badges + resolved log | ✅ |
 | V3-W10 Conversations approval workflow (filter + inline inbox) | ✅ |
 | Production deploy checklist | ✅ |
-| Rust tests (`anycode-dashboard`) | ✅ 59 (57 unit + 2 integration) |
+| Rust tests (`anycode-dashboard`) | ✅ 69+ (unit + integration) |
 | Playwright e2e | ✅ 28 |
 | Release `embedded-ui` | ✅ |
 | CI dashboard job | ✅ |
@@ -53,5 +53,7 @@ User docs: [docs-site/guide/dashboard.md](../docs-site/guide/dashboard.md) · [P
 SSO/RBAC · Connector OAuth/write · Tauri · browser visual gates
 
 Control plane notes: [digital-workbench-control-plane.md](digital-workbench-control-plane.md)
+
+**Session index (2026-05-24):** SQLite is the session/conversation SSOT (`sessions.task_id` unique); stack trace is read from `output.log` on demand. Project scan no longer bulk-imports logs into sessions.
 
 Nothing in this list blocks **using** the workbench locally today.

@@ -48,6 +48,15 @@ export function SettingsDataSection() {
           </>
         )}
       </SectionCard>
+      <SectionCard title={t("settings.memoryRetention")}>
+        <p className="text-sm text-secondary m-0 mb-2">
+          {t("settings.memoryRetentionHint")}
+        </p>
+        <p className="text-sm text-secondary m-0">
+          CLI: <code className="font-code">anycode memory prune --dry-run</code> ·{" "}
+          <code className="font-code">anycode memory prune --apply</code>
+        </p>
+      </SectionCard>
     </>
   );
 }

@@ -103,7 +103,7 @@ export function Layout() {
                 className={`dw-nav-link ${isActive(item.to) ? "active" : ""}`}
               >
                 <Icon name={item.icon} filled={isActive(item.to)} size={18} />
-                <span className="flex-1">{t(item.key)}</span>
+                <span className="flex-1 min-w-0 truncate">{t(item.key)}</span>
                 {count != null && count > 0 && (
                   <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-surface-container-high text-secondary">
                     {count}

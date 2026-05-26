@@ -9,7 +9,9 @@ use crate::term::session_persist::{
     workspace_paths_equal_for_session, SessionSnapshot,
 };
 use anycode_agent::AgentRuntime;
-use anycode_core::{AgentType, DiskTaskOutput, Message, MessageContent, MessageRole, TurnOutput};
+use anycode_core::{
+    AgentType, DiskTaskOutput, Message, MessageContent, MessageRole, TaskBudget, TurnOutput,
+};
 use anycode_dashboard::RunSessionKind;
 use fluent_bundle::FluentArgs;
 use std::collections::HashMap;
@@ -174,6 +176,7 @@ pub(crate) async fn run_line_repl_turn(
         Some(coop),
         &session.tool_deny_names,
         &session.tool_deny_prefixes,
+        repl_budget_from_env(),
     );
     let exec_res = if let Some(ref rec) = session.dashboard_recorder {
         crate::dashboard_record::run_with_dashboard_tail_arc(
@@ -302,11 +305,27 @@ pub(crate) async fn append_user_spawn_turn(
             Some(coop),
             &deny_names,
             &deny_prefixes,
+            repl_budget_from_env(),
         )
         .await
         .map_err(anyhow::Error::from)
     });
     Ok((handle, exec_prev_len))
+}
+
+fn repl_budget_from_env() -> TaskBudget {
+    TaskBudget {
+        token_budget_total: std::env::var("ANYCODE_TASK_TOKEN_BUDGET")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok()),
+        cost_budget_usd: std::env::var("ANYCODE_TASK_COST_BUDGET_USD")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok()),
+        max_duration_secs: std::env::var("ANYCODE_TASK_MAX_DURATION_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok()),
+        ..TaskBudget::default()
+    }
 }
 
 pub(crate) fn format_session_list_for_repl() -> String {

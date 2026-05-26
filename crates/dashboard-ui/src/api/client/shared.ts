@@ -15,6 +15,14 @@ export interface SessionListOpts {
   projectId?: string;
 }
 
+export interface ProjectsListOpts {
+  limit?: number;
+  offset?: number;
+  q?: string;
+  status?: string;
+  sort?: "updated_at_desc" | "updated_at_asc" | "name_asc" | "name_desc" | "sessions_desc";
+}
+
 export interface EventListOpts {
   eventType?: string;
   severity?: string;

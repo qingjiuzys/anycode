@@ -5,7 +5,6 @@ import { api } from "@/api/client";
 import { EventTimeline } from "@/components/EventTimeline";
 import { DataHealthPanel } from "@/components/DataHealthPanel";
 import { GateRunnerPanel } from "@/components/GateRunnerPanel";
-import { ProjectTriggerRunPanel } from "@/components/ProjectTriggerRunPanel";
 import { Icon } from "@/components/Icon";
 import { ProjectInsightCharts } from "@/components/ProjectInsightCharts";
 import { ProjectTokenUsage } from "@/components/ProjectTokenUsage";
@@ -162,7 +161,6 @@ export function ProjectDetailPage() {
       {reindex.isSuccess && (
         <p className="text-sm text-secondary m-0">
           {t("projectDetail.reindexResult")
-            .replace("{tasks}", String(reindex.data.ingested_tasks))
             .replace("{skills}", String(reindex.data.skills_synced))}
         </p>
       )}
@@ -209,7 +207,19 @@ export function ProjectDetailPage() {
       {stats.data?.stats && <ProjectInsightCharts stats={stats.data.stats} />}
 
       <ProjectTokenUsage projectId={projectId} />
-      <ProjectTriggerRunPanel projectId={projectId} />
+
+      <SectionCard title={t("projectDetail.startTaskTitle")}>
+        <p className="text-sm text-secondary m-0 mb-3">{t("projectDetail.startTaskHint")}</p>
+        <Link
+          to="/conversations"
+          search={{ project: projectId }}
+          className="dw-btn-primary inline-flex items-center gap-2 no-underline"
+        >
+          <Icon name="forum" size={16} />
+          {t("projectDetail.openConversations")}
+        </Link>
+      </SectionCard>
+
       <GateRunnerPanel projectId={projectId} />
 
       {(stats.data?.stats?.recent_failures ?? []).length > 0 && (

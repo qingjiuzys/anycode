@@ -92,16 +92,13 @@ pub async fn reindex_project(
                     root_path: p.root_path.clone(),
                     name: Some(p.name),
                     description: Some(p.description),
+                    create_root: None,
                 })
                 .await;
             let mut paths = state.workspace_paths.clone();
             if !paths.iter().any(|r| r == &p.root_path) {
                 paths.push(p.root_path.clone());
             }
-            let ingested =
-                crate::ingest::ingest_recent_disk_tasks(&state.db, &state.tasks_root, &paths)
-                    .await
-                    .unwrap_or(0);
             let skills = crate::skills_scan::sync_skills_to_db(&state.db, &paths)
                 .await
                 .unwrap_or(0);
@@ -109,7 +106,7 @@ pub async fn reindex_project(
                 &state.db,
                 crate::audit::AuditEventInput::low(
                     "project_reindex_requested",
-                    json!({ "ingested_tasks": ingested, "skills_synced": skills }),
+                    json!({ "skills_synced": skills }),
                 )
                 .with_project(&project_id),
             )
@@ -117,7 +114,6 @@ pub async fn reindex_project(
             Json(json!({
                 "ok": true,
                 "project_id": project_id,
-                "ingested_tasks": ingested,
                 "skills_synced": skills,
             }))
             .into_response()

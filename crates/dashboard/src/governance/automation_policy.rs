@@ -226,6 +226,7 @@ mod tests {
                 root_path: "/tmp/auto".into(),
                 name: Some("Auto".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -271,8 +272,8 @@ mod tests {
             .await
             .unwrap();
         assert!(
-            audit.iter().any(|e| e.action == "notification_local_log"),
-            "expected notification audit entry"
+            audit.iter().any(|e| e.action == "gate_failed"),
+            "expected gate_failed notification audit entry"
         );
     }
 }

@@ -119,7 +119,7 @@ pub async fn finish_repl_turn(
 ) {
     recorder.ingest_full_log(disk, task_id).await;
     recorder.finish_run(disk, task_id, summary).await;
-    std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+    clear_dashboard_session_env_if_not_sticky();
 }
 
 /// Finish and clear dashboard fields on a REPL session.
@@ -130,11 +130,11 @@ pub async fn finish_repl_session(
 ) {
     let Some(rec) = session.dashboard_recorder.take() else {
         session.dashboard_task_id = None;
-        std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+        clear_dashboard_session_env_if_not_sticky();
         return;
     };
     let Some(task_id) = session.dashboard_task_id.take() else {
-        std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
+        clear_dashboard_session_env_if_not_sticky();
         return;
     };
     let mut r = rec.lock().await;
@@ -165,6 +165,17 @@ fn repl_task(agent: &str, prompt: &str, working_dir: &str, task_id: Uuid) -> Tas
         },
         created_at: chrono::Utc::now(),
     }
+}
+
+fn clear_dashboard_session_env_if_not_sticky() {
+    if std::env::var("ANYCODE_DASHBOARD_SESSION_STICKY")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
+        return;
+    }
+    std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
 }
 
 fn truncate(s: &str, max: usize) -> String {

@@ -5,7 +5,11 @@ import type {
   ProjectEvent,
   ReportDocument,
   SessionDetail,
+  SessionFacetsResponse,
   SessionReplaySummary,
+  SessionTraceResponse,
+  SessionTranscriptResponse,
+  ExecutionLogResponse,
   SessionWithProject,
   TokenUsageDetail,
   TokenUsageStats,
@@ -23,6 +27,7 @@ export const sessionsClient = {
     if (opts?.projectId) q.set("project_id", opts.projectId);
     return get<{ sessions: SessionWithProject[] }>(`/api/sessions?${q}`);
   },
+  sessionFacets: () => get<{ facets: SessionFacetsResponse }>("/api/sessions/facets"),
   sessionsByKind: (kind: string, limit = 50) =>
     get<{ sessions: SessionWithProject[] }>(
       `/api/sessions?limit=${limit}&kind=${encodeURIComponent(kind)}`,
@@ -63,6 +68,24 @@ export const sessionsClient = {
     get<{ report: ReportDocument }>(`/api/sessions/${sessionId}/report`),
   sessionReplay: (sessionId: string) =>
     get<{ replay: SessionReplaySummary }>(`/api/sessions/${sessionId}/replay`),
+  sessionTrace: (sessionId: string) =>
+    get<{ trace: SessionTraceResponse }>(`/api/sessions/${sessionId}/trace`),
+  sessionTranscript: (sessionId: string) =>
+    get<{ transcript: SessionTranscriptResponse }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/transcript`,
+    ),
+  sessionExecutionLog: (
+    sessionId: string,
+    opts?: { offset?: number; limit?: number },
+  ) => {
+    const q = new URLSearchParams();
+    if (opts?.offset != null) q.set("offset", String(opts.offset));
+    if (opts?.limit != null) q.set("limit", String(opts.limit));
+    const qs = q.toString();
+    return get<{ execution_log: ExecutionLogResponse }>(
+      `/api/sessions/${sessionId}/execution-log${qs ? `?${qs}` : ""}`,
+    );
+  },
   recentReports: (opts?: {
     projectId?: string;
     sessionId?: string;

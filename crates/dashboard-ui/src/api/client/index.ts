@@ -8,6 +8,7 @@ export type {
   ArtifactListOpts,
   AuthUser,
   EventListOpts,
+  ProjectsListOpts,
   SessionListOpts,
 } from "./shared";
 

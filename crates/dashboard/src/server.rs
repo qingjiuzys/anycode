@@ -2,7 +2,6 @@ use crate::api::{self, state::AppState};
 use crate::auth_session::SessionStore;
 use crate::db::DashboardDb;
 use crate::events::EventBus;
-use crate::ingest::ingest_recent_disk_tasks;
 use crate::skills_scan::sync_skills_to_db;
 use anyhow::{Context, Result};
 use axum::Router;
@@ -43,6 +42,7 @@ pub fn default_db_path() -> PathBuf {
 }
 
 pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Result<()> {
+    crate::control::task_trigger::init_default_anycode_bin();
     let db = DashboardDb::open(&config.db_path)
         .await
         .context("open dashboard database")?;
@@ -57,11 +57,6 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
         if stats.projects_count == 0 && !workspace_paths.is_empty() {
             info!("empty database — auto-scanning workspace projects");
             let _ = db.sync_workspace_paths(&workspace_paths).await;
-            if let Ok(n) = ingest_recent_disk_tasks(&db, &tasks_root, &workspace_paths).await {
-                if n > 0 {
-                    info!(count = n, "auto-ingested recent task logs on first boot");
-                }
-            }
             let _ = sync_skills_to_db(&db, &workspace_paths).await;
         }
     }
@@ -70,11 +65,23 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
         Ok(_) => {}
         Err(e) => tracing::warn!(error = %e, "skills scan skipped"),
     }
-    if tasks_root.is_dir() {
-        match ingest_recent_disk_tasks(&db, &tasks_root, &workspace_paths).await {
-            Ok(n) if n > 0 => info!(count = n, "ingested recent task logs"),
-            Ok(_) => {}
-            Err(e) => tracing::warn!(error = %e, "task log ingest skipped"),
+    let swept =
+        crate::approval_ipc::sweep_stale_pending(crate::approval_ipc::STALE_PENDING_MAX_AGE_SECS);
+    if swept > 0 {
+        info!(count = swept, "swept stale pending tool approval files");
+    }
+    let swept_active = crate::cancel_ipc::sweep_stale_active();
+    if swept_active > 0 {
+        info!(
+            count = swept_active,
+            "swept stale active session registrations"
+        );
+    }
+    if let Ok(running) = db.list_running_sessions(500).await {
+        for session in running {
+            if !crate::cancel_ipc::is_active(&session.id) {
+                let _ = db.cancel_running_session(&session.id).await;
+            }
         }
     }
     let events = Arc::new(EventBus::new());
@@ -112,6 +119,7 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
         db,
         events,
         sessions: SessionStore::default(),
+        web_chat: crate::control::web_chat::WebChatHub::default(),
         version: config.version.clone(),
         static_dir,
         workspace_paths: workspace_paths.clone(),
@@ -131,6 +139,11 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
     .await;
     if let Err(e) = crate::metrics::maybe_emit_blocked_threshold_alert(&state.db).await {
         tracing::warn!(error = %e, "blocked threshold alert skipped");
+    }
+    if let Ok(n) = state.db.sweep_stale_pending_sessions(5).await {
+        if n > 0 {
+            tracing::info!(count = n, "swept stale pending sessions");
+        }
     }
     let app = api::router(state);
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
@@ -155,6 +168,7 @@ pub async fn app_for_test(db_path: &Path) -> Result<Router> {
         db,
         events: Arc::new(EventBus::new()),
         sessions: SessionStore::default(),
+        web_chat: crate::control::web_chat::WebChatHub::default(),
         version: "test".into(),
         static_dir: None,
         workspace_paths: vec![],

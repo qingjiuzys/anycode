@@ -1,14 +1,7 @@
 //! On-demand verification gate execution for project workspaces.
 
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Stdio;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
-use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatePreset {
@@ -26,25 +19,36 @@ pub struct GateExecuteResult {
     pub elapsed_ms: u64,
 }
 
+fn is_rust_project(root: &Path) -> bool {
+    root.join("Cargo.toml").is_file()
+        || root.join("Cargo.lock").is_file()
+        || root.join("rust-toolchain.toml").is_file()
+}
+
 #[must_use]
 pub fn list_presets(project_root: &Path) -> Vec<GatePreset> {
-    let mut presets = vec![
-        GatePreset {
-            id: "cargo_test".into(),
-            name: "cargo test".into(),
-            command: "cargo test --workspace --quiet".into(),
-        },
-        GatePreset {
-            id: "cargo_clippy".into(),
-            name: "cargo clippy".into(),
-            command: "cargo clippy --workspace --all-targets -- -D warnings".into(),
-        },
-        GatePreset {
-            id: "cargo_fmt".into(),
-            name: "cargo fmt check".into(),
-            command: "cargo fmt --all -- --check".into(),
-        },
-    ];
+    let mut presets = Vec::new();
+
+    if is_rust_project(project_root) {
+        presets.extend([
+            GatePreset {
+                id: "cargo_fmt".into(),
+                name: "cargo fmt check".into(),
+                command: "cargo fmt --all -- --check".into(),
+            },
+            GatePreset {
+                id: "cargo_clippy".into(),
+                name: "cargo clippy".into(),
+                command: "cargo clippy --workspace --all-targets -- -D warnings".into(),
+            },
+            GatePreset {
+                id: "cargo_test".into(),
+                name: "cargo test".into(),
+                command: "cargo test --workspace --quiet".into(),
+            },
+        ]);
+    }
+
     if project_root.join("package.json").is_file() {
         presets.push(GatePreset {
             id: "npm_test".into(),
@@ -61,15 +65,48 @@ pub fn list_presets(project_root: &Path) -> Vec<GatePreset> {
             });
         }
     }
+
     if project_root.join("pubspec.yaml").is_file() {
+        presets.extend([
+            GatePreset {
+                id: "flutter_analyze".into(),
+                name: "flutter analyze".into(),
+                command: "flutter analyze".into(),
+            },
+            GatePreset {
+                id: "flutter_test".into(),
+                name: "flutter test".into(),
+                command: "flutter test".into(),
+            },
+        ]);
+    }
+
+    if project_root.join("go.mod").is_file() {
         presets.push(GatePreset {
-            id: "flutter_test".into(),
-            name: "flutter test".into(),
-            command: "flutter test".into(),
+            id: "go_test".into(),
+            name: "go test".into(),
+            command: "go test ./...".into(),
         });
     }
+
+    if project_root.join("pyproject.toml").is_file() || project_root.join("pytest.ini").is_file() {
+        presets.push(GatePreset {
+            id: "pytest".into(),
+            name: "pytest".into(),
+            command: "pytest -q".into(),
+        });
+    }
+
     presets
 }
+
+use anyhow::{Context, Result};
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use tokio::sync::mpsc;
 
 pub async fn execute_gate(
     project_root: &Path,
@@ -222,5 +259,18 @@ mod tests {
         std::fs::write(dir.path().join("package.json"), "{}").unwrap();
         let ids: Vec<_> = list_presets(dir.path()).into_iter().map(|p| p.id).collect();
         assert!(ids.contains(&"npm_test".to_string()));
+        assert!(!ids.contains(&"cargo_test".to_string()));
+    }
+
+    #[test]
+    fn presets_include_cargo_when_cargo_toml() {
+        let dir = tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            "[package]\nname=\"x\"\nversion=\"0.1.0\"\n",
+        )
+        .unwrap();
+        let ids: Vec<_> = list_presets(dir.path()).into_iter().map(|p| p.id).collect();
+        assert!(ids.contains(&"cargo_test".to_string()));
     }
 }

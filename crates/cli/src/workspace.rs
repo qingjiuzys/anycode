@@ -65,10 +65,39 @@ fn load_index() -> Index {
     if !ip.is_file() {
         return Index::default();
     }
-    fs::read_to_string(&ip)
-        .ok()
-        .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
+    let raw = match fs::read_to_string(&ip) {
+        Ok(s) => s,
+        Err(_) => return Index::default(),
+    };
+    if let Ok(idx) = serde_json::from_str::<Index>(&raw) {
+        return idx;
+    }
+    if let Some(idx) = parse_index_prefix(&raw) {
+        let _ = repair_index_file(&ip, &idx);
+        return idx;
+    }
+    Index::default()
+}
+
+fn parse_index_prefix(raw: &str) -> Option<Index> {
+    let trimmed = raw.trim();
+    for end in (1..=trimmed.len()).rev() {
+        if let Ok(idx) = serde_json::from_str::<Index>(&trimmed[..end]) {
+            return Some(idx);
+        }
+    }
+    None
+}
+
+fn repair_index_file(path: &Path, idx: &Index) -> anyhow::Result<()> {
+    let tmp = path.with_extension("json.tmp");
+    {
+        let mut f = fs::File::create(&tmp)?;
+        serde_json::to_writer_pretty(&mut f, idx)?;
+        f.flush()?;
+    }
+    fs::rename(&tmp, path)?;
+    Ok(())
 }
 
 /// 将 `path` 登记到 `projects/index.json`（去重、按 `last_seen` 排序、截断）；失败仅打 debug 日志。
@@ -279,5 +308,28 @@ mod tests {
         let back: Index = serde_json::from_str(&j).unwrap();
         assert_eq!(back.projects.len(), 1);
         assert_eq!(back.projects[0].path, "/tmp/proj");
+    }
+
+    #[test]
+    fn load_index_tolerates_trailing_garbage() {
+        let dir = tempfile::tempdir().unwrap();
+        let ip = dir.path().join("index.json");
+        fs::write(
+            &ip,
+            r#"{
+  "projects": [
+    { "path": "/tmp/demo", "last_seen": "2026-05-24T00:00:00Z" }
+  ]
+}   }
+  ]
+}"#,
+        )
+        .unwrap();
+        let idx = fs::read_to_string(&ip)
+            .ok()
+            .and_then(|raw| parse_index_prefix(&raw))
+            .unwrap_or_default();
+        assert_eq!(idx.projects.len(), 1);
+        assert_eq!(idx.projects[0].path, "/tmp/demo");
     }
 }

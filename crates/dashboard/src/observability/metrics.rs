@@ -664,17 +664,19 @@ fn csv_escape(s: &str) -> String {
     }
 }
 
-fn blocked_alert_threshold() -> i64 {
+fn blocked_alert_threshold() -> Option<i64> {
     std::env::var("ANYCODE_DASHBOARD_BLOCKED_ALERT_THRESHOLD")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(0)
+        .filter(|&t| t >= 0)
 }
 
 /// Emit at most one `blocked_threshold_exceeded` notification per hour when blocked sessions exceed threshold.
 pub async fn maybe_emit_blocked_threshold_alert(db: &DashboardDb) -> Result<()> {
+    let Some(threshold) = blocked_alert_threshold() else {
+        return Ok(());
+    };
     let stats = db.overview_stats().await?;
-    let threshold = blocked_alert_threshold();
     if stats.sessions_blocked <= threshold {
         return Ok(());
     }
@@ -755,6 +757,7 @@ mod tests {
                 root_path: "/tmp/m".into(),
                 name: Some("M".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -807,6 +810,7 @@ mod tests {
                 root_path: "/tmp/blocked".into(),
                 name: Some("B".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();

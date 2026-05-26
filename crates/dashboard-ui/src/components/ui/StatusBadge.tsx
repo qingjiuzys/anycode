@@ -53,6 +53,40 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+type SessionStatusProps = {
+  status: string;
+  trustedStatus: string;
+  pendingApprovalCount?: number;
+};
+
+/** Prefer blocked/trust over lifecycle status when both apply. Failed tasks show 失败, not 阻断. */
+export function SessionStatusBadges({
+  status,
+  trustedStatus,
+  pendingApprovalCount = 0,
+}: SessionStatusProps) {
+  const t = useT();
+  const showFailed = status === "failed";
+  const showBlocked = trustedStatus === "blocked" && !showFailed;
+  const showPending = pendingApprovalCount > 0 && status === "running";
+  const showRunning = status === "running" && !showBlocked && !showFailed;
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {showFailed && <StatusBadge status="failed" />}
+      {showBlocked && <StatusBadge status="blocked" />}
+      {showPending && <StatusBadge status="warn" />}
+      {showRunning && <StatusBadge status="running" />}
+      {!showFailed && !showBlocked && !showRunning && status !== "running" && (
+        <StatusBadge status={status} />
+      )}
+      {showBlocked && status === "running" && (
+        <span className="text-[10px] text-secondary">{t("conversations.statusRunningNote")}</span>
+      )}
+    </span>
+  );
+}
+
 export function TrustBar({ score }: { score: number }) {
   const pct = Math.round(score * 100);
   const color =

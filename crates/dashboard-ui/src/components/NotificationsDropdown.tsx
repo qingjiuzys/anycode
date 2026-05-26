@@ -26,7 +26,7 @@ export function NotificationsDropdown() {
 
   const items = feed.data?.notifications ?? [];
   const blockedCount = overview.data?.overview.sessions_blocked ?? 0;
-  const badgeCount = blockedCount + items.length;
+  const badgeCount = items.length;
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -67,7 +67,10 @@ export function NotificationsDropdown() {
             </Link>
           </div>
           {blockedCount > 0 && (
-            <div className="px-4 py-2 border-b border-outline-variant">
+            <div className="px-4 py-2 border-b border-outline-variant bg-error/5">
+              <div className="text-[10px] uppercase tracking-wide text-secondary mb-1">
+                {t("notifications.blockedSessions")}
+              </div>
               <Link
                 to="/conversations"
                 search={{ filter: "blocked" }}
@@ -76,6 +79,7 @@ export function NotificationsDropdown() {
               >
                 {t("home.insightBlocked").replace("{n}", String(blockedCount))}
               </Link>
+              <p className="text-[10px] text-secondary m-0 mt-1">{t("notifications.blockedHint")}</p>
             </div>
           )}
           {feed.isLoading && (

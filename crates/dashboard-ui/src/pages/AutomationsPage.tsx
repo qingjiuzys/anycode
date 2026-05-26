@@ -20,7 +20,7 @@ export function AutomationsPage() {
   const [policyType, setPolicyType] = useState("gate_block");
   const [policyEnabled, setPolicyEnabled] = useState(true);
 
-  const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects });
+  const projects = useQuery({ queryKey: ["projects"], queryFn: () => api.projects({ limit: 500 }) });
   const workflow = useQuery({
     queryKey: ["automation-sessions", "workflow"],
     queryFn: () => api.sessionsByKind("workflow", 40),

@@ -14,7 +14,7 @@ The **Digital Workbench** is a local web UI for anyCode projects: sessions (`run
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
 
 # Release binary with embedded UI (recommended)
-cargo build --release -p anycode --features embedded-ui
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
 anycode dashboard --open
 ```
 
@@ -66,7 +66,7 @@ Sidebar shows **workspace card**, **nav badge counts**, and **topbar search**. O
 
 ```bash
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
-cargo build --release -p anycode --features embedded-ui
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
 ```
 
 Release embeds UI via `embedded-ui` when `dist/` exists at compile time. Dev fallback: serve `crates/dashboard-ui/dist` from disk.
@@ -93,6 +93,7 @@ Release embeds UI via `embedded-ui` when `dist/` exists at compile time. Dev fal
 |----------|---------|
 | `GET /api/events/{event_id}` | Single event detail |
 | `GET /api/sessions?status=&trusted_status=&kind=` | Filtered session list |
+| `GET /api/sessions/{id}/trace` | Structured execution trace events |
 | `GET /api/projects/{id}/stats` | Event/gate/session aggregates |
 | `GET /api/artifacts?unverified_only=&blocked_session_only=` | Trust-filtered assets |
 | `GET /api/projects/{id}/report` | Project Markdown/JSON report |
@@ -130,6 +131,8 @@ anycode dashboard status          # Quick status
 anycode dashboard token create    # API token for non-loopback
 anycode dashboard db check        # Migrations, table sizes, growth warnings
 anycode dashboard db backup       # Copy projects.db
+anycode memory prune --dry-run    # Preview retention pruning
+anycode memory prune --apply      # Apply retention pruning
 ```
 
 ## Reports
@@ -161,6 +164,9 @@ On a project detail page, **Rebuild index** ingests historical task logs under t
 | `ANYCODE_DASHBOARD_INPUT_USD_PER_M` | Input token $/M for cost estimate (default 3) |
 | `ANYCODE_DASHBOARD_OUTPUT_USD_PER_M` | Output token $/M for cost estimate (default 15) |
 | `ANYCODE_DASHBOARD_BLOCKED_ALERT_THRESHOLD` | Emit `blocked_threshold_exceeded` when blocked sessions exceed N (default 0) |
+| `ANYCODE_TASK_TOKEN_BUDGET` / `ANYCODE_TASK_COST_BUDGET_USD` | Optional runtime budgets for REPL/nested paths |
+| `ANYCODE_MCP_STRICT` / `ANYCODE_MCP_ALLOWED_TOOLS` | Strict MCP allowlist governance |
+| `ANYCODE_MCP_MAX_CALLS_PER_SERVER` | Per-process MCP call quota per server |
 | `GITHUB_TOKEN` / `ANYCODE_GITHUB_TOKEN` | GitHub API token for connector issue preview |
 
 CLI flags: `anycode dashboard --host`, `--port`, `--db`, `--static-dir`, `--open`. Saved preferences apply when flags are omitted.

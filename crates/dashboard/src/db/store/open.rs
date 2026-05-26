@@ -1,7 +1,7 @@
 use super::DashboardDb;
 use crate::schema::{LOCAL_ORG_ID, LOCAL_USER_ID};
 use anyhow::{Context, Result};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -16,7 +16,9 @@ impl DashboardDb {
         let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", path.display()))?
             .create_if_missing(true)
             .foreign_keys(true)
-            .busy_timeout(Duration::from_secs(5));
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
+            .busy_timeout(Duration::from_secs(15));
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect_with(options)
@@ -24,6 +26,7 @@ impl DashboardDb {
         sqlx::migrate!("./migrations").run(&pool).await?;
         let db = Self { pool, path };
         db.ensure_local_org().await?;
+        let _ = db.repair_project_identity().await?;
         Ok(db)
     }
 

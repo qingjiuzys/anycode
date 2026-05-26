@@ -41,27 +41,7 @@ impl McpProxiedTool {
     }
 
     fn governance_check(&self) -> Result<(), CoreError> {
-        if mcp_strict_enabled()
-            && !mcp_tool_allowed(&self.server_slug, &self.logical_name, &self.mcp_tool_name)
-        {
-            return Err(CoreError::PermissionDenied(format!(
-                "MCP strict mode denied {} (server={}, tool={})",
-                self.logical_name, self.server_slug, self.mcp_tool_name
-            )));
-        }
-        if let Some(max) = mcp_max_calls_per_server() {
-            let counts = MCP_SERVER_COUNTS.get_or_init(|| Mutex::new(HashMap::new()));
-            let mut counts = counts.lock().expect("mcp server call counts");
-            let count = counts.entry(self.server_slug.clone()).or_insert(0);
-            if *count >= max {
-                return Err(CoreError::PermissionDenied(format!(
-                    "MCP server {} exceeded call quota {} (set ANYCODE_MCP_MAX_CALLS_PER_SERVER to adjust)",
-                    self.server_slug, max
-                )));
-            }
-            *count += 1;
-        }
-        Ok(())
+        mcp_governance_check(&self.server_slug, &self.logical_name, &self.mcp_tool_name)
     }
 }
 
@@ -93,6 +73,30 @@ impl Tool for McpProxiedTool {
             .call_tool_named(&self.mcp_tool_name, input.input.clone())
             .await
     }
+}
+
+pub(crate) fn mcp_governance_check(
+    server: &str,
+    logical_name: &str,
+    mcp_tool_name: &str,
+) -> Result<(), CoreError> {
+    if mcp_strict_enabled() && !mcp_tool_allowed(server, logical_name, mcp_tool_name) {
+        return Err(CoreError::PermissionDenied(format!(
+            "MCP strict mode denied {logical_name} (server={server}, tool={mcp_tool_name})"
+        )));
+    }
+    if let Some(max) = mcp_max_calls_per_server() {
+        let counts = MCP_SERVER_COUNTS.get_or_init(|| Mutex::new(HashMap::new()));
+        let mut counts = counts.lock().expect("mcp server call counts");
+        let count = counts.entry(server.to_string()).or_insert(0);
+        if *count >= max {
+            return Err(CoreError::PermissionDenied(format!(
+                "MCP server {server} exceeded call quota {max} (set ANYCODE_MCP_MAX_CALLS_PER_SERVER to adjust)"
+            )));
+        }
+        *count += 1;
+    }
+    Ok(())
 }
 
 fn mcp_strict_enabled() -> bool {

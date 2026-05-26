@@ -1,8 +1,47 @@
 use super::*;
 
-pub async fn list_projects(State(state): State<AppState>) -> impl IntoResponse {
-    match state.db.list_projects().await {
-        Ok(projects) => Json(json!({ "projects": projects })).into_response(),
+#[derive(Deserialize)]
+pub struct ProjectsQuery {
+    #[serde(default = "default_projects_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+    pub q: Option<String>,
+    pub status: Option<String>,
+    #[serde(default = "default_projects_sort")]
+    pub sort: String,
+}
+
+fn default_projects_limit() -> i64 {
+    100
+}
+
+fn default_projects_sort() -> String {
+    "updated_at_desc".into()
+}
+
+pub async fn list_projects(
+    State(state): State<AppState>,
+    Query(q): Query<ProjectsQuery>,
+) -> impl IntoResponse {
+    match state
+        .db
+        .list_projects_paged(
+            q.q.as_deref(),
+            q.status.as_deref(),
+            q.limit,
+            q.offset,
+            &q.sort,
+        )
+        .await
+    {
+        Ok((projects, total)) => Json(json!({
+            "projects": projects,
+            "total": total,
+            "limit": q.limit.clamp(1, 500),
+            "offset": q.offset.max(0),
+        }))
+        .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
@@ -34,22 +73,50 @@ pub async fn upsert_project(
     State(state): State<AppState>,
     Json(req): Json<UpsertProjectRequest>,
 ) -> impl IntoResponse {
+    let root = req.root_path.trim();
+    if root.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "root_path is required" })),
+        )
+            .into_response();
+    }
+    let root_path = match crate::project_root::ensure_project_root(
+        std::path::Path::new(root),
+        req.create_root.unwrap_or(false),
+    ) {
+        Ok(path) => path,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+    let req = UpsertProjectRequest {
+        root_path: root_path.display().to_string(),
+        name: req.name,
+        description: req.description,
+        create_root: req.create_root,
+    };
     match state.db.upsert_project(req).await {
         Ok(p) => Json(json!({ "project": p })).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => {
+            let msg = e.to_string();
+            let status = if msg.contains("does not exist") || msg.contains("root_path") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (status, Json(json!({ "error": msg }))).into_response()
+        }
     }
 }
 
 pub async fn scan_projects(State(state): State<AppState>) -> impl IntoResponse {
-    let paths = state.workspace_paths.clone();
+    let paths = crate::workspace_index::collect_scan_workspace_paths();
     let registered = state.db.sync_workspace_paths(&paths).await.unwrap_or(0);
-    let ingested = crate::ingest::ingest_recent_disk_tasks(&state.db, &state.tasks_root, &paths)
-        .await
-        .unwrap_or(0);
     let skills = skills_scan::sync_skills_to_db(&state.db, &paths)
         .await
         .unwrap_or(0);
@@ -59,7 +126,6 @@ pub async fn scan_projects(State(state): State<AppState>) -> impl IntoResponse {
             "projects_scan_requested",
             json!({
                 "projects_registered": registered,
-                "ingested_tasks": ingested,
                 "skills_synced": skills,
             }),
         ),
@@ -68,7 +134,6 @@ pub async fn scan_projects(State(state): State<AppState>) -> impl IntoResponse {
     Json(json!({
         "ok": true,
         "projects_registered": registered,
-        "ingested_tasks": ingested,
         "skills_synced": skills,
     }))
     .into_response()
@@ -94,6 +159,41 @@ pub async fn get_project_data_health(
 ) -> impl IntoResponse {
     match crate::data_health::project_health(&state.db, &project_id).await {
         Ok(health) => Json(json!({ "health": health })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PatchProjectStatusRequest {
+    pub status: String,
+}
+
+pub async fn patch_project_status(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Json(body): Json<PatchProjectStatusRequest>,
+) -> impl IntoResponse {
+    let status = body.status.trim();
+    if status.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "status is required" })),
+        )
+            .into_response();
+    }
+    match state.db.set_project_status(&project_id, status).await {
+        Ok(true) => {
+            Json(json!({ "ok": true, "project_id": project_id, "status": status })).into_response()
+        }
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "project not found" })),
+        )
+            .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
@@ -175,7 +275,7 @@ pub async fn trigger_project_run(
         }
     };
     let root = std::path::PathBuf::from(&project.root_path);
-    match crate::task_trigger::trigger_run(&project_id, &root, body).await {
+    match crate::task_trigger::trigger_run(&project_id, &root, body, None, None).await {
         Ok(trigger) => {
             let _ = crate::audit::record_audit(
                 &state.db,

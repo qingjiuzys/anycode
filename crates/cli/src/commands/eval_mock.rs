@@ -281,6 +281,8 @@ struct MockScenarioRun {
 struct TrajectoryExpect {
     required_tools: &'static [&'static str],
     forbidden_tools: &'static [&'static str],
+    required_events: &'static [&'static str],
+    forbidden_events: &'static [&'static str],
     max_tool_calls: Option<usize>,
     max_repeated_tool_calls: Option<usize>,
     max_total_tokens: Option<u32>,
@@ -427,6 +429,7 @@ fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
 fn verify_trajectory(home: &Path, expect: TrajectoryExpect) -> Result<String, String> {
     let events = read_eval_trace_events(home)?;
     let mut tool_counts: HashMap<String, usize> = HashMap::new();
+    let mut event_counts: HashMap<String, usize> = HashMap::new();
     let mut total_tool_calls = 0usize;
     let mut total_tokens = 0u32;
     for event in &events {
@@ -435,6 +438,9 @@ fn verify_trajectory(home: &Path, expect: TrajectoryExpect) -> Result<String, St
             .and_then(|v| v.as_str())
             .unwrap_or_default();
         let payload = event.get("payload").unwrap_or(&Value::Null);
+        if !event_type.is_empty() {
+            *event_counts.entry(event_type.to_string()).or_default() += 1;
+        }
         if event_type == "tool_call_end" {
             total_tool_calls += 1;
             if let Some(name) = payload.get("name").and_then(|v| v.as_str()) {
@@ -456,6 +462,16 @@ fn verify_trajectory(home: &Path, expect: TrajectoryExpect) -> Result<String, St
     for tool in expect.forbidden_tools {
         if tool_counts.contains_key(*tool) {
             return Err(format!("forbidden tool {tool} was called"));
+        }
+    }
+    for event in expect.required_events {
+        if !event_counts.contains_key(*event) {
+            return Err(format!("required event {event} was not emitted"));
+        }
+    }
+    for event in expect.forbidden_events {
+        if event_counts.contains_key(*event) {
+            return Err(format!("forbidden event {event} was emitted"));
         }
     }
     if let Some(max) = expect.max_tool_calls {
@@ -630,6 +646,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 expect_marker: "MOCK_EVAL_greet_0",
                 extra_output_contains: &[],
                 trajectory: TrajectoryExpect {
+                    required_events: &["llm_response_end"],
+                    forbidden_events: &["budget_exceeded", "gate"],
                     max_tool_calls: Some(0),
                     max_repeated_tool_calls: Some(1),
                     max_total_tokens: Some(32),
@@ -652,6 +670,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 trajectory: TrajectoryExpect {
                     required_tools: &["Bash"],
                     forbidden_tools: &["FileWrite"],
+                    required_events: &["tool_call_end", "llm_response_end"],
+                    forbidden_events: &["budget_exceeded", "gate"],
                     max_tool_calls: Some(1),
                     max_repeated_tool_calls: Some(1),
                     max_total_tokens: Some(64),
@@ -677,6 +697,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 trajectory: TrajectoryExpect {
                     required_tools: &["FileRead"],
                     forbidden_tools: &["Bash", "FileWrite", "Edit"],
+                    required_events: &["tool_call_end", "llm_response_end"],
+                    forbidden_events: &["budget_exceeded", "gate"],
                     max_tool_calls: Some(3),
                     max_repeated_tool_calls: Some(3),
                     max_total_tokens: Some(64),
@@ -698,6 +720,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 trajectory: TrajectoryExpect {
                     required_tools: &["Bash"],
                     forbidden_tools: &["FileWrite"],
+                    required_events: &["tool_call_end", "llm_response_end"],
+                    forbidden_events: &["budget_exceeded", "gate"],
                     max_tool_calls: Some(1),
                     max_repeated_tool_calls: Some(1),
                     max_total_tokens: Some(64),

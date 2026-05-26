@@ -5,6 +5,11 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
 pub fn preferences_path() -> PathBuf {
+    if let Ok(path) = std::env::var("ANYCODE_DASHBOARD_PREFERENCES_PATH") {
+        if !path.trim().is_empty() {
+            return PathBuf::from(path);
+        }
+    }
     std::env::var("HOME")
         .map(|h| {
             PathBuf::from(h)

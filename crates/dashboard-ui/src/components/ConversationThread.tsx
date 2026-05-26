@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useRef } from "react";
 import { Link } from "@tanstack/react-router";
-import type { ProjectEvent, SessionWithProject } from "@/api/types";
+import type { SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
+import { ConversationTranscript } from "@/components/ConversationTranscript";
 import { PendingApprovalBadge, SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { Icon } from "@/components/Icon";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { SessionStatusBadges } from "@/components/ui/StatusBadge";
+import { ConversationCompose } from "@/components/ConversationCompose";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
 
@@ -50,14 +52,24 @@ export function ConversationSessionList({
                     count={pendingCounts?.get(s.id)}
                   />
                 </span>
-                <StatusBadge status={s.status} />
+                <SessionStatusBadges
+                  status={s.status}
+                  trustedStatus={s.trusted_status}
+                  pendingApprovalCount={pendingCounts?.get(s.id)}
+                />
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-secondary">
                 <span>{s.kind}</span>
                 <span>·</span>
-                <StatusBadge status={s.trusted_status} />
-                <span>·</span>
                 <span title={s.started_at}>{formatRelativeTime(s.started_at)}</span>
+                {s.block_reason && (
+                  <>
+                    <span>·</span>
+                    <span className="text-error line-clamp-1" title={s.block_reason}>
+                      {s.block_reason}
+                    </span>
+                  </>
+                )}
               </div>
             </button>
           </li>
@@ -69,16 +81,13 @@ export function ConversationSessionList({
 
 export function ConversationThread({
   session,
-  events,
-  loading,
+  onFollowUpStarted,
 }: {
   session: SessionWithProject | null;
-  events: ProjectEvent[];
-  loading: boolean;
+  onFollowUpStarted?: (sessionId: string) => void;
 }) {
   const t = useT();
-
-  const messages = useMemo(() => groupEvents(events), [events]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   if (!session) {
     return (
@@ -99,6 +108,15 @@ export function ConversationThread({
               {session.kind} · {formatDuration(session.started_at, session.ended_at)} ·{" "}
               {session.agent_type || "—"}
             </p>
+            <div className="mt-1">
+              <SessionStatusBadges
+                status={session.status}
+                trustedStatus={session.trusted_status}
+              />
+            </div>
+            {session.block_reason && (
+              <p className="text-xs text-error m-0 mt-1">{session.block_reason}</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <CancelSessionButton sessionId={session.id} status={session.status} compact />
@@ -119,105 +137,19 @@ export function ConversationThread({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {loading && <p className="text-sm text-secondary">{t("common.loading")}</p>}
-        {!loading && messages.length === 0 && (
-          <p className="text-sm text-secondary">{t("conversations.noMessages")}</p>
-        )}
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`max-w-[92%] rounded-lg px-3 py-2 text-sm ${
-              m.role === "user"
-                ? "ml-auto bg-primary text-on-primary"
-                : m.role === "error"
-                  ? "bg-error-container text-on-error-container border border-error/20"
-                  : "bg-surface-container-low border border-outline-variant"
-            }`}
-          >
-            <div className="text-[10px] uppercase font-semibold opacity-70 mb-1">{m.label}</div>
-            <div className="whitespace-pre-wrap break-words">{m.body}</div>
-            <div className="text-[10px] opacity-60 mt-1 flex items-center gap-2">
-              <time>{formatRelativeTime(m.at)}</time>
-              {m.eventId && (
-                <Link
-                  to="/events/$eventId"
-                  params={{ eventId: m.eventId }}
-                  className={m.role === "user" ? "text-on-primary underline" : "text-primary"}
-                >
-                  {t("common.details")}
-                </Link>
-              )}
-            </div>
-          </div>
-        ))}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
+        <div className="px-4 py-6 max-w-4xl mx-auto w-full">
+          <ConversationTranscript
+            sessionId={session.id}
+            isRunning={session.status === "running"}
+            scrollContainerRef={scrollRef}
+          />
+        </div>
       </div>
 
       <div className="px-4 py-3 border-t border-outline-variant bg-surface-container-low shrink-0">
-        <p className="text-xs text-secondary m-0">{t("conversations.readOnlyHint")}</p>
+        <ConversationCompose session={session} onSent={onFollowUpStarted} />
       </div>
     </div>
   );
-}
-
-interface ThreadMessage {
-  id: string;
-  role: "user" | "assistant" | "tool" | "error" | "system";
-  label: string;
-  body: string;
-  at: string;
-  eventId?: string;
-}
-
-function groupEvents(events: ProjectEvent[]): ThreadMessage[] {
-  const conversationTypes = new Set([
-    "user_prompt",
-    "prompt",
-    "assistant_response",
-    "tool_call_start",
-    "tool_call_end",
-    "tool_approval_pending",
-    "tool_approval_resolved",
-    "tool_denied",
-    "task_start",
-    "task_end",
-  ]);
-  const sorted = [...events]
-    .filter(
-      (e) =>
-        conversationTypes.has(e.event_type) ||
-        e.event_type.includes("user") ||
-        e.event_type.includes("assistant") ||
-        e.severity === "error",
-    )
-    .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
-  return sorted.map((e) => {
-    let role: ThreadMessage["role"] = "system";
-    if (e.event_type.includes("user") || e.event_type === "prompt" || e.event_type === "user_prompt") {
-      role = "user";
-    } else if (e.event_type.startsWith("tool_call")) role = "tool";
-    else if (e.severity === "error" || e.event_type === "tool_denied") role = "error";
-    else if (
-      e.event_type === "tool_approval_pending" ||
-      e.event_type === "tool_approval_resolved"
-    ) {
-      role = "system";
-    }
-    else if (
-      e.event_type.includes("assistant") ||
-      e.event_type === "assistant_response"
-    ) {
-      role = "assistant";
-    }
-
-    const body = (e.body || e.title).trim();
-    return {
-      id: e.id,
-      role,
-      label: e.event_type,
-      body: body.length > 2000 ? `${body.slice(0, 2000)}…` : body,
-      at: e.occurred_at,
-      eventId: e.id,
-    };
-  });
 }

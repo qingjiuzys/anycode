@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
@@ -10,7 +10,11 @@ import { HomeTokenUsage } from "@/components/HomeTokenUsage";
 import { HomeSavedHoursKpi } from "@/components/HomeSavedHoursKpi";
 import { HomeTimelineChart } from "@/components/HomeTimelineChart";
 import { SecurityActivityPanel } from "@/components/SecurityActivityPanel";
-import { SecurityApprovalInbox, PendingApprovalBadge, usePendingApprovalCounts } from "@/components/SecurityApprovalInbox";
+import {
+  SecurityApprovalInbox,
+  PendingApprovalBadge,
+  usePendingApprovalCounts,
+} from "@/components/SecurityApprovalInbox";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
 import { WorkspacePathsPanel } from "@/components/WorkspacePathsPanel";
 import { MetricsChart } from "@/components/MetricsChart";
@@ -20,6 +24,7 @@ import { WorkbenchStatusCard } from "@/components/WorkbenchStatusCard";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TrustBar } from "@/components/ui/StatusBadge";
+import { Icon } from "@/components/Icon";
 import { useSseStatus } from "@/context/SseContext";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
 import { useT } from "@/i18n/context";
@@ -29,10 +34,18 @@ export function HomePage() {
   const t = useT();
   const sseStatus = useSseStatus();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
   const overview = useQuery({ queryKey: ["overview"], queryFn: api.overview });
-  const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects });
-  const sessions = useQuery({ queryKey: ["all-sessions"], queryFn: () => api.allSessions() });
+  const projects = useQuery({
+    queryKey: ["projects", "home-top"],
+    queryFn: () => api.projects({ limit: 8, sort: "updated_at_desc" }),
+  });
+  const sessions = useQuery({
+    queryKey: ["all-sessions", "home-recent"],
+    queryFn: () => api.allSessions({ limit: 8 }),
+  });
   const recent = useQuery({ queryKey: ["recent-events"], queryFn: api.recentEvents });
   const running = useQuery({
     queryKey: ["running-sessions"],
@@ -41,8 +54,16 @@ export function HomePage() {
   });
   const dataHealth = useQuery({ queryKey: ["data-health"], queryFn: api.dataHealth });
   const readiness = useQuery({ queryKey: ["delivery-readiness"], queryFn: api.deliveryReadiness });
-  const timeline = useQuery({ queryKey: ["timeline-metrics"], queryFn: () => api.timelineMetrics(7) });
-  const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: api.bootstrap });
+  const timeline = useQuery({
+    queryKey: ["timeline-metrics"],
+    queryFn: () => api.timelineMetrics(7),
+    enabled: analyticsOpen,
+  });
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: api.bootstrap,
+    enabled: workbenchOpen,
+  });
   const { counts: pendingCounts, pendingTotal } = usePendingApprovalCounts();
 
   if (health.isError) {
@@ -67,7 +88,9 @@ export function HomePage() {
           <>
             <span>{t("layout.localMode")}</span>
             <span className="text-outline-variant">•</span>
-            <span className="truncate max-w-xs">{t("home.dbLabel")}: {health.data?.db_path ?? "…"}</span>
+            <span className="truncate max-w-xs">
+              {t("home.dbLabel")}: {health.data?.db_path ?? "…"}
+            </span>
             <span className="text-outline-variant">•</span>
             <span>v{health.data?.version ?? "…"}</span>
             <span className="text-outline-variant">•</span>
@@ -89,7 +112,7 @@ export function HomePage() {
       {ov && ov.sessions_blocked > 0 && (
         <div className="dw-alert-error text-sm">
           {t("home.blockedAlert").replace("{n}", String(ov.sessions_blocked))}{" "}
-          <Link to="/conversations" search={{ filter: "blocked" }} className="underline">
+          <Link to="/conversations" search={{ trusted: "blocked" }} className="underline">
             {t("home.blockedAlertAction")}
           </Link>
         </div>
@@ -98,30 +121,59 @@ export function HomePage() {
       {pendingTotal > 0 && (
         <div className="rounded-lg border border-warn/30 bg-warn/10 text-sm px-4 py-3 mb-4">
           {t("home.pendingApprovalAlert").replace("{n}", String(pendingTotal))}{" "}
-          <Link to="/conversations" search={{ filter: "needs_approval" }} className="underline">
+          <Link to="/conversations" search={{ status: "running", needs_approval: true }} className="underline">
             {t("home.pendingApprovalAction")}
           </Link>
         </div>
       )}
 
-      <DataHealthPanel health={dataHealth.data?.health} compact />
-      <DeliveryReadinessCard readiness={readiness.data?.readiness} compact />
-      <HomeQuickActions onNewProject={() => setNewProjectOpen(true)} />
-      <WorkbenchStatusCard bootstrap={bootstrap.data?.bootstrap} />
-      <WorkspacePathsPanel bootstrap={bootstrap.data?.bootstrap} />
+      {ov && ov.sessions_budget_exceeded > 0 && (
+        <div className="rounded-lg border border-warn/30 bg-warn/10 text-sm px-4 py-3 mb-4">
+          {t("home.budgetExceededAlert").replace("{n}", String(ov.sessions_budget_exceeded))}{" "}
+          <Link to="/conversations" className="underline">
+            {t("home.budgetExceededAction")}
+          </Link>
+        </div>
+      )}
 
-      {steps.length > 0 && (
-        <SectionCard title={t("home.nextSteps")}>
-          <ul className="m-0 pl-5 text-sm text-secondary space-y-1">
-            {steps.map((step) => (
-              <li key={step}>{translateBootstrapStep(t, step)}</li>
-            ))}
-          </ul>
+      {ov && (ov.sessions_blocked > 0 || pendingTotal > 0 || ov.sessions_budget_exceeded > 0) && (
+        <SectionCard title={t("home.opsSummary")}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <StatCard
+              label={t("home.stats.blocked")}
+              value={ov.sessions_blocked}
+              danger={ov.sessions_blocked > 0}
+              to="/conversations"
+              search={{ trusted: "blocked" }}
+            />
+            <StatCard
+              label={t("home.pendingApprovals")}
+              value={pendingTotal}
+              highlight={pendingTotal > 0}
+              to="/conversations"
+              search={{ status: "running", needs_approval: true }}
+            />
+            <StatCard
+              label={t("home.budgetExceeded")}
+              value={ov.sessions_budget_exceeded}
+              highlight={ov.sessions_budget_exceeded > 0}
+              to="/conversations"
+            />
+          </div>
         </SectionCard>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DataHealthPanel health={dataHealth.data?.health} compact />
+        <DeliveryReadinessCard readiness={readiness.data?.readiness} compact />
+      </div>
+
+      <HomeQuickActions onNewProject={() => setNewProjectOpen(true)} />
+
+      {pendingTotal > 0 && <SecurityApprovalInbox compact hideWhenEmpty />}
+
       {ov && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label={t("home.stats.projects")} value={ov.projects_count} to="/projects" primary />
           <StatCard label={t("home.stats.sessions")} value={ov.sessions_total} to="/conversations" />
           <StatCard
@@ -129,43 +181,57 @@ export function HomePage() {
             value={ov.sessions_running}
             highlight={ov.sessions_running > 0}
             to="/conversations"
-            search={{ filter: "running" }}
+            search={{ status: "running" }}
           />
           <StatCard
             label={t("home.stats.blocked")}
             value={ov.sessions_blocked}
             danger={ov.sessions_blocked > 0}
             to="/conversations"
-            search={{ filter: "blocked" }}
+            search={{ trusted: "blocked" }}
           />
-          <StatCard label={t("home.stats.failedGates")} value={ov.gates_failed} danger={ov.gates_failed > 0} />
-          <StatCard label={t("home.stats.skills")} value={ov.skills_count} to="/agents" />
-          <StatCard label={t("home.stats.events1h")} value={ov.events_last_hour} />
         </div>
       )}
 
       <HomeInsightCards overview={ov} readiness={readiness.data?.readiness} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HomeTokenUsage />
-        <HomeSavedHoursKpi />
-      </div>
-      <SecurityApprovalInbox />
-      <SecurityActivityPanel />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-5">
-          <SectionCard title={t("home.timeline7d")} noPadding>
-            <HomeTimelineChart timeline={timeline.data?.timeline} />
-          </SectionCard>
-        </div>
-        <div className="lg:col-span-7">
-          <SectionCard title={t("home.projectMetrics")} noPadding>
-            <div className="p-4">
-              <MetricsChart projects={list} />
-            </div>
-          </SectionCard>
-        </div>
-      </div>
+      {(running.data?.sessions ?? []).length > 0 && (
+        <SectionCard title={t("home.running")} noPadding>
+          <div className="overflow-x-auto">
+            <table className="dw-table">
+              <thead>
+                <tr>
+                  <th>{t("assets.project")}</th>
+                  <th>{t("conversations.titleCol")}</th>
+                  <th>{t("conversations.type")}</th>
+                  <th>{t("conversations.trust")}</th>
+                  <th>{t("common.actions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(running.data?.sessions ?? []).slice(0, 5).map((s) => (
+                  <tr key={s.id}>
+                    <td>{s.project_name}</td>
+                    <td>
+                      <Link to="/sessions/$sessionId" params={{ sessionId: s.id }}>
+                        {s.title}
+                        <PendingApprovalBadge sessionId={s.id} count={pendingCounts.get(s.id)} />
+                      </Link>
+                    </td>
+                    <td className="text-secondary">{s.kind}</td>
+                    <td>
+                      <StatusBadge status={s.trusted_status} />
+                    </td>
+                    <td>
+                      <CancelSessionButton sessionId={s.id} status={s.status} compact />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7">
@@ -220,84 +286,6 @@ export function HomePage() {
             </div>
           </SectionCard>
         </div>
-      </div>
-
-      {(running.data?.sessions ?? []).length > 0 && (
-        <SectionCard title={t("home.running")} noPadding>
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("assets.project")}</th>
-                  <th>{t("conversations.titleCol")}</th>
-                  <th>{t("conversations.type")}</th>
-                  <th>{t("conversations.trust")}</th>
-                  <th>{t("common.actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(running.data?.sessions ?? []).map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.project_name}</td>
-                    <td>
-                      <Link to="/sessions/$sessionId" params={{ sessionId: s.id }}>
-                        {s.title}
-                        <PendingApprovalBadge
-                          sessionId={s.id}
-                          count={pendingCounts.get(s.id)}
-                        />
-                      </Link>
-                    </td>
-                    <td className="text-secondary">{s.kind}</td>
-                    <td>
-                      <StatusBadge status={s.trusted_status} />
-                    </td>
-                    <td>
-                      <CancelSessionButton sessionId={s.id} status={s.status} compact />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7">
-          <SectionCard title={t("home.recentSessions")} noPadding>
-            <div className="overflow-x-auto">
-              <table className="dw-table">
-                <thead>
-                  <tr>
-                    <th>{t("assets.project")}</th>
-                    <th>{t("conversations.titleCol")}</th>
-                    <th>{t("common.status")}</th>
-                    <th>{t("conversations.trust")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(sessions.data?.sessions ?? []).slice(0, 8).map((s) => (
-                    <tr key={s.id}>
-                      <td className="text-secondary">{s.project_name}</td>
-                      <td>
-                        <Link to="/sessions/$sessionId" params={{ sessionId: s.id }}>
-                          {s.title}
-                        </Link>
-                      </td>
-                      <td>
-                        <StatusBadge status={s.status} />
-                      </td>
-                      <td>
-                        <StatusBadge status={s.trusted_status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SectionCard>
-        </div>
         <div className="lg:col-span-5">
           <SectionCard
             title={t("home.liveEvents")}
@@ -316,7 +304,7 @@ export function HomePage() {
             }
           >
             <div className="dw-timeline">
-              {(recent.data?.events ?? []).slice(0, 8).map((e, i, arr) => (
+              {(recent.data?.events ?? []).slice(0, 6).map((e, i, arr) => (
                 <div key={e.id} className="dw-timeline-item">
                   {i < arr.length - 1 && <div className="dw-timeline-line" />}
                   <div className="dw-timeline-node info" />
@@ -338,7 +326,107 @@ export function HomePage() {
           </SectionCard>
         </div>
       </div>
+
+      <SectionCard title={t("home.recentSessions")} noPadding>
+        <div className="overflow-x-auto">
+          <table className="dw-table">
+            <thead>
+              <tr>
+                <th>{t("assets.project")}</th>
+                <th>{t("conversations.titleCol")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("conversations.trust")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(sessions.data?.sessions ?? []).map((s) => (
+                <tr key={s.id}>
+                  <td className="text-secondary">{s.project_name}</td>
+                  <td>
+                    <Link to="/conversations" search={{ session: s.id, project: s.project_id }}>
+                      {s.title}
+                    </Link>
+                  </td>
+                  <td>
+                    <StatusBadge status={s.status} />
+                  </td>
+                  <td>
+                    <StatusBadge status={s.trusted_status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      <CollapsibleSection
+        title={t("home.analyticsSection")}
+        open={analyticsOpen}
+        onToggle={() => setAnalyticsOpen((v) => !v)}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <HomeTokenUsage />
+          <HomeSavedHoursKpi />
+        </div>
+        <SecurityActivityPanel />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <SectionCard title={t("home.timeline7d")} noPadding>
+            <HomeTimelineChart timeline={timeline.data?.timeline} />
+          </SectionCard>
+          <SectionCard title={t("home.projectMetrics")} noPadding>
+            <div className="p-4">
+              <MetricsChart projects={list} />
+            </div>
+          </SectionCard>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title={t("home.workbenchSection")}
+        open={workbenchOpen}
+        onToggle={() => setWorkbenchOpen((v) => !v)}
+      >
+        <WorkbenchStatusCard bootstrap={bootstrap.data?.bootstrap} />
+        <WorkspacePathsPanel bootstrap={bootstrap.data?.bootstrap} />
+        {steps.length > 0 && (
+          <SectionCard title={t("home.nextSteps")}>
+            <ul className="m-0 pl-5 text-sm text-secondary space-y-1">
+              {steps.map((step) => (
+                <li key={step}>{translateBootstrapStep(t, step)}</li>
+              ))}
+            </ul>
+          </SectionCard>
+        )}
+        <SecurityApprovalInbox />
+      </CollapsibleSection>
     </>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="dw-section-card">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-2 px-4 py-3 border-0 bg-transparent cursor-pointer text-left"
+      >
+        <h3 className="dw-section-title m-0">{title}</h3>
+        <Icon name={open ? "expand_less" : "expand_more"} size={18} />
+      </button>
+      {open && <div className="px-4 pb-4 space-y-4">{children}</div>}
+    </div>
   );
 }
 
@@ -354,27 +442,32 @@ function StatCard({
   label: string;
   value: number;
   to?: string;
-  search?: { filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval" };
+  search?: {
+    status?: string;
+    trusted?: string;
+    needs_approval?: boolean;
+    filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval";
+  };
   primary?: boolean;
   highlight?: boolean;
   danger?: boolean;
 }) {
   const inner = (
     <div className="dw-stat-card">
-      <span className="dw-stat-label">{label}</span>
-      <span
-        className={`dw-stat-value ${primary ? "text-primary" : ""} ${danger ? "text-error" : ""} ${highlight ? "text-success" : ""}`}
+      <div className="text-xs text-secondary">{label}</div>
+      <div
+        className={`text-2xl font-semibold font-code ${
+          danger ? "text-error" : highlight ? "text-warn" : primary ? "text-primary" : ""
+        }`}
       >
         {value}
-      </span>
+      </div>
     </div>
   );
-  if (to) {
-    return (
-      <Link to={to} search={search} className="no-underline hover:opacity-90">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
+  if (!to) return inner;
+  return (
+    <Link to={to} search={search} className="no-underline">
+      {inner}
+    </Link>
+  );
 }

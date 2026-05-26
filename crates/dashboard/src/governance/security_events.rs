@@ -113,6 +113,7 @@ mod tests {
                 root_path: dir.path().to_string_lossy().into(),
                 name: Some("sec-test".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();

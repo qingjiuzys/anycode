@@ -5,12 +5,25 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
 
-export function SessionReplayPanel({ replay }: { replay: SessionReplaySummary }) {
+export function SessionReplayPanel({
+  replay,
+  traceEventCount,
+  traceSource,
+}: {
+  replay: SessionReplaySummary;
+  traceEventCount?: number;
+  traceSource?: string;
+}) {
   const t = useT();
 
   return (
     <>
       <SectionCard title={t("session.replaySummary")}>
+        {traceSource && (
+          <p className="text-xs text-secondary mt-0 mb-3">
+            {t("session.traceSource").replace("{source}", traceSource)}
+          </p>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <MiniStat label={t("session.trust")} value={replay.trusted_status} badge />
           <MiniStat label={t("common.status")} value={replay.status} badge />
@@ -31,6 +44,9 @@ export function SessionReplayPanel({ replay }: { replay: SessionReplaySummary })
             value={String(replay.tool_calls_count ?? 0)}
           />
           <MiniStat label={t("session.budget")} value={replay.budget_status ?? "ok"} badge />
+          {typeof traceEventCount === "number" && (
+            <MiniStat label={t("session.traceEvents")} value={String(traceEventCount)} />
+          )}
         </div>
 
         {replay.last_error && (

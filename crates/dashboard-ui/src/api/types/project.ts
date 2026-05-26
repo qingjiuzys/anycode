@@ -22,6 +22,14 @@ export interface ProjectSummary {
   sessions_count: number;
   artifacts_count: number;
   updated_at: string;
+  root_exists?: boolean;
+}
+
+export interface ProjectsListResponse {
+  projects: ProjectSummary[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ProjectStatsFailure {

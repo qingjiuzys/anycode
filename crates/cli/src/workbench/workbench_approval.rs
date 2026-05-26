@@ -191,3 +191,23 @@ impl ApprovalCallback for WorkbenchApprovalCallback {
         Ok(false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_web_decision_allow_tool_persists() {
+        let cb = WorkbenchApprovalCallback::web_and_cli();
+        assert!(cb.apply_web_decision("Bash", "allow_once"));
+        assert!(cb.apply_web_decision("Glob", "allow_tool"));
+        assert!(!cb.apply_web_decision("Edit", "deny"));
+    }
+
+    #[tokio::test]
+    async fn tui_channel_does_not_require_session_env() {
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        let cb = WorkbenchApprovalCallback::with_tui_channel(tx);
+        assert!(cb.session_id().is_none());
+    }
+}

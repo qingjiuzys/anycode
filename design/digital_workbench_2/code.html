@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>项目详情 - Digital Workbench</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Utility classes for specific component styles */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 16px;
+            letter-spacing: 0.01em;
+        }
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .section-card {
+            background-color: #FFFFFF;
+            border: 1px solid #c3c6d7;
+            border-radius: 4px;
+        }
+        .data-table-header th {
+            background-color: #f2f3ff;
+            border-bottom: 1px solid #c3c6d7;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#dae2fd",
+                        "on-primary-container": "#eeefff",
+                        "inverse-on-surface": "#eef0ff",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "surface": "#faf8ff",
+                        "primary": "#004ac6",
+                        "primary-container": "#2563eb",
+                        "outline-variant": "#c3c6d7",
+                        "on-tertiary-fixed": "#360f00",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#b4c5ff",
+                        "surface-bright": "#faf8ff",
+                        "on-surface-variant": "#434655",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-container-low": "#f2f3ff",
+                        "inverse-surface": "#283044",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "surface-variant": "#dae2fd",
+                        "on-secondary-fixed": "#0b1c30",
+                        "on-primary-fixed": "#00174b",
+                        "surface-tint": "#0053db",
+                        "secondary": "#505f76",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "tertiary": "#943700",
+                        "on-tertiary-container": "#ffede6",
+                        "surface-container-high": "#e2e7ff",
+                        "on-tertiary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dbe1ff",
+                        "secondary-container": "#d0e1fb",
+                        "background": "#faf8ff",
+                        "on-surface": "#131b2e",
+                        "tertiary-container": "#bc4800",
+                        "outline": "#737686",
+                        "tertiary-fixed": "#ffdbcd",
+                        "surface-container": "#eaedff",
+                        "surface-dim": "#d2d9f4",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-secondary-container": "#54647a",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "sidebar_width": "240px",
+                        "gutter": "16px",
+                        "xl": "32px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "xs": "4px",
+                        "sm": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "code-sm": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["18px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "code-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md antialiased h-screen flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="w-sidebar_width h-full fixed left-0 top-0 bg-surface border-r border-outline-variant flex flex-col py-lg z-50">
+<div class="px-md mb-lg">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[32px] fill">hexagon</span>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Workbench</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">v2.4.0-stable</p>
+</div>
+</div>
+<button class="w-full mt-md bg-primary-container text-on-primary-container font-label-md text-label-md py-sm px-md rounded flex items-center justify-center gap-xs hover:bg-primary transition-colors">
+<span class="material-symbols-outlined text-[16px]">search</span>
+                Global Search
+            </button>
+</div>
+<div class="flex-1 overflow-y-auto">
+<ul class="space-y-base px-sm">
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                        Overview
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT bg-surface-container-high text-primary border-l-2 border-primary font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined fill">folder</span>
+                        Projects
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">chat</span>
+                        Conversations
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">settings_suggest</span>
+                        Automations
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                        Assets
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+                        Reports
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">verified_user</span>
+                        Audit
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">robot_2</span>
+                        Agents/Skills
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+                        Settings
+                    </a>
+</li>
+</ul>
+</div>
+<div class="px-sm mt-auto border-t border-outline-variant pt-md">
+<ul class="space-y-base">
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">description</span>
+                        Documentation
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant hover:bg-surface-container transition-colors duration-150 ease-in-out font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+                        Support
+                    </a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col ml-sidebar_width h-full overflow-hidden">
+<!-- TopNavBar -->
+<header class="bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-lg sticky top-0 z-40 transition-all duration-200">
+<div class="flex items-center gap-md">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Digital Workbench</span>
+<div class="h-6 w-px bg-outline-variant mx-sm"></div>
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+<input class="w-full bg-surface-container-low border-none rounded pl-8 pr-3 py-1.5 font-body-sm text-body-sm focus:ring-1 focus:ring-primary outline-none" placeholder="Search..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors">Support</button>
+<div class="flex items-center gap-sm text-on-surface-variant">
+<button class="hover:text-primary transition-colors flex items-center"><span class="material-symbols-outlined text-[20px]">notifications</span></button>
+<button class="hover:text-primary transition-colors flex items-center"><span class="material-symbols-outlined text-[24px]">account_circle</span></button>
+</div>
+<button class="bg-primary text-on-primary font-label-md text-label-md px-md py-sm rounded hover:bg-primary-container transition-colors">New Project</button>
+</div>
+</header>
+<!-- Page Canvas -->
+<main class="flex-1 overflow-y-auto bg-background p-lg relative">
+<!-- Alert Bar -->
+<div class="bg-error-container border border-error/20 rounded-DEFAULT p-md mb-lg flex items-start gap-md">
+<span class="material-symbols-outlined text-error mt-0.5">error</span>
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-error-container font-medium">必需门禁失败: 项目目前处于 BLOCKED 状态，需人工复盘资产。</p>
+</div>
+<button class="text-on-error-container/70 hover:text-on-error-container"><span class="material-symbols-outlined">close</span></button>
+</div>
+<!-- Page Header -->
+<div class="mb-lg flex justify-between items-end">
+<div>
+<nav class="flex items-center text-on-surface-variant font-body-sm text-body-sm mb-sm gap-xs">
+<a class="hover:text-primary" href="#">项目</a>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-on-surface">digital-workbench</span>
+</nav>
+<div class="flex items-center gap-md">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">digital-workbench</h2>
+<div class="status-badge bg-error/10 text-error border border-error/20">
+<span class="status-dot bg-error"></span>
+                            BLOCKED
+                        </div>
+</div>
+</div>
+<div class="flex gap-sm">
+<button class="bg-surface border border-outline-variant text-on-surface font-label-md text-label-md px-md py-[6px] rounded hover:bg-surface-container-low transition-colors">重建索引</button>
+<button class="bg-surface border border-outline-variant text-on-surface font-label-md text-label-md px-md py-[6px] rounded hover:bg-surface-container-low transition-colors">索引资产</button>
+<button class="bg-surface border border-outline-variant text-on-surface font-label-md text-label-md px-md py-[6px] rounded hover:bg-surface-container-low transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">download</span>生成报告
+                    </button>
+</div>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-4 gap-md mb-lg">
+<div class="section-card p-md">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-md text-label-md text-secondary">Readiness Score</span>
+<span class="material-symbols-outlined text-outline text-[16px]">speed</span>
+</div>
+<div class="font-headline-md text-headline-md text-on-surface">85%</div>
+<div class="mt-xs w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 85%"></div>
+</div>
+</div>
+<div class="section-card p-md">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-md text-label-md text-secondary">7d Events</span>
+<span class="material-symbols-outlined text-outline text-[16px]">monitoring</span>
+</div>
+<div class="font-headline-md text-headline-md text-on-surface">1.2k</div>
+<div class="mt-xs font-body-sm text-body-sm text-error flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +12%
+                    </div>
+</div>
+<div class="section-card p-md">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-md text-label-md text-secondary">Gate Pass Rate</span>
+<span class="material-symbols-outlined text-outline text-[16px]">rule</span>
+</div>
+<div class="font-headline-md text-headline-md text-on-surface">92%</div>
+<div class="mt-xs font-body-sm text-body-sm text-primary flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> Stable
+                    </div>
+</div>
+<div class="section-card p-md border-error/50 bg-error/5">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-md text-label-md text-error">Unverified Assets</span>
+<span class="material-symbols-outlined text-error text-[16px]">warning</span>
+</div>
+<div class="font-headline-md text-headline-md text-error">3</div>
+<div class="mt-xs font-body-sm text-body-sm text-on-surface-variant">Requires manual review</div>
+</div>
+</div>
+<!-- Content Area - 2 Columns -->
+<div class="grid grid-cols-3 gap-lg mb-lg">
+<!-- Left Column (Span 2) -->
+<div class="col-span-2 space-y-lg">
+<!-- SessionFlow Pipeline -->
+<div class="section-card p-0 overflow-hidden">
+<div class="px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h3 class="font-label-md text-label-md text-on-surface font-semibold">SessionFlow Pipeline</h3>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Last 5 sessions</span>
+</div>
+<div class="p-md bg-surface flex items-center gap-sm overflow-x-auto">
+<!-- Pipeline visualization -->
+<div class="flex-shrink-0 flex flex-col items-center gap-xs">
+<div class="w-8 h-8 rounded-full bg-error-container text-error flex items-center justify-center border border-error/20">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</div>
+<span class="font-code-sm text-code-sm text-on-surface-variant">s-8a2f</span>
+</div>
+<div class="flex-shrink-0 w-8 h-px bg-outline-variant"></div>
+<div class="flex-shrink-0 flex flex-col items-center gap-xs">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<span class="font-code-sm text-code-sm text-on-surface-variant">s-7b1c</span>
+</div>
+<div class="flex-shrink-0 w-8 h-px bg-outline-variant"></div>
+<div class="flex-shrink-0 flex flex-col items-center gap-xs">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+<span class="font-code-sm text-code-sm text-on-surface-variant">s-6c9d</span>
+</div>
+<div class="flex-shrink-0 w-8 h-px bg-outline-variant"></div>
+<div class="flex-shrink-0 flex flex-col items-center gap-xs">
+<div class="w-8 h-8 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+</div>
+<span class="font-code-sm text-code-sm text-on-surface-variant">s-5d4e</span>
+</div>
+</div>
+</div>
+<!-- 最近会话 Table -->
+<div class="section-card overflow-hidden">
+<div class="px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h3 class="font-label-md text-label-md text-on-surface font-semibold">最近会话</h3>
+<button class="font-label-md text-label-md text-primary hover:underline">View All</button>
+</div>
+<table class="w-full text-left font-body-sm text-body-sm">
+<thead class="data-table-header text-on-surface-variant font-label-md text-label-md">
+<tr>
+<th class="py-sm px-md font-medium">Session ID</th>
+<th class="py-sm px-md font-medium">Status</th>
+<th class="py-sm px-md font-medium">Duration</th>
+<th class="py-sm px-md font-medium">Created</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant text-on-surface">
+<tr class="hover:bg-surface-container-lowest">
+<td class="py-sm px-md font-code-sm text-code-sm text-primary">sess_8a2f9b1c</td>
+<td class="py-sm px-md">
+<div class="status-badge bg-error/10 text-error">
+<span class="status-dot bg-error"></span>Failed
+                                        </div>
+</td>
+<td class="py-sm px-md">45s</td>
+<td class="py-sm px-md text-on-surface-variant">10m ago</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest">
+<td class="py-sm px-md font-code-sm text-code-sm">sess_7b1c4d2e</td>
+<td class="py-sm px-md">
+<div class="status-badge bg-primary/10 text-primary">
+<span class="status-dot bg-primary"></span>Success
+                                        </div>
+</td>
+<td class="py-sm px-md">1m 12s</td>
+<td class="py-sm px-md text-on-surface-variant">1h ago</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest">
+<td class="py-sm px-md font-code-sm text-code-sm">sess_6c9d3e1f</td>
+<td class="py-sm px-md">
+<div class="status-badge bg-primary/10 text-primary">
+<span class="status-dot bg-primary"></span>Success
+                                        </div>
+</td>
+<td class="py-sm px-md">2m 05s</td>
+<td class="py-sm px-md text-on-surface-variant">3h ago</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Right Column (Span 1) -->
+<div class="col-span-1 space-y-lg">
+<!-- 验收门禁 Table -->
+<div class="section-card overflow-hidden">
+<div class="px-md py-sm border-b border-outline-variant bg-surface-container-low">
+<h3 class="font-label-md text-label-md text-on-surface font-semibold">验收门禁</h3>
+</div>
+<ul class="divide-y divide-outline-variant font-body-sm text-body-sm">
+<li class="p-md flex items-start justify-between bg-error/5">
+<div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="material-symbols-outlined text-error text-[16px]">cancel</span>
+<span class="font-medium text-on-surface">Asset Verification</span>
+</div>
+<p class="text-on-surface-variant text-[11px]">3 unverified assets detected.</p>
+</div>
+<span class="bg-surface-container text-on-surface-variant text-[10px] px-1.5 py-0.5 rounded font-mono uppercase">Required</span>
+</li>
+<li class="p-md flex items-start justify-between">
+<div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+<span class="font-medium text-on-surface">Code Quality</span>
+</div>
+<p class="text-on-surface-variant text-[11px]">Passed all linting rules.</p>
+</div>
+<span class="bg-surface-container text-on-surface-variant text-[10px] px-1.5 py-0.5 rounded font-mono uppercase">Required</span>
+</li>
+<li class="p-md flex items-start justify-between">
+<div>
+<div class="flex items-center gap-xs mb-xs">
+<span class="material-symbols-outlined text-outline text-[16px]">radio_button_unchecked</span>
+<span class="font-medium text-on-surface">Performance Test</span>
+</div>
+<p class="text-on-surface-variant text-[11px]">Pending execution.</p>
+</div>
+<span class="text-outline text-[10px] px-1.5 py-0.5 font-mono uppercase">Optional</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Event Timeline -->
+<div class="section-card mb-lg">
+<div class="px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h3 class="font-label-md text-label-md text-on-surface font-semibold">Event Timeline</h3>
+<div class="flex gap-sm">
+<select class="bg-surface border border-outline-variant rounded px-2 py-1 font-body-sm text-body-sm text-on-surface focus:ring-primary focus:border-primary">
+<option>All Types</option>
+<option>System</option>
+<option>User</option>
+</select>
+<select class="bg-surface border border-outline-variant rounded px-2 py-1 font-body-sm text-body-sm text-on-surface focus:ring-primary focus:border-primary">
+<option>All Severity</option>
+<option>Error</option>
+<option>Info</option>
+</select>
+</div>
+</div>
+<div class="p-md pl-lg relative">
+<div class="absolute left-10 top-md bottom-md w-[2px] bg-outline-variant"></div>
+<div class="relative pl-xl mb-md">
+<div class="absolute left-[-5px] top-1 w-3 h-3 rounded-full bg-surface border-2 border-error z-10"></div>
+<div class="flex justify-between items-start mb-xs">
+<span class="font-label-md text-label-md font-semibold text-error">Gate Check Failed</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">10:42 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface">Asset verification failed for 3 newly indexed components.</p>
+</div>
+<div class="relative pl-xl mb-md">
+<div class="absolute left-[-5px] top-1 w-3 h-3 rounded-full bg-surface border-2 border-primary z-10"></div>
+<div class="flex justify-between items-start mb-xs">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Session Completed</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">09:15 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface">Session sess_7b1c4d2e finished successfully.</p>
+</div>
+<div class="relative pl-xl">
+<div class="absolute left-[-5px] top-1 w-3 h-3 rounded-full bg-surface border-2 border-outline z-10"></div>
+<div class="flex justify-between items-start mb-xs">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Index Rebuild Started</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Yesterday</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface">Manual trigger by system admin.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface border-t border-outline-variant flex justify-between items-center py-md px-lg text-secondary font-label-md text-label-md transition-colors duration-200">
+<div class="font-bold">© 2024 Workbench Console • v2.4.0</div>
+<div class="flex gap-md">
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="hover:text-primary transition-colors" href="#">Changelog</a>
+<a class="hover:text-primary transition-colors" href="#">API Status</a>
+</div>
+</footer>
+</div>
+</body></html>

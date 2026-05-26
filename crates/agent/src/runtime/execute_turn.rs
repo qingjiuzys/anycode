@@ -5,6 +5,9 @@ use super::agentic_loop::{
     rehydrate_stream_llm_response,
 };
 use super::artifacts::extract_artifacts;
+use super::budget::{
+    record_llm_usage, tick_budget, tool_blocked_under_degrade, RuntimeBudgetState,
+};
 use super::evidence;
 use super::limits::{MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL};
 use super::memory_hooks;
@@ -44,6 +47,7 @@ impl AgentRuntime {
         coop_cancel: Option<Arc<AtomicBool>>,
         tool_deny_names: &[String],
         tool_deny_prefixes: &[String],
+        budget: TaskBudget,
     ) -> Result<TurnOutput, CoreError> {
         let logger = self.logger();
         logger.ensure_initialized(task_id);
@@ -80,6 +84,7 @@ impl AgentRuntime {
         let mut last_assistant_text = String::new();
         let mut turn_usage = TurnTokenUsage::default();
         let mut last_model_turn: usize = 1;
+        let mut budget_state = RuntimeBudgetState::new(budget);
 
         for turn in 1..=MAX_AGENT_TURNS {
             last_model_turn = turn;
@@ -90,6 +95,10 @@ impl AgentRuntime {
             if opt_coop_cancelled(&coop_cancel) {
                 logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
                 return Err(CoreError::CooperativeCancel);
+            }
+            if tick_budget(&logger, task_id, &mut budget_state) {
+                logger.line(task_id, "[task_end] status=failed reason=budget_exceeded");
+                return Err(CoreError::LLMError("budget_exceeded".into()));
             }
             logger.line(
                 task_id,
@@ -323,6 +332,10 @@ impl AgentRuntime {
                     llm_streamed
                 ),
             );
+            if record_llm_usage(&logger, task_id, &mut budget_state, &response.usage) {
+                logger.line(task_id, "[task_end] status=failed reason=budget_exceeded");
+                return Err(CoreError::LLMError("budget_exceeded".into()));
+            }
 
             // 若本轮有 tool_calls，写入 metadata 供 OpenAI 兼容 provider 重建历史
             let mut assistant_msg = response.message.clone();
@@ -347,7 +360,8 @@ impl AgentRuntime {
             };
             let text = strip_llm_reasoning_xml_blocks(raw_assistant);
             if !text.trim().is_empty() {
-                last_assistant_text = text;
+                last_assistant_text = text.clone();
+                logger.assistant_response(task_id, turn, &text);
             }
             // If we streamed, assistant message is already in `messages`; no need to push again.
             // If we didn't stream, we already replaced placeholder with `r.message` above.
@@ -417,6 +431,43 @@ impl AgentRuntime {
                     total_tool_calls,
                     &tool_call,
                 );
+                if budget_state
+                    .as_ref()
+                    .is_some_and(|s| tool_blocked_under_degrade(s, &tool_call.name))
+                {
+                    logger.line(
+                        task_id,
+                        &format!(
+                            "[tool_denied] name={} reason=budget_degrade",
+                            tool_call.name
+                        ),
+                    );
+                    let tool_result = ToolOutput {
+                        result: serde_json::json!({ "error": "tool blocked under budget degradation" }),
+                        error: Some("tool blocked under budget degradation".into()),
+                        duration_ms: 0,
+                    };
+                    tool_result_injection::log_tool_call_end(
+                        &logger,
+                        task_id,
+                        turn,
+                        total_tool_calls,
+                        &tool_call,
+                        &tool_result,
+                        0,
+                    );
+                    let prepared = tool_result_injection::prepare_tool_result_message(
+                        task_id,
+                        &tool_call,
+                        &tool_result,
+                        &logger,
+                    );
+                    {
+                        let mut g = messages.lock().await;
+                        g.push(prepared.message);
+                    }
+                    continue;
+                }
                 let t0 = std::time::Instant::now();
                 let tool_result = self
                     .execute_tool_call(task_id, working_directory, &tool_call)
@@ -532,6 +583,7 @@ impl AgentRuntime {
         .await;
 
         logger.line(task_id, "[task_end] status=completed");
+        logger.assistant_response(task_id, last_model_turn, &summary_text);
         logger.line(task_id, "== summary ==");
         for line in summary_text.lines() {
             logger.line(task_id, line);

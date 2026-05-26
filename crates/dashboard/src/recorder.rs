@@ -3,6 +3,7 @@
 use crate::db::DashboardDb;
 use crate::log_parser::{parse_line, task_end_status};
 use crate::notify;
+use crate::observability::event_tier::is_index_event_type;
 use crate::schema::{CreateSessionRequest, InsertEventRequest, ProjectEvent, UpsertProjectRequest};
 use crate::server::default_db_path;
 use anycode_core::{DiskTaskOutput, GoalProgress, Task, TaskId};
@@ -88,38 +89,97 @@ impl DashboardRecorder {
                 root_path: root_str,
                 name: None,
                 description: None,
+                create_root: None,
             })
             .await?;
-        let title = truncate(title_hint, 120);
         let metadata_json = session_metadata_json(kind, task);
-        let session = db
-            .create_session(CreateSessionRequest {
+        let prompt_preview = truncate(&task.prompt, 240);
+        let agent_type = task.agent_type.as_str().to_string();
+
+        let session = if let Ok(pre_id) = std::env::var(crate::ipc::approval_ipc::SESSION_ENV) {
+            let pre_id = pre_id.trim().to_string();
+            if !pre_id.is_empty() {
+                if let Some(existing) = db.get_session(&pre_id).await? {
+                    db.attach_task_to_session(
+                        &pre_id,
+                        &task.id.to_string(),
+                        Some(agent_type.as_str()),
+                        Some(prompt_preview.as_str()),
+                    )
+                    .await?;
+                    existing
+                } else {
+                    db.create_or_get_session_by_task_id(CreateSessionRequest {
+                        project_id: project.id.clone(),
+                        kind: kind.as_str().into(),
+                        task_id: Some(task.id.to_string()),
+                        title: truncate(title_hint, 120),
+                        prompt_preview: Some(prompt_preview.clone()),
+                        agent_type: Some(agent_type.clone()),
+                        model: None,
+                        metadata_json: metadata_json.clone(),
+                    })
+                    .await?
+                }
+            } else {
+                db.create_or_get_session_by_task_id(CreateSessionRequest {
+                    project_id: project.id.clone(),
+                    kind: kind.as_str().into(),
+                    task_id: Some(task.id.to_string()),
+                    title: truncate(title_hint, 120),
+                    prompt_preview: Some(prompt_preview.clone()),
+                    agent_type: Some(agent_type.clone()),
+                    model: None,
+                    metadata_json: metadata_json.clone(),
+                })
+                .await?
+            }
+        } else {
+            db.create_or_get_session_by_task_id(CreateSessionRequest {
                 project_id: project.id.clone(),
                 kind: kind.as_str().into(),
                 task_id: Some(task.id.to_string()),
-                title,
-                prompt_preview: Some(truncate(&task.prompt, 240)),
-                agent_type: Some(task.agent_type.as_str().to_string()),
+                title: truncate(title_hint, 120),
+                prompt_preview: Some(prompt_preview.clone()),
+                agent_type: Some(agent_type.clone()),
                 model: None,
                 metadata_json,
             })
-            .await?;
+            .await?
+        };
+
         if !task.prompt.trim().is_empty() {
-            if let Ok(evt) = db
-                .insert_event(InsertEventRequest {
-                    project_id: project.id.clone(),
-                    session_id: Some(session.id.clone()),
-                    task_id: Some(task.id.to_string()),
-                    agent_id: None,
-                    event_type: "user_prompt".into(),
-                    severity: Some("info".into()),
-                    title: "User prompt".into(),
-                    body: Some(truncate(&task.prompt, 8000)),
-                    payload: None,
-                })
-                .await
-            {
-                Self::notify_sse(evt);
+            let existing_prompt = sqlx::query_scalar::<_, i64>(
+                r#"
+                SELECT COUNT(*) FROM project_events
+                WHERE session_id = ?
+                  AND event_type = 'user_prompt'
+                  AND (task_id = ? OR body = ?)
+                "#,
+            )
+            .bind(&session.id)
+            .bind(task.id.to_string())
+            .bind(truncate(&task.prompt, 8000))
+            .fetch_one(db.pool())
+            .await
+            .unwrap_or(0);
+            if existing_prompt == 0 {
+                if let Ok(evt) = db
+                    .insert_event(InsertEventRequest {
+                        project_id: project.id.clone(),
+                        session_id: Some(session.id.clone()),
+                        task_id: Some(task.id.to_string()),
+                        agent_id: None,
+                        event_type: "user_prompt".into(),
+                        severity: Some("info".into()),
+                        title: "User prompt".into(),
+                        body: Some(truncate(&task.prompt, 8000)),
+                        payload: None,
+                    })
+                    .await
+                {
+                    Self::notify_sse(evt);
+                }
             }
         }
         if let Err(e) = crate::cancel_ipc::register_active(&session.id, &task.id.to_string()) {
@@ -228,6 +288,9 @@ impl DashboardRecorder {
             }
             // Gate rows live in `gates`; skip duplicate timeline events.
             if is_gate {
+                continue;
+            }
+            if !is_index_event_type(&parsed.event_type) {
                 continue;
             }
             if let Ok(evt) = self

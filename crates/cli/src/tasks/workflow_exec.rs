@@ -40,6 +40,16 @@ pub(super) async fn run_workflow_definition(
     workflow_path: &Path,
     user_prompt: Option<String>,
 ) -> anyhow::Result<()> {
+    let validation = crate::commands::workflow::validate_workflow_definition(workflow);
+    if !validation.ok {
+        let msg = validation
+            .issues
+            .iter()
+            .map(|i| format!("{}: {}", i.severity, i.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        anyhow::bail!("workflow validation failed: {msg}");
+    }
     println!("workflow: {} ({})", workflow.name, workflow_path.display());
     let working_dir =
         std::fs::canonicalize(working_dir).unwrap_or_else(|_| working_dir.to_path_buf());
@@ -80,7 +90,10 @@ pub(super) async fn run_workflow_definition(
             DashboardRecorder::begin(db, RunSessionKind::Workflow, &wf_task, &workflow.name)
                 .await
                 .ok()
-                .map(|r| Arc::new(tokio::sync::Mutex::new(r)))
+                .map(|r| {
+                    std::env::set_var(anycode_dashboard::approval_ipc::SESSION_ENV, r.session_id());
+                    Arc::new(tokio::sync::Mutex::new(r))
+                })
         } else {
             None
         };
@@ -207,6 +220,7 @@ pub(super) async fn run_workflow_definition(
                         g.ingest_full_log(disk, last_step_task_id).await;
                         g.finish_with_status("failed", Some(&e.to_string())).await;
                     }
+                    std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
                     return Err(e);
                 }
             }
@@ -274,6 +288,7 @@ pub(super) async fn run_workflow_definition(
         g.ingest_full_log(disk, last_step_task_id).await;
         g.finish_with_status(status, None).await;
     }
+    std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
 
     Ok(())
 }

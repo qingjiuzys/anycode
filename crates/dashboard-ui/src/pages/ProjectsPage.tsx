@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
@@ -10,18 +10,44 @@ import { StatusBadge, TrustBar } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
 
 type StatusFilter = "all" | "active" | "archived" | "error";
+const PAGE_SIZE = 25;
 
 export function ProjectsPage() {
   const t = useT();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(0);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch, statusFilter]);
+
+  const statusParam =
+    statusFilter === "all"
+      ? undefined
+      : statusFilter === "active"
+        ? "active"
+        : statusFilter;
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["projects"],
-    queryFn: api.projects,
+    queryKey: ["projects", debouncedSearch, statusFilter, page],
+    queryFn: () =>
+      api.projects({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        q: debouncedSearch || undefined,
+        status: statusParam,
+        sort: "updated_at_desc",
+      }),
   });
 
   const scan = useMutation({
@@ -32,9 +58,16 @@ export function ProjectsPage() {
       setScanMessage(
         t("projects.scanSuccess")
           .replace("{registered}", String(result.projects_registered))
-          .replace("{ingested}", String(result.ingested_tasks))
           .replace("{skills}", String(result.skills_synced)),
       );
+    },
+  });
+
+  const archive = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patchProjectStatus(id, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 
@@ -42,25 +75,13 @@ export function ProjectsPage() {
     return <div className="dw-alert-error">{(error as Error).message}</div>;
   }
 
-  const all = data?.projects ?? [];
-  const filtered = all.filter((p) => {
-    const q = search.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.root_path.toLowerCase().includes(q);
-    const st = p.status.toLowerCase();
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && (st === "active" || st === "running" || st === "ok")) ||
-      (statusFilter === "archived" && st === "archived") ||
-      (statusFilter === "error" && (st === "error" || st === "failed" || st === "blocked"));
-    return matchesSearch && matchesStatus;
-  });
+  const projects = data?.projects ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const showingLabel = t("projects.showing")
-    .replace("{shown}", String(filtered.length))
-    .replace("{total}", String(all.length));
+    .replace("{shown}", String(projects.length))
+    .replace("{total}", String(total));
 
   return (
     <>
@@ -72,17 +93,6 @@ export function ProjectsPage() {
         breadcrumbs={[{ label: t("breadcrumb.home"), to: "/" }, { label: t("projects.title") }]}
         actions={
           <>
-            <button
-              type="button"
-              className={`dw-btn-secondary${statusFilter !== "all" ? " ring-1 ring-primary" : ""}`}
-              onClick={() =>
-                setStatusFilter((f) => (f === "all" ? "active" : f === "active" ? "all" : "active"))
-              }
-              title={t("projects.statusFilterHint")}
-            >
-              <Icon name="filter_list" size={16} />
-              {t("common.filter")}
-            </button>
             <button
               type="button"
               className="dw-btn-secondary"
@@ -141,7 +151,7 @@ export function ProjectsPage() {
 
       {isLoading && <p className="text-secondary text-sm">{t("common.loading")}</p>}
 
-      {!isLoading && filtered.length === 0 && (
+      {!isLoading && projects.length === 0 && (
         <EmptyState
           title={t("projects.emptyTitle")}
           description={t("projects.emptyDesc")}
@@ -149,7 +159,7 @@ export function ProjectsPage() {
         />
       )}
 
-      {filtered.length > 0 && (
+      {projects.length > 0 && (
         <div className="dw-section-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="dw-table">
@@ -162,10 +172,11 @@ export function ProjectsPage() {
                   <th className="text-right">{t("projects.sessions")}</th>
                   <th className="text-right">{t("nav.assets")}</th>
                   <th className="text-right">{t("home.lastActivity")}</th>
+                  <th className="text-right">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => (
+                {projects.map((p) => (
                   <tr key={p.id} className="group">
                     <td>
                       <Link
@@ -180,9 +191,14 @@ export function ProjectsPage() {
                       </Link>
                     </td>
                     <td>
-                      <span className="font-code text-secondary truncate block max-w-[220px]">
-                        {p.root_path}
-                      </span>
+                      <div className="flex flex-col gap-1 max-w-[240px]">
+                        <span className="font-code text-secondary truncate block">
+                          {p.root_path}
+                        </span>
+                        {p.root_exists === false && (
+                          <span className="text-[10px] text-warn">{t("projects.rootMissing")}</span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <StatusBadge status={p.status} />
@@ -193,11 +209,55 @@ export function ProjectsPage() {
                     <td className="text-right">{p.sessions_count}</td>
                     <td className="text-right">{p.artifacts_count}</td>
                     <td className="text-right text-secondary text-xs">{p.updated_at}</td>
+                    <td className="text-right">
+                      {p.status !== "archived" ? (
+                        <button
+                          type="button"
+                          className="dw-btn-secondary text-xs"
+                          disabled={archive.isPending}
+                          onClick={() => archive.mutate({ id: p.id, status: "archived" })}
+                        >
+                          {t("projects.archive")}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="dw-btn-secondary text-xs"
+                          disabled={archive.isPending}
+                          onClick={() => archive.mutate({ id: p.id, status: "active" })}
+                        >
+                          {t("projects.restore")}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant text-sm">
+              <button
+                type="button"
+                className="dw-btn-secondary text-xs"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                {t("common.previous")}
+              </button>
+              <span className="text-secondary">
+                {page + 1} / {pageCount}
+              </span>
+              <button
+                type="button"
+                className="dw-btn-secondary text-xs"
+                disabled={page + 1 >= pageCount}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {t("common.next")}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>

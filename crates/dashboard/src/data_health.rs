@@ -166,7 +166,12 @@ pub async fn project_health(db: &DashboardDb, project_id: &str) -> Result<DataHe
     }
 
     let blocked_sessions: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sessions WHERE project_id = ? AND trusted_status = 'blocked'",
+        r#"
+        SELECT COUNT(*) FROM sessions
+        WHERE project_id = ?
+          AND trusted_status = 'blocked'
+          AND status != 'failed'
+        "#,
     )
     .bind(project_id)
     .fetch_one(db.pool())
@@ -343,6 +348,7 @@ mod tests {
                 root_path: "/nonexistent/path/for/health".into(),
                 name: Some("Ghost".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();

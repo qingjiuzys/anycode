@@ -2,8 +2,8 @@ use crate::db::trusted::compute_trusted_status;
 use crate::schema::{
     AgentUsageStat, ArtifactRecord, CreateSessionRequest, GateRecord, InsertEventRequest,
     LabelCount, OverviewStats, ProjectDetail, ProjectEvent, ProjectStats, ProjectStatsFailure,
-    ProjectSummary, RecentEvent, SessionDetail, SessionSummary, SessionWithProject, SkillRecord,
-    UpsertProjectRequest, LOCAL_ORG_ID,
+    ProjectSummary, RecentEvent, SessionDetail, SessionFacetsResponse, SessionSummary,
+    SessionWithProject, SkillRecord, UpsertProjectRequest, LOCAL_ORG_ID,
 };
 use anyhow::{Context, Result};
 use serde_json::Value;
@@ -39,6 +39,7 @@ impl DashboardDb {
                 root_path: root.clone(),
                 name: Some(name),
                 description: None,
+                create_root: None,
             })
             .await?;
             n += 1;
@@ -72,6 +73,7 @@ mod tests {
                 root_path: "/tmp/demo".into(),
                 name: Some("Demo".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -127,6 +129,7 @@ mod tests {
                 root_path: "/tmp/gate-test".into(),
                 name: Some("GateTest".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -172,6 +175,7 @@ mod tests {
                 root_path: "/tmp/art-trust".into(),
                 name: Some("ArtTrust".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -237,6 +241,7 @@ mod tests {
                 root_path: "/tmp/manual-gate".into(),
                 name: Some("MG".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();
@@ -245,6 +250,37 @@ mod tests {
         assert_eq!(a, b);
         let session = db.get_session(&a).await.unwrap().unwrap();
         assert_eq!(session.kind, "manual_gate");
+    }
+
+    #[tokio::test]
+    async fn project_identity_uses_normalized_root_hash() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("identity.db"))
+            .await
+            .unwrap();
+        let root = dir.path().join("wd");
+        std::fs::create_dir_all(&root).unwrap();
+        let a = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: root.display().to_string(),
+                name: Some("wd".into()),
+                description: None,
+                create_root: None,
+            })
+            .await
+            .unwrap();
+        let b = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: root.join(".").display().to_string(),
+                name: Some("also wd".into()),
+                description: None,
+                create_root: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(a.id, b.id);
+        assert!(a.id.starts_with("proj_"));
+        assert_eq!(db.list_projects().await.unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -258,6 +294,7 @@ mod tests {
                 root_path: "/tmp/cancel".into(),
                 name: Some("C".into()),
                 description: None,
+                create_root: None,
             })
             .await
             .unwrap();

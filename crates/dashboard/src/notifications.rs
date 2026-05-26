@@ -344,14 +344,17 @@ pub async fn emit_local_log(
     if matches.is_empty() {
         return Ok(());
     }
+    let (action, risk, title, detail_text) = notification_semantics(event_type, &detail);
     record_audit(
         db,
         AuditEventInput {
             project_id: project_id.map(str::to_string),
             session_id: session_id.map(str::to_string),
-            action: "notification_local_log".into(),
-            risk: "low".into(),
+            action,
+            risk,
             detail: json!({
+                "title": title,
+                "detail": detail_text,
                 "event_type": event_type,
                 "channel": "local_log",
                 "payload": detail,
@@ -360,6 +363,52 @@ pub async fn emit_local_log(
     )
     .await?;
     Ok(())
+}
+
+fn notification_semantics(event_type: &str, detail: &Value) -> (String, String, String, String) {
+    match event_type {
+        "session_blocked" => (
+            "session_blocked".into(),
+            "high".into(),
+            "Session blocked".into(),
+            detail
+                .get("source")
+                .and_then(|v| v.as_str())
+                .map(|s| format!("Trust blocked ({s})"))
+                .unwrap_or_else(|| "Session delivery is blocked".into()),
+        ),
+        "gate_failed" => (
+            "gate_failed".into(),
+            "high".into(),
+            "Gate failed".into(),
+            detail
+                .get("gate_name")
+                .or_else(|| detail.get("name"))
+                .and_then(|v| v.as_str())
+                .map(|n| format!("Required gate '{n}' failed"))
+                .unwrap_or_else(|| "A required verification gate failed".into()),
+        ),
+        "blocked_threshold_exceeded" => (
+            "blocked_threshold_exceeded".into(),
+            "medium".into(),
+            "Blocked sessions threshold exceeded".into(),
+            detail
+                .get("blocked_sessions")
+                .and_then(|v| v.as_i64())
+                .map(|n| format!("{n} sessions are blocked"))
+                .unwrap_or_else(|| "Multiple sessions are blocked".into()),
+        ),
+        other => (
+            "notification_local_log".into(),
+            "low".into(),
+            other.into(),
+            detail
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        ),
+    }
 }
 
 pub async fn send_test_notification(
@@ -387,4 +436,20 @@ pub async fn send_test_notification(
     )
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod notification_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn session_blocked_semantics() {
+        let (action, risk, title, detail) =
+            notification_semantics("session_blocked", &json!({ "source": "automation_policy" }));
+        assert_eq!(action, "session_blocked");
+        assert_eq!(risk, "high");
+        assert_eq!(title, "Session blocked");
+        assert!(detail.contains("Trust blocked"));
+    }
 }

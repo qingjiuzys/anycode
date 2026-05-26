@@ -18,6 +18,7 @@ pub(super) struct RuntimeBudgetState {
     pub(super) budget: TaskBudget,
     started_at: Instant,
     pub(super) consumed_tokens: u32,
+    pub(super) consumed_cost_usd: f64,
     last_decision: BudgetDecision,
 }
 
@@ -27,6 +28,7 @@ impl RuntimeBudgetState {
             budget: normalize_budget(budget),
             started_at: Instant::now(),
             consumed_tokens: 0,
+            consumed_cost_usd: 0.0,
             last_decision: BudgetDecision::Continue,
         })
     }
@@ -38,6 +40,7 @@ impl RuntimeBudgetState {
             .saturating_add(usage.output_tokens)
             .saturating_add(usage.cache_read_tokens.unwrap_or(0))
             .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
+        self.consumed_cost_usd += estimate_usage_cost_usd(usage);
     }
 
     pub(super) fn evaluate(&self) -> BudgetDecision {
@@ -46,13 +49,27 @@ impl RuntimeBudgetState {
                 return BudgetDecision::Stop;
             }
         }
-        let Some(total) = self.budget.token_budget_total else {
+        let token_ratio = self.budget.token_budget_total.map(|total| {
+            if total == 0 {
+                f32::INFINITY
+            } else {
+                self.consumed_tokens as f32 / total as f32
+            }
+        });
+        let cost_ratio = self.budget.cost_budget_usd.map(|total| {
+            if total <= 0.0 {
+                f32::INFINITY
+            } else {
+                (self.consumed_cost_usd / total) as f32
+            }
+        });
+        let ratio = token_ratio
+            .into_iter()
+            .chain(cost_ratio)
+            .fold(0.0_f32, f32::max);
+        if ratio <= 0.0 {
             return BudgetDecision::Continue;
-        };
-        if total == 0 {
-            return BudgetDecision::Stop;
         }
-        let ratio = self.consumed_tokens as f32 / total as f32;
         if ratio >= self.budget.hard_stop_ratio {
             BudgetDecision::Stop
         } else if ratio >= self.budget.degrade_ratio {
@@ -75,6 +92,25 @@ impl RuntimeBudgetState {
     fn elapsed_secs(&self) -> u64 {
         self.started_at.elapsed().as_secs()
     }
+}
+
+fn estimate_usage_cost_usd(usage: &Usage) -> f64 {
+    let input_rate = std::env::var("ANYCODE_BUDGET_INPUT_USD_PER_M")
+        .or_else(|_| std::env::var("ANYCODE_DASHBOARD_INPUT_USD_PER_M"))
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(3.0);
+    let output_rate = std::env::var("ANYCODE_BUDGET_OUTPUT_USD_PER_M")
+        .or_else(|_| std::env::var("ANYCODE_DASHBOARD_OUTPUT_USD_PER_M"))
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(15.0);
+    let input_tokens = usage
+        .input_tokens
+        .saturating_add(usage.cache_read_tokens.unwrap_or(0))
+        .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
+    (input_tokens as f64 / 1_000_000.0) * input_rate
+        + (usage.output_tokens as f64 / 1_000_000.0) * output_rate
 }
 
 fn normalize_budget(mut budget: TaskBudget) -> TaskBudget {
@@ -121,9 +157,15 @@ pub(super) fn log_budget_event(
     logger.line(
         task_id,
         &format!(
-            "[{event}] consumed_tokens={} token_budget={} elapsed_secs={} max_duration_secs={}",
+            "[{event}] consumed_tokens={} token_budget={} consumed_cost_usd={:.6} cost_budget_usd={} elapsed_secs={} max_duration_secs={}",
             state.consumed_tokens,
             token_budget,
+            state.consumed_cost_usd,
+            state
+                .budget
+                .cost_budget_usd
+                .map(|v| format!("{v:.6}"))
+                .unwrap_or_else(|| "<none>".to_string()),
             state.elapsed_secs(),
             max_duration
         ),
@@ -144,6 +186,21 @@ pub(super) fn tick_budget(
         log_budget_event(logger, task_id, state, decision);
     }
     decision == BudgetDecision::Stop
+}
+
+/// Under budget degradation, block nested agents and high-risk shell/MCP tools.
+#[must_use]
+pub(super) fn tool_blocked_under_degrade(state: &RuntimeBudgetState, tool_name: &str) -> bool {
+    if state.evaluate() != BudgetDecision::Degrade {
+        return false;
+    }
+    if tool_name.starts_with("mcp__") {
+        return true;
+    }
+    anycode_core::tool_catalog_entry(tool_name).is_some_and(|entry| {
+        matches!(entry.risk_tier, "high" | "critical")
+            || matches!(entry.category, "shell" | "mcp" | "orchestration")
+    })
 }
 
 /// Record LLM usage against an optional budget. Returns `true` when hard stop should end the task.
@@ -202,5 +259,21 @@ mod tests {
         });
         assert!(budget.warn_ratio <= budget.degrade_ratio);
         assert!(budget.degrade_ratio <= budget.hard_stop_ratio);
+    }
+
+    #[test]
+    fn budget_stops_by_cost_ratio() {
+        let mut state = RuntimeBudgetState::new(TaskBudget {
+            cost_budget_usd: Some(0.000001),
+            ..TaskBudget::default()
+        })
+        .unwrap();
+        state.add_usage(&Usage {
+            input_tokens: 1_000,
+            output_tokens: 1_000,
+            cache_creation_tokens: None,
+            cache_read_tokens: None,
+        });
+        assert_eq!(state.evaluate(), BudgetDecision::Stop);
     }
 }

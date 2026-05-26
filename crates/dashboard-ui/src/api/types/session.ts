@@ -1,3 +1,4 @@
+import type { LabelCount } from "./core";
 import type { ArtifactRecord, GateRecord } from "./artifacts";
 import type { ProjectEvent } from "./project";
 
@@ -14,6 +15,8 @@ export interface SessionWithProject {
   model: string;
   started_at: string;
   ended_at: string | null;
+  block_reason?: string | null;
+  block_kind?: string | null;
 }
 
 export interface SessionDetail {
@@ -32,6 +35,8 @@ export interface SessionDetail {
   ended_at: string | null;
   summary: string;
   metadata_json: string;
+  block_reason?: string | null;
+  block_kind?: string | null;
 }
 
 export interface SessionSummary {
@@ -45,6 +50,34 @@ export interface SessionSummary {
   model: string;
   started_at: string;
   ended_at: string | null;
+  block_reason?: string | null;
+  block_kind?: string | null;
+}
+
+export interface SessionFacetsResponse {
+  status: LabelCount[];
+  trusted_status: LabelCount[];
+  kind: LabelCount[];
+  pending_approval_total: number;
+}
+
+export interface TranscriptBlock {
+  id: string;
+  block_type: string;
+  at: string;
+  title: string;
+  body: string;
+  meta?: Record<string, unknown>;
+  collapsible?: boolean;
+  default_collapsed?: boolean;
+  event_id?: string | null;
+}
+
+export interface SessionTranscriptResponse {
+  schema_version: number;
+  session_id: string;
+  blocks: TranscriptBlock[];
+  lifecycle: TranscriptBlock[];
 }
 
 export interface SessionSummaryFailure {
@@ -68,6 +101,42 @@ export interface TracePhaseSummary {
   phase: string;
   count: number;
   severity: string;
+}
+
+export interface SessionTraceEvent {
+  event_type: string;
+  severity: string;
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface SessionTraceResponse {
+  schema_version: number;
+  session_id: string;
+  source?: string;
+  events: SessionTraceEvent[];
+}
+
+export interface ExecutionLogLine {
+  line_no: number;
+  raw: string;
+  event_type?: string | null;
+  severity?: string | null;
+  title?: string | null;
+  body?: string | null;
+}
+
+export interface ExecutionLogResponse {
+  session_id: string;
+  task_id?: string | null;
+  log_path?: string | null;
+  offset: number;
+  next_offset: number;
+  has_more: boolean;
+  lines: ExecutionLogLine[];
+  source?: string;
 }
 
 export interface SessionReplaySummary {

@@ -41,6 +41,16 @@ impl RunLogger {
         self.line(task_id, &line);
     }
 
+    /// Structured assistant text for dashboard conversation replay.
+    pub(crate) fn assistant_response(&self, task_id: TaskId, turn: usize, text: &str) {
+        let text = text.trim();
+        if text.is_empty() {
+            return;
+        }
+        let line = anycode_core::format_assistant_response_log_line(turn, text);
+        self.line(task_id, &line);
+    }
+
     pub(crate) fn tail(&self, task_id: TaskId, max_bytes: usize) -> String {
         if let Some(out) = &self.disk {
             out.tail(task_id, max_bytes).unwrap_or_default()

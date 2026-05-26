@@ -1,4 +1,5 @@
 use crate::auth_session::SessionStore;
+use crate::control::web_chat::WebChatHub;
 use crate::db::DashboardDb;
 use crate::events::EventBus;
 use std::path::PathBuf;
@@ -9,6 +10,7 @@ pub struct AppState {
     pub db: DashboardDb,
     pub events: Arc<EventBus>,
     pub sessions: SessionStore,
+    pub web_chat: WebChatHub,
     pub version: String,
     pub static_dir: Option<PathBuf>,
     pub workspace_paths: Vec<String>,

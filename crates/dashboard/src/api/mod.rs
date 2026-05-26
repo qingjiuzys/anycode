@@ -4,13 +4,19 @@ pub mod state;
 
 use crate::api::state::AppState;
 use axum::{
+    http::{
+        header::{CACHE_CONTROL, CONTENT_TYPE},
+        HeaderMap, HeaderValue, StatusCode,
+    },
     middleware,
+    response::{Html, IntoResponse},
     routing::{delete, get, post, put},
     Router,
 };
+use std::path::PathBuf;
 use tower_http::{
     cors::{Any, CorsLayer},
-    services::{ServeDir, ServeFile},
+    services::ServeDir,
     trace::TraceLayer,
 };
 
@@ -90,6 +96,10 @@ pub fn router(state: AppState) -> Router {
             post(handlers::execute_project_gate_stream),
         )
         .route(
+            "/projects/{project_id}/conversations/start",
+            post(handlers::start_project_conversation),
+        )
+        .route(
             "/projects/{project_id}/runs/trigger",
             post(handlers::trigger_project_run),
         )
@@ -125,6 +135,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/projects/scan", post(handlers::scan_projects))
         .route("/projects/{project_id}", get(handlers::get_project))
+        .route(
+            "/projects/{project_id}/status",
+            axum::routing::patch(handlers::patch_project_status),
+        )
         .route(
             "/projects/{project_id}/stats",
             get(handlers::get_project_stats),
@@ -181,7 +195,12 @@ pub fn router(state: AppState) -> Router {
             "/sessions",
             get(handlers::list_all_sessions).post(handlers::create_session),
         )
+        .route("/sessions/facets", get(handlers::list_session_facets))
         .route("/sessions/{session_id}", get(handlers::get_session))
+        .route(
+            "/sessions/{session_id}/message",
+            axum::routing::post(handlers::send_session_message),
+        )
         .route(
             "/sessions/{session_id}/cancel",
             axum::routing::post(handlers::cancel_session),
@@ -193,6 +212,18 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/sessions/{session_id}/replay",
             get(handlers::get_session_replay),
+        )
+        .route(
+            "/sessions/{session_id}/trace",
+            get(handlers::get_session_trace),
+        )
+        .route(
+            "/sessions/{session_id}/transcript",
+            get(handlers::get_session_transcript),
+        )
+        .route(
+            "/sessions/{session_id}/execution-log",
+            get(handlers::get_session_execution_log),
         )
         .route(
             "/sessions/{session_id}/report",
@@ -285,8 +316,11 @@ pub fn router(state: AppState) -> Router {
     if let Some(dir) = &state.static_dir {
         let index = dir.join("index.html");
         if index.is_file() {
-            let serve = ServeDir::new(dir).not_found_service(ServeFile::new(index));
-            app = app.fallback_service(serve);
+            let assets = dir.join("assets");
+            if assets.is_dir() {
+                app = app.route_service("/assets/{*path}", ServeDir::new(dir.clone()));
+            }
+            app = app.fallback(get(move || serve_spa_index(index.clone())));
         }
     } else if crate::embedded_ui::available() {
         app = app.fallback(get(crate::embedded_ui::fallback));
@@ -298,4 +332,22 @@ pub fn router(state: AppState) -> Router {
             .allow_methods(Any)
             .allow_headers(Any),
     )
+}
+
+async fn serve_spa_index(index: PathBuf) -> impl IntoResponse {
+    match tokio::fs::read_to_string(index).await {
+        Ok(html) => {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                CACHE_CONTROL,
+                HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+            );
+            headers.insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            (headers, Html(html)).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }

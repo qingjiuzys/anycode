@@ -23,6 +23,10 @@ pub(crate) fn validate(path: &Path, json: bool) -> anyhow::Result<()> {
     }
 }
 
+pub(crate) fn validate_workflow_definition(workflow: &WorkflowDefinition) -> PlanValidationResult {
+    validate_workflow(workflow)
+}
+
 fn validate_workflow(workflow: &WorkflowDefinition) -> PlanValidationResult {
     let mut issues = Vec::new();
     if workflow.name.trim().is_empty() {
@@ -67,6 +71,24 @@ fn validate_workflow(workflow: &WorkflowDefinition) -> PlanValidationResult {
                 "warn",
                 Some(&step.id),
                 "step has neither prompt nor intent",
+            ));
+        }
+        if step
+            .parallel_group
+            .as_deref()
+            .is_some_and(|s| !s.trim().is_empty())
+        {
+            issues.push(issue(
+                "error",
+                Some(&step.id),
+                "parallel_group is not supported by the sequential local executor",
+            ));
+        }
+        if !step.required_gates.is_empty() {
+            issues.push(issue(
+                "error",
+                Some(&step.id),
+                "required_gates is not enforced by the local workflow executor",
             ));
         }
     }
@@ -207,5 +229,30 @@ mod tests {
         let result = validate_workflow(&workflow);
         assert!(!result.ok);
         assert!(result.issues.iter().any(|i| i.message.contains("cycle")));
+    }
+
+    #[test]
+    fn rejects_schema_only_execution_fields() {
+        let workflow = WorkflowDefinition {
+            name: "x".into(),
+            steps: vec![WorkflowStep {
+                id: "gate".into(),
+                prompt: "run".into(),
+                required_gates: vec!["cargo test".into()],
+                parallel_group: Some("p1".into()),
+                ..WorkflowStep::default()
+            }],
+            ..WorkflowDefinition::default()
+        };
+        let result = validate_workflow(&workflow);
+        assert!(!result.ok);
+        assert_eq!(
+            result
+                .issues
+                .iter()
+                .filter(|i| i.severity == "error")
+                .count(),
+            2
+        );
     }
 }

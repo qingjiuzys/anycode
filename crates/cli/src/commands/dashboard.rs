@@ -50,7 +50,7 @@ pub async fn run_dashboard(
     static_dir: Option<PathBuf>,
     open_browser: bool,
 ) -> Result<()> {
-    let paths = load_workspace_paths();
+    let paths = anycode_dashboard::load_workspace_paths();
     let static_dir = static_dir.or_else(discover_ui_dist);
     let config = DashboardConfig {
         host: host.clone(),
@@ -216,27 +216,6 @@ async fn dashboard_db(sub: DashboardDbCommands) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn load_workspace_paths() -> Vec<String> {
-    let index = crate::workspace::root().join("projects").join("index.json");
-    let raw = match std::fs::read_to_string(&index) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-    #[derive(serde::Deserialize)]
-    struct Index {
-        #[serde(default)]
-        projects: Vec<Entry>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Entry {
-        path: String,
-    }
-    serde_json::from_str::<Index>(&raw)
-        .ok()
-        .map(|idx| idx.projects.into_iter().map(|p| p.path).collect())
-        .unwrap_or_default()
 }
 
 fn try_open_browser(url: &str) -> std::io::Result<()> {

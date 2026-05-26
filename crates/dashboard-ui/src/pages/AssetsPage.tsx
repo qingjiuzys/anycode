@@ -16,7 +16,7 @@ export function AssetsPage() {
   const { trust: trustSearch } = useSearch({ from: "/_shell/assets" });
   const projects = useQuery({
     queryKey: ["projects"],
-    queryFn: api.projects,
+    queryFn: () => api.projects({ limit: 500 }),
   });
   const list = projects.data?.projects ?? [];
   const [projectId, setProjectId] = useState<string>("");

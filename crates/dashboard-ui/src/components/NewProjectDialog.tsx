@@ -17,12 +17,14 @@ export function NewProjectDialog({
   const queryClient = useQueryClient();
   const [rootPath, setRootPath] = useState("");
   const [name, setName] = useState("");
+  const [createRoot, setCreateRoot] = useState(true);
 
   const create = useMutation({
     mutationFn: () =>
       api.upsertProject({
         root_path: rootPath.trim(),
         name: name.trim() || undefined,
+        create_root: createRoot,
       }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -82,6 +84,14 @@ export function NewProjectDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-secondary">
+            <input
+              type="checkbox"
+              checked={createRoot}
+              onChange={(e) => setCreateRoot(e.target.checked)}
+            />
+            {t("newProject.createRoot")}
           </label>
           {create.isError && (
             <div className="dw-alert-error">{(create.error as Error).message}</div>

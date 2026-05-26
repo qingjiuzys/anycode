@@ -1,4 +1,7 @@
 //! Import historical `~/.anycode/tasks/*/output.log` into SQLite.
+//!
+//! Deprecated for production: sessions are created by [`crate::recorder::DashboardRecorder`]
+//! at task start. Bulk log import is retained for tests only.
 
 use crate::db::DashboardDb;
 use crate::log_parser::{parse_line, task_end_status};
@@ -54,6 +57,7 @@ pub async fn ingest_recent_disk_tasks(
                 root_path: root.clone(),
                 name: None,
                 description: None,
+                create_root: None,
             })
             .await?;
 
@@ -162,6 +166,15 @@ fn infer_project_root(log: &str, workspace_paths: &[String]) -> Option<String> {
                     if root_path.join(first).exists() {
                         return Some(root.clone());
                     }
+                }
+            }
+            if token.starts_with('/') {
+                let path = Path::new(token);
+                if path.is_dir() {
+                    return Some(path.to_string_lossy().to_string());
+                }
+                if let Some(parent) = path.parent().filter(|p| p.is_dir()) {
+                    return Some(parent.to_string_lossy().to_string());
                 }
             }
         }

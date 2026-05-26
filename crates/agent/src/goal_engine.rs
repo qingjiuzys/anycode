@@ -293,7 +293,7 @@ fn rust_project_verify(scope: &Path, gate_log: Option<&GoalGateLogger<'_>>) -> R
         return Ok(());
     }
     let gates: [(&str, &[&str]); 3] = [
-        ("cargo fmt", &["fmt", "--", "--check"]),
+        ("cargo fmt", &["fmt", "--all", "--", "--check"]),
         ("cargo clippy", &["clippy", "--", "-D", "warnings"]),
         ("cargo test", &["test", "--workspace"]),
     ];

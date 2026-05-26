@@ -9,26 +9,47 @@ import type {
   ProjectEvent,
   ProjectMetrics,
   ProjectStats,
-  ProjectSummary,
+  ProjectsListResponse,
   ReportDocument,
+  SessionDetail,
   SessionSummary,
   SkillRecord,
   TokenUsageDetail,
   TokenUsageStats,
   TriggerRunResult,
 } from "../types";
-import { del, get, post, put } from "../http";
-import type { EventListOpts } from "./shared";
+import { del, get, patch, post, put } from "../http";
+import type { EventListOpts, ProjectsListOpts } from "./shared";
+
+export interface WebChatResult {
+  session_id: string;
+  pid: number;
+  log_path: string;
+  started_at: string;
+  queued: boolean;
+}
 
 export const projectsClient = {
-  projects: () => get<{ projects: ProjectSummary[] }>("/api/projects"),
-  upsertProject: (body: { root_path: string; name?: string; description?: string }) =>
+  projects: (opts?: ProjectsListOpts) => {
+    const q = new URLSearchParams();
+    q.set("limit", String(opts?.limit ?? 100));
+    q.set("offset", String(opts?.offset ?? 0));
+    if (opts?.q) q.set("q", opts.q);
+    if (opts?.status) q.set("status", opts.status);
+    if (opts?.sort) q.set("sort", opts.sort);
+    return get<ProjectsListResponse>(`/api/projects?${q}`);
+  },
+  upsertProject: (body: {
+    root_path: string;
+    name?: string;
+    description?: string;
+    create_root?: boolean;
+  }) =>
     post<{ project: ProjectDetail }>("/api/projects", body),
   scanProjects: () =>
     post<{
       ok: boolean;
       projects_registered: number;
-      ingested_tasks: number;
       skills_synced: number;
     }>("/api/projects/scan"),
   project: (id: string) => get<{ project: ProjectDetail }>(`/api/projects/${id}`),
@@ -52,7 +73,6 @@ export const projectsClient = {
   reindexProject: (projectId: string) =>
     post<{
       ok: boolean;
-      ingested_tasks: number;
       skills_synced: number;
     }>(`/api/projects/${projectId}/reindex`),
   gates: (projectId: string) =>
@@ -84,6 +104,25 @@ export const projectsClient = {
   ) =>
     post<{ trigger: TriggerRunResult }>(
       `/api/projects/${encodeURIComponent(projectId)}/runs/trigger`,
+      body,
+    ),
+  startConversation: (
+    projectId: string,
+    body: {
+      title?: string;
+      prompt: string;
+      kind?: "run" | "goal";
+      goal?: string;
+      agent?: string;
+    },
+  ) =>
+    post<{ session: SessionDetail; chat: WebChatResult }>(
+      `/api/projects/${encodeURIComponent(projectId)}/conversations/start`,
+      body,
+    ),
+  sendSessionMessage: (sessionId: string, body: { prompt: string }) =>
+    post<{ ok: boolean; session_id: string; chat: WebChatResult }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/message`,
       body,
     ),
   listProjectTriggers: (projectId: string, limit = 10) =>
@@ -128,4 +167,9 @@ export const projectsClient = {
     get<{ skills: SkillRecord[] }>(`/api/projects/${projectId}/skills`),
   projectReport: (projectId: string) =>
     get<{ report: ReportDocument }>(`/api/projects/${projectId}/report`),
+  patchProjectStatus: (projectId: string, status: string) =>
+    patch<{ ok: boolean; project_id: string; status: string }>(
+      `/api/projects/${encodeURIComponent(projectId)}/status`,
+      { status },
+    ),
 };

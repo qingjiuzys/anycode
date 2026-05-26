@@ -93,6 +93,11 @@ async fn patch_json(app: axum::Router, path: &str, body: Value) -> Value {
 async fn fixture_api_smoke() {
     let dir = tempdir().unwrap();
     let db = dir.path().join("fixture.db");
+    let prefs_path = dir.path().join("dashboard_preferences.json");
+    std::env::set_var(
+        "ANYCODE_DASHBOARD_PREFERENCES_PATH",
+        prefs_path.display().to_string(),
+    );
     let app = app_for_test(&db).await.unwrap();
 
     let health = get_json(app.clone(), "/api/health").await;
@@ -107,6 +112,16 @@ async fn fixture_api_smoke() {
 
     let projects = get_json(app.clone(), "/api/projects").await;
     assert!(projects["projects"].is_array());
+    assert!(projects["total"].is_number());
+    assert!(projects["limit"].is_number());
+
+    let facets = get_json(app.clone(), "/api/sessions/facets").await;
+    assert!(facets["facets"]["status"].is_array());
+    assert!(facets["facets"]["kind"].is_array());
+
+    let paged = get_json(app.clone(), "/api/projects?limit=1&offset=0").await;
+    assert_eq!(paged["limit"], 1);
+    assert!(paged["projects"].as_array().unwrap().len() <= 1);
 
     let sessions = get_json(app.clone(), "/api/sessions?limit=10").await;
     assert!(sessions["sessions"].is_array());
@@ -209,6 +224,21 @@ async fn fixture_api_smoke() {
         .as_str()
         .unwrap()
         .contains("GATE_FIXTURE_OK"));
+
+    let start = post_json(
+        app.clone(),
+        &format!("/api/projects/{project_id}/conversations/start"),
+        json!({
+            "title": "Fixture conversation",
+            "prompt": "echo fixture start conversation",
+            "kind": "run"
+        }),
+    )
+    .await;
+    assert!(start["session"]["id"].is_string());
+    assert_eq!(start["session"]["title"], "Fixture conversation");
+    assert_eq!(start["session"]["status"], "pending");
+    assert!(start["chat"]["pid"].is_number());
 
     let gates = get_json(app.clone(), &format!("/api/projects/{project_id}/gates")).await;
     assert!(gates["gates"]
@@ -372,4 +402,142 @@ async fn fixture_api_smoke() {
         let detail = get_json(app, &format!("/api/skills/{skill_id}")).await;
         assert!(detail["skill"]["projects"].is_array());
     }
+    std::env::remove_var("ANYCODE_DASHBOARD_PREFERENCES_PATH");
+}
+
+#[tokio::test]
+async fn projects_pagination_and_missing_root_create() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("pagination.db");
+    let app = app_for_test(&db).await.unwrap();
+
+    for i in 0..3 {
+        post_json(
+            app.clone(),
+            "/api/projects",
+            json!({
+                "root_path": dir.path().join(format!("proj-{i}")).display().to_string(),
+                "name": format!("Project {i}"),
+                "create_root": true
+            }),
+        )
+        .await;
+    }
+
+    let page0 = get_json(app.clone(), "/api/projects?limit=2&offset=0").await;
+    assert_eq!(page0["limit"], 2);
+    assert_eq!(page0["projects"].as_array().unwrap().len(), 2);
+    assert!(page0["total"].as_i64().unwrap() >= 3);
+
+    let page1 = get_json(app.clone(), "/api/projects?limit=2&offset=2").await;
+    assert!(page1["projects"].as_array().unwrap().len() >= 1);
+
+    let missing_root = dir.path().join("auto-create-chat");
+    std::fs::create_dir_all(&missing_root).unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": missing_root.display().to_string(),
+            "name": "Auto create chat",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    std::fs::remove_dir_all(&missing_root).unwrap();
+    assert!(!missing_root.exists());
+
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "chat",
+            "prompt_preview": "hello"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/sessions/{session_id}/message"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({ "prompt": "hello from fixture" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        missing_root.is_dir(),
+        "expected auto-created project root, status={}",
+        res.status()
+    );
+}
+
+#[tokio::test]
+async fn session_transcript_api_returns_blocks() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("transcript_api.db");
+    let app = app_for_test(&db).await.unwrap();
+    let root = dir.path().join("transcript-proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": root.display().to_string(),
+            "name": "Transcript",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "chat",
+            "prompt_preview": "hi"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+    post_json(
+        app.clone(),
+        &format!("/api/projects/{project_id}/events"),
+        json!({
+            "project_id": project_id,
+            "session_id": session_id,
+            "event_type": "user_prompt",
+            "title": "User prompt",
+            "body": "hello"
+        }),
+    )
+    .await;
+    post_json(
+        app.clone(),
+        &format!("/api/projects/{project_id}/events"),
+        json!({
+            "project_id": project_id,
+            "session_id": session_id,
+            "event_type": "assistant_response",
+            "title": "Assistant",
+            "body": "world"
+        }),
+    )
+    .await;
+
+    let transcript = get_json(app, &format!("/api/sessions/{session_id}/transcript")).await;
+    assert!(transcript["transcript"]["blocks"].is_array());
+    assert!(transcript["transcript"]["blocks"].as_array().unwrap().len() >= 2);
 }

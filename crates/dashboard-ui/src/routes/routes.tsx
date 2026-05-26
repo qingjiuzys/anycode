@@ -93,19 +93,58 @@ export const conversationsRoute = createRoute({
   path: "/conversations",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval" } => {
+  ): {
+    status?: string;
+    trusted?: string;
+    kind?: string;
+    needs_approval?: boolean;
+    project?: string;
+    session?: string;
+    filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval";
+  } => {
+    const project =
+      typeof search.project === "string" && search.project.trim()
+        ? search.project.trim()
+        : undefined;
+    const session =
+      typeof search.session === "string" && search.session.trim()
+        ? search.session.trim()
+        : undefined;
+    const status =
+      typeof search.status === "string" && search.status.trim()
+        ? search.status.trim()
+        : undefined;
+    const trusted =
+      typeof search.trusted === "string" && search.trusted.trim()
+        ? search.trusted.trim()
+        : undefined;
+    const kind =
+      typeof search.kind === "string" && search.kind.trim()
+        ? search.kind.trim()
+        : undefined;
+    const needs_approval =
+      search.needs_approval === true ||
+      search.needs_approval === "true" ||
+      search.needs_approval === "1";
     const f = search.filter;
-    if (
+    const legacyFilter =
       f === "running" ||
       f === "blocked" ||
       f === "workflow" ||
       f === "cron" ||
       f === "needs_approval" ||
       f === "all"
-    ) {
-      return { filter: f };
-    }
-    return {};
+        ? f
+        : undefined;
+    return {
+      status,
+      trusted,
+      kind,
+      needs_approval: needs_approval || undefined,
+      project,
+      session,
+      filter: legacyFilter,
+    };
   },
   component: () => (
     <Page>

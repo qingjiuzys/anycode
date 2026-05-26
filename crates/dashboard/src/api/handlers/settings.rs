@@ -109,6 +109,7 @@ pub async fn get_runtime_settings(State(state): State<AppState>) -> impl IntoRes
             sessions_total: 0,
             sessions_running: 0,
             sessions_blocked: 0,
+            sessions_budget_exceeded: 0,
             artifacts_count: 0,
             skills_count: 0,
             gates_failed: 0,

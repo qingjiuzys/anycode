@@ -1,48 +1,54 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEventSource, type SseStatus } from "@/hooks/useEventSource";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+const INVALIDATION_DEBOUNCE_MS = 750;
 
 /** Global SSE + query invalidation; returns connection status for the sidebar badge. */
 export function useGlobalEventStream(enabled = true): SseStatus {
   const queryClient = useQueryClient();
+  const pendingProjectIds = useRef<Set<string>>(new Set());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushInvalidations = useCallback(() => {
+    timer.current = null;
+    const projectIds = Array.from(pendingProjectIds.current);
+    pendingProjectIds.current.clear();
+
+    void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+    void queryClient.invalidateQueries({ queryKey: ["recent-events"] });
+    void queryClient.invalidateQueries({ queryKey: ["overview"] });
+    void queryClient.invalidateQueries({ queryKey: ["running-sessions"] });
+
+    for (const projectId of projectIds) {
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["events", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-stats", projectId] });
+    }
+  }, [queryClient]);
 
   const onEvent = useCallback(
     (projectId?: string) => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
-      queryClient.invalidateQueries({ queryKey: ["recent-events"] });
-      queryClient.invalidateQueries({ queryKey: ["automation-sessions"] });
-      queryClient.invalidateQueries({ queryKey: ["cron-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["cron-jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["agent-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["health"] });
-      queryClient.invalidateQueries({ queryKey: ["overview"] });
-      queryClient.invalidateQueries({ queryKey: ["running-sessions"] });
-      queryClient.invalidateQueries({ queryKey: ["artifacts"] });
-      queryClient.invalidateQueries({ queryKey: ["session-artifacts"] });
-      queryClient.invalidateQueries({ queryKey: ["skills"] });
-      queryClient.invalidateQueries({ queryKey: ["session"] });
-      queryClient.invalidateQueries({ queryKey: ["session-events"] });
-      queryClient.invalidateQueries({ queryKey: ["session-gates"] });
       if (projectId) {
-        queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-        queryClient.invalidateQueries({ queryKey: ["events", projectId] });
-        queryClient.invalidateQueries({
-          queryKey: ["project-event-types", projectId],
-        });
-        queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
-        queryClient.invalidateQueries({ queryKey: ["gates", projectId] });
-        queryClient.invalidateQueries({
-          queryKey: ["project-stats", projectId],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["project-skills", projectId],
-        });
+        pendingProjectIds.current.add(projectId);
+      }
+      if (!timer.current) {
+        timer.current = setTimeout(flushInvalidations, INVALIDATION_DEBOUNCE_MS);
       }
     },
-    [queryClient],
+    [flushInvalidations],
+  );
+
+  useEffect(
+    () => () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+      }
+    },
+    [],
   );
 
   return useEventSource(

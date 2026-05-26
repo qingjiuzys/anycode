@@ -169,11 +169,59 @@ pub fn run_doctor_checks(
     let port_free = port_available(host, port);
     checks.push(DoctorCheck {
         id: "port_available".into(),
-        status: if port_free { "ok" } else { "error" }.into(),
+        status: if port_free { "ok" } else { "warn" }.into(),
         message: if port_free {
             format!("Port {port} is available")
         } else {
-            format!("Port {port} is already in use")
+            format!("Port {port} is already in use (this is expected when doctor runs from the live dashboard)")
+        },
+    });
+
+    let swept =
+        crate::approval_ipc::sweep_stale_pending(crate::approval_ipc::STALE_PENDING_MAX_AGE_SECS);
+    let swept_active = crate::cancel_ipc::sweep_stale_active();
+    let pending = crate::approval_ipc::pending_summary().pending_total;
+    checks.push(DoctorCheck {
+        id: "approval_ipc_pending".into(),
+        status: if pending == 0 { "ok" } else { "warn" }.into(),
+        message: if pending == 0 {
+            "No pending Web tool approvals on disk".into()
+        } else {
+            format!("{pending} pending approval(s) on disk (swept {swept} stale this check)")
+        },
+    });
+
+    checks.push(DoctorCheck {
+        id: "cancel_ipc_active".into(),
+        status: "ok".into(),
+        message: format!("Swept {swept_active} stale active session registration(s)"),
+    });
+
+    let mcp_strict = std::env::var("ANYCODE_MCP_STRICT").ok().is_some();
+    let mcp_quota = std::env::var("ANYCODE_MCP_MAX_CALLS_PER_SERVER")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| *v > 0);
+    checks.push(DoctorCheck {
+        id: "mcp_governance".into(),
+        status: if mcp_strict || mcp_quota.is_some() {
+            "ok"
+        } else {
+            "warn"
+        }
+        .into(),
+        message: if mcp_strict {
+            format!(
+                "MCP strict whitelist active{}",
+                mcp_quota
+                    .map(|q| format!("; per-server quota={q}"))
+                    .unwrap_or_default()
+            )
+        } else if let Some(q) = mcp_quota {
+            format!("MCP per-server call quota={q} (strict whitelist off)")
+        } else {
+            "MCP governance env unset (ANYCODE_MCP_STRICT / ANYCODE_MCP_MAX_CALLS_PER_SERVER)"
+                .into()
         },
     });
 
@@ -210,9 +258,9 @@ pub fn doctor_next_steps(
     if report
         .checks
         .iter()
-        .any(|c| c.id == "port_available" && c.status == "error")
+        .any(|c| c.id == "port_available" && c.status == "warn")
     {
-        steps.push("Free the dashboard port or use `--port` with another value".into());
+        steps.push("If the dashboard is not already running, free the dashboard port or use `--port` with another value".into());
     }
     if steps.is_empty() && report.status == "ok" {
         steps.push("Start dashboard: `anycode dashboard --open`".into());

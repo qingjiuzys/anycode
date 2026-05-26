@@ -10,6 +10,7 @@ export interface OverviewStats {
   sessions_total: number;
   sessions_running: number;
   sessions_blocked: number;
+  sessions_budget_exceeded: number;
   artifacts_count: number;
   skills_count: number;
   gates_failed: number;

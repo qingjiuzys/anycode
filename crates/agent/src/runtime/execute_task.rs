@@ -2,7 +2,9 @@
 
 use super::agentic_loop::{coop_flag_wait, nested_coop_cancelled, task_cancelled_failure};
 use super::artifacts::extract_artifacts;
-use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
+use super::budget::{
+    record_llm_usage, tick_budget, tool_blocked_under_degrade, RuntimeBudgetState,
+};
 use super::limits::{MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL};
 use super::nested_worktree::NestedWorktreeGuard;
 use super::receipt::ReceiptGenerator;
@@ -234,6 +236,9 @@ impl AgentRuntime {
                     _ => None,
                 })
                 .unwrap_or_default();
+            if !turn_plain.trim().is_empty() {
+                logger.assistant_response(task.id, turn, &turn_plain);
+            }
 
             if response.tool_calls.is_empty() {
                 self.pipeline_memory_hook_agent_turn(&session_label, task.id, turn, &turn_plain)
@@ -292,6 +297,40 @@ impl AgentRuntime {
                     total_tool_calls,
                     &tool_call,
                 );
+                if budget_state
+                    .as_ref()
+                    .is_some_and(|s| tool_blocked_under_degrade(s, &tool_call.name))
+                {
+                    logger.line(
+                        task.id,
+                        &format!(
+                            "[tool_denied] name={} reason=budget_degrade",
+                            tool_call.name
+                        ),
+                    );
+                    let tool_result = ToolOutput {
+                        result: serde_json::json!({ "error": "tool blocked under budget degradation" }),
+                        error: Some("tool blocked under budget degradation".into()),
+                        duration_ms: 0,
+                    };
+                    tool_result_injection::log_tool_call_end(
+                        &logger,
+                        task.id,
+                        turn,
+                        total_tool_calls,
+                        &tool_call,
+                        &tool_result,
+                        0,
+                    );
+                    let prepared = tool_result_injection::prepare_tool_result_message(
+                        task.id,
+                        &tool_call,
+                        &tool_result,
+                        &logger,
+                    );
+                    messages.push(prepared.message);
+                    continue;
+                }
                 let t0 = std::time::Instant::now();
                 let tool_result = self
                     .execute_tool_call(task.id, &task.context.working_directory, &tool_call)
@@ -380,6 +419,7 @@ impl AgentRuntime {
         .await;
 
         logger.line(task.id, "[task_end] status=completed");
+        logger.assistant_response(task.id, last_model_turn, &summary_text);
         logger.line(task.id, "== summary ==");
         for line in summary_text.lines() {
             logger.line(task.id, line);

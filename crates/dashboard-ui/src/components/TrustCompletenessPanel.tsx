@@ -9,6 +9,7 @@ interface Props {
   trustedStatus: string;
   sessionStatus: string;
   sessionKind?: string;
+  blockReason?: string | null;
   unverifiedArtifactCount?: number;
 }
 
@@ -17,6 +18,7 @@ export function TrustCompletenessPanel({
   trustedStatus,
   sessionStatus,
   sessionKind,
+  blockReason,
   unverifiedArtifactCount = 0,
 }: Props) {
   const t = useT();
@@ -41,6 +43,9 @@ export function TrustCompletenessPanel({
         </p>
       ) : (
         <ul className="m-0 p-0 list-none space-y-2 text-sm">
+          {sessionStatus === "failed" && blockReason && (
+            <CheckItem ok={false} label={t("trust.taskFailed")} detail={blockReason} />
+          )}
           {sessionStatus === "running" && (
             <CheckItem ok={false} label={t("trust.sessionRunning")} />
           )}
@@ -68,7 +73,7 @@ export function TrustCompletenessPanel({
               label={t("trust.unverifiedAssets").replace("{n}", String(unverifiedArtifactCount))}
             />
           )}
-          {trustedStatus === "blocked" && failed.length === 0 && (
+          {trustedStatus === "blocked" && failed.length === 0 && sessionStatus !== "failed" && (
             <CheckItem ok={false} label={t("trust.blockedNoGate")} />
           )}
           {trustedStatus === "unverified" && failed.length === 0 && pending.length === 0 && (

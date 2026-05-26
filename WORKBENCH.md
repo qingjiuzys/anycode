@@ -21,7 +21,7 @@ See **[docs/digital-workbench-STATUS.md](docs/digital-workbench-STATUS.md)** (on
 | 中文 | **[docs/digital-workbench-next-steps-zh.md](docs/digital-workbench-next-steps-zh.md)** |
 | English | [docs/digital-workbench-next-steps.md](docs/digital-workbench-next-steps.md) |
 
-Also: [STATUS](docs/digital-workbench-STATUS.md) · [control plane](docs/digital-workbench-control-plane.md) · [deploy](docs/digital-workbench-deploy-production.md) · [API](docs/digital-workbench-api.md)
+Also: [STATUS](docs/digital-workbench-STATUS.md) · [control plane](docs/digital-workbench-control-plane.md) · [deploy](docs/digital-workbench-deploy-production.md) · [API](docs/digital-workbench-api.md) · [production convergence log](docs/production-convergence-log.md)
 
 ## Code
 

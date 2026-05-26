@@ -10,6 +10,7 @@ import { GoalRunPanel } from "@/components/GoalRunPanel";
 import { TrustCompletenessPanel } from "@/components/TrustCompletenessPanel";
 import { Icon } from "@/components/Icon";
 import { SessionTokenUsage } from "@/components/SessionTokenUsage";
+import { SessionExecutionLogPanel } from "@/components/SessionExecutionLogPanel";
 import { SessionReplayPanel } from "@/components/SessionReplayPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -68,6 +69,11 @@ export function SessionDetailPage() {
     queryFn: () => api.sessionReplay(sessionId),
     refetchInterval: sseLive ? 5_000 : false,
   });
+  const trace = useQuery({
+    queryKey: ["session-trace", sessionId],
+    queryFn: () => api.sessionTrace(sessionId),
+    refetchInterval: sseLive ? 5_000 : false,
+  });
 
   if (session.isError) {
     return <div className="dw-alert-error">{(session.error as Error).message}</div>;
@@ -86,6 +92,11 @@ export function SessionDetailPage() {
   const gateById = new Map(
     (gates.data?.gates ?? []).map((g) => [g.id, g.name]),
   );
+
+  const failureReason =
+    s?.block_reason?.trim() ||
+    (s?.status === "failed" ? s?.summary?.trim() : "") ||
+    null;
 
   return (
     <>
@@ -106,7 +117,7 @@ export function SessionDetailPage() {
             </Link>
           </>
         )}
-        {sseLive && (
+        {sseLive && s?.status === "running" && (
           <StatusBadge status="running" />
         )}
         {s && (
@@ -158,6 +169,13 @@ export function SessionDetailPage() {
         sessionStatus={s?.status ?? ""}
       />
 
+      {(s?.status === "failed" || s?.status === "pending") && failureReason && (
+        <div className="dw-alert-error">
+          <p className="m-0 font-medium">{t("session.failureReason")}</p>
+          <p className="m-0 mt-1 text-sm whitespace-pre-wrap">{failureReason}</p>
+        </div>
+      )}
+
       {blocked && (
         <div className="dw-alert-error">
           {t("session.gateBlocked").replace("{status}", s?.trusted_status ?? "")}
@@ -169,6 +187,7 @@ export function SessionDetailPage() {
         trustedStatus={s?.trusted_status ?? ""}
         sessionStatus={s?.status ?? ""}
         sessionKind={s?.kind}
+        blockReason={failureReason}
         unverifiedArtifactCount={
           (artifacts.data?.artifacts ?? []).filter((a) => a.trust_level === "unverified").length
         }
@@ -187,7 +206,12 @@ export function SessionDetailPage() {
             agentType={s?.agent_type}
             model={s?.model}
           />
-          <SessionReplayPanel replay={replay.data.replay} />
+          <SessionReplayPanel
+            replay={replay.data.replay}
+            traceEventCount={trace.data?.trace.events.length}
+            traceSource={trace.data?.trace.source}
+          />
+          <SessionExecutionLogPanel sessionId={sessionId} />
         </>
       )}
 
