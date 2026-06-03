@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { SettingsNav, type SettingsSection } from "@/components/settings/SettingsNav";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useT } from "@/i18n/context";
+import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
 import { SettingsAuthSection } from "@/pages/settings/SettingsAuthSection";
 import { SettingsAssetsSection } from "@/pages/settings/SettingsAssetsSection";
 import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
@@ -13,9 +15,40 @@ import { SettingsSecuritySection } from "@/pages/settings/SettingsSecuritySectio
 import { SettingsServiceSection } from "@/pages/settings/SettingsServiceSection";
 import { SettingsSkillsSection } from "@/pages/settings/SettingsSkillsSection";
 
+const VALID_SECTIONS = new Set<SettingsSection>([
+  "auth",
+  "data",
+  "service",
+  "model",
+  "agents",
+  "skills",
+  "assets",
+  "security",
+  "notify",
+  "ops",
+]);
+
+function parseSettingsSection(raw: unknown): SettingsSection {
+  if (typeof raw === "string" && VALID_SECTIONS.has(raw as SettingsSection)) {
+    return raw as SettingsSection;
+  }
+  return "auth";
+}
+
 export function SettingsPage() {
   const t = useT();
-  const [section, setSection] = useState<SettingsSection>("auth");
+  const navigate = useNavigate();
+  const { section: sectionSearch } = useSearch({ from: "/_shell/settings" });
+  const [section, setSection] = useState<SettingsSection>(() => parseSettingsSection(sectionSearch));
+
+  useEffect(() => {
+    setSection(parseSettingsSection(sectionSearch));
+  }, [sectionSearch]);
+
+  const onSectionChange = (next: SettingsSection) => {
+    setSection(next);
+    navigate({ to: "/settings", search: { section: next }, replace: true });
+  };
 
   return (
     <>
@@ -31,13 +64,14 @@ export function SettingsPage() {
       <SettingsOverviewBanner />
 
       <div className="dw-settings">
-        <SettingsNav active={section} onChange={setSection} />
+        <SettingsNav active={section} onChange={onSectionChange} />
 
         <div className="dw-settings-content space-y-6">
           {section === "auth" && <SettingsAuthSection />}
           {section === "data" && <SettingsDataSection />}
           {section === "service" && <SettingsServiceSection />}
           {section === "model" && <SettingsModelSection />}
+          {section === "agents" && <SettingsAgentsSection />}
           {section === "skills" && <SettingsSkillsSection />}
           {section === "assets" && <SettingsAssetsSection />}
           {section === "security" && <SettingsSecuritySection />}

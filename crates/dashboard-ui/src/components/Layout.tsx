@@ -13,6 +13,7 @@ import { useAuth } from "@/auth/context";
 import { useI18n } from "@/i18n/context";
 import { useSseStatus } from "@/context/SseContext";
 import { api } from "@/api/client";
+import brandLogo from "@/assets/anycode-logo.png";
 
 const NAV = [
   { to: "/", key: "nav.overview", icon: "dashboard", countKey: null },
@@ -66,7 +67,7 @@ export function Layout() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-secondary">
+      <div className="h-full flex items-center justify-center text-secondary">
         {t("common.loading")}
       </div>
     );
@@ -75,15 +76,17 @@ export function Layout() {
   const ov = overview.data?.overview;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="dw-shell">
       <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
 
       <aside className="dw-sidebar">
         <div className="px-4 mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-on-primary shadow-sm">
-              <Icon name="dns" size={18} />
-            </div>
+            <img
+              src={brandLogo}
+              alt=""
+              className="w-8 h-8 rounded shadow-sm object-cover bg-surface-container-lowest"
+            />
             <div>
               <div className="text-base font-semibold text-primary">{t("layout.brand")}</div>
               <div className="text-xs text-secondary">v{health.data?.version ?? "…"}</div>
@@ -93,7 +96,7 @@ export function Layout() {
 
         <SidebarWorkspaceCard />
 
-        <nav className="flex-1 overflow-y-auto px-2 space-y-0.5">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-2 space-y-0.5">
           {NAV.map((item) => {
             const count = navCount(item.countKey, ov);
             return (
@@ -132,10 +135,15 @@ export function Layout() {
       </aside>
 
       <div className="dw-main-wrap">
-        <header className="dw-topbar shadow-sm bg-surface-container-lowest">
-          <div className="text-base font-semibold text-on-surface">{t("layout.title")}</div>
-          <div className="flex items-center gap-2 sm:gap-3">
+        <header className="dw-topbar shrink-0">
+          <div className="flex flex-1 items-center gap-3 min-w-0">
             <TopbarSearch />
+            <div className="dw-topbar-drag-spacer" data-tauri-drag-region aria-hidden />
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {pathname === "/" && (
+              <div id="dw-home-panels-slot" className="flex items-center shrink-0" />
+            )}
             <div className="hidden xl:block mr-1">
               <SseStatusBadge status={mapSseStatus(sseStatus)} />
             </div>

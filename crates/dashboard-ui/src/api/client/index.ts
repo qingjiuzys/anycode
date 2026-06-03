@@ -1,3 +1,4 @@
+import { agentsClient } from "./agents";
 import { coreClient } from "./core";
 import { governanceClient } from "./governance";
 import { projectsClient } from "./projects";
@@ -14,6 +15,7 @@ export type {
 
 export const api = {
   ...coreClient,
+  ...agentsClient,
   ...projectsClient,
   ...sessionsClient,
   ...settingsClient,

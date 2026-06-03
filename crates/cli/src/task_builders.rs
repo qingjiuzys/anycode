@@ -4,10 +4,10 @@ use crate::app_config::Config;
 use crate::channel_task::{im_channel_cron_scheduling_hint, ChannelTaskInput};
 use crate::tasks::RunTaskOptions;
 use crate::tool_policy::{
-    channel_task_tool_filters, headless_task_surface, resolve_task_tool_filters,
+    channel_task_tool_filters, headless_task_surface, resolve_headless_task_tool_filters,
+    resolve_task_tool_filters,
 };
 use anycode_core::prelude::*;
-use anycode_tools::{resolve_runtime_tool_filters, RuntimeToolPolicyInput, ToolPolicyProfiles};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -35,14 +35,7 @@ pub(crate) fn build_headless_task(
     let surface = headless_task_surface();
     let (tool_deny_names, tool_deny_prefixes) = match config {
         Some(cfg) => resolve_task_tool_filters(cfg, surface, options),
-        None => resolve_runtime_tool_filters(RuntimeToolPolicyInput {
-            surface,
-            profiles: &ToolPolicyProfiles::default(),
-            explicit_profile: options.tool_profile.as_deref(),
-            explicit_allowlist: options.tool_allowlist.as_deref(),
-            extra_deny_names: &[],
-            extra_deny_prefixes: &[],
-        }),
+        None => resolve_headless_task_tool_filters(options),
     };
     let session_id = options.session_id.unwrap_or_else(Uuid::new_v4);
     Task {

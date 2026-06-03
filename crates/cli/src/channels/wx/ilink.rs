@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 const DEFAULT_BASE: &str = "https://ilinkai.weixin.qq.com";
-const CDN_BASE: &str = "https://novac2c.cdn.weixin.qq.com/c2c";
+pub(crate) const CDN_BASE: &str = "https://novac2c.cdn.weixin.qq.com/c2c";
 
 fn generate_uin_b64() -> String {
     let mut b = [0u8; 4];
@@ -104,6 +104,10 @@ impl WeChatApi {
         self.post_json("ilink/bot/getupdates", body, 35_000).await
     }
 
+    pub async fn get_upload_url(&self, body: Value) -> Result<Value> {
+        self.post_json("ilink/bot/getuploadurl", body, 30_000).await
+    }
+
     pub async fn send_message(&self, msg: Value) -> Result<()> {
         let mut delay_ms: u64 = 10_000;
         for attempt in 0..=3 {
@@ -160,6 +164,24 @@ pub fn cdn_download_url(encrypt_query_param: &str) -> Result<String> {
     ))
 }
 
+pub fn cdn_upload_url(upload_param: &str, filekey: &str) -> Result<String> {
+    if !upload_param
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "%=&+._~-/".contains(c))
+    {
+        anyhow::bail!("非法 upload_param");
+    }
+    if !filekey.chars().all(|c| c.is_ascii_hexdigit()) {
+        anyhow::bail!("非法 filekey");
+    }
+    Ok(format!(
+        "{}/upload?encrypted_query_param={}&filekey={}",
+        CDN_BASE,
+        urlencoding::encode(upload_param),
+        urlencoding::encode(filekey)
+    ))
+}
+
 pub fn build_outbound_text(
     bot_account_id: &str,
     to_user_id: &str,
@@ -177,6 +199,35 @@ pub fn build_outbound_text(
         "item_list": [{
             "type": 1,
             "text_item": { "text": text }
+        }]
+    })
+}
+
+pub fn build_outbound_file(
+    bot_account_id: &str,
+    to_user_id: &str,
+    context_token: &str,
+    file_name: &str,
+    encrypt_query_param: &str,
+    aes_key_b64: &str,
+    client_id: &str,
+) -> Value {
+    serde_json::json!({
+        "from_user_id": bot_account_id,
+        "to_user_id": to_user_id,
+        "client_id": client_id,
+        "message_type": 2,
+        "message_state": 2,
+        "context_token": context_token,
+        "item_list": [{
+            "type": 4,
+            "file_item": {
+                "file_name": file_name,
+                "media": {
+                    "encrypt_query_param": encrypt_query_param,
+                    "aes_key": aes_key_b64,
+                }
+            }
         }]
     })
 }
@@ -277,6 +328,37 @@ impl WxSender {
             }
         }
         Ok(())
+    }
+
+    /// Upload bytes to WeChat CDN and send as `file_item` (type 4).
+    pub async fn send_file(
+        &self,
+        to_user_id: &str,
+        context_token: &str,
+        file_name: &str,
+        plaintext: &[u8],
+    ) -> Result<()> {
+        use super::cdn_upload::upload_bytes_to_cdn;
+
+        let media = upload_bytes_to_cdn(self.api.as_ref(), plaintext, to_user_id).await?;
+        let n = self
+            .counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let client_id = format!(
+            "anycode-file-{}-{}",
+            chrono::Utc::now().timestamp_millis(),
+            n
+        );
+        let msg = build_outbound_file(
+            &self.bot_id,
+            to_user_id,
+            context_token,
+            file_name,
+            &media.encrypt_query_param,
+            &media.aes_key_b64,
+            &client_id,
+        );
+        self.api.send_message(msg).await
     }
 }
 

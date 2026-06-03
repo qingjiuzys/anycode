@@ -1,5 +1,6 @@
 //! 定时任务触发后向微信会话投递（读取最近对话方 `cron_notify_target.json`）。
 
+use super::deliverable::{extract_deliverable_path, send_deliverable_file};
 use super::WxSender;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -56,11 +57,21 @@ pub async fn deliver_cron_to_wechat(
             target: "anycode_scheduler",
             "cron WeChat deliver failed: {e:#}"
         );
-    } else {
-        tracing::info!(
-            target: "anycode_scheduler",
-            user = %target.from_user_id,
-            "cron delivered to WeChat"
-        );
+        return;
     }
+    if let Some(path) = extract_deliverable_path(&format!("{command}\n{text}")) {
+        if let Err(e) =
+            send_deliverable_file(sender, &target.from_user_id, &target.context_token, &path).await
+        {
+            tracing::warn!(
+                target: "anycode_scheduler",
+                "cron WeChat deliverable failed: {e:#}"
+            );
+        }
+    }
+    tracing::info!(
+        target: "anycode_scheduler",
+        user = %target.from_user_id,
+        "cron delivered to WeChat"
+    );
 }

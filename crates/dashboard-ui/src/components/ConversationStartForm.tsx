@@ -1,5 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { WebChatResult } from "@/api/client/projects";
 import type { SessionDetail } from "@/api/types";
@@ -12,11 +12,23 @@ export type ConversationStartSuccess = {
 
 type Props = {
   projectId: string;
+  initialAgent?: string;
   onSuccess?: (result: ConversationStartSuccess) => void;
   compact?: boolean;
 };
 
-export function ConversationStartForm({ projectId, onSuccess, compact }: Props) {
+function parseSkillAllowlist(skillsJson: string): string[] | null {
+  if (!skillsJson.trim()) return null;
+  try {
+    const v = JSON.parse(skillsJson) as { allowlist?: string[] };
+    const list = v.allowlist?.filter(Boolean) ?? [];
+    return list.length > 0 ? list : null;
+  } catch {
+    return null;
+  }
+}
+
+export function ConversationStartForm({ projectId, initialAgent, onSuccess, compact }: Props) {
   const t = useT();
   const queryClient = useQueryClient();
   const titleTouched = useRef(false);
@@ -25,6 +37,37 @@ export function ConversationStartForm({ projectId, onSuccess, compact }: Props) 
   const [prompt, setPrompt] = useState("");
   const [goal, setGoal] = useState("");
   const [kind, setKind] = useState<"run" | "goal">("run");
+  const [agent, setAgent] = useState(initialAgent ?? "");
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initialAgent) {
+      setAgent(initialAgent);
+    }
+  }, [initialAgent]);
+
+  const agentProfiles = useQuery({
+    queryKey: ["agent-profiles"],
+    queryFn: () => api.agentProfiles(),
+  });
+
+  const allSkills = useQuery({
+    queryKey: ["skills", "picker"],
+    queryFn: () => api.skills(100),
+  });
+
+  const skillOptions = useMemo(() => {
+    const rows = allSkills.data?.skills ?? [];
+    const profile = (agentProfiles.data?.profiles ?? []).find((p) => p.id === agent);
+    const allow = profile ? parseSkillAllowlist(profile.skills_json) : null;
+    const ids = rows.map((s) => s.id);
+    if (!allow) return ids;
+    return ids.filter((id) => allow.includes(id));
+  }, [agent, agentProfiles.data?.profiles, allSkills.data?.skills]);
+
+  useEffect(() => {
+    setSelectedSkills((prev) => prev.filter((id) => skillOptions.includes(id)));
+  }, [skillOptions]);
 
   const start = useMutation({
     mutationFn: () =>
@@ -32,6 +75,8 @@ export function ConversationStartForm({ projectId, onSuccess, compact }: Props) 
         title: sessionTitle.trim() || undefined,
         prompt: prompt.trim(),
         kind,
+        agent: agent.trim() || undefined,
+        skills: selectedSkills.length > 0 ? selectedSkills : undefined,
         goal:
           kind === "goal"
             ? goal.trim() || prompt.trim()
@@ -42,9 +87,19 @@ export function ConversationStartForm({ projectId, onSuccess, compact }: Props) 
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["project-triggers", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["running-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["session", data.session.id] });
+      void queryClient.invalidateQueries({
+        queryKey: ["session-transcript", data.session.id],
+      });
       onSuccess?.(data);
     },
   });
+
+  function toggleSkill(id: string) {
+    setSelectedSkills((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  }
 
   function onPromptChange(value: string) {
     setPrompt(value);
@@ -119,6 +174,49 @@ export function ConversationStartForm({ projectId, onSuccess, compact }: Props) 
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
         />
+      )}
+
+      <div>
+        <label className="block text-xs font-medium text-secondary mb-1">
+          {t("conversations.agentPicker")}
+        </label>
+        <select
+          className="dw-input w-full"
+          value={agent}
+          onChange={(e) => setAgent(e.target.value)}
+        >
+          <option value="">{t("conversations.agentDefault")}</option>
+          {(agentProfiles.data?.profiles ?? []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.id}
+              {p.description ? ` — ${p.description}` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {skillOptions.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-secondary mb-1">
+            {t("conversations.skillsPicker")}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {skillOptions.map((id) => (
+              <label
+                key={id}
+                className="flex items-center gap-1 text-sm border border-outline-variant rounded px-2 py-1"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSkills.includes(id)}
+                  onChange={() => toggleSkill(id)}
+                />
+                <span className="font-code text-xs">{id}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-secondary mt-1 m-0">{t("conversations.skillsHint")}</p>
+        </div>
       )}
 
       <div>

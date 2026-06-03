@@ -5,6 +5,12 @@ edition.workspace = true
 
 [features]
 default = []
+# Local FastEmbed vectors for project knowledge (Sled sidecar under ~/.anycode/knowledge).
+knowledge-embeddings = [
+    "dep:anycode-memory",
+    "anycode-memory/embedding-local",
+    "dep:sled",
+]
 # 预留：按需关闭重依赖或接入原生 MCP/LSP
 tools-http = []
 tools-mcp = [
@@ -19,6 +25,9 @@ tools-lsp = []
 
 [dependencies]
 anycode-core = { path = "../core" }
+anycode-memory = { path = "../memory", optional = true }
+sled = { workspace = true, optional = true }
+anycode-llm = { path = "../llm" }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
@@ -32,8 +41,11 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "str
 url = "2.5"
 urlencoding = "2.1"
 uuid = { workspace = true }
+sha2 = "0.10"
 base64 = "0.22"
 dirs = "5"
+tempfile = "3.10"
+zip = "2.2"
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
 cron = "0.12"

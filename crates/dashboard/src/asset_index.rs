@@ -177,10 +177,29 @@ pub async fn get_artifact_detail(
     })
     .collect();
 
+    let report_markdown = if base.kind == "report" {
+        sqlx::query_scalar::<_, String>("SELECT metadata_json FROM artifacts WHERE id = ?")
+            .bind(artifact_id)
+            .fetch_optional(db.pool())
+            .await?
+            .and_then(|raw| {
+                serde_json::from_str::<serde_json::Value>(&raw)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("markdown")
+                            .and_then(|m| m.as_str())
+                            .map(str::to_string)
+                    })
+            })
+    } else {
+        None
+    };
+
     Ok(Some(ArtifactDetail {
         artifact: base,
         versions,
         links,
+        report_markdown,
     }))
 }
 

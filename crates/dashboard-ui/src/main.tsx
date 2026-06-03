@@ -13,6 +13,10 @@ import "./index.css";
 initDensity();
 setTheme(getTheme());
 
+if ("__TAURI_INTERNALS__" in window) {
+  document.documentElement.classList.add("dw-tauri");
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 5_000, retry: 1 },

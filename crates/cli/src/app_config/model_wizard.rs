@@ -92,6 +92,10 @@ pub(crate) fn save_merged_config(
             .as_ref()
             .map(|c| c.skills.clone())
             .unwrap_or_default(),
+        agents: existing
+            .as_ref()
+            .map(|c| c.agents.clone())
+            .unwrap_or_default(),
         session: existing
             .as_ref()
             .map(|c| c.session.clone())
@@ -116,6 +120,10 @@ pub(crate) fn save_merged_config(
         notifications: existing
             .as_ref()
             .map(|c| c.notifications.clone())
+            .unwrap_or_default(),
+        models: existing
+            .as_ref()
+            .map(|c| c.models.clone())
             .unwrap_or_default(),
     };
 

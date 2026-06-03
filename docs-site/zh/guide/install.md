@@ -80,6 +80,10 @@ cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode -
 
 Release 页面：<https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
+### macOS 桌面版（可选）
+
+希望用原生 Workbench 窗口而不是浏览器？Apple Silicon 可在同一 GitHub Release 下载 **`anyCode_<version>_aarch64.dmg`**，打开后将 **anyCode** 拖入「应用程序」。应用内置 CLI sidecar，启动后打开 `http://127.0.0.1:43180` 工作台。本地构建：`./scripts/build-desktop-release.sh`。
+
 ## 安装后验证
 
 ```bash

@@ -249,6 +249,7 @@ pub async fn list_all_sessions(
             q.status.as_deref(),
             q.trusted_status.as_deref(),
             q.project_id.as_deref(),
+            q.budget_exceeded.unwrap_or(false),
         )
         .await
     {
@@ -364,16 +365,10 @@ pub async fn list_running_sessions(
 pub async fn get_session_report(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
+    Query(q): Query<super::reports::ReportQuery>,
 ) -> impl IntoResponse {
-    match crate::report::session_report(
-        &state.db,
-        &session_id,
-        crate::report::ReportOptions::default(),
-        true,
-    )
-    .await
-    {
-        Ok(report) => Json(json!({ "report": report })).into_response(),
+    match crate::report::session_report(&state.db, &session_id, q.options(), true).await {
+        Ok(report) => super::reports::report_response(report, &q.format),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
@@ -479,6 +474,89 @@ pub async fn get_session_usage(
         )
             .into_response(),
     }
+}
+
+pub async fn get_session_background_tasks(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    let session = match state.db.get_session(&session_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "session not found" })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+
+    let mut orchestration_tasks = Vec::new();
+    if let Some(path) = cron_ledger::orchestration_path() {
+        if path.is_file() {
+            if let Ok(raw) = std::fs::read_to_string(&path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    if let Some(tasks) = v.get("tasks").and_then(|t| t.as_object()) {
+                        for (id, rec) in tasks {
+                            let meta = rec.get("metadata").cloned().unwrap_or(json!({}));
+                            let session_match = meta
+                                .get("session_id")
+                                .and_then(|x| x.as_str())
+                                .is_some_and(|sid| sid == session_id);
+                            let task_match = session
+                                .task_id
+                                .as_deref()
+                                .is_some_and(|tid| tid == id.as_str());
+                            if session_match || task_match {
+                                orchestration_tasks.push(json!({
+                                    "id": id,
+                                    "subject": rec.get("subject"),
+                                    "status": rec.get("status"),
+                                    "description": rec.get("description"),
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut agent_tool_calls = Vec::new();
+    if let Ok(events) = state
+        .db
+        .list_session_events(&session_id, None, 200, Some("tool_call_end"), None, None)
+        .await
+    {
+        for e in events {
+            let name = e.payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            if matches!(
+                name,
+                "Agent" | "Task" | "TaskCreate" | "TaskOutput" | "TaskStop"
+            ) {
+                agent_tool_calls.push(json!({
+                    "occurred_at": e.occurred_at,
+                    "title": e.title,
+                    "severity": e.severity,
+                    "tool": name,
+                    "body": e.body,
+                }));
+            }
+        }
+    }
+
+    Json(json!({
+        "orchestration_tasks": orchestration_tasks,
+        "agent_tool_calls": agent_tool_calls,
+    }))
+    .into_response()
 }
 
 #[derive(Deserialize)]

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "anyCode",
+  "version": "0.1.0",
+  "identifier": "dev.anycode.desktop",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "frontendDist": "../../crates/dashboard-ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "anyCode Workbench",
+        "width": 1280,
+        "height": 840,
+        "url": "http://127.0.0.1:43180",
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 18
+        }
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+    "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "resources/bin/*"
+    ]
+  },
+  "plugins": {}
+}

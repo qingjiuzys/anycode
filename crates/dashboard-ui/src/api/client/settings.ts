@@ -1,5 +1,6 @@
 import type {
   ApiTokenRecord,
+  ConfiguredModel,
   ConnectorRecord,
   DashboardPreferencesView,
   DataHealth,
@@ -7,14 +8,22 @@ import type {
   DoctorReport,
   GithubIssueSummary,
   LinearIssueSummary,
+  LlmConfigPatchBody,
+  LlmConfigPatchResult,
+  LlmConfigView,
   LocalServiceRecord,
+  ModelCatalog,
+  ModelsRegistryView,
   NotificationPolicyRecord,
   PolicySummary,
+  PutModelsBody,
   RecentNotification,
+  RefreshCatalogResult,
   RuntimeSettings,
   ServiceStatusDetail,
   SkillDetailRecord,
   SkillRecord,
+  TestLlmResult,
 } from "../types";
 import { del, get, patch, post, put } from "../http";
 
@@ -37,24 +46,50 @@ export const settingsClient = {
       "/api/settings/preferences",
       body,
     ),
-  patchLlmConfig: (body: {
-    provider?: string;
-    model?: string;
-    fallback_provider?: string;
-    fallback_model?: string;
-  }) =>
-    put<{
-      ok: boolean;
-      config_path: string;
-      llm?: unknown;
-      model_fallback?: unknown;
-    }>("/api/settings/llm", body),
+  modelCatalog: () => get<ModelCatalog>("/api/settings/model-catalog"),
+  refreshModelCatalog: (body?: { provider?: string; base_url?: string }) =>
+    post<RefreshCatalogResult>("/api/settings/model-catalog/refresh", body ?? {}),
+  getModelsRegistry: () => get<ModelsRegistryView>("/api/settings/models"),
+  putModelsRegistry: (body: PutModelsBody) =>
+    put<{ ok: boolean; config_path: string }>("/api/settings/models", body),
+  enableModel: (modelId: string, capabilities: string[]) =>
+    post<{ ok: boolean }>(`/api/settings/models/${encodeURIComponent(modelId)}/enable`, {
+      capabilities,
+    }),
+  testModel: (
+    modelId: string,
+    body?: { capability?: string; draft?: ConfiguredModel },
+  ) =>
+    post<TestLlmResult>(
+      `/api/settings/models/${encodeURIComponent(modelId)}/test`,
+      body ?? {},
+    ),
+  getLlmConfig: () => get<LlmConfigView>("/api/settings/llm"),
+  putLlmConfig: (body: LlmConfigPatchBody) =>
+    put<LlmConfigPatchResult>("/api/settings/llm", body),
+  testLlm: (capability: string) =>
+    post<TestLlmResult>("/api/settings/llm", { capability }),
   policies: () => get<{ policy: PolicySummary }>("/api/settings/policies"),
   dataHealth: () => get<{ health: DataHealth }>("/api/settings/data-health"),
   serviceStatus: () =>
     get<{ service: ServiceStatusDetail }>("/api/settings/service-status"),
   dbOperations: () =>
     get<{ operations: DbOperations }>("/api/settings/db-operations"),
+  memoryRetentionPreview: (olderThanDays = 90) =>
+    get<{
+      rows: unknown[];
+      summary: { would_delete: number; keep: number; protected: number };
+      older_than_days: number;
+    }>(`/api/settings/memory/retention?older_than_days=${olderThanDays}`),
+  memoryRetentionApply: (olderThanDays: number, confirm: boolean) =>
+    post<{
+      rows: unknown[];
+      summary: { would_delete: number; keep: number; protected: number };
+      older_than_days: number;
+    }>("/api/settings/memory/retention", {
+      older_than_days: olderThanDays,
+      confirm,
+    }),
   apiTokens: () => get<{ tokens: ApiTokenRecord[] }>("/api/settings/tokens"),
   createToken: (name: string, expiresDays?: number) =>
     post<{ token: ApiTokenRecord; plaintext: string }>(

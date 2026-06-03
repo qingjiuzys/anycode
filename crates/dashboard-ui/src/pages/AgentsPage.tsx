@@ -1,11 +1,55 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
+import type { AgentUsageStat, SkillRecord } from "@/api/types";
 import { AgentRoleCards } from "@/components/AgentRoleCards";
+import { EmptyState } from "@/components/EmptyState";
+import { SkillSuggestionsPanel } from "@/components/SkillSuggestionsPanel";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+
+function aggregateAgentStats(agents: AgentUsageStat[]): AgentUsageStat[] {
+  const grouped = new Map<
+    string,
+    { sessions_count: number; models: Set<string>; last_started_at: string | null }
+  >();
+
+  for (const row of agents) {
+    const current = grouped.get(row.agent_type) ?? {
+      sessions_count: 0,
+      models: new Set<string>(),
+      last_started_at: null,
+    };
+    current.sessions_count += row.sessions_count;
+    if (row.model) current.models.add(row.model);
+    if (
+      row.last_started_at &&
+      (!current.last_started_at || row.last_started_at > current.last_started_at)
+    ) {
+      current.last_started_at = row.last_started_at;
+    }
+    grouped.set(row.agent_type, current);
+  }
+
+  return [...grouped.entries()]
+    .map(([agent_type, value]) => {
+      const models = [...value.models];
+      return {
+        agent_type,
+        model:
+          models.length === 0
+            ? "—"
+            : models.length <= 2
+              ? models.join(", ")
+              : `${models[0]}, ${models[1]} +${models.length - 2}`,
+        sessions_count: value.sessions_count,
+        last_started_at: value.last_started_at,
+      };
+    })
+    .sort((a, b) => b.sessions_count - a.sessions_count);
+}
 
 export function AgentsPage() {
   const t = useT();
@@ -26,6 +70,9 @@ export function AgentsPage() {
     },
   });
 
+  const agentRows = aggregateAgentStats(stats.data?.agents ?? []);
+  const skillList = skills.data?.skills ?? [];
+
   return (
     <>
       <PageHeader
@@ -35,43 +82,59 @@ export function AgentsPage() {
           { label: t("breadcrumb.home"), to: "/" },
           { label: t("agents.title") },
         ]}
+        actions={
+          <div className="dw-inline-links">
+            <Link to="/settings" search={{ section: "agents" }} className="dw-inline-link">
+              <Icon name="tune" size={16} />
+              {t("agents.configLink")}
+            </Link>
+            <Link to="/settings" search={{ section: "model" }} className="dw-inline-link">
+              <Icon name="route" size={16} />
+              {t("agents.routingLink")}
+            </Link>
+            <Link to="/settings" search={{ section: "skills" }} className="dw-inline-link">
+              <Icon name="extension" size={16} />
+              {t("agents.skillsLink")}
+            </Link>
+          </div>
+        }
       />
 
       <AgentRoleCards agents={stats.data?.agents ?? []} />
 
+      <SkillSuggestionsPanel />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title={t("agents.agentStats")} noPadding>
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("agents.agentCol")}</th>
-                  <th>{t("agents.model")}</th>
-                  <th className="text-right">{t("agents.sessionCount")}</th>
-                  <th>{t("agents.recent")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(stats.data?.agents ?? []).map((a) => (
-                  <tr key={`${a.agent_type}-${a.model}`}>
-                    <td>
-                      <strong>{a.agent_type || "—"}</strong>
-                    </td>
-                    <td className="text-secondary font-code text-xs">{a.model || "—"}</td>
-                    <td className="text-right">{a.sessions_count}</td>
-                    <td className="text-secondary text-xs">{a.last_started_at ?? "—"}</td>
-                  </tr>
-                ))}
-                {!stats.isLoading && (stats.data?.agents ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="text-secondary text-center py-6">
-                      {t("agents.emptyUsage")}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <SectionCard title={t("agents.agentStats")}>
+          {stats.isLoading ? (
+            <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+          ) : agentRows.length === 0 ? (
+            <EmptyState title={t("agents.emptyUsage")} icon="smart_toy" />
+          ) : (
+            <div className="space-y-2">
+              {agentRows.map((row) => (
+                <div
+                  key={row.agent_type}
+                  className="flex items-center gap-3 rounded-xl bg-surface-container-low px-3 py-2.5"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-surface-container-high text-secondary flex items-center justify-center shrink-0">
+                    <Icon name="smart_toy" size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm truncate">{row.agent_type}</div>
+                    <div className="text-xs text-secondary font-code truncate">{row.model}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-semibold tabular-nums">{row.sessions_count}</div>
+                    <div className="text-[11px] text-secondary">{t("agents.sessionsShort")}</div>
+                  </div>
+                  <div className="hidden sm:block text-xs text-secondary shrink-0 w-36 text-right truncate">
+                    {row.last_started_at ?? "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard
@@ -79,7 +142,7 @@ export function AgentsPage() {
           action={
             <button
               type="button"
-              className="dw-btn-secondary"
+              className="dw-btn-ghost"
               disabled={rescan.isPending}
               onClick={() => rescan.mutate()}
             >
@@ -87,55 +150,57 @@ export function AgentsPage() {
               {rescan.isPending ? t("agents.rescanning") : t("agents.rescan")}
             </button>
           }
-          noPadding
         >
           {rescan.isSuccess && (
-            <p className="text-sm text-secondary px-4 pt-4 m-0">
+            <p className="text-sm text-secondary m-0 mb-3">
               {t("agents.rescanSuccess").replace("{n}", String(rescan.data.skills_synced))}
             </p>
           )}
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("common.id")}</th>
-                  <th>{t("common.name")}</th>
-                  <th className="text-right">{t("agents.projectsCount")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(skills.data?.skills ?? []).map((sk) => (
-                  <tr key={sk.id}>
-                    <td>
-                      <code className="font-code text-xs">{sk.id}</code>
-                    </td>
-                    <td>
-                      <Link
-                        to="/agents/$skillId"
-                        params={{ skillId: sk.id }}
-                        className="font-medium no-underline hover:underline"
-                      >
-                        {sk.name}
-                      </Link>
-                      {sk.description && (
-                        <div className="text-xs text-secondary mt-0.5">{sk.description}</div>
-                      )}
-                    </td>
-                    <td className="text-right">{sk.projects_count}</td>
-                  </tr>
-                ))}
-                {!skills.isLoading && (skills.data?.skills ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="text-secondary text-center py-6">
-                      {t("agents.emptySkills")}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {skills.isLoading ? (
+            <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+          ) : skillList.length === 0 ? (
+            <EmptyState
+              title={t("agents.emptySkillsTitle")}
+              description={t("agents.emptySkills")}
+              icon="extension"
+            />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {skillList.map((skill) => (
+                <SkillTile key={skill.id} skill={skill} projectsLabel={t("agents.projectsCount")} />
+              ))}
+            </div>
+          )}
         </SectionCard>
       </div>
     </>
+  );
+}
+
+function SkillTile({ skill, projectsLabel }: { skill: SkillRecord; projectsLabel: string }) {
+  return (
+    <Link
+      to="/agents/$skillId"
+      params={{ skillId: skill.id }}
+      className="dw-skill-tile group"
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <Icon name="extension" size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-sm text-on-surface group-hover:text-primary transition-colors truncate">
+            {skill.name}
+          </div>
+          <div className="text-[11px] font-code text-secondary truncate mt-0.5">{skill.id}</div>
+          {skill.description && (
+            <p className="text-xs text-secondary m-0 mt-2 line-clamp-2">{skill.description}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 text-xs text-secondary">
+        {skill.projects_count} {projectsLabel}
+      </div>
+    </Link>
   );
 }

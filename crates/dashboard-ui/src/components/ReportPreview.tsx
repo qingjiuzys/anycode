@@ -52,6 +52,12 @@ export function ReportPreview({ report, loading }: Props) {
         <MiniStat label={t("reports.failedGates")} value={report.summary.failed_gates} />
         <MiniStat label={t("reports.artifacts")} value={report.summary.artifacts} />
       </div>
+      {report.source_counts && (
+        <p className="text-xs text-secondary m-0 mb-4">
+          {t("reports.sourceCounts")}: {report.source_counts.sessions} / {report.source_counts.events} /{" "}
+          {report.source_counts.gates} / {report.source_counts.artifacts}
+        </p>
+      )}
       <pre className="bg-surface-container-low border border-outline-variant rounded p-4 font-code text-xs overflow-auto max-h-[480px] whitespace-pre-wrap m-0">
         {report.markdown}
       </pre>

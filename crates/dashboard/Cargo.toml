@@ -9,6 +9,7 @@ build = "build.rs"
 [features]
 default = []
 embedded-ui = ["dep:rust-embed"]
+knowledge-embeddings = ["anycode-tools/knowledge-embeddings"]
 
 [lib]
 name = "anycode_dashboard"
@@ -16,7 +17,10 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+anycode-agent = { path = "../agent" }
 anycode-core = { path = "../core" }
+anycode-llm = { path = "../llm" }
+anycode-tools = { path = "../tools" }
 async-stream = "0.3"
 axum = { version = "0.8", features = ["json", "macros"] }
 chrono = { workspace = true, features = ["serde"] }
@@ -30,6 +34,7 @@ tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 sha2 = "0.10"
+dirs = "5"
 reqwest = { workspace = true, features = ["json"] }
 rust-embed = { version = "8.9", optional = true }
 

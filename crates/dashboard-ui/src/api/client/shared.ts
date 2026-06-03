@@ -13,6 +13,7 @@ export interface SessionListOpts {
   status?: string;
   trustedStatus?: string;
   projectId?: string;
+  budgetExceeded?: boolean;
 }
 
 export interface ProjectsListOpts {

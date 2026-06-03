@@ -1,0 +1,24 @@
+[workspace]
+
+[package]
+name = "anycode-desktop"
+version = "0.1.0"
+description = "anyCode desktop shell (Tauri + Digital Workbench)"
+edition = "2021"
+
+[[bin]]
+name = "anycode-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"

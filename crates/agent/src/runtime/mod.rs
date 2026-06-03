@@ -1,6 +1,7 @@
 //! Agent 运行时（LLM + 工具循环、落盘、回执）。
 
 mod agentic_loop;
+mod agentic_turn;
 mod artifacts;
 mod budget;
 mod evidence;
@@ -8,6 +9,7 @@ mod execute_goal;
 mod execute_task;
 mod execute_tool;
 mod execute_turn;
+pub mod failover;
 mod limits;
 mod logging;
 mod memory_hooks;
@@ -20,6 +22,7 @@ mod session_notify;
 mod task_summary;
 mod tool_audit;
 mod tool_gating;
+mod tool_invocation;
 mod tool_output_sanitize;
 mod tool_result_injection;
 mod tool_surface;
@@ -59,6 +62,8 @@ pub struct AgentRuntime {
     session_notifications: Option<SessionNotificationSettings>,
     default_model_config: ModelConfig,
     model_overrides: HashMap<AgentType, ModelConfig>,
+    /// Optional fallback chat model when primary fails (geo / rate limit / etc.).
+    failover_policy: Option<failover::FailoverPolicy>,
     disk_output: Option<DiskTaskOutput>,
     /// 权限与审批（策略、沙箱、工具确认）
     security: Arc<SecurityLayer>,
@@ -168,6 +173,7 @@ impl AgentRuntime {
             memory_store,
             default_model_config,
             model_overrides,
+            failover_policy,
             disk_output,
             security,
             sandbox_mode,
@@ -225,6 +231,7 @@ impl AgentRuntime {
             session_notifications,
             default_model_config,
             model_overrides,
+            failover_policy,
             disk_output,
             security,
             sandbox_mode,
@@ -240,6 +247,86 @@ impl AgentRuntime {
     pub fn attach_tool_services(&self, services: Arc<anycode_tools::ToolServices>) {
         if let Ok(mut g) = self.tool_services.lock() {
             *g = Some(services);
+        }
+    }
+
+    pub(super) async fn chat_with_failover(
+        &self,
+        messages: Vec<Message>,
+        tools: Vec<ToolSchema>,
+        primary: &ModelConfig,
+        task_id: TaskId,
+        logger: &RunLogger,
+    ) -> Result<LLMResponse, CoreError> {
+        match self
+            .llm_client
+            .chat(messages.clone(), tools.clone(), primary)
+            .await
+        {
+            Ok(r) => Ok(r),
+            Err(e) => {
+                let Some(policy) = self.failover_policy.as_ref() else {
+                    return Err(e);
+                };
+                if !failover::error_triggers_failover(&e, policy.trigger) {
+                    return Err(e);
+                }
+                logger.line(
+                    task_id,
+                    &format!(
+                        "[model_failover] from={}/{} to={}/{} reason={}",
+                        Self::provider_label(primary),
+                        primary.model,
+                        Self::provider_label(&policy.fallback),
+                        policy.fallback.model,
+                        e
+                    ),
+                );
+                self.llm_client
+                    .chat(messages, tools, &policy.fallback)
+                    .await
+            }
+        }
+    }
+
+    pub(super) async fn try_failover_on_provider_body_error(
+        &self,
+        messages: Vec<Message>,
+        tools: Vec<ToolSchema>,
+        primary: &ModelConfig,
+        task_id: TaskId,
+        logger: &RunLogger,
+        err: &str,
+    ) -> Result<Option<LLMResponse>, CoreError> {
+        let Some(policy) = self.failover_policy.as_ref() else {
+            return Ok(None);
+        };
+        let synthetic = CoreError::LLMError(err.to_string());
+        if !failover::error_triggers_failover(&synthetic, policy.trigger) {
+            return Ok(None);
+        }
+        logger.line(
+            task_id,
+            &format!(
+                "[model_failover] stream_error from={}/{} to={}/{}",
+                Self::provider_label(primary),
+                primary.model,
+                Self::provider_label(&policy.fallback),
+                policy.fallback.model
+            ),
+        );
+        self.llm_client
+            .chat(messages, tools, &policy.fallback)
+            .await
+            .map(Some)
+    }
+
+    fn provider_label(cfg: &ModelConfig) -> String {
+        match &cfg.provider {
+            LLMProvider::Custom(s) => s.clone(),
+            LLMProvider::Anthropic => "anthropic".into(),
+            LLMProvider::OpenAI => "openai".into(),
+            LLMProvider::Local => "local".into(),
         }
     }
 
@@ -317,7 +404,13 @@ impl AgentRuntime {
         let system = self
             .build_system_message(agent_type, working_directory)
             .await?;
-        let mode = Self::runtime_mode_for_agent(agent_type);
+        let mode = {
+            let agents = self.agents.read().await;
+            let agent = agents
+                .get(agent_type)
+                .ok_or_else(|| CoreError::AgentNotFound(Uuid::new_v4()))?;
+            agent.runtime_mode()
+        };
         let mut messages = vec![system];
         messages.extend(
             self.context_messages_from_sections(self.build_context_sections(mode, &[], &[])),

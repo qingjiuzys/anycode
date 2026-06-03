@@ -14,8 +14,12 @@ use crate::file_read::FileReadTool;
 use crate::file_write::FileWriteTool;
 use crate::glob::GlobTool;
 use crate::grep::GrepTool;
+use crate::knowledge_tools::KnowledgeSearchTool;
 use crate::lsp_tool::LspTool;
 use crate::mcp_tools::{ListMcpResourcesTool, McpAuthTool, McpTool, ReadMcpResourceTool};
+use crate::media_tools::{
+    GenerateImageTool, GenerateVideoTool, SpeechToTextTool, TextToSpeechTool,
+};
 use crate::mode_tools::{
     EnterPlanModeTool, EnterWorktreeTool, ExitPlanModeTool, ExitWorktreeTool, SleepTool,
     StructuredOutputTool, ToolSearchTool,
@@ -92,6 +96,11 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(BriefTool::new());
     ins!(AskUserQuestionTool::new(s.clone()));
     ins!(ReplTool::new());
+    ins!(SpeechToTextTool::new(s.clone()));
+    ins!(TextToSpeechTool::new(s.clone()));
+    ins!(GenerateImageTool::new(s.clone()));
+    ins!(GenerateVideoTool::new(s.clone()));
+    ins!(KnowledgeSearchTool::new(s.clone()));
 
     #[cfg(feature = "tools-mcp")]
     {

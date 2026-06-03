@@ -29,6 +29,7 @@ pub(crate) fn mock_fixture_ids() -> Vec<&'static str> {
         "mock-fixture-bugfix",
         "mock-fixture-multifile",
         "mock-fixture-test-repair",
+        "mock-fixture-budget-trip",
     ]
 }
 
@@ -94,10 +95,24 @@ fn read_one_http_request(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
 }
 
 fn json_text_response(seq: usize, content: &str) -> String {
+    json_text_response_with_usage(seq, content, 1, 2)
+}
+
+fn json_text_response_with_usage(
+    seq: usize,
+    content: &str,
+    prompt_tokens: u32,
+    completion_tokens: u32,
+) -> String {
+    let total = prompt_tokens.saturating_add(completion_tokens);
+    let content_json = serde_json::to_string(content).expect("json string");
     format!(
-        r#"{{"id":"eval-mock-{seq}","choices":[{{"message":{{"role":"assistant","content":{content_json}}},"finish_reason":"stop"}}],"usage":{{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}}}"#,
+        r#"{{"id":"eval-mock-{seq}","choices":[{{"message":{{"role":"assistant","content":{content_json}}},"finish_reason":"stop"}}],"usage":{{"prompt_tokens":{prompt_tokens},"completion_tokens":{completion_tokens},"total_tokens":{total}}}}}"#,
         seq = seq,
-        content_json = serde_json::to_string(content).expect("json string")
+        content_json = content_json,
+        prompt_tokens = prompt_tokens,
+        completion_tokens = completion_tokens,
+        total = total,
     )
 }
 
@@ -272,6 +287,8 @@ struct MockScenarioRun {
     min_requests: usize,
     expect_marker: &'static str,
     extra_output_contains: &'static [&'static str],
+    run_extra_args: &'static [&'static str],
+    expect_task_success: bool,
     trajectory: TrajectoryExpect,
     script: Arc<dyn Fn(usize) -> String + Send + Sync>,
     post_verify: Option<Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>>,
@@ -337,20 +354,20 @@ fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
     }
 
     let config = home.join("config.json");
-    let output = Command::new(bin)
-        .args([
-            "-c",
-            config.to_str().unwrap_or("config.json"),
-            "--ignore",
-            "run",
-            "-C",
-            fixture.to_str().unwrap_or("."),
-            "--agent",
-            "general-purpose",
-            spec.prompt,
-        ])
-        .env("HOME", &home)
-        .output();
+    let mut cmd = Command::new(bin);
+    cmd.args([
+        "-c",
+        config.to_str().unwrap_or("config.json"),
+        "--ignore",
+        "run",
+        "-C",
+        fixture.to_str().unwrap_or("."),
+        "--agent",
+        "general-purpose",
+    ]);
+    cmd.args(spec.run_extra_args);
+    cmd.arg(spec.prompt);
+    let output = cmd.env("HOME", &home).output();
 
     done.store(true, Ordering::Release);
     let _ = mock_join.join();
@@ -369,14 +386,23 @@ fn run_one_mock_scenario(bin: &Path, spec: MockScenarioRun) -> MockEvalRow {
 
     let combined = String::from_utf8_lossy(&output.stdout).to_string()
         + &String::from_utf8_lossy(&output.stderr);
-    let marker_ok = combined.contains(spec.expect_marker);
+    let marker_ok = spec.expect_marker.is_empty() || combined.contains(spec.expect_marker);
     let extras_ok = spec
         .extra_output_contains
         .iter()
         .all(|needle| combined.contains(needle));
-    let mut pass = output.status.success() && marker_ok && extras_ok;
+    let status_ok = if spec.expect_task_success {
+        output.status.success()
+    } else {
+        !output.status.success()
+    };
+    let mut pass = status_ok && marker_ok && extras_ok;
     let mut detail = if pass {
-        format!("mock LLM fixture task completed ({})", spec.expect_marker)
+        if spec.expect_task_success {
+            format!("mock LLM fixture task completed ({})", spec.expect_marker)
+        } else {
+            "mock LLM fixture budget trip ok".to_string()
+        }
     } else {
         format!(
             "expected {:?} in output; exit={}; tail={}",
@@ -614,6 +640,10 @@ fn verify_test_repair_repo(fixture: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn budget_trip_script(_n: usize) -> String {
+    json_text_response_with_usage(0, "Budget trip MOCK_EVAL_budget_trip_0", 50, 50)
+}
+
 fn test_repair_script(n: usize) -> String {
     if n == 0 {
         reply_to_json(
@@ -645,6 +675,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 min_requests: 1,
                 expect_marker: "MOCK_EVAL_greet_0",
                 extra_output_contains: &[],
+                run_extra_args: &[],
+                expect_task_success: true,
                 trajectory: TrajectoryExpect {
                     required_events: &["llm_response_end"],
                     forbidden_events: &["budget_exceeded", "gate"],
@@ -667,6 +699,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 min_requests: 2,
                 expect_marker: "MOCK_EVAL_bugfix_0",
                 extra_output_contains: &[],
+                run_extra_args: &[],
+                expect_task_success: true,
                 trajectory: TrajectoryExpect {
                     required_tools: &["Bash"],
                     forbidden_tools: &["FileWrite"],
@@ -694,6 +728,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                     "MARKER_SRC=eval-src-99",
                     "MARKER_CFG=eval-cfg-17",
                 ],
+                run_extra_args: &[],
+                expect_task_success: true,
                 trajectory: TrajectoryExpect {
                     required_tools: &["FileRead"],
                     forbidden_tools: &["Bash", "FileWrite", "Edit"],
@@ -717,6 +753,8 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 min_requests: 2,
                 expect_marker: "MOCK_EVAL_test_repair_0",
                 extra_output_contains: &[],
+                run_extra_args: &[],
+                expect_task_success: true,
                 trajectory: TrajectoryExpect {
                     required_tools: &["Bash"],
                     forbidden_tools: &["FileWrite"],
@@ -730,5 +768,184 @@ pub(crate) fn run_mock_fixture_scenarios(bin: &Path) -> Vec<MockEvalRow> {
                 post_verify: Some(Arc::new(verify_test_repair_repo)),
             },
         ),
+        run_one_mock_scenario(
+            bin,
+            MockScenarioRun {
+                id: "mock-fixture-budget-trip",
+                fixture_name: "minimal-repo",
+                copy_fixture: false,
+                prompt: "Say hello briefly",
+                min_requests: 1,
+                expect_marker: "",
+                extra_output_contains: &["budget"],
+                run_extra_args: &["--token-budget", "4"],
+                expect_task_success: false,
+                trajectory: TrajectoryExpect {
+                    required_events: &["llm_response_end", "budget_exceeded"],
+                    forbidden_events: &["tool_call_end", "gate"],
+                    ..TrajectoryExpect::default()
+                },
+                script: Arc::new(budget_trip_script),
+                post_verify: None,
+            },
+        ),
     ]
+}
+
+fn write_fake_trace(home: &Path, events: &[Value]) -> Result<(), String> {
+    let task_dir = home.join(".anycode/tasks/guard-test");
+    std::fs::create_dir_all(&task_dir).map_err(|e| format!("task dir: {e}"))?;
+    let mut out = String::new();
+    for e in events {
+        out.push_str(&serde_json::to_string(e).map_err(|e| format!("serialize event: {e}"))?);
+        out.push('\n');
+    }
+    std::fs::write(task_dir.join("events.jsonl"), out).map_err(|e| format!("write events: {e}"))
+}
+
+fn run_guard_case(
+    id: &'static str,
+    events: &[Value],
+    expect: TrajectoryExpect,
+    want_err_contains: &str,
+) -> MockEvalRow {
+    let home =
+        std::env::temp_dir().join(format!("anycode-eval-guard-{id}-{}", uuid::Uuid::new_v4()));
+    let cleanup = || {
+        let _ = std::fs::remove_dir_all(&home);
+    };
+    if let Err(e) = std::fs::create_dir_all(&home) {
+        return MockEvalRow {
+            id,
+            status: "fail",
+            detail: format!("temp home: {e}"),
+            exit_code: -1,
+        };
+    }
+    if let Err(e) = write_fake_trace(&home, events) {
+        cleanup();
+        return MockEvalRow {
+            id,
+            status: "fail",
+            detail: e,
+            exit_code: -1,
+        };
+    }
+    let row = match verify_trajectory(&home, expect) {
+        Err(msg) if msg.contains(want_err_contains) => MockEvalRow {
+            id,
+            status: "pass",
+            detail: format!("guard ok: {msg}"),
+            exit_code: 0,
+        },
+        Err(msg) => MockEvalRow {
+            id,
+            status: "fail",
+            detail: format!("guard wrong error: {msg}"),
+            exit_code: -1,
+        },
+        Ok(ok) => MockEvalRow {
+            id,
+            status: "fail",
+            detail: format!("guard did not trip: {ok}"),
+            exit_code: -1,
+        },
+    };
+    cleanup();
+    row
+}
+
+pub(crate) fn mock_guard_ids() -> Vec<&'static str> {
+    vec![
+        "mock-trajectory-guard-excess-tools",
+        "mock-trajectory-guard-forbidden-tool",
+        "mock-trajectory-guard-missing-event",
+    ]
+}
+
+pub(crate) fn run_mock_trajectory_guard_tests() -> Vec<MockEvalRow> {
+    vec![
+        run_guard_case(
+            "mock-trajectory-guard-excess-tools",
+            &[
+                json!({"event_type":"tool_call_end","payload":{"name":"Bash"}}),
+                json!({"event_type":"tool_call_end","payload":{"name":"Bash"}}),
+            ],
+            TrajectoryExpect {
+                max_tool_calls: Some(1),
+                ..TrajectoryExpect::default()
+            },
+            "exceeded max",
+        ),
+        run_guard_case(
+            "mock-trajectory-guard-forbidden-tool",
+            &[json!({"event_type":"tool_call_end","payload":{"name":"FileWrite"}})],
+            TrajectoryExpect {
+                forbidden_tools: &["FileWrite"],
+                ..TrajectoryExpect::default()
+            },
+            "forbidden tool",
+        ),
+        run_guard_case(
+            "mock-trajectory-guard-missing-event",
+            &[json!({"event_type":"tool_call_end","payload":{"name":"Bash"}})],
+            TrajectoryExpect {
+                required_events: &["llm_response_end"],
+                ..TrajectoryExpect::default()
+            },
+            "required event",
+        ),
+    ]
+}
+
+#[cfg(test)]
+mod guard_unit_tests {
+    use super::*;
+
+    #[test]
+    fn verify_trajectory_rejects_excess_tool_calls() {
+        let home =
+            std::env::temp_dir().join(format!("anycode-eval-guard-unit-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&home).unwrap();
+        write_fake_trace(
+            &home,
+            &[
+                json!({"event_type":"tool_call_end","payload":{"name":"Bash"}}),
+                json!({"event_type":"tool_call_end","payload":{"name":"Bash"}}),
+            ],
+        )
+        .unwrap();
+        let err = verify_trajectory(
+            &home,
+            TrajectoryExpect {
+                max_tool_calls: Some(1),
+                ..TrajectoryExpect::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("exceeded max"));
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn verify_trajectory_rejects_forbidden_tool() {
+        let home =
+            std::env::temp_dir().join(format!("anycode-eval-guard-unit-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&home).unwrap();
+        write_fake_trace(
+            &home,
+            &[json!({"event_type":"tool_call_end","payload":{"name":"Edit"}})],
+        )
+        .unwrap();
+        let err = verify_trajectory(
+            &home,
+            TrajectoryExpect {
+                forbidden_tools: &["Edit"],
+                ..TrajectoryExpect::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("forbidden tool"));
+        let _ = std::fs::remove_dir_all(&home);
+    }
 }

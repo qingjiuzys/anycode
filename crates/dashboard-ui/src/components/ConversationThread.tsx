@@ -1,12 +1,12 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
+import { ConversationComposer } from "@/components/ConversationComposer";
 import { ConversationTranscript } from "@/components/ConversationTranscript";
 import { PendingApprovalBadge, SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { Icon } from "@/components/Icon";
 import { SessionStatusBadges } from "@/components/ui/StatusBadge";
-import { ConversationCompose } from "@/components/ConversationCompose";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
 
@@ -82,12 +82,17 @@ export function ConversationSessionList({
 export function ConversationThread({
   session,
   onFollowUpStarted,
+  showHeader = true,
+  showComposer = true,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
+  showHeader?: boolean;
+  showComposer?: boolean;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [metaOpen, setMetaOpen] = useState(false);
 
   if (!session) {
     return (
@@ -98,58 +103,110 @@ export function ConversationThread({
     );
   }
 
+  const running = session.status === "running";
+
   return (
-    <div className="flex flex-col h-full min-h-[420px]">
-      <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low shrink-0">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-base font-semibold m-0">{session.title}</h3>
-            <p className="text-xs text-secondary m-0 mt-0.5">
-              {session.kind} · {formatDuration(session.started_at, session.ended_at)} ·{" "}
-              {session.agent_type || "—"}
-            </p>
-            <div className="mt-1">
-              <SessionStatusBadges
-                status={session.status}
-                trustedStatus={session.trusted_status}
-              />
+    <div className="flex flex-col h-full min-h-0">
+      {showHeader && (
+        <div className="px-4 py-2.5 border-b border-outline-variant bg-surface-container-low shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="text-base font-semibold m-0 truncate">{session.title}</h3>
+                <SessionStatusBadges
+                  status={session.status}
+                  trustedStatus={session.trusted_status}
+                />
+              </div>
+              {session.block_reason && (
+                <p className="text-xs text-error m-0 mt-1 truncate" title={session.block_reason}>
+                  {session.block_reason}
+                </p>
+              )}
             </div>
-            {session.block_reason && (
-              <p className="text-xs text-error m-0 mt-1">{session.block_reason}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <CancelSessionButton sessionId={session.id} status={session.status} compact />
-            <Link
-              to="/sessions/$sessionId"
-              params={{ sessionId: session.id }}
-              className="dw-btn-secondary text-xs no-underline"
-            >
-              {t("conversations.openDetail")}
-            </Link>
+            <div className="flex items-center gap-1 shrink-0">
+              <div className="relative">
+                <button
+                  type="button"
+                  className="dw-btn-ghost p-1.5"
+                  aria-expanded={metaOpen}
+                  aria-label={t("common.details")}
+                  onClick={() => setMetaOpen((v) => !v)}
+                >
+                  <Icon name="more_horiz" size={18} />
+                </button>
+                {metaOpen && (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-10 cursor-default"
+                      aria-hidden
+                      onClick={() => setMetaOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[14rem] rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg p-3 text-xs text-secondary">
+                      <p className="m-0">
+                        {session.kind} · {formatDuration(session.started_at, session.ended_at)}
+                      </p>
+                      <p className="m-0 mt-1">
+                        {session.agent_type || "—"} · {session.model || "—"}
+                      </p>
+                      <Link
+                        to="/sessions/$sessionId"
+                        params={{ sessionId: session.id }}
+                        className="inline-flex items-center gap-1 mt-2 text-primary no-underline hover:underline"
+                        onClick={() => setMetaOpen(false)}
+                      >
+                        <Icon name="open_in_new" size={14} />
+                        {t("conversations.openDetail")}
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+              <CancelSessionButton sessionId={session.id} status={session.status} compact />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {session.status === "running" && (
-        <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-lowest shrink-0">
+      {running && (
+        <div className="px-4 py-2 border-b border-outline-variant bg-surface-container-lowest shrink-0">
           <SecurityApprovalInbox sessionId={session.id} hideWhenEmpty compact />
         </div>
       )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
-        <div className="px-4 py-6 max-w-4xl mx-auto w-full">
+        <div className="px-4 py-6 max-w-3xl mx-auto w-full">
           <ConversationTranscript
             sessionId={session.id}
-            isRunning={session.status === "running"}
+            isRunning={running}
             scrollContainerRef={scrollRef}
           />
         </div>
       </div>
 
-      <div className="px-4 py-3 border-t border-outline-variant bg-surface-container-low shrink-0">
-        <ConversationCompose session={session} onSent={onFollowUpStarted} />
-      </div>
+      {running && (
+        <div className="px-4 py-2 border-t border-outline-variant/60 bg-surface-container-low shrink-0">
+          <p className="text-xs text-secondary m-0 flex items-center gap-2">
+            <span className="inline-flex gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:120ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:240ms]" />
+            </span>
+            {t("conversations.waitingForModel")}
+          </p>
+        </div>
+      )}
+
+      {showComposer && (
+        <div className="shrink-0 border-t border-outline-variant bg-surface-container-low">
+          <ConversationComposer
+            mode="follow-up"
+            session={session}
+            onSent={onFollowUpStarted}
+          />
+        </div>
+      )}
     </div>
   );
 }

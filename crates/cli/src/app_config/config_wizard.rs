@@ -252,6 +252,10 @@ pub(crate) async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow:
             .as_ref()
             .map(|c| c.skills.clone())
             .unwrap_or_default(),
+        agents: existing
+            .as_ref()
+            .map(|c| c.agents.clone())
+            .unwrap_or_default(),
         session: existing
             .as_ref()
             .map(|c| c.session.clone())
@@ -276,6 +280,10 @@ pub(crate) async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow:
         notifications: existing
             .as_ref()
             .map(|c| c.notifications.clone())
+            .unwrap_or_default(),
+        models: existing
+            .as_ref()
+            .map(|c| c.models.clone())
             .unwrap_or_default(),
     };
 

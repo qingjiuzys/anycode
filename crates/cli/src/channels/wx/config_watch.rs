@@ -66,11 +66,17 @@ pub(crate) async fn reload_runtime_if_config_changed(handle: &ConfigReloadHandle
         };
     apply_wechat_bridge_no_tool_approval(&mut cfg);
     *handle.tool_policy.lock().expect("tool_policy lock") = ToolPolicyConfigSnapshot::from(&cfg);
+    let project_enabled = if let Ok(cwd) = std::env::current_dir() {
+        crate::workbench::project_skills::load_project_enabled_skills(&cwd).await
+    } else {
+        None
+    };
     let new_rt = match initialize_runtime(
         &cfg,
         None,
         handle.ask_user_question_host.clone(),
         crate::bootstrap::MemoryAttachMode::Exclusive,
+        project_enabled,
     )
     .await
     {

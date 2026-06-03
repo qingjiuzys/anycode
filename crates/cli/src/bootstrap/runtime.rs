@@ -7,77 +7,39 @@ use anycode_agent::{
 };
 use anycode_core::prelude::*;
 use anycode_core::DiskTaskOutput;
-use anycode_llm::{build_multi_llm_stack, ModelRouter};
-use anycode_security::{ApprovalCallback, SecurityLayer, SecurityPolicy};
-use anycode_tools::{
-    build_registry_with_services, catalog, default_skill_roots, validate_default_registry,
-    AskUserQuestionHost, CompiledClaudePermissionRules, LspConnectionConfig, SkillCatalog,
-    ToolServices,
-};
+use anycode_llm::ModelRouter;
+use anycode_security::ApprovalCallback;
+use anycode_tools::AskUserQuestionHost;
 use fluent_bundle::FluentArgs;
 use std::collections::HashSet;
 use std::io::{stdin, stdout, IsTerminal};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tracing::info;
 
-use super::llm_session::{
-    resolve_anthropic_primary_config, resolve_bedrock_primary_config,
-    resolve_github_copilot_primary_config, resolve_openai_shell_config, scan_session_llm_needs,
-};
-use super::skills_registry;
+use super::agents_setup::build_agents_setup;
+use super::llm_stack::build_llm_stack;
+use super::security_setup::build_security_setup;
+use super::tools_setup::build_tools_setup;
 use super::{
-    build_memory_layer, build_model_routing_parts, compile_tool_name_deny_regexes,
-    effective_memory_backend, MemoryAttachMode,
+    build_failover_policy, build_memory_layer, build_model_routing_parts,
+    compile_tool_name_deny_regexes, effective_memory_backend, MemoryAttachMode,
 };
 
 /// Shared by the WeChat bridge, TUI, `run`, and other CLI entrypoints that need a full runtime.
 ///
 /// `ask_user_question_host_override`: when `Some`, used for `AskUserQuestion` (stream REPL / fullscreen TUI).
 /// When `None` and stdin+stdout are TTY, falls back to dialoguer on stderr.
+///
+/// `project_enabled`: project-scoped skill allowlist from the dashboard DB; callers with a known cwd
+/// should resolve this via [`crate::workbench::project_skills::load_project_enabled_skills`].
 pub(crate) async fn initialize_runtime(
     config: &Config,
     approval_override: Option<Box<dyn ApprovalCallback>>,
     ask_user_question_host_override: Option<std::sync::Arc<dyn AskUserQuestionHost>>,
     memory_attach: MemoryAttachMode,
+    project_enabled: Option<HashSet<String>>,
 ) -> anyhow::Result<Arc<AgentRuntime>> {
-    let (need_openai, need_anthropic, need_bedrock, need_github_copilot) =
-        scan_session_llm_needs(config);
-
-    let openai_cfg = if need_openai {
-        Some(resolve_openai_shell_config(config))
-    } else {
-        None
-    };
-
-    let anthropic_cfg = if need_anthropic {
-        Some(resolve_anthropic_primary_config(config)?)
-    } else {
-        None
-    };
-
-    let bedrock_cfg = if need_bedrock {
-        Some(resolve_bedrock_primary_config(config))
-    } else {
-        None
-    };
-
-    let copilot_cfg = if need_github_copilot {
-        Some(resolve_github_copilot_primary_config(config)?)
-    } else {
-        None
-    };
-
-    let llm_client: Arc<dyn anycode_core::LLMClient> =
-        build_multi_llm_stack(openai_cfg, anthropic_cfg, bedrock_cfg, copilot_cfg)
-            .await
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-
-    let mut ls = FluentArgs::new();
-    ls.set("openai", format!("{need_openai}"));
-    ls.set("anthropic", format!("{need_anthropic}"));
-    ls.set("bedrock", format!("{need_bedrock}"));
-    ls.set("copilot", format!("{need_github_copilot}"));
-    info!(target: "anycode_cli", "{}", tr_args("log-llm-session", &ls));
+    let llm_client = build_llm_stack(config).await?;
 
     let (memory_store, memory_pipeline) = build_memory_layer(config, memory_attach)?;
     let mut mi = FluentArgs::new();
@@ -91,220 +53,19 @@ pub(crate) async fn initialize_runtime(
     mi.set("auto", format!("{}", config.memory.auto_save));
     info!(target: "anycode_cli", "{}", tr_args("log-memory-info", &mi));
 
-    let permission_mode = match config.security.permission_mode.as_str() {
-        "auto" => PermissionMode::Auto,
-        "plan" => PermissionMode::Plan,
-        "accept_edits" | "acceptEdits" => PermissionMode::AcceptEdits,
-        "bypass" => PermissionMode::BypassPermissions,
-        _ => PermissionMode::Default,
-    };
-    let approval_callback: Option<Box<dyn ApprovalCallback>> = if let Some(cb) = approval_override {
-        Some(cb)
-    } else if !crate::app_config::security_wants_interactive_approval_callback(config) {
-        None
-    } else {
-        Some(Box::new(
-            crate::workbench_approval::WorkbenchApprovalCallback::web_and_cli(),
-        ))
-    };
-    let security = Arc::new(SecurityLayer::new_with_optional_callback(
-        permission_mode,
-        approval_callback,
-    ));
-    let mut bash_policy = SecurityPolicy::interactive_shell();
-    bash_policy.sandbox_mode = config.security.sandbox_mode;
-    let mut fw_policy = SecurityPolicy::sensitive_mutation();
-    fw_policy.sandbox_mode = config.security.sandbox_mode;
-    if !config.security.require_approval {
-        bash_policy.require_approval = false;
-        fw_policy.require_approval = false;
-    }
-    security
-        .set_tool_policy(catalog::TOOL_BASH, bash_policy)
-        .await;
-    security
-        .set_tool_policy(catalog::TOOL_FILE_WRITE, fw_policy.clone())
-        .await;
-
-    for t in catalog::SECURITY_SENSITIVE_TOOL_IDS {
-        security.set_tool_policy(*t, fw_policy.clone()).await;
-    }
-
-    let mcp_defer_gate = if config.security.defer_mcp_tools {
-        Some(Arc::new(Mutex::new(HashSet::new())))
-    } else {
-        None
-    };
-
-    let mut merged_extra = config.skills.extra_dirs.clone();
-    if let Some(ref ru) = config.skills.registry_url {
-        let more = skills_registry::fetch_extra_skill_roots(ru).await;
-        merged_extra.extend(more);
-    }
-
-    let skill_catalog: Arc<SkillCatalog> = Arc::new(if config.skills.enabled {
-        let roots = default_skill_roots(&merged_extra, dirs::home_dir().as_deref());
-        SkillCatalog::scan(
-            &roots,
-            config.skills.allowlist.as_deref(),
-            config.skills.run_timeout_ms,
-            config.skills.minimal_env,
-        )
-    } else {
-        SkillCatalog::scan(
-            &[],
-            None,
-            config.skills.run_timeout_ms,
-            config.skills.minimal_env,
-        )
-    });
-
-    let tool_services: Arc<ToolServices> = {
-        let ts = if let Some(h) = dirs::home_dir() {
-            let path = h.join(".anycode/tasks/orchestration.json");
-            ToolServices::load_or_new_with_mcp_defer(
-                path,
-                mcp_defer_gate.clone(),
-                skill_catalog.clone(),
-            )
-            .map_err(|e| {
-                let mut a = FluentArgs::new();
-                a.set("err", e.to_string());
-                anyhow::anyhow!("{}", tr_args("err-bootstrap-orch", &a))
-            })?
-        } else {
-            ToolServices::new_ephemeral_with_skills(mcp_defer_gate.clone(), skill_catalog.clone())
-        };
-        Arc::new(ts)
-    };
-
-    let claude_rules = CompiledClaudePermissionRules::compile(
-        &config.security.mcp_tool_deny_rules,
-        &config.security.always_allow_rules,
-        &config.security.always_ask_rules,
-    );
-
-    #[cfg(feature = "tools-mcp")]
-    {
-        use super::mcp_env::{self, McpHttpTransport, McpServerEntry};
-        use anycode_tools::{mcp_connected::McpConnected, mcp_rmcp_session::McpRmcpSession};
-        for entry in mcp_env::mcp_server_entries_from_env() {
-            match entry {
-                McpServerEntry::Stdio { slug, command } => {
-                    match anycode_tools::mcp_session::McpStdioSession::connect(&command, &slug)
-                        .await
-                    {
-                        Ok(sess) => {
-                            tool_services.attach_mcp_stdio(Arc::new(sess));
-                            let mut a = FluentArgs::new();
-                            a.set("slug", slug.clone());
-                            tracing::info!(target: "anycode_cli", "{}", tr_args("log-mcp-stdio-ok", &a));
-                        }
-                        Err(e) => {
-                            let mut a = FluentArgs::new();
-                            a.set("slug", slug.clone());
-                            a.set("err", e.to_string());
-                            tracing::warn!(
-                                target: "anycode_cli",
-                                "{}",
-                                tr_args("log-mcp-stdio-fail", &a)
-                            );
-                        }
-                    }
-                }
-                McpServerEntry::Http {
-                    slug,
-                    url,
-                    transport,
-                    bearer_token,
-                    oauth_credentials_path,
-                    headers,
-                } => {
-                    let connect = async {
-                        match transport {
-                            McpHttpTransport::LegacySse => {
-                                if oauth_credentials_path.is_some() {
-                                    Err(CoreError::LLMError(
-                                        "MCP legacy SSE 暂不支持 oauth_credentials_path；请用 bearer_token 或改用 streamable-http"
-                                            .into(),
-                                    ))
-                                } else {
-                                    anycode_tools::mcp_legacy_sse_session::McpLegacySseSession::connect(
-                                        &url,
-                                        &slug,
-                                        bearer_token.as_deref(),
-                                        &headers,
-                                    )
-                                    .await
-                                    .map(|s| Arc::new(s) as Arc<dyn McpConnected>)
-                                }
-                            }
-                            McpHttpTransport::StreamableHttp => {
-                                if let Some(ref cred_path) = oauth_credentials_path {
-                                    McpRmcpSession::connect_streamable_http_oauth(
-                                        &url, &slug, cred_path, &headers,
-                                    )
-                                    .await
-                                    .map(|s| Arc::new(s) as Arc<dyn McpConnected>)
-                                } else {
-                                    McpRmcpSession::connect_streamable_http(
-                                        &url,
-                                        &slug,
-                                        bearer_token.as_deref(),
-                                        &headers,
-                                    )
-                                    .await
-                                    .map(|s| Arc::new(s) as Arc<dyn McpConnected>)
-                                }
-                            }
-                        }
-                    };
-                    match connect.await {
-                        Ok(sess) => {
-                            tool_services.attach_mcp_session(sess);
-                            let mut a = FluentArgs::new();
-                            a.set("slug", slug.clone());
-                            a.set("url", url.clone());
-                            tracing::info!(target: "anycode_cli", "{}", tr_args("log-mcp-http-ok", &a));
-                        }
-                        Err(e) => {
-                            let mut a = FluentArgs::new();
-                            a.set("slug", slug.clone());
-                            a.set("url", url.clone());
-                            a.set("err", e.to_string());
-                            tracing::warn!(
-                                target: "anycode_cli",
-                                "{}",
-                                tr_args("log-mcp-http-fail", &a)
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let lsp_cmd = if config.lsp.enabled {
-        config.lsp.command.clone()
-    } else {
-        None
-    };
-    tool_services.set_lsp_connection_config(LspConnectionConfig {
-        command: lsp_cmd,
-        workspace_root: config.lsp.workspace_root.clone(),
-        read_timeout: std::time::Duration::from_millis(config.lsp.read_timeout_ms),
-    });
-
-    let tools = build_registry_with_services(config.security.sandbox_mode, tool_services.clone());
-    validate_default_registry(&tools)?;
-
-    for name in tools.keys() {
-        if name.starts_with("mcp__") {
-            security.set_tool_policy(name, fw_policy.clone()).await;
-        }
-    }
+    let security_setup = build_security_setup(config, approval_override).await;
+    let tools_setup = build_tools_setup(
+        config,
+        security_setup.mcp_defer_gate.clone(),
+        security_setup.security.as_ref(),
+        &security_setup.fw_policy,
+    )
+    .await?;
 
     let (default_model_config, mut model_overrides) = build_model_routing_parts(config);
+    super::agents::merge_profile_routing(config, &mut model_overrides);
+    let model_overrides_snapshot = model_overrides.clone();
+    let failover_policy = build_failover_policy(config);
     let router = ModelRouter::new(
         default_model_config.clone(),
         model_overrides.clone(),
@@ -322,40 +83,57 @@ pub(crate) async fn initialize_runtime(
 
     let memory_project_autosave_enabled =
         config.memory.auto_save && config.memory.backend != "noop";
-
     let tool_name_deny = compile_tool_name_deny_regexes(&config.security.mcp_tool_deny_patterns);
 
     let mut prompt_runtime = config.prompt.clone();
+    let mut skill_agent_allowlists = config.skills.agent_allowlists.clone();
+    super::agents::merge_profile_skill_allowlists(&config.agents, &mut skill_agent_allowlists);
+    let mut config_for_prompt = config.clone();
+    config_for_prompt.skills.agent_allowlists = skill_agent_allowlists;
+
     super::prompt_runtime::augment_prompt_runtime(
-        config,
-        skill_catalog.as_ref(),
+        &config_for_prompt,
+        tools_setup.skill_catalog.as_ref(),
+        project_enabled.as_ref(),
         &mut prompt_runtime,
     );
 
-    let expose_skill_on_explore_plan =
-        config.skills.enabled && config.skills.expose_on_explore_plan;
+    tools_setup
+        .tool_services
+        .set_skills_governance(anycode_tools::SkillsGovernance {
+            global_allowlist: config.skills.allowlist.clone(),
+            agent_allowlists: config_for_prompt.skills.agent_allowlists.clone(),
+            project_enabled: project_enabled.clone(),
+        });
+    if let Ok((_, cfg_value)) = anycode_llm::read_config_value(None) {
+        let media_reg = anycode_llm::media::MediaClientRegistry::from_config(&cfg_value);
+        tools_setup
+            .tool_services
+            .set_media_registry(Arc::new(media_reg));
+    }
 
     let memory_pipeline_settings = if config.memory.backend == "pipeline" {
         Some(config.memory.pipeline.clone())
     } else {
         None
     };
-
     let session_notifications = if config.notifications.is_configured() {
         Some(config.notifications.clone())
     } else {
         None
     };
 
+    let default_model_for_profiles = default_model_config.clone();
     let runtime = Arc::new(AgentRuntime::new(
         RuntimeCoreDeps {
             llm_client,
-            tools,
+            tools: tools_setup.tools,
             memory_store,
             default_model_config,
             model_overrides,
+            failover_policy,
             disk_output: Some(DiskTaskOutput::new_default()?),
-            security,
+            security: security_setup.security.clone(),
             sandbox_mode: config.security.sandbox_mode,
             prompt_config: prompt_runtime,
         },
@@ -368,16 +146,18 @@ pub(crate) async fn initialize_runtime(
         RuntimeToolPolicy {
             tool_name_deny,
             claude_gating: AgentClaudeToolGating {
-                rules: Some(claude_rules),
+                rules: Some(tools_setup.claude_rules),
                 defer_mcp_tools: config.security.defer_mcp_tools,
-                mcp_defer_allowlist: mcp_defer_gate,
+                mcp_defer_allowlist: security_setup.mcp_defer_gate,
             },
-            expose_skill_on_explore_plan,
+            expose_skill_on_explore_plan: tools_setup.expose_skill_on_explore_plan,
         },
     ));
 
-    tool_services.attach_sub_agent_executor(runtime.clone());
-    runtime.attach_tool_services(tool_services.clone());
+    tools_setup
+        .tool_services
+        .attach_sub_agent_executor(runtime.clone());
+    runtime.attach_tool_services(tools_setup.tool_services.clone());
 
     let ask_host: Option<std::sync::Arc<dyn AskUserQuestionHost>> = ask_user_question_host_override
         .or_else(|| {
@@ -391,8 +171,17 @@ pub(crate) async fn initialize_runtime(
             }
         });
     if let Some(h) = ask_host {
-        tool_services.attach_ask_user_question_host(h);
+        tools_setup.tool_services.attach_ask_user_question_host(h);
     }
+
+    build_agents_setup(
+        &runtime,
+        config,
+        &default_model_for_profiles,
+        &model_overrides_snapshot,
+        tools_setup.expose_skill_on_explore_plan,
+    )
+    .await;
 
     Ok(runtime)
 }

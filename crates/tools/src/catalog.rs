@@ -319,6 +319,15 @@ mod workspace_assistant_tools_tests {
     }
 
     #[test]
+    fn default_tools_have_governance_metadata() {
+        for id in DEFAULT_TOOL_IDS {
+            let entry = tool_catalog_entry(id).unwrap_or_else(|| panic!("catalog entry for {id}"));
+            assert!(!entry.risk_tier.trim().is_empty(), "risk_tier for {id}");
+            assert!(!entry.category.trim().is_empty(), "category for {id}");
+        }
+    }
+
+    #[test]
     fn sensitive_tools_require_approval_metadata() {
         for id in SECURITY_SENSITIVE_TOOL_IDS {
             let entry = tool_catalog_entry(id).expect("sensitive tool must be cataloged");
@@ -334,6 +343,15 @@ pub fn validate_default_registry(tools: &HashMap<ToolName, Box<dyn Tool>>) -> an
     for id in DEFAULT_TOOL_IDS {
         if !tools.contains_key(*id) {
             anyhow::bail!("default tool registry missing tool {:?}", id);
+        }
+        let entry = tool_catalog_entry(id).ok_or_else(|| {
+            anyhow::anyhow!("default tool {id:?} missing governance catalog entry")
+        })?;
+        if entry.risk_tier.trim().is_empty() {
+            anyhow::bail!("default tool {id:?} missing risk_tier metadata");
+        }
+        if entry.category.trim().is_empty() {
+            anyhow::bail!("default tool {id:?} missing category metadata");
         }
     }
     Ok(())

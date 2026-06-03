@@ -3,14 +3,17 @@
 mod approval;
 mod bridge;
 mod cdn_media;
+mod cdn_upload;
 mod commands;
 mod config_watch;
 pub(crate) mod cron_notify;
+mod deliverable;
 mod fields;
 mod ilink;
 pub(crate) mod outbound_queue;
 mod permission;
 mod store;
+mod voice_stt;
 
 pub use bridge::run_wechat_daemon;
 pub use ilink::WxSender;

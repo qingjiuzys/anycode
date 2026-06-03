@@ -1,1 +1,2 @@
 hello from minimal eval fixture
+SUITE_MARKER=1

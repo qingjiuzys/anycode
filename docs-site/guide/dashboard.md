@@ -20,6 +20,17 @@ anycode dashboard --open
 
 If you skip the UI build, release still runs the API; `anycode dashboard doctor` warns when UI is missing.
 
+## Desktop app (macOS)
+
+For a native Workbench window (Tauri shell + bundled `anycode dashboard` sidecar):
+
+| Install | Notes |
+|---------|--------|
+| **GitHub Release** | Download `anyCode_<version>_aarch64.dmg` (Apple Silicon) from [Releases](https://github.com/qingjiuzys/anycode/releases) |
+| **Local build** | `./scripts/build-desktop-release.sh` → `apps/anycode-desktop/target/release/bundle/dmg/` |
+
+Icon artwork: [`anycode-logo.png`](https://qingjiuzys.github.io/anycode/anycode-logo.png) (source in `apps/anycode-desktop/assets/`). See [`apps/anycode-desktop/README.md`](https://github.com/qingjiuzys/anycode/blob/main/apps/anycode-desktop/README.md).
+
 Development with hot reload:
 
 ```bash

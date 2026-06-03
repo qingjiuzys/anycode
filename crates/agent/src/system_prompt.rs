@@ -161,6 +161,11 @@ pub fn compose_effective_system_prompt(
                     out.push(a.trim().to_string());
                 }
             }
+            if let Some(overlay) = agent.system_prompt_overlay() {
+                if !overlay.trim().is_empty() {
+                    out.push(overlay.trim().to_string());
+                }
+            }
             return out.join("\n\n");
         }
     }

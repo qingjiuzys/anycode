@@ -1,7 +1,9 @@
 //! Lightweight local diagnostics for production operations.
 
 use crate::app_config::Config;
+use anycode_llm::{normalize_provider_id, read_model_fallback, string_field};
 use serde::Serialize;
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize)]
@@ -32,6 +34,101 @@ fn print_rows(rows: &[CheckRow], json: bool) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn fallback_configured(fb: &anycode_llm::ModelFallbackConfig) -> bool {
+    fb.provider.as_ref().is_some_and(|s| !s.trim().is_empty())
+        && fb.model.as_ref().is_some_and(|s| !s.trim().is_empty())
+}
+
+fn load_config_json_for_doctor() -> Option<(PathBuf, Value)> {
+    let path = home_path(".anycode/config.json")?;
+    let cfg = if path.is_file() {
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or(Value::Object(Default::default()))
+    } else {
+        Value::Object(Default::default())
+    };
+    Some((path, cfg))
+}
+
+fn llm_rows(config: &Config) -> Vec<CheckRow> {
+    let mut rows = Vec::new();
+    if let Some((path, cfg)) = load_config_json_for_doctor() {
+        rows.push(CheckRow {
+            name: "llm.config_path".into(),
+            status: exists_status(&path).into(),
+            detail: path.display().to_string(),
+        });
+        let provider = string_field(&cfg, "provider", "provider")
+            .unwrap_or_else(|| config.llm.provider.clone());
+        let model =
+            string_field(&cfg, "model", "model").unwrap_or_else(|| config.llm.model.clone());
+        rows.push(CheckRow {
+            name: "llm.provider".into(),
+            status: if provider.trim().is_empty() {
+                "missing"
+            } else {
+                "ok"
+            }
+            .into(),
+            detail: provider,
+        });
+        rows.push(CheckRow {
+            name: "llm.model".into(),
+            status: if model.trim().is_empty() {
+                "missing"
+            } else {
+                "ok"
+            }
+            .into(),
+            detail: model.clone(),
+        });
+        let api_key = string_field(&cfg, "api_key", "api_key");
+        let key_ok = api_key.as_ref().is_some_and(|k| !k.is_empty())
+            || !config.llm.api_key.trim().is_empty();
+        rows.push(CheckRow {
+            name: "llm.api_key".into(),
+            status: if key_ok { "ok" } else { "missing" }.into(),
+            detail: if key_ok {
+                "configured".into()
+            } else {
+                "not set in config.json".into()
+            },
+        });
+        let fb = read_model_fallback(&cfg);
+        let fb_from_runtime = config.runtime.model_fallback.as_ref();
+        let fb_ok = fallback_configured(&fb) || fb_from_runtime.is_some_and(fallback_configured);
+        rows.push(CheckRow {
+            name: "llm.model_fallback".into(),
+            status: if fb_ok { "ok" } else { "unset" }.into(),
+            detail: if fb_ok {
+                let src = fb_from_runtime.unwrap_or(&fb);
+                format!(
+                    "provider={} model={} on={:?}",
+                    src.provider.as_deref().unwrap_or("?"),
+                    src.model.as_deref().unwrap_or("?"),
+                    src.on
+                )
+            } else {
+                "runtime.model_fallback not configured".into()
+            },
+        });
+        let norm = normalize_provider_id(
+            &string_field(&cfg, "provider", "provider")
+                .unwrap_or_else(|| config.llm.provider.clone()),
+        );
+        if norm == "google" && !fb_ok {
+            rows.push(CheckRow {
+                name: "llm.google_fallback".into(),
+                status: "warn".into(),
+                detail: "Google provider without model_fallback — failover recommended".into(),
+            });
+        }
+    }
+    rows
 }
 
 fn memory_rows(config: &Config) -> Vec<CheckRow> {
@@ -110,6 +207,16 @@ fn channel_rows(channel: &str) -> Vec<CheckRow> {
                 name: "channel.wechat.cron_target".into(),
                 status: exists_status(&p).into(),
                 detail: p.display().to_string(),
+            });
+        }
+        if let Some(p) = home_path(".anycode/tasks/scheduler.lock") {
+            rows.push(CheckRow {
+                name: "channel.wechat.scheduler".into(),
+                status: exists_status(&p).into(),
+                detail: format!(
+                    "embedded scheduler active when lock present ({})",
+                    p.display()
+                ),
             });
         }
     }
@@ -249,6 +356,7 @@ pub(crate) fn print_mcp(json: bool) -> anyhow::Result<()> {
 
 pub(crate) fn print_all(config: &Config, json: bool) -> anyhow::Result<()> {
     let mut rows = Vec::new();
+    rows.extend(llm_rows(config));
     rows.extend(memory_rows(config));
     rows.extend(channel_rows("all"));
     rows.extend(mcp_rows());

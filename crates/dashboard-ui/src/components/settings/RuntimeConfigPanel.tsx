@@ -19,34 +19,7 @@ export function RuntimeConfigPanel({ runtime }: { runtime?: RuntimeSettings }) {
           <dt className="text-secondary font-medium m-0">{t("settings.runtime.globalModel")}</dt>
           <dd className="m-0 font-code">{runtime.global_model ?? "—"}</dd>
         </dl>
-        <p className="text-xs text-secondary mt-4 m-0">{t("settings.runtime.modelHint")}</p>
-      </SectionCard>
-
-      <SectionCard title={t("settings.runtime.routingAgents")} noPadding>
-        {runtime.routing_agents.length === 0 ? (
-          <p className="text-sm text-secondary px-4 py-4 m-0">{t("settings.runtime.noRouting")}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("agents.agentCol")}</th>
-                  <th>{t("settings.runtime.provider")}</th>
-                  <th>{t("settings.runtime.modelCol")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runtime.routing_agents.map((a) => (
-                  <tr key={a.agent}>
-                    <td className="font-code text-xs">{a.agent}</td>
-                    <td className="text-secondary">{a.provider ?? "—"}</td>
-                    <td className="text-secondary font-code text-xs">{a.model ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <p className="text-xs text-secondary mt-4 m-0">{t("settings.runtime.configReadonlyHint")}</p>
       </SectionCard>
 
       {runtime.model_routes && Object.keys(runtime.model_routes).length > 0 && (

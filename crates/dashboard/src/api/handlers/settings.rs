@@ -78,7 +78,13 @@ pub async fn get_doctor(State(state): State<AppState>) -> impl IntoResponse {
     );
     report
         .checks
+        .extend(crate::service_governance::llm_doctor_checks());
+    report
+        .checks
         .extend(crate::connector_health::connector_doctor_checks(&state.db).await);
+    report
+        .checks
+        .extend(crate::governance::workbench_doctor::workbench_doctor_checks(&state.db).await);
     report.status = crate::service_governance::doctor_overall_status(&report.checks).into();
     let has_projects = state
         .db
@@ -134,14 +140,10 @@ fn active_preferences(state: &AppState) -> crate::schema::DashboardPreferences {
         port: state.port,
         db_path: state.db.path().display().to_string(),
         asset_read_strict: false,
-        model_fallback_provider: None,
-        model_fallback_model: None,
         updated_at: state.started_at.clone(),
     };
     if let Some(saved) = crate::preferences::load_preferences() {
         prefs.asset_read_strict = saved.asset_read_strict;
-        prefs.model_fallback_provider = saved.model_fallback_provider;
-        prefs.model_fallback_model = saved.model_fallback_model;
     }
     prefs
 }
@@ -182,10 +184,6 @@ pub struct PutDashboardPreferences {
     pub db_path: String,
     #[serde(default)]
     pub asset_read_strict: bool,
-    #[serde(default)]
-    pub model_fallback_provider: Option<String>,
-    #[serde(default)]
-    pub model_fallback_model: Option<String>,
 }
 
 pub async fn put_dashboard_preferences(
@@ -221,25 +219,8 @@ pub async fn put_dashboard_preferences(
         port: body.port,
         db_path: db_path.into(),
         asset_read_strict: body.asset_read_strict,
-        model_fallback_provider: body
-            .model_fallback_provider
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
-        model_fallback_model: body
-            .model_fallback_model
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty()),
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
-
-    if prefs.model_fallback_provider.is_some() || prefs.model_fallback_model.is_some() {
-        let _ = crate::config_patch::patch_llm_config(&crate::config_patch::LlmConfigPatch {
-            provider: None,
-            model: None,
-            fallback_provider: prefs.model_fallback_provider.clone(),
-            fallback_model: prefs.model_fallback_model.clone(),
-        });
-    }
 
     match crate::preferences::save_preferences(&prefs) {
         Ok(path) => {
@@ -309,15 +290,9 @@ pub struct TestNotificationBody {
 
 pub async fn patch_llm_config(
     State(state): State<AppState>,
-    Json(body): Json<PatchLlmConfigBody>,
+    Json(body): Json<crate::config_patch::LlmConfigPatchBody>,
 ) -> impl IntoResponse {
-    let patch = crate::config_patch::LlmConfigPatch {
-        provider: body.provider,
-        model: body.model,
-        fallback_provider: body.fallback_provider,
-        fallback_model: body.fallback_model,
-    };
-    match crate::config_patch::patch_llm_config(&patch) {
+    match crate::config_patch::patch_llm_config(&body) {
         Ok((path, cfg)) => {
             let _ = crate::audit::record_audit(
                 &state.db,
@@ -333,14 +308,86 @@ pub async fn patch_llm_config(
             Json(json!({
                 "ok": true,
                 "config_path": path.display().to_string(),
-                "llm": cfg.get("llm"),
+                "provider": cfg.get("provider"),
+                "model": cfg.get("model"),
                 "model_fallback": cfg.get("runtime").and_then(|r| r.get("model_fallback")),
+                "models": cfg.get("models"),
             }))
             .into_response()
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_llm_config() -> impl IntoResponse {
+    let (_, cfg) = match crate::config_patch::read_config_value(None) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+    let view = anycode_llm::RegistryView::from_config(&cfg);
+    Json(json!({
+        "config_present": view.config_present,
+        "provider": view.provider,
+        "model": view.model,
+        "plan": view.plan,
+        "base_url": view.base_url,
+        "api_key": view.api_key,
+        "provider_credentials": view.provider_credentials,
+        "model_fallback": view.model_fallback,
+        "models": view.models,
+        "routing_agents": view.routing_agents,
+        "registry": {
+            "active": view.active,
+            "items": view.items,
+        }
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+pub struct TestLlmBody {
+    pub capability: String,
+}
+
+pub async fn test_llm_config(Json(body): Json<TestLlmBody>) -> impl IntoResponse {
+    let cap = match anycode_llm::ModelCapability::parse(&body.capability) {
+        Some(c) => c,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "unknown capability" })),
+            )
+                .into_response();
+        }
+    };
+    let (_, cfg) = match crate::config_patch::read_config_value(None) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+    match crate::llm_probe::LlmProbeService::from_config(&cfg)
+        .probe(cap)
+        .await
+    {
+        Ok(msg) => Json(json!({ "ok": true, "message": msg })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "ok": false, "error": e })),
         )
             .into_response(),
     }
@@ -591,5 +638,69 @@ pub async fn patch_connector_enabled(
             };
             (status, Json(json!({ "error": e.to_string() }))).into_response()
         }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct MemoryRetentionQuery {
+    #[serde(default = "default_retention_days")]
+    pub older_than_days: i64,
+}
+
+fn default_retention_days() -> i64 {
+    90
+}
+
+#[derive(Deserialize)]
+pub struct MemoryRetentionApplyBody {
+    #[serde(default = "default_retention_days")]
+    pub older_than_days: i64,
+    pub confirm: bool,
+}
+
+pub async fn get_memory_retention_preview(
+    Query(q): Query<MemoryRetentionQuery>,
+) -> impl IntoResponse {
+    match crate::memory_ops::memory_retention_preview(q.older_than_days).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn post_memory_retention_apply(
+    State(state): State<AppState>,
+    Json(body): Json<MemoryRetentionApplyBody>,
+) -> impl IntoResponse {
+    if !body.confirm {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "confirm must be true" })),
+        )
+            .into_response();
+    }
+    match crate::memory_ops::memory_retention_apply(body.older_than_days).await {
+        Ok(v) => {
+            let _ = crate::audit::record_audit(
+                &state.db,
+                crate::audit::AuditEventInput::low(
+                    "memory_retention_apply",
+                    json!({
+                        "older_than_days": body.older_than_days,
+                        "summary": v.get("summary"),
+                    }),
+                ),
+            )
+            .await;
+            Json(v).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }

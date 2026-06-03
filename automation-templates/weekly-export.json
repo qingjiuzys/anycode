@@ -1,0 +1,8 @@
+{
+  "id": "weekly-export",
+  "name": "Weekly report → PDF",
+  "schedule": "0 0 18 * * 5",
+  "schedule_timezone": "local",
+  "command": "Use weekly-report skill to draft ./reports/weekly-report.md from this week's notes, then md-to-pdf to ./reports/weekly-report.pdf",
+  "tool_profile": "observability"
+}

@@ -282,11 +282,14 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
         bot_token.clone(),
     )
     .into_arc();
+    let project_enabled =
+        crate::workbench::project_skills::load_project_enabled_skills(&workdir).await;
     let runtime = initialize_runtime(
         &config,
         None,
         Some(ask_host),
         crate::bootstrap::MemoryAttachMode::Exclusive,
+        project_enabled,
     )
     .await
     .context("initialize runtime for telegram")?;

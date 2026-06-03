@@ -48,6 +48,51 @@ def mock_fixture_ids() -> list[str]:
     return [row["id"] for row in load_manifest()["mock_fixtures"]]
 
 
+def mock_guard_ids() -> list[str]:
+    return [row["id"] for row in load_manifest().get("mock_guard_tests", [])]
+
+
+def parse_mock_eval_stdout(stdout: str) -> list[dict]:
+    text = stdout.strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, list) else [data]
+    except json.JSONDecodeError:
+        start = text.find("[")
+        if start >= 0:
+            return json.loads(text[start:])
+        raise
+
+
+def mock_rows_pass(rows: list[dict], mock_ids: list[str]) -> bool:
+    by_id = {str(r.get("id", "")): r for r in rows}
+    for mid in mock_ids:
+        row = by_id.get(mid)
+        if row is None:
+            return False
+        if row.get("status") != "pass":
+            return False
+        detail = str(row.get("detail", ""))
+        if "trajectory ok" not in detail:
+            return False
+    return True
+
+
+def mock_guard_rows_pass(rows: list[dict], guard_ids: list[str]) -> bool:
+    by_id = {str(r.get("id", "")): r for r in rows}
+    for gid in guard_ids:
+        row = by_id.get(gid)
+        if row is None:
+            return False
+        if row.get("status") != "pass":
+            return False
+        if "guard ok" not in str(row.get("detail", "")):
+            return False
+    return True
+
+
 def run_one(s: Scenario) -> dict:
     with tempfile.TemporaryDirectory(prefix="anycode-eval-home-") as home:
         env = os.environ.copy()
@@ -96,22 +141,29 @@ def main() -> int:
                 stderr=subprocess.PIPE,
                 timeout=120,
             )
-        combined = p.stdout + p.stderr
         mock_ids = mock_fixture_ids()
+        guard_ids = mock_guard_ids()
+        mock_ok = False
+        parse_err = None
+        if p.returncode == 0:
+            try:
+                mock_rows = parse_mock_eval_stdout(p.stdout)
+                mock_ok = mock_rows_pass(mock_rows, mock_ids) and mock_guard_rows_pass(
+                    mock_rows, guard_ids
+                )
+            except json.JSONDecodeError as e:
+                parse_err = str(e)
         rows.append(
             {
                 "id": "mock-fixture-scenarios",
                 "command": mock_cmd,
-                "expect": "MOCK_EVAL + trajectory",
-                "status": "pass"
-                if p.returncode == 0
-                and "MOCK_EVAL" in combined
-                and "trajectory ok" in combined
-                and all(mid in combined for mid in mock_ids)
-                else "fail",
+                "expect": "MOCK_EVAL JSON + trajectory ok per fixture + guard ok per guard test",
+                "status": "pass" if mock_ok else "fail",
                 "exit_code": p.returncode,
                 "stdout_tail": p.stdout[-500:],
-                "stderr_tail": p.stderr[-500:],
+                "stderr_tail": (p.stderr + (f"\nparse: {parse_err}" if parse_err else ""))[
+                    -500:
+                ],
             }
         )
     print(json.dumps(rows, indent=2))

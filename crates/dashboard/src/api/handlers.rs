@@ -75,8 +75,11 @@ pub struct SessionsQuery {
     pub status: Option<String>,
     pub trusted_status: Option<String>,
     pub project_id: Option<String>,
+    /// When true, only sessions with a `budget_exceeded` event.
+    pub budget_exceeded: Option<bool>,
 }
 
+mod agents;
 mod assets;
 mod auth;
 mod connectors;
@@ -84,6 +87,9 @@ mod conversations;
 mod events;
 mod gates;
 mod governance;
+mod knowledge;
+mod model_catalog;
+mod models;
 mod operations;
 mod projects;
 mod reports;
@@ -91,6 +97,7 @@ mod sessions;
 mod settings;
 mod system;
 
+pub use agents::*;
 pub use assets::*;
 pub use auth::*;
 pub use connectors::*;
@@ -98,6 +105,9 @@ pub use conversations::*;
 pub use events::*;
 pub use gates::*;
 pub use governance::*;
+pub use knowledge::*;
+pub use model_catalog::*;
+pub use models::*;
 pub use operations::*;
 pub use projects::*;
 pub use reports::*;

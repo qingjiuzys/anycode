@@ -18,11 +18,22 @@ impl DashboardDb {
         )
         .await?;
         let pending_approval_total = crate::approval_ipc::pending_summary().pending_total as i64;
+        let budget_exceeded_7d: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(DISTINCT session_id) FROM project_events
+            WHERE event_type = 'budget_exceeded'
+              AND occurred_at >= datetime('now', '-7 days')
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0);
         Ok(SessionFacetsResponse {
             status,
             trusted_status,
             kind,
             pending_approval_total,
+            budget_exceeded_7d,
         })
     }
 }
@@ -46,6 +57,7 @@ impl DashboardDb {
         status: Option<&str>,
         trusted_status: Option<&str>,
         project_id: Option<&str>,
+        budget_exceeded: bool,
     ) -> Result<Vec<SessionWithProject>> {
         if kinds.is_some_and(|k| k.is_empty()) {
             return Ok(vec![]);
@@ -70,6 +82,11 @@ impl DashboardDb {
         }
         if project_id.filter(|s| !s.is_empty()).is_some() {
             conditions.push("s.project_id = ?".into());
+        }
+        if budget_exceeded {
+            conditions.push(
+                "EXISTS (SELECT 1 FROM project_events e WHERE e.session_id = s.id AND e.event_type = 'budget_exceeded')".into(),
+            );
         }
         let where_clause = conditions.join(" AND ");
         let sql = format!(
@@ -187,9 +204,17 @@ impl DashboardDb {
         status: Option<&str>,
         trusted_status: Option<&str>,
         project_id: Option<&str>,
+        budget_exceeded: bool,
     ) -> Result<Vec<SessionWithProject>> {
         let mut rows = self
-            .list_all_sessions(limit, kinds, status, trusted_status, project_id)
+            .list_all_sessions(
+                limit,
+                kinds,
+                status,
+                trusted_status,
+                project_id,
+                budget_exceeded,
+            )
             .await?;
         for row in &mut rows {
             *row = self.enrich_session_with_project(row.clone()).await?;

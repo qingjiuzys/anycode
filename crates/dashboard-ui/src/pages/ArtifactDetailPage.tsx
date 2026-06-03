@@ -126,6 +126,13 @@ export function ArtifactDetailPage() {
           </ul>
         </SectionCard>
       )}
+      {a.report_markdown && (
+        <SectionCard title={t("reports.title")}>
+          <pre className="bg-surface-container-low border border-outline-variant rounded p-4 font-code text-xs overflow-auto max-h-[480px] whitespace-pre-wrap m-0">
+            {a.report_markdown}
+          </pre>
+        </SectionCard>
+      )}
     </>
   );
 }

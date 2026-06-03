@@ -5,6 +5,7 @@ import { useAuth } from "@/auth/context";
 import { useI18n } from "@/i18n/context";
 import { LanguageSwitcher } from "@/components/UserMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import brandLogo from "@/assets/anycode-logo.png";
 
 export function LoginPage() {
   const { t } = useI18n();
@@ -49,13 +50,11 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="h-full min-h-0 overflow-y-auto bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary flex items-center justify-center text-on-primary">
-              <Icon name="terminal" size={22} />
-            </div>
+            <img src={brandLogo} alt="" className="w-10 h-10 rounded shadow-sm object-cover" />
             <div>
               <h1 className="text-xl font-bold text-on-surface m-0">{t("layout.brand")}</h1>
               <p className="text-xs text-secondary m-0">{t("layout.title")}</p>

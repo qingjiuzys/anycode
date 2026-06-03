@@ -11,6 +11,7 @@ use crate::llm_types::{
 };
 use crate::memory_model::{Memory, MemoryType};
 use crate::message::Message;
+use crate::runtime_profile::RuntimeMode;
 use crate::security_policy::SecurityPolicy;
 use crate::task::{NestedTaskInvoke, NestedTaskRun, Task, TaskResult};
 
@@ -25,11 +26,26 @@ pub trait Agent: Send + Sync {
     fn description(&self) -> &str;
     fn tools(&self) -> Vec<ToolName>;
     async fn execute(&mut self, task: Task) -> Result<TaskResult, CoreError>;
+    /// Not the main orchestration path; builtins return an explicit failure directing callers to `AgentRuntime::execute_task`.
     fn supports_concurrency(&self) -> bool {
         false
     }
     fn system_prompt_replaces_default_sections(&self) -> Option<&str> {
         None
+    }
+    /// Optional per-agent overlay appended after default system prompt sections.
+    fn system_prompt_overlay(&self) -> Option<&str> {
+        None
+    }
+    /// Runtime mode bias for context sections and tool behavior.
+    fn runtime_mode(&self) -> RuntimeMode {
+        match self.agent_type().as_str() {
+            "plan" => RuntimeMode::Plan,
+            "explore" => RuntimeMode::Explore,
+            "workspace-assistant" | "channel" => RuntimeMode::Channel,
+            "goal" => RuntimeMode::Goal,
+            _ => RuntimeMode::Code,
+        }
     }
 }
 

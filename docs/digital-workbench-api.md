@@ -412,6 +412,90 @@ Response:
 
 Recorded actions (V1): `dashboard_started`, `project_reindex_requested`, `skills_rescan_requested`, `project_report_generated`, `session_report_generated`.
 
+### Doctor
+
+```http
+GET /api/settings/doctor
+```
+
+Response:
+
+```json
+{
+  "doctor": {
+    "status": "ok",
+    "generated_at": "2026-05-27T12:00:00Z",
+    "checks": [
+      { "id": "llm_config_exists", "status": "ok", "message": "config.json found at ..." },
+      { "id": "llm_api_key", "status": "ok", "message": "Primary api_key is configured" }
+    ],
+    "next_steps": []
+  }
+}
+```
+
+Includes infrastructure checks (DB, UI dist, loopback, MCP env) plus LLM checks (`llm_config_exists`, `llm_api_key`, `llm_google_fallback` when applicable) and optional connector reachability probes.
+
+### Model catalog & LLM config
+
+```http
+GET /api/settings/model-catalog
+POST /api/settings/model-catalog/refresh
+GET /api/settings/models
+PUT /api/settings/models
+POST /api/settings/models/{model_id}/enable
+POST /api/settings/models/{model_id}/test
+```
+
+**Catalog** response: `{ "providers", "zai_models", "google_models", "capabilities", "cache_meta", ... }` — static presets plus optional cached remote lists (no secrets).
+
+**Refresh** body: `{ "provider": "openai", "base_url": "https://..." }` (optional). Writes cache under `~/.anycode/catalog-cache/`.
+
+**Models registry** (`GET /api/settings/models`): `{ "active": { "chat": "model-id", ... }, "items": [ ... ], "model_fallback": ... }`.
+
+**Registry patch** (`PUT /api/settings/models`): `{ "items": [...], "active": { "chat": "id" }, "delete_ids": ["old-id"] }` — merge-safe.
+
+**Enable** body: `{ "capabilities": ["chat", "embedding"] }`.
+
+**Test model** body: `{ "capability": "chat", "draft": { ...ConfiguredModel } }` — probes draft or saved profile without requiring a prior save.
+
+```http
+GET /api/settings/llm
+```
+
+Response (masked secrets):
+
+```json
+{
+  "config_present": true,
+  "provider": "google",
+  "model": "gemini-2.0-flash",
+  "api_key": { "configured": true, "preview": "sk-…" },
+  "model_fallback": { "provider": "anthropic", "model": "claude-sonnet-4-20250514", "on": "geo" },
+  "models": {},
+  "routing_agents": {},
+  "registry": { "active": {}, "items": [] }
+}
+```
+
+```http
+PUT /api/settings/llm
+```
+
+Body (all fields optional): `provider`, `model`, `plan`, `base_url`, `api_key`, `provider_credentials`, `fallback_provider`, `fallback_model`, `fallback_on`, `routing_agents`, `routing_agents_delete`, `models`. Patches `~/.anycode/config.json` with deep merge for `models.*` and returns `{ "ok": true, "config_path": "...", "model_fallback": ... }`.
+
+```http
+POST /api/settings/llm
+```
+
+Body:
+
+```json
+{ "capability": "chat" }
+```
+
+Runs a short LLM probe for the given capability (`chat`, `vision`, `embedding`, `stt`, `tts`, `image`, `video`). Response: `{ "ok": true, "message": "..." }` or `{ "ok": false, "error": "..." }` with HTTP 400 on failure.
+
 ### Policies
 
 ```http

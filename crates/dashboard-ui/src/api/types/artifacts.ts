@@ -44,6 +44,7 @@ export interface ArtifactDetail {
   artifact: ArtifactRecord;
   versions: ArtifactVersionRecord[];
   links: ArtifactLinkRecord[];
+  report_markdown?: string | null;
 }
 
 export interface IndexAssetsResult {

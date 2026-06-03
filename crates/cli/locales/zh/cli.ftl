@@ -25,6 +25,10 @@ cmd-setup-channel = setup 时选择的 channel；填 wechat、telegram、discord
 setup-channel-prompt = 选择要接入的 channel
 setup-channel-opt-skip = 跳过（不接入，稍后用 anycode channel 子命令配置）
 setup-channel-skipped-hint = 已跳过 channel 接入。可稍后执行：anycode channel wechat / telegram / discord
+setup-skills-prompt = 是否安装内置办公 Skills  starter 包（~/.anycode/skills）？
+setup-skills-skipped-hint = 已跳过 Skills starter。可稍后执行：anycode skills install-starter
+setup-skills-done-hint = 办公 Skills starter 已安装到 ~/.anycode/skills
+setup-skills-failed-hint = Skills starter 安装失败（可忽略）。请稍后执行：anycode skills install-starter
 setup-non-tty-skip-hint = 非交互环境未指定 --channel：跳过 channel 接入。可用 anycode setup --channel wechat|telegram|discord|skip
 cmd-setup-data-dir = 微信数据目录（默认 ~/.anycode/wechat）
 

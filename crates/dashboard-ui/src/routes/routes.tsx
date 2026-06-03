@@ -6,6 +6,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
+import type { SettingsSection } from "@/components/settings/SettingsNav";
 import { api } from "@/api/client";
 import {
   AgentsPage,
@@ -98,9 +99,11 @@ export const conversationsRoute = createRoute({
     trusted?: string;
     kind?: string;
     needs_approval?: boolean;
+    budget_exceeded?: boolean;
     project?: string;
     session?: string;
-    filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval";
+    agent?: string;
+    filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval" | "budget";
   } => {
     const project =
       typeof search.project === "string" && search.project.trim()
@@ -109,6 +112,10 @@ export const conversationsRoute = createRoute({
     const session =
       typeof search.session === "string" && search.session.trim()
         ? search.session.trim()
+        : undefined;
+    const agent =
+      typeof search.agent === "string" && search.agent.trim()
+        ? search.agent.trim()
         : undefined;
     const status =
       typeof search.status === "string" && search.status.trim()
@@ -126,6 +133,10 @@ export const conversationsRoute = createRoute({
       search.needs_approval === true ||
       search.needs_approval === "true" ||
       search.needs_approval === "1";
+    const budget_exceeded =
+      search.budget_exceeded === true ||
+      search.budget_exceeded === "true" ||
+      search.budget_exceeded === "1";
     const f = search.filter;
     const legacyFilter =
       f === "running" ||
@@ -133,6 +144,7 @@ export const conversationsRoute = createRoute({
       f === "workflow" ||
       f === "cron" ||
       f === "needs_approval" ||
+      f === "budget" ||
       f === "all"
         ? f
         : undefined;
@@ -141,8 +153,10 @@ export const conversationsRoute = createRoute({
       trusted,
       kind,
       needs_approval: needs_approval || undefined,
+      budget_exceeded: budget_exceeded || undefined,
       project,
       session,
+      agent,
       filter: legacyFilter,
     };
   },
@@ -255,6 +269,26 @@ export const auditRoute = createRoute({
 export const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/settings",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { section?: SettingsSection } => {
+    const section = search.section;
+    const valid = [
+      "auth",
+      "data",
+      "service",
+      "model",
+      "skills",
+      "assets",
+      "security",
+      "notify",
+      "ops",
+    ] as const;
+    if (typeof section === "string" && (valid as readonly string[]).includes(section)) {
+      return { section: section as SettingsSection };
+    }
+    return {};
+  },
   component: () => (
     <Page>
       <SettingsPage />

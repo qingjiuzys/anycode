@@ -28,6 +28,45 @@ pub async fn list_project_skills(
     }
 }
 
+pub async fn get_skill_suggestions(State(state): State<AppState>) -> impl IntoResponse {
+    match crate::skill_suggestions::build_suggestions(&state.db).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn install_starter_skills(State(state): State<AppState>) -> impl IntoResponse {
+    let Some(home) = dirs::home_dir() else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "no home directory" })),
+        )
+            .into_response();
+    };
+    let dest = home.join(".anycode/skills");
+    match anycode_tools::install_starter_skills(&dest) {
+        Ok(installed) => {
+            let ids: Vec<String> = installed.iter().map(|r| r.id.clone()).collect();
+            let _ = skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            Json(json!({
+                "ok": true,
+                "installed": ids,
+                "count": ids.len(),
+            }))
+            .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn rescan_skills(State(state): State<AppState>) -> impl IntoResponse {
     let mut roots = state.workspace_paths.clone();
     if let Ok(rows) =

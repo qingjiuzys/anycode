@@ -1,7 +1,7 @@
 //! 跨工具共享的运行时状态与 HTTP 客户端（装配自 `bootstrap` / `build_registry`）。
 
 use crate::ask_user_question_host::AskUserQuestionHostArc;
-use crate::skills::SkillCatalog;
+use crate::skills::{SkillCatalog, SkillsGovernance};
 use anycode_core::{
     CoreError, NestedTaskRun, SubAgentExecutor, TaskResult, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
@@ -208,8 +208,14 @@ pub struct ToolServices {
     mcp_defer_allowlist: Option<Arc<Mutex<HashSet<String>>>>,
     /// Startup scan of `SKILL.md` skills + resolution rules for the `Skill` tool.
     pub skill_catalog: Arc<SkillCatalog>,
+    /// Runtime skill governance (global / per-agent / project allowlists).
+    pub skills_governance: Mutex<SkillsGovernance>,
+    /// Active agent id for the current tool loop (Skill governance).
+    active_agent_type: Mutex<Option<String>>,
     /// Parent `execute_task` tool surface for nested Agent/Task inheritance.
     parent_task_tool_deny: Mutex<Option<(Vec<String>, Vec<String>)>>,
+    /// Injected at bootstrap; avoids per-execute disk reads in media tools.
+    media_registry: Mutex<Option<Arc<anycode_llm::media::MediaClientRegistry>>>,
 }
 
 impl Default for ToolServices {
@@ -241,7 +247,10 @@ impl Default for ToolServices {
             mcp_sessions: Mutex::new(vec![]),
             mcp_defer_allowlist: None,
             skill_catalog: Arc::new(SkillCatalog::empty()),
+            skills_governance: Mutex::new(SkillsGovernance::default()),
+            active_agent_type: Mutex::new(None),
             parent_task_tool_deny: Mutex::new(None),
+            media_registry: Mutex::new(None),
         }
     }
 }
@@ -369,6 +378,43 @@ impl ToolServices {
             .expect("parent_task_tool_deny")
             .clone()
             .unwrap_or_default()
+    }
+
+    pub fn set_skills_governance(&self, gov: SkillsGovernance) {
+        *self.skills_governance.lock().expect("skills_governance") = gov;
+    }
+
+    pub fn set_media_registry(&self, reg: Arc<anycode_llm::media::MediaClientRegistry>) {
+        *self.media_registry.lock().expect("media_registry") = Some(reg);
+    }
+
+    pub fn media_registry(&self) -> Result<anycode_llm::media::MediaClientRegistry, String> {
+        if let Some(reg) = self.media_registry.lock().expect("media_registry").clone() {
+            return Ok((*reg).clone());
+        }
+        let (_, cfg) =
+            anycode_llm::config_file::read_config_value(None).map_err(|e| e.to_string())?;
+        Ok(anycode_llm::media::MediaClientRegistry::from_config(&cfg))
+    }
+
+    pub fn set_active_agent_type(&self, agent_type: Option<String>) {
+        *self.active_agent_type.lock().expect("active_agent_type") = agent_type;
+    }
+
+    pub fn active_agent_type(&self) -> Option<String> {
+        self.active_agent_type
+            .lock()
+            .expect("active_agent_type")
+            .clone()
+    }
+
+    pub fn is_skill_allowed(&self, skill_id: &str) -> bool {
+        let agent = self.active_agent_type().unwrap_or_default();
+        let gov = self.skills_governance.lock().expect("skills_governance");
+        if agent.is_empty() {
+            return true;
+        }
+        gov.is_allowed(&agent, skill_id)
     }
 
     pub fn attach_ask_user_question_host(&self, host: AskUserQuestionHostArc) {
@@ -876,6 +922,50 @@ pub fn read_cron_jobs_from_orchestration_file(path: &Path) -> anyhow::Result<Vec
     let snap: OrchestrationCronsOnly = serde_json::from_str(&text)
         .map_err(|e| anyhow::anyhow!("invalid orchestration JSON: {e}"))?;
     Ok(snap.crons)
+}
+
+/// Append a cron job to `~/.anycode/tasks/orchestration.json` (or `path`), creating the file if needed.
+pub fn append_cron_job_to_orchestration_file(
+    path: &Path,
+    schedule: String,
+    command: String,
+    opts: CronJobCreateOptions,
+) -> anyhow::Result<CronJob> {
+    use uuid::Uuid;
+    let mut snap = if path.is_file() {
+        let text = fs::read_to_string(path)?;
+        serde_json::from_str::<OrchestrationSnapshotV1>(&text)
+            .unwrap_or_else(|_| OrchestrationSnapshotV1::default())
+    } else {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        OrchestrationSnapshotV1::default()
+    };
+    let job = CronJob {
+        id: Uuid::new_v4().to_string(),
+        schedule,
+        command,
+        session_id: opts
+            .session_id
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| Some(Uuid::new_v4().to_string())),
+        failure_destination: Some(
+            opts.failure_destination
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| "log".to_string()),
+        ),
+        tool_profile: Some(
+            opts.tool_profile
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| "default".to_string()),
+        ),
+        tool_allowlist: opts.tool_allowlist.filter(|list| !list.is_empty()),
+    };
+    snap.crons.push(job.clone());
+    let text = serde_json::to_string_pretty(&snap)?;
+    fs::write(path, text)?;
+    Ok(job)
 }
 
 #[cfg(test)]

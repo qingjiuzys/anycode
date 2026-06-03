@@ -23,6 +23,10 @@ mod file_read;
 mod file_write;
 mod glob;
 mod grep;
+mod knowledge_index;
+mod knowledge_scoring;
+mod knowledge_tools;
+mod knowledge_vectors;
 mod lsp_root_uri;
 #[cfg(feature = "tools-lsp")]
 mod lsp_stdio;
@@ -47,6 +51,7 @@ pub mod mcp_session;
 mod mcp_stdio;
 mod mcp_tool_scan;
 mod mcp_tools;
+mod media_tools;
 mod mode_tools;
 mod notebook_edit;
 mod orchestration;
@@ -69,7 +74,14 @@ pub use catalog::{
 pub use claude_rules::CompiledClaudePermissionRules;
 pub use cron_schedule::{
     format_next_fire_human, next_fire_utc_from_stored_schedule, normalize_cron_schedule_expr,
-    wall_clock_cron_to_utc_storage,
+    parse_natural_cron_hint, resolve_schedule_timezone, validate_cron_schedule_expr,
+    wall_clock_cron_to_utc_storage, wall_clock_cron_to_utc_storage_for_timezone,
+    wall_clock_cron_to_utc_storage_in_iana, NaturalCronResult, ScheduleTimezone,
+};
+pub use knowledge_scoring::score_knowledge_chunk;
+pub use knowledge_vectors::{
+    merge_hybrid_knowledge_hits, rebuild_project_vectors, search_project_vectors,
+    vector_chunk_count, vector_store_path, vectors_feature_enabled, VectorHit,
 };
 #[cfg(feature = "tools-mcp")]
 pub use mcp_connected::McpListedTool;
@@ -92,9 +104,11 @@ pub use runtime_tool_policy::{
     ToolExecutionSurface, ToolPolicyProfiles,
 };
 pub use services::{
-    read_cron_jobs_from_orchestration_file, CronJob, LspConnectionConfig, ToolRegistryDeps,
-    ToolServices,
+    append_cron_job_to_orchestration_file, read_cron_jobs_from_orchestration_file, CronJob,
+    CronJobCreateOptions, LspConnectionConfig, ToolRegistryDeps, ToolServices,
 };
 pub use skills::{
-    default_skill_roots, truncate_skill_output, SkillCatalog, SkillMeta, MAX_SKILL_OUTPUT_BYTES,
+    default_skill_roots, install_skill, install_starter_skills, resolve_skills_starter_dir,
+    truncate_skill_output, vet_skill_by_id, vet_skill_dir, SkillCatalog, SkillInstallResult,
+    SkillMeta, SkillVetReport, SkillsGovernance, MAX_SKILL_OUTPUT_BYTES,
 };

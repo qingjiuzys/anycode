@@ -4,7 +4,6 @@ use crate::app_config::Config;
 use crate::dashboard_record::DashboardRecorderHandle;
 use crate::i18n::{tr, tr_args};
 use crate::task_builders::build_headless_task;
-use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
 use anycode_dashboard::{DashboardRecorder, RunSessionKind};
@@ -45,7 +44,7 @@ fn streamed_log_already_contains_output(streamed: &str, output: &str) -> bool {
 }
 
 pub(crate) async fn run_task(
-    mut config: crate::app_config::Config,
+    config: crate::app_config::Config,
     agent_type: Option<String>,
     mode: Option<String>,
     workflow: Option<PathBuf>,
@@ -59,12 +58,14 @@ pub(crate) async fn run_task(
     working_dir: PathBuf,
 ) -> anyhow::Result<()> {
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
-    workspace::apply_project_overlays(&mut config, &working_dir);
+    let project_enabled =
+        crate::workbench::project_skills::load_project_enabled_skills(&working_dir).await;
     let runtime = crate::bootstrap::initialize_runtime(
         &config,
         None,
         None,
         crate::bootstrap::MemoryAttachMode::Shared,
+        project_enabled,
     )
     .await?;
     let disk = DiskTaskOutput::new_default()?;
@@ -274,7 +275,15 @@ pub(crate) async fn run_single_task_with_tail(
         std::env::remove_var(anycode_dashboard::approval_ipc::SESSION_ENV);
     }
 
-    Ok(task.id)
+    match result {
+        TaskResult::Failure { error, details } => {
+            if let Some(d) = details.filter(|s| !s.is_empty()) {
+                anyhow::bail!("{error}: {d}");
+            }
+            anyhow::bail!("{error}");
+        }
+        _ => Ok(task.id),
+    }
 }
 
 pub(crate) async fn run_goal_task_with_tail(

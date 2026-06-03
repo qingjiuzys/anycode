@@ -25,6 +25,7 @@ export const sessionsClient = {
     if (opts?.status) q.set("status", opts.status);
     if (opts?.trustedStatus) q.set("trusted_status", opts.trustedStatus);
     if (opts?.projectId) q.set("project_id", opts.projectId);
+    if (opts?.budgetExceeded) q.set("budget_exceeded", "true");
     return get<{ sessions: SessionWithProject[] }>(`/api/sessions?${q}`);
   },
   sessionFacets: () => get<{ facets: SessionFacetsResponse }>("/api/sessions/facets"),
@@ -86,6 +87,22 @@ export const sessionsClient = {
       `/api/sessions/${sessionId}/execution-log${qs ? `?${qs}` : ""}`,
     );
   },
+  sessionBackgroundTasks: (sessionId: string) =>
+    get<{
+      orchestration_tasks: Array<{
+        id: string;
+        subject?: string;
+        status?: string;
+        description?: string;
+      }>;
+      agent_tool_calls: Array<{
+        occurred_at: string;
+        title: string;
+        severity: string;
+        tool: string;
+        body?: string;
+      }>;
+    }>(`/api/sessions/${encodeURIComponent(sessionId)}/background-tasks`),
   recentReports: (opts?: {
     projectId?: string;
     sessionId?: string;

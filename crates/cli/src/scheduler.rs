@@ -142,7 +142,7 @@ fn duration_until_next_tick(
 /// When `shared_runtime` is set (IM bridge), reuse that runtime instead of a second
 /// `initialize_runtime`. Standalone scheduler uses `MemoryAttachMode::Shared` (file on same path).
 pub(crate) async fn run_builtin_scheduler(
-    mut config: Config,
+    config: Config,
     working_dir: PathBuf,
     reload_interval: Duration,
     shared_runtime: Option<Arc<RwLock<Arc<anycode_agent::AgentRuntime>>>>,
@@ -180,7 +180,6 @@ pub(crate) async fn run_builtin_scheduler(
     let _scheduler_lock_holder = lock_file;
 
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
-    workspace::apply_project_overlays(&mut config, &working_dir);
     let orch_path =
         orchestration_path().ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
 
@@ -193,9 +192,17 @@ pub(crate) async fn run_builtin_scheduler(
     );
 
     let owned_runtime = if shared_runtime.is_none() {
+        let project_enabled =
+            crate::workbench::project_skills::load_project_enabled_skills(&working_dir).await;
         Some(
-            bootstrap::initialize_runtime(&config, None, None, bootstrap::MemoryAttachMode::Shared)
-                .await?,
+            bootstrap::initialize_runtime(
+                &config,
+                None,
+                None,
+                bootstrap::MemoryAttachMode::Shared,
+                project_enabled,
+            )
+            .await?,
         )
     } else {
         None

@@ -1,4 +1,4 @@
-import { ModelConfigForm } from "@/components/settings/ModelConfigForm";
+import { ModelManagerPanel } from "@/components/settings/ModelManagerPanel";
 import { RuntimeConfigPanel } from "@/components/settings/RuntimeConfigPanel";
 import { useRuntimeSettings } from "@/hooks/useRuntimeSettings";
 
@@ -8,7 +8,7 @@ export function SettingsModelSection() {
 
   return (
     <>
-      <ModelConfigForm runtime={rt} />
+      <ModelManagerPanel />
       <RuntimeConfigPanel runtime={rt} />
     </>
   );

@@ -51,5 +51,6 @@ File-based workflows (`workflow.yml`, `.anycode/workflow.yaml`) complement routi
 
 ## Related
 
+- [Agents & Skills](./agents) — built-in types, declarative profiles, skills governance
 - [Models](./models) — providers and **`plan`** field meaning  
 - [CLI model](./cli-model) — interactive edits to **`routing.agents`**  

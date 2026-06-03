@@ -34,6 +34,7 @@ pub struct SessionFacetsResponse {
     pub trusted_status: Vec<LabelCount>,
     pub kind: Vec<LabelCount>,
     pub pending_approval_total: i64,
+    pub budget_exceeded_7d: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -332,6 +333,8 @@ pub struct StartConversationRequest {
     pub kind: String,
     pub goal: Option<String>,
     pub agent: Option<String>,
+    #[serde(default)]
+    pub skills: Option<Vec<String>>,
 }
 
 fn default_start_kind() -> String {
@@ -390,6 +393,14 @@ pub struct ReportSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportSourceCounts {
+    pub sessions: i64,
+    pub events: i64,
+    pub gates: i64,
+    pub artifacts: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportDocument {
     pub scope: String,
     pub id: String,
@@ -399,6 +410,7 @@ pub struct ReportDocument {
     pub trusted_status: String,
     pub markdown: String,
     pub summary: ReportSummary,
+    pub source_counts: ReportSourceCounts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -571,6 +583,8 @@ pub struct ArtifactDetail {
     pub artifact: ArtifactRecord,
     pub versions: Vec<ArtifactVersionRecord>,
     pub links: Vec<ArtifactLinkRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report_markdown: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -653,6 +667,20 @@ pub struct DbOperations {
     pub growth_warnings: Vec<String>,
     pub health_status: String,
     pub generated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrunedProjectRow {
+    pub id: String,
+    pub name: String,
+    pub root_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PruneStaleProjectsReport {
+    pub dry_run: bool,
+    pub removed: Vec<PrunedProjectRow>,
+    pub kept: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -789,10 +817,6 @@ pub struct DashboardPreferences {
     pub db_path: String,
     #[serde(default)]
     pub asset_read_strict: bool,
-    #[serde(default)]
-    pub model_fallback_provider: Option<String>,
-    #[serde(default)]
-    pub model_fallback_model: Option<String>,
     #[serde(default = "chrono_now")]
     pub updated_at: String,
 }

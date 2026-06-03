@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -lt 1 ]]; then
+  echo "usage: run INPUT.md [OUTPUT.pdf]" >&2
+  exit 2
+fi
+in="$1"
+out="${2:-${in%.md}.pdf}"
+if [[ ! -f "$in" ]]; then
+  echo "file not found: $in" >&2
+  exit 1
+fi
+if ! command -v pandoc >/dev/null 2>&1; then
+  echo "pandoc not installed (brew install pandoc or your distro package)" >&2
+  exit 1
+fi
+pandoc "$in" -o "$out"
+echo "$out"

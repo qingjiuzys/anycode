@@ -16,6 +16,8 @@ pub struct TriggerRunRequest {
     pub kind: String,
     pub goal: Option<String>,
     pub agent: Option<String>,
+    #[serde(default)]
+    pub skills: Option<Vec<String>>,
 }
 
 fn default_kind() -> String {
@@ -110,7 +112,47 @@ pub fn validate_request(req: &TriggerRunRequest) -> Result<()> {
             bail!("invalid agent id");
         }
     }
+    validate_skill_ids(req.skills.as_deref())?;
     Ok(())
+}
+
+pub fn validate_skill_ids(skills: Option<&[String]>) -> Result<()> {
+    let Some(list) = skills else {
+        return Ok(());
+    };
+    if list.len() > 8 {
+        bail!("too many skills (max 8)");
+    }
+    for skill in list {
+        let id = skill.trim();
+        if id.is_empty() {
+            continue;
+        }
+        if id.len() > 64
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
+            bail!("invalid skill id: {id}");
+        }
+    }
+    Ok(())
+}
+
+#[must_use]
+pub fn prompt_with_skills(prompt: &str, skills: Option<&[String]>) -> String {
+    let ids: Vec<&str> = skills
+        .map(|v| {
+            v.iter()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if ids.is_empty() {
+        return prompt.trim().to_string();
+    }
+    format!("[Use skills: {}]\n\n{}", ids.join(", "), prompt.trim())
 }
 
 fn find_on_path(name: &str) -> Option<PathBuf> {
@@ -204,7 +246,7 @@ pub fn build_argv(project_root: &Path, req: &TriggerRunRequest) -> Result<Vec<St
             argv.push(goal.to_string());
         }
     }
-    argv.push(req.prompt.trim().to_string());
+    argv.push(prompt_with_skills(&req.prompt, req.skills.as_deref()));
     Ok(argv)
 }
 
@@ -373,6 +415,7 @@ mod tests {
             kind: "run".into(),
             goal: None,
             agent: None,
+            skills: None,
         })
         .unwrap_err();
         assert!(err.to_string().contains("prompt"));
@@ -382,8 +425,19 @@ mod tests {
             kind: "run".into(),
             goal: None,
             agent: None,
+            skills: None,
         })
         .unwrap();
+    }
+
+    #[test]
+    fn prompt_with_skills_prefixes_hint() {
+        let out = prompt_with_skills(
+            "summarize",
+            Some(&["daily-brief".into(), "md-to-pdf".into()]),
+        );
+        assert!(out.starts_with("[Use skills: daily-brief, md-to-pdf]"));
+        assert!(out.contains("summarize"));
     }
 
     #[test]
@@ -396,13 +450,16 @@ mod tests {
                 kind: "run".into(),
                 goal: None,
                 agent: Some("general".into()),
+                skills: Some(vec!["report-to-csv".into()]),
             },
         )
         .unwrap();
         assert!(argv.iter().any(|a| a == "run"));
         assert!(!argv.iter().any(|a| a == "-I"));
         assert!(argv.iter().any(|a| a == "--agent"));
-        assert!(argv.last().is_some_and(|a| a == "fix tests"));
+        assert!(argv
+            .last()
+            .is_some_and(|a| a.contains("[Use skills: report-to-csv]")));
     }
 
     #[test]
@@ -420,6 +477,7 @@ mod tests {
             kind: "goal".into(),
             goal: None,
             agent: None,
+            skills: None,
         };
         normalize_trigger_request(&mut req);
         validate_request(&req).unwrap();

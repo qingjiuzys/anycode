@@ -2,24 +2,18 @@
 
 use crate::schema::{AssetReadPolicySummary, RoutingAgentEntry, RuntimeSettings};
 use crate::service_governance::is_loopback_host;
+use anycode_llm::{read_config_value, read_model_fallback, string_field};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-fn anycode_config_path() -> PathBuf {
-    std::env::var("HOME")
-        .map(|h| PathBuf::from(h).join(".anycode").join("config.json"))
-        .unwrap_or_else(|_| PathBuf::from(".anycode/config.json"))
-}
-
-fn read_config_json() -> (PathBuf, Option<Value>) {
-    let path = anycode_config_path();
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return (path, None);
-    };
-    let Ok(v) = serde_json::from_str(&text) else {
-        return (path, None);
-    };
-    (path, Some(v))
+fn load_config() -> (PathBuf, Option<Value>) {
+    match read_config_value(None) {
+        Ok((path, cfg)) => {
+            let present = cfg.is_object() && !cfg.as_object().is_some_and(|o| o.is_empty());
+            (path, if present { Some(cfg) } else { None })
+        }
+        Err(_) => (anycode_llm::default_config_path(), None),
+    }
 }
 
 fn parse_llm_config(
@@ -33,15 +27,8 @@ fn parse_llm_config(
     let Some(cfg) = cfg else {
         return (None, None, Vec::new(), None);
     };
-    let llm = cfg.get("llm");
-    let global_provider = llm
-        .and_then(|l| l.get("provider"))
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let global_model = llm
-        .and_then(|l| l.get("model"))
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
+    let global_provider = string_field(cfg, "provider", "provider");
+    let global_model = string_field(cfg, "model", "model");
 
     let mut routing_agents = Vec::new();
     if let Some(agents) = cfg
@@ -104,12 +91,13 @@ pub fn build_runtime_settings(
     skills_enabled_links: i64,
     prefs: Option<&crate::schema::DashboardPreferences>,
 ) -> RuntimeSettings {
-    let (config_path, cfg) = read_config_json();
+    let (config_path, cfg) = load_config();
     let (global_provider, global_model, routing_agents, model_routes) =
         parse_llm_config(cfg.as_ref());
     let (fb_provider, fb_model) = cfg
         .as_ref()
-        .map(crate::config_patch::read_llm_fallback)
+        .map(read_model_fallback)
+        .map(|fb| (fb.provider.clone(), fb.model.clone()))
         .unwrap_or((None, None));
     let asset_strict = prefs.map(|p| p.asset_read_strict).unwrap_or(false);
     let auth_mode = if is_loopback_host(host) {
@@ -135,9 +123,8 @@ pub fn build_runtime_settings(
         skills_total,
         skills_enabled_links,
         asset_read_strict: asset_strict,
-        fallback_provider: fb_provider
-            .or_else(|| prefs.and_then(|p| p.model_fallback_provider.clone())),
-        fallback_model: fb_model.or_else(|| prefs.and_then(|p| p.model_fallback_model.clone())),
+        fallback_provider: fb_provider,
+        fallback_model: fb_model,
     }
 }
 

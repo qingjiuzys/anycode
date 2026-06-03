@@ -214,6 +214,33 @@ async fn dashboard_db(sub: DashboardDbCommands) -> Result<()> {
             backup_db(&path, &dest).context("backup db")?;
             println!("Backed up to {}", dest.display());
         }
+        DashboardDbCommands::PruneProjects { db, apply, json } => {
+            let path = db.unwrap_or_else(default_db_path);
+            let dashboard = DashboardDb::open(&path).await.context("open db")?;
+            let report = dashboard
+                .prune_stale_projects(!apply)
+                .await
+                .context("prune stale projects")?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                let mode = if report.dry_run { "dry-run" } else { "applied" };
+                println!(
+                    "Prune stale projects ({mode}): remove {}, keep {}",
+                    report.removed.len(),
+                    report.kept
+                );
+                for row in report.removed.iter().take(20) {
+                    println!("  - {} ({}) {}", row.name, row.id, row.root_path);
+                }
+                if report.removed.len() > 20 {
+                    println!("  … and {} more", report.removed.len() - 20);
+                }
+                if report.dry_run {
+                    println!("Re-run with --apply to delete these projects.");
+                }
+            }
+        }
     }
     Ok(())
 }

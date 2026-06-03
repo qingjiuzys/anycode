@@ -22,7 +22,7 @@ read_when:
 ## Versioning
 
 - **Library / CLI version** follows the workspace `version` in the root `Cargo.toml`.
-- **GitHub Releases**: tag and attach `anycode` binaries for your platform when distributing outside `cargo install`.
+- **GitHub Releases**: tag and attach platform `anycode` binaries when distributing outside `cargo install`. On macOS (Apple Silicon), releases also include **`anyCode_<version>_aarch64.dmg`** — the Tauri desktop Workbench installer (see [Digital Workbench — Desktop app](./dashboard#desktop-app-macos)).
 - **Docs site** (VitePress under `docs-site/`): deploy to GitHub Pages with `VITEPRESS_BASE=/your-repo/` when using project pages.
 
 ## Runtime feature flags {#runtime-feature-flags}

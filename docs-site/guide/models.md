@@ -26,7 +26,7 @@ Run **`anycode model`** to pick a provider interactively; the menu follows the s
 ## `config.json` fields (summary)
 
 - **`provider`**: A known catalog id (see `PROVIDER_CATALOG` above), plus aliases such as `z.ai` / `bigmodel` / `zai`, `anthropic` / `claude`, or kebab-case OpenClaw-style ids.
-- **`plan`**: `coding` or `general` (affects default z.ai base URL when `base_url` is empty).
+- **`plan`**: `coding`, `general`, `coding_cn`, or `general_cn` (affects default z.ai base URL when `base_url` is empty).
 - **`base_url`**: optional override.
 - **`model`**: model id for the active provider.
 - **`api_key`**: vendor key.
@@ -53,6 +53,83 @@ Retries with backoff on HTTP **429**, **5xx**, and transport errors. **401/403**
 ## OpenAI official API (optional)
 
 With `cargo build -p anycode --features openai`, if global `provider` normalizes to `openai`, the stack may use `OpenAIClient` instead of `ZaiClient` for that profile.
+
+## Dashboard model settings
+
+The Digital Workbench **Settings → Model & routing** section is a **model manager**: configure models once, enable per capability (chat, vision, embedding, STT, TTS, image, video), and switch active models with one click.
+
+API summary:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/settings/models` | Configured model registry (`active` + `items`) |
+| `PUT` | `/api/settings/models` | Merge-safe registry update |
+| `POST` | `/api/settings/models/{id}/enable` | Set active capability |
+| `POST` | `/api/settings/models/{id}/test` | Draft-aware probe |
+| `GET` | `/api/settings/model-catalog` | Static + cached provider presets |
+| `POST` | `/api/settings/model-catalog/refresh` | Refresh remote catalog cache |
+| `GET` | `/api/settings/llm` | Masked flat config + legacy `models.*` |
+| `PUT` | `/api/settings/llm` | Patch flat chat, fallback, routing agents |
+| `POST` | `/api/settings/llm` | Probe by capability id |
+
+Legacy **`PUT /api/settings/llm`** remains for chat/fallback/routing patches. Prefer **`PUT /api/settings/models`** for the unified registry. **`GET /api/settings/doctor`** includes LLM checks: config file present, `api_key` set, and a warning when `provider` is Google without fallback.
+
+## Unified model registry (`models.active` + `models.items`)
+
+New configs store configured models under **`models.items`** with an **`models.active`** map (capability id → model id). Legacy flat `provider` / `model` and **`models.embedding`**, **`models.speech.*`**, etc. are migrated automatically and kept in sync on save.
+
+Example:
+
+```json
+"models": {
+  "active": {
+    "chat": "zai-glm-5",
+    "embedding": "openai-embed-small",
+    "stt": "openai-whisper"
+  },
+  "items": [
+    {
+      "id": "zai-glm-5",
+      "provider": "z.ai",
+      "model": "glm-5",
+      "capabilities": ["chat"],
+      "enabled": true
+    }
+  ]
+}
+```
+
+Active **chat** syncs to top-level **`provider`** / **`model`** for CLI compatibility.
+
+## Model failover
+
+Store a secondary chat profile under **`runtime.model_fallback`**:
+
+```json
+"runtime": {
+  "model_fallback": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "on": "geo"
+  }
+}
+```
+
+`on` is `geo` (default), `rate_limit`, or `any_error`. The agent runtime switches to the fallback when the trigger matches (see agent failover). Google as the primary provider without fallback is flagged in doctor diagnostics.
+
+## Multimodal `models.*` profiles
+
+Optional top-level **`models`** overrides per capability without changing the main chat `provider` / `model`:
+
+- **`models.active`** — map of capability → configured model id (preferred)
+- **`models.items`** — unified registry of configured models
+- **`models.embedding`** — memory / RAG embeddings (legacy, synced from registry)
+- **`models.speech.stt`** / **`models.speech.tts`** — speech
+- **`models.image`** / **`models.video`** — image / video generation
+
+Capabilities: **`chat`**, **`vision`** (multimodal input), **`embedding`**, **`stt`**, **`tts`**, **`image`**, **`video`**.
+
+Each entry uses the same shape as a routing agent profile (`provider`, `model`, `api_key`, `base_url`, …). Video generation may use **`endpoint_overrides.submit`** for custom POST URLs.
 
 ---
 

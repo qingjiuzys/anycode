@@ -17,8 +17,11 @@ use crate::cli_args::SkillsCommands;
 use crate::i18n::{tr, tr_args};
 use anycode_core::PermissionMode;
 use anycode_security::SecurityLayer;
-use anycode_tools::{default_skill_roots, SkillCatalog};
+use anycode_tools::{
+    default_skill_roots, install_skill, vet_skill_by_id, SkillCatalog, SkillVetReport,
+};
 use fluent_bundle::FluentArgs;
+use std::path::PathBuf;
 
 fn build_skill_catalog_for_cli(config: &Config) -> SkillCatalog {
     if config.skills.enabled {
@@ -114,6 +117,78 @@ pub(crate) fn run_skills_command(config: &Config, sub: SkillsCommands) -> anyhow
             println!("{}", dir.display());
             Ok(())
         }
+        SkillsCommands::Install { source } => {
+            let Some(home) = dirs::home_dir() else {
+                anyhow::bail!("could not resolve home directory");
+            };
+            let dest = home.join(".anycode/skills");
+            let r = install_skill(&source, &dest)?;
+            println!("installed {} -> {}", r.id, r.dest.display());
+            Ok(())
+        }
+        SkillsCommands::Vet { id } => {
+            let roots = default_skill_roots(&config.skills.extra_dirs, dirs::home_dir().as_deref());
+            let root_refs: Vec<PathBuf> = roots;
+            let report = vet_skill_by_id(&id, &root_refs)?;
+            print_vet_report(&report);
+            if !report.ok {
+                anyhow::bail!("skill vet failed: critical findings");
+            }
+            Ok(())
+        }
+        SkillsCommands::InstallStarter => run_skills_install_starter(),
+    }
+}
+
+pub(crate) fn run_skills_install_starter() -> anyhow::Result<()> {
+    let script = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .map(|d| d.join("../../scripts/install-skills-starter.sh"));
+    // Prefer repo script when developing from source.
+    let candidates = [
+        script,
+        Some(std::path::PathBuf::from(
+            "scripts/install-skills-starter.sh",
+        )),
+    ];
+    let mut ran = false;
+    for c in candidates.into_iter().flatten() {
+        if c.is_file() {
+            let status = std::process::Command::new("bash").arg(&c).status()?;
+            if !status.success() {
+                anyhow::bail!("install-skills-starter.sh failed");
+            }
+            ran = true;
+            break;
+        }
+    }
+    if !ran {
+        // Fallback: copy from CARGO_MANIFEST_DIR when built from workspace.
+        let manifest =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../skills-starter");
+        if manifest.is_dir() {
+            let dest = dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("no home"))?
+                .join(".anycode/skills");
+            let r = install_skill(manifest.to_str().unwrap(), &dest)?;
+            println!("installed starter skills -> {}", r.dest.display());
+        } else {
+            anyhow::bail!(
+                "skills-starter not found; run from repo or use: anycode skills install <path>"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn print_vet_report(report: &SkillVetReport) {
+    println!(
+        "skill: {}  ok: {}  path: {}",
+        report.skill_id, report.ok, report.path
+    );
+    for f in &report.findings {
+        println!("  [{}] {}", f.severity, f.message);
     }
 }
 

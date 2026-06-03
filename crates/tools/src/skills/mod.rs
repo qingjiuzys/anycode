@@ -1,5 +1,14 @@
 //! Skill discovery: `SKILL.md` frontmatter + multi-root scan (Agent Skills–style).
 
+mod effective;
+pub mod install;
+pub mod vet;
+pub use effective::SkillsGovernance;
+pub use install::{
+    install_skill, install_starter_skills, resolve_skills_starter_dir, SkillInstallResult,
+};
+pub use vet::{vet_skill_by_id, vet_skill_dir, SkillVetReport};
+
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;

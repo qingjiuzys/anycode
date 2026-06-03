@@ -124,8 +124,51 @@ pub fn router(state: AppState) -> Router {
             post(handlers::set_skill_all_projects),
         )
         .route("/cron/runs", get(handlers::list_cron_runs))
-        .route("/cron/jobs", get(handlers::list_cron_jobs))
+        .route(
+            "/cron/jobs",
+            get(handlers::list_cron_jobs).post(handlers::create_cron_job),
+        )
+        .route("/cron/parse-schedule", post(handlers::parse_cron_schedule))
+        .route("/cron/retry", post(handlers::retry_cron_job))
+        .route("/cron/templates", get(handlers::list_automation_templates))
+        .route(
+            "/orchestration/tasks",
+            get(handlers::list_orchestration_tasks),
+        )
+        .route("/skills/import", post(handlers::import_skill))
+        .route(
+            "/projects/{project_id}/knowledge",
+            get(handlers::get_project_knowledge).put(handlers::put_project_knowledge),
+        )
+        .route(
+            "/projects/{project_id}/knowledge/reindex",
+            post(handlers::reindex_project_knowledge),
+        )
+        .route(
+            "/projects/{project_id}/knowledge/search",
+            get(handlers::search_project_knowledge),
+        )
+        .route(
+            "/projects/{project_id}/knowledge/stats",
+            get(handlers::get_project_knowledge_stats),
+        )
+        .route("/skills/suggestions", get(handlers::get_skill_suggestions))
+        .route(
+            "/skills/install-starter",
+            post(handlers::install_starter_skills),
+        )
         .route("/agents/stats", get(handlers::list_agent_stats))
+        .route("/agents/profiles", get(handlers::list_agent_profiles))
+        .route(
+            "/agents/profiles/{id}",
+            get(handlers::get_agent_profile)
+                .put(handlers::put_agent_profile)
+                .delete(handlers::delete_agent_profile),
+        )
+        .route(
+            "/agents/profiles/{id}/effective",
+            get(handlers::get_agent_profile_effective),
+        )
         .route("/events/stream", get(handlers::global_events_stream))
         .route("/events/{event_id}", get(handlers::get_event))
         .route("/events", get(handlers::list_recent_events))
@@ -241,6 +284,10 @@ pub fn router(state: AppState) -> Router {
             "/sessions/{session_id}/artifacts",
             get(handlers::list_session_artifacts),
         )
+        .route(
+            "/sessions/{session_id}/background-tasks",
+            get(handlers::get_session_background_tasks),
+        )
         .route("/settings/services", get(handlers::list_services))
         .route(
             "/settings/service-status",
@@ -248,9 +295,28 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/settings/doctor", get(handlers::get_doctor))
         .route("/settings/runtime", get(handlers::get_runtime_settings))
+        .route("/settings/model-catalog", get(handlers::get_model_catalog))
+        .route(
+            "/settings/model-catalog/refresh",
+            post(handlers::refresh_model_catalog),
+        )
+        .route(
+            "/settings/models",
+            get(handlers::get_models_registry).put(handlers::put_models_registry),
+        )
+        .route(
+            "/settings/models/{model_id}/enable",
+            post(handlers::enable_model),
+        )
+        .route(
+            "/settings/models/{model_id}/test",
+            post(handlers::test_model),
+        )
         .route(
             "/settings/llm",
-            axum::routing::put(handlers::patch_llm_config),
+            get(handlers::get_llm_config)
+                .put(handlers::patch_llm_config)
+                .post(handlers::test_llm_config),
         )
         .route(
             "/settings/preferences",
@@ -258,6 +324,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/settings/database", get(handlers::database_settings))
         .route("/settings/db-operations", get(handlers::get_db_operations))
+        .route(
+            "/settings/memory/retention",
+            get(handlers::get_memory_retention_preview).post(handlers::post_memory_retention_apply),
+        )
         .route("/settings/policies", get(handlers::get_policy_summary))
         .route("/settings/data-health", get(handlers::get_data_health))
         .route(

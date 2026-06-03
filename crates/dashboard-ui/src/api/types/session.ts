@@ -59,6 +59,7 @@ export interface SessionFacetsResponse {
   trusted_status: LabelCount[];
   kind: LabelCount[];
   pending_approval_total: number;
+  budget_exceeded_7d: number;
 }
 
 export interface TranscriptBlock {

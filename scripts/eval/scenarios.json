@@ -74,6 +74,29 @@
       "area": "mock-fixture",
       "fixture": "test-repair-repo",
       "acceptance": "mock two-turn run; temp copy + golden patch verifier; cargo test passes"
+    },
+    {
+      "id": "mock-fixture-budget-trip",
+      "area": "mock-fixture",
+      "fixture": "minimal-repo",
+      "acceptance": "run with --token-budget 4; high mock usage emits budget_exceeded and non-zero exit"
+    }
+  ],
+  "mock_guard_tests": [
+    {
+      "id": "mock-trajectory-guard-excess-tools",
+      "area": "mock-guard",
+      "acceptance": "verify_trajectory rejects excess tool_call_end events"
+    },
+    {
+      "id": "mock-trajectory-guard-forbidden-tool",
+      "area": "mock-guard",
+      "acceptance": "verify_trajectory rejects forbidden tools"
+    },
+    {
+      "id": "mock-trajectory-guard-missing-event",
+      "area": "mock-guard",
+      "acceptance": "verify_trajectory rejects missing required events"
     }
   ]
 }

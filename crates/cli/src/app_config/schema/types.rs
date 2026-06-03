@@ -74,6 +74,8 @@ pub(crate) struct Config {
     pub(crate) runtime: RuntimeSettings,
     pub(crate) prompt: RuntimePromptConfig,
     pub(crate) skills: SkillsConfig,
+    /// Declarative agent profiles (`config.json` `agents` section).
+    pub(crate) agents: AgentsConfig,
     /// TUI 会话：自动压缩阈值等（`config.json` 的 `session` 段）。
     pub(crate) session: SessionConfig,
     /// 全屏 TUI 底部 status line（`config.json` 的 `statusLine`）。
@@ -172,6 +174,7 @@ pub(crate) struct RuntimeSettings {
     pub(crate) tool_deny_names: Vec<String>,
     /// Additive tool-name prefix deny list merged into every task.
     pub(crate) tool_deny_prefixes: Vec<String>,
+    pub(crate) model_fallback: Option<anycode_llm::ModelFallbackConfig>,
     /// 当前工作目录在 `~/.anycode/workspace/projects/index.json` 中匹配到的项目标签（仅内存叠加，不写回全局配置）。
     pub(crate) workspace_project_label: Option<String>,
     /// 同上：项目级通道 profile 提示（如 `web` / `wechat`）。
@@ -541,32 +544,8 @@ impl From<LspConfigFile> for LspRuntime {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub(crate) struct ModelProfile {
-    /// 覆盖全局 `provider`（目录 id，如 `z.ai`、`anthropic`、`openrouter`）
-    #[serde(default)]
-    pub(crate) provider: Option<String>,
-    /// 该 profile 专用 API Key（不填则按厂商从全局 `api_key` 或 `provider_credentials` 解析）
-    #[serde(default)]
-    pub(crate) api_key: Option<String>,
-    /// 套餐：coding / general（不填则沿用全局 plan）
-    #[serde(default)]
-    pub(crate) plan: Option<String>,
-    /// model id（不填则沿用全局 model）
-    #[serde(default)]
-    pub(crate) model: Option<String>,
-    #[serde(default)]
-    pub(crate) temperature: Option<f32>,
-    #[serde(default)]
-    pub(crate) max_tokens: Option<u32>,
-    /// 覆盖 base_url（不填则沿用全局 base_url 或 plan 默认）
-    #[serde(default)]
-    pub(crate) base_url: Option<String>,
-}
-
-impl ModelProfile {
-    // 预留：后续用于校验/合并 profile
-}
+/// Per-agent / routing model profile (SSOT: `anycode_llm::ModelProfileFile`).
+pub(crate) type ModelProfile = anycode_llm::ModelProfileFile;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct RoutingConfig {
@@ -730,6 +709,9 @@ pub(crate) struct RuntimeSettingsFile {
     /// Additive deny-by-prefix list for all tasks.
     #[serde(default)]
     pub(crate) tool_deny_prefixes: Vec<String>,
+    /// Primary chat model fallback when provider errors match `on` trigger.
+    #[serde(default)]
+    pub(crate) model_fallback: Option<anycode_llm::ModelFallbackConfig>,
 }
 
 impl Default for RuntimeSettingsFile {
@@ -741,6 +723,7 @@ impl Default for RuntimeSettingsFile {
             tool_policy_profiles: ToolPolicyProfilesFile::default(),
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
+            model_fallback: None,
         }
     }
 }
@@ -788,6 +771,71 @@ impl Default for SecurityConfigFile {
             always_allow_rules: vec![],
             always_ask_rules: vec![],
             defer_mcp_tools: false,
+        }
+    }
+}
+
+/// Tool allow/deny for declarative agent profiles.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct AgentProfileToolsFile {
+    #[serde(default)]
+    pub(crate) allow: Option<Vec<String>>,
+    #[serde(default)]
+    pub(crate) deny: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct AgentProfileSkillsFile {
+    #[serde(default)]
+    pub(crate) allowlist: Option<Vec<String>>,
+}
+
+/// Single declarative agent profile in `config.json`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct AgentProfileFile {
+    #[serde(default)]
+    pub(crate) extends: String,
+    #[serde(default)]
+    pub(crate) description: Option<String>,
+    #[serde(default)]
+    pub(crate) tools: Option<AgentProfileToolsFile>,
+    #[serde(default)]
+    pub(crate) skills: Option<AgentProfileSkillsFile>,
+    #[serde(default)]
+    pub(crate) routing: Option<ModelProfile>,
+    #[serde(default)]
+    pub(crate) prompt_overlay: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct AgentDefaultsFile {
+    #[serde(default)]
+    pub(crate) run: Option<String>,
+    #[serde(default)]
+    pub(crate) goal: Option<String>,
+    #[serde(default)]
+    pub(crate) channel: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct AgentsConfigFile {
+    #[serde(default)]
+    pub(crate) profiles: HashMap<String, AgentProfileFile>,
+    #[serde(default)]
+    pub(crate) defaults: AgentDefaultsFile,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct AgentsConfig {
+    pub(crate) profiles: HashMap<String, AgentProfileFile>,
+    pub(crate) defaults: AgentDefaultsFile,
+}
+
+impl From<AgentsConfigFile> for AgentsConfig {
+    fn from(f: AgentsConfigFile) -> Self {
+        Self {
+            profiles: f.profiles,
+            defaults: f.defaults,
         }
     }
 }

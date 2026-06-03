@@ -6,6 +6,7 @@ use super::cdn_media::{
     has_voice_item_without_stt,
 };
 use super::commands::{route_command, CmdCtx, CmdOut};
+use super::deliverable::{extract_deliverable_path, send_deliverable_file, with_deliverable_hint};
 use super::fields::{
     i64_snake_camel, item_type, msgs_array, str_snake_camel, sync_buf_from_response,
 };
@@ -15,6 +16,7 @@ use super::store::{
     add_chat_message, chat_history_text, load_latest_account, load_session, load_wcc_config,
     save_session, wcc_data_dir, AccountData, SessionState, WcSession, WccConfig,
 };
+use super::voice_stt;
 use crate::app_config::{resolve_config_path, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::i18n::{tr, tr_args};
@@ -71,6 +73,7 @@ pub async fn run_wechat_daemon(
     let account = load_latest_account(&data_root)?;
     let wcc = load_wcc_config(&data_root);
     let session = load_session(&data_root, &account.account_id)?;
+    let cwd = resolve_cwd(&session, &wcc);
 
     let api = Arc::new(WeChatApi::new(
         account.bot_token.clone(),
@@ -103,12 +106,14 @@ pub async fn run_wechat_daemon(
 
     // 通道模式与 Telegram/Discord 一致：工具走自动策略（无终端交互审批）。
     // `WechatApprovalGate` 仍用于会话路由与其它微信侧逻辑。
+    let project_enabled = crate::workbench::project_skills::load_project_enabled_skills(&cwd).await;
     let runtime = Arc::new(RwLock::new(
         initialize_runtime(
             app_config,
             None,
             Some(ask_host.clone()),
             crate::bootstrap::MemoryAttachMode::Exclusive,
+            project_enabled,
         )
         .await
         .context("initialize_runtime")?,
@@ -469,6 +474,13 @@ async fn handle_message(
 
     if body.is_empty() && media_item.is_none() {
         drop(session);
+        if has_voice_item_without_stt(&items) {
+            if let Some(text) = voice_stt::transcribe_voice_items(&items).await {
+                run_agent_pipeline(st, from_user_id, context_token, text.clone(), text, None)
+                    .await?;
+                return Ok(());
+            }
+        }
         let reply = if has_voice_item_without_stt(&items) {
             tr("wx-voice-no-stt")
         } else {
@@ -537,6 +549,11 @@ async fn run_agent_pipeline(
         add_chat_message(&mut session, "user", &content);
         let _ = save_session(&st.data_root, &st.account.account_id, &session);
     }
+
+    let _ = st
+        .sender
+        .send_text(&from_user_id, &context_token, &tr("wx-task-received"))
+        .await;
 
     let media_note = if let Some(ref it) = media_item {
         let t = item_type(it);
@@ -635,6 +652,10 @@ async fn run_agent_pipeline(
         let coop = Arc::new(AtomicBool::new(false));
         *wx_turn_cancel_slot.lock().unwrap() = Some(coop.clone());
 
+        let _ = sender
+            .send_text(&from_user_id, &context_token, &tr("wx-task-running"))
+            .await;
+
         let task =
             crate::task_builders::build_wechat_task(crate::task_builders::WechatTaskParams {
                 agent,
@@ -662,11 +683,13 @@ async fn run_agent_pipeline(
         gate.set_active_chat(None).await;
 
         let mut session = session_arc.lock().await;
+        let mut deliverable_path: Option<String> = None;
         let reply = match result {
             Ok(TaskResult::Success { output, .. }) => {
                 let cleaned = sanitize_wechat_reply_output(&output);
                 add_chat_message(&mut session, "assistant", &cleaned);
-                cleaned
+                deliverable_path = extract_deliverable_path(&output);
+                with_deliverable_hint(cleaned, &output)
             }
             Ok(TaskResult::Failure { error, details }) => {
                 let mut ea = FluentArgs::new();
@@ -705,6 +728,17 @@ async fn run_agent_pipeline(
                     error = %e,
                     chunk_len = chunk.len(),
                     "wx reply chunk send failed after retries"
+                );
+            }
+        }
+        if let Some(path) = deliverable_path {
+            if let Err(e) =
+                send_deliverable_file(&sender, &from_user_id, &context_token, &path).await
+            {
+                tracing::warn!(
+                    error = %e,
+                    path = %path,
+                    "wx deliverable file send failed"
                 );
             }
         }

@@ -2,8 +2,9 @@ use crate::db::trusted::compute_trusted_status;
 use crate::schema::{
     AgentUsageStat, ArtifactRecord, CreateSessionRequest, GateRecord, InsertEventRequest,
     LabelCount, OverviewStats, ProjectDetail, ProjectEvent, ProjectStats, ProjectStatsFailure,
-    ProjectSummary, RecentEvent, SessionDetail, SessionFacetsResponse, SessionSummary,
-    SessionWithProject, SkillRecord, UpsertProjectRequest, LOCAL_ORG_ID,
+    ProjectSummary, PruneStaleProjectsReport, PrunedProjectRow, RecentEvent, SessionDetail,
+    SessionFacetsResponse, SessionSummary, SessionWithProject, SkillRecord, UpsertProjectRequest,
+    LOCAL_ORG_ID,
 };
 use anyhow::{Context, Result};
 use serde_json::Value;
@@ -48,6 +49,7 @@ impl DashboardDb {
     }
 }
 
+pub mod agents;
 mod artifacts;
 mod events;
 mod gates;
@@ -316,5 +318,42 @@ mod tests {
         let updated = db.get_session(&session.id).await.unwrap().unwrap();
         assert_eq!(updated.status, "cancelled");
         assert!(!db.cancel_running_session(&session.id).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn prune_stale_projects_removes_missing_roots() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("prune.db"))
+            .await
+            .unwrap();
+        let alive = dir.path().join("alive");
+        std::fs::create_dir_all(&alive).unwrap();
+        db.upsert_project(UpsertProjectRequest {
+            root_path: alive.display().to_string(),
+            name: Some("alive".into()),
+            description: None,
+            create_root: None,
+        })
+        .await
+        .unwrap();
+        db.upsert_project(UpsertProjectRequest {
+            root_path: "/tmp/anycode-prune-missing".into(),
+            name: Some("gone".into()),
+            description: None,
+            create_root: None,
+        })
+        .await
+        .unwrap();
+
+        let preview = db.prune_stale_projects(true).await.unwrap();
+        assert_eq!(preview.removed.len(), 1);
+        assert_eq!(preview.kept, 1);
+        assert_eq!(db.list_projects().await.unwrap().len(), 2);
+
+        let applied = db.prune_stale_projects(false).await.unwrap();
+        assert_eq!(applied.removed.len(), 1);
+        assert_eq!(applied.kept, 1);
+        assert_eq!(db.list_projects().await.unwrap().len(), 1);
+        assert_eq!(db.list_projects().await.unwrap()[0].name, "alive");
     }
 }

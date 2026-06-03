@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 anycode-core = { path = "../core" }
+anycode-llm = { path = "../llm" }
 anycode-security = { path = "../security" }
 anycode-tools = { path = "../tools" }
 tokio = { workspace = true }

@@ -20,6 +20,17 @@ anycode dashboard --open
 
 未构建 UI 时 release 仍可启动 API；`anycode dashboard doctor` 会提示缺少 UI。
 
+## 桌面应用（macOS）
+
+需要原生 Workbench 窗口（Tauri 壳 + 内置 `anycode dashboard` sidecar）时：
+
+| 方式 | 说明 |
+|------|------|
+| **GitHub Release** | 在 [Releases](https://github.com/qingjiuzys/anycode/releases) 下载 `anyCode_<version>_aarch64.dmg`（Apple Silicon） |
+| **本地构建** | `./scripts/build-desktop-release.sh` → `apps/anycode-desktop/target/release/bundle/dmg/` |
+
+图标素材：[`anycode-logo.png`](https://qingjiuzys.github.io/anycode/anycode-logo.png)（源码在 `apps/anycode-desktop/assets/`）。详见 [`apps/anycode-desktop/README.md`](https://github.com/qingjiuzys/anycode/blob/main/apps/anycode-desktop/README.md)。
+
 开发热更新：
 
 ```bash

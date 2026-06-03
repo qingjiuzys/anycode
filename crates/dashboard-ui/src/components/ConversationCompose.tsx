@@ -26,6 +26,8 @@ export function ConversationCompose({ session, onSent }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["sessions", session.project_id] });
       void queryClient.invalidateQueries({ queryKey: ["project-triggers", session.project_id] });
       void queryClient.invalidateQueries({ queryKey: ["running-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["session", session.id] });
+      void queryClient.invalidateQueries({ queryKey: ["session-transcript", session.id] });
       onSent?.(session.id);
     },
   });

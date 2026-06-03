@@ -69,6 +69,186 @@ export interface RoutingAgentEntry {
   model?: string | null;
 }
 
+export interface MaskedSecret {
+  configured: boolean;
+  preview?: string | null;
+}
+
+export interface ModelFallbackView {
+  provider?: string | null;
+  model?: string | null;
+  on?: "geo" | "rate_limit" | "any_error";
+}
+
+export interface ModelProfile {
+  provider?: string | null;
+  model?: string | null;
+  plan?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+}
+
+export interface SpeechModelsConfig {
+  stt?: ModelProfile | null;
+  tts?: ModelProfile | null;
+}
+
+export interface ModelsConfig {
+  chat?: ModelProfile | null;
+  embedding?: ModelProfile | null;
+  speech?: SpeechModelsConfig | null;
+  image?: ModelProfile | null;
+  video?: ModelProfile | null;
+}
+
+export interface LlmConfigView {
+  config_present: boolean;
+  provider?: string | null;
+  model?: string | null;
+  plan?: string | null;
+  base_url?: string | null;
+  api_key: MaskedSecret;
+  provider_credentials: Record<string, MaskedSecret>;
+  model_fallback: ModelFallbackView;
+  models: ModelsConfig;
+  routing_agents?: Record<string, ModelProfile> | null;
+  registry?: {
+    active: Record<string, string>;
+    items: Array<{
+      id: string;
+      display_name?: string | null;
+      provider: string;
+      model: string;
+      capabilities: string[];
+      enabled: boolean;
+      source?: string | null;
+    }>;
+  };
+}
+
+export interface CatalogProviderRow {
+  id: string;
+  label: string;
+  hint?: string | null;
+  transport: string;
+  suggested_openai_base?: string | null;
+  placeholder_only: boolean;
+}
+
+export interface CatalogModelRow {
+  id: string;
+  label: string;
+  description?: string | null;
+}
+
+export interface CatalogAuthMethod {
+  label: string;
+  hint?: string | null;
+  plan: string;
+}
+
+export interface CatalogRoutingPreset {
+  id: string;
+  hint: string;
+}
+
+export interface ModelCatalog {
+  providers: CatalogProviderRow[];
+  zai_models: CatalogModelRow[];
+  google_models: CatalogModelRow[];
+  zai_auth_methods: CatalogAuthMethod[];
+  routing_agent_presets: CatalogRoutingPreset[];
+  capabilities: { id: string; label?: string }[];
+  cache_meta?: Record<string, CatalogRefreshMeta>;
+}
+
+export interface CatalogRefreshMeta {
+  last_refreshed_at?: string | null;
+  source: string;
+  offline_cache_used: boolean;
+  refresh_error?: string | null;
+}
+
+export interface ConfiguredModel {
+  id: string;
+  display_name?: string | null;
+  provider: string;
+  model: string;
+  capabilities: string[];
+  plan?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
+  api_key_ref?: string | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  extra_headers?: Record<string, string> | null;
+  endpoint_overrides?: EndpointOverrides | null;
+  enabled: boolean;
+  tags?: string[] | null;
+  source?: string | null;
+}
+
+export interface EndpointOverrides {
+  submit?: string | null;
+  status?: string | null;
+  result?: string | null;
+}
+
+export interface ModelsRegistryView {
+  config_present: boolean;
+  active: Record<string, string>;
+  items: ConfiguredModel[];
+  routing?: Record<string, unknown> | null;
+  model_fallback: ModelFallbackView;
+  global?: { provider?: string | null; model?: string | null };
+}
+
+export interface PutModelsBody {
+  items?: ConfiguredModel[];
+  active?: Record<string, string>;
+  delete_ids?: string[];
+}
+
+export interface RefreshCatalogResult {
+  ok: boolean;
+  provider: string;
+  models: CatalogModelRow[];
+  meta: CatalogRefreshMeta;
+  error?: string;
+}
+
+export interface LlmConfigPatchBody {
+  provider?: string;
+  model?: string;
+  plan?: string;
+  base_url?: string;
+  api_key?: string;
+  provider_credentials?: Record<string, string>;
+  fallback_provider?: string;
+  fallback_model?: string;
+  fallback_on?: string;
+  routing_agents?: Record<string, ModelProfile>;
+  routing_agents_delete?: string[];
+  models?: ModelsConfig;
+}
+
+export interface LlmConfigPatchResult {
+  ok: boolean;
+  config_path: string;
+  provider?: string | null;
+  model?: string | null;
+  model_fallback?: ModelFallbackView | null;
+  models?: ModelsConfig | null;
+}
+
+export interface TestLlmResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
 export interface AssetReadPolicySummary {
   summary: string;
   rules: string[];

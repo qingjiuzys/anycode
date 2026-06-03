@@ -16,8 +16,8 @@ pub(crate) use config_wizard::{
     disable_feature_flag, enable_feature_flag, run_config_wizard, set_default_runtime_mode,
 };
 pub(crate) use load::{
-    apply_wechat_bridge_no_tool_approval, load_config_for_session,
-    security_wants_interactive_approval_callback,
+    apply_wechat_bridge_no_tool_approval, load_config_for_session, load_runtime_config,
+    security_wants_interactive_approval_callback, LoadOpts,
 };
 pub(crate) use model_wizard::run_model_command;
 pub(crate) use onboard::run_onboard_flow;

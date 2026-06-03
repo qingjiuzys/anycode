@@ -94,6 +94,13 @@ export interface ReportSummary {
   artifacts: number;
 }
 
+export interface ReportSourceCounts {
+  sessions: number;
+  events: number;
+  gates: number;
+  artifacts: number;
+}
+
 export interface ReportDocument {
   scope: string;
   id: string;
@@ -103,6 +110,7 @@ export interface ReportDocument {
   trusted_status: string;
   markdown: string;
   summary: ReportSummary;
+  source_counts: ReportSourceCounts;
 }
 
 export interface RecentNotification {

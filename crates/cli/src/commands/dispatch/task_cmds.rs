@@ -1,6 +1,7 @@
 //! Task execution and interactive REPL dispatch.
 
 use super::{load_config_for_session, resolve_working_dir};
+use crate::app_config::{load_runtime_config, LoadOpts};
 use crate::cli_args::Commands;
 use crate::{cli_args, scheduler, tasks, workspace};
 use std::io::IsTerminal;
@@ -15,9 +16,15 @@ pub(super) async fn dispatch(
             directory,
             reload_secs,
         } => {
-            let config = load_config_for_session(config.clone(), ignore_approval).await?;
             let working_dir = resolve_working_dir(directory);
             workspace::touch_project_dir(working_dir.clone());
+            let config = load_runtime_config(LoadOpts {
+                config_file: config.clone(),
+                ignore_approval,
+                workspace_overlay_dir: Some(working_dir.clone()),
+                ..Default::default()
+            })
+            .await?;
             scheduler::run_builtin_scheduler(
                 config,
                 working_dir,
@@ -40,9 +47,15 @@ pub(super) async fn dispatch(
             prompt,
             directory,
         } => {
-            let config = load_config_for_session(config.clone(), ignore_approval).await?;
             let working_dir = resolve_working_dir(directory);
             workspace::touch_project_dir(working_dir.clone());
+            let config = load_runtime_config(LoadOpts {
+                config_file: config.clone(),
+                ignore_approval,
+                workspace_overlay_dir: Some(working_dir.clone()),
+                ..Default::default()
+            })
+            .await?;
             tasks::run_task(
                 config,
                 agent,
@@ -75,10 +88,19 @@ pub(super) async fn dispatch_default(
     args: &cli_args::Args,
     ignore_approval: bool,
 ) -> anyhow::Result<()> {
-    let cfg = load_config_for_session(args.config.clone(), ignore_approval).await?;
-    if let Ok(cwd) = std::env::current_dir() {
-        workspace::touch_project_dir(cwd);
-    }
+    let working_dir = args
+        .directory
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().unwrap());
+    let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
+    workspace::touch_project_dir(working_dir.clone());
+    let cfg = load_runtime_config(LoadOpts {
+        config_file: args.config.clone(),
+        ignore_approval,
+        workspace_overlay_dir: Some(working_dir),
+        ..Default::default()
+    })
+    .await?;
     let default_agent = cfg
         .runtime
         .default_mode

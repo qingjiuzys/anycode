@@ -128,10 +128,7 @@ fn validate_workflow(workflow: &WorkflowDefinition) -> PlanValidationResult {
 }
 
 fn known_agent(agent: &str) -> bool {
-    matches!(
-        agent,
-        "general-purpose" | "workspace" | "goal" | "plan" | "explore" | "code"
-    )
+    crate::builtin_agents::is_known_agent_id(agent)
 }
 
 fn has_cycle(graph: &HashMap<&str, Vec<&str>>) -> bool {

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
@@ -16,15 +16,14 @@ import {
   usePendingApprovalCounts,
 } from "@/components/SecurityApprovalInbox";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
+import { HomePanelOverlays, type HomePanelSection } from "@/components/HomePanelOverlays";
 import { WorkspacePathsPanel } from "@/components/WorkspacePathsPanel";
 import { MetricsChart } from "@/components/MetricsChart";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { WorkbenchStatusCard } from "@/components/WorkbenchStatusCard";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TrustBar } from "@/components/ui/StatusBadge";
-import { Icon } from "@/components/Icon";
 import { useSseStatus } from "@/context/SseContext";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
 import { useT } from "@/i18n/context";
@@ -34,8 +33,9 @@ export function HomePage() {
   const t = useT();
   const sseStatus = useSseStatus();
   const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [analyticsOpen, setAnalyticsOpen] = useState(false);
-  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const analyticsOpen = expandedSection === "analytics";
+  const workbenchOpen = expandedSection === "workbench";
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
   const overview = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const projects = useQuery({
@@ -77,37 +77,123 @@ export function HomePage() {
   const list = projects.data?.projects ?? [];
   const ov = overview.data?.overview;
   const steps = bootstrap.data?.bootstrap?.next_steps ?? [];
+  const recentSessions = sessions.data?.sessions ?? [];
+
+  const analyticsContent = (
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <HomeTokenUsage />
+        <HomeSavedHoursKpi />
+      </div>
+      <SecurityActivityPanel />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SectionCard title={t("home.timeline7d")} noPadding>
+          <HomeTimelineChart timeline={timeline.data?.timeline} />
+        </SectionCard>
+        <SectionCard title={t("home.projectMetrics")} noPadding>
+          <div className="p-4">
+            <MetricsChart projects={list} />
+          </div>
+        </SectionCard>
+      </div>
+    </>
+  );
+
+  const workbenchContent = (
+    <>
+      <WorkbenchStatusCard bootstrap={bootstrap.data?.bootstrap} />
+      <WorkspacePathsPanel bootstrap={bootstrap.data?.bootstrap} />
+      {steps.length > 0 && (
+        <SectionCard title={t("home.nextSteps")}>
+          <ul className="m-0 pl-5 text-sm text-secondary space-y-1">
+            {steps.map((step) => (
+              <li key={step}>{translateBootstrapStep(t, step)}</li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
+      <SecurityApprovalInbox />
+    </>
+  );
+
+  const moreSections: HomePanelSection[] = [
+    ...(recentSessions.length > 0
+      ? [
+          {
+            id: "recent",
+            title: t("home.recentSessions"),
+            content: (
+              <div className="overflow-x-auto">
+                <table className="dw-table">
+                  <thead>
+                    <tr>
+                      <th>{t("assets.project")}</th>
+                      <th>{t("conversations.titleCol")}</th>
+                      <th>{t("common.status")}</th>
+                      <th>{t("conversations.trust")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSessions.slice(0, 6).map((s) => (
+                      <tr key={s.id}>
+                        <td className="text-secondary">{s.project_name}</td>
+                        <td>
+                          <Link to="/conversations" search={{ session: s.id, project: s.project_id }}>
+                            {s.title}
+                          </Link>
+                        </td>
+                        <td>
+                          <StatusBadge status={s.status} />
+                        </td>
+                        <td>
+                          <StatusBadge status={s.trusted_status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ),
+          },
+        ]
+      : []),
+    {
+      id: "analytics",
+      title: t("home.analyticsSection"),
+      content: analyticsContent,
+    },
+    {
+      id: "workbench",
+      title: t("home.workbenchSection"),
+      content: workbenchContent,
+    },
+  ];
 
   return (
     <>
       <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
 
-      <PageHeader
-        title={t("home.title")}
-        meta={
-          <>
-            <span>{t("layout.localMode")}</span>
-            <span className="text-outline-variant">•</span>
-            <span className="truncate max-w-xs">
-              {t("home.dbLabel")}: {health.data?.db_path ?? "…"}
-            </span>
-            <span className="text-outline-variant">•</span>
-            <span>v{health.data?.version ?? "…"}</span>
-            <span className="text-outline-variant">•</span>
-            <SseStatusBadge
-              status={
-                sseStatus === "live"
-                  ? "live"
-                  : sseStatus === "connecting"
-                    ? "connecting"
-                    : sseStatus === "reconnecting"
-                      ? "reconnecting"
-                      : "offline"
-              }
-            />
-          </>
-        }
-      />
+      <div className="flex flex-wrap items-center gap-2 text-xs font-code text-secondary">
+        <span>{t("layout.localMode")}</span>
+        <span className="text-outline-variant">•</span>
+        <span className="truncate max-w-xs">
+          {t("home.dbLabel")}: {health.data?.db_path ?? "…"}
+        </span>
+        <span className="text-outline-variant">•</span>
+        <span>v{health.data?.version ?? "…"}</span>
+        <span className="text-outline-variant">•</span>
+        <SseStatusBadge
+          status={
+            sseStatus === "live"
+              ? "live"
+              : sseStatus === "connecting"
+                ? "connecting"
+                : sseStatus === "reconnecting"
+                  ? "reconnecting"
+                  : "offline"
+          }
+        />
+      </div>
 
       {ov && ov.sessions_blocked > 0 && (
         <div className="dw-alert-error text-sm">
@@ -327,106 +413,12 @@ export function HomePage() {
         </div>
       </div>
 
-      <SectionCard title={t("home.recentSessions")} noPadding>
-        <div className="overflow-x-auto">
-          <table className="dw-table">
-            <thead>
-              <tr>
-                <th>{t("assets.project")}</th>
-                <th>{t("conversations.titleCol")}</th>
-                <th>{t("common.status")}</th>
-                <th>{t("conversations.trust")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(sessions.data?.sessions ?? []).map((s) => (
-                <tr key={s.id}>
-                  <td className="text-secondary">{s.project_name}</td>
-                  <td>
-                    <Link to="/conversations" search={{ session: s.id, project: s.project_id }}>
-                      {s.title}
-                    </Link>
-                  </td>
-                  <td>
-                    <StatusBadge status={s.status} />
-                  </td>
-                  <td>
-                    <StatusBadge status={s.trusted_status} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <CollapsibleSection
-        title={t("home.analyticsSection")}
-        open={analyticsOpen}
-        onToggle={() => setAnalyticsOpen((v) => !v)}
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <HomeTokenUsage />
-          <HomeSavedHoursKpi />
-        </div>
-        <SecurityActivityPanel />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <SectionCard title={t("home.timeline7d")} noPadding>
-            <HomeTimelineChart timeline={timeline.data?.timeline} />
-          </SectionCard>
-          <SectionCard title={t("home.projectMetrics")} noPadding>
-            <div className="p-4">
-              <MetricsChart projects={list} />
-            </div>
-          </SectionCard>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title={t("home.workbenchSection")}
-        open={workbenchOpen}
-        onToggle={() => setWorkbenchOpen((v) => !v)}
-      >
-        <WorkbenchStatusCard bootstrap={bootstrap.data?.bootstrap} />
-        <WorkspacePathsPanel bootstrap={bootstrap.data?.bootstrap} />
-        {steps.length > 0 && (
-          <SectionCard title={t("home.nextSteps")}>
-            <ul className="m-0 pl-5 text-sm text-secondary space-y-1">
-              {steps.map((step) => (
-                <li key={step}>{translateBootstrapStep(t, step)}</li>
-              ))}
-            </ul>
-          </SectionCard>
-        )}
-        <SecurityApprovalInbox />
-      </CollapsibleSection>
+      <HomePanelOverlays
+        sections={moreSections}
+        activeId={expandedSection}
+        onActiveChange={setExpandedSection}
+      />
     </>
-  );
-}
-
-function CollapsibleSection({
-  title,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="dw-section-card">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 border-0 bg-transparent cursor-pointer text-left"
-      >
-        <h3 className="dw-section-title m-0">{title}</h3>
-        <Icon name={open ? "expand_less" : "expand_more"} size={18} />
-      </button>
-      {open && <div className="px-4 pb-4 space-y-4">{children}</div>}
-    </div>
   );
 }
 

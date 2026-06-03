@@ -25,6 +25,10 @@ cmd-setup-channel = Channel for setup: wechat, telegram, discord, or skip/none t
 setup-channel-prompt = Choose a channel to connect
 setup-channel-opt-skip = Skip (configure later with anycode channel …)
 setup-channel-skipped-hint = Skipped channel setup. Later: anycode channel wechat / telegram / discord
+setup-skills-prompt = Install built-in office skills starter pack (~/.anycode/skills)?
+setup-skills-skipped-hint = Skipped skills starter. Later: anycode skills install-starter
+setup-skills-done-hint = Office skills starter installed under ~/.anycode/skills
+setup-skills-failed-hint = Skills starter install failed (non-fatal). Try: anycode skills install-starter
 setup-non-tty-skip-hint = Non-interactive, no --channel: skipping channel setup. Use: anycode setup --channel wechat|telegram|discord|skip
 cmd-setup-data-dir = WeChat data directory (default ~/.anycode/wechat)
 

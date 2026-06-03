@@ -238,6 +238,16 @@ mod tests {
     }
 
     #[test]
+    fn builds_trace_from_budget_exceeded_log_line() {
+        let event = ExecutionTraceEvent::from_log_line(
+            "[budget_exceeded] consumed_tokens=100 token_budget=4 consumed_cost_usd=0.000000 cost_budget_usd=<none> elapsed_secs=0 max_duration_secs=<none>",
+        )
+        .unwrap();
+        assert_eq!(event.event_type, "budget_exceeded");
+        assert_eq!(event.severity, "error");
+    }
+
+    #[test]
     fn marks_failed_task_as_error() {
         let event = ExecutionTraceEvent::from_log_line("[task_end] status=failed").unwrap();
         assert_eq!(event.severity, "error");

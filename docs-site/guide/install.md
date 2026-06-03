@@ -102,6 +102,10 @@ cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode -
 
 Release page: <https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
 
+### macOS desktop (optional)
+
+Prefer a native Workbench app instead of the browser? On Apple Silicon, download **`anyCode_<version>_aarch64.dmg`** from the same GitHub Release, open the DMG, and drag **anyCode** to Applications. The app bundles the CLI sidecar and opens Workbench at `http://127.0.0.1:43180`. Build locally with `./scripts/build-desktop-release.sh`.
+
 ## Verify install
 
 ```bash

@@ -10,6 +10,11 @@ impl DashboardDb {
         title: &str,
     ) -> Result<String> {
         let id = format!("art_{}_{}", project_id, path.replace('/', "_"));
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         sqlx::query(
             r#"
             INSERT INTO artifacts (id, project_id, session_id, path, kind, title, trust_level, updated_at)

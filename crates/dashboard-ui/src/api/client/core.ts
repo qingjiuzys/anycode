@@ -47,6 +47,40 @@ export const coreClient = {
     ),
   cronJobs: () =>
     get<{ jobs: CronJobRecord[]; orchestration_path?: string }>("/api/cron/jobs"),
+  retryCronJob: (body: { job_id: string; project_id?: string }) =>
+    post<{ ok: boolean; job_id: string; trigger: unknown }>("/api/cron/retry", body),
+  skillSuggestions: () =>
+    get<{
+      missing_starter: string[];
+      usage: Array<{ skill_id: string; count: number }>;
+      installed_count: number;
+    }>("/api/skills/suggestions"),
+  createCronJob: (body: {
+    schedule: string;
+    command: string;
+    schedule_timezone?: string;
+    session_id?: string;
+    failure_destination?: string;
+    tool_profile?: string;
+  }) => post<{ ok: boolean; job: CronJobRecord }>("/api/cron/jobs", body),
+  parseCronSchedule: (text: string) =>
+    post<{ ok: boolean; schedule: string; summary: string }>(
+      "/api/cron/parse-schedule",
+      { text },
+    ),
+  installStarterSkills: () =>
+    post<{ ok: boolean; installed: string[]; count: number }>(
+      "/api/skills/install-starter",
+      {},
+    ),
+  cronTemplates: () =>
+    get<{ templates: Record<string, unknown>[] }>("/api/cron/templates"),
+  orchestrationTasks: () =>
+    get<{ tasks: Record<string, unknown>; teams: Record<string, unknown> }>(
+      "/api/orchestration/tasks",
+    ),
+  importSkill: (source: string) =>
+    post<{ ok: boolean; id: string; path: string }>("/api/skills/import", { source }),
   agentStats: (limit = 30) =>
     get<{ agents: AgentUsageStat[] }>(`/api/agents/stats?limit=${limit}`),
 };

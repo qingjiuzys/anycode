@@ -86,6 +86,8 @@ pub(crate) async fn run_onboard_flow(
         }
     }
 
+    run_optional_skills_starter_step()?;
+
     let ch_arg = channel
         .as_deref()
         .map(str::trim)
@@ -134,5 +136,32 @@ pub(crate) async fn run_onboard_flow(
         "telegram" => crate::channels::tg::run_telegram_setup().await,
         "discord" => crate::channels::discord_channel::run_discord_setup().await,
         _ => unreachable!(),
+    }
+}
+
+fn run_optional_skills_starter_step() -> anyhow::Result<()> {
+    use dialoguer::{theme::ColorfulTheme, Confirm};
+    let term = console::Term::stdout();
+    if !term.is_term() {
+        return Ok(());
+    }
+    let install = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(tr("setup-skills-prompt"))
+        .default(true)
+        .interact()?;
+    if !install {
+        println!("{}", tr("setup-skills-skipped-hint"));
+        return Ok(());
+    }
+    match crate::tasks::run_skills_install_starter() {
+        Ok(()) => {
+            println!("{}", tr("setup-skills-done-hint"));
+            Ok(())
+        }
+        Err(e) => {
+            tracing::warn!(target: "anycode_cli", "skills starter install skipped: {}", e);
+            println!("{}", tr("setup-skills-failed-hint"));
+            Ok(())
+        }
     }
 }

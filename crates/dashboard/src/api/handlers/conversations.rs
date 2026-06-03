@@ -27,6 +27,7 @@ pub async fn start_project_conversation(
         kind: body.kind.clone(),
         goal: body.goal.clone(),
         agent: body.agent.clone(),
+        skills: body.skills.clone(),
     };
     crate::task_trigger::normalize_trigger_request(&mut trigger_req);
     if let Err(e) = crate::task_trigger::validate_request(&trigger_req) {
@@ -56,6 +57,7 @@ pub async fn start_project_conversation(
     };
 
     let prompt = body.prompt.trim();
+    let prompt_for_chat = crate::task_trigger::prompt_with_skills(prompt, body.skills.as_deref());
     let title = body
         .title
         .as_deref()
@@ -162,7 +164,7 @@ pub async fn start_project_conversation(
             &root,
             agent_type.as_deref(),
             &dashboard_url,
-            prompt,
+            &prompt_for_chat,
         )
         .await
     {

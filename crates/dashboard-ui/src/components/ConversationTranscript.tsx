@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/api/client";
 import type { TranscriptBlock } from "@/api/types";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { Icon } from "@/components/Icon";
+import {
+  isCommandBlock,
+  TranscriptCommandBlock,
+} from "@/components/TranscriptCommandBlock";
+import { TranscriptMarkdown } from "@/components/TranscriptMarkdown";
+import { TranscriptToolBlock } from "@/components/TranscriptToolBlock";
 import { formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
 
@@ -24,6 +32,8 @@ type ReplyItem =
   | { kind: "block"; block: TranscriptBlock }
   | { kind: "tool_group"; id: string; tools: TranscriptBlock[] };
 
+const VIRTUAL_TURN_THRESHOLD = 30;
+
 export function ConversationTranscript({
   sessionId,
   enabled = true,
@@ -32,6 +42,7 @@ export function ConversationTranscript({
 }: Props) {
   const t = useT();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const localScrollRef = useRef<HTMLDivElement>(null);
 
   const transcript = useQuery({
     queryKey: ["session-transcript", sessionId],
@@ -59,14 +70,36 @@ export function ConversationTranscript({
     turns.length > 0 &&
     turns[turns.length - 1].replies.length === 0;
 
+  const useVirtual = turns.length >= VIRTUAL_TURN_THRESHOLD;
+  const virtualParentRef = scrollContainerRef ?? localScrollRef;
+
+  const virtualizer = useVirtualizer({
+    count: turns.length,
+    getScrollElement: () => virtualParentRef.current,
+    estimateSize: () => 220,
+    overscan: 4,
+  });
+
   useEffect(() => {
+    if (useVirtual) {
+      virtualizer.scrollToIndex(turns.length - 1, { align: "end", behavior: "smooth" });
+      return;
+    }
     const container = scrollContainerRef?.current;
     if (container) {
       container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       return;
     }
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [turns.length, blocks.length, isRunning, activeTool, scrollContainerRef]);
+  }, [
+    turns.length,
+    blocks.length,
+    isRunning,
+    activeTool,
+    scrollContainerRef,
+    useVirtual,
+    virtualizer,
+  ]);
 
   if (!sessionId) return null;
   if (transcript.isLoading) {
@@ -88,17 +121,8 @@ export function ConversationTranscript({
     );
   }
 
-  return (
-    <div className="flex flex-col gap-8">
-      {turns.map((turn, index) => (
-        <ConversationTurnView
-          key={turn.id}
-          turn={turn}
-          isLast={index === turns.length - 1}
-          isRunning={Boolean(isRunning)}
-        />
-      ))}
-
+  const tail = (
+    <>
       {lastTurnPending && (
         <div className="flex w-full justify-start">
           <div className="max-w-[min(100%,42rem)] w-full">
@@ -110,9 +134,59 @@ export function ConversationTranscript({
           </div>
         </div>
       )}
-
       {lifecycleCount > 0 && <ExecutionLogLink sessionId={sessionId} />}
       <div ref={bottomRef} aria-hidden className="h-px shrink-0" />
+    </>
+  );
+
+  if (useVirtual) {
+    return (
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((item) => {
+          const turn = turns[item.index];
+          return (
+            <div
+              key={turn.id}
+              data-index={item.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${item.start}px)`,
+              }}
+            >
+              <ConversationTurnView
+                turn={turn}
+                isLast={item.index === turns.length - 1}
+                isRunning={Boolean(isRunning)}
+              />
+            </div>
+          );
+        })}
+        <div className="flex flex-col gap-8 pt-4">{tail}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      {turns.map((turn, index) => (
+        <ConversationTurnView
+          key={turn.id}
+          turn={turn}
+          isLast={index === turns.length - 1}
+          isRunning={Boolean(isRunning)}
+        />
+      ))}
+      {tail}
     </div>
   );
 }
@@ -129,7 +203,7 @@ function ConversationTurnView({
   const replyItems = useMemo(() => groupToolBlocks(turn.replies), [turn.replies]);
 
   return (
-    <article className="flex flex-col gap-3">
+    <article className="flex flex-col gap-3 pb-8">
       <MessageRow align="right">
         <UserBubble block={turn.user} />
       </MessageRow>
@@ -138,7 +212,17 @@ function ConversationTurnView({
         if (item.kind === "tool_group") {
           return (
             <MessageRow key={item.id} align="left">
-              <ToolGroupCard tools={item.tools} />
+              <TranscriptToolBlock
+                tools={item.tools}
+                defaultCollapsed={item.tools.some((tool) => tool.default_collapsed)}
+              />
+            </MessageRow>
+          );
+        }
+        if (isCommandBlock(item.block)) {
+          return (
+            <MessageRow key={item.block.id} align="left">
+              <TranscriptCommandBlock block={item.block} />
             </MessageRow>
           );
         }
@@ -175,8 +259,12 @@ function MessageRow({
 }
 
 function UserBubble({ block }: { block: TranscriptBlock }) {
+  const t = useT();
   return (
-    <div className="rounded-2xl rounded-br-md bg-primary text-on-primary px-4 py-3 text-sm shadow-sm">
+    <div className="rounded-2xl rounded-br-md bg-primary text-on-primary px-4 py-3 text-sm shadow-sm group relative">
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <CopyButton text={block.body} label={t("conversations.copyMessage")} />
+      </div>
       <div className="whitespace-pre-wrap break-words leading-relaxed">{block.body}</div>
       <time className="block mt-2 text-[11px] opacity-70">{formatRelativeTime(block.at)}</time>
     </div>
@@ -202,19 +290,32 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
 
   return (
     <div
-      className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
+      className={`rounded-2xl px-4 py-3 text-sm shadow-sm group relative ${
         isError
           ? "rounded-bl-md bg-error-container/80 text-on-error-container border border-error/25"
           : "rounded-bl-md bg-surface-container-low text-on-surface border border-outline-variant/70"
       }`}
     >
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+        {block.event_id && (
+          <Link
+            to="/events/$eventId"
+            params={{ eventId: block.event_id }}
+            className="dw-btn-ghost text-[10px] py-0.5 no-underline"
+          >
+            <Icon name="link" size={12} />
+            {t("conversations.viewEvent")}
+          </Link>
+        )}
+        <CopyButton text={block.body} label={t("conversations.copyMessage")} />
+      </div>
       <div className="text-xs font-medium text-secondary mb-2">
         {isError ? t("common.error") : t("conversations.assistant")}
       </div>
       {isError ? (
         <ErrorMessageBody text={block.body} />
       ) : (
-        <AssistantMessageBody text={block.body} />
+        <TranscriptMarkdown text={block.body} />
       )}
       <time className="block mt-2 text-[11px] text-secondary">
         {formatRelativeTime(block.at)}
@@ -224,13 +325,27 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
 }
 
 function ErrorMessageBody({ text }: { text: string }) {
+  const t = useT();
   const summary = useMemo(() => summarizeError(text), [text]);
+  const geoError = useMemo(() => isGeoProviderError(text), [text]);
   return (
     <div className="space-y-2 text-sm leading-relaxed">
       <p className="m-0 font-medium">{summary}</p>
+      {geoError && (
+        <p className="m-0 text-sm">
+          {t("conversations.geoErrorHint")}{" "}
+          <Link
+            to="/settings"
+            search={{ section: "model" }}
+            className="text-primary font-medium no-underline hover:underline"
+          >
+            {t("conversations.geoErrorLink")}
+          </Link>
+        </p>
+      )}
       {text.length > summary.length + 20 && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-secondary">Details</summary>
+          <summary className="cursor-pointer text-secondary">{t("common.details")}</summary>
           <pre className="mt-2 m-0 whitespace-pre-wrap break-words font-code opacity-90">
             {text}
           </pre>
@@ -262,9 +377,7 @@ function TypingIndicator({ compact }: { compact?: boolean }) {
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:120ms]" />
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:240ms]" />
         </span>
-        {!compact && (
-          <span>{t("conversations.agentWorking")}</span>
-        )}
+        <span>{compact ? t("conversations.waitingForModel") : t("conversations.agentWorking")}</span>
       </div>
     </div>
   );
@@ -371,99 +484,13 @@ function findActiveTool(
   return lastStart;
 }
 
-function ToolGroupCard({ tools }: { tools: TranscriptBlock[] }) {
-  const t = useT();
-  const title =
-    tools.find((b) => b.block_type === "tool_call")?.title ||
-    tools[0]?.title ||
-    t("conversations.toolActivity");
-  const failed = tools.some(
-    (tool) =>
-      tool.block_type === "tool_result" &&
-      /failed|error|denied/i.test(`${tool.title} ${tool.body}`),
-  );
-  const running =
-    tools.some((tool) => tool.block_type === "tool_call") &&
-    !tools.some((tool) => tool.block_type === "tool_result");
-
+function isGeoProviderError(text: string): boolean {
+  const lower = text.toLowerCase();
   return (
-    <div
-      className={`rounded-2xl rounded-bl-md border overflow-hidden w-full ${
-        failed
-          ? "border-error/30 bg-error-container/15"
-          : running
-            ? "border-primary/25 bg-primary-container/15"
-            : "border-outline-variant bg-surface-container-low"
-      }`}
-    >
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-outline-variant/60">
-        {running && (
-          <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
-        )}
-        <Icon name="build" size={16} className="text-secondary shrink-0" />
-        <span className="text-sm font-medium truncate">{title}</span>
-        <span className="text-[10px] text-secondary shrink-0">
-          {tools.length} {t("conversations.toolSteps")}
-        </span>
-      </div>
-      <div className="divide-y divide-outline-variant/60">
-        {tools.map((tool) => (
-          <div key={tool.id} className="px-4 py-2.5 text-sm">
-            {tool.body ? (
-              <pre className="m-0 whitespace-pre-wrap break-words font-code text-xs text-on-surface">
-                {tool.body}
-              </pre>
-            ) : (
-              <span className="text-xs text-secondary">{tool.title}</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+    lower.includes("user location is not supported") ||
+    lower.includes("user location") ||
+    (lower.includes("failed_precondition") && lower.includes("location"))
   );
-}
-
-function AssistantMessageBody({ text }: { text: string }) {
-  const parts = useMemo(() => splitMarkdownLike(text), [text]);
-  return (
-    <div className="space-y-2 text-sm leading-relaxed">
-      {parts.map((part, idx) =>
-        part.kind === "code" ? (
-          <pre
-            key={idx}
-            className="m-0 overflow-x-auto rounded-lg bg-surface-container-highest px-3 py-2 font-code text-xs whitespace-pre-wrap break-words"
-          >
-            {part.text}
-          </pre>
-        ) : (
-          <div key={idx} className="whitespace-pre-wrap break-words">
-            {part.text}
-          </div>
-        ),
-      )}
-    </div>
-  );
-}
-
-function splitMarkdownLike(text: string): { kind: "text" | "code"; text: string }[] {
-  const parts: { kind: "text" | "code"; text: string }[] = [];
-  const re = /```[^\n]*\n([\s\S]*?)```/g;
-  let last = 0;
-  for (const match of text.matchAll(re)) {
-    const start = match.index ?? 0;
-    if (start > last) {
-      parts.push({ kind: "text", text: text.slice(last, start).trim() });
-    }
-    parts.push({ kind: "code", text: (match[1] ?? "").trim() });
-    last = start + match[0].length;
-  }
-  if (last < text.length) {
-    parts.push({ kind: "text", text: text.slice(last).trim() });
-  }
-  if (parts.length === 0) {
-    parts.push({ kind: "text", text });
-  }
-  return parts.filter((p) => p.text.length > 0);
 }
 
 function looksLikeError(text: string): boolean {

@@ -12,6 +12,8 @@ path = "src/main.rs"
 default = ["embedded-ui"]
 # 本地 ONNX 嵌入（FastEmbed / MiniLM），与 `memory.pipeline.embedding_provider: "local"` 联用。
 embedding-local = ["anycode-memory/embedding-local"]
+# 项目资料库向量检索（FastEmbed + Sled sidecar，与 BM25 混合）。
+knowledge-embeddings = ["anycode-tools/knowledge-embeddings", "anycode-dashboard/knowledge-embeddings"]
 embedded-ui = ["anycode-dashboard/embedded-ui"]
 openai = ["anycode-llm/openai"]
 tools-mcp = ["anycode-tools/tools-mcp"]
@@ -30,6 +32,7 @@ anycode-channels = { path = "../channels" }
 anycode-dashboard = { path = "../dashboard" }
 
 aes = "0.8"
+md5 = "0.7"
 cipher = { version = "0.4", features = ["block-padding"] }
 base64 = "0.22"
 hex = "0.4"

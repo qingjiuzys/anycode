@@ -5,6 +5,7 @@ export type SettingsSection =
   | "data"
   | "service"
   | "model"
+  | "agents"
   | "skills"
   | "assets"
   | "security"
@@ -16,6 +17,7 @@ const SECTIONS: SettingsSection[] = [
   "data",
   "service",
   "model",
+  "agents",
   "skills",
   "assets",
   "security",

@@ -5,7 +5,6 @@ use crate::i18n::{tr, tr_args};
 use anycode_agent::RuntimePromptConfig;
 use anycode_core::FeatureRegistry;
 use fluent_bundle::FluentArgs;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::info;
 
@@ -19,38 +18,14 @@ fn resolve_model_instructions_file_from_env() -> Option<PathBuf> {
 
 pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config> {
     let default_path = resolve_config_path(None)?;
-    let cfg = match load_anycode_config_resolved(config_file.clone())? {
+    let mut cfg = match load_anycode_config_resolved(config_file.clone())? {
         Some(c) => c,
         None => {
             let mut np = FluentArgs::new();
             np.set("path", default_path.display().to_string());
             eprintln!("{}", tr_args("cfg-no-config-warn", &np));
             eprintln!("{}", tr("cfg-no-config-run"));
-            AnyCodeConfig {
-                provider: "z.ai".to_string(),
-                plan: "coding".to_string(),
-                api_key: String::new(),
-                provider_credentials: HashMap::new(),
-                base_url: None,
-                model: "glm-5".to_string(),
-                temperature: 0.7,
-                max_tokens: 8192,
-                routing: RoutingConfig::default(),
-                runtime: RuntimeSettingsFile::default(),
-                security: SecurityConfigFile::default(),
-                system_prompt_override: None,
-                system_prompt_append: None,
-                memory: MemoryConfigFile::default(),
-                zai_tool_choice_first_turn: false,
-                skills: SkillsConfigFile::default(),
-                session: SessionConfigFile::default(),
-                model_instructions: ModelInstructionsConfigFile::default(),
-                status_line: StatusLineConfigFile::default(),
-                terminal: TerminalConfigFile::default(),
-                channels: ChannelsConfigFile::default(),
-                lsp: LspConfigFile::default(),
-                notifications: Default::default(),
-            }
+            default_anycode_config()
         }
     };
 
@@ -58,6 +33,23 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
     let runtime_mode = validate_runtime_mode(cfg.runtime.default_mode.trim())?;
     validate_llm_provider(&cfg.provider)?;
     validate_notifications(&cfg.notifications)?;
+
+    if let Ok(v) = serde_json::to_value(&cfg) {
+        let reg = anycode_llm::ResolvedModelRegistry::from_config(&v);
+        if let Some(item) = reg.active_item(anycode_llm::ModelCapability::Chat) {
+            cfg.provider = item.provider.clone();
+            cfg.model = item.model.clone();
+            if let Some(p) = item.plan.as_ref() {
+                cfg.plan = p.clone();
+            }
+            if let Some(u) = item.base_url.as_ref() {
+                cfg.base_url = Some(u.clone());
+            }
+            if let Some(k) = reg.resolve_api_key(item) {
+                cfg.api_key = k;
+            }
+        }
+    }
 
     let config_path = resolve_config_path(config_file.clone())?;
     let base_dir = config_path
@@ -182,6 +174,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             tool_policy_profiles: cfg.runtime.tool_policy_profiles.into(),
             tool_deny_names: cfg.runtime.tool_deny_names.clone(),
             tool_deny_prefixes: cfg.runtime.tool_deny_prefixes.clone(),
+            model_fallback: cfg.runtime.model_fallback.clone(),
             workspace_project_label: None,
             workspace_channel_profile: None,
         },
@@ -200,6 +193,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             model_instructions_content: None,
         },
         skills: cfg.skills.into(),
+        agents: cfg.agents.into(),
         session: cfg.session.into(),
         status_line: cfg.status_line.into(),
         terminal: cfg.terminal.into(),
@@ -207,6 +201,35 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         lsp: lsp_runtime,
         notifications: cfg.notifications,
     })
+}
+
+/// Unified config load pipeline (session overlays + optional workspace / channel mutators).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LoadOpts {
+    pub config_file: Option<PathBuf>,
+    pub ignore_approval: bool,
+    /// Apply `.anycode/config.json` overlays from `std::env::current_dir()`.
+    pub workspace_overlay: bool,
+    /// Apply workspace overlays from an explicit directory (takes precedence over `workspace_overlay`).
+    pub workspace_overlay_dir: Option<PathBuf>,
+    pub wechat_bridge: bool,
+}
+
+pub(crate) async fn load_runtime_config(opts: LoadOpts) -> anyhow::Result<Config> {
+    let mut config = load_config_for_session(opts.config_file, opts.ignore_approval).await?;
+    if opts.wechat_bridge {
+        apply_wechat_bridge_no_tool_approval(&mut config);
+    }
+    if let Some(dir) = opts.workspace_overlay_dir {
+        let wd = std::fs::canonicalize(&dir).unwrap_or(dir);
+        crate::workspace::apply_project_overlays(&mut config, &wd);
+    } else if opts.workspace_overlay {
+        if let Ok(cwd) = std::env::current_dir() {
+            let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
+            crate::workspace::apply_project_overlays(&mut config, &wd);
+        }
+    }
+    Ok(config)
 }
 
 /// 加载配置并套用全局 CLI 覆盖（如 `--ignore-approval`）。

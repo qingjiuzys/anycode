@@ -36,6 +36,8 @@ pub async fn archive_report(
             "report_id": doc.id,
             "generated_at": doc.generated_at,
             "summary": doc.summary,
+            "source_counts": doc.source_counts,
+            "markdown": doc.markdown,
         })
         .to_string(),
     )

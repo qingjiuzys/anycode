@@ -4,13 +4,32 @@ use crate::app_config::Config;
 use crate::i18n::tr_args;
 use anycode_agent::RuntimePromptConfig;
 use anycode_llm::known_model_aliases;
-use anycode_tools::SkillCatalog;
+use anycode_tools::{SkillCatalog, SkillsGovernance};
 use fluent_bundle::FluentArgs;
+use std::collections::HashSet;
+
+fn skills_governance_for_config(
+    config: &Config,
+    project_enabled: Option<&HashSet<String>>,
+) -> SkillsGovernance {
+    SkillsGovernance {
+        global_allowlist: config.skills.allowlist.clone(),
+        agent_allowlists: config.skills.agent_allowlists.clone(),
+        project_enabled: project_enabled.cloned(),
+    }
+}
+
+fn allowlist_vec(set: &HashSet<String>) -> Vec<String> {
+    let mut v: Vec<String> = set.iter().cloned().collect();
+    v.sort();
+    v
+}
 
 /// Mutates `prompt_runtime` cloned from `config.prompt` with skills, workspace labels, and routing hints.
 pub(crate) fn augment_prompt_runtime(
     config: &Config,
     skill_catalog: &SkillCatalog,
+    project_enabled: Option<&HashSet<String>>,
     prompt_runtime: &mut RuntimePromptConfig,
 ) {
     if prompt_runtime.model_instructions_file.is_some() {
@@ -35,19 +54,42 @@ pub(crate) fn augment_prompt_runtime(
     }
 
     if config.skills.enabled {
-        if let Some(section) = skill_catalog.render_prompt_subsection() {
+        let gov = skills_governance_for_config(config, project_enabled);
+        let default_agent = "general-purpose";
+        if let Some(eff) = gov.effective_ids(default_agent) {
+            let ids = allowlist_vec(&eff);
+            if let Some(section) = skill_catalog.render_prompt_subsection_allowlist(Some(&ids)) {
+                prompt_runtime.skills_section = Some(section);
+            }
+        } else if let Some(section) = skill_catalog.render_prompt_subsection() {
             prompt_runtime.skills_section = Some(section);
         }
-        for (agent, ids) in &config.skills.agent_allowlists {
-            if ids.is_empty() {
-                continue;
-            }
-            if let Some(section) =
-                skill_catalog.render_prompt_subsection_allowlist(Some(ids.as_slice()))
-            {
-                prompt_runtime
-                    .skills_section_by_agent
-                    .insert(agent.clone(), section);
+        let mut agents: Vec<String> = config.skills.agent_allowlists.keys().cloned().collect();
+        agents.sort();
+        agents.dedup();
+        for agent in agents {
+            if let Some(eff) = gov.effective_ids(&agent) {
+                let ids = allowlist_vec(&eff);
+                if ids.is_empty() {
+                    continue;
+                }
+                if let Some(section) = skill_catalog.render_prompt_subsection_allowlist(Some(&ids))
+                {
+                    prompt_runtime
+                        .skills_section_by_agent
+                        .insert(agent, section);
+                }
+            } else if let Some(ids) = config.skills.agent_allowlists.get(&agent) {
+                if ids.is_empty() {
+                    continue;
+                }
+                if let Some(section) =
+                    skill_catalog.render_prompt_subsection_allowlist(Some(ids.as_slice()))
+                {
+                    prompt_runtime
+                        .skills_section_by_agent
+                        .insert(agent, section);
+                }
             }
         }
     }

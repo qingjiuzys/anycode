@@ -16,7 +16,6 @@ use crate::repl_banner::{self, ReplWelcomeKind};
 use crate::slash_commands::{self, ParsedSlashCommand};
 use crate::term::transcript::build_stream_turn_plain;
 use crate::term::{PendingApproval, PendingUserQuestion};
-use crate::workspace;
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
 use anycode_tools::{iter_cli_tool_help, workflows};
@@ -168,7 +167,9 @@ pub(crate) async fn run_interactive(
 
     let working_dir = directory.unwrap_or_else(|| std::env::current_dir().unwrap());
     let working_dir = std::fs::canonicalize(&working_dir).unwrap_or(working_dir);
-    workspace::apply_project_overlays(&mut config, &working_dir);
+
+    let project_enabled =
+        crate::workbench::project_skills::load_project_enabled_skills(&working_dir).await;
 
     let is_tty = std::io::stdin().is_terminal();
     let welcome_kind = if embedded_main_entry {
@@ -196,6 +197,7 @@ pub(crate) async fn run_interactive(
             approval_override,
             Some(uq_host),
             crate::bootstrap::MemoryAttachMode::Shared,
+            project_enabled.clone(),
         )
         .await?;
         (
@@ -213,6 +215,7 @@ pub(crate) async fn run_interactive(
             None,
             None,
             crate::bootstrap::MemoryAttachMode::Shared,
+            project_enabled,
         )
         .await?;
         (runtime, None, None)

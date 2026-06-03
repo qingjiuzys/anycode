@@ -1,8 +1,8 @@
 //! CLI command dispatch.
 
-use crate::app_config::load_config_for_session;
+use crate::app_config::{load_runtime_config, LoadOpts};
+use crate::cli_args;
 use crate::cli_args::{ChannelCommands, Commands};
-use crate::{cli_args, workspace};
 use tracing::info;
 use tracing_subscriber::fmt;
 use tracing_subscriber::EnvFilter;
@@ -11,16 +11,20 @@ mod channel_cmds;
 mod ops;
 mod task_cmds;
 
+pub(crate) use crate::app_config::load_config_for_session;
+
 pub(crate) async fn load_config_with_cwd_overlays(
     config_path: Option<std::path::PathBuf>,
     ignore_approval: bool,
 ) -> anyhow::Result<crate::app_config::Config> {
-    let mut config = load_config_for_session(config_path, ignore_approval).await?;
-    if let Ok(cwd) = std::env::current_dir() {
-        let wd = std::fs::canonicalize(&cwd).unwrap_or(cwd);
-        workspace::apply_project_overlays(&mut config, &wd);
-    }
-    Ok(config)
+    load_runtime_config(LoadOpts {
+        config_file: config_path,
+        ignore_approval,
+        workspace_overlay: true,
+        workspace_overlay_dir: None,
+        wechat_bridge: false,
+    })
+    .await
 }
 
 pub(crate) fn resolve_working_dir(directory: Option<std::path::PathBuf>) -> std::path::PathBuf {

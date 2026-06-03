@@ -114,6 +114,7 @@ export const projectsClient = {
       kind?: "run" | "goal";
       goal?: string;
       agent?: string;
+      skills?: string[];
     },
   ) =>
     post<{ session: SessionDetail; chat: WebChatResult }>(
@@ -165,6 +166,34 @@ export const projectsClient = {
     }),
   projectSkills: (projectId: string) =>
     get<{ skills: SkillRecord[] }>(`/api/projects/${projectId}/skills`),
+  projectKnowledgePaths: (projectId: string) =>
+    get<{ paths: string[] }>(`/api/projects/${projectId}/knowledge`),
+  setProjectKnowledgePaths: (projectId: string, paths: string[]) =>
+    put<{ ok: boolean; paths: string[] }>(`/api/projects/${projectId}/knowledge`, {
+      paths,
+    }),
+  reindexProjectKnowledge: (projectId: string) =>
+    post<{ ok: boolean; chunks_indexed: number }>(
+      `/api/projects/${projectId}/knowledge/reindex`,
+    ),
+  projectKnowledgeStats: (projectId: string) =>
+    get<{
+      stats: {
+        path_count: number;
+        chunk_count: number;
+        cache_path?: string | null;
+        cache_bytes?: number | null;
+        vectors_enabled?: boolean;
+        vector_count?: number;
+        vector_store_path?: string | null;
+      };
+    }>(`/api/projects/${projectId}/knowledge/stats`),
+  searchProjectKnowledge: (projectId: string, q: string, limit = 8) =>
+    get<{
+      hits: Array<{ source_file: string; snippet: string; score: number }>;
+    }>(
+      `/api/projects/${projectId}/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
   projectReport: (projectId: string) =>
     get<{ report: ReportDocument }>(`/api/projects/${projectId}/report`),
   patchProjectStatus: (projectId: string, status: string) =>

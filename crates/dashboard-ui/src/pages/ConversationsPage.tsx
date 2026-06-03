@@ -6,8 +6,10 @@ import {
   ConversationSessionList,
   ConversationThread,
 } from "@/components/ConversationThread";
-import { ConversationStartForm } from "@/components/ConversationStartForm";
+import { ConversationArtifactsPanel } from "@/components/ConversationArtifactsPanel";
+import { ConversationComposer } from "@/components/ConversationComposer";
 import { EmptyState } from "@/components/EmptyState";
+import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SessionStatusBadges } from "@/components/ui/StatusBadge";
 import { usePendingApprovalCounts } from "@/components/SecurityApprovalInbox";
@@ -19,9 +21,11 @@ type ConversationSearch = {
   trusted?: string;
   kind?: string;
   needs_approval?: boolean;
+  budget_exceeded?: boolean;
   project?: string;
   session?: string;
-  filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval";
+  agent?: string;
+  filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval" | "budget";
 };
 
 function legacyFilterToSearch(filter: ConversationSearch["filter"]): Partial<ConversationSearch> {
@@ -36,6 +40,8 @@ function legacyFilterToSearch(filter: ConversationSearch["filter"]): Partial<Con
       return { kind: "cron" };
     case "needs_approval":
       return { status: "running", needs_approval: true };
+    case "budget":
+      return { budget_exceeded: true };
     default:
       return {};
   }
@@ -48,6 +54,7 @@ function searchToSessionOpts(search: ConversationSearch): SessionListOpts {
     trustedStatus: search.trusted,
     kind: search.kind,
     projectId: search.project,
+    budgetExceeded: search.budget_exceeded,
   };
 }
 
@@ -57,6 +64,7 @@ function activeChip(search: ConversationSearch): string {
   if (search.trusted === "blocked") return "blocked";
   if (search.kind === "workflow") return "workflow";
   if (search.kind === "cron") return "cron";
+  if (search.budget_exceeded) return "budget";
   if (search.kind) return `kind:${search.kind}`;
   if (!search.status && !search.trusted && !search.kind && !search.needs_approval) return "all";
   return "custom";
@@ -75,7 +83,8 @@ export function ConversationsPage() {
 
   const [projectId, setProjectId] = useState(search.project ?? "");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(search.session ?? null);
-  const [showStartForm, setShowStartForm] = useState(Boolean(search.project));
+  const [showStartForm, setShowStartForm] = useState(Boolean(search.agent));
+  const [artifactsDrawerOpen, setArtifactsDrawerOpen] = useState(false);
   const { counts: pendingCounts, pendingTotal } = usePendingApprovalCounts();
   const active = activeChip(search);
 
@@ -94,8 +103,10 @@ export function ConversationsPage() {
           trusted: merged.trusted,
           kind: merged.kind,
           needs_approval: merged.needs_approval || undefined,
+          budget_exceeded: merged.budget_exceeded || undefined,
           project: merged.project || undefined,
           session: merged.session || undefined,
+          agent: merged.agent || undefined,
         },
         replace: true,
       });
@@ -114,7 +125,6 @@ export function ConversationsPage() {
   useEffect(() => {
     if (search.project) {
       setProjectId(search.project);
-      setShowStartForm(true);
     }
   }, [search.project]);
 
@@ -133,7 +143,7 @@ export function ConversationsPage() {
   });
 
   const sessions = useQuery({
-    queryKey: ["all-sessions", search.status, search.trusted, search.kind, projectId],
+    queryKey: ["all-sessions", search.status, search.trusted, search.kind, search.budget_exceeded, projectId],
     queryFn: () => api.allSessions(searchToSessionOpts({ ...search, project: projectId || undefined })),
     refetchInterval: 3_000,
   });
@@ -162,7 +172,7 @@ export function ConversationsPage() {
     [rows, selectedSessionId],
   );
 
-  useSessionEventStream(selectedSessionId ?? undefined);
+  const sseLive = useSessionEventStream(selectedSessionId ?? undefined);
 
   const quickChips = useMemo(() => {
     const chips = [
@@ -174,6 +184,11 @@ export function ConversationsPage() {
         badge: facets.data?.facets.pending_approval_total ?? pendingTotal,
       },
       { id: "blocked", label: t("conversations.filters.blocked") },
+      {
+        id: "budget",
+        label: t("conversations.filters.budgetExceeded"),
+        badge: facets.data?.facets.budget_exceeded_7d ?? 0,
+      },
     ];
     const known = new Set(["repl", "run", "goal"]);
     for (const item of facets.data?.facets.kind ?? []) {
@@ -181,7 +196,7 @@ export function ConversationsPage() {
       chips.push({ id: `kind:${item.label}`, label: item.label, badge: item.count });
     }
     return chips;
-  }, [facets.data?.facets.kind, facets.data?.facets.pending_approval_total, pendingTotal, t]);
+  }, [facets.data?.facets.budget_exceeded_7d, facets.data?.facets.kind, facets.data?.facets.pending_approval_total, pendingTotal, t]);
 
   const applyChip = (chipId: string) => {
     if (chipId === "all") {
@@ -190,19 +205,48 @@ export function ConversationsPage() {
         trusted: undefined,
         kind: undefined,
         needs_approval: undefined,
+        budget_exceeded: undefined,
       });
       return;
     }
     if (chipId === "running") {
-      updateSearch({ status: "running", trusted: undefined, kind: undefined, needs_approval: undefined });
+      updateSearch({
+        status: "running",
+        trusted: undefined,
+        kind: undefined,
+        needs_approval: undefined,
+        budget_exceeded: undefined,
+      });
       return;
     }
     if (chipId === "blocked") {
-      updateSearch({ trusted: "blocked", status: undefined, kind: undefined, needs_approval: undefined });
+      updateSearch({
+        trusted: "blocked",
+        status: undefined,
+        kind: undefined,
+        needs_approval: undefined,
+        budget_exceeded: undefined,
+      });
       return;
     }
     if (chipId === "needs_approval") {
-      updateSearch({ status: "running", needs_approval: true, trusted: undefined, kind: undefined });
+      updateSearch({
+        status: "running",
+        needs_approval: true,
+        trusted: undefined,
+        kind: undefined,
+        budget_exceeded: undefined,
+      });
+      return;
+    }
+    if (chipId === "budget") {
+      updateSearch({
+        budget_exceeded: true,
+        status: undefined,
+        trusted: undefined,
+        kind: undefined,
+        needs_approval: undefined,
+      });
       return;
     }
     if (chipId.startsWith("kind:")) {
@@ -211,6 +255,7 @@ export function ConversationsPage() {
         status: undefined,
         trusted: undefined,
         needs_approval: undefined,
+        budget_exceeded: undefined,
       });
     }
   };
@@ -306,15 +351,28 @@ export function ConversationsPage() {
               icon="forum"
             />
           )}
-          <div className={showStartForm ? "" : "mt-6"}>
-            <ConversationStartForm
+          {showStartForm ? (
+            <ConversationComposer
+              mode="start"
               projectId={projectId}
+              initialAgent={search.agent}
               onSuccess={({ session }) => {
                 setShowStartForm(false);
                 selectSession(session.id);
               }}
+              onCancel={() => setShowStartForm(false)}
             />
-          </div>
+          ) : (
+            <div className="text-center mt-4">
+              <button
+                type="button"
+                className="dw-btn-primary"
+                onClick={() => setShowStartForm(true)}
+              >
+                {t("conversations.newSession")}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -333,37 +391,86 @@ export function ConversationsPage() {
       )}
 
       {projectId && showStartForm && rows.length > 0 && (
-        <div className="mb-6 p-4 border border-outline-variant rounded-lg bg-surface-container-lowest">
-          <ConversationStartForm
+        <div className="mb-4">
+          <ConversationComposer
+            mode="start"
             projectId={projectId}
+            initialAgent={search.agent}
+            compact
             onSuccess={({ session }) => {
               setShowStartForm(false);
               selectSession(session.id);
             }}
+            onCancel={() => setShowStartForm(false)}
           />
         </div>
       )}
 
       {rows.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest min-h-[480px]">
-          <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-outline-variant max-h-[520px] overflow-y-auto">
-            <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-secondary border-b border-outline-variant bg-surface-container-low">
-              {t("conversations.sessionList")} ({rows.length})
-            </div>
-            <ConversationSessionList
-              sessions={rows}
-              selectedId={selectedSessionId}
-              onSelect={selectSession}
-              pendingCounts={pendingCounts}
-            />
+        <div className="flex flex-col flex-1 min-h-0 border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest">
+          <div className="lg:hidden flex items-center justify-end gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
+            <button
+              type="button"
+              className="dw-btn-secondary text-xs"
+              onClick={() => setArtifactsDrawerOpen(true)}
+            >
+              <Icon name="inventory_2" size={16} />
+              {t("conversations.artifactsPanel")}
+            </button>
           </div>
-          <div className="lg:col-span-8 bg-surface-container-lowest">
-            <ConversationThread
-              session={selected}
-              onFollowUpStarted={selectSession}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 min-h-[min(720px,calc(100vh-16rem))]">
+            <div className="lg:col-span-3 border-b lg:border-b-0 lg:border-r border-outline-variant flex flex-col min-h-0 max-h-[40vh] lg:max-h-none">
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-secondary border-b border-outline-variant bg-surface-container-low shrink-0">
+                {t("conversations.sessionList")} ({rows.length})
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <ConversationSessionList
+                  sessions={rows}
+                  selectedId={selectedSessionId}
+                  onSelect={selectSession}
+                  pendingCounts={pendingCounts}
+                />
+              </div>
+            </div>
+            <div className="lg:col-span-6 flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-outline-variant">
+              <ConversationThread
+                session={selected}
+                onFollowUpStarted={selectSession}
+              />
+            </div>
+            <div className="hidden lg:flex lg:col-span-3 flex-col min-h-0">
+              <ConversationArtifactsPanel
+                sessionId={selectedSessionId}
+                live={sseLive}
+              />
+            </div>
           </div>
         </div>
+      )}
+
+      {artifactsDrawerOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+            aria-label={t("common.back")}
+            onClick={() => setArtifactsDrawerOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 w-[min(100%,20rem)] lg:hidden shadow-xl">
+            <ConversationArtifactsPanel
+              sessionId={selectedSessionId}
+              live={sseLive}
+              className="h-full border-l border-outline-variant"
+            />
+            <button
+              type="button"
+              className="absolute top-2 right-2 dw-btn-ghost p-1.5"
+              onClick={() => setArtifactsDrawerOpen(false)}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        </>
       )}
     </>
   );

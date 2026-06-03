@@ -1,0 +1,8 @@
+{
+  "id": "daily-brief",
+  "name": "Daily brief",
+  "schedule": "0 0 8 * * *",
+  "schedule_timezone": "local",
+  "command": "Use the daily-brief skill: compile today's industry news brief as Markdown and save to ./reports/daily-brief.md",
+  "tool_profile": "observability"
+}

@@ -4,6 +4,15 @@ use anycode_core::prelude::*;
 use anycode_tools::{explore_plan_tool_names_with_skill, general_purpose_tool_names};
 use async_trait::async_trait;
 
+/// Placeholder result when `Agent::execute` is invoked outside `AgentRuntime` orchestration.
+pub(crate) fn agent_execute_delegated_to_runtime() -> Result<TaskResult, CoreError> {
+    Ok(TaskResult::Failure {
+        error: "Agent::execute is not the orchestration path; use AgentRuntime::execute_task"
+            .into(),
+        details: Some("orchestration_authority".into()),
+    })
+}
+
 /// General-purpose agent（默认全工具集）
 pub struct GeneralPurposeAgent {
     tools: Vec<ToolName>,
@@ -36,10 +45,7 @@ impl Agent for GeneralPurposeAgent {
 
     async fn execute(&mut self, _task: Task) -> Result<TaskResult, CoreError> {
         let _ = &self.model_config;
-        Ok(TaskResult::Success {
-            output: "Task completed".to_string(),
-            artifacts: vec![],
-        })
+        agent_execute_delegated_to_runtime()
     }
 }
 
@@ -75,10 +81,7 @@ impl Agent for ExploreAgent {
 
     async fn execute(&mut self, _task: Task) -> Result<TaskResult, CoreError> {
         let _ = &self.model_config;
-        Ok(TaskResult::Success {
-            output: "Exploration completed".to_string(),
-            artifacts: vec![],
-        })
+        agent_execute_delegated_to_runtime()
     }
 }
 
@@ -114,9 +117,6 @@ impl Agent for PlanAgent {
 
     async fn execute(&mut self, _task: Task) -> Result<TaskResult, CoreError> {
         let _ = &self.model_config;
-        Ok(TaskResult::Success {
-            output: "Plan created".to_string(),
-            artifacts: vec![],
-        })
+        agent_execute_delegated_to_runtime()
     }
 }

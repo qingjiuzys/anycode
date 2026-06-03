@@ -4,6 +4,7 @@ use anycode_dashboard::server::app_for_test;
 use axum::body::Body;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use tempfile::tempdir;
 use tower::ServiceExt;
 
@@ -152,10 +153,40 @@ async fn fixture_api_smoke() {
     let doctor = get_json(app.clone(), "/api/settings/doctor").await;
     assert!(doctor["doctor"]["checks"].is_array());
     assert!(doctor["doctor"]["next_steps"].is_array());
+    assert!(doctor["doctor"]["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == "skills_starter_pack"));
+
+    let cron_parse = post_json(
+        app.clone(),
+        "/api/cron/parse-schedule",
+        json!({ "text": "每天8点" }),
+    )
+    .await;
+    assert_eq!(cron_parse["schedule"].as_str().unwrap(), "0 0 8 * * *");
+
+    let facets = get_json(app.clone(), "/api/sessions/facets").await;
+    assert!(facets["facets"]["budget_exceeded_7d"].is_number());
 
     let runtime = get_json(app.clone(), "/api/settings/runtime").await;
     assert_eq!(runtime["runtime"]["auth_mode"], "local_trusted");
     assert!(runtime["runtime"]["db_path"].is_string());
+
+    let catalog = get_json(app.clone(), "/api/settings/model-catalog").await;
+    assert!(catalog["providers"].is_array());
+    assert!(!catalog["providers"].as_array().unwrap().is_empty());
+    assert!(catalog["capabilities"].is_array());
+    assert!(catalog["zai_models"].is_array());
+
+    let llm_cfg = get_json(app.clone(), "/api/settings/llm").await;
+    assert!(llm_cfg["config_present"].is_boolean());
+    assert!(llm_cfg["models"].is_object());
+
+    let models_reg = get_json(app.clone(), "/api/settings/models").await;
+    assert!(models_reg["active"].is_object());
+    assert!(models_reg["items"].is_array());
 
     let prefs = get_json(app.clone(), "/api/settings/preferences").await;
     assert!(prefs["preferences"]["active"]["host"].is_string());
@@ -540,4 +571,30 @@ async fn session_transcript_api_returns_blocks() {
     let transcript = get_json(app, &format!("/api/sessions/{session_id}/transcript")).await;
     assert!(transcript["transcript"]["blocks"].is_array());
     assert!(transcript["transcript"]["blocks"].as_array().unwrap().len() >= 2);
+}
+
+#[tokio::test]
+async fn memory_retention_preview_api() {
+    let bin = std::env::var("CARGO_BIN_EXE_anycode")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| {
+            let candidate =
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/anycode");
+            candidate.is_file().then_some(candidate)
+        });
+    let Some(bin) = bin else {
+        eprintln!("skip memory_retention_preview_api: anycode binary not found");
+        return;
+    };
+    std::env::set_var("ANYCODE_BIN", &bin);
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("mem_retention.db");
+    let app = app_for_test(&db).await.unwrap();
+    let v = get_json(app, "/api/settings/memory/retention?older_than_days=3650").await;
+    assert!(v.get("summary").is_some(), "expected summary: {v:?}");
+    assert_eq!(
+        v.get("older_than_days").and_then(|x| x.as_i64()),
+        Some(3650)
+    );
 }

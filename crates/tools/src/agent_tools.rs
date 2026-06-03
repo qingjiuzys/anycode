@@ -462,6 +462,17 @@ impl Tool for SkillTool {
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
+        if !self.services.is_skill_allowed(skill_name) {
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "error": "skill blocked by governance",
+                    "skill": skill_name,
+                    "hint": "Enable this skill for the project or agent profile in Dashboard / config.json"
+                }),
+                error: Some("skill blocked by governance".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         let cat = &self.services.skill_catalog;
         let task_cwd = input
             .working_directory

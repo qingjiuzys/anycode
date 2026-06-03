@@ -67,6 +67,119 @@ pub async fn list_cron_jobs(State(_state): State<AppState>) -> impl IntoResponse
     }
 }
 
+#[derive(Deserialize)]
+pub struct CronRetryBody {
+    pub job_id: String,
+    pub project_id: Option<String>,
+}
+
+pub async fn retry_cron_job(
+    State(state): State<AppState>,
+    Json(body): Json<CronRetryBody>,
+) -> impl IntoResponse {
+    if !crate::task_trigger::triggers_allowed(&state.host) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "UI trigger run is disabled for this binding" })),
+        )
+            .into_response();
+    }
+    let job_id = body.job_id.trim();
+    if job_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "job_id is required" })),
+        )
+            .into_response();
+    }
+    let jobs = match cron_ledger::read_cron_jobs(None) {
+        Ok(j) => j,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let Some(job) = jobs.iter().find(|j| j.id == job_id) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "cron job not found" })),
+        )
+            .into_response();
+    };
+    let project_id = match resolve_cron_retry_project(&state, body.project_id.as_deref()).await {
+        Ok(id) => id,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let project = match state.db.get_project(&project_id).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "project not found" })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let req = crate::task_trigger::TriggerRunRequest {
+        prompt: job.command.clone(),
+        kind: "run".into(),
+        goal: None,
+        agent: Some("workspace-assistant".into()),
+        skills: None,
+    };
+    match crate::task_trigger::trigger_run(
+        &project_id,
+        std::path::Path::new(&project.root_path),
+        req,
+        None,
+        Some(&state.db),
+    )
+    .await
+    {
+        Ok(result) => Json(json!({
+            "ok": true,
+            "job_id": job_id,
+            "trigger": result,
+        }))
+        .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn resolve_cron_retry_project(
+    state: &AppState,
+    preferred: Option<&str>,
+) -> anyhow::Result<String> {
+    if let Some(id) = preferred.map(str::trim).filter(|s| !s.is_empty()) {
+        return Ok(id.to_string());
+    }
+    let projects = state.db.list_projects().await?;
+    projects
+        .first()
+        .map(|p| p.id.clone())
+        .ok_or_else(|| anyhow::anyhow!("no project available; pass project_id"))
+}
+
 pub async fn list_agent_stats(
     State(state): State<AppState>,
     Query(q): Query<LimitQuery>,
@@ -220,4 +333,44 @@ pub struct PatchLlmConfigBody {
     pub fallback_provider: Option<String>,
     #[serde(default)]
     pub fallback_model: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ParseCronScheduleBody {
+    pub text: String,
+}
+
+pub async fn parse_cron_schedule(Json(body): Json<ParseCronScheduleBody>) -> impl IntoResponse {
+    let text = body.text.trim();
+    if text.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "text is required" })),
+        )
+            .into_response();
+    }
+    match anycode_tools::parse_natural_cron_hint(text) {
+        Some(result) => {
+            if let Err(e) = anycode_tools::validate_cron_schedule_expr(&result.schedule) {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": format!("parsed schedule invalid: {e}") })),
+                )
+                    .into_response();
+            }
+            Json(json!({
+                "ok": true,
+                "schedule": result.schedule,
+                "summary": result.summary,
+            }))
+            .into_response()
+        }
+        None => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "Could not parse schedule hint — try e.g. 每天8点, 每周五18:30, every day at 9am, or a 6-field cron"
+            })),
+        )
+            .into_response(),
+    }
 }

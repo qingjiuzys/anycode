@@ -10,6 +10,7 @@ import { ProjectInsightCharts } from "@/components/ProjectInsightCharts";
 import { ProjectTokenUsage } from "@/components/ProjectTokenUsage";
 import { SessionFlow } from "@/components/SessionFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ProjectKnowledgePanel } from "@/components/ProjectKnowledgePanel";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useProjectEventStream } from "@/hooks/useProjectEventStream";
@@ -375,6 +376,8 @@ export function ProjectDetailPage() {
           </div>
         </SectionCard>
       )}
+
+      <ProjectKnowledgePanel projectId={projectId} />
 
       <SectionCard
         title={t("projectDetail.recentEvents")}

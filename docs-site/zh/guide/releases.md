@@ -22,7 +22,7 @@ read_when:
 ## 版本与发布
 
 - **版本号**：工作区根目录 `Cargo.toml` 的 `version`。
-- **GitHub Releases**：对常用平台打 tag 并附带 `anycode` 二进制（非 `cargo install` 场景）。
+- **GitHub Releases**：对常用平台打 tag 并附带 `anycode` 二进制（非 `cargo install` 场景）。macOS（Apple Silicon）另附 **`anyCode_<version>_aarch64.dmg`** 桌面 Workbench 安装包（见 [数字工作台 — 桌面应用](./dashboard#桌面应用-macos)）。
 - **文档站**（`docs-site/` VitePress）：GitHub Pages 部署时设置 `VITEPRESS_BASE=/仓库名/`。
 
 ## 运行时特性（enable / disable）{#runtime-feature-flags}

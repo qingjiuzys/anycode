@@ -1,9 +1,70 @@
 //! Dashboard service status and doctor diagnostics.
 
 use crate::schema::{DoctorCheck, DoctorReport, ServiceStatusDetail};
+use anycode_llm::config_models::ModelFallbackConfig;
+use anycode_llm::{normalize_provider_id, read_config_value, read_model_fallback, string_field};
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+
+fn fallback_configured(fb: &ModelFallbackConfig) -> bool {
+    fb.provider.as_ref().is_some_and(|s| !s.trim().is_empty())
+        && fb.model.as_ref().is_some_and(|s| !s.trim().is_empty())
+}
+
+/// LLM / `~/.anycode/config.json` checks (safe to call without network).
+pub fn llm_doctor_checks() -> Vec<DoctorCheck> {
+    let mut checks = Vec::new();
+    let (path, cfg) = match read_config_value(None) {
+        Ok(v) => v,
+        Err(e) => {
+            checks.push(DoctorCheck {
+                id: "llm_config_read".into(),
+                status: "error".into(),
+                message: format!("Failed to read config: {e}"),
+            });
+            return checks;
+        }
+    };
+
+    let exists = path.is_file();
+    checks.push(DoctorCheck {
+        id: "llm_config_exists".into(),
+        status: if exists { "ok" } else { "warn" }.into(),
+        message: if exists {
+            format!("config.json found at {}", path.display())
+        } else {
+            format!(
+                "config.json not found at {} — run `anycode model` or create the file",
+                path.display()
+            )
+        },
+    });
+
+    let api_key = string_field(&cfg, "api_key", "api_key");
+    checks.push(DoctorCheck {
+        id: "llm_api_key".into(),
+        status: if api_key.is_some() { "ok" } else { "warn" }.into(),
+        message: if api_key.is_some() {
+            "Primary api_key is configured".into()
+        } else {
+            "api_key not set in config.json".into()
+        },
+    });
+
+    let provider_raw = string_field(&cfg, "provider", "provider").unwrap_or_default();
+    let norm = normalize_provider_id(&provider_raw);
+    if norm == "google" && !fallback_configured(&read_model_fallback(&cfg)) {
+        checks.push(DoctorCheck {
+            id: "llm_google_fallback".into(),
+            status: "warn".into(),
+            message: "Google provider has no model_fallback — geo/rate-limit failover recommended"
+                .into(),
+        });
+    }
+
+    checks
+}
 
 pub fn is_loopback_host(host: &str) -> bool {
     host == "127.0.0.1" || host == "localhost" || host == "::1"
@@ -258,6 +319,23 @@ pub fn doctor_next_steps(
     if report
         .checks
         .iter()
+        .any(|c| c.id == "skills_starter_pack" && c.status == "warn")
+    {
+        steps.push(
+            "Install office starter skills: `anycode skills install-starter` or Agents page button"
+                .into(),
+        );
+    }
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id == "knowledge_index" && c.status == "warn")
+    {
+        steps.push("Reindex project knowledge in Settings → Project knowledge".into());
+    }
+    if report
+        .checks
+        .iter()
         .any(|c| c.id == "port_available" && c.status == "warn")
     {
         steps.push("If the dashboard is not already running, free the dashboard port or use `--port` with another value".into());
@@ -276,6 +354,29 @@ pub fn doctor_next_steps(
         steps.push(
             "Set connector API tokens (GITHUB_TOKEN / LINEAR_API_KEY) to verify reachability"
                 .into(),
+        );
+    }
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id == "llm_config_exists" && c.status == "warn")
+    {
+        steps.push("Configure LLM: `anycode model` or Dashboard Settings → Models".into());
+    }
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id == "llm_api_key" && c.status == "warn")
+    {
+        steps.push("Set `api_key` in ~/.anycode/config.json (Dashboard Settings → Models)".into());
+    }
+    if report
+        .checks
+        .iter()
+        .any(|c| c.id == "llm_google_fallback" && c.status == "warn")
+    {
+        steps.push(
+            "Add runtime.model_fallback provider+model for Google geo/rate-limit failover".into(),
         );
     }
     steps
@@ -309,11 +410,37 @@ pub fn suggest_backup_path(db_path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::io::Write;
 
     #[test]
     fn loopback_detection() {
         assert!(is_loopback_host("127.0.0.1"));
         assert!(is_loopback_host("localhost"));
         assert!(!is_loopback_host("0.0.0.0"));
+    }
+
+    #[test]
+    fn llm_doctor_warns_google_without_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".anycode");
+        std::fs::create_dir_all(&path).unwrap();
+        let cfg_path = path.join("config.json");
+        let mut f = std::fs::File::create(&cfg_path).unwrap();
+        write!(
+            f,
+            "{}",
+            json!({
+                "provider": "google",
+                "model": "gemini-2.0-flash",
+                "api_key": "test-key"
+            })
+        )
+        .unwrap();
+        std::env::set_var("HOME", dir.path());
+        let checks = llm_doctor_checks();
+        assert!(checks
+            .iter()
+            .any(|c| c.id == "llm_google_fallback" && c.status == "warn"));
     }
 }

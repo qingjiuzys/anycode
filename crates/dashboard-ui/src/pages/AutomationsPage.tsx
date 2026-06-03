@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import { GitHubIssuesPanel } from "@/components/GitHubIssuesPanel";
+import { AutomationCreatePanel } from "@/components/AutomationCreatePanel";
+import { OrchestrationTasksPanel } from "@/components/OrchestrationTasksPanel";
 import { LinearIssuesPanel } from "@/components/LinearIssuesPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -36,6 +38,13 @@ export function AutomationsPage() {
   const cronRuns = useQuery({
     queryKey: ["cron-runs"],
     queryFn: () => api.cronRuns(30),
+  });
+  const retryCron = useMutation({
+    mutationFn: (body: { job_id: string; project_id?: string }) => api.retryCronJob(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cron-runs"] });
+      void queryClient.invalidateQueries({ queryKey: ["automation-sessions"] });
+    },
   });
   const policies = useQuery({
     queryKey: ["automation-policies", projectId],
@@ -84,6 +93,8 @@ export function AutomationsPage() {
   });
 
   const projectList = projects.data?.projects ?? [];
+  const cronJobList = cronJobs.data?.jobs ?? [];
+  const cronRunList = cronRuns.data?.runs ?? [];
   const githubConnectors = (connectors.data?.connectors ?? []).filter(
     (c) => c.enabled && c.source_type === "github" && c.config_summary,
   );
@@ -101,6 +112,19 @@ export function AutomationsPage() {
           { label: t("automations.title") },
         ]}
       />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SessionTable
+          title={t("automations.workflowSessions")}
+          loading={workflow.isLoading}
+          sessions={workflow.data?.sessions ?? []}
+        />
+        <SessionTable
+          title={t("automations.cronSessions")}
+          loading={cronSessions.isLoading}
+          sessions={cronSessions.data?.sessions ?? []}
+        />
+      </div>
 
       <SectionCard title={t("automations.projectPolicies")}>
         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -187,6 +211,10 @@ export function AutomationsPage() {
           />
         ))}
 
+      <AutomationCreatePanel />
+      <OrchestrationTasksPanel />
+
+      {(cronJobs.isLoading || cronJobList.length > 0) && (
       <SectionCard title={t("automations.cronJobs")} noPadding>
         <div className="overflow-x-auto">
           <table className="dw-table">
@@ -232,7 +260,9 @@ export function AutomationsPage() {
           </table>
         </div>
       </SectionCard>
+      )}
 
+      {(cronRuns.isLoading || cronRunList.length > 0) && (
       <SectionCard title={t("automations.cronRuns")} noPadding>
         <div className="overflow-x-auto">
           <table className="dw-table">
@@ -243,6 +273,7 @@ export function AutomationsPage() {
                 <th>{t("automations.time")}</th>
                 <th>{t("automations.workbenchSession")}</th>
                 <th>{t("automations.detail")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -272,11 +303,28 @@ export function AutomationsPage() {
                     )}
                   </td>
                   <td className="text-secondary text-xs">{truncate(r.detail, 80)}</td>
+                  <td>
+                    {(r.status === "failed" || r.status === "error") && (
+                      <button
+                        type="button"
+                        className="dw-btn-secondary text-xs"
+                        disabled={retryCron.isPending}
+                        onClick={() =>
+                          retryCron.mutate({
+                            job_id: r.job_id,
+                            project_id: projectId || undefined,
+                          })
+                        }
+                      >
+                        {t("automations.retryRun")}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {!cronRuns.isLoading && (cronRuns.data?.runs ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-secondary text-center py-6">
+                  <td colSpan={6} className="text-secondary text-center py-6">
                     {t("automations.noCronRuns")}
                   </td>
                 </tr>
@@ -285,19 +333,8 @@ export function AutomationsPage() {
           </table>
         </div>
       </SectionCard>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SessionTable
-          title={t("automations.workflowSessions")}
-          loading={workflow.isLoading}
-          sessions={workflow.data?.sessions ?? []}
-        />
-        <SessionTable
-          title={t("automations.cronSessions")}
-          loading={cronSessions.isLoading}
-          sessions={cronSessions.data?.sessions ?? []}
-        />
-      </div>
     </>
   );
 }
@@ -394,56 +431,54 @@ function SessionTable({
   const t = useT();
   return (
     <SectionCard title={title} noPadding>
-      {loading && <p className="text-sm text-secondary px-4 py-3 m-0">{t("common.loading")}</p>}
-      <div className="overflow-x-auto">
-        <table className="dw-table">
-          <thead>
-            <tr>
-              <th>{t("conversations.project")}</th>
-              <th>{t("conversations.titleCol")}</th>
-              <th>{t("common.status")}</th>
-              <th>{t("conversations.trust")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.map((s) => (
-              <tr key={s.id}>
-                <td>
-                  <Link
-                    to="/projects/$projectId"
-                    params={{ projectId: s.project_id }}
-                    className="no-underline hover:underline"
-                  >
-                    {s.project_name}
-                  </Link>
-                </td>
-                <td>
-                  <Link
-                    to="/sessions/$sessionId"
-                    params={{ sessionId: s.id }}
-                    className="font-medium no-underline hover:underline"
-                  >
-                    {s.title}
-                  </Link>
-                </td>
-                <td>
-                  <StatusBadge status={s.status} />
-                </td>
-                <td>
-                  <StatusBadge status={s.trusted_status} />
-                </td>
-              </tr>
-            ))}
-            {!loading && sessions.length === 0 && (
+      {loading ? (
+        <p className="text-sm text-secondary px-4 py-6 m-0">{t("common.loading")}</p>
+      ) : sessions.length === 0 ? (
+        <p className="text-sm text-secondary px-4 py-6 m-0">{t("automations.noRecords")}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="dw-table">
+            <thead>
               <tr>
-                <td colSpan={4} className="text-secondary text-center py-6">
-                  {t("automations.noRecords")}
-                </td>
+                <th>{t("conversations.project")}</th>
+                <th>{t("conversations.titleCol")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("conversations.trust")}</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {sessions.map((s) => (
+                <tr key={s.id}>
+                  <td>
+                    <Link
+                      to="/projects/$projectId"
+                      params={{ projectId: s.project_id }}
+                      className="no-underline hover:underline"
+                    >
+                      {s.project_name}
+                    </Link>
+                  </td>
+                  <td>
+                    <Link
+                      to="/sessions/$sessionId"
+                      params={{ sessionId: s.id }}
+                      className="font-medium no-underline hover:underline"
+                    >
+                      {s.title}
+                    </Link>
+                  </td>
+                  <td>
+                    <StatusBadge status={s.status} />
+                  </td>
+                  <td>
+                    <StatusBadge status={s.trusted_status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </SectionCard>
   );
 }

@@ -475,7 +475,9 @@ pub const ROUTING_AGENT_PRESETS: &[(&str, &str)] = &[
     ("general-purpose", "主对话 / 通用任务"),
     ("plan", "规划 / 拆解"),
     ("explore", "探索 / 轻量"),
-    ("summary", "总结（子任务）"),
+    ("workspace-assistant", "通道 / 工作区助手"),
+    ("goal", "自主目标迭代"),
+    ("summary", "总结（compaction 子任务）"),
 ];
 
 #[cfg(test)]

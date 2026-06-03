@@ -1,0 +1,8 @@
+{
+  "id": "weekly-report",
+  "name": "Weekly report",
+  "schedule": "0 0 17 * * 5",
+  "schedule_timezone": "local",
+  "command": "Use the weekly-report skill: summarize this week's work from git log and notes into ./reports/weekly-report.md",
+  "tool_profile": "default"
+}

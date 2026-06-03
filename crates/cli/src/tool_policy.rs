@@ -60,6 +60,19 @@ pub(crate) fn headless_task_surface() -> ToolExecutionSurface {
     }
 }
 
+pub(crate) fn resolve_headless_task_tool_filters(
+    options: &RunTaskOptions,
+) -> (Vec<String>, Vec<String>) {
+    resolve_runtime_tool_filters(RuntimeToolPolicyInput {
+        surface: headless_task_surface(),
+        profiles: &anycode_tools::ToolPolicyProfiles::default(),
+        explicit_profile: options.tool_profile.as_deref(),
+        explicit_allowlist: options.tool_allowlist.as_deref(),
+        extra_deny_names: &[],
+        extra_deny_prefixes: &[],
+    })
+}
+
 pub(crate) fn channel_task_tool_filters(config: &Config) -> (Vec<String>, Vec<String>) {
     resolve_task_tool_filters(
         config,
@@ -128,11 +141,13 @@ mod tests {
                 tool_policy_profiles: Default::default(),
                 tool_deny_names: vec![],
                 tool_deny_prefixes: vec![],
+                model_fallback: None,
                 workspace_project_label: None,
                 workspace_channel_profile: None,
             },
             prompt: Default::default(),
             skills: Default::default(),
+            agents: Default::default(),
             session: Default::default(),
             status_line: Default::default(),
             terminal: Default::default(),

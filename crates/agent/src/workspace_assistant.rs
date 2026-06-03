@@ -6,6 +6,7 @@
 //! keep Telegram/Discord/WeChat entrypoints on **`RuntimeMode::Channel`** + workspace assistant unless
 //! you intentionally spawn a coding agent.
 
+use crate::agents::agent_execute_delegated_to_runtime;
 use anycode_core::prelude::*;
 use anycode_tools::workspace_assistant_tool_names;
 use async_trait::async_trait;
@@ -41,10 +42,7 @@ impl Agent for WorkspaceAssistantAgent {
 
     async fn execute(&mut self, _task: Task) -> Result<TaskResult, CoreError> {
         let _ = &self.model_config;
-        Ok(TaskResult::Success {
-            output: "Workspace assistant completed".to_string(),
-            artifacts: vec![],
-        })
+        agent_execute_delegated_to_runtime()
     }
 }
 
@@ -75,9 +73,6 @@ impl Agent for GoalAgent {
 
     async fn execute(&mut self, _task: Task) -> Result<TaskResult, CoreError> {
         let _ = &self.model_config;
-        Ok(TaskResult::Success {
-            output: "Goal execution completed".to_string(),
-            artifacts: vec![],
-        })
+        agent_execute_delegated_to_runtime()
     }
 }

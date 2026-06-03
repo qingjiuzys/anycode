@@ -296,6 +296,45 @@ impl DashboardDb {
         Ok(repaired)
     }
 
+    /// Remove projects whose `root_path` no longer exists on disk (temp dirs, deleted workspaces).
+    pub async fn prune_stale_projects(&self, dry_run: bool) -> Result<PruneStaleProjectsReport> {
+        let rows = sqlx::query(
+            "SELECT id, name, root_path FROM projects WHERE organization_id = ? ORDER BY updated_at DESC",
+        )
+        .bind(LOCAL_ORG_ID)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut removed = Vec::new();
+        let mut kept = 0u64;
+        for row in rows {
+            let id: String = row.get("id");
+            let name: String = row.get("name");
+            let root_path: String = row.get("root_path");
+            if Path::new(&root_path).is_dir() {
+                kept += 1;
+                continue;
+            }
+            if !dry_run {
+                sqlx::query("DELETE FROM projects WHERE id = ?")
+                    .bind(&id)
+                    .execute(&self.pool)
+                    .await?;
+            }
+            removed.push(PrunedProjectRow {
+                id,
+                name,
+                root_path,
+            });
+        }
+
+        Ok(PruneStaleProjectsReport {
+            dry_run,
+            removed,
+            kept,
+        })
+    }
+
     async fn move_project_references(&self, old_id: &str, new_id: &str) -> Result<()> {
         for table in [
             "sessions",

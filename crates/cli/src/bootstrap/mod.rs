@@ -1,10 +1,16 @@
 //! Wire LLM client, tool registry, and `AgentRuntime` (shared by TUI, `run`, and long-lived bridges).
 
+mod agents;
+mod agents_setup;
 mod llm_session;
+mod llm_stack;
 mod mcp_env;
+mod model_resolve;
 mod prompt_runtime;
 mod runtime;
+mod security_setup;
 mod skills_registry;
+mod tools_setup;
 
 pub(crate) use runtime::initialize_runtime;
 
@@ -49,11 +55,11 @@ fn resolve_memory_attach(requested: MemoryAttachMode) -> MemoryAttachMode {
     }
 }
 
-use crate::app_config::{default_base_url_for, Config};
+use crate::app_config::Config;
 use crate::i18n::tr_args;
 use anycode_core::prelude::*;
 use anycode_core::{EmbeddingProvider, MemoryPipeline, VectorMemoryBackend};
-use anycode_llm::{normalize_provider_id, ModelRouter};
+use anycode_llm::ModelRouter;
 #[cfg(feature = "embedding-local")]
 use anycode_memory::FastEmbedEmbeddingProvider;
 use anycode_memory::{
@@ -62,7 +68,7 @@ use anycode_memory::{
 };
 use async_trait::async_trait;
 use fluent_bundle::FluentArgs;
-use llm_session::{effective_provider, resolve_agent_base_url, resolve_profile_api_key};
+use model_resolve::resolve_model_profile;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -234,18 +240,41 @@ pub(crate) fn build_memory_layer(
                         );
                     }
                 } else {
+                    let registry_settings =
+                        anycode_llm::read_config_value(None)
+                            .ok()
+                            .and_then(|(_, cfg_json)| {
+                                let reg =
+                                    anycode_llm::ResolvedModelRegistry::from_config(&cfg_json);
+                                reg.active_item(anycode_llm::ModelCapability::Embedding)
+                                    .map(|item| {
+                                        (
+                                            reg.resolve_model(item),
+                                            reg.resolve_base_url(item).unwrap_or_else(|| {
+                                                "https://api.openai.com/v1".to_string()
+                                            }),
+                                            reg.resolve_api_key(item),
+                                        )
+                                    })
+                            });
                     let base_url = config
                         .memory
                         .embedding_base_url
                         .clone()
+                        .or_else(|| registry_settings.as_ref().map(|(_, u, _)| u.clone()))
                         .or_else(|| config.llm.base_url.clone())
                         .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
                     let model = config
                         .memory
                         .embedding_model
                         .clone()
+                        .or_else(|| registry_settings.as_ref().map(|(m, _, _)| m.clone()))
                         .unwrap_or_else(|| "text-embedding-3-small".to_string());
-                    let key = config.llm.api_key.trim();
+                    let key = registry_settings
+                        .as_ref()
+                        .and_then(|(_, _, k)| k.clone())
+                        .filter(|s| !s.trim().is_empty())
+                        .unwrap_or_else(|| config.llm.api_key.trim().to_string());
                     if key.is_empty() {
                         tracing::warn!(
                             target: "anycode_cli",
@@ -256,11 +285,8 @@ pub(crate) fn build_memory_layer(
                             None,
                         )
                     } else {
-                        let emb = Arc::new(OpenAiCompatibleEmbeddingProvider::new(
-                            base_url,
-                            key.to_string(),
-                            model,
-                        ));
+                        let emb =
+                            Arc::new(OpenAiCompatibleEmbeddingProvider::new(base_url, key, model));
                         (v, Some(emb as Arc<dyn EmbeddingProvider>))
                     }
                 }
@@ -294,16 +320,7 @@ pub(crate) fn build_memory_layer(
 pub(crate) fn build_model_routing_parts(
     config: &Config,
 ) -> (ModelConfig, HashMap<AgentType, ModelConfig>) {
-    let g_norm = normalize_provider_id(&config.llm.provider);
-    let default_base_url = if g_norm == "z.ai" {
-        config
-            .llm
-            .base_url
-            .clone()
-            .or_else(|| Some(default_base_url_for(config.llm.plan.as_str()).to_string()))
-    } else {
-        config.llm.base_url.clone()
-    };
+    let default_base_url = model_resolve::default_base_url_for_config(config);
 
     let default_model_config = ModelConfig {
         provider: LLMProvider::Custom(config.llm.provider.clone()),
@@ -316,29 +333,31 @@ pub(crate) fn build_model_routing_parts(
 
     let mut model_overrides: HashMap<AgentType, ModelConfig> = HashMap::new();
     for (agent_type, profile) in config.routing.agents.iter() {
-        let eff_p = effective_provider(&config.llm.provider, Some(profile));
-        let resolved_model = profile
-            .model
-            .clone()
-            .unwrap_or_else(|| config.llm.model.clone());
-        let resolved_temperature = profile.temperature.or(Some(config.llm.temperature));
-        let resolved_max_tokens = profile.max_tokens.or(Some(config.llm.max_tokens));
-        let resolved_base_url = resolve_agent_base_url(config, profile, &default_base_url);
-        let api_key = resolve_profile_api_key(config, profile, &eff_p);
         model_overrides.insert(
             AgentType::new(agent_type.clone()),
-            ModelConfig {
-                provider: LLMProvider::Custom(eff_p),
-                model: resolved_model,
-                base_url: resolved_base_url,
-                temperature: resolved_temperature,
-                max_tokens: resolved_max_tokens,
-                api_key,
-            },
+            resolve_model_profile(config, profile),
         );
     }
 
     (default_model_config, model_overrides)
+}
+
+pub(crate) fn build_failover_policy(config: &Config) -> Option<anycode_agent::FailoverPolicy> {
+    let fb = config.runtime.model_fallback.as_ref()?;
+    let provider = fb.provider.as_deref()?.trim();
+    let model = fb.model.as_deref()?.trim();
+    if provider.is_empty() || model.is_empty() {
+        return None;
+    }
+    let profile = crate::app_config::ModelProfile {
+        provider: Some(provider.to_string()),
+        model: Some(model.to_string()),
+        ..Default::default()
+    };
+    Some(anycode_agent::FailoverPolicy {
+        fallback: resolve_model_profile(config, &profile),
+        trigger: fb.on,
+    })
 }
 
 /// Same routing snapshot as runtime (before optional agent fill-ins). For `status` / diagnostics.

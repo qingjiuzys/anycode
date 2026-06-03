@@ -19,6 +19,12 @@ export function useSessionEventStream(sessionId: string | undefined): boolean {
       queryKey: ["session-event-types", sessionId],
     });
     queryClient.invalidateQueries({
+      queryKey: ["session-transcript", sessionId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["session-execution-log-live", sessionId],
+    });
+    queryClient.invalidateQueries({
       queryKey: ["session-artifacts", sessionId],
     });
     queryClient.invalidateQueries({

@@ -40,11 +40,14 @@ jobs:
       - name: cargo test (tools-mcp)
         run: cargo test -p anycode-tools --features tools-mcp
 
+      - name: cargo check (knowledge-embeddings)
+        run: cargo check -p anycode-tools --features knowledge-embeddings
+
       - name: Build release binary
         run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
 
       - name: Eval harness (mock scenarios)
-        run: python3 scripts/eval/run.py --with-mock
+        run: ANYCODE_EVAL_BIN=target/release/anycode python3 scripts/eval/run.py --with-mock
 
   dashboard-ui:
     runs-on: ubuntu-latest

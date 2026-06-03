@@ -178,6 +178,25 @@ pub(crate) fn run(json: bool, include_mock: bool) -> anyhow::Result<()> {
                 },
             });
         }
+        for mock in super::eval_mock::run_mock_trajectory_guard_tests() {
+            rows.push(EvalRunRow {
+                id: mock.id.to_string(),
+                status: mock.status,
+                detail: mock.detail,
+                exit_code: mock.exit_code,
+                error_code: if mock.status == "fail" {
+                    Some(
+                        crate::commands::cli_error::classify(&anyhow::anyhow!(
+                            "eval harness guard {} failed",
+                            mock.id
+                        ))
+                        .code,
+                    )
+                } else {
+                    None
+                },
+            });
+        }
     }
     let failed = rows.iter().any(|r| r.status == "fail");
     if json {

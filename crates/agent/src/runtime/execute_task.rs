@@ -1,15 +1,15 @@
 //! Task execution
 
 use super::agentic_loop::{coop_flag_wait, nested_coop_cancelled, task_cancelled_failure};
-use super::artifacts::extract_artifacts;
-use super::budget::{
-    record_llm_usage, tick_budget, tool_blocked_under_degrade, RuntimeBudgetState,
+use super::agentic_turn::{
+    MessageAppendSink, TurnToolBatchOutcome, TurnToolCancel, TurnToolCancelOutcome, TurnToolCtx,
+    TurnToolState,
 };
+use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
 use super::limits::{MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL};
 use super::nested_worktree::NestedWorktreeGuard;
 use super::receipt::ReceiptGenerator;
 use super::task_summary::{last_assistant_plain_text, llm_summary_receipt};
-use super::tool_result_injection;
 use super::tool_surface;
 use super::{AgentRuntime, ParentToolSurfaceGuard};
 use anycode_core::prelude::*;
@@ -69,7 +69,7 @@ impl AgentRuntime {
             .await?;
 
         // 3. 构建消息（system + context status + user）
-        let mode = Self::runtime_mode_for_agent(agent.agent_type());
+        let mode = agent.runtime_mode();
         let mut messages: Vec<Message> = vec![Message {
             id: Uuid::new_v4(),
             role: MessageRole::System,
@@ -165,17 +165,24 @@ impl AgentRuntime {
                             logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
                             return Ok(task_cancelled_failure());
                         }
-                        res = self.llm_client.chat(
+                        res = self.chat_with_failover(
                             messages.clone(),
                             tool_schemas.clone(),
                             &model_config,
+                            task.id,
+                            &logger,
                         ) => res,
                     }
                 }
                 None => {
-                    self.llm_client
-                        .chat(messages.clone(), tool_schemas.clone(), &model_config)
-                        .await
+                    self.chat_with_failover(
+                        messages.clone(),
+                        tool_schemas.clone(),
+                        &model_config,
+                        task.id,
+                        &logger,
+                    )
+                    .await
                 }
             };
 
@@ -263,120 +270,54 @@ impl AgentRuntime {
                 ),
             );
 
-            for tool_call in response.tool_calls {
-                if nested_coop_cancelled(&task.context) {
-                    logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
-                    return Ok(task_cancelled_failure());
+            let tool_ctx = TurnToolCtx {
+                task_id: task.id,
+                agent_type: &task.agent_type,
+                working_directory: task.context.working_directory.as_str(),
+                session_label: &session_label,
+                turn,
+            };
+            let mut tool_state = TurnToolState {
+                total_tool_calls,
+                artifacts: std::mem::take(&mut artifacts),
+                budget_state: budget_state.clone(),
+            };
+            let mut sink = MessageAppendSink::Vec(&mut messages);
+            match self
+                .dispatch_turn_tool_calls(
+                    &logger,
+                    &tool_ctx,
+                    &mut tool_state,
+                    &TurnToolCancel::Nested(&task.context),
+                    &mut sink,
+                    response.tool_calls,
+                    false,
+                    TurnToolCancelOutcome::TaskCancelled,
+                )
+                .await?
+            {
+                TurnToolBatchOutcome::Ok => {}
+                TurnToolBatchOutcome::Cancelled(out) => {
+                    if let Some(result) = out.into_task_result() {
+                        return Ok(result);
+                    }
                 }
-                total_tool_calls += 1;
-                if total_tool_calls > MAX_TOOL_CALLS_TOTAL {
-                    logger.line(
-                        task.id,
-                        &format!(
-                            "[task_end] status=failed reason=max_tool_calls({})",
-                            MAX_TOOL_CALLS_TOTAL
-                        ),
-                    );
+                TurnToolBatchOutcome::MaxToolCalls => {
                     return Ok(TaskResult::Failure {
                         error: "达到最大工具调用次数，已停止".to_string(),
                         details: Some(format!("max_tool_calls={}", MAX_TOOL_CALLS_TOTAL)),
                     });
                 }
-
-                tool_result_injection::log_tool_call_input(
-                    &logger,
-                    task.id,
-                    turn,
-                    total_tool_calls,
-                    &tool_call,
-                );
-                tool_result_injection::log_tool_call_start(
-                    &logger,
-                    task.id,
-                    turn,
-                    total_tool_calls,
-                    &tool_call,
-                );
-                if budget_state
-                    .as_ref()
-                    .is_some_and(|s| tool_blocked_under_degrade(s, &tool_call.name))
-                {
-                    logger.line(
-                        task.id,
-                        &format!(
-                            "[tool_denied] name={} reason=budget_degrade",
-                            tool_call.name
-                        ),
-                    );
-                    let tool_result = ToolOutput {
-                        result: serde_json::json!({ "error": "tool blocked under budget degradation" }),
-                        error: Some("tool blocked under budget degradation".into()),
-                        duration_ms: 0,
-                    };
-                    tool_result_injection::log_tool_call_end(
-                        &logger,
-                        task.id,
-                        turn,
-                        total_tool_calls,
-                        &tool_call,
-                        &tool_result,
-                        0,
-                    );
-                    let prepared = tool_result_injection::prepare_tool_result_message(
-                        task.id,
-                        &tool_call,
-                        &tool_result,
-                        &logger,
-                    );
-                    messages.push(prepared.message);
-                    continue;
-                }
-                let t0 = std::time::Instant::now();
-                let tool_result = self
-                    .execute_tool_call(task.id, &task.context.working_directory, &tool_call)
-                    .await?;
-                tool_result_injection::log_tool_call_end(
-                    &logger,
-                    task.id,
-                    turn,
-                    total_tool_calls,
-                    &tool_call,
-                    &tool_result,
-                    t0.elapsed().as_millis(),
-                );
-
-                // 回注 tool_result（截断以防爆上下文）
-                let prepared = tool_result_injection::prepare_tool_result_message(
-                    task.id,
-                    &tool_call,
-                    &tool_result,
-                    &logger,
-                );
-                messages.push(prepared.message);
-
-                self.pipeline_memory_hook_tool_result(
-                    &session_label,
-                    task.id,
-                    &tool_call.name,
-                    &prepared.for_hook,
-                )
-                .await;
-                self.maybe_session_notify_tool_result(
-                    &session_label,
-                    task.id,
-                    turn,
-                    &tool_call.name,
-                    &prepared.for_hook,
-                    Some(task.context.working_directory.as_str()),
-                );
-
-                // 基础 artifacts（V1）
-                artifacts.extend(extract_artifacts(&tool_call, &tool_result));
-                if nested_coop_cancelled(&task.context) {
-                    logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
-                    return Ok(task_cancelled_failure());
+                TurnToolBatchOutcome::BudgetExceeded => {
+                    return Ok(TaskResult::Failure {
+                        error: "运行时预算已用尽".to_string(),
+                        details: Some("budget_exceeded".to_string()),
+                    });
                 }
             }
+            total_tool_calls = tool_state.total_tool_calls;
+            artifacts = tool_state.artifacts;
+            budget_state = tool_state.budget_state;
         }
 
         // 正常收尾：最后一跳无 tool_calls，故末条消息即本轮 assistant。打满 MAX_AGENT_TURNS 且末尾为 Tool 时不走此路径，保留 summary。

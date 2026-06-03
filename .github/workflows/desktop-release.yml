@@ -1,0 +1,76 @@
+# macOS desktop bundle (Tauri) — manual or tag-triggered.
+# Produces .app / .dmg and attaches the DMG to the GitHub Release for the tag.
+#
+# Optional signing/notarization (requires repository secrets):
+#   APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD,
+#   APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+name: Desktop release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v[0-9]*"
+
+permissions:
+  contents: write
+
+jobs:
+  desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            apps/anycode-desktop
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: crates/dashboard-ui/package-lock.json
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Import signing certificate (optional)
+        if: secrets.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/apple-signing.p12"
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import "$CERT_PATH" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
+      - name: Build desktop release
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: ./scripts/build-desktop-release.sh
+
+      - name: Upload macOS DMG to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/anycode-desktop/target/release/bundle/dmg/*.dmg
+
+      - name: Upload macOS bundle (CI artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: anycode-desktop-macos
+          path: |
+            apps/anycode-desktop/target/release/bundle/dmg/*.dmg
+            apps/anycode-desktop/target/release/bundle/macos/*.app
+          if-no-files-found: warn

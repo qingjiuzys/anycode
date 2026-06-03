@@ -141,7 +141,7 @@ pub async fn handle_gate_outcome(
     .await
 }
 
-/// When enabled `report_on_complete` policies exist, notify after verified completion.
+/// When enabled `report_on_complete` policies exist, generate session report after verified completion.
 pub async fn handle_session_completed(
     db: &DashboardDb,
     project_id: &str,
@@ -159,14 +159,14 @@ pub async fn handle_session_completed(
     {
         return Ok(());
     }
-    crate::notifications::emit_local_log(
+    let _ = crate::report::session_report(
         db,
-        Some(project_id),
-        Some(session_id),
-        "session_report_generated",
-        json!({ "trigger": "automation_policy" }),
+        session_id,
+        crate::report::ReportOptions::default(),
+        true,
     )
-    .await
+    .await;
+    Ok(())
 }
 
 /// Emit `session_blocked` when trust becomes blocked and `gate_block` policy is enabled.

@@ -144,6 +144,15 @@ impl<'a> PromptAssembler<'a> {
                 });
             }
         }
+        if let Some(overlay) = self.agent.system_prompt_overlay() {
+            let t = overlay.trim();
+            if !t.is_empty() {
+                segments.push(SystemPromptSegment {
+                    id: "profile_overlay",
+                    text: t.to_string(),
+                });
+            }
+        }
         segments
     }
 

@@ -44,6 +44,7 @@ pub const TOOL_SEND_USER_MESSAGE: &str = "SendUserMessage";
 pub const TOOL_BRIEF: &str = "Brief";
 pub const TOOL_ASK_USER_QUESTION: &str = "AskUserQuestion";
 pub const TOOL_REPL: &str = "REPL";
+pub const TOOL_KNOWLEDGE_SEARCH: &str = "KnowledgeSearch";
 
 /// general-purpose Agent 暴露的完整工具 id（与 `build_registry` 插入集合一致）。
 pub const DEFAULT_TOOL_IDS: &[&str] = &[
@@ -91,6 +92,7 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_BRIEF,
     TOOL_ASK_USER_QUESTION,
     TOOL_REPL,
+    TOOL_KNOWLEDGE_SEARCH,
 ];
 
 /// 需在 CLI `bootstrap` 中套用 `SecurityPolicy::sensitive_mutation()` 的工具 id（与 `FileWrite` / `Bash` 的专用策略并列）。
@@ -410,6 +412,14 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         "standard",
     ),
     tool_entry(TOOL_REPL, "shell", "critical", ALL_AGENTS, true, "full"),
+    tool_entry(
+        TOOL_KNOWLEDGE_SEARCH,
+        "read",
+        "low",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
 ];
 
 pub fn tool_catalog() -> &'static [ToolCatalogEntry] {

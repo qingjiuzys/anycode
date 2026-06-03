@@ -61,6 +61,8 @@
 
 ## 4. 生产级下一阶段（2026-05 起）
 
+**2026-06 套件收口：** WorkBuddy Phase 1–3 已基本落地；剩余 Partial（微信 CDN live、Harness M1–M6、eval 负向 fixture 等）按 **[closure-plan-2026-06.md](closure-plan-2026-06.md)** 四波次收完。Exit 后再开 Tier 2 Connector/SSO 讨论。
+
 **方向切换**：OpenClaw 5.19 parity 的短线修补已基本完成；下一阶段按生产级能力推进，避免继续以 provider alias / 小单测数量作为主目标。每个 Epic 的完成定义必须包含：用户场景、失败场景、targeted tests、日志/诊断入口、文档/CHANGELOG、禁用或回滚边界。
 
 | # | Epic | 主题 | 完成定义（简） |
@@ -120,6 +122,7 @@
 
 ## 8. 相关链接
 
+- [`closure-plan-2026-06.md`](closure-plan-2026-06.md) — 2026-06 套件收口（Wave 0–4、G1–G12、Exit Criteria）
 - [`architecture.md`](architecture.md) — 维护者分层与流式/TUI 会话表  
 - [`docs/README.md`](README.md) — ADR 索引与文档地图  
 - 仓库：<https://github.com/qingjiuzys/anycode>

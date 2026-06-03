@@ -104,6 +104,18 @@ fn wall_clock_cron_to_utc_storage_in_tz<Tz: TimeZone>(
     ))
 }
 
+/// Convert wall-clock cron using resolved `schedule_timezone`.
+pub fn wall_clock_cron_to_utc_storage_for_timezone(
+    expr: &str,
+    tz: ScheduleTimezone,
+) -> Option<String> {
+    match tz {
+        ScheduleTimezone::Local => wall_clock_cron_to_utc_storage(expr),
+        ScheduleTimezone::Utc => Some(normalize_cron_schedule_expr(expr)),
+        ScheduleTimezone::Iana(iana) => wall_clock_cron_to_utc_storage_in_iana(expr, iana),
+    }
+}
+
 /// 校验 5/6 字段 cron 能否被内置调度器解析。
 pub fn validate_cron_schedule_expr(expr: &str) -> Result<(), String> {
     use cron::Schedule;
@@ -141,6 +153,193 @@ pub fn format_next_fire_human(utc: chrono::DateTime<Utc>) -> (String, String) {
     )
 }
 
+/// Heuristic natural-language → wall-clock 6-field cron (sec min hour day month weekday).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct NaturalCronResult {
+    pub schedule: String,
+    pub summary: String,
+}
+
+/// Parse short Chinese/English schedule hints (no LLM). Returns `None` when unrecognized.
+pub fn parse_natural_cron_hint(input: &str) -> Option<NaturalCronResult> {
+    let raw = input.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    if raw.split_whitespace().count() >= 5 && validate_cron_schedule_expr(raw).is_ok() {
+        return Some(NaturalCronResult {
+            schedule: normalize_cron_schedule_expr(raw),
+            summary: "Cron expression".into(),
+        });
+    }
+
+    let lower = raw.to_ascii_lowercase();
+    if lower.contains("every hour") || raw.contains("每小时") {
+        return Some(NaturalCronResult {
+            schedule: "0 0 * * * *".into(),
+            summary: "Every hour".into(),
+        });
+    }
+
+    let (hour, min) = extract_time(raw)?;
+    let (hour, min) = adjust_hour_for_meridiem(hour, min, raw, &lower);
+
+    if lower.contains("weekday") || raw.contains("工作日") {
+        return Some(NaturalCronResult {
+            schedule: format!("0 {min} {hour} * * 1-5"),
+            summary: format!("Weekdays at {hour:02}:{min:02}"),
+        });
+    }
+
+    if let Some(dow) = weekday_token(raw).or_else(|| weekday_token(&lower)) {
+        return Some(NaturalCronResult {
+            schedule: format!("0 {min} {hour} * * {dow}"),
+            summary: format!("Weekly at {hour:02}:{min:02} (dow {dow})"),
+        });
+    }
+
+    if lower.contains("daily")
+        || lower.contains("every day")
+        || raw.contains("每天")
+        || raw.contains("每日")
+    {
+        return Some(NaturalCronResult {
+            schedule: format!("0 {min} {hour} * * *"),
+            summary: format!("Daily at {hour:02}:{min:02}"),
+        });
+    }
+
+    None
+}
+
+fn extract_time(text: &str) -> Option<(u32, u32)> {
+    let compact: String = text
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .map(|c| if c == '：' { ':' } else { c })
+        .collect();
+
+    if let Some(pos) = compact.find(':') {
+        let hour = parse_trailing_digits(&compact[..pos])?;
+        let rest = &compact[pos + 1..];
+        let min = parse_leading_digits(rest).unwrap_or(0);
+        if hour <= 23 && min <= 59 {
+            return Some((hour, min));
+        }
+        return None;
+    }
+
+    if let Some(pos) = compact.find('点') {
+        let hour = parse_trailing_digits(&compact[..pos])?;
+        let rest = compact.get(pos + '点'.len_utf8()..)?;
+        let min = parse_leading_digits(rest).unwrap_or(0);
+        if hour <= 23 && min <= 59 {
+            return Some((hour, min));
+        }
+        return None;
+    }
+
+    for token in compact.split(|c: char| !c.is_ascii_digit()) {
+        if token.is_empty() {
+            continue;
+        }
+        if let Ok(hour) = token.parse::<u32>() {
+            if hour <= 23 {
+                return Some((hour, 0));
+            }
+        }
+    }
+    None
+}
+
+fn parse_trailing_digits(s: &str) -> Option<u32> {
+    let digits: String = s
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
+    }
+}
+
+fn parse_leading_digits(s: &str) -> Option<u32> {
+    let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
+    }
+}
+
+fn adjust_hour_for_meridiem(hour: u32, min: u32, raw: &str, lower: &str) -> (u32, u32) {
+    let mut h = hour.min(23);
+    let m = min.min(59);
+    let pm = lower.contains("pm")
+        || lower.contains("p.m")
+        || raw.contains("下午")
+        || raw.contains("晚上")
+        || raw.contains("傍晚");
+    let am = lower.contains("am")
+        || lower.contains("a.m")
+        || raw.contains("早上")
+        || raw.contains("上午")
+        || raw.contains("清晨");
+    if raw.contains("中午") && h <= 11 {
+        h = 12;
+    } else if pm && h < 12 {
+        h += 12;
+    } else if am && h == 12 {
+        h = 0;
+    }
+    (h, m)
+}
+
+fn weekday_token(text: &str) -> Option<&'static str> {
+    const PAIRS: &[(&str, &str)] = &[
+        ("sunday", "0"),
+        ("sun", "0"),
+        ("周日", "0"),
+        ("星期天", "0"),
+        ("星期日", "0"),
+        ("monday", "1"),
+        ("mon", "1"),
+        ("周一", "1"),
+        ("星期一", "1"),
+        ("tuesday", "2"),
+        ("tue", "2"),
+        ("周二", "2"),
+        ("星期二", "2"),
+        ("wednesday", "3"),
+        ("wed", "3"),
+        ("周三", "3"),
+        ("星期三", "3"),
+        ("thursday", "4"),
+        ("thu", "4"),
+        ("周四", "4"),
+        ("星期四", "4"),
+        ("friday", "5"),
+        ("fri", "5"),
+        ("周五", "5"),
+        ("星期五", "5"),
+        ("saturday", "6"),
+        ("sat", "6"),
+        ("周六", "6"),
+        ("星期六", "6"),
+    ];
+    for (needle, dow) in PAIRS {
+        if text.contains(needle) {
+            return Some(dow);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +367,30 @@ mod tests {
             parts[5], "*",
             "weekday must be * so job fires on calendar day; got {utc_expr}"
         );
+    }
+
+    #[test]
+    fn natural_cron_daily_chinese() {
+        let r = parse_natural_cron_hint("每天上午8点").unwrap();
+        assert_eq!(r.schedule, "0 0 8 * * *");
+    }
+
+    #[test]
+    fn natural_cron_weekly_friday() {
+        let r = parse_natural_cron_hint("每周五18:30").unwrap();
+        assert_eq!(r.schedule, "0 30 18 * * 5");
+    }
+
+    #[test]
+    fn natural_cron_weekdays() {
+        let r = parse_natural_cron_hint("工作日 9:00").unwrap();
+        assert_eq!(r.schedule, "0 0 9 * * 1-5");
+    }
+
+    #[test]
+    fn natural_cron_english_daily() {
+        let r = parse_natural_cron_hint("every day at 8am").unwrap();
+        assert_eq!(r.schedule, "0 0 8 * * *");
     }
 
     #[test]

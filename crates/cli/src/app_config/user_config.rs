@@ -104,6 +104,12 @@ pub(crate) struct AnyCodeConfig {
     /// 工具结果 / 回合结束外向通知（HTTP、shell），与 `memory.pipeline.hook_*` 独立。
     #[serde(default)]
     pub(crate) notifications: anycode_core::SessionNotificationSettings,
+    /// Multimodal model profiles (embedding, speech, image, video).
+    #[serde(default)]
+    pub(crate) models: anycode_llm::ModelsConfigFile,
+    /// Declarative agent profiles (extends builtin agents).
+    #[serde(default)]
+    pub(crate) agents: super::schema::AgentsConfigFile,
 }
 
 /// `config.json` 的 `terminal` 段。
@@ -241,7 +247,11 @@ fn load_anycode_config_from_path(path: &Path) -> anyhow::Result<Option<AnyCodeCo
         return Ok(None);
     }
     let content = fs::read_to_string(path)?;
-    Ok(Some(serde_json::from_str(&content)?))
+    let mut v: serde_json::Value = serde_json::from_str(&content)?;
+    if anycode_llm::migrate_legacy_llm_section(&mut v) {
+        anycode_llm::write_config_value(path, &v)?;
+    }
+    Ok(Some(serde_json::from_value(v)?))
 }
 
 /// 显式 `-c path` 且文件不存在时返回 Err；默认路径不存在则 `Ok(None)`。
@@ -293,34 +303,38 @@ pub(crate) fn save_anycode_config(cfg: &AnyCodeConfig) -> anyhow::Result<()> {
     save_anycode_config_to(&anycode_config_path()?, cfg)
 }
 
+pub(crate) fn default_anycode_config() -> AnyCodeConfig {
+    AnyCodeConfig {
+        provider: "z.ai".to_string(),
+        plan: "coding".to_string(),
+        api_key: String::new(),
+        provider_credentials: HashMap::new(),
+        base_url: None,
+        model: "glm-5".to_string(),
+        temperature: 0.7,
+        max_tokens: 8192,
+        routing: RoutingConfig::default(),
+        runtime: RuntimeSettingsFile::default(),
+        security: SecurityConfigFile::default(),
+        system_prompt_override: None,
+        system_prompt_append: None,
+        memory: MemoryConfigFile::default(),
+        zai_tool_choice_first_turn: false,
+        skills: SkillsConfigFile::default(),
+        agents: Default::default(),
+        session: SessionConfigFile::default(),
+        model_instructions: ModelInstructionsConfigFile::default(),
+        status_line: StatusLineConfigFile::default(),
+        terminal: TerminalConfigFile::default(),
+        channels: ChannelsConfigFile::default(),
+        lsp: LspConfigFile::default(),
+        notifications: Default::default(),
+        models: Default::default(),
+    }
+}
+
 pub(crate) fn load_or_default_anycode_config(
     config_file: Option<PathBuf>,
 ) -> anyhow::Result<AnyCodeConfig> {
-    Ok(
-        load_anycode_config_resolved(config_file.clone())?.unwrap_or(AnyCodeConfig {
-            provider: "z.ai".to_string(),
-            plan: "coding".to_string(),
-            api_key: String::new(),
-            provider_credentials: HashMap::new(),
-            base_url: None,
-            model: "glm-5".to_string(),
-            temperature: 0.7,
-            max_tokens: 8192,
-            routing: RoutingConfig::default(),
-            runtime: RuntimeSettingsFile::default(),
-            security: SecurityConfigFile::default(),
-            system_prompt_override: None,
-            system_prompt_append: None,
-            memory: MemoryConfigFile::default(),
-            zai_tool_choice_first_turn: false,
-            skills: SkillsConfigFile::default(),
-            session: SessionConfigFile::default(),
-            model_instructions: ModelInstructionsConfigFile::default(),
-            status_line: StatusLineConfigFile::default(),
-            terminal: TerminalConfigFile::default(),
-            channels: ChannelsConfigFile::default(),
-            lsp: LspConfigFile::default(),
-            notifications: Default::default(),
-        }),
-    )
+    Ok(load_anycode_config_resolved(config_file.clone())?.unwrap_or_else(default_anycode_config))
 }

@@ -7,11 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
 
+pub mod capability_catalog;
+mod catalog_service;
 mod chat_model_ref;
+pub mod config_file;
+pub mod config_models;
 pub mod copilot_token;
 mod google_catalog;
+pub mod media;
 mod model_catalog;
 mod model_context;
+mod model_registry;
 mod model_router;
 mod multi_client;
 mod provider_catalog;
@@ -19,9 +25,25 @@ mod providers;
 mod retry_strategy;
 mod sse_data_lines;
 
+pub use capability_catalog::ModelCapability;
+pub use catalog_service::{
+    aggregate_catalog_view, builtin_catalog_models, cached_models_for_provider,
+    load_cached_catalog, refresh_provider_catalog, CachedProviderCatalog, CatalogModelEntry,
+    CatalogRefreshMeta,
+};
 pub use chat_model_ref::{
     build_qualified_chat_model_value, resolve_chat_model_ref, zai_model_catalog_entries,
     ChatModelResolution, ChatModelResolutionReason, ChatModelResolutionSource, ModelCatalogEntry,
+};
+pub use config_file::{
+    default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,
+    read_config_value, read_model_fallback, read_models_config, string_field, write_config_value,
+    LlmConfigPatch,
+};
+pub use config_models::{
+    ConfiguredModelFile, EndpointOverrides, FailoverTrigger, FallbackChainEntry, MaskedSecret,
+    ModelFallbackConfig, ModelProfileFile, ModelsConfigFile, RoutingAgentsFile, RoutingStrategy,
+    SpeechModelsConfig,
 };
 pub use copilot_token::{
     anycode_credentials_dir, copilot_token_cache_path, github_oauth_token_path,
@@ -33,6 +55,10 @@ pub use model_catalog::{
     MODEL_ALIASES,
 };
 pub use model_context::{resolve_context_window_tokens, DEFAULT_CONTEXT_WINDOW_TOKENS};
+pub use model_registry::{
+    build_registry_from_config, remove_registry_item, set_active_capability, sync_flat_chat_fields,
+    sync_legacy_models_section, upsert_registry_item, RegistryView, ResolvedModelRegistry,
+};
 pub use model_router::ModelRouter;
 pub use multi_client::MultiProviderLlmClient;
 pub use provider_catalog::{

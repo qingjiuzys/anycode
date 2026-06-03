@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { MemoryRetentionPanel } from "@/components/settings/MemoryRetentionPanel";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useRuntimeSettings } from "@/hooks/useRuntimeSettings";
 import { useT } from "@/i18n/context";
@@ -48,15 +49,7 @@ export function SettingsDataSection() {
           </>
         )}
       </SectionCard>
-      <SectionCard title={t("settings.memoryRetention")}>
-        <p className="text-sm text-secondary m-0 mb-2">
-          {t("settings.memoryRetentionHint")}
-        </p>
-        <p className="text-sm text-secondary m-0">
-          CLI: <code className="font-code">anycode memory prune --dry-run</code> ·{" "}
-          <code className="font-code">anycode memory prune --apply</code>
-        </p>
-      </SectionCard>
+      <MemoryRetentionPanel />
     </>
   );
 }

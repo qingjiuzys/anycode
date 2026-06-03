@@ -32,6 +32,11 @@ pub(crate) fn scan_session_llm_needs(config: &Config) -> (bool, bool, bool, bool
     for p in config.routing.agents.values() {
         note(&effective_provider(&config.llm.provider, Some(p)));
     }
+    if let Some(ref fb) = config.runtime.model_fallback {
+        if let Some(ref p) = fb.provider {
+            note(&normalize_provider_id(p));
+        }
+    }
     (
         need_openai,
         need_anthropic,
@@ -215,8 +220,9 @@ pub(crate) fn resolve_agent_base_url(
 mod tests {
     use super::*;
     use crate::app_config::{
-        ChannelsConfig, LLMConfig, LspRuntime, MemoryConfig, RoutingConfig, RuntimeSettings,
-        SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime, TerminalRuntime,
+        AgentsConfig, ChannelsConfig, LLMConfig, LspRuntime, MemoryConfig, RoutingConfig,
+        RuntimeSettings, SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime,
+        TerminalRuntime,
     };
     use anycode_agent::RuntimePromptConfig;
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -267,6 +273,7 @@ mod tests {
                 tool_policy_profiles: Default::default(),
                 tool_deny_names: vec![],
                 tool_deny_prefixes: vec![],
+                model_fallback: None,
                 workspace_project_label: None,
                 workspace_channel_profile: None,
             },
@@ -276,6 +283,7 @@ mod tests {
                 agent_allowlists: std::collections::HashMap::new(),
                 ..SkillsConfig::default()
             },
+            agents: AgentsConfig::default(),
             session: SessionConfig::default(),
             status_line: StatusLineRuntime::default(),
             terminal: TerminalRuntime::default(),

@@ -4,11 +4,11 @@ use super::agentic_loop::{
     coop_flag_wait_opt, opt_coop_cancelled, pop_assistant_placeholder,
     rehydrate_stream_llm_response,
 };
-use super::artifacts::extract_artifacts;
-use super::budget::{
-    record_llm_usage, tick_budget, tool_blocked_under_degrade, RuntimeBudgetState,
+use super::agentic_turn::{
+    MessageAppendSink, TurnToolBatchOutcome, TurnToolCancel, TurnToolCancelOutcome, TurnToolCtx,
+    TurnToolState,
 };
-use super::evidence;
+use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
 use super::limits::{MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL};
 use super::memory_hooks;
 use super::provider_errors::{
@@ -17,7 +17,6 @@ use super::provider_errors::{
 };
 use super::receipt::ReceiptGenerator;
 use super::task_summary::llm_summary_receipt;
-use super::tool_result_injection;
 use super::tool_surface;
 use super::AgentRuntime;
 use anycode_core::prelude::*;
@@ -228,10 +227,12 @@ impl AgentRuntime {
                     // Stream did not produce a final message: drop placeholder before non-stream
                     // chat so we never leave a stale assistant row (OpenClaw 5.19 failover parity).
                     pop_assistant_placeholder(&messages, assistant_id).await;
-                    let chat_fut = self.llm_client.chat(
-                        messages_snapshot,
+                    let chat_fut = self.chat_with_failover(
+                        messages_snapshot.clone(),
                         tool_schemas.clone(),
                         &model_config,
+                        task_id,
+                        &logger,
                     );
                     let r = tokio::select! {
                         biased;
@@ -301,6 +302,26 @@ impl AgentRuntime {
                                 turn, err
                             ),
                         );
+                        if let Ok(Some(fb)) = self
+                            .try_failover_on_provider_body_error(
+                                messages_snapshot.clone(),
+                                tool_schemas.clone(),
+                                &model_config,
+                                task_id,
+                                &logger,
+                                &err,
+                            )
+                            .await
+                        {
+                            {
+                                let mut g = messages.lock().await;
+                                if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
+                                    g.pop();
+                                }
+                                g.push(fb.message.clone());
+                            }
+                            break (fb, false);
+                        }
                         {
                             let mut g = messages.lock().await;
                             if g.last().is_some_and(|m| m.role == MessageRole::Assistant) {
@@ -396,127 +417,52 @@ impl AgentRuntime {
                 ),
             );
 
-            for tool_call in response.tool_calls {
-                if opt_coop_cancelled(&coop_cancel) {
-                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::CooperativeCancel);
+            let tool_ctx = TurnToolCtx {
+                task_id,
+                agent_type,
+                working_directory,
+                session_label: &session_label,
+                turn,
+            };
+            let mut tool_state = TurnToolState {
+                total_tool_calls,
+                artifacts: std::mem::take(&mut artifacts),
+                budget_state: budget_state.clone(),
+            };
+            let mut sink = MessageAppendSink::Shared(&messages);
+            match self
+                .dispatch_turn_tool_calls(
+                    &logger,
+                    &tool_ctx,
+                    &mut tool_state,
+                    &TurnToolCancel::Coop(coop_cancel.clone()),
+                    &mut sink,
+                    response.tool_calls,
+                    true,
+                    TurnToolCancelOutcome::TurnCancelled,
+                )
+                .await?
+            {
+                TurnToolBatchOutcome::Ok => {}
+                TurnToolBatchOutcome::Cancelled(out) => {
+                    if let Some(err) = out.into_core_error() {
+                        return Err(err);
+                    }
                 }
-                total_tool_calls += 1;
-                if total_tool_calls > MAX_TOOL_CALLS_TOTAL {
-                    logger.line(
-                        task_id,
-                        &format!(
-                            "[task_end] status=failed reason=max_tool_calls({})",
-                            MAX_TOOL_CALLS_TOTAL
-                        ),
-                    );
+                TurnToolBatchOutcome::MaxToolCalls => {
                     return Ok(TurnOutput {
                         final_text: last_assistant_text,
-                        artifacts,
+                        artifacts: tool_state.artifacts,
                         usage: turn_usage,
                     });
                 }
-
-                tool_result_injection::log_tool_call_input(
-                    &logger,
-                    task_id,
-                    turn,
-                    total_tool_calls,
-                    &tool_call,
-                );
-                tool_result_injection::log_tool_call_start(
-                    &logger,
-                    task_id,
-                    turn,
-                    total_tool_calls,
-                    &tool_call,
-                );
-                if budget_state
-                    .as_ref()
-                    .is_some_and(|s| tool_blocked_under_degrade(s, &tool_call.name))
-                {
-                    logger.line(
-                        task_id,
-                        &format!(
-                            "[tool_denied] name={} reason=budget_degrade",
-                            tool_call.name
-                        ),
-                    );
-                    let tool_result = ToolOutput {
-                        result: serde_json::json!({ "error": "tool blocked under budget degradation" }),
-                        error: Some("tool blocked under budget degradation".into()),
-                        duration_ms: 0,
-                    };
-                    tool_result_injection::log_tool_call_end(
-                        &logger,
-                        task_id,
-                        turn,
-                        total_tool_calls,
-                        &tool_call,
-                        &tool_result,
-                        0,
-                    );
-                    let prepared = tool_result_injection::prepare_tool_result_message(
-                        task_id,
-                        &tool_call,
-                        &tool_result,
-                        &logger,
-                    );
-                    {
-                        let mut g = messages.lock().await;
-                        g.push(prepared.message);
-                    }
-                    continue;
-                }
-                let t0 = std::time::Instant::now();
-                let tool_result = self
-                    .execute_tool_call(task_id, working_directory, &tool_call)
-                    .await?;
-                tool_result_injection::log_tool_call_end(
-                    &logger,
-                    task_id,
-                    turn,
-                    total_tool_calls,
-                    &tool_call,
-                    &tool_result,
-                    t0.elapsed().as_millis(),
-                );
-
-                // 回注 tool_result（截断以防爆上下文）
-                let prepared = tool_result_injection::prepare_tool_result_message(
-                    task_id,
-                    &tool_call,
-                    &tool_result,
-                    &logger,
-                );
-                evidence::append_tool_evidence(task_id, &tool_call.name, &prepared.for_hook);
-                {
-                    let mut g = messages.lock().await;
-                    g.push(prepared.message);
-                }
-
-                self.pipeline_memory_hook_tool_result(
-                    &session_label,
-                    task_id,
-                    &tool_call.name,
-                    &prepared.for_hook,
-                )
-                .await;
-                self.maybe_session_notify_tool_result(
-                    &session_label,
-                    task_id,
-                    turn,
-                    &tool_call.name,
-                    &prepared.for_hook,
-                    Some(working_directory),
-                );
-
-                artifacts.extend(extract_artifacts(&tool_call, &tool_result));
-                if opt_coop_cancelled(&coop_cancel) {
-                    logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
-                    return Err(CoreError::CooperativeCancel);
+                TurnToolBatchOutcome::BudgetExceeded => {
+                    return Err(CoreError::LLMError("budget_exceeded".into()));
                 }
             }
+            total_tool_calls = tool_state.total_tool_calls;
+            artifacts = tool_state.artifacts;
+            budget_state = tool_state.budget_state;
         }
 
         let user_line = {

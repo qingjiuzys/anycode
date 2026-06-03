@@ -2,7 +2,7 @@
 
 use crate::audit::{record_audit, AuditEventInput};
 use crate::db::DashboardDb;
-use crate::schema::{ReportDocument, ReportSummary};
+use crate::schema::{ReportDocument, ReportSourceCounts, ReportSummary};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use serde_json::json;
@@ -51,6 +51,12 @@ pub async fn project_report(
     let stats = db.get_project_stats(project_id).await?;
 
     let failed_gates = gates.iter().filter(|g| g.status == "failed").count() as i64;
+    let source_counts = ReportSourceCounts {
+        sessions: sessions.len() as i64,
+        events: events.len() as i64,
+        gates: gates.len() as i64,
+        artifacts: artifacts.len() as i64,
+    };
     let trusted_status = if gates.iter().any(|g| g.required && g.status == "failed") {
         "blocked"
     } else if sessions.iter().any(|s| s.trusted_status == "verified") {
@@ -157,6 +163,7 @@ pub async fn project_report(
         trusted_status: trusted_status.into(),
         markdown: md,
         summary,
+        source_counts,
     };
 
     if write_audit {
@@ -214,6 +221,12 @@ pub async fn session_report(
         sessions: 1,
         events: events.len() as i64,
         failed_gates,
+        artifacts: artifacts.len() as i64,
+    };
+    let source_counts = ReportSourceCounts {
+        sessions: 1,
+        events: events.len() as i64,
+        gates: gates.len() as i64,
         artifacts: artifacts.len() as i64,
     };
 
@@ -309,6 +322,7 @@ pub async fn session_report(
         trusted_status: session.trusted_status.clone(),
         markdown: md,
         summary,
+        source_counts,
     };
 
     if write_audit {
@@ -386,6 +400,38 @@ mod tests {
             .unwrap();
         assert!(doc.markdown.contains("cargo test"));
         assert_eq!(doc.trusted_status, "blocked");
+        assert_eq!(doc.source_counts.gates, 1);
+    }
+
+    #[tokio::test]
+    async fn project_report_archives_markdown() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("archive.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/archive-test".into(),
+                name: Some("ArchiveTest".into()),
+                description: None,
+                create_root: None,
+            })
+            .await
+            .unwrap();
+        let doc = project_report(&db, &project.id, ReportOptions::default(), false)
+            .await
+            .unwrap();
+        let archived = crate::report_archive::archive_report(&db, &doc, &project.id, None)
+            .await
+            .unwrap();
+        let raw: String = sqlx::query_scalar("SELECT metadata_json FROM artifacts WHERE id = ?")
+            .bind(&archived.id)
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
+        let meta: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta["markdown"].as_str(), Some(doc.markdown.as_str()));
+        assert!(meta["source_counts"]["gates"].is_number());
     }
 
     #[tokio::test]

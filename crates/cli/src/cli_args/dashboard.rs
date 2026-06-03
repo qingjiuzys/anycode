@@ -76,4 +76,16 @@ pub(crate) enum DashboardDbCommands {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    /// Remove projects whose root directory no longer exists
+    PruneProjects {
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "Apply deletions (cascades sessions/events for removed projects)"
+        )]
+        apply: bool,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
 }
