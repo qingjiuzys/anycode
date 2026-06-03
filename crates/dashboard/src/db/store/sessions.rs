@@ -405,6 +405,26 @@ impl DashboardDb {
             .context("session missing after create")
     }
 
+    pub async fn update_session_agent(
+        &self,
+        session_id: &str,
+        agent_type: Option<&str>,
+    ) -> Result<()> {
+        let Some(agent) = agent_type.map(str::trim).filter(|s| !s.is_empty()) else {
+            return Ok(());
+        };
+        sqlx::query(
+            r#"
+            UPDATE sessions SET agent_type = ? WHERE id = ?
+            "#,
+        )
+        .bind(agent)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn attach_task_to_session(
         &self,
         session_id: &str,

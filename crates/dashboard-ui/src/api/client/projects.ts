@@ -121,7 +121,10 @@ export const projectsClient = {
       `/api/projects/${encodeURIComponent(projectId)}/conversations/start`,
       body,
     ),
-  sendSessionMessage: (sessionId: string, body: { prompt: string }) =>
+  sendSessionMessage: (
+    sessionId: string,
+    body: { prompt: string; agent?: string; skills?: string[] },
+  ) =>
     post<{ ok: boolean; session_id: string; chat: WebChatResult }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/message`,
       body,

@@ -85,6 +85,8 @@ export function ConversationsPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(search.session ?? null);
   const [showStartForm, setShowStartForm] = useState(Boolean(search.agent));
   const [artifactsDrawerOpen, setArtifactsDrawerOpen] = useState(false);
+  const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(false);
   const { counts: pendingCounts, pendingTotal } = usePendingApprovalCounts();
   const active = activeChip(search);
 
@@ -408,7 +410,15 @@ export function ConversationsPage() {
 
       {rows.length > 0 && (
         <div className="flex flex-col flex-1 min-h-0 border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest">
-          <div className="lg:hidden flex items-center justify-end gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
+          <div className="lg:hidden flex items-center justify-between gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
+            <button
+              type="button"
+              className="dw-btn-secondary text-xs"
+              onClick={() => setSessionsDrawerOpen(true)}
+            >
+              <Icon name="forum" size={16} />
+              {t("conversations.sessionList")}
+            </button>
             <button
               type="button"
               className="dw-btn-secondary text-xs"
@@ -419,24 +429,54 @@ export function ConversationsPage() {
             </button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 min-h-[min(720px,calc(100vh-16rem))]">
-            <div className="lg:col-span-3 border-b lg:border-b-0 lg:border-r border-outline-variant flex flex-col min-h-0 max-h-[40vh] lg:max-h-none">
-              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-secondary border-b border-outline-variant bg-surface-container-low shrink-0">
-                {t("conversations.sessionList")} ({rows.length})
+            {!listCollapsed && (
+              <div className="hidden lg:flex lg:col-span-3 border-r border-outline-variant flex-col min-h-0">
+                <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-secondary border-b border-outline-variant bg-surface-container-low shrink-0 flex items-center justify-between gap-2">
+                  <span>
+                    {t("conversations.sessionList")} ({rows.length})
+                  </span>
+                  <button
+                    type="button"
+                    className="dw-btn-ghost p-1"
+                    title={t("conversations.listCollapse")}
+                    onClick={() => setListCollapsed(true)}
+                  >
+                    <Icon name="chevron_left" size={18} />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <ConversationSessionList
+                    sessions={rows}
+                    selectedId={selectedSessionId}
+                    onSelect={selectSession}
+                    pendingCounts={pendingCounts}
+                  />
+                </div>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <ConversationSessionList
-                  sessions={rows}
-                  selectedId={selectedSessionId}
-                  onSelect={selectSession}
-                  pendingCounts={pendingCounts}
+            )}
+            <div
+              className={`flex flex-col min-h-0 border-outline-variant ${
+                listCollapsed ? "lg:col-span-9 lg:border-r" : "lg:col-span-6 lg:border-r"
+              } min-h-[min(720px,calc(100vh-16rem))] lg:min-h-0`}
+            >
+              {listCollapsed && (
+                <div className="hidden lg:flex px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
+                  <button
+                    type="button"
+                    className="dw-btn-secondary text-xs"
+                    onClick={() => setListCollapsed(false)}
+                  >
+                    <Icon name="chevron_right" size={16} />
+                    {t("conversations.listExpand")}
+                  </button>
+                </div>
+              )}
+              <div className="flex-1 min-h-0 flex flex-col min-h-[360px] lg:min-h-0">
+                <ConversationThread
+                  session={selected}
+                  onFollowUpStarted={selectSession}
                 />
               </div>
-            </div>
-            <div className="lg:col-span-6 flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-outline-variant">
-              <ConversationThread
-                session={selected}
-                onFollowUpStarted={selectSession}
-              />
             </div>
             <div className="hidden lg:flex lg:col-span-3 flex-col min-h-0">
               <ConversationArtifactsPanel
@@ -446,6 +486,42 @@ export function ConversationsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {sessionsDrawerOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+            aria-label={t("common.back")}
+            onClick={() => setSessionsDrawerOpen(false)}
+          />
+          <div className="fixed inset-y-0 left-0 z-50 w-[min(100%,20rem)] lg:hidden shadow-xl">
+            <div className="h-full border-r border-outline-variant bg-surface-container-lowest flex flex-col">
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-secondary border-b border-outline-variant bg-surface-container-low shrink-0 flex items-center justify-between">
+                <span>{t("conversations.sessionList")}</span>
+                <button
+                  type="button"
+                  className="dw-btn-ghost p-1"
+                  onClick={() => setSessionsDrawerOpen(false)}
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <ConversationSessionList
+                  sessions={rows}
+                  selectedId={selectedSessionId}
+                  onSelect={(id) => {
+                    selectSession(id);
+                    setSessionsDrawerOpen(false);
+                  }}
+                  pendingCounts={pendingCounts}
+                />
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {artifactsDrawerOpen && (

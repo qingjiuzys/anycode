@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { api } from "@/api/client";
 import type { WebChatResult } from "@/api/client/projects";
-import { ConversationStartForm } from "@/components/ConversationStartForm";
+import { ConversationComposer } from "@/components/ConversationComposer";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
 
@@ -20,7 +20,8 @@ export function ProjectTriggerRunPanel({ projectId }: { projectId: string }) {
   return (
     <SectionCard title={t("projectDetail.triggerRun")}>
       <p className="text-xs text-secondary m-0 mb-3">{t("projectDetail.triggerRunHint")}</p>
-      <ConversationStartForm
+      <ConversationComposer
+        mode="start"
         projectId={projectId}
         compact
         onSuccess={({ chat }) => setLastChat(chat)}

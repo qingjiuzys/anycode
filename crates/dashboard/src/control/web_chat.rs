@@ -40,6 +40,12 @@ struct WebChatProcess {
 }
 
 impl WebChatHub {
+    /// Drop a cached REPL process so the next send respawns (e.g. agent profile changed).
+    pub async fn evict(&self, session_id: &str) {
+        self.sessions.lock().await.remove(session_id);
+        self.launch_locks.lock().await.remove(session_id);
+    }
+
     pub async fn send(
         &self,
         db: DashboardDb,

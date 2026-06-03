@@ -47,6 +47,13 @@ pub async fn send_session_message(
         )
             .into_response();
     }
+    if let Err(e) = crate::task_trigger::validate_skill_ids(body.skills.as_deref()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response();
+    }
     let session = match state.db.get_session(&session_id).await {
         Ok(Some(s)) => s,
         Ok(None) => {
@@ -122,6 +129,27 @@ pub async fn send_session_message(
         )
         .await;
     }
+    let requested_agent = body
+        .agent
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let session_agent = session.agent_type.trim();
+    let effective_agent = requested_agent.or_else(|| {
+        if session_agent.is_empty() {
+            None
+        } else {
+            Some(session_agent)
+        }
+    });
+    if requested_agent.is_some() && requested_agent != Some(session_agent) {
+        let _ = state
+            .db
+            .update_session_agent(&session_id, requested_agent)
+            .await;
+        state.web_chat.evict(&session_id).await;
+    }
+    let prompt_for_chat = crate::task_trigger::prompt_with_skills(prompt, body.skills.as_deref());
     let dashboard_url = dashboard_loopback_url(&state.host, state.port);
     match state
         .web_chat
@@ -129,9 +157,9 @@ pub async fn send_session_message(
             state.db.clone(),
             &session_id,
             &root,
-            Some(session.agent_type.as_str()),
+            effective_agent,
             &dashboard_url,
-            prompt,
+            &prompt_for_chat,
         )
         .await
     {
@@ -147,7 +175,11 @@ pub async fn send_session_message(
                     severity: Some("info".into()),
                     title: "User prompt".into(),
                     body: Some(prompt.chars().take(8000).collect()),
-                    payload: Some(json!({ "source": "web_chat" })),
+                    payload: Some(json!({
+                        "source": "web_chat",
+                        "agent": requested_agent,
+                        "skills": body.skills,
+                    })),
                 })
                 .await;
             Json(json!({ "ok": true, "session_id": session_id, "chat": chat })).into_response()

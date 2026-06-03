@@ -514,6 +514,57 @@ async fn projects_pagination_and_missing_root_create() {
 }
 
 #[tokio::test]
+async fn session_message_rejects_invalid_skills() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("message_skills.db");
+    let app = app_for_test(&db).await.unwrap();
+    let root = dir.path().join("skills-proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": root.display().to_string(),
+            "name": "Skills validation",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "chat",
+            "prompt_preview": "hi"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/sessions/{session_id}/message"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "prompt": "hello",
+                        "skills": ["bad skill id!!!"]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn session_transcript_api_returns_blocks() {
     let dir = tempdir().unwrap();
     let db = dir.path().join("transcript_api.db");

@@ -344,6 +344,10 @@ fn default_start_kind() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendConversationMessageRequest {
     pub prompt: String,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub skills: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -28,6 +28,8 @@ type StartProps = {
 
 type Props = FollowUpProps | StartProps;
 
+const SLASH_COMMANDS = ["help", "skills"] as const;
+
 function parseSkillAllowlist(skillsJson: string): string[] | null {
   if (!skillsJson.trim()) return null;
   try {
@@ -39,10 +41,26 @@ function parseSkillAllowlist(skillsJson: string): string[] | null {
   }
 }
 
+function parseMentionFilter(text: string): string | null {
+  const match = text.match(/@([\w.-]*)$/);
+  return match ? match[1] : null;
+}
+
+function parseSlashCommand(text: string): string | null {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith("/") || trimmed.includes("\n")) return null;
+  const body = trimmed.slice(1);
+  if (!body || /^[\w.-]*$/.test(body)) {
+    return body.toLowerCase();
+  }
+  return null;
+}
+
 export function ConversationComposer(props: Props) {
   const t = useT();
   const queryClient = useQueryClient();
   const titleTouched = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isStart = props.mode === "start";
   const session = props.mode === "follow-up" ? props.session : null;
@@ -57,12 +75,20 @@ export function ConversationComposer(props: Props) {
   );
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
 
   useEffect(() => {
     if (props.mode === "start" && props.initialAgent) {
       setAgent(props.initialAgent);
     }
   }, [props]);
+
+  useEffect(() => {
+    if (props.mode === "follow-up" && session?.agent_type) {
+      setAgent(session.agent_type);
+    }
+  }, [props.mode, session?.agent_type]);
 
   const agentProfiles = useQuery({
     queryKey: ["agent-profiles"],
@@ -87,9 +113,30 @@ export function ConversationComposer(props: Props) {
     setSelectedSkills((prev) => prev.filter((id) => skillOptions.includes(id)));
   }, [skillOptions]);
 
+  const mentionFilter = parseMentionFilter(message);
+  const mentionCandidates = useMemo(() => {
+    if (mentionFilter === null) return [];
+    const q = mentionFilter.toLowerCase();
+    return skillOptions
+      .filter((id) => id.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [mentionFilter, skillOptions]);
+
+  const slashQuery = parseSlashCommand(message);
+  const slashCandidates = useMemo(() => {
+    if (slashQuery === null) return [];
+    return SLASH_COMMANDS.filter(
+      (cmd) => cmd.startsWith(slashQuery) || slashQuery === "",
+    );
+  }, [slashQuery]);
+
+  useEffect(() => {
+    setMentionIndex(0);
+  }, [mentionFilter, slashQuery]);
+
   const sendFollowUp = useMutation({
-    mutationFn: (prompt: string) =>
-      api.sendSessionMessage(session!.id, { prompt: prompt.trim() }),
+    mutationFn: (payload: { prompt: string; agent?: string; skills?: string[] }) =>
+      api.sendSessionMessage(session!.id, payload),
     onSuccess: () => {
       setMessage("");
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
@@ -129,10 +176,51 @@ export function ConversationComposer(props: Props) {
     !pending &&
     (!isStart ? !running : true);
 
+  const showMentionMenu = mentionCandidates.length > 0 && mentionFilter !== null;
+  const showSlashMenu =
+    slashCandidates.length > 0 && slashQuery !== null && message.trimStart().startsWith("/");
+
   function toggleSkill(id: string) {
     setSelectedSkills((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
     );
+  }
+
+  function applyMention(skillId: string) {
+    setMessage((prev) => `${prev.replace(/@[\w.-]*$/, `@${skillId} `)}`);
+    setSelectedSkills((prev) => (prev.includes(skillId) ? prev : [...prev, skillId]));
+    setMentionIndex(0);
+    textareaRef.current?.focus();
+  }
+
+  function applySlash(cmd: (typeof SLASH_COMMANDS)[number]) {
+    if (cmd === "help") {
+      setMessage(t("conversations.slashHelpText"));
+      setSlashOpen(false);
+      return;
+    }
+    if (cmd === "skills") {
+      setMessage("");
+      setSkillsOpen(true);
+      setSlashOpen(false);
+    }
+  }
+
+  function buildFollowUpPayload(prompt: string) {
+    return {
+      prompt: prompt.trim(),
+      agent: agent.trim() || undefined,
+      skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+    };
+  }
+
+  function submitMessage() {
+    if (!canSend) return;
+    if (isStart) {
+      startSession.mutate();
+    } else {
+      sendFollowUp.mutate(buildFollowUpPayload(message));
+    }
   }
 
   function onMessageChange(value: string) {
@@ -140,24 +228,55 @@ export function ConversationComposer(props: Props) {
     if (isStart && !titleTouched.current) {
       setSessionTitle(value.trim().slice(0, 120));
     }
+    setSlashOpen(value.trimStart().startsWith("/"));
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSend) return;
-    if (isStart) {
-      startSession.mutate();
-    } else {
-      sendFollowUp.mutate(message.trim());
-    }
+    submitMessage();
   }
 
   const modelLabel =
     session?.model?.trim() ||
+    agent.trim() ||
     session?.agent_type?.trim() ||
     t("conversations.agentDefault");
 
   const error = isStart ? startSession.error : sendFollowUp.error;
+
+  function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const menu = showMentionMenu ? mentionCandidates : showSlashMenu ? slashCandidates : null;
+    if (menu && menu.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % menu.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + menu.length) % menu.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && menu.length > 0)) {
+        e.preventDefault();
+        if (showMentionMenu) {
+          applyMention(mentionCandidates[mentionIndex]!);
+        } else {
+          applySlash(slashCandidates[mentionIndex]! as (typeof SLASH_COMMANDS)[number]);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashOpen(false);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitMessage();
+    }
+  }
 
   return (
     <form className="dw-composer" onSubmit={onSubmit}>
@@ -205,7 +324,7 @@ export function ConversationComposer(props: Props) {
         </div>
       )}
 
-      <div className="dw-composer-input-wrap">
+      <div className="dw-composer-input-wrap relative">
         {running && (
           <p className="text-xs text-secondary m-0 mb-2 flex items-center gap-2">
             <span className="inline-flex gap-1">
@@ -216,28 +335,58 @@ export function ConversationComposer(props: Props) {
             {t("conversations.waitingForModel")}
           </p>
         )}
+        {(showMentionMenu || (showSlashMenu && slashOpen)) && (
+          <div className="absolute bottom-full left-0 right-0 mb-1 z-20 rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg overflow-hidden">
+            {showMentionMenu &&
+              mentionCandidates.map((id, idx) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-xs font-code hover:bg-surface-container-low ${
+                    idx === mentionIndex ? "bg-surface-container-low" : ""
+                  }`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applyMention(id);
+                  }}
+                >
+                  @{id}
+                </button>
+              ))}
+            {showSlashMenu &&
+              slashOpen &&
+              slashCandidates.map((cmd, idx) => (
+                <button
+                  key={cmd}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low ${
+                    idx === mentionIndex ? "bg-surface-container-low" : ""
+                  }`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applySlash(cmd);
+                  }}
+                >
+                  /{cmd} — {t(`conversations.slashCmd.${cmd}`)}
+                </button>
+              ))}
+          </div>
+        )}
         <textarea
+          ref={textareaRef}
           className="dw-composer-textarea"
           placeholder={
             running
               ? t("conversations.composePlaceholderRunning")
               : isStart
-                ? t("projectDetail.triggerPromptPlaceholder")
+                ? t("conversations.composePlaceholderStart")
                 : t("conversations.composePlaceholder")
           }
           value={message}
           onChange={(e) => onMessageChange(e.target.value)}
           disabled={running || pending}
           rows={isStart ? 4 : 3}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              if (canSend) {
-                if (isStart) startSession.mutate();
-                else sendFollowUp.mutate(message.trim());
-              }
-            }
-          }}
+          onKeyDown={onComposerKeyDown}
         />
       </div>
 
@@ -251,8 +400,8 @@ export function ConversationComposer(props: Props) {
             className="dw-input text-xs py-1 max-w-[10rem]"
             value={agent}
             onChange={(e) => setAgent(e.target.value)}
-            disabled={running || pending || !isStart}
-            title={!isStart ? t("conversations.agentReadOnlyHint") : undefined}
+            disabled={running || pending}
+            title={t("conversations.agentFollowUpHint")}
           >
             <option value="">{t("conversations.agentDefault")}</option>
             {(agentProfiles.data?.profiles ?? []).map((p) => (
@@ -268,8 +417,7 @@ export function ConversationComposer(props: Props) {
                 type="button"
                 className="dw-btn-secondary text-xs py-1"
                 onClick={() => setSkillsOpen((v) => !v)}
-                disabled={running || pending || !isStart}
-                title={!isStart ? t("conversations.skillsReadOnlyHint") : undefined}
+                disabled={running || pending}
               >
                 <Icon name="extension" size={14} />
                 {t("conversations.skillsPicker")}
@@ -279,7 +427,7 @@ export function ConversationComposer(props: Props) {
                   </span>
                 )}
               </button>
-              {skillsOpen && isStart && (
+              {skillsOpen && (
                 <div className="absolute bottom-full left-0 mb-1 z-20 min-w-[14rem] max-w-[20rem] max-h-48 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg p-2">
                   {skillOptions.map((id) => (
                     <label
