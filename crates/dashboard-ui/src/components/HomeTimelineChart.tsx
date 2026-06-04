@@ -2,7 +2,13 @@ import ReactECharts from "echarts-for-react";
 import type { GlobalTimelineMetrics } from "@/api/types";
 import { useT } from "@/i18n/context";
 
-export function HomeTimelineChart({ timeline }: { timeline?: GlobalTimelineMetrics }) {
+export function HomeTimelineChart({
+  timeline,
+  tall,
+}: {
+  timeline?: GlobalTimelineMetrics;
+  tall?: boolean;
+}) {
   const t = useT();
   if (!timeline || timeline.points.length === 0) {
     return <p className="text-sm text-secondary px-4 py-6 m-0">{t("charts.noTimeline")}</p>;
@@ -20,7 +26,7 @@ export function HomeTimelineChart({ timeline }: { timeline?: GlobalTimelineMetri
       data: [t("charts.sessions"), t("charts.events")],
       textStyle: { color: "#505f76" },
     },
-    grid: { left: 36, right: 16, top: 36, bottom: 28 },
+    grid: { left: 40, right: 12, top: 40, bottom: 32 },
     xAxis: {
       type: "category",
       data: dates,
@@ -59,8 +65,8 @@ export function HomeTimelineChart({ timeline }: { timeline?: GlobalTimelineMetri
           {trend.toFixed(1)}% {t("charts.throughputTrend")}
         </span>
       </div>
-      <div className="h-44 px-2 pb-2">
-        <ReactECharts option={option} style={{ height: "100%" }} />
+      <div className={`px-2 pb-3 ${tall ? "h-52 sm:h-56" : "h-44"}`}>
+        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
       </div>
     </div>
   );

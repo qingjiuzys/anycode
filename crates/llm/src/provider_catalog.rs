@@ -135,9 +135,9 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
     ProviderCatalogEntry {
         id: "deepseek",
         label: "DeepSeek",
-        hint: Some("OpenAI 兼容"),
+        hint: Some("V4 Pro/Flash · OpenAI 兼容 · api-docs.deepseek.com"),
         transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: Some("https://api.deepseek.com/v1/chat/completions"),
+        suggested_openai_base: Some("https://api.deepseek.com/chat/completions"),
         placeholder_only: false,
     },
     ProviderCatalogEntry {

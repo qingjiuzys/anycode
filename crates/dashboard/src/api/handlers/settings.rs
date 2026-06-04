@@ -140,10 +140,14 @@ fn active_preferences(state: &AppState) -> crate::schema::DashboardPreferences {
         port: state.port,
         db_path: state.db.path().display().to_string(),
         asset_read_strict: false,
+        report_output_format: crate::schema::default_report_output_format(),
+        report_generation_mode: crate::schema::default_report_generation_mode_pref(),
         updated_at: state.started_at.clone(),
     };
     if let Some(saved) = crate::preferences::load_preferences() {
         prefs.asset_read_strict = saved.asset_read_strict;
+        prefs.report_output_format = saved.report_output_format;
+        prefs.report_generation_mode = saved.report_generation_mode;
     }
     prefs
 }
@@ -184,6 +188,10 @@ pub struct PutDashboardPreferences {
     pub db_path: String,
     #[serde(default)]
     pub asset_read_strict: bool,
+    #[serde(default = "crate::schema::default_report_output_format")]
+    pub report_output_format: String,
+    #[serde(default = "crate::schema::default_report_generation_mode_pref")]
+    pub report_generation_mode: String,
 }
 
 pub async fn put_dashboard_preferences(
@@ -214,11 +222,21 @@ pub async fn put_dashboard_preferences(
             .into_response();
     }
 
+    let output_format = match body.report_output_format.as_str() {
+        "html" | "both" => body.report_output_format.as_str(),
+        _ => "markdown",
+    };
+    let generation_mode = match body.report_generation_mode.as_str() {
+        "template" => "template",
+        _ => "llm",
+    };
     let prefs = crate::schema::DashboardPreferences {
         host: host.into(),
         port: body.port,
         db_path: db_path.into(),
         asset_read_strict: body.asset_read_strict,
+        report_output_format: output_format.into(),
+        report_generation_mode: generation_mode.into(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
 

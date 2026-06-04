@@ -18,9 +18,12 @@ export function PageHeader({
   breadcrumbs?: BreadcrumbItem[];
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="dw-page-header flex flex-col gap-2">
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex flex-wrap items-center gap-1 text-xs text-secondary" aria-label="Breadcrumb">
+        <nav
+          className="dw-page-header-breadcrumbs flex flex-wrap items-center gap-1 text-xs text-secondary"
+          aria-label="Breadcrumb"
+        >
           {breadcrumbs.map((item, i) => (
             <span key={`${item.label}-${i}`} className="inline-flex items-center gap-1">
               {i > 0 && <Icon name="chevron_right" size={14} className="text-outline" />}
@@ -35,8 +38,8 @@ export function PageHeader({
           ))}
         </nav>
       )}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
+      <div className="dw-page-header-row flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="dw-page-header-intro flex flex-col gap-1 min-w-0">
           <h1 className="text-2xl font-bold text-on-surface tracking-tight">{title}</h1>
           {subtitle && <p className="text-sm text-secondary">{subtitle}</p>}
           {meta && (
@@ -45,7 +48,11 @@ export function PageHeader({
             </div>
           )}
         </div>
-        {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
+        {actions && (
+          <div className="dw-page-header-actions flex items-center gap-2 flex-wrap shrink-0">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );

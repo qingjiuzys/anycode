@@ -50,8 +50,18 @@ read_when:
 - Links into the repo **`crates/`** tree from Markdown are allowed via **`ignoreDeadLinks`** in `config.ts` because those paths are outside the VitePress root; they are meant for GitHub browsing.  
 - Optional: install [lychee](https://github.com/lycheeverse/lychee) or run a small script in CI later; not required for the default workflow.
 
+## Product docs (user-facing pages)
+
+Main sidebar pages (`workbench`, `cli`, `cli-scheduler`, `troubleshooting`, `getting-started`) should read like a **product guide**, not an internal manual:
+
+- Start with **what you can do**, then **3 steps**, then **something wrong?** (table).
+- Use Workbench sidebar names (Overview, Projects, Automations, …).
+- Avoid Rust crate names, feature flags, and raw config paths unless under **Learn more**.
+
+Technical reference stays in collapsed sidebar sections or legacy pages (`hubs`, `architecture`, …).
+
 ## Contributing doc edits
 
-1. Match the existing tone and keep EN/zh **symmetric** where the plan calls for it.  
-2. After edits, run **`npm run build`** from `docs-site/`.  
+1. Match the product tone above; keep EN/zh **symmetric** for core pages.  
+2. After edits, run **`npm run build`** from `docs-site/` (CI uses `VITEPRESS_BASE=/anycode/`).  
 3. For Rust cross-links, prefer stable crate paths and keep **`ignoreDeadLinks`** accurate.

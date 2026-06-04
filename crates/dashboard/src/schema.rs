@@ -20,7 +20,8 @@ pub struct ProjectSummary {
     pub name: String,
     pub root_path: String,
     pub status: String,
-    pub trust_score: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_score: Option<f64>,
     pub sessions_count: i64,
     pub artifacts_count: i64,
     pub updated_at: String,
@@ -70,7 +71,8 @@ pub struct ProjectDetail {
     pub description: String,
     pub business_goal: String,
     pub status: String,
-    pub trust_score: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_score: Option<f64>,
     pub automation_level: i32,
     pub created_at: String,
     pub updated_at: String,
@@ -405,6 +407,52 @@ pub struct ReportSourceCounts {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportHighlights {
+    pub trust_verified: i64,
+    pub trust_unverified: i64,
+    pub trust_blocked: i64,
+    pub failures_unique: i64,
+    pub verdict: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportSessionRow {
+    pub session_id: String,
+    pub title: String,
+    pub kind: String,
+    pub status: String,
+    pub trusted_status: String,
+    pub started_at: String,
+    #[serde(default)]
+    pub is_imported: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportFailureGroup {
+    pub title: String,
+    pub event_type: String,
+    pub count: i64,
+    pub last_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportGateRow {
+    pub name: String,
+    pub status: String,
+    pub required: bool,
+    pub output_excerpt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportArtifactRow {
+    pub path: String,
+    pub kind: String,
+    pub trust_level: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportDocument {
     pub scope: String,
     pub id: String,
@@ -413,8 +461,47 @@ pub struct ReportDocument {
     pub generated_at: String,
     pub trusted_status: String,
     pub markdown: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    #[serde(default = "default_report_generation_mode")]
+    pub generation_mode: String,
     pub summary: ReportSummary,
     pub source_counts: ReportSourceCounts,
+    #[serde(default = "default_report_lang")]
+    pub lang: String,
+    pub highlights: ReportHighlights,
+    #[serde(default)]
+    pub sessions_recent: Vec<ReportSessionRow>,
+    #[serde(default)]
+    pub sessions_imported_count: i64,
+    #[serde(default)]
+    pub failure_groups: Vec<ReportFailureGroup>,
+    #[serde(default)]
+    pub gates: Vec<ReportGateRow>,
+    #[serde(default)]
+    pub artifacts: Vec<ReportArtifactRow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_path: Option<String>,
+    #[serde(default)]
+    pub events_sample_limit: i64,
+}
+
+fn default_report_lang() -> String {
+    "en".into()
+}
+
+fn default_report_generation_mode() -> String {
+    "template".into()
+}
+
+pub fn default_report_output_format() -> String {
+    "markdown".into()
+}
+
+pub fn default_report_generation_mode_pref() -> String {
+    "llm".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -821,6 +908,10 @@ pub struct DashboardPreferences {
     pub db_path: String,
     #[serde(default)]
     pub asset_read_strict: bool,
+    #[serde(default = "default_report_output_format")]
+    pub report_output_format: String,
+    #[serde(default = "default_report_generation_mode_pref")]
+    pub report_generation_mode: String,
     #[serde(default = "chrono_now")]
     pub updated_at: String,
 }

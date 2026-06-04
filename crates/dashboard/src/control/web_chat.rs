@@ -11,7 +11,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
-use tokio::process::{ChildStdin, Command};
+use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::Mutex;
 
 const SPAWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -37,13 +37,20 @@ struct WebChatProcess {
     log_path: PathBuf,
     started_at: String,
     stdin: ChildStdin,
+    child: Arc<Mutex<Option<Child>>>,
 }
 
 impl WebChatHub {
-    /// Drop a cached REPL process so the next send respawns (e.g. agent profile changed).
+    /// Terminate a cached REPL and drop hub state (e.g. agent profile changed or session cancelled).
     pub async fn evict(&self, session_id: &str) {
-        self.sessions.lock().await.remove(session_id);
+        let entry = self.sessions.lock().await.remove(session_id);
         self.launch_locks.lock().await.remove(session_id);
+        if let Some(entry) = entry {
+            let _ = crate::cancel_ipc::request_cancel(session_id);
+            if let Ok(proc) = entry.try_lock() {
+                terminate_child(&proc.child).await;
+            }
+        }
     }
 
     pub async fn send(
@@ -158,13 +165,17 @@ impl WebChatHub {
             .stdin
             .take()
             .ok_or_else(|| anyhow::anyhow!("web chat stdin unavailable"))?;
+        let child_handle = Arc::new(Mutex::new(Some(child)));
         let started_at = chrono::Utc::now().to_rfc3339();
         let watch_session_id = session_id.clone();
         let watch_log = log_path.clone();
         let watch_sessions = self.sessions.clone();
         let watch_launch_locks = self.launch_locks.clone();
+        let watch_child = child_handle.clone();
         tokio::spawn(async move {
-            let _ = child.wait().await;
+            if let Some(mut child) = watch_child.lock().await.take() {
+                let _ = child.wait().await;
+            }
             remove_finished_process(&watch_sessions, &watch_session_id, pid).await;
             watch_launch_locks.lock().await.remove(&watch_session_id);
             let summary = crate::db::read_log_excerpt(&watch_log).unwrap_or_else(|| {
@@ -186,7 +197,15 @@ impl WebChatHub {
             log_path,
             started_at,
             stdin,
+            child: child_handle,
         })
+    }
+}
+
+async fn terminate_child(child: &Arc<Mutex<Option<Child>>>) {
+    if let Some(mut proc) = child.lock().await.take() {
+        let _ = proc.kill().await;
+        let _ = proc.wait().await;
     }
 }
 

@@ -1,69 +1,39 @@
 ---
-title: Cron & scheduler
-description: CronCreate persistence, anycode scheduler, and single-instance lock.
-summary: orchestration.json, scheduler.lock, IM bridges try to embed the scheduler vs standalone CLI.
-read_when:
-  - You want scheduled agent tasks similar to OpenClaw orchestration.
+title: Scheduled reminders
+description: Create jobs with plain language and monitor runs in the Workbench.
 ---
 
-# Cron & built-in scheduler
+# Scheduled reminders
 
-## What exists
+Have anyCode do something on a schedule—daily status summaries, recurring checks, and similar.
 
-1. **`CronCreate` / `CronDelete` / `CronList`** (tools): persist cron rows under **`~/.anycode/tasks/orchestration.json`**. Expression format follows the **`cron`** crate (6 fields: `sec min hour day month weekday`; 5-field Unix-style is accepted with `0` seconds — see **`crates/cli/src/scheduler.rs`** `normalize_cron_schedule_expr`). On success, **`CronCreate`** also returns **`next_fire_utc`** and **`next_fire_local`** when the expression parses (handy to verify IM-scheduled reminders before the first tick). **`schedule_timezone`** accepts **`local`** (default), **`utc`** / **`utc0`**, or an **IANA** name (e.g. `Asia/Shanghai`) for wall-clock conversion before UTC storage.
-2. **`anycode scheduler`**: long-running CLI that reads the same JSON and fires each **`command`** as a one-shot agent task with the **`--directory`** working directory (`crates/cli/src/scheduler.rs`).
+## Recommended: create in the Workbench
 
-Saving a job **does not** run it unless a scheduler loop is active.
+1. Open the [Workbench](./dashboard) → **Automations**.
+2. Under **Create scheduled task**:
+   - **Natural language schedule** — e.g. “every day at 8am”, then **Parse → cron**.
+   - **What to do** — one clear sentence, e.g. “Remind me to review open PRs.”
+3. Click **Create job**.
 
-## Single-instance lock (`scheduler.lock`)
+Check **Registered jobs** and **Recent triggers**; use **Retry now** on failures.
 
-Only **one** scheduler loop should tick on a machine: **`~/.anycode/tasks/scheduler.lock`** (exclusive advisory lock).
+## Keep something running
 
-- If **`anycode scheduler`** is already running, a second `anycode scheduler` exits quietly (log: lock busy).
-- **WeChat, Telegram, and Discord** bridges **try** to embed the same built-in scheduler on startup (`tokio::spawn` → `run_builtin_scheduler`). Lock behaviour is identical: first process wins; the others skip embedding silently. Chat still runs, but **cron will only fire if some process holds the lock**.
+Triggers need a local scheduler:
 
-## Standalone `anycode scheduler` (optional)
+- With the **desktop app**, keep anyCode running.
+- Terminal-only setups need the scheduler started as described in [Install](./install).
 
-Run in a terminal, **tmux**, **systemd user unit**, or **macOS LaunchAgent** — same binary as the CLI.
+## Failure notifications (optional)
 
-**Example (systemd user, Linux)** — adjust paths and `WorkingDirectory`:
+When creating a job, you can set a failure destination (e.g. WeChat or webhook).
 
-```ini
-[Unit]
-Description=anyCode builtin cron scheduler
-After=network-online.target
+## Something wrong?
 
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/anycode scheduler -C /path/to/workspace --reload-secs 30
-Restart=on-failure
+| Symptom | Try |
+|---------|-----|
+| Never runs | Ensure scheduler/desktop app is up; check run history |
+| Wrong time | Fix timezone; re-parse the schedule |
+| Wrong output | Make the task description more specific; open the linked session |
 
-[Install]
-WantedBy=default.target
-```
-
-**Example (LaunchAgent plist fragment, macOS)** — run `anycode` from your install path:
-
-```xml
-<key>ProgramArguments</key>
-<array>
-  <string>/usr/local/bin/anycode</string>
-  <string>scheduler</string>
-  <string>-C</string>
-  <string>/path/to/workspace</string>
-  <string>--reload-secs</string>
-  <string>30</string>
-</array>
-```
-
-Do **not** start two schedulers on the same machine without understanding the lock: the second will no-op.
-
-## Channel mode (WeChat / Telegram / Discord)
-
-The **`workspace-assistant`** agent exposes **`CronCreate` / `CronDelete` / `CronList`** so users can register jobs from chat.
-
-**Scheduler loop:** only **one** process per machine should own **`~/.anycode/tasks/scheduler.lock`** and tick jobs. The **WeChat**, **Telegram**, and **Discord** long-running bridges each **try to embed** the same built-in scheduler on startup (`tokio::spawn` → `run_builtin_scheduler`). If **`anycode scheduler`** is already running (or another bridge grabbed the lock first), the embed **exits quietly** — you still get chat, but **cron will not fire** unless some process holds the lock.
-
-If you prefer a **dedicated** scheduler process, run **`anycode scheduler`** and treat the bridge embed as a no-op when the lock is busy.
-
-Chinese: [定时任务与调度器](/zh/guide/cli-scheduler).
+简体中文: [定时提醒](/zh/guide/cli-scheduler).

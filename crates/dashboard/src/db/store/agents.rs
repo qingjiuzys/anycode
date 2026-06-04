@@ -1,6 +1,6 @@
 use super::*;
-use anycode_agent::BUILTIN_AGENT_SEED;
-use serde_json::Value;
+use anycode_agent::{profile_spec_for_builtin, AgentProfileSpec, BUILTIN_AGENT_SEED};
+use serde_json::{json, Value};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AgentProfileRecord {
@@ -176,15 +176,35 @@ impl DashboardDb {
     pub async fn seed_builtin_agent_profiles(&self) -> Result<usize> {
         let mut n = 0usize;
         for seed in BUILTIN_AGENT_SEED {
+            let spec = profile_spec_for_builtin(seed.id).unwrap_or(AgentProfileSpec {
+                extends: seed.extends.to_string(),
+                description: Some(seed.description.to_string()),
+                tools_allow: None,
+                tools_deny: None,
+                skills_allowlist: None,
+                prompt_overlay: None,
+            });
+            let tools_json = if spec.tools_allow.is_some() || spec.tools_deny.is_some() {
+                Some(json!({
+                    "allow": spec.tools_allow,
+                    "deny": spec.tools_deny,
+                }))
+            } else {
+                None
+            };
+            let skills_json = spec
+                .skills_allowlist
+                .as_ref()
+                .map(|list| json!({ "allowlist": list }));
             self.upsert_agent_profile(
                 seed.id,
                 &UpsertAgentProfileRequest {
-                    extends: seed.extends.to_string(),
-                    description: Some(seed.description.to_string()),
-                    tools_json: None,
-                    skills_json: None,
+                    extends: spec.extends,
+                    description: spec.description,
+                    tools_json,
+                    skills_json,
                     routing_json: None,
-                    prompt_overlay: None,
+                    prompt_overlay: spec.prompt_overlay,
                     scope: Some("global".into()),
                     project_id: None,
                 },

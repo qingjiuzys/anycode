@@ -579,8 +579,9 @@ impl DashboardDb {
             .execute(&self.pool)
             .await?;
         self.sync_session_artifact_trust(session_id, status).await?;
-        if status == crate::db::trusted::TrustedStatus::Blocked {
-            if let Some(sess) = self.get_session(session_id).await? {
+        if let Some(sess) = self.get_session(session_id).await? {
+            self.refresh_project_trust_score(&sess.project_id).await?;
+            if status == crate::db::trusted::TrustedStatus::Blocked {
                 let _ = crate::automation_policy::handle_trust_blocked(
                     self,
                     &sess.project_id,

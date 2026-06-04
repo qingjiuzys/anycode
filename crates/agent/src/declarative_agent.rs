@@ -20,10 +20,6 @@ impl ProfileAgent {
             model_config,
         }
     }
-
-    pub fn profile(&self) -> &ResolvedAgentProfile {
-        &self.profile
-    }
 }
 
 #[async_trait]

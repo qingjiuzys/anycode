@@ -16,7 +16,6 @@ import type {
   SkillRecord,
   TokenUsageDetail,
   TokenUsageStats,
-  TriggerRunResult,
 } from "../types";
 import { del, get, patch, post, put } from "../http";
 import type { EventListOpts, ProjectsListOpts } from "./shared";
@@ -93,19 +92,6 @@ export const projectsClient = {
       `/api/projects/${encodeURIComponent(projectId)}/gates/execute`,
       body,
     ),
-  triggerProjectRun: (
-    projectId: string,
-    body: {
-      prompt: string;
-      kind?: "run" | "goal";
-      goal?: string;
-      agent?: string;
-    },
-  ) =>
-    post<{ trigger: TriggerRunResult }>(
-      `/api/projects/${encodeURIComponent(projectId)}/runs/trigger`,
-      body,
-    ),
   startConversation: (
     projectId: string,
     body: {
@@ -128,10 +114,6 @@ export const projectsClient = {
     post<{ ok: boolean; session_id: string; chat: WebChatResult }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/message`,
       body,
-    ),
-  listProjectTriggers: (projectId: string, limit = 10) =>
-    get<{ triggers: TriggerRunResult[] }>(
-      `/api/projects/${encodeURIComponent(projectId)}/runs/triggers?limit=${limit}`,
     ),
   indexProjectAssets: (projectId: string) =>
     post<{ ok: boolean; result: IndexAssetsResult }>(
@@ -197,8 +179,10 @@ export const projectsClient = {
     }>(
       `/api/projects/${projectId}/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
-  projectReport: (projectId: string) =>
-    get<{ report: ReportDocument }>(`/api/projects/${projectId}/report`),
+  projectReport: (projectId: string, lang?: string) =>
+    get<{ report: ReportDocument }>(
+      `/api/projects/${projectId}/report${lang ? `?lang=${encodeURIComponent(lang)}` : ""}`,
+    ),
   patchProjectStatus: (projectId: string, status: string) =>
     patch<{ ok: boolean; project_id: string; status: string }>(
       `/api/projects/${encodeURIComponent(projectId)}/status`,

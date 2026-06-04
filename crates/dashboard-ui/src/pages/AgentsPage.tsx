@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { SkillSuggestionsPanel } from "@/components/SkillSuggestionsPanel";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { builtinAgentMeta } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
 
 function aggregateAgentStats(agents: AgentUsageStat[]): AgentUsageStat[] {
@@ -51,6 +51,15 @@ function aggregateAgentStats(agents: AgentUsageStat[]): AgentUsageStat[] {
     .sort((a, b) => b.sessions_count - a.sessions_count);
 }
 
+function formatShortTime(iso: string | null): string {
+  if (!iso) return "—";
+  const normalized = iso.includes("T") ? iso : iso.replace(" ", "T");
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function AgentsPage() {
   const t = useT();
   const queryClient = useQueryClient();
@@ -62,16 +71,33 @@ export function AgentsPage() {
     queryKey: ["skills"],
     queryFn: () => api.skills(80),
   });
+  const suggestions = useQuery({
+    queryKey: ["skill-suggestions"],
+    queryFn: api.skillSuggestions,
+  });
   const rescan = useMutation({
     mutationFn: api.rescanSkills,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skills"] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+      queryClient.invalidateQueries({ queryKey: ["skill-suggestions"] });
+    },
+  });
+  const installStarter = useMutation({
+    mutationFn: api.installStarterSkills,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["skills"] });
+      queryClient.invalidateQueries({ queryKey: ["skill-suggestions"] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
     },
   });
 
   const agentRows = aggregateAgentStats(stats.data?.agents ?? []);
   const skillList = skills.data?.skills ?? [];
+  const missingStarter = suggestions.data?.missing_starter ?? [];
+  const totalSessions = agentRows.reduce((n, r) => n + r.sessions_count, 0);
+  const activeAgentTypes = agentRows.filter((r) => r.sessions_count > 0).length;
+  const maxSessions = Math.max(1, ...agentRows.map((r) => r.sessions_count));
 
   return (
     <>
@@ -83,124 +109,288 @@ export function AgentsPage() {
           { label: t("agents.title") },
         ]}
         actions={
-          <div className="dw-inline-links">
-            <Link to="/settings" search={{ section: "agents" }} className="dw-inline-link">
+          <nav className="dw-agents-quick-nav" aria-label={t("agents.configureTitle")}>
+            <Link to="/settings" search={{ section: "agents" }} className="dw-agents-quick-nav__item">
               <Icon name="tune" size={16} />
               {t("agents.configLink")}
             </Link>
-            <Link to="/settings" search={{ section: "model" }} className="dw-inline-link">
+            <Link to="/settings" search={{ section: "model" }} className="dw-agents-quick-nav__item">
               <Icon name="route" size={16} />
               {t("agents.routingLink")}
             </Link>
-            <Link to="/settings" search={{ section: "skills" }} className="dw-inline-link">
+            <Link to="/settings" search={{ section: "skills" }} className="dw-agents-quick-nav__item">
               <Icon name="extension" size={16} />
               {t("agents.skillsLink")}
             </Link>
-          </div>
+          </nav>
         }
       />
 
-      <AgentRoleCards agents={stats.data?.agents ?? []} />
+      <div className="dw-agents-page">
+        <div className="dw-agents-kpi-strip">
+          <KpiChip
+            icon="extension"
+            label={t("agents.skills")}
+            value={skills.isLoading ? "…" : String(skillList.length)}
+          />
+          <KpiChip
+            icon="smart_toy"
+            label={t("agents.summaryActiveAgents")}
+            value={String(activeAgentTypes)}
+          />
+          <KpiChip
+            icon="forum"
+            label={t("agents.summarySessions")}
+            value={String(totalSessions)}
+            highlight
+          />
+          <KpiChip
+            icon="folder"
+            label={t("agents.summaryPaths")}
+            value="2"
+            hint={t("agents.summaryPathsHint")}
+          />
+        </div>
 
-      <SkillSuggestionsPanel />
+        <SkillSuggestionsPanel />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title={t("agents.agentStats")}>
-          {stats.isLoading ? (
-            <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
-          ) : agentRows.length === 0 ? (
-            <EmptyState title={t("agents.emptyUsage")} icon="smart_toy" />
-          ) : (
-            <div className="space-y-2">
-              {agentRows.map((row) => (
-                <div
-                  key={row.agent_type}
-                  className="flex items-center gap-3 rounded-xl bg-surface-container-low px-3 py-2.5"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-surface-container-high text-secondary flex items-center justify-center shrink-0">
-                    <Icon name="smart_toy" size={18} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate">{row.agent_type}</div>
-                    <div className="text-xs text-secondary font-code truncate">{row.model}</div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold tabular-nums">{row.sessions_count}</div>
-                    <div className="text-[11px] text-secondary">{t("agents.sessionsShort")}</div>
-                  </div>
-                  <div className="hidden sm:block text-xs text-secondary shrink-0 w-36 text-right truncate">
-                    {row.last_started_at ?? "—"}
-                  </div>
+        <div className="dw-agents-split">
+          <section className="dw-agents-panel" aria-labelledby="agents-builtin-heading">
+            <header className="dw-agents-panel__head">
+              <h2 id="agents-builtin-heading" className="dw-agents-panel__title">
+                {t("agents.builtinCards")}
+              </h2>
+            </header>
+            <div className="dw-agents-panel__body dw-agents-panel__body--flush-x">
+              <AgentRoleCards agents={stats.data?.agents ?? []} />
+            </div>
+
+            <header className="dw-agents-panel__head dw-agents-panel__head--sub">
+              <h3 className="dw-agents-panel__title">{t("agents.agentStats")}</h3>
+              {agentRows[0] && (
+                <span className="dw-agents-panel__meta font-code">{agentRows[0].agent_type}</span>
+              )}
+            </header>
+            <div className="dw-agents-panel__body">
+              {stats.isLoading ? (
+                <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+              ) : agentRows.length === 0 ? (
+                <EmptyState
+                  title={t("agents.emptyUsage")}
+                  icon="smart_toy"
+                  compact
+                  actions={
+                    <Link to="/conversations" className="dw-btn-primary text-sm no-underline">
+                      <Icon name="chat" size={16} />
+                      {t("agents.startConversation")}
+                    </Link>
+                  }
+                />
+              ) : (
+                <ul className="dw-agents-stat-list m-0 p-0 list-none">
+                  {agentRows.map((row, index) => (
+                    <AgentStatRow
+                      key={row.agent_type}
+                      row={row}
+                      maxSessions={maxSessions}
+                      top={index === 0 && row.sessions_count > 0}
+                      topLabel={t("agents.topAgent")}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          <section className="dw-agents-panel" aria-labelledby="agents-skills-heading">
+            <header className="dw-agents-panel__head">
+              <div>
+                <h2 id="agents-skills-heading" className="dw-agents-panel__title">
+                  {t("agents.skills")}
+                </h2>
+                {!skills.isLoading && (
+                  <p className="dw-agents-panel__sub m-0">
+                    {skillList.length > 0
+                      ? t("agents.skillsSyncedCount").replace("{n}", String(skillList.length))
+                      : t("agents.skillsSyncedNone")}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="dw-btn-secondary text-sm shrink-0"
+                disabled={rescan.isPending}
+                onClick={() => rescan.mutate()}
+              >
+                <Icon name="refresh" size={16} />
+                {rescan.isPending ? t("agents.rescanning") : t("agents.rescan")}
+              </button>
+            </header>
+
+            <div className="dw-agents-panel__body dw-agents-panel__body--list">
+              {rescan.isSuccess && (
+                <p className="dw-agents-toast m-0" role="status">
+                  <Icon name="check_circle" size={16} className="text-success" />
+                  {t("agents.rescanSuccess").replace("{n}", String(rescan.data.skills_synced))}
+                </p>
+              )}
+              {skills.isLoading ? (
+                <p className="text-sm text-secondary m-0 px-4 py-6">{t("common.loading")}</p>
+              ) : skillList.length === 0 ? (
+                <div className="px-4 py-2">
+                  <EmptyState
+                    title={t("agents.emptySkillsTitle")}
+                    description={t("agents.emptySkills")}
+                    icon="extension"
+                    compact
+                    actions={
+                      <>
+                        {missingStarter.length > 0 && (
+                          <button
+                            type="button"
+                            className="dw-btn-primary text-sm"
+                            disabled={installStarter.isPending}
+                            onClick={() => installStarter.mutate()}
+                          >
+                            <Icon name="download" size={16} />
+                            {installStarter.isPending
+                              ? t("agents.rescanning")
+                              : t("agents.installStarterBtn")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="dw-btn-secondary text-sm"
+                          disabled={rescan.isPending}
+                          onClick={() => rescan.mutate()}
+                        >
+                          <Icon name="refresh" size={16} />
+                          {t("agents.rescan")}
+                        </button>
+                      </>
+                    }
+                  />
                 </div>
-              ))}
+              ) : (
+                <ul className="dw-agents-skill-list m-0 p-0 list-none">
+                  {skillList.map((skill) => (
+                    <SkillRow
+                      key={skill.id}
+                      skill={skill}
+                      projectsLabel={t("agents.projectsCount")}
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title={t("agents.skills")}
-          action={
-            <button
-              type="button"
-              className="dw-btn-ghost"
-              disabled={rescan.isPending}
-              onClick={() => rescan.mutate()}
-            >
-              <Icon name="refresh" size={16} />
-              {rescan.isPending ? t("agents.rescanning") : t("agents.rescan")}
-            </button>
-          }
-        >
-          {rescan.isSuccess && (
-            <p className="text-sm text-secondary m-0 mb-3">
-              {t("agents.rescanSuccess").replace("{n}", String(rescan.data.skills_synced))}
-            </p>
-          )}
-          {skills.isLoading ? (
-            <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
-          ) : skillList.length === 0 ? (
-            <EmptyState
-              title={t("agents.emptySkillsTitle")}
-              description={t("agents.emptySkills")}
-              icon="extension"
-            />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {skillList.map((skill) => (
-                <SkillTile key={skill.id} skill={skill} projectsLabel={t("agents.projectsCount")} />
-              ))}
-            </div>
-          )}
-        </SectionCard>
+          </section>
+        </div>
       </div>
     </>
   );
 }
 
-function SkillTile({ skill, projectsLabel }: { skill: SkillRecord; projectsLabel: string }) {
+function KpiChip({
+  icon,
+  label,
+  value,
+  highlight,
+  hint,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  highlight?: boolean;
+  hint?: string;
+}) {
   return (
-    <Link
-      to="/agents/$skillId"
-      params={{ skillId: skill.id }}
-      className="dw-skill-tile group"
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <Icon name="extension" size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="font-medium text-sm text-on-surface group-hover:text-primary transition-colors truncate">
-            {skill.name}
-          </div>
-          <div className="text-[11px] font-code text-secondary truncate mt-0.5">{skill.id}</div>
-          {skill.description && (
-            <p className="text-xs text-secondary m-0 mt-2 line-clamp-2">{skill.description}</p>
+    <div className={`dw-agents-kpi-chip ${highlight ? "dw-agents-kpi-chip--hi" : ""}`}>
+      <Icon name={icon} size={18} className="shrink-0 opacity-70" />
+      <div className="min-w-0">
+        <div className="dw-agents-kpi-chip__label">{label}</div>
+        <div className="dw-agents-kpi-chip__value tabular-nums">{value}</div>
+        {hint && <div className="dw-agents-kpi-chip__hint font-code">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function AgentStatRow({
+  row,
+  maxSessions,
+  top,
+  topLabel,
+}: {
+  row: AgentUsageStat;
+  maxSessions: number;
+  top: boolean;
+  topLabel: string;
+}) {
+  const t = useT();
+  const meta = builtinAgentMeta(row.agent_type);
+  const pct = Math.round((row.sessions_count / maxSessions) * 100);
+
+  return (
+    <li className="dw-agents-stat-row">
+      <div
+        className={`dw-agents-stat-row__icon ${
+          row.sessions_count > 0 ? "text-primary bg-primary/10" : "text-secondary bg-surface-container-high"
+        }`}
+      >
+        <Icon name={meta?.icon ?? "smart_toy"} size={18} />
+      </div>
+      <div className="dw-agents-stat-row__main min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium text-sm truncate">{row.agent_type}</span>
+          {top && (
+            <span className="dw-agents-stat-row__top">{topLabel}</span>
           )}
         </div>
+        <span className="text-xs text-secondary font-code truncate block">{row.model}</span>
+        <div className="dw-agents-stat-row__bar" aria-hidden>
+          <span style={{ width: `${pct}%` }} />
+        </div>
       </div>
-      <div className="mt-3 text-xs text-secondary">
-        {skill.projects_count} {projectsLabel}
+      <div className="dw-agents-stat-row__nums shrink-0 text-right">
+        <div className="text-lg font-semibold tabular-nums leading-none">{row.sessions_count}</div>
+        <div className="text-[10px] text-secondary mt-0.5">{t("agents.sessionsShort")}</div>
       </div>
-    </Link>
+      <time className="dw-agents-stat-row__time hidden lg:block shrink-0 font-code text-[11px] text-secondary">
+        {formatShortTime(row.last_started_at)}
+      </time>
+      <Link
+        to="/conversations"
+        search={{ agent: row.agent_type }}
+        className="dw-agents-stat-row__go shrink-0"
+        title="Open conversations"
+      >
+        <Icon name="arrow_forward" size={18} />
+      </Link>
+    </li>
+  );
+}
+
+function SkillRow({ skill, projectsLabel }: { skill: SkillRecord; projectsLabel: string }) {
+  return (
+    <li>
+      <Link to="/agents/$skillId" params={{ skillId: skill.id }} className="dw-agents-skill-row">
+        <span className="dw-agents-skill-row__icon">
+          <Icon name="extension" size={18} />
+        </span>
+        <span className="dw-agents-skill-row__body min-w-0">
+          <span className="dw-agents-skill-row__name">{skill.name}</span>
+          <span className="dw-agents-skill-row__id font-code">{skill.id}</span>
+          {skill.description && (
+            <span className="dw-agents-skill-row__desc">{skill.description}</span>
+          )}
+        </span>
+        <span className="dw-agents-skill-row__meta shrink-0">
+          <span className="tabular-nums">
+            {skill.projects_count} {projectsLabel}
+          </span>
+          <Icon name="chevron_right" size={18} className="text-outline" />
+        </span>
+      </Link>
+    </li>
   );
 }

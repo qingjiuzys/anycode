@@ -162,7 +162,10 @@ pub async fn handle_session_completed(
     let _ = crate::report::session_report(
         db,
         session_id,
-        crate::report::ReportOptions::default(),
+        crate::report::ReportOptions {
+            force_template: true,
+            ..crate::report::ReportOptions::default()
+        },
         true,
     )
     .await;

@@ -2,8 +2,7 @@
 
 pub use anycode_llm::config_file::{
     migrate_legacy_llm_section, patch_llm_config as patch_llm_config_inner, read_config_value,
-    read_model_fallback, read_models_config, string_field, write_config_value,
-    LlmConfigPatch as LlmConfigPatchInner,
+    read_model_fallback, string_field, write_config_value, LlmConfigPatch as LlmConfigPatchInner,
 };
 pub use anycode_llm::{ModelFallbackConfig, ModelProfileFile, ModelsConfigFile};
 

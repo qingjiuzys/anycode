@@ -1,87 +1,58 @@
 ---
-title: Troubleshooting
-description: Fix common anyCode issues by symptom, with clear next actions.
-summary: Start from what failed, apply quick checks, then move to advanced diagnosis only if needed.
-read_when:
-  - Setup, channel binding, or command execution failed.
-  - You need a quick “what to do next” list.
+title: Common issues
+description: Install, Workbench, terminal, and scheduled jobs—quick fixes.
 ---
 
-# Troubleshooting
+# Common issues
 
-For users who need fast recovery steps when something fails.
+## Install & setup
 
-How to use this page:
+**`anycode` not found after install?**  
+Add the install directory to PATH or open a new terminal. From source, use the full path to `target/release/anycode`.
 
-1. Find the symptom closest to your error.
-2. Run the listed quick checks in order.
-3. Move to advanced diagnostics only if quick checks fail.
+**`setup` failed?**  
+Usually network or API keys. Verify provider credentials and run `anycode setup` again.
 
-## 1) `anycode` command not found
+## Workbench
 
-1. Run `anycode --help`.
-2. If not found, check PATH notes from installer output.
-3. Open a new terminal and retry.
-4. If still failing, reinstall from [Install](./install).
+**Can’t open `http://127.0.0.1:43180`?**  
+Run `anycode dashboard` first; check for port conflicts. Change port in Settings if needed.
 
-## 2) `setup` cannot ask questions / freezes
+**Empty project list?**  
+The Workbench lists workspaces that have already run tasks. Run `anycode` or `anycode run` in a project folder, then refresh.
 
-- Run in a real terminal (not CI/headless session).
-- For SSH/CI environments, prepare config first or run setup locally.
-- If you only need one channel, use explicit choice:
+**Wrong language?**  
+Switch **中文 / English** in the top bar. Sidebar doc/help links follow the UI locale.
 
-```bash
-anycode setup --channel wechat
-anycode setup --channel telegram
-anycode setup --channel discord
-```
+## Terminal
 
-Expected output: setup goes directly to the selected channel path.
+**Assistant ignores project files?**  
+Check `pwd` is the project root.
 
-## 3) WeChat QR login fails
+**Too many approval prompts?**  
+By design for safety. Adjust policies in Settings; don’t disable all checks blindly.
 
-- Bind on a machine with browser/GUI.
-- Run:
+**Slow or interrupted replies?**  
+Check network and quotas; `Ctrl+C` stops the current turn.
 
-```bash
-anycode channel wechat
-```
+## Scheduled jobs
 
-Expected output: QR flow appears and asks for confirmation/binding steps.
+**Job never fires?**  
+Keep scheduler or desktop app running; check **Automations → Recent triggers**.
 
-- If task folder is wrong after binding, set project path via `/cwd` in WeChat.
+**Shows failed?**  
+Use **Retry now**; open the session for details; clarify the task text.
 
-## 4) API request failed
+## macOS desktop app
 
-- Re-run `setup` and confirm provider/model/api key.
-- Check endpoint matches provider protocol (OpenAI-compatible vs provider-native API).
-- For Google provider, prefer setup defaults and avoid custom non-compatible endpoint paths.
+**Small Dock icon?**  
+Use the latest DMG; if the icon is cached, run `killall Dock`.
 
-## 5) Approval prompts block your workflow
+**Blank window?**  
+Wait a few seconds for the sidecar; or run `anycode dashboard` manually, then reopen the app.
 
-- `require_approval=true` means sensitive tools need confirmation.
-- If you know the risk and need one-time bypass:
+---
 
-```bash
-anycode run --ignore-approval --agent general-purpose "..."
-```
+Still stuck? Open a [GitHub Issue](https://github.com/qingjiuzys/anycode/issues) with OS version, `anycode --version`, steps, and expected behavior.
 
-Expected output: task runs without interactive approval prompts in this process.
-
-## Advanced diagnostics (optional)
-
-- **MCP / `McpAuth` / OAuth (no GUI):** anycode does not open a browser for you. Use the dynamic **`mcp__…__authenticate`** tool or **`McpAuth`**, read **stderr** from the MCP subprocess (same terminal as the CLI), then complete OAuth in your browser. See [Config & security — MCP OAuth](./config-security#mcp-oauth-mcpauth-no-gui) and env **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`** if calls hang.
-- **`mcp_stdio_dead` (JSON on tool result):** the MCP stdio **child process has already exited** (or the session is no longer usable), so the CLI **does not** auto-reconnect the subprocess. What to do:
-  1. **Restart** the anycode process (or the session that started MCP) so servers are spawned again.
-  2. Check your MCP launch command / config (**`ANYCODE_MCP_COMMAND`** and related env) and fix crashes or wrong paths.
-  3. Read MCP **stderr** in the same terminal as the CLI for server-side errors.
-  Policy and future optional reconnect: [`ADR 007`](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/007-mcp-session-reconnect-policy.md); lifecycle details: repo [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md).
-- **MCP stdio session:** there is **no automatic reconnect** if the MCP child exits or the session hits repeated timeouts/EOF. Fix the server command or restart the CLI session; see repo [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md).
-- Developer logs/tests: see [Development](./development)
-
-## Still stuck
-
-- Open an issue with:
-  - OS version
-  - `anycode --version`
-  - redacted `~/.anycode/config.json` (remove API keys)
+简体中文: [常见问题](/zh/guide/troubleshooting).

@@ -9,7 +9,8 @@ test.describe("Digital Workbench UX acceptance", () => {
     expect(health.ok()).toBeTruthy();
     await page.goto("/");
     await expect(page.locator("body")).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.getByRole("navigation").getByRole("link", { name: /overview/i })).toBeVisible();
   });
 
   test("2 — select a project", async ({ page }) => {

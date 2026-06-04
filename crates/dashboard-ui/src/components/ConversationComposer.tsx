@@ -6,7 +6,7 @@ import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 
-export type ConversationStartSuccess = {
+type ConversationStartSuccess = {
   session: SessionDetail;
   chat: WebChatResult;
 };
@@ -68,8 +68,6 @@ export function ConversationComposer(props: Props) {
 
   const [sessionTitle, setSessionTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [goal, setGoal] = useState("");
-  const [kind, setKind] = useState<"run" | "goal">("run");
   const [agent, setAgent] = useState(
     props.mode === "start" ? (props.initialAgent ?? "") : session?.agent_type ?? "",
   );
@@ -152,10 +150,8 @@ export function ConversationComposer(props: Props) {
       api.startConversation(projectId, {
         title: sessionTitle.trim() || undefined,
         prompt: message.trim(),
-        kind,
         agent: agent.trim() || undefined,
         skills: selectedSkills.length > 0 ? selectedSkills : undefined,
-        goal: kind === "goal" ? goal.trim() || message.trim() : undefined,
       }),
     onSuccess: (data) => {
       setMessage("");
@@ -282,45 +278,15 @@ export function ConversationComposer(props: Props) {
     <form className="dw-composer" onSubmit={onSubmit}>
       {isStart && !props.compact && (
         <div className="px-4 pt-3 pb-1 border-b border-outline-variant/50">
-          <div className="flex flex-wrap items-center gap-3 mb-2">
-            <input
-              className="dw-input flex-1 min-w-[10rem] text-sm"
-              placeholder={t("conversations.sessionNamePlaceholder")}
-              value={sessionTitle}
-              onChange={(e) => {
-                titleTouched.current = true;
-                setSessionTitle(e.target.value);
-              }}
-            />
-            <div className="flex flex-wrap gap-2 text-sm">
-              <label className="flex items-center gap-1">
-                <input
-                  type="radio"
-                  name={`composer-kind-${projectId}`}
-                  checked={kind === "run"}
-                  onChange={() => setKind("run")}
-                />
-                {t("projectDetail.triggerKindRun")}
-              </label>
-              <label className="flex items-center gap-1">
-                <input
-                  type="radio"
-                  name={`composer-kind-${projectId}`}
-                  checked={kind === "goal"}
-                  onChange={() => setKind("goal")}
-                />
-                {t("projectDetail.triggerKindGoal")}
-              </label>
-            </div>
-          </div>
-          {kind === "goal" && (
-            <input
-              className="dw-input w-full text-sm mb-2"
-              placeholder={t("projectDetail.triggerGoalPlaceholder")}
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-            />
-          )}
+          <input
+            className="dw-input w-full text-sm"
+            placeholder={t("conversations.sessionNamePlaceholder")}
+            value={sessionTitle}
+            onChange={(e) => {
+              titleTouched.current = true;
+              setSessionTitle(e.target.value);
+            }}
+          />
         </div>
       )}
 

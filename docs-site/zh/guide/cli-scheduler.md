@@ -1,65 +1,39 @@
 ---
-title: 定时任务与调度器
-description: CronCreate 落盘、anycode scheduler 执行、单实例锁与各 IM 桥内嵌尝试。
-summary: orchestration.json、scheduler.lock、IM 桥尝试内嵌 scheduler 与独立 anycode scheduler 二选一夺锁。
-read_when:
-  - 你需要类似 OpenClaw 的定时 agent 任务。
+title: 定时提醒
+description: 用自然语言设置定时任务，在工作台查看运行结果。
 ---
 
-# 定时任务与内置调度器
+# 定时提醒
 
-## 能力说明
+让 anyCode 在固定时间自动帮你做事，例如：每天早上汇总项目状态、定时检查待办。
 
-1. **工具 `CronCreate` / `CronDelete` / `CronList`**：把规则写入 **`~/.anycode/tasks/orchestration.json`**。表达式为 `cron` crate 语义（6 段：`秒 分 时 日 月 周`；传统 5 段会在前补 `0` 秒，见源码 **`crates/cli/src/scheduler.rs`**）。登记成功时若表达式可解析，响应含 **`next_fire_utc`** / **`next_fire_local`**，便于在首次 tick 前核对时间。**`schedule_timezone`** 支持 **`local`**（默认）、**`utc`** / **`utc0`**，或 **IANA** 名称（如 `Asia/Shanghai`）按墙钟转为 UTC 存储。
-2. **`anycode scheduler`**：常驻子命令，读同一 JSON，到点把每条任务的 **`command`** 当作**单次** agent 提示执行（与 `anycode run` 同类）。
+## 推荐方式：在工作台创建
 
-**仅写 JSON 不会自动跑**：必须有一个调度循环在跑（见下）。
+1. 打开 [工作台](./dashboard) → 侧栏 **自动化**。
+2. 在 **新建定时任务** 里：
+   - **自然语言调度**：填「每天 8 点」「每周五 18:30」等，点「解析为 cron」。
+   - **要做什么**：用一句话写清楚，例如「提醒我去图书馆看书」。
+3. 点 **创建任务**。
 
-## 单实例锁 `scheduler.lock`
+创建后可在 **已注册任务** 和 **最近触发** 里查看是否成功；失败可 **立即重试**。
 
-同机只应有一个调度循环，通过 **`~/.anycode/tasks/scheduler.lock`** 独占锁实现。
+## 需要一直能跑吗？
 
-- 若已有一个 **`anycode scheduler`** 进程，再启动第二个会在日志中提示锁被占用并退出。
-- **微信 / Telegram / Discord 长驻桥**在启动时可 **内嵌** 同一调度循环（`tokio::spawn` → `run_builtin_scheduler`），与 **`anycode scheduler`** 共用 **`scheduler.lock`**：先抢到锁的进程负责 tick；未抢到的静默结束嵌入任务（聊天不受影响，但若本机无任何持锁进程，cron 仍不会触发）。
+是的。定时触发依赖本机上的调度服务：
 
-## 独立运行 `anycode scheduler`（可选）
+- 使用 **桌面应用** 时，保持 anyCode 在运行即可。
+- 仅终端使用时，需按安装说明启动调度器（见 [安装](./install) 中的说明）。
 
-适合与某一 IM 桥分离、或不跑任何桥时独占调度。可用终端、**tmux**、**systemd user**、**macOS LaunchAgent** 等托管。
+## 失败通知（可选）
 
-**systemd user 示例（Linux）** — 请改路径与工作目录：
+创建任务时可填「失败通知」，例如发到微信或 webhook，避免静默失败。
 
-```ini
-[Unit]
-Description=anyCode 内置 cron 调度器
-After=network-online.target
+## 出问题了怎么办
 
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/anycode scheduler -C /path/to/workspace --reload-secs 30
-Restart=on-failure
+| 现象 | 建议 |
+|------|------|
+| 任务从不执行 | 确认调度器/桌面应用在跑；看运行记录是否为空 |
+| 时间不对 | 检查任务里的时区；重新用自然语言解析 schedule |
+| 执行了但结果不对 | 把「要做什么」写得更具体；到 **会话** 里点开对应记录 |
 
-[Install]
-WantedBy=default.target
-```
-
-**LaunchAgent 片段（macOS）**：
-
-```xml
-<key>ProgramArguments</key>
-<array>
-  <string>/usr/local/bin/anycode</string>
-  <string>scheduler</string>
-  <string>-C</string>
-  <string>/path/to/workspace</string>
-  <string>--reload-secs</string>
-  <string>30</string>
-</array>
-```
-
-同机不要故意起两个调度循环；第二个会因锁空转退出。
-
-## 通道模式（微信 / Telegram / Discord）
-
-**`workspace-assistant`** 已暴露 **`CronCreate` / `CronDelete` / `CronList`**。**注册成功不等于已到期执行**；必须由 **某个持锁进程**（`anycode scheduler` **或** 某一 IM 桥成功内嵌的调度循环）按计划触发，且 **同机只有一个**。
-
-English: [Cron & scheduler](/guide/cli-scheduler).
+English: [Scheduled reminders](/guide/cli-scheduler).

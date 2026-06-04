@@ -25,27 +25,7 @@ type ConversationSearch = {
   project?: string;
   session?: string;
   agent?: string;
-  filter?: "all" | "running" | "blocked" | "workflow" | "cron" | "needs_approval" | "budget";
 };
-
-function legacyFilterToSearch(filter: ConversationSearch["filter"]): Partial<ConversationSearch> {
-  switch (filter) {
-    case "running":
-      return { status: "running" };
-    case "blocked":
-      return { trusted: "blocked" };
-    case "workflow":
-      return { kind: "workflow" };
-    case "cron":
-      return { kind: "cron" };
-    case "needs_approval":
-      return { status: "running", needs_approval: true };
-    case "budget":
-      return { budget_exceeded: true };
-    default:
-      return {};
-  }
-}
 
 function searchToSessionOpts(search: ConversationSearch): SessionListOpts {
   return {
@@ -74,12 +54,7 @@ export function ConversationsPage() {
   const t = useT();
   const navigate = useNavigate();
   const rawSearch = useSearch({ from: "/_shell/conversations" }) as ConversationSearch;
-  const search = useMemo(() => {
-    if (rawSearch.filter && !rawSearch.status && !rawSearch.trusted && !rawSearch.kind) {
-      return { ...rawSearch, ...legacyFilterToSearch(rawSearch.filter), filter: undefined };
-    }
-    return rawSearch;
-  }, [rawSearch]);
+  const search = rawSearch;
 
   const [projectId, setProjectId] = useState(search.project ?? "");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(search.session ?? null);
@@ -122,6 +97,20 @@ export function ConversationsPage() {
       updateSearch({ sessionId });
     },
     [updateSearch],
+  );
+
+  const renderStartComposer = (compact?: boolean) => (
+    <ConversationComposer
+      mode="start"
+      projectId={projectId}
+      initialAgent={search.agent}
+      compact={compact}
+      onSuccess={({ session }) => {
+        setShowStartForm(false);
+        selectSession(session.id);
+      }}
+      onCancel={() => setShowStartForm(false)}
+    />
   );
 
   useEffect(() => {
@@ -354,16 +343,7 @@ export function ConversationsPage() {
             />
           )}
           {showStartForm ? (
-            <ConversationComposer
-              mode="start"
-              projectId={projectId}
-              initialAgent={search.agent}
-              onSuccess={({ session }) => {
-                setShowStartForm(false);
-                selectSession(session.id);
-              }}
-              onCancel={() => setShowStartForm(false)}
-            />
+            renderStartComposer()
           ) : (
             <div className="text-center mt-4">
               <button
@@ -393,19 +373,7 @@ export function ConversationsPage() {
       )}
 
       {projectId && showStartForm && rows.length > 0 && (
-        <div className="mb-4">
-          <ConversationComposer
-            mode="start"
-            projectId={projectId}
-            initialAgent={search.agent}
-            compact
-            onSuccess={({ session }) => {
-              setShowStartForm(false);
-              selectSession(session.id);
-            }}
-            onCancel={() => setShowStartForm(false)}
-          />
-        </div>
+        <div className="mb-4">{renderStartComposer(true)}</div>
       )}
 
       {rows.length > 0 && (

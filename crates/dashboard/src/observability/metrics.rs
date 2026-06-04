@@ -1,6 +1,7 @@
 //! Project metrics and delivery readiness aggregates.
 
 use crate::db::DashboardDb;
+use crate::observability::project_trust::{readiness_from_inputs, readiness_score};
 use crate::schema::{DeliveryReadiness, ProjectMetrics, ProjectReadinessItem};
 use anyhow::Result;
 
@@ -71,46 +72,15 @@ pub async fn global_readiness(db: &DashboardDb) -> Result<DeliveryReadiness> {
 }
 
 pub async fn project_metrics(db: &DashboardDb, project_id: &str) -> Result<ProjectMetrics> {
-    let sessions_total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE project_id = ?")
-            .bind(project_id)
-            .fetch_one(db.pool())
-            .await?;
+    let trust_inputs = db.fetch_project_trust_inputs(project_id).await?;
+    let sessions_total = trust_inputs.sessions_total;
+    let blocked_sessions = trust_inputs.blocked_sessions;
+    let failed_required_gates = trust_inputs.failed_required_gates;
+    let unverified_artifacts = trust_inputs.unverified_artifacts;
+    let stale_running_sessions = trust_inputs.stale_running_sessions;
 
     let sessions_completed: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM sessions WHERE project_id = ? AND status IN ('completed', 'done')",
-    )
-    .bind(project_id)
-    .fetch_one(db.pool())
-    .await?;
-
-    let blocked_sessions: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sessions WHERE project_id = ? AND trusted_status = 'blocked'",
-    )
-    .bind(project_id)
-    .fetch_one(db.pool())
-    .await?;
-
-    let failed_required_gates: i64 = sqlx::query_scalar(
-        r#"SELECT COUNT(*) FROM gates WHERE project_id = ? AND required = 1 AND status = 'failed'"#,
-    )
-    .bind(project_id)
-    .fetch_one(db.pool())
-    .await?;
-
-    let unverified_artifacts: i64 = sqlx::query_scalar(
-        r#"SELECT COUNT(*) FROM artifacts WHERE project_id = ? AND trust_level IN ('unknown', 'needs_verify', 'unverified')"#,
-    )
-    .bind(project_id)
-    .fetch_one(db.pool())
-    .await?;
-
-    let stale_running_sessions: i64 = sqlx::query_scalar(
-        r#"
-        SELECT COUNT(*) FROM sessions
-        WHERE project_id = ? AND status = 'running'
-          AND datetime(started_at) < datetime('now', '-24 hours')
-        "#,
     )
     .bind(project_id)
     .fetch_one(db.pool())
@@ -130,10 +100,7 @@ pub async fn project_metrics(db: &DashboardDb, project_id: &str) -> Result<Proje
     .fetch_one(db.pool())
     .await?;
 
-    let gates_total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM gates WHERE project_id = ?")
-        .bind(project_id)
-        .fetch_one(db.pool())
-        .await?;
+    let gates_total = trust_inputs.gates_total;
 
     let gate_pass_rate = if gates_total > 0 {
         (gates_passed as f64) / (gates_total as f64)
@@ -147,12 +114,7 @@ pub async fn project_metrics(db: &DashboardDb, project_id: &str) -> Result<Proje
         0.0
     };
 
-    let readiness_score = readiness_score(
-        blocked_sessions,
-        failed_required_gates,
-        unverified_artifacts,
-        stale_running_sessions,
-    );
+    let readiness_score = readiness_from_inputs(&trust_inputs);
 
     Ok(ProjectMetrics {
         project_id: project_id.into(),
@@ -168,15 +130,6 @@ pub async fn project_metrics(db: &DashboardDb, project_id: &str) -> Result<Proje
         readiness_score,
         generated_at: chrono::Utc::now().to_rfc3339(),
     })
-}
-
-fn readiness_score(blocked: i64, failed_gates: i64, unverified: i64, stale: i64) -> i64 {
-    let mut score = 100i64;
-    score -= blocked * 20;
-    score -= failed_gates * 15;
-    score -= (unverified.min(10)) * 2;
-    score -= stale * 10;
-    score.clamp(0, 100)
 }
 
 /// Rolling daily aggregates for the home timeline chart (computed live from SQLite).

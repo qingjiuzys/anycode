@@ -73,7 +73,7 @@ export function NotificationsDropdown() {
               </div>
               <Link
                 to="/conversations"
-                search={{ filter: "blocked" }}
+                search={{ trusted: "blocked" }}
                 className="text-sm text-error no-underline hover:underline"
                 onClick={() => setOpen(false)}
               >

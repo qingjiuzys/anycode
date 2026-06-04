@@ -164,6 +164,41 @@ mod tests {
             .unwrap();
         let updated = db.get_session(&session.id).await.unwrap().unwrap();
         assert_eq!(updated.trusted_status, "blocked");
+        let (listed, _) = db
+            .list_projects_paged(None, None, 50, 0, "updated_at_desc")
+            .await
+            .unwrap();
+        let summary = listed.iter().find(|p| p.id == project.id).unwrap();
+        let score = summary.trust_score.expect("expected trust score");
+        assert!(
+            score < 0.9,
+            "trust score should reflect failed gate: {score}"
+        );
+    }
+
+    #[tokio::test]
+    async fn project_without_activity_has_no_trust_score() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("trust-none.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/trust-none".into(),
+                name: Some("NoRuns".into()),
+                description: None,
+                create_root: None,
+            })
+            .await
+            .unwrap();
+        let detail = db.get_project(&project.id).await.unwrap().unwrap();
+        assert_eq!(detail.trust_score, None);
+        let (listed, _) = db
+            .list_projects_paged(None, None, 50, 0, "updated_at_desc")
+            .await
+            .unwrap();
+        let summary = listed.iter().find(|p| p.id == project.id).unwrap();
+        assert_eq!(summary.trust_score, None);
     }
 
     #[tokio::test]

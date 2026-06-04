@@ -11,6 +11,15 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ -x "$ROOT/scripts/.venv-icon/bin/python" ]] || [[ -f "$ROOT/scripts/prepare-desktop-icon.py" ]]; then
+  ICON_VENV="$ROOT/scripts/.venv-icon"
+  if [[ ! -x "$ICON_VENV/bin/python" ]]; then
+    python3 -m venv "$ICON_VENV"
+    "$ICON_VENV/bin/pip" install -q pillow
+  fi
+  "$ICON_VENV/bin/python" "$ROOT/scripts/prepare-desktop-icon.py" 2>/dev/null || true
+fi
+
 cd "$UI"
 if [[ -f package-lock.json ]]; then
   npm ci

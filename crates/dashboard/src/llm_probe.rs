@@ -28,17 +28,9 @@ impl LlmProbeService {
         Self { registry }
     }
 
-    pub fn registry(&self) -> &ResolvedModelRegistry {
-        &self.registry
-    }
-
     pub async fn probe(&self, capability: ModelCapability) -> Result<String, String> {
         probe_registry(&self.registry, capability).await
     }
-}
-
-pub async fn probe_capability(cfg: &Value, capability: ModelCapability) -> Result<String, String> {
-    LlmProbeService::from_config(cfg).probe(capability).await
 }
 
 async fn probe_registry(

@@ -1,13 +1,21 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
-import { EmptyState } from "@/components/EmptyState";
+import { AnalyticsBlock } from "@/components/KpiMetricGrid";
+import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
 
 /** Security activity log: denied tools and logged approval-pending events from output.log. */
-export function SecurityActivityPanel({ projectId }: { projectId?: string }) {
+export function SecurityActivityPanel({
+  projectId,
+  variant = "card",
+}: {
+  projectId?: string;
+  variant?: "card" | "analytics";
+}) {
   const t = useT();
   const activity = useQuery({
     queryKey: ["security-activity", projectId ?? ""],
@@ -17,35 +25,37 @@ export function SecurityActivityPanel({ projectId }: { projectId?: string }) {
 
   const summary = activity.data?.summary;
   const rows = summary?.recent ?? [];
+  const isAnalytics = variant === "analytics";
+  const title = t("home.securityActivity");
+
+  const wrap = (body: ReactNode) =>
+    isAnalytics ? (
+      <AnalyticsBlock title={title}>{body}</AnalyticsBlock>
+    ) : (
+      <SectionCard title={title}>{body}</SectionCard>
+    );
 
   if (!summary && activity.isLoading) {
-    return (
-      <SectionCard title={t("home.securityActivity")}>
-        <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
-      </SectionCard>
-    );
+    return wrap(<p className="text-sm text-secondary m-0">{t("common.loading")}</p>);
   }
 
   if (!summary || (rows.length === 0 && summary.denied_total === 0 && summary.pending_total === 0)) {
-    return (
-      <SectionCard title={t("home.securityActivity")}>
-        <EmptyState
-          title={t("home.securityEmpty")}
-          description={t("home.securityActivityEmpty")}
-          icon="policy"
-        />
-      </SectionCard>
+    return wrap(
+      <div className={isAnalytics ? "dw-analytics-empty" : "dw-empty-compact"}>
+        <Icon name="verified_user" size={isAnalytics ? 28 : 32} className="text-success/80 mb-2" />
+        <p className="text-sm text-secondary m-0">{t("home.securityEmpty")}</p>
+      </div>,
     );
   }
 
-  return (
-    <SectionCard title={t("home.securityActivity")}>
-      <div className="flex flex-wrap gap-3 mb-3">
-        <Stat label={t("home.securityDenied")} value={summary.denied_total} />
-        <Stat label={t("home.securityPending")} value={summary.pending_total} />
+  return wrap(
+    <>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <SecurityStat label={t("home.securityDenied")} value={summary.denied_total} tone="error" />
+        <SecurityStat label={t("home.securityPending")} value={summary.pending_total} tone="warn" />
       </div>
       <p className="text-xs text-secondary m-0 mb-3">{summary.note || t("home.securityActivityNote")}</p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-outline-variant/40">
         <table className="dw-table">
           <thead>
             <tr>
@@ -61,7 +71,7 @@ export function SecurityActivityPanel({ projectId }: { projectId?: string }) {
               <tr key={e.id}>
                 <td className="text-secondary text-xs whitespace-nowrap">{e.occurred_at}</td>
                 <td>
-                  <code className="font-code">{e.tool_name || e.title}</code>
+                  <code className="font-code text-xs">{e.tool_name || e.title}</code>
                 </td>
                 <td>
                   <StatusBadge
@@ -73,13 +83,6 @@ export function SecurityActivityPanel({ projectId }: { projectId?: string }) {
                           : "warn"
                     }
                   />
-                  <span className="text-xs text-secondary ml-1">
-                    {e.event_type === "tool_denied"
-                      ? "denied"
-                      : e.event_type === "tool_approval_resolved"
-                        ? "resolved"
-                        : "pending"}
-                  </span>
                 </td>
                 <td className="text-secondary text-xs max-w-[200px] truncate">
                   {e.reason ?? "—"}
@@ -102,15 +105,29 @@ export function SecurityActivityPanel({ projectId }: { projectId?: string }) {
           </tbody>
         </table>
       </div>
-    </SectionCard>
+    </>,
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function SecurityStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "error" | "warn";
+}) {
   return (
-    <div className="dw-stat-card min-w-[120px]">
-      <div className="dw-stat-label">{label}</div>
-      <div className="dw-stat-value">{value}</div>
+    <div
+      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 border ${
+        tone === "error"
+          ? "bg-error-container/20 border-error/20"
+          : "bg-warn-container/20 border-warn/25"
+      }`}
+    >
+      <span className="text-xs text-secondary">{label}</span>
+      <span className="text-base font-semibold tabular-nums text-on-surface">{value}</span>
     </div>
   );
 }

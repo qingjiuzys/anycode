@@ -27,15 +27,19 @@ export function DashboardPreferencesForm() {
   }, [view?.saved, view?.active]);
 
   const save = useMutation({
-    mutationFn: () =>
-      api.saveDashboardPreferences({
+    mutationFn: () => {
+      const base = view?.saved ?? view?.active;
+      return api.saveDashboardPreferences({
         host: host.trim(),
         port: Number(port),
         db_path: dbPath.trim(),
         asset_read_strict: assetStrict,
+        report_output_format: base?.report_output_format ?? "markdown",
+        report_generation_mode: base?.report_generation_mode ?? "llm",
         model_fallback_provider: view?.saved?.model_fallback_provider ?? view?.active?.model_fallback_provider,
         model_fallback_model: view?.saved?.model_fallback_model ?? view?.active?.model_fallback_model,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["dashboard-preferences"] });
       qc.invalidateQueries({ queryKey: ["audit"] });

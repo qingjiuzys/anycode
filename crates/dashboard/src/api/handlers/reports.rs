@@ -8,6 +8,7 @@ pub struct ReportQuery {
     pub events_limit: i64,
     #[serde(default = "default_report_artifacts_limit")]
     pub artifacts_limit: i64,
+    pub lang: Option<String>,
 }
 
 fn default_report_format() -> String {
@@ -24,10 +25,10 @@ fn default_report_artifacts_limit() -> i64 {
 
 impl ReportQuery {
     pub(crate) fn options(&self) -> crate::report::ReportOptions {
-        crate::report::ReportOptions {
-            events_limit: self.events_limit.clamp(1, 500),
-            artifacts_limit: self.artifacts_limit.clamp(1, 200),
-        }
+        let mut opts = crate::report::ReportOptions::from_lang_param(self.lang.as_deref());
+        opts.events_limit = self.events_limit.clamp(1, 500);
+        opts.artifacts_limit = self.artifacts_limit.clamp(1, 200);
+        opts
     }
 }
 
@@ -35,14 +36,26 @@ pub(crate) fn report_response(
     report: crate::schema::ReportDocument,
     format: &str,
 ) -> axum::response::Response {
-    if format != "json" && format != "markdown" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "format must be json or markdown" })),
+    match format {
+        "json" => Json(json!({ "report": report })).into_response(),
+        "markdown" => (
+            [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
+            report.markdown.clone(),
         )
-            .into_response();
+            .into_response(),
+        "html" => {
+            let body = report
+                .html
+                .clone()
+                .unwrap_or_else(|| report.markdown.clone());
+            ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
+        }
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "format must be json, markdown, or html" })),
+        )
+            .into_response(),
     }
-    Json(json!({ "report": report })).into_response()
 }
 
 pub async fn get_project_report(

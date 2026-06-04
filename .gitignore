@@ -17,3 +17,4 @@ crates/dashboard-ui/*.tsbuildinfo
 test/
 .omx/
 .cursor/debug-*.log
+scripts/.venv-icon/

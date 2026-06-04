@@ -25,14 +25,14 @@ jobs:
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
+      - name: Build dashboard UI (embed + clippy/test)
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
+
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets
 
       - name: cargo test
         run: cargo test --workspace
-
-      - name: Build dashboard UI (embedded release)
-        run: ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
 
       - name: cargo test (tools-lsp)
         run: cargo test -p anycode-tools --features tools-lsp

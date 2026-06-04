@@ -17,7 +17,7 @@ export function TopbarSearch() {
   });
 
   return (
-    <div className="relative hidden lg:block w-64">
+    <div className="relative hidden md:block w-full max-w-[14rem] lg:max-w-[16rem] min-w-0">
       <Icon
         name="search"
         size={18}

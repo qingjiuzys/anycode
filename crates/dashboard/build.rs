@@ -38,10 +38,27 @@ fn main() {
     }
 
     if !dist.is_file() {
+        write_embed_stub_dist(dist.parent().expect("dist parent"));
         println!(
-            "cargo:warning=dashboard-ui dist missing at {}; run ./scripts/build-dashboard-ui.sh or set ANYCODE_BUILD_DASHBOARD_UI=1",
+            "cargo:warning=dashboard-ui dist missing; wrote compile-time stub at {} (run ./scripts/build-dashboard-ui.sh for real UI)",
             dist.display()
         );
+    }
+}
+
+/// Minimal `dist/` so `rust-embed` compiles when UI has not been built (clippy/test on fresh checkouts).
+fn write_embed_stub_dist(dist_dir: &Path) {
+    let _ = std::fs::create_dir_all(dist_dir.join("assets"));
+    let index = dist_dir.join("index.html");
+    if !index.is_file() {
+        let _ = std::fs::write(
+            &index,
+            r#"<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>anycode</title></head><body><p>Dashboard UI not built. Run ./scripts/build-dashboard-ui.sh</p></body></html>"#,
+        );
+    }
+    let stub_js = dist_dir.join("assets/stub.js");
+    if !stub_js.is_file() {
+        let _ = std::fs::write(stub_js, "// stub asset for rust-embed");
     }
 }
 

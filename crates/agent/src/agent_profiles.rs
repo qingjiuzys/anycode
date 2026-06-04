@@ -224,6 +224,80 @@ pub fn is_builtin_extends(id: &str) -> bool {
     BUILTIN_EXTENDS.contains(&id.trim())
 }
 
+/// Shipped role preset ids (extends builtins) registered by CLI bootstrap when not overridden in config.
+pub const SHIPPED_ROLE_IDS: &[&str] = &[
+    "builder",
+    "planner",
+    "explorer",
+    "verifier",
+    "reviewer",
+    "channel-ops",
+    "goal-runner",
+    "office-writer",
+    "data-analyst",
+    "researcher",
+    "file-operator",
+];
+
+/// Canonical declarative spec for a builtin or shipped role id (single catalog source).
+#[must_use]
+pub fn profile_spec_for_builtin(id: &str) -> Option<AgentProfileSpec> {
+    let seed = BUILTIN_AGENT_SEED.iter().find(|s| s.id == id)?;
+    let mut spec = AgentProfileSpec {
+        extends: seed.extends.to_string(),
+        description: Some(seed.description.to_string()),
+        tools_allow: None,
+        tools_deny: None,
+        skills_allowlist: None,
+        prompt_overlay: None,
+    };
+    match id {
+        "verifier" => {
+            spec.tools_deny = Some(vec!["Bash".into(), "Edit".into(), "FileWrite".into()]);
+        }
+        "reviewer" => {
+            spec.tools_allow = Some(vec![
+                "FileRead".into(),
+                "Grep".into(),
+                "Glob".into(),
+                "StructuredOutput".into(),
+            ]);
+        }
+        "office-writer" => {
+            spec.skills_allowlist = Some(vec![
+                "content-repurpose".into(),
+                "doc-summary".into(),
+                "md-to-pdf".into(),
+                "weekly-report".into(),
+            ]);
+            spec.prompt_overlay = Some(
+                "You are an office writing assistant. Produce clear Markdown drafts; do not publish externally. Use KnowledgeSearch for indexed project materials when paths are configured.".into(),
+            );
+        }
+        "data-analyst" => {
+            spec.skills_allowlist = Some(vec![
+                "doc-summary".into(),
+                "report-to-csv".into(),
+                "weekly-report".into(),
+            ]);
+            spec.prompt_overlay = Some(
+                "Focus on accurate data summaries and tables; cite source files. Use KnowledgeSearch and report-to-csv when exporting tabular results.".into(),
+            );
+        }
+        "researcher" => {
+            spec.skills_allowlist = Some(vec!["daily-brief".into()]);
+            spec.prompt_overlay = Some(
+                "Gather sources with WebSearch/WebFetch; synthesize with citations. Bind daily-brief skill for scheduled summaries.".into(),
+            );
+        }
+        "file-operator" => {
+            spec.skills_allowlist = Some(vec!["file-organizer".into()]);
+        }
+        _ => {}
+    }
+    Some(spec)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

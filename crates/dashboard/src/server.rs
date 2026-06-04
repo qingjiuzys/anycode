@@ -145,6 +145,13 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             tracing::info!(count = n, "swept stale pending sessions");
         }
     }
+    let db_backfill = state.db.clone();
+    tokio::spawn(async move {
+        match db_backfill.refresh_all_project_trust_scores().await {
+            Ok(n) => tracing::debug!(count = n, "project trust scores backfilled"),
+            Err(e) => tracing::warn!(error = %e, "project trust score backfill failed"),
+        }
+    });
     let app = api::router(state);
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()

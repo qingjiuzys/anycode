@@ -80,23 +80,21 @@ export function HomePage() {
   const recentSessions = sessions.data?.sessions ?? [];
 
   const analyticsContent = (
-    <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HomeTokenUsage />
-        <HomeSavedHoursKpi />
-      </div>
-      <SecurityActivityPanel />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title={t("home.timeline7d")} noPadding>
-          <HomeTimelineChart timeline={timeline.data?.timeline} />
+    <div className="dw-analytics-stack">
+      <HomeTokenUsage />
+      <HomeSavedHoursKpi />
+      <SecurityActivityPanel variant="analytics" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <SectionCard title={t("home.timeline7d")} noPadding className="dw-analytics-chart-card">
+          <HomeTimelineChart timeline={timeline.data?.timeline} tall />
         </SectionCard>
-        <SectionCard title={t("home.projectMetrics")} noPadding>
-          <div className="p-4">
-            <MetricsChart projects={list} />
+        <SectionCard title={t("home.projectMetrics")} noPadding className="dw-analytics-chart-card">
+          <div className="px-2 pb-2 pt-1">
+            <MetricsChart projects={list} tall />
           </div>
         </SectionCard>
       </div>
-    </>
+    </div>
   );
 
   const workbenchContent = (
@@ -349,7 +347,18 @@ export function HomePage() {
                           className="font-medium flex items-center gap-2 no-underline hover:underline"
                         >
                           <span
-                            className={`w-2 h-2 rounded-full ${p.trust_score >= 0.9 ? "bg-success" : p.trust_score >= 0.7 ? "bg-warn" : "bg-outline"}`}
+                            className={`w-2 h-2 rounded-full ${
+                              p.trust_score == null
+                                ? "bg-outline"
+                                : p.trust_score >= 0.9
+                                  ? "bg-success"
+                                  : p.trust_score >= 0.7
+                                    ? "bg-warn"
+                                    : "bg-error"
+                            }`}
+                            title={
+                              p.trust_score == null ? t("trust.notEvaluated") : undefined
+                            }
                           />
                           {p.name}
                         </Link>

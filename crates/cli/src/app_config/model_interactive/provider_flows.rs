@@ -73,8 +73,8 @@ pub(super) const QUICK_AUTH_CHOICES: &[AuthChoice] = &[
         label: "DeepSeek API Key",
         provider: "deepseek",
         plan: "general",
-        default_model: "deepseek-chat",
-        base_url: "https://api.deepseek.com/v1/chat/completions",
+        default_model: "deepseek-v4-pro",
+        base_url: "https://api.deepseek.com/chat/completions",
         key_envs: &["DEEPSEEK_API_KEY"],
     },
     AuthChoice {
@@ -537,7 +537,7 @@ pub(super) async fn run_global_provider_flow(
 
 pub(super) fn provider_default_model(provider: &str) -> &'static str {
     match provider {
-        "deepseek" => "deepseek-chat",
+        "deepseek" => "deepseek-v4-pro",
         "anthropic" => "claude-sonnet-4-20250514",
         "google" => "gemini-2.5-pro",
         "openai" => "gpt-4.1",

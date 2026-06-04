@@ -82,6 +82,7 @@ pub struct SessionsQuery {
 mod agents;
 mod assets;
 mod auth;
+mod chat_util;
 mod connectors;
 mod conversations;
 mod events;

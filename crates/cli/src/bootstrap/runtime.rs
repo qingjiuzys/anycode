@@ -16,7 +16,7 @@ use std::io::{stdin, stdout, IsTerminal};
 use std::sync::Arc;
 use tracing::info;
 
-use super::agents_setup::build_agents_setup;
+use super::agents::build_agents_setup;
 use super::llm_stack::build_llm_stack;
 use super::security_setup::build_security_setup;
 use super::tools_setup::build_tools_setup;

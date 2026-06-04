@@ -39,6 +39,8 @@ export const settingsClient = {
     port: number;
     db_path: string;
     asset_read_strict?: boolean;
+    report_output_format?: string;
+    report_generation_mode?: string;
     model_fallback_provider?: string | null;
     model_fallback_model?: string | null;
   }) =>

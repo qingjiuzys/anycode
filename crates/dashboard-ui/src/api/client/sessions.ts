@@ -65,8 +65,10 @@ export const sessionsClient = {
     get<{ artifacts: ArtifactRecord[] }>(
       `/api/sessions/${sessionId}/artifacts?${buildArtifactQuery({ ...opts, sessionId })}`,
     ),
-  sessionReport: (sessionId: string) =>
-    get<{ report: ReportDocument }>(`/api/sessions/${sessionId}/report`),
+  sessionReport: (sessionId: string, lang?: string) =>
+    get<{ report: ReportDocument }>(
+      `/api/sessions/${sessionId}/report${lang ? `?lang=${encodeURIComponent(lang)}` : ""}`,
+    ),
   sessionReplay: (sessionId: string) =>
     get<{ replay: SessionReplaySummary }>(`/api/sessions/${sessionId}/replay`),
   sessionTrace: (sessionId: string) =>

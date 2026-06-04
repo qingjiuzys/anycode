@@ -9,7 +9,15 @@ function catalogModelsForProvider(catalog: ModelCatalog | undefined, provider: s
   const id = provider.trim().toLowerCase();
   if (id === "z.ai" || id === "zai" || id === "bigmodel") return catalog?.zai_models ?? [];
   if (id === "google" || id === "gemini") return catalog?.google_models ?? [];
-  return [];
+  if (id === "deepseek" || id === "deep-seek") {
+    return (
+      catalog?.deepseek_models ??
+      catalog?.provider_models?.deepseek ??
+      catalog?.provider_models?.[provider] ??
+      []
+    );
+  }
+  return catalog?.provider_models?.[id] ?? catalog?.provider_models?.[provider] ?? [];
 }
 
 type Props = {
@@ -20,7 +28,7 @@ type Props = {
 export function ModelCatalogBrowser({ catalog, onAdd }: Props) {
   const t = useT();
   const qc = useQueryClient();
-  const [provider, setProvider] = useState("z.ai");
+  const [provider, setProvider] = useState("deepseek");
   const [query, setQuery] = useState("");
   const [capFilter, setCapFilter] = useState("");
 
@@ -38,10 +46,12 @@ export function ModelCatalogBrowser({ catalog, onAdd }: Props) {
   const models = useMemo(() => {
     const base = catalogModelsForProvider(catalog, provider);
     return base.filter((m) => {
-      if (query && !`${m.id} ${m.label}`.toLowerCase().includes(query.toLowerCase())) return false;
+      const hay = `${m.id} ${m.label} ${m.description ?? ""}`.toLowerCase();
+      if (query && !hay.includes(query.toLowerCase())) return false;
+      if (capFilter && !(m.capabilities ?? ["chat"]).includes(capFilter)) return false;
       return true;
     });
-  }, [catalog, provider, query]);
+  }, [catalog, provider, query, capFilter]);
 
   const meta = catalog?.cache_meta?.[provider];
 

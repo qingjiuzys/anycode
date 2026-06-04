@@ -65,6 +65,8 @@ Response:
 }
 ```
 
+`trust_score` is `0.0`–`1.0` when the project has scorable activity (sessions, gates, or artifacts); it equals `readiness_score / 100` from `/api/projects/:id/metrics`. The field is omitted or `null` when the project is registered but has no sessions, gates, or artifacts yet.
+
 ```http
 GET /api/projects/:project_id
 ```
@@ -204,13 +206,13 @@ Trigger body:
 
 Response: `{ "trigger": TriggerRunResult }` with `pid`, `command_preview`, `log_path`, and `sandbox_note`. Spawns detached `anycode run -C {root}` with dashboard recording enabled; sensitive tools use the Web approval inbox when approval is required. Loopback-only unless `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1`.
 
-### Start conversation (session first, then run)
+### Start conversation (WebChat REPL)
 
 ```http
 POST /api/projects/:project_id/conversations/start
 ```
 
-Creates a **pending** session in SQLite, then spawns the same detached CLI as `runs/trigger` with `ANYCODE_DASHBOARD_SESSION_ID` set so [`DashboardRecorder::begin`](../../crates/dashboard/src/recorder.rs) attaches to the pre-created row (preserves user `title`, sets `task_id`, moves status to `running`).
+Creates a **pending** session in SQLite, then spawns a long-lived non-TTY `anycode` line REPL (`ANYCODE_DASHBOARD_SESSION_STICKY=1`) bound to the session. Messages are sent on stdin; events are recorded to SQLite via the dashboard recorder.
 
 Request body:
 
@@ -219,14 +221,37 @@ Request body:
   "title": "Optional session name — defaults to first 120 chars of prompt",
   "prompt": "Fix the failing unit test in src/foo.rs",
   "kind": "run",
-  "goal": "optional when kind=goal",
-  "agent": "general"
+  "goal": "optional when kind=goal (validated but WebChat uses repl mode)",
+  "agent": "general-purpose",
+  "skills": ["optional-skill-id"]
 }
 ```
 
-Response: `{ "session": SessionDetail, "trigger": TriggerRunResult }`. On spawn failure the session is marked `failed` and the handler returns an error with `session_id`.
+Response: `{ "session": SessionDetail, "chat": WebChatSendResult }` where `chat` includes `pid`, `log_path`, `started_at`, and `queued`. On spawn failure the session is marked `failed` and the handler returns an error with `session_id`.
 
-Use this from the Conversations page empty state or **New session** when a project is selected. The legacy `POST .../runs/trigger` path remains for project detail; it does not pre-create a session row.
+Use this from the Conversations page. The legacy `POST .../runs/trigger` path remains for detached one-shot runs; it does not use the WebChat hub.
+
+### Follow-up message (existing session)
+
+```http
+POST /api/sessions/:session_id/message
+```
+
+Send a follow-up prompt to an existing WebChat session (or spawn the REPL on first message for sessions created via `POST /api/sessions`).
+
+Request body:
+
+```json
+{
+  "prompt": "Now add a regression test",
+  "agent": "optional override for next message only",
+  "skills": ["optional-skill-id"]
+}
+```
+
+Response: `{ "ok": true, "session_id": "...", "chat": WebChatSendResult }`. Changing `agent` updates the session row and **evicts** the cached REPL (terminates the old process) so the next send respawns with the new `--agent`.
+
+Same loopback / `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE` policy as conversation start.
 
 ### Events
 
@@ -348,11 +373,16 @@ GET /api/settings/database
 ### Reports
 
 ```http
-GET /api/projects/:project_id/report?format=json
-GET /api/projects/:project_id/report?format=markdown
-GET /api/sessions/:session_id/report?format=json
-GET /api/sessions/:session_id/report?format=markdown
+GET /api/projects/:project_id/report?format=json&lang=zh|en
+GET /api/projects/:project_id/report?format=markdown&lang=zh|en
+GET /api/sessions/:session_id/report?format=json&lang=zh|en
+GET /api/sessions/:session_id/report?format=markdown&lang=zh|en
 ```
+
+Query:
+
+- `lang` — `zh` or `en` (default `en`). Controls localized titles, verdict text, and Markdown export strings.
+- `format` — `json` (default) or `markdown` (same JSON envelope; not raw `text/markdown`).
 
 Response (`format=json`):
 
@@ -361,27 +391,31 @@ Response (`format=json`):
   "report": {
     "scope": "project",
     "id": "proj_01",
-    "title": "anycode",
+    "title": "anycode 数字工作台报告",
+    "lang": "zh",
     "generated_at": "2026-05-22T00:00:00Z",
-    "trusted_status": "blocked",
-    "markdown": "# anycode Digital Workbench Report...",
-    "summary": {
-      "sessions": 12,
-      "events": 320,
-      "failed_gates": 2,
-      "artifacts": 18
+    "trusted_status": "unverified",
+    "markdown": "# anycode 数字工作台报告...",
+    "highlights": {
+      "trust_verified": 2,
+      "trust_unverified": 5,
+      "trust_blocked": 0,
+      "failures_unique": 1,
+      "verdict": "部分会话未验证，交付前请复核。"
     },
-    "source_counts": {
-      "sessions": 12,
-      "events": 320,
-      "gates": 4,
-      "artifacts": 18
-    }
+    "sessions_recent": [],
+    "sessions_imported_count": 12,
+    "failure_groups": [{ "title": "Bash 失败", "event_type": "tool_error", "count": 6, "last_at": "...", "session_id": "sess_..." }],
+    "gates": [],
+    "artifacts": [],
+    "events_sample_limit": 50,
+    "summary": { "sessions": 12, "events": 320, "failed_gates": 0, "artifacts": 18 },
+    "source_counts": { "sessions": 12, "events": 320, "gates": 4, "artifacts": 18 }
   }
 }
 ```
 
-`format=markdown` returns the same envelope with `markdown` populated (JSON body, not `text/markdown`).
+Project reports omit empty gate/artifact sections from `markdown`. Recent sessions exclude `Imported task …` rows (count in `sessions_imported_count`). Failures are grouped by `(title, event_type)`.
 
 Generating a report writes a low-risk audit event (`project_report_generated` / `session_report_generated`).
 

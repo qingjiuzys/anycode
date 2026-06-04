@@ -101,6 +101,45 @@ export interface ReportSourceCounts {
   artifacts: number;
 }
 
+export interface ReportHighlights {
+  trust_verified: number;
+  trust_unverified: number;
+  trust_blocked: number;
+  failures_unique: number;
+  verdict: string;
+}
+
+export interface ReportSessionRow {
+  session_id: string;
+  title: string;
+  kind: string;
+  status: string;
+  trusted_status: string;
+  started_at: string;
+  is_imported?: boolean;
+}
+
+export interface ReportFailureGroup {
+  title: string;
+  event_type: string;
+  count: number;
+  last_at: string;
+  session_id?: string | null;
+}
+
+export interface ReportGateRow {
+  name: string;
+  status: string;
+  required: boolean;
+  output_excerpt: string;
+}
+
+export interface ReportArtifactRow {
+  path: string;
+  kind: string;
+  trust_level: string;
+}
+
 export interface ReportDocument {
   scope: string;
   id: string;
@@ -109,8 +148,20 @@ export interface ReportDocument {
   generated_at: string;
   trusted_status: string;
   markdown: string;
+  html?: string | null;
+  generation_mode?: string;
   summary: ReportSummary;
   source_counts: ReportSourceCounts;
+  lang?: string;
+  highlights?: ReportHighlights;
+  sessions_recent?: ReportSessionRow[];
+  sessions_imported_count?: number;
+  failure_groups?: ReportFailureGroup[];
+  gates?: ReportGateRow[];
+  artifacts?: ReportArtifactRow[];
+  project_id?: string | null;
+  root_path?: string | null;
+  events_sample_limit?: number;
 }
 
 export interface RecentNotification {

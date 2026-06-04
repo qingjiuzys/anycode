@@ -34,24 +34,26 @@ export function HomePanelOverlays({
   }, [activeId, onActiveChange]);
 
   const triggers = (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5 h-9 max-w-full min-w-0">
       {sections.map((section) => {
         const isActive = activeId === section.id;
         return (
           <button
             key={section.id}
             type="button"
+            title={section.title}
             aria-expanded={isActive}
             aria-haspopup="dialog"
+            aria-label={section.title}
             onClick={() => onActiveChange(isActive ? null : section.id)}
-            className={`inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs border-0 cursor-pointer transition-colors ${
+            className={`inline-flex items-center gap-1 h-9 rounded-md px-2 sm:px-2.5 text-xs border-0 cursor-pointer transition-colors shrink-0 max-w-[7.5rem] ${
               isActive
                 ? "bg-primary/10 text-primary font-medium"
                 : "bg-transparent text-secondary hover:text-on-surface hover:bg-surface-container"
             }`}
           >
-            <Icon name={panelIcon(section.id)} size={15} />
-            <span className="hidden lg:inline max-w-[6.5rem] truncate">{section.title}</span>
+            <Icon name={panelIcon(section.id)} size={15} className="shrink-0" />
+            <span className="hidden xl:inline truncate">{section.title}</span>
           </button>
         );
       })}
@@ -74,7 +76,11 @@ export function HomePanelOverlays({
             role="dialog"
             aria-modal
             aria-labelledby="home-panel-title"
-            className="fixed top-[var(--dw-panel-top,3.25rem)] right-4 sm:right-6 z-[95] w-[min(44rem,calc(100vw-2rem))] max-h-[calc(100vh-var(--dw-panel-top,3.25rem)-1rem)] flex flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-xl overflow-hidden"
+            className={`fixed left-1/2 top-1/2 z-[95] -translate-x-1/2 -translate-y-1/2 max-h-[min(88vh,calc(100vh-3rem))] flex flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-xl overflow-hidden ${
+              active.id === "analytics"
+                ? "w-[min(52rem,calc(100vw-1.5rem))]"
+                : "w-[min(44rem,calc(100vw-2rem))]"
+            }`}
           >
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant bg-surface-bright shrink-0">
               <h2 id="home-panel-title" className="text-sm font-semibold m-0 truncate">
@@ -89,7 +95,11 @@ export function HomePanelOverlays({
                 <Icon name="close" size={20} />
               </button>
             </div>
-            <div className="overflow-y-auto overscroll-y-contain p-4 space-y-4 flex-1 min-h-0">
+            <div
+              className={`overflow-y-auto overscroll-y-contain flex-1 min-h-0 ${
+                active.id === "analytics" ? "p-4 sm:p-5" : "p-4 space-y-4"
+              }`}
+            >
               {active.content}
             </div>
           </div>

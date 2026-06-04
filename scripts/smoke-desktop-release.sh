@@ -12,6 +12,7 @@ target/release/anycode --version >/dev/null
 echo "== smoke: desktop app tree =="
 test -f apps/anycode-desktop/tauri.conf.json
 test -f apps/anycode-desktop/assets/anycode-logo.png
+test -f apps/anycode-desktop/assets/anycode-logo-app-icon.png
 test -f apps/anycode-desktop/icons/icon.icns
 test -f scripts/build-desktop-release.sh
 

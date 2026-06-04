@@ -83,12 +83,10 @@ export function ConversationThread({
   session,
   onFollowUpStarted,
   showHeader = true,
-  showComposer = true,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
   showHeader?: boolean;
-  showComposer?: boolean;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -185,28 +183,13 @@ export function ConversationThread({
         </div>
       </div>
 
-      {running && (
-        <div className="px-4 py-2 border-t border-outline-variant/60 bg-surface-container-low shrink-0">
-          <p className="text-xs text-secondary m-0 flex items-center gap-2">
-            <span className="inline-flex gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:120ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:240ms]" />
-            </span>
-            {t("conversations.waitingForModel")}
-          </p>
-        </div>
-      )}
-
-      {showComposer && (
-        <div className="shrink-0 border-t border-outline-variant bg-surface-container-low">
-          <ConversationComposer
-            mode="follow-up"
-            session={session}
-            onSent={onFollowUpStarted}
-          />
-        </div>
-      )}
+      <div className="shrink-0 border-t border-outline-variant bg-surface-container-low">
+        <ConversationComposer
+          mode="follow-up"
+          session={session}
+          onSent={onFollowUpStarted}
+        />
+      </div>
     </div>
   );
 }

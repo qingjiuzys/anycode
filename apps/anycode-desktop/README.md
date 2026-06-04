@@ -2,7 +2,7 @@
 
 Desktop shell for Digital Workbench + sidecar services.
 
-App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (same artwork as [anycode-logo.png](https://qingjiuzys.github.io/anycode/anycode-logo.png)). Release builds regenerate `icons/` (`.icns`, `.ico`, platform sizes) via `cargo tauri icon`.
+App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (brand artwork). Release builds run `scripts/prepare-desktop-icon.py` to crop padding and scale the graphic for Dock visibility, then regenerate `icons/` (`.icns`, `.ico`, platform sizes) from [`assets/anycode-logo-app-icon.png`](assets/anycode-logo-app-icon.png) via `cargo tauri icon`. Requires `python3` + `pillow` (`pip install pillow`).
 
 ## Prerequisites
 

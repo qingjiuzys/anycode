@@ -1,17 +1,42 @@
 use super::*;
+use crate::observability::project_trust::{compute_trust_score, ProjectTrustInputs};
 use crate::project_root::{normalize_project_root, project_id_for_root};
 use std::collections::HashMap;
 
+const PROJECT_TRUST_SUBQUERIES: &str = r#"
+                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS sessions_count,
+                   (SELECT COUNT(*) FROM artifacts a WHERE a.project_id = p.id) AS artifacts_count,
+                   (SELECT COUNT(*) FROM gates g WHERE g.project_id = p.id) AS gates_total,
+                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id AND s.trusted_status = 'blocked') AS blocked_sessions,
+                   (SELECT COUNT(*) FROM gates g WHERE g.project_id = p.id AND g.required = 1 AND g.status = 'failed') AS failed_required_gates,
+                   (SELECT COUNT(*) FROM artifacts a WHERE a.project_id = p.id AND a.trust_level IN ('unknown', 'needs_verify', 'unverified')) AS unverified_artifacts,
+                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id AND s.status = 'running'
+                      AND datetime(s.started_at) < datetime('now', '-24 hours')) AS stale_running_sessions
+"#;
+
+fn trust_inputs_from_row(r: &sqlx::sqlite::SqliteRow) -> ProjectTrustInputs {
+    ProjectTrustInputs::from_row_counts(
+        r.get("sessions_count"),
+        r.get("artifacts_count"),
+        r.get("gates_total"),
+        r.get("blocked_sessions"),
+        r.get("failed_required_gates"),
+        r.get("unverified_artifacts"),
+        r.get("stale_running_sessions"),
+    )
+}
+
 fn row_to_project_summary(r: sqlx::sqlite::SqliteRow) -> ProjectSummary {
     let root_path: String = r.get("root_path");
+    let trust_inputs = trust_inputs_from_row(&r);
     ProjectSummary {
         id: r.get("id"),
         name: r.get("name"),
         root_path: root_path.clone(),
         status: r.get("status"),
-        trust_score: r.get("trust_score"),
-        sessions_count: r.get("sessions_count"),
-        artifacts_count: r.get("artifacts_count"),
+        trust_score: compute_trust_score(&trust_inputs),
+        sessions_count: trust_inputs.sessions_total,
+        artifacts_count: trust_inputs.artifacts_total,
         updated_at: r.get("updated_at"),
         root_exists: std::path::Path::new(&root_path).is_dir(),
     }
@@ -54,9 +79,8 @@ impl DashboardDb {
         let count_sql = format!("SELECT COUNT(*) AS cnt FROM projects p WHERE {where_clause}");
         let list_sql = format!(
             r#"
-            SELECT p.id, p.name, p.root_path, p.status, p.trust_score, p.updated_at,
-                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS sessions_count,
-                   (SELECT COUNT(*) FROM artifacts a WHERE a.project_id = p.id) AS artifacts_count
+            SELECT p.id, p.name, p.root_path, p.status, p.updated_at,
+            {PROJECT_TRUST_SUBQUERIES}
             FROM projects p
             WHERE {where_clause}
             ORDER BY {order_by}
@@ -117,18 +141,85 @@ impl DashboardDb {
         .bind(project_id)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(row.map(|r| ProjectDetail {
+        let mut detail = row.map(|r| ProjectDetail {
             id: r.get("id"),
             name: r.get("name"),
             root_path: r.get("root_path"),
             description: r.get("description"),
             business_goal: r.get("business_goal"),
             status: r.get("status"),
-            trust_score: r.get("trust_score"),
+            trust_score: None,
             automation_level: r.get("automation_level"),
             created_at: r.get("created_at"),
             updated_at: r.get("updated_at"),
-        }))
+        });
+        if let Some(ref mut d) = detail {
+            let inputs = self.fetch_project_trust_inputs(&d.id).await?;
+            d.trust_score = compute_trust_score(&inputs);
+        }
+        Ok(detail)
+    }
+
+    pub async fn fetch_project_trust_inputs(&self, project_id: &str) -> Result<ProjectTrustInputs> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+              (SELECT COUNT(*) FROM sessions WHERE project_id = ?) AS sessions_total,
+              (SELECT COUNT(*) FROM gates WHERE project_id = ?) AS gates_total,
+              (SELECT COUNT(*) FROM artifacts WHERE project_id = ?) AS artifacts_total,
+              (SELECT COUNT(*) FROM sessions WHERE project_id = ? AND trusted_status = 'blocked') AS blocked_sessions,
+              (SELECT COUNT(*) FROM gates WHERE project_id = ? AND required = 1 AND status = 'failed') AS failed_required_gates,
+              (SELECT COUNT(*) FROM artifacts WHERE project_id = ? AND trust_level IN ('unknown', 'needs_verify', 'unverified')) AS unverified_artifacts,
+              (SELECT COUNT(*) FROM sessions WHERE project_id = ? AND status = 'running'
+                 AND datetime(started_at) < datetime('now', '-24 hours')) AS stale_running_sessions
+            "#,
+        )
+        .bind(project_id)
+        .bind(project_id)
+        .bind(project_id)
+        .bind(project_id)
+        .bind(project_id)
+        .bind(project_id)
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(ProjectTrustInputs {
+            sessions_total: row.get("sessions_total"),
+            gates_total: row.get("gates_total"),
+            artifacts_total: row.get("artifacts_total"),
+            blocked_sessions: row.get("blocked_sessions"),
+            failed_required_gates: row.get("failed_required_gates"),
+            unverified_artifacts: row.get("unverified_artifacts"),
+            stale_running_sessions: row.get("stale_running_sessions"),
+        })
+    }
+
+    pub async fn refresh_project_trust_score(&self, project_id: &str) -> Result<()> {
+        let inputs = self.fetch_project_trust_inputs(project_id).await?;
+        let Some(score) = compute_trust_score(&inputs) else {
+            // Column is NOT NULL; leave default/cached value when there is no trust signal yet.
+            return Ok(());
+        };
+        sqlx::query("UPDATE projects SET trust_score = ?, updated_at = updated_at WHERE id = ?")
+            .bind(score)
+            .bind(project_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn refresh_all_project_trust_scores(&self) -> Result<u64> {
+        let ids: Vec<String> =
+            sqlx::query_scalar("SELECT id FROM projects WHERE organization_id = ?")
+                .bind(LOCAL_ORG_ID)
+                .fetch_all(&self.pool)
+                .await?;
+        let mut n = 0u64;
+        for id in ids {
+            self.refresh_project_trust_score(&id).await?;
+            n += 1;
+        }
+        Ok(n)
     }
 
     pub async fn upsert_project(&self, req: UpsertProjectRequest) -> Result<ProjectDetail> {

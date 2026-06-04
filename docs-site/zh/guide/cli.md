@@ -1,56 +1,60 @@
 ---
-title: CLI 总览
-description: anycode 二进制、全局选项与分主题子文档入口。
-summary: 子命令地图；指向 run/REPL/TUI、模型、微信与诊断；HTTP 守护进程已移除说明见 cli-daemon。
-read_when:
-  - 需要先看清 CLI 文档结构再深入某一子命令。
+title: 终端里怎么用 anyCode
+description: 不问命令表，只讲日常场景：提问、改代码、跑任务。
 ---
 
-# anyCode CLI 总览
+# 终端里怎么用 anyCode
 
-**二进制名：** `anycode`。
+anyCode 主要在**终端**里和你协作：你可以像聊天一样提问，也可以让它在项目目录里读文件、改代码、跑检查。
 
-## 全局选项
+## 你能做什么
 
-- **`--debug`** — 调试日志。  
-- **`-c/--config <PATH>`** — 指定 JSON 配置；若路径显式给出且文件不存在，**报错退出**。  
-- **`--model <ID>`** — **仅**在**无子命令默认 TUI** 时使用**长选项**（避免与 **`repl` 的 `-m/--model`** 冲突）。  
-- **`--ignore-approval`**（别名 **`--ignore`**，容错 **`--ingroe`**）— **本进程**跳过工具 y/n，**不写回**配置文件。
+| 场景 | 怎么做 | 你会得到什么 |
+|------|--------|----------------|
+| 问一个问题 | 打开终端，输入 `anycode`，直接打字提问 | 文字回答；需要时会自动查文件 |
+| 在某个项目里干活 | `cd` 到项目目录，再运行 `anycode` | 助手以该目录为工作区 |
+| 跑一条明确任务 | `anycode run "整理本周变更并写摘要"` | 多步执行，结果写在终端或文件里 |
+| 定时提醒 | 在工作台「自动化」里建任务，或见 [定时提醒](./cli-scheduler) | 到点自动执行你写好的说明 |
 
-`run`、`tui`、`repl`、`model`、`channel` 等均按 **`-c`** 路径读写配置。
+## 三步上手
 
-```bash
-anycode config
-```
+1. **安装并完成首次配置** — 见 [安装](./install) 与 [快速开始](./getting-started)。
+2. **进入你的项目目录**，运行 `anycode`。
+3. **用一句话说清楚目标**，例如：「帮我把 `README` 里的安装步骤改得更短」。
 
-**`security.*`、记忆字段、环境变量**见 [配置与安全](./config-security)。
+首次使用若提示选择模型，按向导完成即可；之后可随时在设置里调整。
 
-## 分主题文档
+## 界面说明（不用记名字）
 
-| 主题 | 页面 |
+- **默认界面**：全屏对话，适合长时间协作。
+- **一行一行输入**：适合脚本或简单环境，可用 `anycode repl`。
+- **只想跑完一条命令就走**：用 `anycode run "你的任务"`。
+
+不确定用哪种时，直接输入 `anycode` 即可。
+
+## 工具审批
+
+改文件、执行命令前，终端可能会问你「是否允许」。这是为了保护你的机器：
+
+- 选 **允许一次** — 仅当前操作
+- 选 **拒绝** — 助手会换别的办法或停下来
+
+可在设置里查看安全相关选项（工作台 **设置 → 安全**）。
+
+## 和工作台怎么配合
+
+- 终端里跑的任务，会自动出现在工作台 **项目 / 会话** 里。
+- 定时任务在 **自动化** 页创建和查看，不必记 cron 语法。
+- 需要报表时，到 **报告** 页一键生成。
+
+## 出问题了怎么办
+
+| 现象 | 建议 |
 |------|------|
-| `run` / `repl` / 全屏 TUI / 任务日志 | [run / REPL / TUI](./cli-sessions) |
-| `scheduler`、`CronCreate` 等 | [定时任务与调度器](./cli-scheduler) |
-| HTTP `daemon`（已移除） | [HTTP 守护进程（已移除）](./cli-daemon) |
-| `model` 子命令 | [模型子命令](./cli-model) |
-| `list-agents` / `list-tools` / `test-security` | [发现与 test-security](./cli-diagnostics) |
-| `setup` / `wechat` | [微信与 setup](./wechat) |
-| `enable` / `disable` / `status` / `mode` | 特性开关与路由快照（[版本与特性开关](./releases#runtime-feature-flags)） |
-| `workspace` | 项目登记与目录级默认（[路由](./routing)） |
+| 提示找不到模型 | 重新运行 `anycode setup`，或检查网络与 API 密钥 |
+| 一直卡在等待 | 看是否有个审批提示没点；或 `Ctrl+C` 结束后重试 |
+| 回答和项目无关 | 确认终端当前目录是你的项目根目录 |
 
-运行时特性名见 `anycode_core::FeatureFlag`（`skills`、`workflows`、`goal-mode` 等）。
+详见 [常见问题](./troubleshooting)。需要命令级细节时，可在「了解更多」里查看 [run / REPL / 全屏界面](./cli-sessions)。
 
-## 从源码构建
-
-```bash
-cargo build --release
-./target/release/anycode --help
-```
-
-MCP：加 **`--features tools-mcp`**；环境变量 **`ANYCODE_MCP_COMMAND`**、**`ANYCODE_MCP_SERVERS`** 等见根 README 与 [路线图](./roadmap)。
-
-## 界面语言
-
-见 [配置与安全](./config-security) 中 **`ANYCODE_LANG`** / **`LC_*`** 说明。
-
-English: [CLI overview](/guide/cli).
+English: [Using anyCode in the terminal](/guide/cli).

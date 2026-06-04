@@ -17,7 +17,6 @@ import { useT } from "@/i18n/context";
 
 interface Props {
   sessionId: string | null;
-  enabled?: boolean;
   isRunning?: boolean;
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
 }
@@ -36,7 +35,6 @@ const VIRTUAL_TURN_THRESHOLD = 30;
 
 export function ConversationTranscript({
   sessionId,
-  enabled = true,
   isRunning,
   scrollContainerRef,
 }: Props) {
@@ -47,14 +45,14 @@ export function ConversationTranscript({
   const transcript = useQuery({
     queryKey: ["session-transcript", sessionId],
     queryFn: () => api.sessionTranscript(sessionId!),
-    enabled: Boolean(sessionId) && enabled,
+    enabled: Boolean(sessionId),
     refetchInterval: isRunning ? 1_000 : 3_000,
   });
 
   const liveLog = useQuery({
     queryKey: ["session-execution-log-live", sessionId],
     queryFn: () => api.sessionExecutionLog(sessionId!, { offset: 0, limit: 120 }),
-    enabled: Boolean(sessionId) && enabled && Boolean(isRunning),
+    enabled: Boolean(sessionId) && Boolean(isRunning),
     refetchInterval: 1_000,
   });
 

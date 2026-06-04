@@ -4,30 +4,30 @@ layout: home
 hero:
   name: anyCode
   text: 编码万物，构建一切。
-  tagline: 安装简单、超长记忆、渐进式协作，面向真实开发流程
+  tagline: 终端里的 AI 搭档，配上本地工作台，项目与定时任务一目了然
   actions:
     - theme: brand
       text: 快速开始
       link: /zh/guide/getting-started
     - theme: alt
-      text: 安装
-      link: /zh/guide/install
+      text: 工作台导览
+      link: /zh/guide/workbench
 
 features:
   - icon:
       src: /icons/install.svg
-    title: 安装简单
-    details: 一条命令安装，几分钟完成初始配置，马上进入可用状态。
-  - icon:
-      src: /icons/memory.svg
-    title: 超长记忆
-    details: 保留任务上下文与历史轨迹，长链路协作时不反复丢上下文。
-  - icon:
-      src: /icons/progressive.svg
-    title: 渐进式工作流
-    details: 从一次性问答到多步骤 Agent 协作，按复杂度逐步升级。
+    title: 几分钟上手
+    details: 安装向导帮你选好模型，马上能在终端里对话。
   - icon:
       src: /icons/terminal.svg
-    title: 终端原生体验
-    details: TUI、REPL、工具调用一体化，和现有 CLI 流程自然衔接。
+    title: 本地工作台
+    details: 网页看板汇总项目、会话、资产与报告，不必翻日志。
+  - icon:
+      src: /icons/progressive.svg
+    title: 定时任务
+    details: 用自然语言设提醒，失败可重试，运行记录一目了然。
+  - icon:
+      src: /icons/memory.svg
+    title: macOS 桌面应用
+    details: 原生窗口打开工作台，内置助手服务，随开随用。
 ---

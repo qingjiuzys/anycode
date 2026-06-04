@@ -137,27 +137,29 @@ export const conversationsRoute = createRoute({
       search.budget_exceeded === true ||
       search.budget_exceeded === "true" ||
       search.budget_exceeded === "1";
-    const f = search.filter;
-    const legacyFilter =
-      f === "running" ||
-      f === "blocked" ||
-      f === "workflow" ||
-      f === "cron" ||
-      f === "needs_approval" ||
-      f === "budget" ||
-      f === "all"
-        ? f
-        : undefined;
+    const f = typeof search.filter === "string" ? search.filter.trim() : "";
+    let resolvedStatus = status;
+    let resolvedTrusted = trusted;
+    let resolvedKind = kind;
+    let resolvedNeedsApproval = needs_approval;
+    let resolvedBudgetExceeded = budget_exceeded;
+    if (f === "running" && !resolvedStatus) resolvedStatus = "running";
+    else if (f === "blocked" && !resolvedTrusted) resolvedTrusted = "blocked";
+    else if (f === "workflow" && !resolvedKind) resolvedKind = "workflow";
+    else if (f === "cron" && !resolvedKind) resolvedKind = "cron";
+    else if (f === "needs_approval") {
+      if (!resolvedStatus) resolvedStatus = "running";
+      resolvedNeedsApproval = true;
+    } else if (f === "budget") resolvedBudgetExceeded = true;
     return {
-      status,
-      trusted,
-      kind,
-      needs_approval: needs_approval || undefined,
-      budget_exceeded: budget_exceeded || undefined,
+      status: resolvedStatus,
+      trusted: resolvedTrusted,
+      kind: resolvedKind,
+      needs_approval: resolvedNeedsApproval || undefined,
+      budget_exceeded: resolvedBudgetExceeded || undefined,
       project,
       session,
       agent,
-      filter: legacyFilter,
     };
   },
   component: () => (

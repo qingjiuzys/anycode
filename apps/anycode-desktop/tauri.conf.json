@@ -11,6 +11,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "anyCode Workbench",
         "width": 1280,
         "height": 840,

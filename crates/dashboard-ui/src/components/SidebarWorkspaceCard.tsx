@@ -9,7 +9,7 @@ export function SidebarWorkspaceCard() {
   return (
     <div className="mx-2 mb-3 p-3 rounded-lg bg-surface-container-low border border-outline-variant">
       <div className="text-[10px] uppercase font-semibold text-secondary tracking-wide mb-1">
-        {t("layout.workspace")}
+        {t("layout.mode")}
       </div>
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0">

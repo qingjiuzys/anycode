@@ -15,9 +15,9 @@ mod system_prompt;
 mod workspace_assistant;
 
 pub use agent_profiles::{
-    apply_tool_filters, base_tools_for_extends, is_builtin_extends, resolve_profile,
-    runtime_mode_for_extends, AgentProfileSpec, BuiltinAgentSeed, ResolvedAgentProfile,
-    BUILTIN_AGENT_SEED, BUILTIN_EXTENDS,
+    apply_tool_filters, base_tools_for_extends, is_builtin_extends, profile_spec_for_builtin,
+    resolve_profile, runtime_mode_for_extends, AgentProfileSpec, BuiltinAgentSeed,
+    ResolvedAgentProfile, BUILTIN_AGENT_SEED, BUILTIN_EXTENDS, SHIPPED_ROLE_IDS,
 };
 pub use agents::{ExploreAgent, GeneralPurposeAgent, PlanAgent};
 pub use compact::{

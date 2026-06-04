@@ -7,11 +7,12 @@ import { ReportPreview } from "@/components/ReportPreview";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { ReportDocument } from "@/api/types";
-import { useT } from "@/i18n/context";
+import { useI18n, useT } from "@/i18n/context";
 
 type Scope = "project" | "session";
 
 export function ReportsPage() {
+  const { locale } = useI18n();
   const t = useT();
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
@@ -34,10 +35,10 @@ export function ReportsPage() {
     mutationFn: async () => {
       if (scope === "project") {
         if (!projectId) throw new Error(t("reports.selectProjectError"));
-        return api.projectReport(projectId);
+        return api.projectReport(projectId, locale);
       }
       if (!sessionId) throw new Error(t("reports.selectSessionError"));
-      return api.sessionReport(sessionId);
+      return api.sessionReport(sessionId, locale);
     },
     onSuccess: (data) => setReport(data.report),
   });

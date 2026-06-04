@@ -15,6 +15,7 @@ pub const TOOL_NOTEBOOK_EDIT: &str = "NotebookEdit";
 pub const TOOL_TODO_WRITE: &str = "TodoWrite";
 pub const TOOL_WEB_FETCH: &str = "WebFetch";
 pub const TOOL_WEB_SEARCH: &str = "WebSearch";
+pub const TOOL_KNOWLEDGE_SEARCH: &str = "KnowledgeSearch";
 pub const TOOL_MCP: &str = "mcp";
 pub const TOOL_LIST_MCP_RESOURCES: &str = "ListMcpResourcesTool";
 pub const TOOL_READ_MCP_RESOURCE: &str = "ReadMcpResourceTool";
@@ -273,6 +274,7 @@ mod workspace_assistant_tools_tests {
             TOOL_GLOB,
             TOOL_GREP,
             TOOL_EDIT,
+            TOOL_KNOWLEDGE_SEARCH,
             TOOL_NOTEBOOK_EDIT,
             TOOL_TODO_WRITE,
             TOOL_WEB_FETCH,

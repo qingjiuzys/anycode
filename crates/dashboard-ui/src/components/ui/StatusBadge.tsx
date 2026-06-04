@@ -87,7 +87,15 @@ export function SessionStatusBadges({
   );
 }
 
-export function TrustBar({ score }: { score: number }) {
+export function TrustBar({ score }: { score: number | null | undefined }) {
+  const t = useT();
+  if (score == null) {
+    return (
+      <span className="text-xs text-secondary" title={t("trust.notEvaluated")}>
+        —
+      </span>
+    );
+  }
   const pct = Math.round(score * 100);
   const color =
     pct >= 90 ? "bg-success" : pct >= 70 ? "bg-warn" : pct > 0 ? "bg-error" : "bg-outline";

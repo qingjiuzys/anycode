@@ -3,9 +3,9 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
-import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
 
+/** Compact banner; hidden when starter is complete and there is no usage signal. */
 export function SkillSuggestionsPanel() {
   const t = useT();
   const qc = useQueryClient();
@@ -29,70 +29,74 @@ export function SkillSuggestionsPanel() {
 
   const missing = q.data?.missing_starter ?? [];
   const usage = q.data?.usage ?? [];
+  const hasActionable = missing.length > 0 || usage.length > 0;
 
-  if (!q.isLoading && missing.length === 0 && usage.length === 0 && !installMsg) {
-    return null;
+  if (q.isLoading) return null;
+  if (q.isError) {
+    return (
+      <div className="dw-agents-banner dw-agents-banner--error" role="status">
+        <Icon name="error_outline" size={20} />
+        <span>{t("agents.loadSuggestionsError")}</span>
+      </div>
+    );
   }
 
+  if (!hasActionable && !installMsg) return null;
+
   return (
-    <SectionCard title={t("agents.skillSuggestions")}>
-      <p className="text-sm text-secondary m-0 mb-3">{t("agents.skillSuggestionsHint")}</p>
+    <div className="dw-agents-banner" role="region" aria-label={t("agents.skillSuggestions")}>
       {missing.length > 0 && (
-        <div className="rounded-xl bg-surface-container-low p-4 mb-3">
-          <div className="text-xs font-semibold text-on-surface-variant mb-2">
-            {t("agents.missingStarter")}
+        <div className="dw-agents-banner__block">
+          <div className="dw-agents-banner__lead">
+            <Icon name="inventory_2" size={20} className="text-warn shrink-0" />
+            <div>
+              <p className="dw-agents-banner__title m-0">{t("agents.missingStarter")}</p>
+              <p className="dw-agents-banner__sub m-0">
+                {t("agents.missingStarterCount").replace("{n}", String(missing.length))}
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="dw-agents-banner__tags">
             {missing.map((id) => (
-              <code
-                key={id}
-                className="font-code text-xs bg-surface-container-high px-2 py-1 rounded"
-              >
+              <code key={id} className="font-code text-[11px] px-2 py-0.5 rounded-md bg-surface-container-high">
                 {id}
               </code>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="dw-btn-primary text-sm"
-              disabled={installStarter.isPending}
-              onClick={() => installStarter.mutate()}
-            >
-              {installStarter.isPending ? "…" : t("agents.installStarterBtn")}
-            </button>
-            <span className="text-xs text-secondary">
-              {t("agents.missingStarterHint")}{" "}
-              <code className="font-code">anycode skills install-starter</code>
-            </span>
-          </div>
+          <button
+            type="button"
+            className="dw-btn-primary text-sm shrink-0"
+            disabled={installStarter.isPending}
+            onClick={() => installStarter.mutate()}
+          >
+            <Icon name="download" size={16} />
+            {installStarter.isPending ? t("agents.rescanning") : t("agents.installStarterBtn")}
+          </button>
         </div>
       )}
+
       {usage.length > 0 && (
-        <div className="rounded-xl bg-surface-container-low p-4">
-          <div className="text-xs font-semibold text-on-surface-variant mb-2">
+        <div className="dw-agents-banner__block dw-agents-banner__block--usage">
+          <span className="text-xs font-medium text-secondary shrink-0">
             {t("agents.recentSkillUsage")}
-          </div>
-          <ul className="list-none m-0 p-0 space-y-2">
-            {usage.map((row) => (
-              <li
-                key={row.skill_id}
-                className="flex items-center justify-between gap-3 text-sm py-1.5 px-2 rounded-lg bg-surface-container-lowest/70"
-              >
-                <span className="font-code truncate">{row.skill_id}</span>
-                <span className="text-secondary tabular-nums shrink-0">{row.count}×</span>
-              </li>
+          </span>
+          <div className="dw-agents-banner__usage">
+            {usage.slice(0, 6).map((row) => (
+              <span key={row.skill_id} className="dw-agents-usage-pill font-code">
+                {row.skill_id}
+                <span className="text-secondary tabular-nums">{row.count}×</span>
+              </span>
             ))}
-          </ul>
+          </div>
         </div>
       )}
-      {installMsg && <p className="text-sm text-secondary mt-3 m-0">{installMsg}</p>}
-      <div className="dw-inline-links mt-4 pt-3 border-t border-outline-variant/50">
-        <Link to="/settings" search={{ section: "skills" }} className="dw-inline-link">
-          <Icon name="extension" size={16} />
-          {t("agents.skillsLink")}
-        </Link>
-      </div>
-    </SectionCard>
+
+      {installMsg && <p className="dw-agents-banner__msg m-0">{installMsg}</p>}
+
+      <Link to="/settings" search={{ section: "skills" }} className="dw-agents-banner__link">
+        {t("agents.skillsLink")}
+        <Icon name="arrow_forward" size={14} />
+      </Link>
+    </div>
   );
 }

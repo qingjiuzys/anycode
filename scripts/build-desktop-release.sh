@@ -17,8 +17,16 @@ chmod +x "$DESKTOP_BIN/anycode"
 echo "==> build dashboard UI"
 "$ROOT/scripts/build-dashboard-ui.sh"
 
-echo "==> generate desktop icons from assets/anycode-logo.png"
-LOGO="$ROOT/apps/anycode-desktop/assets/anycode-logo.png"
+echo "==> prepare desktop app icon (crop + scale)"
+ICON_VENV="$ROOT/scripts/.venv-icon"
+if [[ ! -x "$ICON_VENV/bin/python" ]]; then
+  python3 -m venv "$ICON_VENV"
+  "$ICON_VENV/bin/pip" install -q pillow
+fi
+"$ICON_VENV/bin/python" "$ROOT/scripts/prepare-desktop-icon.py"
+
+echo "==> generate desktop icons from assets/anycode-logo-app-icon.png"
+LOGO="$ROOT/apps/anycode-desktop/assets/anycode-logo-app-icon.png"
 if [[ ! -f "$LOGO" ]]; then
   echo "missing desktop logo: $LOGO" >&2
   exit 1

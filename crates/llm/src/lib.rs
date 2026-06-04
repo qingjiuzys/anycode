@@ -13,6 +13,7 @@ mod chat_model_ref;
 pub mod config_file;
 pub mod config_models;
 pub mod copilot_token;
+mod deepseek_catalog;
 mod google_catalog;
 pub mod media;
 mod model_catalog;
@@ -48,6 +49,10 @@ pub use config_models::{
 pub use copilot_token::{
     anycode_credentials_dir, copilot_token_cache_path, github_oauth_token_path,
     read_github_oauth_access_token, resolve_copilot_api_token,
+};
+pub use deepseek_catalog::{
+    catalog_entry_for_id, is_known_deepseek_model_id, DeepSeekModelCatalogEntry,
+    DEEPSEEK_MODEL_CATALOG, DEEPSEEK_OPENAI_API_ROOT, DEEPSEEK_OPENAI_CHAT_URL,
 };
 pub use google_catalog::{is_known_google_model_id, GoogleModelCatalogEntry, GOOGLE_MODEL_CATALOG};
 pub use model_catalog::{

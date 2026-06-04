@@ -18,7 +18,8 @@ const TOOL_PROFILES = ["default", "read_only", "observability", "allowlist"] as 
 export function AutomationCreatePanel() {
   const t = useT();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [schedule, setSchedule] = useState("0 0 8 * * *");
   const [naturalSchedule, setNaturalSchedule] = useState("");
   const [command, setCommand] = useState("");
@@ -76,7 +77,7 @@ export function AutomationCreatePanel() {
     >
       {open ? (
         <>
-      <p className="text-sm text-secondary m-0 mb-3">{t("automations.createHint")}</p>
+      <p className="text-sm text-secondary m-0 mb-4">{t("automations.createHint")}</p>
       {(templates.data?.templates ?? []).length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
           {(templates.data?.templates ?? []).map((tpl) => {
@@ -111,7 +112,7 @@ export function AutomationCreatePanel() {
         </div>
       )}
       <label className="block text-xs text-secondary mb-1">{t("automations.naturalSchedule")}</label>
-      <div className="flex flex-wrap gap-2 mb-2">
+      <div className="flex flex-wrap gap-2 mb-3">
         <input
           className="dw-input flex-1 min-w-[12rem] text-sm"
           placeholder={t("automations.naturalSchedulePlaceholder")}
@@ -127,56 +128,80 @@ export function AutomationCreatePanel() {
           {parseSchedule.isPending ? "…" : t("automations.parseSchedule")}
         </button>
       </div>
-      <label className="block text-xs text-secondary mb-1">{t("automations.schedule")}</label>
-      <input
-        className="dw-input w-full mb-2 font-code text-sm"
-        value={schedule}
-        onChange={(e) => setSchedule(e.target.value)}
-      />
-      <label className="block text-xs text-secondary mb-1">{t("automations.timezone")}</label>
-      <select
-        className="dw-input w-full mb-2"
-        value={scheduleTimezone}
-        onChange={(e) => setScheduleTimezone(e.target.value)}
-      >
-        {TIMEZONES.map((tz) => (
-          <option key={tz.id} value={tz.id}>
-            {tz.label}
-          </option>
-        ))}
-      </select>
-      <label className="block text-xs text-secondary mb-1">{t("automations.toolProfile")}</label>
-      <select
-        className="dw-input w-full mb-2"
-        value={toolProfile}
-        onChange={(e) => setToolProfile(e.target.value as (typeof TOOL_PROFILES)[number])}
-      >
-        {TOOL_PROFILES.map((p) => (
-          <option key={p} value={p}>
-            {p}
-          </option>
-        ))}
-      </select>
-      <label className="block text-xs text-secondary mb-1">{t("automations.stableSession")}</label>
-      <input
-        className="dw-input w-full mb-2 font-code text-sm"
-        placeholder={t("automations.stableSessionPlaceholder")}
-        value={sessionId}
-        onChange={(e) => setSessionId(e.target.value)}
-      />
-      <label className="block text-xs text-secondary mb-1">{t("automations.failureDestination")}</label>
-      <input
-        className="dw-input w-full mb-2 text-sm"
-        placeholder={t("automations.failureDestinationPlaceholder")}
-        value={failureDestination}
-        onChange={(e) => setFailureDestination(e.target.value)}
-      />
       <label className="block text-xs text-secondary mb-1">{t("automations.commandSummary")}</label>
       <textarea
-        className="dw-input w-full min-h-[80px] mb-2"
+        className="dw-input w-full min-h-[96px] mb-3"
+        placeholder={t("automations.commandPlaceholder")}
         value={command}
         onChange={(e) => setCommand(e.target.value)}
       />
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs text-secondary hover:text-primary cursor-pointer mb-3"
+        onClick={() => setAdvancedOpen((v) => !v)}
+        aria-expanded={advancedOpen}
+      >
+        <Icon name={advancedOpen ? "expand_less" : "expand_more"} size={16} />
+        {advancedOpen ? t("automations.hideAdvanced") : t("automations.showAdvanced")}
+      </button>
+      {advancedOpen && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs text-secondary mb-1">{t("automations.schedule")}</label>
+            <input
+              className="dw-input w-full font-code text-sm"
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-secondary mb-1">{t("automations.timezone")}</label>
+            <select
+              className="dw-input w-full"
+              value={scheduleTimezone}
+              onChange={(e) => setScheduleTimezone(e.target.value)}
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.id} value={tz.id}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-secondary mb-1">{t("automations.toolProfile")}</label>
+            <select
+              className="dw-input w-full"
+              value={toolProfile}
+              onChange={(e) => setToolProfile(e.target.value as (typeof TOOL_PROFILES)[number])}
+            >
+              {TOOL_PROFILES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-secondary mb-1">{t("automations.stableSession")}</label>
+            <input
+              className="dw-input w-full font-code text-sm"
+              placeholder={t("automations.stableSessionPlaceholder")}
+              value={sessionId}
+              onChange={(e) => setSessionId(e.target.value)}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs text-secondary mb-1">{t("automations.failureDestination")}</label>
+            <input
+              className="dw-input w-full text-sm"
+              placeholder={t("automations.failureDestinationPlaceholder")}
+              value={failureDestination}
+              onChange={(e) => setFailureDestination(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
       <button
         type="button"
         className="dw-btn-primary"

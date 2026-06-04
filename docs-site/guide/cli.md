@@ -1,56 +1,60 @@
 ---
-title: CLI overview
-description: anycode binary, global flags, and links to focused CLI guides.
-summary: Entry point for subcommands; points to sessions, models, WeChat, diagnostics, and removed HTTP daemon note.
-read_when:
-  - You need a map of CLI documentation before diving into one subcommand.
+title: Using anyCode in the terminal
+description: Everyday scenarios—ask questions, edit code, run tasks—without a command cheat sheet.
 ---
 
-# CLI overview
+# Using anyCode in the terminal
 
-**Binary:** `anycode`.
+anyCode works in your **terminal**: chat-style questions, or multi-step work inside a project folder.
 
-## Global flags
+## What you can do
 
-- **`--debug`** — verbose logging.  
-- **`-c/--config <PATH>`** — config file path; if the path is given and missing, the CLI exits with an error.  
-- **`--model <ID>`** — long option only on the **default TUI** entry (no subcommand); avoids clashing with **`repl`’s `-m/--model`**.  
-- **`--ignore-approval`** (aliases **`--ignore`**, typo **`--ingroe`**) — skip interactive approval **for this process only**; does not rewrite `config.json`.
+| Scenario | How | What you get |
+|----------|-----|----------------|
+| Quick question | Run `anycode` and type | An answer; file lookup when needed |
+| Work in a project | `cd` to the project, then `anycode` | The assistant uses that folder as workspace |
+| One-shot task | `anycode run "Summarize this week's changes"` | Multi-step work with output in terminal or files |
+| Scheduled reminders | Workbench **Automations**, or [Scheduled reminders](./cli-scheduler) | Runs your instructions on a schedule |
 
-Subcommands that read/write config (**`run`**, **`tui`**, **`repl`**, **`model`**, **`channel`**, etc.) honor **`-c`**.
+## Three steps to start
 
-```bash
-anycode config
-```
+1. **Install and run setup** — [Install](./install) and [Quick start](./getting-started).
+2. **`cd` into your project** and run `anycode`.
+3. **State the goal in one sentence**, e.g. “Shorten the install section in README.”
 
-See [Config & security](./config-security) for **`security.*`**, memory fields, and env vars.
+Follow the model wizard the first time; change models later in Settings.
 
-## Section guides
+## Interfaces (no jargon required)
 
-| Topic | Page |
-|--------|------|
-| **`run`**, **`repl`**, fullscreen TUI, task logs | [Run, REPL & TUI](./cli-sessions) |
-| **`scheduler`**, **`CronCreate`** | [Cron & scheduler](./cli-scheduler) |
-| **HTTP `daemon`** (removed) | [HTTP daemon (removed)](./cli-daemon) |
-| **`model`*** subcommands | [Model commands](./cli-model) |
-| **`list-agents`**, **`list-tools`**, **`test-security`** | [Discovery & test-security](./cli-diagnostics) |
-| **`setup`**, **`wechat`** | [WeChat & setup](./wechat) |
-| **`enable` / `disable` / `status` / `mode`** | Feature flags & routing snapshot (see [Feature flags](./releases#runtime-feature-flags)) |
-| **`workspace`** | Project registry & per-directory defaults (see [Routing](./routing)) |
+- **Default** — full-screen chat for longer work.
+- **Line-by-line** — `anycode repl` for minimal environments.
+- **Fire and forget** — `anycode run "…"` for a single task.
 
-Runtime feature names are defined in **`anycode_core::FeatureFlag`** (`skills`, `workflows`, `goal-mode`, `channel-mode`, `approval-v2`, `context-compression`, `workspace-profiles`).
+When unsure, just run `anycode`.
 
-## Build from source
+## Approvals
 
-```bash
-cargo build --release
-./target/release/anycode --help
-```
+Before editing files or running shell commands, you may be asked to allow or deny. This protects your machine:
 
-MCP: build with **`--features tools-mcp`**; env **`ANYCODE_MCP_COMMAND`**, **`ANYCODE_MCP_SERVERS`**, etc.
+- **Allow once** — only this action
+- **Deny** — the assistant stops or tries another approach
 
-## Locale
+Adjust security options under Workbench **Settings → Security** if needed.
 
-CLI UI language: **`ANYCODE_LANG`**, **`LANGUAGE`**, **`LC_*`**, **`LANG`**, then OS (see [Config & security](./config-security)).
+## Workbench together
 
-Chinese pages mirror this structure under **`/zh/guide/`**.
+- Terminal runs show up under **Projects / Conversations**.
+- Scheduled jobs are created and monitored under **Automations**.
+- Reports are generated on the **Reports** page.
+
+## Something wrong?
+
+| Symptom | Try |
+|---------|-----|
+| Model errors | Re-run `anycode setup`; check API keys and network |
+| Stuck waiting | Look for a pending approval; or `Ctrl+C` and retry |
+| Wrong project context | Confirm `pwd` is your project root |
+
+See [Common issues](./troubleshooting). For command details: [Run, REPL & TUI](./cli-sessions) under *Learn more*.
+
+简体中文: [终端里怎么用](/zh/guide/cli).

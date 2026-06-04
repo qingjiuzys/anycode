@@ -141,6 +141,7 @@ export interface CatalogModelRow {
   id: string;
   label: string;
   description?: string | null;
+  capabilities?: string[];
 }
 
 export interface CatalogAuthMethod {
@@ -158,6 +159,9 @@ export interface ModelCatalog {
   providers: CatalogProviderRow[];
   zai_models: CatalogModelRow[];
   google_models: CatalogModelRow[];
+  /** DeepSeek V4 + legacy aliases (official API docs). */
+  deepseek_models?: CatalogModelRow[];
+  provider_models?: Record<string, CatalogModelRow[]>;
   zai_auth_methods: CatalogAuthMethod[];
   routing_agent_presets: CatalogRoutingPreset[];
   capabilities: { id: string; label?: string }[];
@@ -275,11 +279,16 @@ export interface RuntimeSettings {
   fallback_model?: string | null;
 }
 
+export type ReportOutputFormat = "markdown" | "html" | "both";
+export type ReportGenerationMode = "llm" | "template";
+
 export interface DashboardPreferences {
   host: string;
   port: number;
   db_path: string;
   asset_read_strict?: boolean;
+  report_output_format?: ReportOutputFormat;
+  report_generation_mode?: ReportGenerationMode;
   model_fallback_provider?: string | null;
   model_fallback_model?: string | null;
   updated_at: string;

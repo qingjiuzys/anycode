@@ -28,6 +28,7 @@ test.describe("Digital Workbench V3 Week 4 API", () => {
     });
     expect(res.ok()).toBeTruthy();
     const text = await res.text();
-    expect(text.includes("line") || text.includes("done") || text.includes("STREAM")).toBeTruthy();
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toMatch(/"type"\s*:\s*"(line|done|error)"|STREAM_OK/);
   });
 });

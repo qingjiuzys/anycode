@@ -74,46 +74,20 @@ pub async fn start_project_conversation(
         .map(str::to_string);
 
     let root_path = std::path::PathBuf::from(&project.root_path);
-    let (root, created_root) = match crate::project_root::ensure_project_root_for_chat(&root_path) {
+    let (root, _created_root) = match super::chat_util::ensure_chat_project_root(
+        &state.db,
+        &project_id,
+        None,
+        &root_path,
+        "conversation_start",
+    )
+    .await
+    {
         Ok(v) => v,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string() })),
-            )
-                .into_response();
+            return (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response();
         }
     };
-    if created_root {
-        let _ = state
-            .db
-            .insert_event(InsertEventRequest {
-                project_id: project_id.clone(),
-                session_id: None,
-                task_id: None,
-                agent_id: None,
-                event_type: "project_root_created".into(),
-                severity: Some("info".into()),
-                title: "Project root created".into(),
-                body: Some(root.display().to_string()),
-                payload: Some(json!({ "source": "conversation_start" })),
-            })
-            .await;
-        let _ = crate::audit::record_audit(
-            &state.db,
-            crate::audit::AuditEventInput {
-                project_id: Some(project_id.clone()),
-                session_id: None,
-                action: "project_root_created".into(),
-                risk: "medium".into(),
-                detail: json!({
-                    "root_path": root.display().to_string(),
-                    "source": "conversation_start",
-                }),
-            },
-        )
-        .await;
-    }
 
     let kind = "repl";
     let session = match state
@@ -155,7 +129,7 @@ pub async fn start_project_conversation(
         })
         .await;
 
-    let dashboard_url = dashboard_loopback_url(&state.host, state.port);
+    let dashboard_url = super::chat_util::dashboard_loopback_url(&state.host, state.port);
     match state
         .web_chat
         .send(
@@ -212,12 +186,4 @@ pub async fn start_project_conversation(
                 .into_response()
         }
     }
-}
-
-fn dashboard_loopback_url(host: &str, port: u16) -> String {
-    let host = match host {
-        "0.0.0.0" | "::" => "127.0.0.1",
-        other => other,
-    };
-    format!("http://{host}:{port}")
 }

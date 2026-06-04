@@ -11,6 +11,8 @@ import { ProjectTokenUsage } from "@/components/ProjectTokenUsage";
 import { SessionFlow } from "@/components/SessionFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProjectKnowledgePanel } from "@/components/ProjectKnowledgePanel";
+import { DataTable, DataTableEmpty } from "@/components/ui/DataTable";
+import { KpiMetricGrid } from "@/components/KpiMetricGrid";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useProjectEventStream } from "@/hooks/useProjectEventStream";
@@ -180,83 +182,44 @@ export function ProjectDetailPage() {
 
       <DataHealthPanel health={projectHealth.data?.health} compact />
 
-      {projectMetrics.data?.metrics && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="dw-stat-card">
-            <div className="dw-stat-label">{t("projectDetail.readinessScore")}</div>
-            <div className="dw-stat-value">{projectMetrics.data.metrics.readiness_score}</div>
-          </div>
-          <div className="dw-stat-card">
-            <div className="dw-stat-label">{t("projectDetail.events7d")}</div>
-            <div className="dw-stat-value">{projectMetrics.data.metrics.events_7d}</div>
-          </div>
-          <div className="dw-stat-card">
-            <div className="dw-stat-label">{t("projectDetail.gatePassRate")}</div>
-            <div className="dw-stat-value">
-              {(projectMetrics.data.metrics.gate_pass_rate * 100).toFixed(0)}%
-            </div>
-          </div>
-          <div className="dw-stat-card">
-            <div className="dw-stat-label">{t("projectDetail.unverifiedAssets")}</div>
-            <div className="dw-stat-value">
-              {projectMetrics.data.metrics.unverified_artifacts}
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="dw-project-detail">
+        {projectMetrics.data?.metrics && (
+          <KpiMetricGrid
+            metrics={[
+              {
+                label: t("projectDetail.readinessScore"),
+                value: String(projectMetrics.data.metrics.readiness_score),
+                highlight: true,
+              },
+              {
+                label: t("projectDetail.events7d"),
+                value: String(projectMetrics.data.metrics.events_7d),
+              },
+              {
+                label: t("projectDetail.gatePassRate"),
+                value: `${(projectMetrics.data.metrics.gate_pass_rate * 100).toFixed(0)}%`,
+              },
+              {
+                label: t("projectDetail.unverifiedAssets"),
+                value: String(projectMetrics.data.metrics.unverified_artifacts),
+              },
+            ]}
+          />
+        )}
 
-      {stats.data?.stats && <ProjectInsightCharts stats={stats.data.stats} />}
+        {stats.data?.stats && <ProjectInsightCharts stats={stats.data.stats} />}
 
-      <ProjectTokenUsage projectId={projectId} />
-
-      <SectionCard title={t("projectDetail.startTaskTitle")}>
-        <p className="text-sm text-secondary m-0 mb-3">{t("projectDetail.startTaskHint")}</p>
-        <Link
-          to="/conversations"
-          search={{ project: projectId }}
-          className="dw-btn-primary inline-flex items-center gap-2 no-underline"
-        >
-          <Icon name="forum" size={16} />
-          {t("projectDetail.openConversations")}
-        </Link>
-      </SectionCard>
-
-      <GateRunnerPanel projectId={projectId} />
-
-      {(stats.data?.stats?.recent_failures ?? []).length > 0 && (
-        <SectionCard title={t("projectDetail.recentFailures")}>
-          <ul className="m-0 pl-5 text-sm space-y-2">
-            {(stats.data?.stats?.recent_failures ?? []).map((f) => (
-              <li key={f.id}>
-                <Link to="/events/$eventId" params={{ eventId: f.id }}>
-                  {f.title}
-                </Link>
-                <span className="text-secondary">
-                  {" "}
-                  · {f.event_type} · {f.occurred_at}
-                </span>
-                {f.session_id && (
-                  <>
-                    {" "}
-                    <Link
-                      to="/sessions/$sessionId"
-                      params={{ sessionId: f.session_id }}
-                      className="text-secondary"
-                    >
-                      {t("projectDetail.sessionLink")}
-                    </Link>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title={t("projectDetail.sessions")} noPadding>
-          <div className="overflow-x-auto">
-            <table className="dw-table">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SectionCard title={t("projectDetail.sessions")} noPadding>
+            <DataTable
+              isEmpty={(sessionsQ.data?.sessions ?? []).length === 0}
+              empty={
+                <DataTableEmpty
+                  message={t("projectDetail.emptySessions")}
+                  icon={<Icon name="forum" size={28} className="text-outline" />}
+                />
+              }
+            >
               <thead>
                 <tr>
                   <th>{t("conversations.titleCol")}</th>
@@ -277,7 +240,7 @@ export function ProjectDetailPage() {
                         {s.title}
                       </Link>
                     </td>
-                    <td>{s.kind}</td>
+                    <td className="text-secondary text-xs">{s.kind}</td>
                     <td>
                       <StatusBadge status={s.status} />
                     </td>
@@ -287,13 +250,14 @@ export function ProjectDetailPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        </SectionCard>
+            </DataTable>
+          </SectionCard>
 
-        <SectionCard title={t("projectDetail.acceptanceGates")} noPadding>
-          <div className="overflow-x-auto">
-            <table className="dw-table">
+          <SectionCard title={t("projectDetail.acceptanceGates")} noPadding>
+            <DataTable
+              isEmpty={(gates.data?.gates ?? []).length === 0}
+              empty={<DataTableEmpty message={t("projectDetail.noGates")} icon={<Icon name="verified" size={28} className="text-outline" />} />}
+            >
               <thead>
                 <tr>
                   <th>{t("common.name")}</th>
@@ -305,34 +269,77 @@ export function ProjectDetailPage() {
               <tbody>
                 {(gates.data?.gates ?? []).map((g) => (
                   <tr key={g.id}>
-                    <td>{g.name}</td>
+                    <td className="font-medium">{g.name}</td>
                     <td>
                       <StatusBadge status={g.status} />
                     </td>
-                    <td>{g.required ? t("projectDetail.yes") : t("projectDetail.no")}</td>
+                    <td className="text-secondary text-xs">
+                      {g.required ? t("projectDetail.yes") : t("projectDetail.no")}
+                    </td>
                     <td className="text-secondary text-xs max-w-xs">{g.output_excerpt || "—"}</td>
                   </tr>
                 ))}
-                {(gates.data?.gates ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="text-secondary text-center py-6">
-                      {t("projectDetail.noGates")}
-                    </td>
-                  </tr>
-                )}
               </tbody>
-            </table>
-          </div>
-        </SectionCard>
-      </div>
+            </DataTable>
+          </SectionCard>
+        </div>
 
-      <SectionCard title={t("projectDetail.pipeline")}>
-        <p className="text-xs text-secondary m-0 mb-2">{t("sessionFlow.hint")}</p>
-        <SessionFlow sessions={sessionsQ.data?.sessions ?? []} />
-      </SectionCard>
+        <div className="dw-project-cta-bar">
+          <p className="text-sm text-secondary m-0 max-w-xl">{t("projectDetail.startTaskHint")}</p>
+          <Link
+            to="/conversations"
+            search={{ project: projectId }}
+            className="dw-btn-primary inline-flex items-center gap-2 no-underline shrink-0"
+          >
+            <Icon name="forum" size={16} />
+            {t("projectDetail.openConversations")}
+          </Link>
+        </div>
 
-      {(skillsQ.data?.skills ?? []).length > 0 && (
-        <SectionCard title={t("projectDetail.projectSkills")} noPadding>
+        <div className="dw-project-secondary-grid">
+          <ProjectTokenUsage projectId={projectId} />
+          <GateRunnerPanel projectId={projectId} />
+        </div>
+
+        {(stats.data?.stats?.recent_failures ?? []).length > 0 && (
+          <SectionCard title={t("projectDetail.recentFailures")}>
+            <ul className="m-0 pl-5 text-sm space-y-2">
+              {(stats.data?.stats?.recent_failures ?? []).map((f) => (
+                <li key={f.id}>
+                  <Link to="/events/$eventId" params={{ eventId: f.id }}>
+                    {f.title}
+                  </Link>
+                  <span className="text-secondary">
+                    {" "}
+                    · {f.event_type} · {f.occurred_at}
+                  </span>
+                  {f.session_id && (
+                    <>
+                      {" "}
+                      <Link
+                        to="/sessions/$sessionId"
+                        params={{ sessionId: f.session_id }}
+                        className="text-secondary"
+                      >
+                        {t("projectDetail.sessionLink")}
+                      </Link>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        )}
+
+        {(sessionsQ.data?.sessions ?? []).length > 0 && (
+          <SectionCard title={t("projectDetail.pipeline")}>
+            <p className="text-xs text-secondary m-0 mb-2">{t("sessionFlow.hint")}</p>
+            <SessionFlow sessions={sessionsQ.data?.sessions ?? []} />
+          </SectionCard>
+        )}
+
+        {(skillsQ.data?.skills ?? []).length > 0 && (
+          <SectionCard title={t("projectDetail.projectSkills")} noPadding>
           <div className="overflow-x-auto">
             <table className="dw-table">
               <thead>
@@ -374,13 +381,13 @@ export function ProjectDetailPage() {
               </tbody>
             </table>
           </div>
-        </SectionCard>
-      )}
+          </SectionCard>
+        )}
 
-      <ProjectKnowledgePanel projectId={projectId} />
+        <ProjectKnowledgePanel projectId={projectId} />
 
-      <SectionCard
-        title={t("projectDetail.recentEvents")}
+        <SectionCard
+          title={t("projectDetail.recentEvents")}
         action={
           <input
             type="search"
@@ -390,8 +397,8 @@ export function ProjectDetailPage() {
             onChange={(e) => setEventSearch(e.target.value)}
           />
         }
-      >
-        <div className="flex flex-wrap gap-2 mb-2">
+        >
+          <div className="flex flex-wrap gap-2 mb-2">
           <button
             type="button"
             className={`dw-chip${eventFilter === null ? " active" : ""}`}
@@ -440,8 +447,9 @@ export function ProjectDetailPage() {
             </button>
           ))}
         </div>
-        <EventTimeline events={events.data?.events ?? []} />
-      </SectionCard>
+          <EventTimeline events={events.data?.events ?? []} />
+        </SectionCard>
+      </div>
     </>
   );
 }

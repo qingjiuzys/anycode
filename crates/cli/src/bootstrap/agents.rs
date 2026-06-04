@@ -1,10 +1,12 @@
 //! Register declarative agent profiles and merge routing / skill allowlists.
 
-use crate::app_config::{AgentProfileFile, AgentProfileToolsFile, AgentsConfig};
+use crate::app_config::{
+    AgentProfileFile, AgentProfileSkillsFile, AgentProfileToolsFile, AgentsConfig,
+};
 use crate::bootstrap::model_resolve::resolve_model_profile;
 use anycode_agent::{
-    is_builtin_extends, resolve_profile as resolve_agent_profile, AgentProfileSpec, AgentRuntime,
-    ProfileAgent, ResolvedAgentProfile,
+    is_builtin_extends, profile_spec_for_builtin, resolve_profile as resolve_agent_profile,
+    AgentProfileSpec, AgentRuntime, ProfileAgent, ResolvedAgentProfile,
 };
 use anycode_core::prelude::*;
 use std::collections::HashMap;
@@ -106,167 +108,66 @@ pub(crate) fn merge_profile_skill_allowlists(
     }
 }
 
+fn agent_profile_file_from_spec(spec: &AgentProfileSpec) -> AgentProfileFile {
+    AgentProfileFile {
+        extends: spec.extends.clone(),
+        description: spec.description.clone(),
+        tools: if spec.tools_allow.is_some() || spec.tools_deny.is_some() {
+            Some(AgentProfileToolsFile {
+                allow: spec.tools_allow.clone(),
+                deny: spec.tools_deny.clone(),
+            })
+        } else {
+            None
+        },
+        skills: spec
+            .skills_allowlist
+            .as_ref()
+            .map(|allowlist| AgentProfileSkillsFile {
+                allowlist: Some(allowlist.clone()),
+            }),
+        routing: None,
+        prompt_overlay: spec.prompt_overlay.clone(),
+    }
+}
+
 /// Shipped role presets (extends builtins) for quick start.
 pub(crate) fn shipped_role_profiles() -> AgentsConfig {
-    let mut profiles = HashMap::new();
-    profiles.insert(
-        "builder".into(),
-        AgentProfileFile {
-            extends: "general-purpose".into(),
-            description: Some("Default implementation-focused coding agent".into()),
-            tools: None,
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "planner".into(),
-        AgentProfileFile {
-            extends: "plan".into(),
-            description: Some("Architecture and task decomposition".into()),
-            tools: None,
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "explorer".into(),
-        AgentProfileFile {
-            extends: "explore".into(),
-            description: Some("Fast codebase exploration".into()),
-            tools: None,
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "verifier".into(),
-        AgentProfileFile {
-            extends: "explore".into(),
-            description: Some("Read-only verification and test inspection".into()),
-            tools: Some(AgentProfileToolsFile {
-                allow: None,
-                deny: Some(vec!["Bash".into(), "Edit".into(), "FileWrite".into()]),
-            }),
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "reviewer".into(),
-        AgentProfileFile {
-            extends: "explore".into(),
-            description: Some("PR-style review without shell mutation".into()),
-            tools: Some(AgentProfileToolsFile {
-                allow: Some(vec![
-                    "FileRead".into(),
-                    "Grep".into(),
-                    "Glob".into(),
-                    "StructuredOutput".into(),
-                ]),
-                deny: None,
-            }),
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "channel-ops".into(),
-        AgentProfileFile {
-            extends: "workspace-assistant".into(),
-            description: Some("IM / cron channel operations".into()),
-            tools: None,
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "goal-runner".into(),
-        AgentProfileFile {
-            extends: "goal".into(),
-            description: Some("Autonomous goal iteration".into()),
-            tools: None,
-            skills: None,
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
-    profiles.insert(
-        "office-writer".into(),
-        AgentProfileFile {
-            extends: "general-purpose".into(),
-            description: Some("Office writing: reports, briefs, content drafts".into()),
-            tools: None,
-            skills: Some(crate::app_config::AgentProfileSkillsFile {
-                allowlist: Some(vec![
-                    "content-repurpose".into(),
-                    "doc-summary".into(),
-                    "md-to-pdf".into(),
-                    "weekly-report".into(),
-                ]),
-            }),
-            routing: None,
-            prompt_overlay: Some(
-                "You are an office writing assistant. Produce clear Markdown drafts; do not publish externally. Use KnowledgeSearch for indexed project materials when paths are configured.".into(),
-            ),
-        },
-    );
-    profiles.insert(
-        "data-analyst".into(),
-        AgentProfileFile {
-            extends: "general-purpose".into(),
-            description: Some("Spreadsheets, summaries, and data-oriented reports".into()),
-            tools: None,
-            skills: Some(crate::app_config::AgentProfileSkillsFile {
-                allowlist: Some(vec![
-                    "doc-summary".into(),
-                    "report-to-csv".into(),
-                    "weekly-report".into(),
-                ]),
-            }),
-            routing: None,
-            prompt_overlay: Some(
-                "Focus on accurate data summaries and tables; cite source files. Use KnowledgeSearch and report-to-csv when exporting tabular results.".into(),
-            ),
-        },
-    );
-    profiles.insert(
-        "researcher".into(),
-        AgentProfileFile {
-            extends: "explore".into(),
-            description: Some("Industry research and daily briefs".into()),
-            tools: None,
-            skills: Some(crate::app_config::AgentProfileSkillsFile {
-                allowlist: Some(vec!["daily-brief".into()]),
-            }),
-            routing: None,
-            prompt_overlay: Some(
-                "Gather sources with WebSearch/WebFetch; synthesize with citations. Bind daily-brief skill for scheduled summaries.".into(),
-            ),
-        },
-    );
-    profiles.insert(
-        "file-operator".into(),
-        AgentProfileFile {
-            extends: "workspace-assistant".into(),
-            description: Some("Batch file organization and cleanup".into()),
-            tools: None,
-            skills: Some(crate::app_config::AgentProfileSkillsFile {
-                allowlist: Some(vec!["file-organizer".into()]),
-            }),
-            routing: None,
-            prompt_overlay: None,
-        },
-    );
+    use anycode_agent::SHIPPED_ROLE_IDS;
+    let mut profiles = std::collections::HashMap::new();
+    for id in SHIPPED_ROLE_IDS {
+        if let Some(spec) = profile_spec_for_builtin(id) {
+            profiles.insert(id.to_string(), agent_profile_file_from_spec(&spec));
+        }
+    }
     AgentsConfig {
         profiles,
         defaults: Default::default(),
+    }
+}
+
+pub(crate) async fn build_agents_setup(
+    runtime: &Arc<AgentRuntime>,
+    config: &crate::app_config::Config,
+    default_model: &ModelConfig,
+    model_overrides_snapshot: &HashMap<AgentType, ModelConfig>,
+    expose_skill_on_explore_plan: bool,
+) {
+    register_declarative_agents(runtime, config, default_model, model_overrides_snapshot).await;
+    let shipped = shipped_role_profiles();
+    for (id, spec) in shipped.profiles {
+        if config.agents.profiles.contains_key(&id) {
+            continue;
+        }
+        if let Some(resolved) = resolve_profile(&id, &spec, expose_skill_on_explore_plan) {
+            let model = model_overrides_snapshot
+                .get(&AgentType::new(&id))
+                .cloned()
+                .unwrap_or_else(|| default_model.clone());
+            runtime
+                .register_agent(Box::new(ProfileAgent::new(resolved, model)))
+                .await;
+        }
     }
 }
 

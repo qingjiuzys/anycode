@@ -7,7 +7,7 @@ export interface ProjectDetail {
   description: string;
   business_goal: string;
   status: string;
-  trust_score: number;
+  trust_score?: number | null;
   automation_level: number;
   created_at: string;
   updated_at: string;
@@ -18,7 +18,7 @@ export interface ProjectSummary {
   name: string;
   root_path: string;
   status: string;
-  trust_score: number;
+  trust_score?: number | null;
   sessions_count: number;
   artifacts_count: number;
   updated_at: string;

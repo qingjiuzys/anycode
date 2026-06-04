@@ -6,11 +6,13 @@ interface Props {
   projects: ProjectSummary[];
 }
 
-export function MetricsChart({ projects }: Props) {
+export function MetricsChart({ projects, tall }: Props & { tall?: boolean }) {
   const t = useT();
   const names = projects.map((p) => p.name);
   const sessions = projects.map((p) => p.sessions_count);
-  const trust = projects.map((p) => Math.round(p.trust_score * 100));
+  const trust = projects.map((p) =>
+    p.trust_score == null ? null : Math.round(p.trust_score * 100),
+  );
 
   const option = {
     backgroundColor: "transparent",
@@ -19,11 +21,11 @@ export function MetricsChart({ projects }: Props) {
       data: [t("charts.sessionCount"), t("charts.trustScore")],
       textStyle: { color: "#505f76" },
     },
-    grid: { left: 40, right: 20, top: 40, bottom: 30 },
+    grid: { left: 44, right: 16, top: 44, bottom: tall ? 56 : 36 },
     xAxis: {
       type: "category",
       data: names,
-      axisLabel: { color: "#737686", fontSize: 11 },
+      axisLabel: { color: "#737686", fontSize: 10, rotate: tall && names.length > 4 ? 24 : 0 },
     },
     yAxis: [
       {
@@ -57,8 +59,8 @@ export function MetricsChart({ projects }: Props) {
   };
 
   return (
-    <div className="h-48">
-      <ReactECharts option={option} style={{ height: "100%" }} />
+    <div className={tall ? "h-52 sm:h-56" : "h-48"}>
+      <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
     </div>
   );
 }

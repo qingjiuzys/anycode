@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { DoctorPanel } from "@/components/settings/DoctorPanel";
+import { ReportPreferencesPanel } from "@/components/settings/ReportPreferencesPanel";
 import { CommandList } from "@/components/ui/CommandList";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { getDensity, setDensity, type Density } from "@/hooks/useDensity";
@@ -27,6 +28,7 @@ export function SettingsOpsSection() {
 
   return (
     <>
+      <ReportPreferencesPanel />
       <DoctorPanel doctor={doctor.data?.doctor} />
       <SectionCard title={t("settings.releaseChecklist")}>
         <p className="text-sm text-secondary m-0 mb-3">{t("settings.maintainerChecklistHint")}</p>

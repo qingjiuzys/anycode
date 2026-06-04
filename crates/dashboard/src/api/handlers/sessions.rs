@@ -39,21 +39,31 @@ pub async fn send_session_message(
     Path(session_id): Path<String>,
     Json(body): Json<crate::schema::SendConversationMessageRequest>,
 ) -> impl IntoResponse {
-    let prompt = body.prompt.trim();
-    if prompt.is_empty() {
+    if !crate::task_trigger::triggers_allowed(&state.host) {
         return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "message is required" })),
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "UI trigger run is disabled for this binding. Use loopback or set ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1."
+            })),
         )
             .into_response();
     }
-    if let Err(e) = crate::task_trigger::validate_skill_ids(body.skills.as_deref()) {
+    let mut trigger_req = crate::task_trigger::TriggerRunRequest {
+        prompt: body.prompt.clone(),
+        kind: "run".into(),
+        goal: None,
+        agent: body.agent.clone(),
+        skills: body.skills.clone(),
+    };
+    crate::task_trigger::normalize_trigger_request(&mut trigger_req);
+    if let Err(e) = crate::task_trigger::validate_request(&trigger_req) {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": e.to_string() })),
         )
             .into_response();
     }
+    let prompt = body.prompt.trim();
     let session = match state.db.get_session(&session_id).await {
         Ok(Some(s)) => s,
         Ok(None) => {
@@ -89,46 +99,20 @@ pub async fn send_session_message(
         }
     };
     let root_path = std::path::PathBuf::from(&project.root_path);
-    let (root, created_root) = match crate::project_root::ensure_project_root_for_chat(&root_path) {
+    let (root, _created_root) = match super::chat_util::ensure_chat_project_root(
+        &state.db,
+        &session.project_id,
+        Some(&session_id),
+        &root_path,
+        "conversation_message",
+    )
+    .await
+    {
         Ok(v) => v,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string() })),
-            )
-                .into_response();
+            return (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response();
         }
     };
-    if created_root {
-        let _ = state
-            .db
-            .insert_event(crate::schema::InsertEventRequest {
-                project_id: session.project_id.clone(),
-                session_id: Some(session_id.clone()),
-                task_id: None,
-                agent_id: None,
-                event_type: "project_root_created".into(),
-                severity: Some("info".into()),
-                title: "Project root created".into(),
-                body: Some(root.display().to_string()),
-                payload: Some(json!({ "source": "conversation_message" })),
-            })
-            .await;
-        let _ = crate::audit::record_audit(
-            &state.db,
-            crate::audit::AuditEventInput {
-                project_id: Some(session.project_id.clone()),
-                session_id: Some(session_id.clone()),
-                action: "project_root_created".into(),
-                risk: "medium".into(),
-                detail: json!({
-                    "root_path": root.display().to_string(),
-                    "source": "conversation_message",
-                }),
-            },
-        )
-        .await;
-    }
     let requested_agent = body
         .agent
         .as_deref()
@@ -143,14 +127,21 @@ pub async fn send_session_message(
         }
     });
     if requested_agent.is_some() && requested_agent != Some(session_agent) {
-        let _ = state
+        if let Err(e) = state
             .db
             .update_session_agent(&session_id, requested_agent)
-            .await;
+            .await
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
         state.web_chat.evict(&session_id).await;
     }
     let prompt_for_chat = crate::task_trigger::prompt_with_skills(prompt, body.skills.as_deref());
-    let dashboard_url = dashboard_loopback_url(&state.host, state.port);
+    let dashboard_url = super::chat_util::dashboard_loopback_url(&state.host, state.port);
     match state
         .web_chat
         .send(
@@ -192,19 +183,12 @@ pub async fn send_session_message(
     }
 }
 
-fn dashboard_loopback_url(host: &str, port: u16) -> String {
-    let host = match host {
-        "0.0.0.0" | "::" => "127.0.0.1",
-        other => other,
-    };
-    format!("http://{host}:{port}")
-}
-
 pub async fn cancel_session(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
     let live_signal = crate::cancel_ipc::request_cancel(&session_id).unwrap_or(false);
+    state.web_chat.evict(&session_id).await;
     match state.db.cancel_running_session(&session_id).await {
         Ok(true) => {
             if let Ok(Some(sess)) = state.db.get_session(&session_id).await {

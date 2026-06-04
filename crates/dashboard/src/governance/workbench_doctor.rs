@@ -1,6 +1,7 @@
 //! WorkBuddy-parity doctor checks: skills starter, knowledge index, WeChat bridge, cron scheduler.
 
 use crate::db::DashboardDb;
+use crate::observability::project_trust::{compute_trust_score, has_trust_signal};
 use crate::schema::DoctorCheck;
 use crate::skill_suggestions::STARTER_SKILL_IDS;
 use sqlx::Row;
@@ -9,9 +10,59 @@ pub async fn workbench_doctor_checks(db: &DashboardDb) -> Vec<DoctorCheck> {
     let mut checks = Vec::new();
     checks.push(skills_starter_check(db).await);
     checks.push(knowledge_index_check(db).await);
+    checks.push(project_trust_stale_check(db).await);
     checks.extend(wechat_bridge_checks());
     checks.push(cron_scheduler_check());
     checks
+}
+
+async fn project_trust_stale_check(db: &DashboardDb) -> DoctorCheck {
+    let rows = match sqlx::query("SELECT id, trust_score FROM projects WHERE organization_id = ?")
+        .bind(crate::schema::LOCAL_ORG_ID)
+        .fetch_all(db.pool())
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return DoctorCheck {
+                id: "project_trust_stale".into(),
+                status: "warn".into(),
+                message: format!("Could not inspect project trust scores: {e}"),
+            };
+        }
+    };
+
+    let mut stale = 0i64;
+    for row in &rows {
+        let id: String = row.get("id");
+        let stored: f64 = row.get("trust_score");
+        let Ok(inputs) = db.fetch_project_trust_inputs(&id).await else {
+            continue;
+        };
+        if !has_trust_signal(&inputs) {
+            continue;
+        }
+        let computed = compute_trust_score(&inputs).unwrap_or(0.0);
+        if (stored - computed).abs() > 0.01 {
+            stale += 1;
+        }
+    }
+
+    if stale > 0 {
+        DoctorCheck {
+            id: "project_trust_stale".into(),
+            status: "warn".into(),
+            message: format!(
+                "{stale} project(s) have cached trust_score out of sync — restart dashboard or run a session/gate update to refresh"
+            ),
+        }
+    } else {
+        DoctorCheck {
+            id: "project_trust_stale".into(),
+            status: "ok".into(),
+            message: "Project trust scores match live readiness aggregates".into(),
+        }
+    }
 }
 
 async fn skills_starter_check(db: &DashboardDb) -> DoctorCheck {

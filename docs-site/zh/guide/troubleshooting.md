@@ -1,85 +1,58 @@
 ---
-title: 排错
-description: 按“现象”快速定位 anyCode 常见问题，并给出下一步操作。
-summary: 先解决命令、setup、扫码、API 报错，再进入进阶诊断。
-read_when:
-  - setup、channel 绑定或命令执行失败。
-  - 需要一个快速可执行的排错清单。
+title: 常见问题
+description: 安装、工作台、终端与定时任务的最常见疑问。
 ---
 
-# 排错
+# 常见问题
 
-适合出现报错后，希望先快速恢复可用的用户。
+## 安装与首次配置
 
-使用方式：
+**装好后命令找不到 `anycode`？**  
+把安装目录加入 PATH，或重新打开终端。从源码安装时使用 `target/release/anycode` 的完整路径。
 
-1. 先按“现象”找到最接近的一节
-2. 按顺序执行该节里的检查项
-3. 快速检查无效时，再看“进阶诊断”
+**`setup` 中途失败？**  
+多半是网络或 API 密钥问题。检查模型服务商的密钥是否填写正确，然后重新运行 `anycode setup`。
 
-## 1）`anycode` 命令找不到
+## 工作台
 
-1. 先执行 `anycode --help`
-2. 如果提示找不到命令，按安装脚本输出修正 PATH
-3. 新开一个终端再试
-4. 仍失败就按 [安装](./install) 重装
+**浏览器打不开 `http://127.0.0.1:43180`？**  
+先在终端执行 `anycode dashboard`，看是否提示端口被占用。若被占用，可在设置里改端口后重启。
 
-## 2）`setup` 不能交互 / 卡住
+**项目列表是空的？**  
+工作台只显示**已经跑过任务**的工作区。先在项目目录用终端执行一次 `anycode` 或 `anycode run`，再刷新页面。
 
-- 请在本机真实终端运行（不要在 CI / 无头环境中交互）
-- 如果你只想先配某个 channel，可直接指定：
+**页面是英文的？**  
+右上角语言切换选「中文」。侧栏 **文档 / 帮助** 会跟着语言打开对应站点。
 
-```bash
-anycode setup --channel wechat
-anycode setup --channel telegram
-anycode setup --channel discord
-```
+## 终端
 
-预期输出：setup 会直接进入你指定的 channel 流程。
+**助手不读我的项目文件？**  
+确认终端当前目录是项目根目录（`pwd` 看一下）。
 
-## 3）微信扫码失败
+**改文件前总要我点批准？**  
+这是安全设计。信任的环境可在设置里调整策略；不要盲目关闭所有确认。
 
-- 在有图形界面/浏览器的机器执行：
+**回答很慢或中断？**  
+检查网络；看是否模型额度用尽；终端里 `Ctrl+C` 可停止当前轮次。
 
-```bash
-anycode channel wechat
-```
+## 定时任务
 
-预期输出：出现扫码绑定流程并提示后续确认步骤。
+**创建了任务但从没跑？**  
+确认本机调度器或桌面应用在运行；到工作台 **自动化 → 最近触发** 查看记录。
 
-- 如果任务跑到错误目录，在微信里用 `/cwd` 切到项目目录。
+**显示失败？**  
+点 **立即重试**；点开关联会话看错误说明；把任务描述写得更具体。
 
-## 4）API 调用报错
+## 桌面应用（macOS）
 
-- 重新执行 `setup`，确认 provider / model / api key
-- 确认 endpoint 与 provider 协议匹配（OpenAI 兼容接口 vs 厂商原生接口）
-- 使用 Google provider 时，优先用 setup 自动填充的默认 endpoint
+**Dock 图标很小？**  
+请使用最新版安装包；安装后若图标未更新，可重启 Dock（终端执行 `killall Dock`）。
 
-## 5）审批提示影响使用
+**打开应用但页面空白？**  
+等几秒让内置服务启动；仍不行则在终端手动执行 `anycode dashboard` 后再打开应用。
 
-- `require_approval=true` 时，敏感工具会要求确认
-- 如果你明确理解风险，且仅本次跳过：
+---
 
-```bash
-anycode run --ignore-approval --agent general-purpose "..."
-```
+仍无法解决？到 [GitHub Issues](https://github.com/qingjiuzys/anycode/issues) 反馈，并附上：系统版本、anycode 版本（`anycode --version`）、你做了什么、期望什么。
 
-预期输出：本次进程执行任务时不再弹审批确认。
-
-## 进阶诊断（可选）
-
-- **MCP / `McpAuth` / OAuth（无 GUI）**：anycode 不会替你弹浏览器。用动态 **`mcp__…__authenticate`** 或 **`McpAuth`**，看 MCP 子进程 **stderr**（与 CLI 同一终端），再在系统浏览器里完成授权。详见 [配置与安全 — MCP OAuth](./config-security) 与环境变量 **`ANYCODE_MCP_READ_TIMEOUT_SECS`** / **`ANYCODE_MCP_CALL_TIMEOUT_SECS`**（调用挂起时）。
-- **`mcp_stdio_dead`（工具返回的 JSON）**：表示 MCP **stdio 子进程已退出**（或会话已不可用），当前实现 **不会** 自动重拉子进程。处理步骤：
-  1. **重启** anycode 进程（或重新启动发起 MCP 的会话），以便重新 `connect`。
-  2. 检查启动 MCP 的命令与配置（**`ANYCODE_MCP_COMMAND`** 等环境变量），修正崩溃或路径错误。
-  3. 在 **与 CLI 同一终端** 查看 MCP 的 **stderr**。
-  政策与未来可选受控重连：仓库 [`ADR 007`](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/007-mcp-session-reconnect-policy.md)；实现备忘：[`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md)。
-- **MCP stdio 会话**：子进程退出或反复超时/EOF 时 **不会自动重连**。请修正 server 命令或重启 CLI 会话；仓库 [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md)。
-- 开发者日志与测试：看 [开发与贡献](./development)
-
-## 仍然无法解决
-
-- 提 Issue 时请附：
-  - 系统版本
-  - `anycode --version`
-  - 脱敏后的 `~/.anycode/config.json`（去掉 API Key）
+English: [Common issues](/guide/troubleshooting).

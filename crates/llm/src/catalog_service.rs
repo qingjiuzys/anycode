@@ -1,9 +1,12 @@
 //! Model catalog service: static presets + cached remote refresh.
 
 use crate::{
-    capability_catalog::ModelCapability, google_catalog::GOOGLE_MODEL_CATALOG,
-    provider_catalog::PROVIDER_CATALOG, providers::zai::ZAI_MODEL_CATALOG, ROUTING_AGENT_PRESETS,
-    ZAI_AUTH_METHODS,
+    capability_catalog::ModelCapability,
+    deepseek_catalog::{catalog_entry_for_id, DEEPSEEK_MODEL_CATALOG, DEEPSEEK_OPENAI_API_ROOT},
+    google_catalog::GOOGLE_MODEL_CATALOG,
+    provider_catalog::PROVIDER_CATALOG,
+    providers::zai::ZAI_MODEL_CATALOG,
+    ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
 };
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -76,27 +79,117 @@ pub fn builtin_catalog_models(provider: &str) -> Vec<CatalogModelEntry> {
             })
             .collect();
     }
+    if matches!(id.as_str(), "deepseek" | "deep-seek" | "deep_seek") {
+        return DEEPSEEK_MODEL_CATALOG
+            .iter()
+            .map(|m| CatalogModelEntry {
+                id: m.id.to_string(),
+                label: m.label.to_string(),
+                description: Some(m.description.to_string()),
+                capabilities: vec![ModelCapability::Chat.as_str().to_string()],
+            })
+            .collect();
+    }
     vec![]
 }
 
+fn is_deepseek_provider(provider: &str) -> bool {
+    matches!(
+        provider.trim().to_ascii_lowercase().as_str(),
+        "deepseek" | "deep-seek" | "deep_seek"
+    )
+}
+
+/// Merge official GET /models results with static V4 + legacy alias metadata.
+#[must_use]
+pub fn merge_deepseek_catalog(
+    remote: Vec<CatalogModelEntry>,
+    builtin: Vec<CatalogModelEntry>,
+) -> Vec<CatalogModelEntry> {
+    let mut order: Vec<String> = Vec::new();
+    let mut by_id: HashMap<String, CatalogModelEntry> = HashMap::new();
+
+    for m in remote {
+        let enriched = catalog_entry_for_id(&m.id).map(|e| CatalogModelEntry {
+            id: e.id.to_string(),
+            label: e.label.to_string(),
+            description: Some(e.description.to_string()),
+            capabilities: m.capabilities.clone(),
+        });
+        let entry = enriched.unwrap_or(m);
+        if !by_id.contains_key(&entry.id) {
+            order.push(entry.id.clone());
+        }
+        by_id.insert(entry.id.clone(), entry);
+    }
+
+    for m in builtin {
+        if !by_id.contains_key(&m.id) {
+            order.push(m.id.clone());
+            by_id.insert(m.id.clone(), m);
+        }
+    }
+
+    let rank = |id: &str| -> u8 {
+        match id {
+            "deepseek-v4-pro" => 0,
+            "deepseek-v4-flash" => 1,
+            "deepseek-chat" => 2,
+            "deepseek-reasoner" => 3,
+            _ => 4,
+        }
+    };
+    order.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.cmp(b)));
+    order
+        .into_iter()
+        .filter_map(|id| by_id.remove(&id))
+        .collect()
+}
+
+/// Strip `/chat/completions` so `…/v1/models` resolves correctly.
+pub fn normalize_openai_api_base(base: &str) -> String {
+    let mut b = base.trim().trim_end_matches('/').to_string();
+    for suffix in ["/chat/completions", "/completions"] {
+        if b.ends_with(suffix) {
+            b.truncate(b.len() - suffix.len());
+            b = b.trim_end_matches('/').to_string();
+            break;
+        }
+    }
+    b
+}
+
+fn default_openai_api_base(provider: &str) -> &'static str {
+    match provider.trim().to_ascii_lowercase().as_str() {
+        "deepseek" | "deep-seek" | "deep_seek" => DEEPSEEK_OPENAI_API_ROOT,
+        _ => "https://api.openai.com/v1",
+    }
+}
+
 fn openai_models_url(base: &str) -> String {
-    let b = base.trim_end_matches('/');
+    let b = normalize_openai_api_base(base);
     format!("{b}/models")
 }
 
 async fn fetch_openai_compatible_models(
     provider: &str,
     base_url: Option<&str>,
+    api_key: Option<&str>,
 ) -> Result<Vec<CatalogModelEntry>> {
     let base = base_url
         .filter(|s| !s.trim().is_empty())
         .map(str::trim)
-        .unwrap_or("https://api.openai.com/v1");
-    let url = openai_models_url(base);
+        .map(normalize_openai_api_base)
+        .unwrap_or_else(|| default_openai_api_base(provider).to_string());
+    let url = openai_models_url(&base);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
-    let resp = client.get(&url).send().await.context("fetch models")?;
+    let mut req = client.get(&url);
+    if let Some(key) = api_key.filter(|s| !s.trim().is_empty()) {
+        req = req.bearer_auth(key.trim());
+    }
+    let resp = req.send().await.context("fetch models")?;
     if !resp.status().is_success() {
         anyhow::bail!("models list status {}", resp.status());
     }
@@ -166,6 +259,7 @@ pub fn save_cached_catalog(catalog: &CachedProviderCatalog) -> Result<()> {
 pub async fn refresh_provider_catalog(
     provider: &str,
     base_url: Option<&str>,
+    api_key: Option<&str>,
 ) -> Result<CachedProviderCatalog> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -174,6 +268,36 @@ pub async fn refresh_provider_catalog(
         .to_string();
 
     let builtin = builtin_catalog_models(provider);
+
+    if is_deepseek_provider(provider) {
+        let (merged, source) =
+            match fetch_openai_compatible_models(provider, base_url, api_key).await {
+                Ok(remote) => (
+                    merge_deepseek_catalog(remote, builtin.clone()),
+                    "remote+builtin",
+                ),
+                Err(e) => {
+                    tracing::warn!(
+                        target: "anycode_llm",
+                        "deepseek catalog remote refresh failed: {e}; using builtin"
+                    );
+                    (builtin.clone(), "builtin")
+                }
+            };
+        let catalog = CachedProviderCatalog {
+            provider: provider.to_string(),
+            models: merged,
+            meta: CatalogRefreshMeta {
+                last_refreshed_at: Some(now),
+                source: source.into(),
+                offline_cache_used: false,
+                refresh_error: None,
+            },
+        };
+        save_cached_catalog(&catalog)?;
+        return Ok(catalog);
+    }
+
     if !builtin.is_empty() {
         let catalog = CachedProviderCatalog {
             provider: provider.to_string(),
@@ -189,7 +313,7 @@ pub async fn refresh_provider_catalog(
         return Ok(catalog);
     }
 
-    match fetch_openai_compatible_models(provider, base_url).await {
+    match fetch_openai_compatible_models(provider, base_url, api_key).await {
         Ok(models) => {
             let catalog = CachedProviderCatalog {
                 provider: provider.to_string(),
@@ -242,6 +366,19 @@ pub fn aggregate_catalog_view() -> Value {
         .map(|m| json!({ "id": m.id, "label": m.label }))
         .collect();
 
+    let deepseek_models: Vec<Value> =
+        merge_deepseek_catalog(vec![], builtin_catalog_models("deepseek"))
+            .into_iter()
+            .map(|m| {
+                json!({
+                    "id": m.id,
+                    "label": m.label,
+                    "description": m.description,
+                    "capabilities": m.capabilities,
+                })
+            })
+            .collect();
+
     let zai_auth: Vec<Value> = ZAI_AUTH_METHODS
         .iter()
         .map(|m| json!({ "label": m.label, "hint": m.hint, "plan": m.plan }))
@@ -258,9 +395,28 @@ pub fn aggregate_catalog_view() -> Value {
         .collect();
 
     let mut cache_meta: HashMap<String, CatalogRefreshMeta> = HashMap::new();
-    for p in PROVIDER_CATALOG.iter().take(8) {
+    let mut provider_models: HashMap<String, Vec<CatalogModelEntry>> = HashMap::new();
+    for p in PROVIDER_CATALOG.iter() {
         if let Some(c) = load_cached_catalog(p.id) {
-            cache_meta.insert(p.id.to_string(), c.meta);
+            cache_meta.insert(p.id.to_string(), c.meta.clone());
+            if !c.models.is_empty() {
+                let models = if is_deepseek_provider(p.id) {
+                    merge_deepseek_catalog(c.models.clone(), builtin_catalog_models(p.id))
+                } else {
+                    c.models.clone()
+                };
+                provider_models.insert(p.id.to_string(), models);
+            }
+        } else {
+            let builtin = builtin_catalog_models(p.id);
+            if !builtin.is_empty() {
+                let models = if is_deepseek_provider(p.id) {
+                    merge_deepseek_catalog(vec![], builtin)
+                } else {
+                    builtin
+                };
+                provider_models.insert(p.id.to_string(), models);
+            }
         }
     }
 
@@ -268,6 +424,8 @@ pub fn aggregate_catalog_view() -> Value {
         "providers": providers,
         "zai_models": zai_models,
         "google_models": google_models,
+        "deepseek_models": deepseek_models,
+        "provider_models": provider_models,
         "zai_auth_methods": zai_auth,
         "routing_agent_presets": routing_presets,
         "capabilities": capabilities,
@@ -289,5 +447,38 @@ mod tests {
     fn builtin_zai_models_non_empty() {
         let models = builtin_catalog_models("z.ai");
         assert!(!models.is_empty());
+    }
+
+    #[test]
+    fn builtin_deepseek_models_non_empty() {
+        let models = builtin_catalog_models("deepseek");
+        assert!(models.len() >= 2);
+        assert!(models.iter().any(|m| m.id == "deepseek-v4-pro"));
+    }
+
+    #[test]
+    fn normalize_strips_chat_completions_suffix() {
+        assert_eq!(
+            normalize_openai_api_base("https://api.deepseek.com/v1/chat/completions"),
+            "https://api.deepseek.com/v1"
+        );
+        assert_eq!(
+            openai_models_url("https://api.deepseek.com/chat/completions"),
+            "https://api.deepseek.com/models"
+        );
+    }
+
+    #[test]
+    fn merge_deepseek_includes_legacy_aliases() {
+        let remote = vec![CatalogModelEntry {
+            id: "deepseek-v4-pro".into(),
+            label: "deepseek-v4-pro".into(),
+            description: None,
+            capabilities: vec!["chat".into()],
+        }];
+        let builtin = builtin_catalog_models("deepseek");
+        let merged = merge_deepseek_catalog(remote, builtin);
+        assert!(merged.iter().any(|m| m.id == "deepseek-v4-flash"));
+        assert!(merged.iter().any(|m| m.id == "deepseek-chat"));
     }
 }

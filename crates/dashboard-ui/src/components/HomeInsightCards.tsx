@@ -23,14 +23,14 @@ export function HomeInsightCards({ overview, readiness }: Props) {
   const risks: {
     label: string;
     to: string;
-    filter?: "blocked";
+    trusted?: "blocked";
     trust?: "unverified";
   }[] = [];
   if (overview.sessions_blocked > 0) {
     risks.push({
       label: t("home.insightBlocked").replace("{n}", String(overview.sessions_blocked)),
       to: "/conversations",
-      filter: "blocked",
+      trusted: "blocked",
     });
   }
   if (overview.gates_failed > 0) {
@@ -47,7 +47,7 @@ export function HomeInsightCards({ overview, readiness }: Props) {
     });
   }
 
-  const suggestions: { label: string; to: string; search?: { filter?: "running" } }[] = [];
+  const suggestions: { label: string; to: string; search?: { status?: "running" } }[] = [];
   if (overview.projects_count === 0) {
     suggestions.push({ label: t("home.suggestScan"), to: "/projects" });
   }
@@ -58,7 +58,7 @@ export function HomeInsightCards({ overview, readiness }: Props) {
     suggestions.push({
       label: t("home.suggestRunning"),
       to: "/conversations",
-      search: { filter: "running" },
+      search: { status: "running" },
     });
   }
 
@@ -89,14 +89,14 @@ export function HomeInsightCards({ overview, readiness }: Props) {
                 <Link
                   to={r.to}
                   search={
-                    r.filter
-                      ? { filter: r.filter }
+                    r.trusted
+                      ? { trusted: r.trusted }
                       : r.trust
                         ? { trust: r.trust }
                         : undefined
                   }
                   className={`text-sm no-underline hover:underline ${
-                    r.filter === "blocked"
+                    r.trusted === "blocked"
                       ? "text-error"
                       : r.trust
                         ? "text-secondary"

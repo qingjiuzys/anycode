@@ -1,40 +1,23 @@
 //! Model registry API: configured models, enable, test, patch.
+//!
+//! Canonical registry CRUD for the Settings UI. `/api/settings/llm` exposes the same
+//! underlying `config.json` with additional routing/legacy flat fields for compatibility.
 
 use super::*;
+use crate::config_patch::{self, LlmConfigPatchBody};
 use crate::llm_probe::LlmProbeService;
 use anycode_llm::{
-    capability_catalog::ModelCapability, patch_llm_config_value, read_config_value,
-    set_active_capability, upsert_registry_item, write_config_value, ConfiguredModelFile,
-    LlmConfigPatch, MaskedSecret, ResolvedModelRegistry,
+    capability_catalog::ModelCapability, migrate_legacy_llm_section, read_config_value,
+    remove_registry_item, set_active_capability, sync_legacy_models_section, upsert_registry_item,
+    ConfiguredModelFile, ResolvedModelRegistry,
 };
 use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
 
-fn mask_item(item: &ConfiguredModelFile) -> Value {
-    json!({
-        "id": item.id,
-        "display_name": item.display_name,
-        "provider": item.provider,
-        "model": item.model,
-        "capabilities": item.capabilities.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
-        "plan": item.plan,
-        "base_url": item.base_url,
-        "api_key": MaskedSecret::from_value(item.api_key.as_deref()),
-        "api_key_ref": item.api_key_ref,
-        "temperature": item.temperature,
-        "max_tokens": item.max_tokens,
-        "extra_headers": item.extra_headers.as_ref().map(|h| h.keys().collect::<Vec<_>>()),
-        "endpoint_overrides": item.endpoint_overrides,
-        "enabled": item.enabled,
-        "tags": item.tags,
-        "source": item.source,
-    })
-}
-
 pub async fn get_models_registry() -> impl IntoResponse {
-    let (_, cfg) = match read_config_value(None) {
+    let (_, cfg) = match config_patch::read_config_value(None) {
         Ok(v) => v,
         Err(e) => {
             return (
@@ -73,7 +56,7 @@ pub async fn put_models_registry(
     State(state): State<AppState>,
     Json(body): Json<PutModelsBody>,
 ) -> impl IntoResponse {
-    let (path, mut cfg) = match read_config_value(None) {
+    let (_, mut cfg) = match config_patch::read_config_value(None) {
         Ok(v) => v,
         Err(e) => {
             return (
@@ -86,12 +69,12 @@ pub async fn put_models_registry(
     if !cfg.is_object() {
         cfg = json!({});
     }
-    anycode_llm::migrate_legacy_llm_section(&mut cfg);
+    migrate_legacy_llm_section(&mut cfg);
 
     let mut registry = ResolvedModelRegistry::from_config(&cfg);
     if let Some(delete) = body.delete_ids.as_ref() {
         for id in delete {
-            anycode_llm::remove_registry_item(&mut registry.items, id);
+            remove_registry_item(&mut registry.items, id);
             registry.active.retain(|_, v| v != id);
         }
     }
@@ -112,25 +95,20 @@ pub async fn put_models_registry(
         }
     }
 
-    let legacy = anycode_llm::sync_legacy_models_section(&registry);
-    let patch = LlmConfigPatch {
+    let legacy = sync_legacy_models_section(&registry);
+    let (path, _cfg) = match config_patch::patch_llm_config(&LlmConfigPatchBody {
         models: Some(legacy),
         ..Default::default()
+    }) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
     };
-    if let Err(e) = patch_llm_config_value(&mut cfg, &patch) {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response();
-    }
-    if let Err(e) = write_config_value(&path, &cfg) {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response();
-    }
 
     let _ = crate::audit::record_audit(
         &state.db,
@@ -197,7 +175,7 @@ pub async fn test_model(
     axum::extract::Path(model_id): axum::extract::Path<String>,
     Json(body): Json<TestModelBody>,
 ) -> impl IntoResponse {
-    let (_, cfg) = match read_config_value(None) {
+    let (_, cfg) = match config_patch::read_config_value(None) {
         Ok(v) => v,
         Err(e) => {
             return (

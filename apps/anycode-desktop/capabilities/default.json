@@ -1,7 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the Workbench window",
+  "description": "Default permissions for the Workbench window (local dashboard + external docs)",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*",
+      "http://localhost:*"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "shell:default"
+  ]
 }
