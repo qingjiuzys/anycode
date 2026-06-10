@@ -1,5 +1,4 @@
 import { useEffect, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 
@@ -8,8 +7,6 @@ export type HomePanelSection = {
   title: string;
   content: ReactNode;
 };
-
-const SLOT_ID = "dw-home-panels-slot";
 
 export function HomePanelOverlays({
   sections,
@@ -22,7 +19,6 @@ export function HomePanelOverlays({
 }) {
   const t = useT();
   const active = sections.find((section) => section.id === activeId);
-  const slot = typeof document !== "undefined" ? document.getElementById(SLOT_ID) : null;
 
   useEffect(() => {
     if (!activeId) return;
@@ -33,37 +29,8 @@ export function HomePanelOverlays({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeId, onActiveChange]);
 
-  const triggers = (
-    <div className="flex items-center gap-0.5 h-9 max-w-full min-w-0">
-      {sections.map((section) => {
-        const isActive = activeId === section.id;
-        return (
-          <button
-            key={section.id}
-            type="button"
-            title={section.title}
-            aria-expanded={isActive}
-            aria-haspopup="dialog"
-            aria-label={section.title}
-            onClick={() => onActiveChange(isActive ? null : section.id)}
-            className={`inline-flex items-center gap-1 h-9 rounded-md px-2 sm:px-2.5 text-xs border-0 cursor-pointer transition-colors shrink-0 max-w-[7.5rem] ${
-              isActive
-                ? "bg-primary/10 text-primary font-medium"
-                : "bg-transparent text-secondary hover:text-on-surface hover:bg-surface-container"
-            }`}
-          >
-            <Icon name={panelIcon(section.id)} size={15} className="shrink-0" />
-            <span className="hidden xl:inline truncate">{section.title}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-
   return (
     <>
-      {slot ? createPortal(triggers, slot) : null}
-
       {active && (
         <>
           <button
@@ -109,15 +76,3 @@ export function HomePanelOverlays({
   );
 }
 
-function panelIcon(id: string): string {
-  switch (id) {
-    case "recent":
-      return "history";
-    case "analytics":
-      return "analytics";
-    case "workbench":
-      return "dashboard_customize";
-    default:
-      return "article";
-  }
-}

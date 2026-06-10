@@ -349,6 +349,7 @@ mod tests {
                 name: Some("Ghost".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

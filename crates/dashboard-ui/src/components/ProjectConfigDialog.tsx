@@ -1,0 +1,95 @@
+import { useEffect, useState } from "react";
+import { Icon } from "@/components/Icon";
+import { ProjectGateConfigPanel } from "@/components/project/ProjectGateConfigPanel";
+import { ProjectKnowledgeConfigPanel } from "@/components/project/ProjectKnowledgeConfigPanel";
+import { ProjectPipelineConfigPanel } from "@/components/project/ProjectPipelineConfigPanel";
+import { useT } from "@/i18n/context";
+
+type Tab = "knowledge" | "gates" | "pipeline";
+
+export function ProjectConfigDialog({
+  projectId,
+  open,
+  initialTab,
+  onClose,
+}: {
+  projectId: string;
+  open: boolean;
+  initialTab?: Tab;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [tab, setTab] = useState<Tab>(initialTab ?? "knowledge");
+
+  useEffect(() => {
+    if (open && initialTab) {
+      setTab(initialTab);
+    }
+  }, [open, initialTab]);
+
+  if (!open) return null;
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "knowledge", label: t("projectDetail.config.tabs.knowledge") },
+    { id: "gates", label: t("projectDetail.config.tabs.gates") },
+    { id: "pipeline", label: t("projectDetail.config.tabs.pipeline") },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/25 p-4"
+      role="dialog"
+      aria-modal
+      aria-labelledby="project-config-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[min(90vh,720px)] flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-3 shrink-0">
+          <div>
+            <h2 id="project-config-title" className="text-lg font-semibold m-0">
+              {t("projectDetail.config.title")}
+            </h2>
+            <p className="text-sm text-secondary m-0 mt-1">{t("projectDetail.config.subtitle")}</p>
+          </div>
+          <button type="button" className="dw-btn-ghost p-1 shrink-0" onClick={onClose} aria-label={t("newProject.cancel")}>
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+
+        <div className="flex gap-1 px-6 border-b border-outline-variant shrink-0">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
+                tab === item.id
+                  ? "border-primary text-primary font-medium"
+                  : "border-transparent text-secondary hover:text-on-surface"
+              }`}
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+          {tab === "knowledge" && <ProjectKnowledgeConfigPanel projectId={projectId} />}
+          {tab === "gates" && <ProjectGateConfigPanel projectId={projectId} />}
+          {tab === "pipeline" && <ProjectPipelineConfigPanel projectId={projectId} />}
+        </div>
+
+        <div className="px-6 py-3 border-t border-outline-variant shrink-0 flex justify-end">
+          <button type="button" className="dw-btn-secondary" onClick={onClose}>
+            {t("newProject.cancel")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

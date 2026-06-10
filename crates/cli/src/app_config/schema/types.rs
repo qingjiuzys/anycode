@@ -87,6 +87,8 @@ pub(crate) struct Config {
     pub(crate) channels: ChannelsConfig,
     /// `LSP` 工具子进程（需 `--features tools-lsp`）。
     pub(crate) lsp: LspRuntime,
+    /// MCP 连接器（`tools-mcp`；含内置浏览器）。
+    pub(crate) mcp: McpRuntime,
     /// 会话外向通知（OpenClaw 类网关 / 自定义脚本）。
     pub(crate) notifications: anycode_core::SessionNotificationSettings,
 }
@@ -486,6 +488,39 @@ impl Default for SessionConfigFile {
             auto_compact_ratio: default_auto_compact_ratio(),
             context_window_auto: default_context_window_auto(),
             context_window_tokens: default_context_window_tokens(),
+        }
+    }
+}
+
+/// Built-in Playwright browser MCP (`config.json` → `mcp.browser`).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct BrowserConnectorConfigFile {
+    #[serde(default)]
+    pub(crate) enabled: bool,
+}
+
+/// `config.json` 的 `mcp` 段（`tools-mcp` 特性下合并进运行时 MCP 列表）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub(crate) struct McpConfigFile {
+    #[serde(default)]
+    pub(crate) browser: BrowserConnectorConfigFile,
+    /// MCP server 声明（stdio / HTTP / SSE）；结构与 `ANYCODE_MCP_SERVERS` JSON 数组项一致。
+    #[serde(default)]
+    pub(crate) servers: Vec<serde_json::Value>,
+}
+
+/// 解析后的 MCP 运行时选项。
+#[derive(Debug, Clone, Default)]
+pub(crate) struct McpRuntime {
+    pub(crate) browser: BrowserConnectorConfigFile,
+    pub(crate) servers: Vec<serde_json::Value>,
+}
+
+impl From<McpConfigFile> for McpRuntime {
+    fn from(f: McpConfigFile) -> Self {
+        Self {
+            browser: f.browser,
+            servers: f.servers,
         }
     }
 }

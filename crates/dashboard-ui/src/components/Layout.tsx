@@ -115,24 +115,24 @@ export function Layout() {
         <div className="dw-sidebar-footer">
           <ExternalNavLink href={docsHomeUrl(locale)} className="dw-nav-link">
             <Icon name="description" size={18} />
-            {t("nav.docs")}
+            <span className="flex-1 min-w-0 truncate">{t("nav.docs")}</span>
           </ExternalNavLink>
           <ExternalNavLink href={helpGuideUrl(locale)} className="dw-nav-link">
             <Icon name="help_outline" size={18} />
-            {t("nav.help")}
+            <span className="flex-1 min-w-0 truncate">{t("nav.help")}</span>
           </ExternalNavLink>
-          <p className="dw-sidebar-version">v{health.data?.version ?? "…"}</p>
+          <div className="dw-sidebar-version" aria-label={t("layout.version")}>
+            <span className="dw-sidebar-version-gutter" aria-hidden />
+            <span className="tabular-nums">v{health.data?.version ?? "…"}</span>
+          </div>
         </div>
       </aside>
 
       <div className="dw-main-wrap">
-        <header className={`dw-topbar ${pathname === "/" ? "dw-topbar--home" : ""}`}>
+        <header className="dw-topbar">
           <div className="dw-topbar-start">
-            <TopbarSearch />
+            {pathname !== "/" && <TopbarSearch />}
           </div>
-          {pathname === "/" && (
-            <div id="dw-home-panels-slot" className="dw-topbar-center px-0.5" />
-          )}
           <div className="dw-topbar-end">
             {pathname !== "/" && (
               <div className="hidden xl:block shrink-0">

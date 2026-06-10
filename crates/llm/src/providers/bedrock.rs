@@ -2,16 +2,18 @@
 
 use crate::ProviderConfig;
 use anycode_core::prelude::*;
-use anycode_core::ANYCODE_TOOL_CALLS_METADATA_KEY;
+use anycode_core::{vision_images_from_metadata, ANYCODE_TOOL_CALLS_METADATA_KEY};
 use async_trait::async_trait;
 use aws_config::BehaviorVersion;
 use aws_sdk_bedrockruntime::types::{
-    ContentBlock, ContentBlockDelta, ContentBlockStart, ConversationRole, InferenceConfiguration,
-    Message as BedrockMessage, StopReason, SystemContentBlock, Tool, ToolConfiguration,
-    ToolInputSchema, ToolResultBlock, ToolResultContentBlock, ToolSpecification, ToolUseBlock,
+    ContentBlock, ContentBlockDelta, ContentBlockStart, ConversationRole, ImageBlock, ImageFormat,
+    ImageSource, InferenceConfiguration, Message as BedrockMessage, StopReason, SystemContentBlock,
+    Tool, ToolConfiguration, ToolInputSchema, ToolResultBlock, ToolResultContentBlock,
+    ToolSpecification, ToolUseBlock,
 };
 use aws_sdk_bedrockruntime::Client;
 use aws_smithy_types::{Document, Number};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tracing::error;
@@ -116,12 +118,47 @@ fn build_tool_config(tools: Vec<ToolSchema>) -> Result<ToolConfiguration, CoreEr
         .map_err(|e| CoreError::LLMError(format!("ToolConfiguration: {}", e)))
 }
 
-fn user_text_message(text: String) -> BedrockMessage {
-    BedrockMessage::builder()
-        .role(ConversationRole::User)
-        .content(ContentBlock::Text(text))
-        .build()
-        .expect("bedrock user message")
+fn bedrock_image_format(mime: &str) -> ImageFormat {
+    let m = mime.to_ascii_lowercase();
+    if m.contains("png") {
+        ImageFormat::Png
+    } else if m.contains("gif") {
+        ImageFormat::Gif
+    } else if m.contains("webp") {
+        ImageFormat::Webp
+    } else {
+        ImageFormat::Jpeg
+    }
+}
+
+fn user_message_with_content(
+    text: String,
+    images: &[anycode_core::VisionImage],
+) -> Result<BedrockMessage, CoreError> {
+    let mut blocks: Vec<ContentBlock> = Vec::new();
+    if !text.is_empty() {
+        blocks.push(ContentBlock::Text(text));
+    }
+    for img in images {
+        let bytes = STANDARD
+            .decode(&img.data_base64)
+            .map_err(|e| CoreError::LLMError(format!("vision image base64: {e}")))?;
+        let image = ImageBlock::builder()
+            .format(bedrock_image_format(&img.mime_type))
+            .source(ImageSource::Bytes(aws_smithy_types::Blob::new(bytes)))
+            .build()
+            .map_err(|e| CoreError::LLMError(format!("ImageBlock: {e}")))?;
+        blocks.push(ContentBlock::Image(image));
+    }
+    if blocks.is_empty() {
+        blocks.push(ContentBlock::Text(String::new()));
+    }
+    let mut b = BedrockMessage::builder().role(ConversationRole::User);
+    for block in blocks {
+        b = b.content(block);
+    }
+    b.build()
+        .map_err(|e| CoreError::LLMError(format!("bedrock user message: {e}")))
 }
 
 fn assistant_blocks(parts: Vec<ContentBlock>) -> Result<BedrockMessage, CoreError> {
@@ -199,7 +236,8 @@ fn convert_anycode_messages(
             }
             MessageRole::User => {
                 if let MessageContent::Text(text) = msg.content {
-                    out.push(user_text_message(text));
+                    let images = vision_images_from_metadata(&msg.metadata);
+                    out.push(user_message_with_content(text, &images)?);
                 }
             }
             MessageRole::Tool => {

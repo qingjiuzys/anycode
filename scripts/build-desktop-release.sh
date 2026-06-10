@@ -5,17 +5,31 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "==> cargo build --release -p anycode"
-cargo build --release -p anycode
+echo "==> build dashboard UI (must run before CLI — embedded-ui bakes dist/)"
+"$ROOT/scripts/build-dashboard-ui.sh"
 
-echo "==> stage bundled CLI for Tauri resources"
+echo "==> cargo build --release -p anycode (embedded-ui + tools-mcp)"
+cargo build --release -p anycode --features embedded-ui,tools-mcp,knowledge-embeddings
+
+echo "==> prepare bundled browser MCP (Playwright + Chromium)"
+chmod +x "$ROOT/scripts/prepare-browser-mcp.sh"
+"$ROOT/scripts/prepare-browser-mcp.sh"
+
+echo "==> stage bundled CLI + project templates for Tauri resources"
 DESKTOP_BIN="$ROOT/apps/anycode-desktop/resources/bin"
+DESKTOP_TPL="$ROOT/apps/anycode-desktop/resources/project-templates"
 mkdir -p "$DESKTOP_BIN"
 cp "$ROOT/target/release/anycode" "$DESKTOP_BIN/anycode"
 chmod +x "$DESKTOP_BIN/anycode"
-
-echo "==> build dashboard UI"
-"$ROOT/scripts/build-dashboard-ui.sh"
+rm -rf "$DESKTOP_TPL"
+cp -R "$ROOT/project-templates" "$DESKTOP_TPL"
+DESKTOP_UI="$ROOT/apps/anycode-desktop/resources/dashboard-ui"
+rm -rf "$DESKTOP_UI"
+cp -R "$ROOT/crates/dashboard-ui/dist" "$DESKTOP_UI"
+test -f "$DESKTOP_UI/index.html" || {
+  echo "missing dashboard-ui dist for desktop bundle" >&2
+  exit 1
+}
 
 echo "==> prepare desktop app icon (crop + scale)"
 ICON_VENV="$ROOT/scripts/.venv-icon"

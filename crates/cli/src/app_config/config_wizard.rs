@@ -277,6 +277,7 @@ pub(crate) async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow:
             .map(|c| c.channels.clone())
             .unwrap_or_default(),
         lsp: existing.as_ref().map(|c| c.lsp.clone()).unwrap_or_default(),
+        mcp: existing.as_ref().map(|c| c.mcp.clone()).unwrap_or_default(),
         notifications: existing
             .as_ref()
             .map(|c| c.notifications.clone())

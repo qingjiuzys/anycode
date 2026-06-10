@@ -7,6 +7,7 @@ mod limits;
 pub mod mcp_normalization;
 mod paths;
 pub mod permission_rule_parser;
+pub mod project_templates;
 mod registry;
 pub mod runtime_tool_policy;
 mod sandbox;
@@ -98,6 +99,10 @@ pub use mcp_rmcp_session::McpRmcpSession;
 #[cfg(feature = "tools-mcp")]
 pub use mcp_tool_scan::scan_listed_tools;
 pub use mcp_tool_scan::{scan_tool_entry, McpToolScanFinding};
+pub use project_templates::{
+    apply_project_template, list_project_templates, resolve_project_templates_root,
+    ApplyTemplateOptions, ApplyTemplateResult, ProjectTemplateManifest,
+};
 pub use registry::build_registry;
 pub use runtime_tool_policy::{
     detect_ci_environment, resolve_runtime_tool_filters, RuntimeToolPolicyInput,

@@ -16,6 +16,7 @@
         "width": 1280,
         "height": 840,
         "url": "http://127.0.0.1:43180",
+        "visible": false,
         "hiddenTitle": true,
         "titleBarStyle": "Overlay",
         "trafficLightPosition": {
@@ -40,7 +41,10 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/bin/*"
+      "resources/bin/*",
+      "resources/browser/",
+      "resources/project-templates/",
+      "resources/dashboard-ui/"
     ]
   },
   "plugins": {}

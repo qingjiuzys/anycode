@@ -61,9 +61,10 @@ impl WebChatHub {
         agent: Option<&str>,
         dashboard_url: &str,
         prompt: &str,
+        vision_images: Option<&[crate::control::vision_payload::VisionImagePayload]>,
     ) -> Result<WebChatSendResult> {
         let prompt = prompt.trim();
-        if prompt.is_empty() {
+        if prompt.is_empty() && vision_images.is_none_or(|v| v.is_empty()) {
             bail!("message is required");
         }
         let root = crate::project_root::ensure_project_root(project_root, false)?;
@@ -108,10 +109,29 @@ impl WebChatHub {
             .try_lock()
             .map_err(|_| anyhow::anyhow!("web chat session is busy; wait for the current send"))?;
         tokio::time::timeout(WRITE_TIMEOUT, async {
-            proc.stdin
-                .write_all(prompt.as_bytes())
-                .await
-                .context("write prompt to web chat session")?;
+            if let Some(images) = vision_images.filter(|v| !v.is_empty()) {
+                if let Some(path) =
+                    crate::control::vision_payload::write_vision_payload(session_id, images)?
+                {
+                    proc.stdin
+                        .write_all(
+                            crate::control::vision_payload::vision_file_line(&path).as_bytes(),
+                        )
+                        .await
+                        .context("write vision file line to web chat session")?;
+                }
+            }
+            if !prompt.is_empty() {
+                proc.stdin
+                    .write_all(prompt.as_bytes())
+                    .await
+                    .context("write prompt to web chat session")?;
+            } else {
+                proc.stdin
+                    .write_all(b"Please describe or analyze this image.")
+                    .await
+                    .context("write default vision prompt to web chat session")?;
+            }
             proc.stdin
                 .write_all(b"\n")
                 .await

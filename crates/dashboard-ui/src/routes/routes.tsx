@@ -277,9 +277,11 @@ export const settingsRoute = createRoute({
     const section = search.section;
     const valid = [
       "auth",
+      "prefs",
       "data",
       "service",
       "model",
+      "agents",
       "skills",
       "assets",
       "security",

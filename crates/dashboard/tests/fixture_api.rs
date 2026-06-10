@@ -1,9 +1,10 @@
 //! API integration tests against fixture databases.
 
-use anycode_dashboard::server::app_for_test;
+use anycode_dashboard::server::{app_for_test, app_for_test_with_host};
 use axum::body::Body;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use tempfile::tempdir;
 use tower::ServiceExt;
@@ -88,6 +89,83 @@ async fn patch_json(app: axum::Router, path: &str, body: Value) -> Value {
     assert!(res.status().is_success(), "PATCH {path}");
     let bytes = res.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
+}
+
+fn sha256_password_hash(salt: &str, password: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(salt.as_bytes());
+    hasher.update(b":");
+    hasher.update(password.as_bytes());
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for b in digest {
+        hex.push_str(&format!("{b:02x}"));
+    }
+    format!("sha256${salt}${hex}")
+}
+
+#[tokio::test]
+async fn non_loopback_login_accepts_hashed_password_and_sets_session_cookie() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("auth.db");
+    let password_hash = sha256_password_hash("fixture-salt", "correct-password");
+    let db = anycode_dashboard::db::DashboardDb::open(&db_path)
+        .await
+        .unwrap();
+    let updated = sqlx::query("UPDATE users SET password_hash = ? WHERE email = 'local@anycode'")
+        .bind(password_hash)
+        .execute(db.pool())
+        .await
+        .unwrap();
+    assert_eq!(updated.rows_affected(), 1);
+    db.pool().close().await;
+
+    let app = app_for_test_with_host(&db_path, "0.0.0.0").await.unwrap();
+    let unauth = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/api/auth/me")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauth.status(), axum::http::StatusCode::UNAUTHORIZED);
+
+    let login = app
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": "local@anycode",
+                        "password": "correct-password"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let login_status = login.status();
+    let login_headers = login.headers().clone();
+    let login_body = login.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(
+        login_status,
+        axum::http::StatusCode::OK,
+        "login body: {}",
+        String::from_utf8_lossy(&login_body)
+    );
+    let cookie = login_headers
+        .get(axum::http::header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap();
+    assert!(cookie.starts_with("dw_session=sess_"));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("SameSite=Lax"));
 }
 
 #[tokio::test]

@@ -2,6 +2,7 @@ import { useT } from "@/i18n/context";
 
 export type SettingsSection =
   | "auth"
+  | "prefs"
   | "data"
   | "service"
   | "model"
@@ -14,6 +15,7 @@ export type SettingsSection =
 
 const SECTIONS: SettingsSection[] = [
   "auth",
+  "prefs",
   "data",
   "service",
   "model",

@@ -228,6 +228,7 @@ mod tests {
                 name: Some("ReportTest".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -286,6 +287,7 @@ mod tests {
                 name: Some("Zh".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -317,6 +319,7 @@ mod tests {
                 name: Some("ArchiveTest".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -357,6 +360,7 @@ mod tests {
                 name: Some("Art".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -403,6 +407,7 @@ mod tests {
                 name: Some("Imp".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -479,6 +484,7 @@ mod tests {
                 name: Some("Html".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

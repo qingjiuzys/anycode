@@ -9,10 +9,13 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import type { SessionSummary } from "@/api/types";
+import { formatSessionDisplayTitle, formatSessionFlowStatusLine, isImportedSessionTitle } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
 
 interface Props {
   sessions: SessionSummary[];
+  limit?: number;
+  hideImported?: boolean;
 }
 
 const KIND_COLORS: Record<string, string> = {
@@ -23,7 +26,7 @@ const KIND_COLORS: Record<string, string> = {
   cron: "#ca8a04",
 };
 
-export function SessionFlow({ sessions }: Props) {
+export function SessionFlow({ sessions, limit = 8, hideImported = false }: Props) {
   const t = useT();
   const navigate = useNavigate();
   const { nodes, edges } = useMemo(() => {
@@ -36,17 +39,22 @@ export function SessionFlow({ sessions }: Props) {
       },
     ];
     const edges: Edge[] = [];
-    const ordered = [...sessions]
+    let filtered = [...sessions];
+    if (hideImported) {
+      filtered = filtered.filter((s) => !isImportedSessionTitle(s.title));
+    }
+    const ordered = filtered
       .sort((a, b) => a.started_at.localeCompare(b.started_at))
-      .slice(-8);
+      .slice(-limit);
     ordered.forEach((s, i) => {
       const id = s.id;
       const border = sessionBorderColor(s);
+      const titleLine = formatSessionDisplayTitle(s.title, s.kind, t);
       nodes.push({
         id,
         position: { x: 220 + i * 180, y: 40 + (i % 2) * 80 },
         data: {
-          label: `${kindLabel(s.kind, t)} · ${s.title}\n${s.status} · ${s.trusted_status}`,
+          label: `${titleLine}\n${formatSessionFlowStatusLine(s.status, s.trusted_status, t)}`,
         },
         style: nodeStyle(border),
       });
@@ -59,7 +67,7 @@ export function SessionFlow({ sessions }: Props) {
       });
     });
     return { nodes, edges };
-  }, [sessions, t]);
+  }, [sessions, t, limit, hideImported]);
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
@@ -98,12 +106,6 @@ function sessionBorderColor(s: SessionSummary): string {
     return "#16a34a";
   }
   return KIND_COLORS[s.kind] ?? "#ca8a04";
-}
-
-function kindLabel(kind: string, t: (k: string) => string): string {
-  const key = `sessionFlow.${kind}`;
-  const label = t(key);
-  return label !== key ? label : kind;
 }
 
 function nodeStyle(color: string): CSSProperties {

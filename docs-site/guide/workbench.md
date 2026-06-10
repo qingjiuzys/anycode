@@ -24,7 +24,22 @@ anycode dashboard --open
 
 Default URL: `http://127.0.0.1:43180`
 
-**macOS app:** Install `anyCode_*.dmg` from [Releases](https://github.com/qingjiuzys/anycode/releases). The app starts the Workbench automatically.
+**macOS app:** Install the platform build from [Releases](https://github.com/qingjiuzys/anycode/releases) (macOS `.dmg`, Windows `.msi`/`.exe`, Linux `.deb`/`.AppImage`). The app starts the Workbench automatically.
+
+## Conversations & vision
+
+- **Web chat:** attach images in project conversations (requires a vision-capable model).
+- **Channels:** WeChat, Telegram, and Discord accept images; Telegram/Discord voice messages are transcribed when `models.speech.stt` is configured.
+- See [run-flow.md](https://github.com/qingjiuzys/anycode/blob/main/docs/run-flow.md) in the repo.
+
+## Project knowledge
+
+On a project page, configure **knowledge paths** and **reindex**. Desktop releases include vector search; dev CLI builds need the `knowledge-embeddings` feature. Doctor checks report index and vector status.
+
+## MCP & browser
+
+- **Settings → MCP servers:** edit `mcp.servers` in `~/.anycode/config.json` from the UI.
+- **Settings → Notifications → Browser connector:** enable bundled Playwright MCP on Desktop; the home quick compose area also prompts when bundled.
 
 ## Sidebar pages
 

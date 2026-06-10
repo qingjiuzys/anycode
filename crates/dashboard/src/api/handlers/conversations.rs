@@ -129,6 +129,15 @@ pub async fn start_project_conversation(
         })
         .await;
 
+    if let Some(ref imgs) = body.vision_images {
+        if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    }
     let dashboard_url = super::chat_util::dashboard_loopback_url(&state.host, state.port);
     match state
         .web_chat
@@ -139,6 +148,7 @@ pub async fn start_project_conversation(
             agent_type.as_deref(),
             &dashboard_url,
             &prompt_for_chat,
+            body.vision_images.as_deref(),
         )
         .await
     {

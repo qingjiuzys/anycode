@@ -409,4 +409,40 @@ mod serde_config_tests {
         );
         assert_eq!(c.lsp.read_timeout_ms, Some(120_000));
     }
+
+    #[test]
+    fn deserializes_mcp_browser_connector() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "mcp": { "browser": { "enabled": true } }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert!(c.mcp.browser.enabled);
+    }
+
+    #[test]
+    fn deserializes_mcp_servers() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "mcp": {
+                "servers": [
+                    {"slug":"fs","command":"echo fs"},
+                    {"slug":"api","type":"http","url":"https://example.com/mcp"}
+                ]
+            }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert_eq!(c.mcp.servers.len(), 2);
+        assert_eq!(c.mcp.servers[0]["slug"], "fs");
+    }
 }

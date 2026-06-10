@@ -118,6 +118,23 @@ pub(super) async fn dispatch(
                 commands::audit::print_tail(task, tool, limit, json)?;
             }
         },
+        Commands::Project { sub } => match sub {
+            cli_args::ProjectCommands::Templates { json } => {
+                commands::project::list_templates(json)?;
+            }
+            cli_args::ProjectCommands::Init {
+                template,
+                path,
+                name,
+                title,
+                org,
+                force,
+                flutter_create,
+            } => {
+                commands::project::init(template, path, name, title, org, force, flutter_create)
+                    .await?;
+            }
+        },
         Commands::Workspace { sub } => match sub {
             cli_args::WorkspaceCommands::List { json } => {
                 commands::workspace::handle_list(json).await?;

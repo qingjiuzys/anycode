@@ -50,11 +50,14 @@ pub async fn post_auth_login(
             Json(json!({ "error": "invalid credentials" })),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": e.to_string() })),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::warn!(error = %e, "dashboard login failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "login temporarily unavailable" })),
+            )
+                .into_response()
+        }
     }
 }
 

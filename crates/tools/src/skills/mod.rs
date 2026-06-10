@@ -17,6 +17,9 @@ use tracing::warn;
 
 const SKILL_FILE: &str = "SKILL.md";
 
+/// Max bytes returned when loading a documentation-only skill body via the Skill tool.
+pub const MAX_SKILL_INSTRUCTION_BYTES: usize = 64 * 1024;
+
 /// Max captured bytes per stdout/stderr stream for `Skill` tool results.
 pub const MAX_SKILL_OUTPUT_BYTES: usize = 256 * 1024;
 
@@ -25,6 +28,8 @@ pub const MAX_SKILL_OUTPUT_BYTES: usize = 256 * 1024;
 struct SkillFrontmatter {
     name: String,
     description: String,
+    #[serde(default)]
+    description_zh: Option<String>,
     #[serde(default)]
     model: Option<String>,
     #[serde(default)]
@@ -39,6 +44,7 @@ struct SkillFrontmatter {
 pub struct SkillMeta {
     pub id: String,
     pub description: String,
+    pub description_zh: Option<String>,
     pub root_dir: PathBuf,
     pub has_run: bool,
     pub model: Option<String>,
@@ -149,6 +155,10 @@ impl SkillCatalog {
                     SkillMeta {
                         id,
                         description: fm.description.trim().to_string(),
+                        description_zh: fm
+                            .description_zh
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
                         root_dir: skill_dir,
                         has_run,
                         model: fm
@@ -226,7 +236,7 @@ impl SkillCatalog {
         let mut lines: Vec<String> = vec![
             "## Available skills".to_string(),
             String::new(),
-            "These are loaded from your skill directories. To execute a skill that ships a `run` script, call the **Skill** tool with `{\"name\": \"<id>\", \"args\": [...]}`.".to_string(),
+            "These are loaded from your skill directories. For skills with a `run` script, call the **Skill** tool with `{\"name\": \"<id>\", \"args\": [...]}`. For documentation-only skills (no `run`), call **Skill** with `{\"name\": \"<id>\"}` to load the full `SKILL.md` instructions.".to_string(),
             String::new(),
         ];
         for s in filtered {
@@ -260,6 +270,14 @@ impl SkillCatalog {
                 "- **{}**: {}{}{}",
                 s.id, s.description, run_hint, extra
             ));
+            if let Some(zh) = &s.description_zh {
+                lines.push(format!("  - 中文：{zh}"));
+            }
+            if !s.has_run {
+                if let Some(excerpt) = skill_doc_excerpt(&s.root_dir) {
+                    lines.push(format!("  - preview: {excerpt}"));
+                }
+            }
         }
         Some(lines.join("\n"))
     }
@@ -292,6 +310,43 @@ fn parse_skill_frontmatter(md: &str) -> Option<SkillFrontmatter> {
     serde_yaml::from_str::<SkillFrontmatter>(yaml).ok()
 }
 
+/// Markdown body after YAML frontmatter (trimmed). Used for documentation-only skills.
+pub fn extract_skill_body(md: &str) -> String {
+    let t = md.trim_start();
+    let Some(rest) = t.strip_prefix("---") else {
+        return md.trim().to_string();
+    };
+    let Some(end) = rest.find("\n---") else {
+        return md.trim().to_string();
+    };
+    let body = rest[end + 4..].trim_start_matches(['\r', '\n']);
+    body.trim().to_string()
+}
+
+fn skill_doc_excerpt(root: &Path) -> Option<String> {
+    let body = load_skill_instructions(root)?;
+    let line = body
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with('#'))?;
+    let mut s: String = line.chars().take(120).collect();
+    if line.chars().count() > 120 {
+        s.push('…');
+    }
+    Some(s)
+}
+
+/// Load `SKILL.md` instructions from a skill directory (body only, no frontmatter).
+pub fn load_skill_instructions(root: &Path) -> Option<String> {
+    let md_path = root.join(SKILL_FILE);
+    let text = fs::read_to_string(&md_path).ok()?;
+    let body = extract_skill_body(&text);
+    if body.is_empty() {
+        return None;
+    }
+    Some(truncate_skill_output(body, MAX_SKILL_INSTRUCTION_BYTES))
+}
+
 /// Build search roots: `extra_dirs` (low precedence) then `~/.anycode/skills` if present.
 pub fn default_skill_roots(extra_dirs: &[PathBuf], home: Option<&Path>) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = extra_dirs.to_vec();
@@ -310,4 +365,15 @@ pub fn truncate_skill_output(mut s: String, max: usize) -> String {
     let mut t = s.drain(..max).collect::<String>();
     t.push_str("\n… [truncated]");
     t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_skill_body_strips_frontmatter() {
+        let md = "---\nname: demo\ndescription: x\n---\n\n# Title\n\nDo the thing.\n";
+        assert_eq!(extract_skill_body(md), "# Title\n\nDo the thing.");
+    }
 }

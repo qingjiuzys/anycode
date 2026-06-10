@@ -746,9 +746,10 @@ pub(crate) fn messages_to_openai_json(messages: Vec<Message>) -> Result<Vec<Valu
                 }));
             }
             MessageRole::User => {
+                let text = message_text_for_openai(&msg)?;
                 out.push(json!({
                     "role": "user",
-                    "content": message_text_for_openai(&msg)?
+                    "content": crate::vision_format::openai_user_content(&msg, &text)
                 }));
             }
             MessageRole::Assistant => {

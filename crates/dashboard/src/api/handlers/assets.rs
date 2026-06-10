@@ -93,6 +93,7 @@ pub async fn reindex_project(
                     name: Some(p.name),
                     description: Some(p.description),
                     create_root: None,
+                    ..Default::default()
                 })
                 .await;
             let mut paths = state.workspace_paths.clone();

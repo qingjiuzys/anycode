@@ -240,17 +240,21 @@ fn index_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
             default_collapsed: false,
             event_id: Some(event.id.clone()),
         }),
-        "assistant_response" => Some(TranscriptBlock {
-            id: event.id.clone(),
-            block_type: "assistant_message".into(),
-            at: event.occurred_at.clone(),
-            title: "Assistant".into(),
-            body: pick_body(event),
-            meta: event.payload.clone(),
-            collapsible: false,
-            default_collapsed: false,
-            event_id: Some(event.id.clone()),
-        }),
+        "assistant_response" => {
+            let body = pick_body(event);
+            let (collapsible, default_collapsed) = collapse_policy_for_text(&body);
+            Some(TranscriptBlock {
+                id: event.id.clone(),
+                block_type: "assistant_message".into(),
+                at: event.occurred_at.clone(),
+                title: "Assistant".into(),
+                body,
+                meta: event.payload.clone(),
+                collapsible,
+                default_collapsed,
+                event_id: Some(event.id.clone()),
+            })
+        }
         "tool_denied" => Some(TranscriptBlock {
             id: event.id.clone(),
             block_type: "session_error".into(),
@@ -337,7 +341,7 @@ fn trace_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
                 "phase": "start",
             }),
             collapsible: true,
-            default_collapsed: false,
+            default_collapsed: true,
             event_id: Some(event.id.clone()),
         }),
         "tool_call_end" => Some(TranscriptBlock {
@@ -396,6 +400,14 @@ fn event_to_block(event: &ProjectEvent, collapsed: bool) -> TranscriptBlock {
         default_collapsed: collapsed,
         event_id: Some(event.id.clone()),
     }
+}
+
+fn collapse_policy_for_text(body: &str) -> (bool, bool) {
+    let trimmed = body.trim();
+    let lines = trimmed.lines().count();
+    let chars = trimmed.chars().count();
+    let long = lines > 8 || chars > 480;
+    (long, long)
 }
 
 fn pick_body(event: &ProjectEvent) -> String {
@@ -640,6 +652,7 @@ mod tests {
                 name: Some("T".into()),
                 description: None,
                 create_root: Some(true),
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -790,6 +803,7 @@ mod tests {
                 name: Some("Log".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

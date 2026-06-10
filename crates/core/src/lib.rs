@@ -26,6 +26,7 @@ mod task_gate_log;
 mod task_output;
 mod tool_catalog;
 mod traits;
+mod vision;
 mod workflow;
 
 pub use agent_type::AgentType;
@@ -69,6 +70,10 @@ pub use tool_catalog::{
     SECURITY_SENSITIVE_TOOL_IDS,
 };
 pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor, Tool};
+pub use vision::{
+    attach_vision_images, vision_images_from_metadata, VisionImage,
+    ANYCODE_VISION_IMAGES_METADATA_KEY,
+};
 pub use workflow::{
     PlanValidationIssue, PlanValidationResult, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
     WorkflowStep,
@@ -78,19 +83,20 @@ pub mod prelude {
     pub use super::anyhow_error_is_cooperative_cancel;
     pub use super::CoreError;
     pub use super::{
-        Agent, AgentType, ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput,
-        EmbeddingProvider, ExecutionTraceEvent, FeatureFlag, FeatureRegistry, GoalProgress,
-        GoalSpec, LLMClient, LLMProvider, LLMResponse, Memory, MemoryPipeline,
-        MemoryPipelineSettings, MemoryScope, MemoryStore, MemoryType, Message, MessageContent,
-        MessageRole, ModelConfig, ModelRouteProfile, NestedTaskInvoke, NestedTaskRun,
-        PermissionMode, PlanValidationIssue, PlanValidationResult, PreSemanticFragment,
-        RuntimeMode, RuntimeProfile, SecretRef, SecretResolver, SecurityPolicy,
-        SessionNotificationSettings, SlashCommand, SlashCommandScope, StreamEvent,
+        attach_vision_images, vision_images_from_metadata, Agent, AgentType, ChannelHandler,
+        ChannelMessage, ChannelType, DiskTaskOutput, EmbeddingProvider, ExecutionTraceEvent,
+        FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient, LLMProvider, LLMResponse,
+        Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope, MemoryStore, MemoryType,
+        Message, MessageContent, MessageRole, ModelConfig, ModelRouteProfile, NestedTaskInvoke,
+        NestedTaskRun, PermissionMode, PlanValidationIssue, PlanValidationResult,
+        PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef, SecretResolver,
+        SecurityPolicy, SessionNotificationSettings, SlashCommand, SlashCommandScope, StreamEvent,
         SubAgentExecutor, Task, TaskBudget, TaskContext, TaskId, TaskResult, Tool, ToolCall,
         ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage,
-        VectorMemoryBackend, WorkflowDefinition, WorkflowHandoff, WorkflowRetry, WorkflowStep,
-        ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
-        ANYCODE_TOOL_CALLS_METADATA_KEY, BUILTIN_SLASH_COMMANDS, EXECUTION_TRACE_SCHEMA_VERSION,
+        VectorMemoryBackend, VisionImage, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
+        WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
+        ANYCODE_TOOL_CALLS_METADATA_KEY, ANYCODE_VISION_IMAGES_METADATA_KEY,
+        BUILTIN_SLASH_COMMANDS, EXECUTION_TRACE_SCHEMA_VERSION,
         NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
     };
 }

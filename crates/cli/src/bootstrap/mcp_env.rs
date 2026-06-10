@@ -66,6 +66,37 @@ pub(crate) enum McpServerEntry {
 /// Return MCP entries; stdio and remote HTTP may be mixed.
 #[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
 pub fn mcp_server_entries_from_env() -> Vec<McpServerEntry> {
+    mcp_server_entries_merged(&[], true)
+}
+
+/// Merge `config.json` → `mcp.servers` with optional env override (`ANYCODE_MCP_*`).
+#[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
+pub fn mcp_server_entries_merged(
+    config_servers: &[Value],
+    include_env: bool,
+) -> Vec<McpServerEntry> {
+    let mut entries = parse_mcp_servers_value_array(config_servers);
+    if !include_env {
+        return entries;
+    }
+    for env_entry in mcp_server_entries_from_env_only() {
+        let slug = mcp_entry_slug(&env_entry);
+        if let Some(idx) = entries.iter().position(|e| mcp_entry_slug(e) == slug) {
+            entries[idx] = env_entry;
+        } else {
+            entries.push(env_entry);
+        }
+    }
+    entries
+}
+
+fn mcp_entry_slug(entry: &McpServerEntry) -> &str {
+    match entry {
+        McpServerEntry::Stdio { slug, .. } | McpServerEntry::Http { slug, .. } => slug,
+    }
+}
+
+fn mcp_server_entries_from_env_only() -> Vec<McpServerEntry> {
     if let Ok(raw) = std::env::var("ANYCODE_MCP_SERVERS") {
         let t = raw.trim();
         if !t.is_empty() {
@@ -87,6 +118,13 @@ pub fn mcp_server_entries_from_env() -> Vec<McpServerEntry> {
         }
     }
     vec![]
+}
+
+fn parse_mcp_servers_value_array(servers: &[Value]) -> Vec<McpServerEntry> {
+    if servers.is_empty() {
+        return vec![];
+    }
+    parse_mcp_servers_json(&serde_json::Value::Array(servers.to_vec()).to_string())
 }
 
 fn parse_mcp_servers_json(raw: &str) -> Vec<McpServerEntry> {
@@ -338,6 +376,35 @@ mod tests {
                 );
             }
             _ => panic!("expected http"),
+        }
+    }
+
+    #[test]
+    fn merge_config_and_env_by_slug() {
+        let config = vec![
+            serde_json::json!({"slug":"fs","command":"echo config"}),
+            serde_json::json!({"slug":"other","command":"echo other"}),
+        ];
+        std::env::set_var(
+            "ANYCODE_MCP_SERVERS",
+            r#"[{"slug":"fs","command":"echo env"}]"#,
+        );
+        let merged = mcp_server_entries_merged(&config, true);
+        std::env::remove_var("ANYCODE_MCP_SERVERS");
+        assert_eq!(merged.len(), 2);
+        match &merged[0] {
+            McpServerEntry::Stdio { slug, command } => {
+                assert_eq!(slug, "fs");
+                assert_eq!(command, "echo env");
+            }
+            _ => panic!("expected stdio fs"),
+        }
+        match &merged[1] {
+            McpServerEntry::Stdio { slug, command } => {
+                assert_eq!(slug, "other");
+                assert_eq!(command, "echo other");
+            }
+            _ => panic!("expected stdio other"),
         }
     }
 }

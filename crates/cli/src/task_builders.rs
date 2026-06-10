@@ -22,6 +22,7 @@ pub(crate) struct WechatTaskParams {
     pub tool_deny_names: Vec<String>,
     pub tool_deny_prefixes: Vec<String>,
     pub nested_cancel: Option<Arc<AtomicBool>>,
+    pub user_vision_images: Vec<VisionImage>,
 }
 
 pub(crate) fn build_headless_task(
@@ -57,6 +58,7 @@ pub(crate) fn build_headless_task(
             tool_deny_names,
             tool_deny_prefixes,
             budget: options.budget,
+            user_vision_images: vec![],
         },
         created_at: chrono::Utc::now(),
     }
@@ -93,6 +95,7 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Ta
             tool_deny_names,
             tool_deny_prefixes,
             budget: TaskBudget::default(),
+            user_vision_images: input.user_vision_images,
         },
         created_at: chrono::Utc::now(),
     }
@@ -120,6 +123,7 @@ pub(crate) fn build_wechat_task(params: WechatTaskParams) -> Task {
             tool_deny_names: params.tool_deny_names,
             tool_deny_prefixes: params.tool_deny_prefixes,
             budget: TaskBudget::default(),
+            user_vision_images: params.user_vision_images,
         },
         created_at: chrono::Utc::now(),
     }
@@ -152,6 +156,7 @@ pub(crate) fn build_minimal_task(
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             budget: TaskBudget::default(),
+            user_vision_images: vec![],
         },
         created_at: chrono::Utc::now(),
     }

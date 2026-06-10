@@ -25,6 +25,7 @@ mod provider_catalog;
 mod providers;
 mod retry_strategy;
 mod sse_data_lines;
+mod vision_format;
 
 pub use capability_catalog::ModelCapability;
 pub use catalog_service::{

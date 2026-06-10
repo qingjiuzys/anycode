@@ -1,1 +1,6 @@
 resources/bin/anycode
+resources/project-templates/*
+!resources/project-templates/.gitkeep
+resources/dashboard-ui/
+resources/browser/
+browser-mcp/node_modules/

@@ -5,6 +5,9 @@ description: Extract Markdown tables or bullet lists into CSV for spreadsheets.
 
 # report-to-csv
 
+> **中文**：从 Markdown 表格或列表导出 CSV。  
+> **English**: Extract Markdown tables or bullet lists into CSV for spreadsheets.
+
 Use when the user wants spreadsheet-friendly output from a report or summary.
 
 ## Workflow

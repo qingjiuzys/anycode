@@ -555,6 +555,7 @@ async fn run_agent_pipeline(
         .send_text(&from_user_id, &context_token, &tr("wx-task-received"))
         .await;
 
+    let mut user_vision_images: Vec<anycode_core::VisionImage> = Vec::new();
     let media_note = if let Some(ref it) = media_item {
         let t = item_type(it);
         let kind = match t {
@@ -566,12 +567,13 @@ async fn run_agent_pipeline(
         };
         match download_cdn_item_to_b64(st.api.http_client(), it).await {
             Some((mime, b64)) => {
-                let mut ia = FluentArgs::new();
-                ia.set("mime", mime);
-                ia.set("len", b64.len() as i64);
                 if t == 2 {
-                    Some(tr_args("wx-llm-image-note", &ia))
+                    user_vision_images.push(anycode_core::VisionImage::new(mime, b64));
+                    None
                 } else {
+                    let mut ia = FluentArgs::new();
+                    ia.set("mime", mime);
+                    ia.set("len", b64.len() as i64);
                     ia.set("kind", kind);
                     Some(tr_args("wx-llm-attachment-note", &ia))
                 }
@@ -670,6 +672,7 @@ async fn run_agent_pipeline(
                 tool_deny_names,
                 tool_deny_prefixes,
                 nested_cancel: Some(coop),
+                user_vision_images,
             });
 
         let result = super::super::wx_ask::with_wechat_task_scope(

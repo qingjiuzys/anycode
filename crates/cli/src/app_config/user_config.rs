@@ -1,8 +1,8 @@
 //! `~/.anycode/config.json` user file (`AnyCodeConfig`) and persistence.
 
 use super::schema::{
-    ChannelsConfigFile, LspConfigFile, MemoryConfigFile, MemoryPipelineConfigFile, RoutingConfig,
-    RuntimeSettingsFile, SecurityConfigFile, SessionConfigFile, SkillsConfigFile,
+    ChannelsConfigFile, LspConfigFile, McpConfigFile, MemoryConfigFile, MemoryPipelineConfigFile,
+    RoutingConfig, RuntimeSettingsFile, SecurityConfigFile, SessionConfigFile, SkillsConfigFile,
     StatusLineConfigFile,
 };
 use crate::i18n::{tr, tr_args};
@@ -101,6 +101,8 @@ pub(crate) struct AnyCodeConfig {
     pub(crate) channels: ChannelsConfigFile,
     #[serde(default)]
     pub(crate) lsp: LspConfigFile,
+    #[serde(default)]
+    pub(crate) mcp: McpConfigFile,
     /// 工具结果 / 回合结束外向通知（HTTP、shell），与 `memory.pipeline.hook_*` 独立。
     #[serde(default)]
     pub(crate) notifications: anycode_core::SessionNotificationSettings,
@@ -328,6 +330,7 @@ pub(crate) fn default_anycode_config() -> AnyCodeConfig {
         terminal: TerminalConfigFile::default(),
         channels: ChannelsConfigFile::default(),
         lsp: LspConfigFile::default(),
+        mcp: McpConfigFile::default(),
         notifications: Default::default(),
         models: Default::default(),
     }

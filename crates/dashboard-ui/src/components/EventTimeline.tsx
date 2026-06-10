@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { ProjectEvent } from "@/api/types";
+import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
 
 const NODE_CLASS: Record<string, string> = {
@@ -40,11 +41,16 @@ export function EventTimeline({
             <div className={`dw-timeline-node ${NODE_CLASS[e.severity] ?? "info"}`} />
             <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
-                <div className="text-sm">
+                <div className="text-sm min-w-0">
                   <Link to="/events/$eventId" params={{ eventId: e.id }} className="font-medium">
-                    {e.title}
+                    {formatEventTitle(e, t)}
                   </Link>
-                  <span className="text-secondary ml-1">· {e.event_type}</span>
+                  <span
+                    className="text-secondary ml-1 text-xs"
+                    title={e.event_type}
+                  >
+                    · {formatEventTypeLabel(e.event_type, t)}
+                  </span>
                 </div>
                 {expandable && (
                   <button

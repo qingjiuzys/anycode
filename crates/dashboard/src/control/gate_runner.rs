@@ -81,6 +81,14 @@ pub fn list_presets(project_root: &Path) -> Vec<GatePreset> {
         ]);
     }
 
+    if project_root.join("scripts/verify.sh").is_file() {
+        presets.push(GatePreset {
+            id: "project_verify".into(),
+            name: "project verify (analyze+test[+ios])".into(),
+            command: "bash scripts/verify.sh".into(),
+        });
+    }
+
     if project_root.join("go.mod").is_file() {
         presets.push(GatePreset {
             id: "go_test".into(),
@@ -272,5 +280,24 @@ mod tests {
         .unwrap();
         let ids: Vec<_> = list_presets(dir.path()).into_iter().map(|p| p.id).collect();
         assert!(ids.contains(&"cargo_test".to_string()));
+    }
+
+    #[test]
+    fn presets_include_flutter_when_pubspec() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("pubspec.yaml"), "name: demo\n").unwrap();
+        let ids: Vec<_> = list_presets(dir.path()).into_iter().map(|p| p.id).collect();
+        assert!(ids.contains(&"flutter_analyze".to_string()));
+        assert!(ids.contains(&"flutter_test".to_string()));
+    }
+
+    #[test]
+    fn presets_include_project_verify_when_script() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("pubspec.yaml"), "name: demo\n").unwrap();
+        std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+        std::fs::write(dir.path().join("scripts/verify.sh"), "#!/bin/sh\n").unwrap();
+        let ids: Vec<_> = list_presets(dir.path()).into_iter().map(|p| p.id).collect();
+        assert!(ids.contains(&"project_verify".to_string()));
     }
 }

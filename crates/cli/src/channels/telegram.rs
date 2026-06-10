@@ -2,8 +2,9 @@ use crate::app_config::{apply_wechat_bridge_no_tool_approval, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::channel_task::{build_channel_task, im_task_failure_detail_excerpt, ChannelTaskInput};
 use anycode_agent::AgentRuntime;
-use anycode_core::{SecretRef, TaskResult};
+use anycode_core::{SecretRef, TaskResult, VisionImage};
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -59,8 +60,39 @@ struct TgCallbackMessageShell {
 struct TgMessage {
     message_id: i64,
     text: Option<String>,
+    #[serde(default)]
+    caption: Option<String>,
+    #[serde(default)]
+    photo: Option<Vec<TgPhotoSize>>,
+    #[serde(default)]
+    voice: Option<TgVoice>,
     chat: TgChat,
     from: Option<TgUser>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TgPhotoSize {
+    file_id: String,
+    width: u32,
+    height: u32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TgVoice {
+    file_id: String,
+    #[serde(default)]
+    mime_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TgGetFileResponse {
+    ok: bool,
+    result: Option<TgFileMeta>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TgFileMeta {
+    file_path: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -217,6 +249,108 @@ fn save_state(path: &PathBuf, st: &TelegramState) {
     }
 }
 
+async fn tg_download_file_bytes(
+    client: &Client,
+    bot_token: &str,
+    file_id: &str,
+) -> Option<Vec<u8>> {
+    let meta_url = format!("{TELEGRAM_BASE}/bot{bot_token}/getFile");
+    let meta: TgGetFileResponse = client
+        .get(&meta_url)
+        .query(&[("file_id", file_id)])
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    if !meta.ok {
+        return None;
+    }
+    let path = meta.result?.file_path;
+    let file_url = format!("{TELEGRAM_BASE}/file/bot{bot_token}/{path}");
+    client
+        .get(&file_url)
+        .send()
+        .await
+        .ok()?
+        .bytes()
+        .await
+        .ok()
+        .map(|b| b.to_vec())
+}
+
+async fn tg_download_photo_b64(client: &Client, bot_token: &str, file_id: &str) -> Option<String> {
+    let bytes = tg_download_file_bytes(client, bot_token, file_id).await?;
+    Some(STANDARD.encode(bytes))
+}
+
+async fn tg_transcribe_voice(client: &Client, bot_token: &str, voice: &TgVoice) -> Option<String> {
+    use anycode_llm::{
+        config_file::read_config_value,
+        media::{MediaClientRegistry, SttClient},
+    };
+    let bytes = tg_download_file_bytes(client, bot_token, &voice.file_id).await?;
+    let (_, cfg) = read_config_value(None).ok()?;
+    let reg = MediaClientRegistry::from_config(&cfg);
+    let prof = reg.stt.as_ref()?;
+    let stt = SttClient::new(prof.profile.clone());
+    let filename = voice
+        .mime_type
+        .as_deref()
+        .and_then(|m| {
+            if m.contains("mpeg") || m.contains("mp3") {
+                Some("voice.mp3")
+            } else {
+                Some("voice.ogg")
+            }
+        })
+        .unwrap_or("voice.ogg");
+    stt.transcribe(&bytes, filename)
+        .await
+        .ok()
+        .map(|r| r.text)
+        .filter(|t| !t.trim().is_empty())
+}
+
+async fn resolve_telegram_prompt(
+    client: &Client,
+    bot_token: &str,
+    msg: &TgMessage,
+) -> Option<(String, Vec<VisionImage>)> {
+    let mut prompt = msg
+        .text
+        .clone()
+        .or_else(|| msg.caption.clone())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_default();
+    let mut vision_images = Vec::new();
+    if let Some(photos) = &msg.photo {
+        if let Some(largest) = photos
+            .iter()
+            .max_by_key(|p| p.width.saturating_mul(p.height))
+        {
+            if let Some(b64) = tg_download_photo_b64(client, bot_token, &largest.file_id).await {
+                vision_images.push(VisionImage::new("image/jpeg", b64));
+            }
+        }
+    }
+    if prompt.is_empty() {
+        if let Some(voice) = &msg.voice {
+            prompt = tg_transcribe_voice(client, bot_token, voice)
+                .await
+                .unwrap_or_else(|| "(voice message — STT unavailable)".to_string());
+        } else if !vision_images.is_empty() {
+            prompt = "Please describe or analyze this image.".to_string();
+        }
+    }
+    if prompt.is_empty() && vision_images.is_empty() {
+        return None;
+    }
+    Some((prompt, vision_images))
+}
+
 async fn tg_answer_callback_query(client: &Client, bot_token: &str, query_id: &str) {
     let url = format!("{TELEGRAM_BASE}/bot{bot_token}/answerCallbackQuery");
     let payload = json!({ "callback_query_id": query_id });
@@ -231,6 +365,7 @@ async fn execute_prompt(
     chat_id: i64,
     user_id: i64,
     prompt: String,
+    user_vision_images: Vec<VisionImage>,
 ) -> String {
     let task = build_channel_task(
         ChannelTaskInput {
@@ -240,6 +375,7 @@ async fn execute_prompt(
             channel_id: chat_id.to_string(),
             user_id: user_id.to_string(),
             channel_name: "telegram",
+            user_vision_images,
         },
         config,
     );
@@ -358,20 +494,26 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
                     continue;
                 }
             }
-            let Some(text) = msg.text else {
-                continue;
-            };
-            let prompt_text = text.trim().to_string();
-            if prompt_text.is_empty() {
-                continue;
-            }
-            if prompt_text.len() == 1 {
-                if let Some(d @ b'1'..=b'8') = prompt_text.as_bytes().first().copied() {
-                    let idx = (d - b'1') as usize;
-                    if qbroker.resolve_callback(chat_id, idx).await {
-                        continue;
+            if let Some(text) = msg.text.as_deref() {
+                let prompt_text = text.trim().to_string();
+                if prompt_text.len() == 1 {
+                    if let Some(d @ b'1'..=b'8') = prompt_text.as_bytes().first().copied() {
+                        let idx = (d - b'1') as usize;
+                        if qbroker.resolve_callback(chat_id, idx).await {
+                            continue;
+                        }
                     }
                 }
+            }
+            let has_media =
+                msg.photo.as_ref().is_some_and(|p| !p.is_empty()) || msg.voice.is_some();
+            let has_text = msg
+                .text
+                .as_deref()
+                .or(msg.caption.as_deref())
+                .is_some_and(|s| !s.trim().is_empty());
+            if !has_text && !has_media {
+                continue;
             }
             let user_id = msg.from.as_ref().map(|u| u.id).unwrap_or(chat_id);
 
@@ -390,6 +532,11 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
             let message_id = msg.message_id;
             tokio::spawn(async move {
                 let _guard = m.lock().await;
+                let Some((prompt_text, vision_images)) =
+                    resolve_telegram_prompt(&client_sp, &bot_token_sp, &msg).await
+                else {
+                    return;
+                };
                 let out = super::tg_ask::with_telegram_chat_scope(
                     chat_id,
                     execute_prompt(
@@ -400,6 +547,7 @@ pub(crate) async fn run_telegram_polling(mut config: Config, args: TelegramRunAr
                         chat_id,
                         user_id,
                         prompt_text,
+                        vision_images,
                     ),
                 )
                 .await;

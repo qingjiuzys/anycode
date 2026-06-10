@@ -748,6 +748,7 @@ mod tests {
                 name: Some("demo".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

@@ -117,6 +117,7 @@ mod tests {
                 name: Some("Trace".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

@@ -139,6 +139,48 @@ export const settingsClient = {
       `/api/settings/notifications/${policyId}/enabled`,
       { enabled },
     ),
+  browserConnector: () =>
+    get<{
+      enabled: boolean;
+      bundled: boolean;
+      chromium_ready: boolean;
+      bundle_path?: string;
+    }>("/api/settings/browser-connector"),
+  setBrowserConnector: (enabled: boolean) =>
+    put<{ ok: boolean; enabled: boolean; restart_hint?: string }>(
+      "/api/settings/browser-connector",
+      { enabled },
+    ),
+  mcpServers: () =>
+    get<{ servers: Record<string, unknown>[] }>("/api/settings/mcp-servers"),
+  setMcpServers: (servers: unknown[]) =>
+    put<{ ok: boolean; servers: unknown[]; restart_hint?: string }>(
+      "/api/settings/mcp-servers",
+      { servers },
+    ),
+  promptPreview: (params?: { agent?: string; cwd?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.agent) q.set("agent", params.agent);
+    if (params?.cwd) q.set("cwd", params.cwd);
+    const suffix = q.toString() ? `?${q.toString()}` : "";
+    return get<{
+      agent: string;
+      cwd: string;
+      system_prompt_override?: string | null;
+      system_prompt_append?: string | null;
+      segments: { id: string; text: string; chars: number }[];
+      composed: string;
+    }>(`/api/settings/prompt-preview${suffix}`);
+  },
+  setPromptSettings: (body: {
+    system_prompt_append?: string | null;
+    system_prompt_override?: string | null;
+  }) =>
+    put<{
+      ok: boolean;
+      config_path?: string;
+      restart_hint?: string;
+    }>("/api/settings/prompt-settings", body),
   connectors: (projectId?: string) => {
     const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
     return get<{ connectors: ConnectorRecord[] }>(

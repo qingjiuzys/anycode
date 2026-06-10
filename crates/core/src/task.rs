@@ -57,6 +57,9 @@ pub struct TaskContext {
     /// Per-task tool name prefixes to hide (e.g. `mcp__` for cron read-only).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_deny_prefixes: Vec<String>,
+    /// Inline images attached to the initial user turn (vision-capable models).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub user_vision_images: Vec<crate::vision::VisionImage>,
     /// Optional runtime budget enforced by the harness during task execution.
     #[serde(default, skip_serializing_if = "TaskBudget::is_empty")]
     pub budget: TaskBudget,

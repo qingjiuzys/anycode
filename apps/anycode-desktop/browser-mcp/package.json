@@ -1,0 +1,9 @@
+{
+  "name": "anycode-browser-mcp",
+  "private": true,
+  "description": "Bundled Playwright MCP server for anyCode desktop",
+  "dependencies": {
+    "@playwright/mcp": "0.0.75",
+    "playwright": "^1.60.0"
+  }
+}

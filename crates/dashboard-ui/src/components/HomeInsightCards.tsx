@@ -7,9 +7,10 @@ import { useT } from "@/i18n/context";
 interface Props {
   overview?: OverviewStats;
   readiness?: DeliveryReadiness;
+  firstProjectId?: string;
 }
 
-export function HomeInsightCards({ overview, readiness }: Props) {
+export function HomeInsightCards({ overview, readiness, firstProjectId }: Props) {
   const t = useT();
   if (!overview) return null;
 
@@ -47,12 +48,24 @@ export function HomeInsightCards({ overview, readiness }: Props) {
     });
   }
 
-  const suggestions: { label: string; to: string; search?: { status?: "running" } }[] = [];
+  const suggestions: {
+    label: string;
+    to: string;
+    search?: { status?: "running" };
+    params?: { projectId: string };
+  }[] = [];
   if (overview.projects_count === 0) {
     suggestions.push({ label: t("home.suggestScan"), to: "/projects" });
   }
   if (overview.skills_count === 0) {
     suggestions.push({ label: t("home.suggestSkills"), to: "/agents" });
+  }
+  if (firstProjectId) {
+    suggestions.push({
+      label: t("home.suggestKnowledge"),
+      to: "/projects/$projectId",
+      params: { projectId: firstProjectId },
+    });
   }
   if (overview.sessions_running > 0) {
     suggestions.push({
@@ -120,6 +133,7 @@ export function HomeInsightCards({ overview, readiness }: Props) {
               <li key={s.label}>
                 <Link
                   to={s.to}
+                  params={s.params}
                   search={s.search}
                   className="text-sm text-primary no-underline hover:underline"
                 >

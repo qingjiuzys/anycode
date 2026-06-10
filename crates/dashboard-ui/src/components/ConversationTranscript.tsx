@@ -12,7 +12,13 @@ import {
 } from "@/components/TranscriptCommandBlock";
 import { TranscriptMarkdown } from "@/components/TranscriptMarkdown";
 import { TranscriptToolBlock } from "@/components/TranscriptToolBlock";
+import {
+  CollapsiblePanel,
+  previewLines,
+  useContentCollapse,
+} from "@/components/ui/CollapsiblePanel";
 import { formatRelativeTime } from "@/utils/formatTime";
+import { formatLiveToolLabel, formatTranscriptBlockTitle } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
 
 interface Props {
@@ -212,7 +218,13 @@ function ConversationTurnView({
             <MessageRow key={item.id} align="left">
               <TranscriptToolBlock
                 tools={item.tools}
-                defaultCollapsed={item.tools.some((tool) => tool.default_collapsed)}
+                defaultCollapsed={
+                  !isRunning ||
+                  !item.tools.some(
+                    (tool) =>
+                      tool.block_type === "tool_call" && !tool.default_collapsed,
+                  )
+                }
               />
             </MessageRow>
           );
@@ -285,31 +297,75 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
   }
 
   const isError = role === "error" || looksLikeError(block.body);
+  const { shouldCollapse, lines } = useContentCollapse(block.body);
+  const usePanel =
+    shouldCollapse ||
+    block.collapsible ||
+    block.default_collapsed ||
+    block.block_type === "system_notice";
+  const defaultOpen =
+    isError ||
+    (block.default_collapsed === true
+      ? false
+      : block.default_collapsed === false
+        ? true
+        : !shouldCollapse && block.block_type !== "system_notice");
+
+  const headerActions = (
+    <>
+      {block.event_id && (
+        <Link
+          to="/events/$eventId"
+          params={{ eventId: block.event_id }}
+          className="dw-btn-ghost text-[10px] py-0.5 no-underline"
+        >
+          <Icon name="link" size={12} />
+        </Link>
+      )}
+      <CopyButton text={block.body} label={t("conversations.copyMessage")} />
+    </>
+  );
+
+  if (usePanel && !isError) {
+    const title = formatTranscriptBlockTitle(block, t);
+    const subtitle = previewLines(block.body, 2, 200);
+    const meta =
+      lines > 0
+        ? t("conversations.messageMeta").replace("{lines}", String(lines))
+        : undefined;
+    return (
+      <CollapsiblePanel
+        title={title}
+        subtitle={subtitle ? `${meta ?? ""} · ${subtitle}` : meta}
+        defaultOpen={defaultOpen}
+        tone={block.block_type === "system_notice" ? "muted" : "default"}
+        icon="smart_toy"
+        headerActions={headerActions}
+      >
+        <TranscriptMarkdown text={block.body} />
+        <time className="block mt-2 text-[11px] text-secondary">
+          {formatRelativeTime(block.at)}
+        </time>
+      </CollapsiblePanel>
+    );
+  }
 
   return (
     <div
-      className={`rounded-2xl px-4 py-3 text-sm shadow-sm group relative ${
+      className={`rounded-2xl px-4 py-3 text-sm group relative ${
         isError
           ? "rounded-bl-md bg-error-container/80 text-on-error-container border border-error/25"
-          : "rounded-bl-md bg-surface-container-low text-on-surface border border-outline-variant/70"
+          : "rounded-bl-md bg-surface-container-lowest text-on-surface border border-outline-variant/60"
       }`}
     >
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-        {block.event_id && (
-          <Link
-            to="/events/$eventId"
-            params={{ eventId: block.event_id }}
-            className="dw-btn-ghost text-[10px] py-0.5 no-underline"
-          >
-            <Icon name="link" size={12} />
-            {t("conversations.viewEvent")}
-          </Link>
-        )}
-        <CopyButton text={block.body} label={t("conversations.copyMessage")} />
+        {headerActions}
       </div>
-      <div className="text-xs font-medium text-secondary mb-2">
-        {isError ? t("common.error") : t("conversations.assistant")}
-      </div>
+      {!shouldCollapse && (
+        <div className="text-xs font-medium text-secondary mb-2">
+          {isError ? t("common.error") : t("conversations.assistant")}
+        </div>
+      )}
       {isError ? (
         <ErrorMessageBody text={block.body} />
       ) : (
@@ -382,12 +438,13 @@ function TypingIndicator({ compact }: { compact?: boolean }) {
 }
 
 function LiveToolCard({ toolName }: { toolName: string }) {
+  const t = useT();
   return (
     <div className="rounded-2xl rounded-bl-md border border-primary/25 bg-primary-container/20 px-4 py-3 text-sm">
       <div className="flex items-center gap-2 text-primary font-medium">
         <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse" />
         <Icon name="build" size={16} />
-        <span>{toolName}</span>
+        <span>{formatLiveToolLabel(toolName, t)}</span>
       </div>
     </div>
   );

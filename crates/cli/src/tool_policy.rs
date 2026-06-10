@@ -153,6 +153,7 @@ mod tests {
             terminal: Default::default(),
             channels: Default::default(),
             lsp: Default::default(),
+            mcp: Default::default(),
             notifications: Default::default(),
         }
     }

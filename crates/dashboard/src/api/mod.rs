@@ -6,13 +6,14 @@ use crate::api::state::AppState;
 use axum::{
     http::{
         header::{CACHE_CONTROL, CONTENT_TYPE},
-        HeaderMap, HeaderValue, StatusCode,
+        HeaderMap, HeaderValue, StatusCode, Uri,
     },
     middleware,
     response::{Html, IntoResponse},
     routing::{delete, get, post, put},
-    Router,
+    Json, Router,
 };
+use serde_json::json;
 use std::path::PathBuf;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -172,6 +173,7 @@ pub fn router(state: AppState) -> Router {
         .route("/events/stream", get(handlers::global_events_stream))
         .route("/events/{event_id}", get(handlers::get_event))
         .route("/events", get(handlers::list_recent_events))
+        .route("/project-templates", get(handlers::list_project_templates))
         .route(
             "/projects",
             get(handlers::list_projects).post(handlers::upsert_project),
@@ -355,6 +357,22 @@ pub fn router(state: AppState) -> Router {
             post(handlers::test_notification),
         )
         .route(
+            "/settings/browser-connector",
+            get(handlers::get_browser_connector).put(handlers::put_browser_connector),
+        )
+        .route(
+            "/settings/mcp-servers",
+            get(handlers::get_mcp_servers).put(handlers::put_mcp_servers),
+        )
+        .route(
+            "/settings/prompt-preview",
+            get(handlers::get_prompt_preview),
+        )
+        .route(
+            "/settings/prompt-settings",
+            put(handlers::put_prompt_settings),
+        )
+        .route(
             "/settings/connectors",
             get(handlers::list_connectors).post(handlers::upsert_connector),
         )
@@ -390,7 +408,10 @@ pub fn router(state: AppState) -> Router {
             if assets.is_dir() {
                 app = app.route_service("/assets/{*path}", ServeDir::new(dir.clone()));
             }
-            app = app.fallback(get(move || serve_spa_index(index.clone())));
+            let index_for_fallback = index.clone();
+            app = app.fallback(get(move |uri: Uri| async move {
+                spa_fallback(uri, index_for_fallback.clone()).await
+            }));
         }
     } else if crate::embedded_ui::available() {
         app = app.fallback(get(crate::embedded_ui::fallback));
@@ -402,6 +423,17 @@ pub fn router(state: AppState) -> Router {
             .allow_methods(Any)
             .allow_headers(Any),
     )
+}
+
+async fn spa_fallback(uri: Uri, index: PathBuf) -> axum::response::Response {
+    if uri.path().starts_with("/api/") {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "API route not found" })),
+        )
+            .into_response();
+    }
+    serve_spa_index(index).await.into_response()
 }
 
 async fn serve_spa_index(index: PathBuf) -> impl IntoResponse {

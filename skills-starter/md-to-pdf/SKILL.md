@@ -5,6 +5,9 @@ description: Convert Markdown reports to PDF for sharing (requires pandoc locall
 
 # md-to-pdf
 
+> **中文**：将 Markdown 报告转为 PDF（本地需 pandoc）。  
+> **English**: Convert Markdown reports to PDF for sharing (requires pandoc locally).
+
 Use when the user asks for a PDF deliverable from Markdown.
 
 ## Workflow

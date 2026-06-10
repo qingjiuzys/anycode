@@ -24,7 +24,22 @@ anycode dashboard --open
 
 默认地址：`http://127.0.0.1:43180`
 
-**macOS 桌面应用：** 从 [Releases](https://github.com/qingjiuzys/anycode/releases) 安装 `anyCode_*.dmg`，打开后会自动启动工作台。
+**macOS 桌面应用：** 从 [Releases](https://github.com/qingjiuzys/anycode/releases) 安装对应平台的安装包（macOS `.dmg`、Windows `.msi`/`.exe`、Linux `.deb`/`.AppImage`），打开后会自动启动工作台。
+
+## 对话与多模态
+
+- **网页对话**：在项目会话中可直接粘贴或选择图片发送（需 Vision 模型）。
+- **渠道**：微信、Telegram、Discord 支持图片；Telegram/Discord 语音消息在配置了 `models.speech.stt` 时会自动转写。
+- 详见仓库内 [运行流说明](https://github.com/qingjiuzys/anycode/blob/main/docs/run-flow.md)。
+
+## 项目知识库
+
+在项目详情页可配置 **知识库路径** 并执行 **重建索引**。Desktop 发布版内置向量检索；纯 CLI 开发构建需 `knowledge-embeddings` feature。Doctor 检查会提示索引与向量状态。
+
+## MCP 与浏览器
+
+- **设置 → MCP 服务器**：图形化编辑 `~/.anycode/config.json` 中的 `mcp.servers`。
+- **设置 → 通知 → Browser 连接器**：Desktop 版可一键启用 bundled Playwright MCP；首页快捷区也会提示启用。
 
 ## 侧栏页面一览
 

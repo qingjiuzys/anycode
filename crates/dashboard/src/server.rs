@@ -170,6 +170,10 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
 }
 
 pub async fn app_for_test(db_path: &Path) -> Result<Router> {
+    app_for_test_with_host(db_path, "127.0.0.1").await
+}
+
+pub async fn app_for_test_with_host(db_path: &Path, host: &str) -> Result<Router> {
     let db = DashboardDb::open(db_path).await?;
     let state = AppState {
         db,
@@ -180,7 +184,7 @@ pub async fn app_for_test(db_path: &Path) -> Result<Router> {
         static_dir: None,
         workspace_paths: vec![],
         tasks_root: PathBuf::from(".anycode/tasks"),
-        host: "127.0.0.1".into(),
+        host: host.into(),
         port: 43180,
         started_at: chrono::Utc::now().to_rfc3339(),
         pid: std::process::id(),

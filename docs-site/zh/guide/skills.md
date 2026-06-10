@@ -17,6 +17,9 @@ anyCode 采用常见的 **Agent Skills** 约定：每个技能是一个目录，
 - **项目内（启动时不扫描）：** `<cwd>/skills/<skill_id>/` 或 `<cwd>/.anycode/skills/<skill_id>/` — 若 catalog 中尚无该 id，在 **Skill** 工具执行时会尝试解析。
 - **`skill_id`** 须与目录名、frontmatter 的 **`name`** 一致（仅 ASCII 字母数字及 `.` `_` `-`）。不一致会记录警告并跳过。
 
+| **`description`** | 给模型与 `anycode skills list` 用的一句话说明（英文或通用）。 |
+| **`description_zh`** | 可选；中文摘要，会出现在系统提示的 **Available skills** 列表中。 |
+
 最小 **`SKILL.md`** 示例：
 
 ```markdown
@@ -51,6 +54,7 @@ description: 给模型和 anycode skills list 用的一句话说明
 anycode skills list   # id、是否有 run、描述、根路径
 anycode skills path   # 生效的搜索根与 skills.enabled
 anycode skills init <name>   # 在 ~/.anycode/skills/<name>/ 生成 SKILL.md 与 run 模板
+anycode skills install-starter   # 安装仓库 skills-starter 包（含 cn-daily-brief 等中文场景技能）
 ```
 
 ## 模型侧可见性

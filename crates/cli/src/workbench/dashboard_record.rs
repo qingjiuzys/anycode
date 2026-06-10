@@ -161,6 +161,7 @@ fn repl_task(agent: &str, prompt: &str, working_dir: &str, task_id: Uuid) -> Tas
             channel_progress_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
+            user_vision_images: vec![],
             budget: TaskBudget::default(),
         },
         created_at: chrono::Utc::now(),

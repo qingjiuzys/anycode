@@ -41,6 +41,7 @@ impl DashboardDb {
                 name: Some(name),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await?;
             n += 1;
@@ -76,6 +77,7 @@ mod tests {
                 name: Some("Demo".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -132,6 +134,7 @@ mod tests {
                 name: Some("GateTest".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -188,6 +191,7 @@ mod tests {
                 name: Some("NoRuns".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -213,6 +217,7 @@ mod tests {
                 name: Some("ArtTrust".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -279,6 +284,7 @@ mod tests {
                 name: Some("MG".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -303,6 +309,7 @@ mod tests {
                 name: Some("wd".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -312,6 +319,7 @@ mod tests {
                 name: Some("also wd".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -332,6 +340,7 @@ mod tests {
                 name: Some("C".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -368,6 +377,7 @@ mod tests {
             name: Some("alive".into()),
             description: None,
             create_root: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -376,6 +386,7 @@ mod tests {
             name: Some("gone".into()),
             description: None,
             create_root: None,
+            ..Default::default()
         })
         .await
         .unwrap();

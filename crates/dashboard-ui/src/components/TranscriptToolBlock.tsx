@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { TranscriptBlock } from "@/api/types";
+import { CollapsiblePanel, contentStats, previewLines } from "@/components/ui/CollapsiblePanel";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { Icon } from "@/components/Icon";
+import { formatTranscriptBlockTitle } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
 
 type Props = {
@@ -12,18 +14,6 @@ type Props = {
 
 export function TranscriptToolBlock({ tools, defaultCollapsed }: Props) {
   const t = useT();
-  const collapsible = tools.some((tool) => tool.collapsible) || tools.length > 1;
-  const initialCollapsed =
-    defaultCollapsed !== undefined
-      ? defaultCollapsed
-      : tools.some((tool) => tool.default_collapsed) || tools.length > 2;
-  const [open, setOpen] = useState(!initialCollapsed);
-
-  const title =
-    tools.find((b) => b.block_type === "tool_call")?.title ||
-    tools[0]?.title ||
-    t("conversations.toolActivity");
-
   const failed = tools.some(
     (tool) =>
       tool.block_type === "tool_result" &&
@@ -33,82 +23,119 @@ export function TranscriptToolBlock({ tools, defaultCollapsed }: Props) {
     tools.some((tool) => tool.block_type === "tool_call") &&
     !tools.some((tool) => tool.block_type === "tool_result");
 
-  const combinedBody = tools
-    .map((tool) => {
-      const head = tool.title ? `# ${tool.title}\n` : "";
-      return `${head}${tool.body}`.trim();
-    })
-    .filter(Boolean)
-    .join("\n\n");
-
-  const eventId = tools.find((tool) => tool.event_id)?.event_id;
+  const summary = useMemo(() => buildGroupSummary(tools, t), [tools, t]);
+  const initialOpen = defaultCollapsed === false && !running;
 
   return (
-    <div
-      className={`rounded-2xl rounded-bl-md border overflow-hidden w-full ${
-        failed
-          ? "border-error/30 bg-error-container/15"
-          : running
-            ? "border-primary/25 bg-primary-container/15"
-            : "border-outline-variant bg-surface-container-low"
-      }`}
+    <CollapsiblePanel
+      title={summary.title}
+      subtitle={summary.subtitle}
+      defaultOpen={initialOpen}
+      tone={failed ? "error" : running ? "running" : "muted"}
+      icon="build"
+      headerActions={
+        <>
+          <CopyButton text={summary.combined} label={t("conversations.copyMessage")} />
+          {summary.eventId && (
+            <Link
+              to="/events/$eventId"
+              params={{ eventId: summary.eventId }}
+              className="dw-btn-ghost text-[10px] py-0.5 no-underline"
+            >
+              <Icon name="link" size={12} />
+            </Link>
+          )}
+        </>
+      }
     >
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-outline-variant/60">
-        {running && (
-          <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
-        )}
-        <Icon name="folder" size={16} className="text-secondary shrink-0" />
-        {collapsible ? (
-          <button
-            type="button"
-            className="flex-1 min-w-0 text-left text-sm font-medium truncate bg-transparent border-0 cursor-pointer p-0"
-            onClick={() => setOpen((v) => !v)}
-          >
-            {title}
-          </button>
-        ) : (
-          <span className="text-sm font-medium truncate flex-1 min-w-0">{title}</span>
-        )}
-        <span className="text-[10px] text-secondary shrink-0">
-          {tools.length} {t("conversations.toolSteps")}
-        </span>
-        {collapsible && (
-          <button
-            type="button"
-            className="dw-btn-ghost p-0.5"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-          >
-            <Icon name={open ? "expand_less" : "expand_more"} size={18} />
-          </button>
-        )}
-        {combinedBody && <CopyButton text={combinedBody} label={t("conversations.copyMessage")} />}
-        {eventId && (
-          <Link
-            to="/events/$eventId"
-            params={{ eventId }}
-            className="dw-btn-ghost text-[10px] py-0.5 no-underline shrink-0"
-          >
-            <Icon name="link" size={12} />
-            {t("conversations.viewEvent")}
-          </Link>
-        )}
-      </div>
-      {(!collapsible || open) && (
-        <div className="divide-y divide-outline-variant/60">
-          {tools.map((tool) => (
-            <div key={tool.id} className="px-4 py-2.5 text-sm">
-              {tool.body ? (
-                <pre className="m-0 whitespace-pre-wrap break-words font-code text-xs text-on-surface">
-                  {tool.body}
-                </pre>
-              ) : (
-                <span className="text-xs text-secondary">{tool.title}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+      <ul className="m-0 p-0 list-none flex flex-col gap-1">
+        {tools.map((tool) => (
+          <ToolStepRow key={tool.id} tool={tool} />
+        ))}
+      </ul>
+    </CollapsiblePanel>
   );
+}
+
+function ToolStepRow({ tool }: { tool: TranscriptBlock }) {
+  const t = useT();
+  const failed = /failed|error|denied/i.test(`${tool.title} ${tool.body}`);
+  const isResult = tool.block_type === "tool_result";
+  const { lines, chars } = contentStats(tool.body);
+  const collapsible = tool.collapsible !== false && (lines > 4 || chars > 200);
+  const defaultOpen =
+    tool.default_collapsed === false ||
+    (!isResult && tool.default_collapsed !== true && lines <= 3);
+  const [open, setOpen] = useState(defaultOpen);
+
+  const label = formatTranscriptBlockTitle(tool, t);
+  const preview = previewLines(tool.body, 1, 120);
+
+  return (
+    <li className="rounded-lg border border-outline-variant/50 bg-surface-container-low overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm bg-transparent border-0 cursor-pointer hover:bg-surface-container/60"
+        onClick={() => (collapsible ? setOpen((v) => !v) : undefined)}
+        aria-expanded={collapsible ? open : undefined}
+        disabled={!collapsible}
+      >
+        <Icon
+          name={isResult ? (failed ? "error" : "check_circle") : "edit"}
+          size={16}
+          className={failed ? "text-error shrink-0" : "text-secondary shrink-0"}
+        />
+        <span className="flex-1 min-w-0 font-medium truncate">{label}</span>
+        {chars > 0 && (
+          <span className="text-[10px] font-code text-secondary shrink-0 tabular-nums">
+            {lines > 0 ? `${lines}L` : ""}
+            {lines > 0 && chars > 0 ? " · " : ""}
+            {chars > 999 ? `${Math.round(chars / 1000)}k` : chars}
+          </span>
+        )}
+        {collapsible && (
+          <Icon name={open ? "expand_less" : "expand_more"} size={16} className="text-secondary shrink-0" />
+        )}
+      </button>
+      {(!collapsible || open) && tool.body && (
+        <pre className="m-0 px-2.5 pb-2.5 pt-0 text-xs font-code whitespace-pre-wrap break-words text-on-surface border-t border-outline-variant/40">
+          {tool.body}
+        </pre>
+      )}
+      {collapsible && !open && preview && (
+        <p className="m-0 px-2.5 pb-2 text-xs text-secondary truncate">{preview}</p>
+      )}
+    </li>
+  );
+}
+
+function buildGroupSummary(
+  tools: TranscriptBlock[],
+  t: (key: string) => string,
+): { title: string; subtitle: string; combined: string; eventId?: string } {
+  const calls = tools.filter((x) => x.block_type === "tool_call").length;
+  const results = tools.filter((x) => x.block_type === "tool_result").length;
+  const failed = tools.some(
+    (x) =>
+      x.block_type === "tool_result" && /failed|error|denied/i.test(`${x.title} ${x.body}`),
+  );
+  const done = results >= calls && calls > 0;
+  const title = t("conversations.toolGroupTitle").replace("{n}", String(tools.length));
+  const status = failed
+    ? t("conversations.toolGroupFailed")
+    : done
+      ? t("conversations.toolGroupDone")
+      : t("conversations.toolGroupRunning");
+  const first = tools.find((x) => x.block_type === "tool_call")?.title ?? tools[0]?.title ?? "";
+  const subtitle = first ? `${status} · ${first}` : status;
+  const combined = tools
+    .map((tool) => `${tool.title}\n${tool.body}`.trim())
+    .filter(Boolean)
+    .join("\n\n");
+  return {
+    title,
+    subtitle,
+    combined,
+    eventId: tools.find((x) => x.event_id)?.event_id ?? undefined,
+  };
 }

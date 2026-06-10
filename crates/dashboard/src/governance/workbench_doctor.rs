@@ -10,6 +10,7 @@ pub async fn workbench_doctor_checks(db: &DashboardDb) -> Vec<DoctorCheck> {
     let mut checks = Vec::new();
     checks.push(skills_starter_check(db).await);
     checks.push(knowledge_index_check(db).await);
+    checks.push(knowledge_embeddings_check());
     checks.push(project_trust_stale_check(db).await);
     checks.extend(wechat_bridge_checks());
     checks.push(cron_scheduler_check());
@@ -143,6 +144,22 @@ async fn knowledge_index_check(db: &DashboardDb) -> DoctorCheck {
             status: "warn".into(),
             message: format!("Could not inspect knowledge tables: {e}"),
         },
+    }
+}
+
+fn knowledge_embeddings_check() -> DoctorCheck {
+    if anycode_tools::vectors_feature_enabled() {
+        DoctorCheck {
+            id: "knowledge_vectors".into(),
+            status: "ok".into(),
+            message: "Vector search enabled (knowledge-embeddings feature)".into(),
+        }
+    } else {
+        DoctorCheck {
+            id: "knowledge_vectors".into(),
+            status: "warn".into(),
+            message: "Vector search disabled in this build — Desktop release includes embeddings; dev builds need `cargo build -p anycode-dashboard --features knowledge-embeddings` or use Desktop app".into(),
+        }
     }
 }
 

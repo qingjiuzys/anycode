@@ -2,8 +2,9 @@ use crate::app_config::{apply_wechat_bridge_no_tool_approval, Config};
 use crate::bootstrap::initialize_runtime;
 use crate::channel_task::{build_channel_task, im_task_failure_detail_excerpt, ChannelTaskInput};
 use anycode_agent::AgentRuntime;
-use anycode_core::{SecretRef, TaskResult};
+use anycode_core::{SecretRef, TaskResult, VisionImage};
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -163,6 +164,117 @@ fn split_for_discord(s: &str) -> Vec<String> {
     out
 }
 
+async fn discord_download_url(client: &Client, url: &str) -> Option<Vec<u8>> {
+    client
+        .get(url)
+        .send()
+        .await
+        .ok()?
+        .bytes()
+        .await
+        .ok()
+        .map(|b| b.to_vec())
+}
+
+async fn discord_transcribe_audio(
+    client: &Client,
+    url: &str,
+    mime: &str,
+    filename: Option<&str>,
+) -> Option<String> {
+    use anycode_llm::{
+        config_file::read_config_value,
+        media::{MediaClientRegistry, SttClient},
+    };
+    let bytes = discord_download_url(client, url).await?;
+    let (_, cfg) = read_config_value(None).ok()?;
+    let reg = MediaClientRegistry::from_config(&cfg);
+    let prof = reg.stt.as_ref()?;
+    let stt = SttClient::new(prof.profile.clone());
+    let name = filename.filter(|s| !s.is_empty()).unwrap_or_else(|| {
+        if mime.contains("mpeg") || mime.contains("mp3") {
+            "voice.mp3"
+        } else if mime.contains("wav") {
+            "voice.wav"
+        } else {
+            "voice.ogg"
+        }
+    });
+    stt.transcribe(&bytes, name)
+        .await
+        .ok()
+        .map(|r| r.text)
+        .filter(|t| !t.trim().is_empty())
+}
+
+fn attachment_is_probably_voice(att: &serde_json::Value, mime: &str) -> bool {
+    if mime.starts_with("audio/") {
+        return true;
+    }
+    if mime != "application/octet-stream" {
+        return false;
+    }
+    att.get("filename")
+        .and_then(|x| x.as_str())
+        .is_some_and(|n| {
+            let lower = n.to_ascii_lowercase();
+            lower.contains("voice")
+                || lower.ends_with(".ogg")
+                || lower.ends_with(".mp3")
+                || lower.ends_with(".wav")
+                || lower.ends_with(".m4a")
+        })
+}
+
+async fn resolve_discord_prompt(
+    client: &Client,
+    message: &serde_json::Value,
+) -> Option<(String, Vec<VisionImage>)> {
+    let mut prompt = message
+        .get("content")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let mut vision_images = Vec::new();
+    let mut saw_voice = false;
+    if let Some(atts) = message.get("attachments").and_then(|v| v.as_array()) {
+        for att in atts {
+            let mime = att
+                .get("content_type")
+                .and_then(|x| x.as_str())
+                .unwrap_or("application/octet-stream");
+            let Some(url) = att.get("url").and_then(|x| x.as_str()) else {
+                continue;
+            };
+            if mime.starts_with("image/") {
+                if let Some(bytes) = discord_download_url(client, url).await {
+                    vision_images.push(VisionImage::new(mime.to_string(), STANDARD.encode(bytes)));
+                }
+                continue;
+            }
+            if prompt.is_empty() && attachment_is_probably_voice(att, mime) {
+                saw_voice = true;
+                let filename = att.get("filename").and_then(|x| x.as_str());
+                if let Some(text) = discord_transcribe_audio(client, url, mime, filename).await {
+                    prompt = text;
+                }
+            }
+        }
+    }
+    if prompt.is_empty() {
+        if saw_voice {
+            prompt = "(voice message — STT unavailable)".to_string();
+        } else if !vision_images.is_empty() {
+            prompt = "Please describe or analyze this image.".to_string();
+        }
+    }
+    if prompt.is_empty() && vision_images.is_empty() {
+        return None;
+    }
+    Some((prompt, vision_images))
+}
+
 async fn execute_prompt(
     runtime: &Arc<AgentRuntime>,
     config: &Config,
@@ -171,6 +283,7 @@ async fn execute_prompt(
     channel_id: &str,
     user_id: &str,
     prompt: String,
+    user_vision_images: Vec<VisionImage>,
 ) -> String {
     let task = build_channel_task(
         ChannelTaskInput {
@@ -180,6 +293,7 @@ async fn execute_prompt(
             channel_id: channel_id.to_string(),
             user_id: user_id.to_string(),
             channel_name: "discord",
+            user_vision_images,
         },
         config,
     );
@@ -303,15 +417,17 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
                 .unwrap_or("")
                 .trim()
                 .to_string();
-            if content.is_empty() {
-                continue;
-            }
-            if qbroker_for_poll
-                .try_resolve_numeric(&channel_id, &content)
-                .await
+            if !content.is_empty()
+                && qbroker_for_poll
+                    .try_resolve_numeric(&channel_id, &content)
+                    .await
             {
                 continue;
             }
+            let Some((prompt_text, vision_images)) = resolve_discord_prompt(&client, &m).await
+            else {
+                continue;
+            };
             let user_id = m
                 .get("author")
                 .and_then(|a| a.get("id"))
@@ -327,7 +443,8 @@ pub(crate) async fn run_discord_polling(mut config: Config, args: DiscordRunArgs
                     &working_directory,
                     &channel_id,
                     &user_id,
-                    content,
+                    prompt_text,
+                    vision_images,
                 ),
             )
             .await;

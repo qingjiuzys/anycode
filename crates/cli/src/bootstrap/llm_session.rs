@@ -220,9 +220,9 @@ pub(crate) fn resolve_agent_base_url(
 mod tests {
     use super::*;
     use crate::app_config::{
-        AgentsConfig, ChannelsConfig, LLMConfig, LspRuntime, MemoryConfig, RoutingConfig,
-        RuntimeSettings, SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime,
-        TerminalRuntime,
+        AgentsConfig, ChannelsConfig, LLMConfig, LspRuntime, McpRuntime, MemoryConfig,
+        RoutingConfig, RuntimeSettings, SecurityConfig, SessionConfig, SkillsConfig,
+        StatusLineRuntime, TerminalRuntime,
     };
     use anycode_agent::RuntimePromptConfig;
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
@@ -289,6 +289,7 @@ mod tests {
             terminal: TerminalRuntime::default(),
             channels: ChannelsConfig::default(),
             lsp: LspRuntime::default(),
+            mcp: McpRuntime::default(),
             notifications: anycode_core::SessionNotificationSettings::default(),
         }
     }

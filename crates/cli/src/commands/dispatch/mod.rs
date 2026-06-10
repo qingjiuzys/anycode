@@ -99,6 +99,7 @@ pub(crate) async fn run_cli() -> anyhow::Result<()> {
             | Commands::Cron { .. }
             | Commands::Audit { .. }
             | Commands::Workspace { .. }
+            | Commands::Project { .. }
             | Commands::Workflow { .. }
             | Commands::Model { .. }
             | Commands::Mcp { .. }

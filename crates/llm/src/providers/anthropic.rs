@@ -238,9 +238,25 @@ pub(crate) struct AnthropicMessage {
 }
 
 #[derive(Debug, Serialize)]
+pub(crate) struct AnthropicImageSource {
+    #[serde(rename = "type")]
+    source_type: &'static str,
+    media_type: String,
+    data: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct AnthropicImageBlock {
+    #[serde(rename = "type")]
+    block_type: &'static str,
+    source: AnthropicImageSource,
+}
+
+#[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub(crate) enum AnthropicContent {
     Text { text: String },
+    Image(AnthropicImageBlock),
     ToolUse { tool_use: AnthropicToolUse },
     ToolResult { tool_result: AnthropicToolResult },
 }
@@ -302,6 +318,35 @@ pub(crate) struct AnthropicUsage {
 // Conversion Functions
 // ============================================================================
 
+fn user_message_content(msg: &Message) -> Vec<AnthropicContent> {
+    let text = match &msg.content {
+        MessageContent::Text(t) => t.as_str(),
+        MessageContent::ToolUse { .. } | MessageContent::ToolResult { .. } => "",
+    };
+    let mut parts = Vec::new();
+    if !text.is_empty() {
+        parts.push(AnthropicContent::Text {
+            text: text.to_string(),
+        });
+    }
+    for img in anycode_core::vision_images_from_metadata(&msg.metadata) {
+        parts.push(AnthropicContent::Image(AnthropicImageBlock {
+            block_type: "image",
+            source: AnthropicImageSource {
+                source_type: "base64",
+                media_type: img.mime_type,
+                data: img.data_base64,
+            },
+        }));
+    }
+    if parts.is_empty() {
+        parts.push(AnthropicContent::Text {
+            text: text.to_string(),
+        });
+    }
+    parts
+}
+
 pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> {
     messages
         .into_iter()
@@ -347,6 +392,9 @@ pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> 
                     }
                 },
                 content: match msg.content {
+                    MessageContent::Text(_) if msg.role == MessageRole::User => {
+                        user_message_content(&msg)
+                    }
                     MessageContent::Text(text) => vec![AnthropicContent::Text { text }],
                     MessageContent::ToolUse { name, input } => vec![AnthropicContent::ToolUse {
                         tool_use: AnthropicToolUse {

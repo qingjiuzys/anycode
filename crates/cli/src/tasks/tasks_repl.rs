@@ -256,6 +256,7 @@ pub(crate) async fn run_interactive(
         repl_banner::print_repl_welcome(&working_dir, &agent, session_skip_approval, welcome_kind);
         let stdin = BufReader::new(tokio::io::stdin());
         let mut lines = stdin.lines();
+        let mut vision_images: Vec<anycode_core::VisionImage> = Vec::new();
         loop {
             repl_banner::print_repl_prompt();
             let _ = std::io::stdout().flush();
@@ -268,6 +269,22 @@ pub(crate) async fn run_interactive(
             if trimmed.is_empty() {
                 continue;
             }
+            let prompt_line = if let Some(path) =
+                crate::vision_prompt::parse_vision_file_line(trimmed)
+            {
+                vision_images = crate::vision_prompt::load_vision_file(&path).unwrap_or_default();
+                crate::vision_prompt::remove_vision_file(&path);
+                match lines.next_line().await? {
+                    None => break,
+                    Some(l) => l.trim().to_string(),
+                }
+            } else {
+                vision_images.clear();
+                trimmed.to_string()
+            };
+            if prompt_line.is_empty() && vision_images.is_empty() {
+                continue;
+            }
             let mut sink = ReplSink::Stdio;
             if repl_dispatch_one_line(
                 &runtime,
@@ -276,7 +293,8 @@ pub(crate) async fn run_interactive(
                 &mut agent,
                 &mut config,
                 &mut line_session,
-                trimmed,
+                &prompt_line,
+                &vision_images,
                 &mut sink,
                 None,
             )
@@ -781,6 +799,7 @@ async fn stream_repl_tokio_worker(
                                 config,
                                 line_session,
                                 t,
+                                &[],
                                 &mut sink,
                                 Some(paste_state.clone()),
                             )
@@ -1196,6 +1215,7 @@ async fn repl_dispatch_one_line(
     config: &mut Config,
     line_session: &mut ReplLineSession,
     trimmed: &str,
+    vision_images: &[anycode_core::VisionImage],
     sink: &mut ReplSink,
     stream_paste_state: Option<Arc<Mutex<crate::repl::ReplLineState>>>,
 ) -> anyhow::Result<bool> {
@@ -1218,11 +1238,17 @@ async fn repl_dispatch_one_line(
             Ok(false)
         }
         ReplDispatchOutcome::SpawnNatural { prompt } => {
+            let effective_prompt = if prompt.trim().is_empty() && !vision_images.is_empty() {
+                "Please describe or analyze this image.".to_string()
+            } else {
+                prompt
+            };
             repl_line_session::run_line_repl_turn(
                 runtime,
                 line_session,
                 agent.as_str(),
-                &prompt,
+                &effective_prompt,
+                vision_images,
                 sink,
             )
             .await?;

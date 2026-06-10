@@ -4,31 +4,45 @@ import { Link, useParams } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import { EventTimeline } from "@/components/EventTimeline";
 import { DataHealthPanel } from "@/components/DataHealthPanel";
-import { GateRunnerPanel } from "@/components/GateRunnerPanel";
 import { Icon } from "@/components/Icon";
+import { ProjectConfigDialog } from "@/components/ProjectConfigDialog";
 import { ProjectInsightCharts } from "@/components/ProjectInsightCharts";
+import { ProjectKnowledgeSummary } from "@/components/project/ProjectKnowledgeSummary";
 import { ProjectTokenUsage } from "@/components/ProjectTokenUsage";
 import { SessionFlow } from "@/components/SessionFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ProjectKnowledgePanel } from "@/components/ProjectKnowledgePanel";
 import { DataTable, DataTableEmpty } from "@/components/ui/DataTable";
 import { KpiMetricGrid } from "@/components/KpiMetricGrid";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useProjectEventStream } from "@/hooks/useProjectEventStream";
+import { useProjectViewPrefs } from "@/hooks/useProjectViewPrefs";
+import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
 
 const SEVERITIES = ["info", "warn", "error"] as const;
 const TOOL_CALL_FILTER = "tool_call_end";
+const DEFAULT_EVENT_LIMIT = 10;
+const DEFAULT_SESSION_LIMIT = 8;
 
 export function ProjectDetailPage() {
   const t = useT();
   const { projectId } = useParams({ from: "/_shell/projects/$projectId" });
   const queryClient = useQueryClient();
+  const { prefs } = useProjectViewPrefs(projectId);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configTab, setConfigTab] = useState<"knowledge" | "gates" | "pipeline" | undefined>();
   const [eventFilter, setEventFilter] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string | null>(null);
   const [eventSearch, setEventSearch] = useState("");
+  const [eventsExpanded, setEventsExpanded] = useState(false);
+  const [sessionsExpanded, setSessionsExpanded] = useState(false);
+  const [chartsExpanded, setChartsExpanded] = useState(false);
+  const [flowExpanded, setFlowExpanded] = useState(false);
+  const [skillsExpanded, setSkillsExpanded] = useState(false);
+
   useProjectEventStream(projectId);
+
   const reindex = useMutation({
     mutationFn: () => api.reindexProject(projectId),
     onSuccess: () => {
@@ -42,6 +56,7 @@ export function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["overview"] });
     },
   });
+
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api.project(projectId),
@@ -58,13 +73,15 @@ export function ProjectDetailPage() {
     queryKey: ["project-event-types", projectId],
     queryFn: () => api.projectEventTypes(projectId),
   });
+  const eventLimit = eventsExpanded ? 100 : DEFAULT_EVENT_LIMIT;
   const events = useQuery({
-    queryKey: ["events", projectId, eventFilter, severityFilter, eventSearch],
+    queryKey: ["events", projectId, eventFilter, severityFilter, eventSearch, eventLimit],
     queryFn: () =>
       api.events(projectId, {
         eventType: eventFilter ?? undefined,
         severity: severityFilter ?? undefined,
         q: eventSearch.trim() || undefined,
+        limit: eventLimit,
       }),
   });
   const sessionsQ = useQuery({
@@ -94,9 +111,20 @@ export function ProjectDetailPage() {
   });
 
   const p = project.data?.project;
+  const allSessions = sessionsQ.data?.sessions ?? [];
+  const sessionLimit = sessionsExpanded ? allSessions.length : DEFAULT_SESSION_LIMIT;
+  const visibleSessions = allSessions.slice(0, sessionLimit);
+  const allSkills = skillsQ.data?.skills ?? [];
+  const visibleSkills = skillsExpanded ? allSkills : allSkills.slice(0, 6);
+  const eventRows = events.data?.events ?? [];
   const blocked = (gates.data?.gates ?? []).some(
     (g) => g.required && g.status === "failed",
   );
+
+  function openConfig(tab?: "knowledge" | "gates" | "pipeline") {
+    setConfigTab(tab);
+    setConfigOpen(true);
+  }
 
   return (
     <>
@@ -133,6 +161,14 @@ export function ProjectDetailPage() {
           <>
             <button
               type="button"
+              className="dw-btn-primary"
+              onClick={() => openConfig()}
+            >
+              <Icon name="settings" size={16} />
+              {t("projectDetail.config.button")}
+            </button>
+            <button
+              type="button"
               className="dw-btn-secondary"
               disabled={reindex.isPending}
               onClick={() => reindex.mutate()}
@@ -159,6 +195,16 @@ export function ProjectDetailPage() {
             </Link>
           </>
         }
+      />
+
+      <ProjectConfigDialog
+        projectId={projectId}
+        open={configOpen}
+        initialTab={configTab}
+        onClose={() => {
+          setConfigOpen(false);
+          setConfigTab(undefined);
+        }}
       />
 
       {reindex.isSuccess && (
@@ -207,12 +253,50 @@ export function ProjectDetailPage() {
           />
         )}
 
-        {stats.data?.stats && <ProjectInsightCharts stats={stats.data.stats} />}
+        {stats.data?.stats && (
+          <SectionCard
+            title={t("projectDetail.analytics")}
+            action={
+              <button
+                type="button"
+                className="dw-btn-ghost text-xs"
+                onClick={() => setChartsExpanded((v) => !v)}
+              >
+                {chartsExpanded ? t("projectDetail.collapseSection") : t("projectDetail.expandSection")}
+              </button>
+            }
+          >
+            {chartsExpanded ? (
+              <ProjectInsightCharts stats={stats.data.stats} />
+            ) : (
+              <p className="text-sm text-secondary m-0">{t("projectDetail.analyticsCollapsed")}</p>
+            )}
+          </SectionCard>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SectionCard title={t("projectDetail.sessions")} noPadding>
+          <SectionCard
+            title={t("projectDetail.sessions")}
+            noPadding
+            action={
+              allSessions.length > DEFAULT_SESSION_LIMIT ? (
+                <button
+                  type="button"
+                  className="dw-btn-ghost text-xs"
+                  onClick={() => setSessionsExpanded((v) => !v)}
+                >
+                  {sessionsExpanded
+                    ? t("projectDetail.showLess")
+                    : t("projectDetail.showMoreSessions").replace(
+                        "{n}",
+                        String(allSessions.length - DEFAULT_SESSION_LIMIT),
+                      )}
+                </button>
+              ) : undefined
+            }
+          >
             <DataTable
-              isEmpty={(sessionsQ.data?.sessions ?? []).length === 0}
+              isEmpty={allSessions.length === 0}
               empty={
                 <DataTableEmpty
                   message={t("projectDetail.emptySessions")}
@@ -229,7 +313,7 @@ export function ProjectDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {(sessionsQ.data?.sessions ?? []).map((s) => (
+                {visibleSessions.map((s) => (
                   <tr key={s.id}>
                     <td>
                       <Link
@@ -253,10 +337,36 @@ export function ProjectDetailPage() {
             </DataTable>
           </SectionCard>
 
-          <SectionCard title={t("projectDetail.acceptanceGates")} noPadding>
+          <SectionCard
+            title={t("projectDetail.acceptanceGates")}
+            noPadding
+            action={
+              <button
+                type="button"
+                className="dw-btn-ghost text-xs"
+                onClick={() => openConfig("gates")}
+              >
+                {t("projectDetail.config.openGates")}
+              </button>
+            }
+          >
             <DataTable
               isEmpty={(gates.data?.gates ?? []).length === 0}
-              empty={<DataTableEmpty message={t("projectDetail.noGates")} icon={<Icon name="verified" size={28} className="text-outline" />} />}
+              empty={
+                <div className="dw-table-empty-state flex flex-col items-center gap-2 py-6">
+                  <DataTableEmpty
+                    message={t("projectDetail.noGates")}
+                    icon={<Icon name="verified" size={28} className="text-outline" />}
+                  />
+                  <button
+                    type="button"
+                    className="dw-btn-secondary text-sm"
+                    onClick={() => openConfig("gates")}
+                  >
+                    {t("projectDetail.config.configureGates")}
+                  </button>
+                </div>
+              }
             >
               <thead>
                 <tr>
@@ -267,7 +377,7 @@ export function ProjectDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {(gates.data?.gates ?? []).map((g) => (
+                {(gates.data?.gates ?? []).slice(0, 6).map((g) => (
                   <tr key={g.id}>
                     <td className="font-medium">{g.name}</td>
                     <td>
@@ -296,22 +406,21 @@ export function ProjectDetailPage() {
           </Link>
         </div>
 
-        <div className="dw-project-secondary-grid">
-          <ProjectTokenUsage projectId={projectId} />
-          <GateRunnerPanel projectId={projectId} />
-        </div>
+        <ProjectTokenUsage projectId={projectId} />
+
+        <ProjectKnowledgeSummary projectId={projectId} onOpenConfig={() => openConfig("knowledge")} />
 
         {(stats.data?.stats?.recent_failures ?? []).length > 0 && (
           <SectionCard title={t("projectDetail.recentFailures")}>
             <ul className="m-0 pl-5 text-sm space-y-2">
-              {(stats.data?.stats?.recent_failures ?? []).map((f) => (
+              {(stats.data?.stats?.recent_failures ?? []).slice(0, 5).map((f) => (
                 <li key={f.id}>
                   <Link to="/events/$eventId" params={{ eventId: f.id }}>
-                    {f.title}
+                    {formatEventTitle(f, t)}
                   </Link>
                   <span className="text-secondary">
                     {" "}
-                    · {f.event_type} · {f.occurred_at}
+                    · {formatEventTypeLabel(f.event_type, t)} · {f.occurred_at}
                   </span>
                   {f.session_id && (
                     <>
@@ -331,123 +440,174 @@ export function ProjectDetailPage() {
           </SectionCard>
         )}
 
-        {(sessionsQ.data?.sessions ?? []).length > 0 && (
-          <SectionCard title={t("projectDetail.pipeline")}>
+        {allSessions.length > 0 && (
+          <SectionCard
+            title={t("projectDetail.sessionFlow")}
+            action={
+              <button
+                type="button"
+                className="dw-btn-ghost text-xs"
+                onClick={() => openConfig("pipeline")}
+              >
+                {t("projectDetail.config.openPipeline")}
+              </button>
+            }
+          >
             <p className="text-xs text-secondary m-0 mb-2">{t("sessionFlow.hint")}</p>
-            <SessionFlow sessions={sessionsQ.data?.sessions ?? []} />
+            {flowExpanded ? (
+              <SessionFlow
+                sessions={allSessions}
+                limit={prefs.sessionFlowLimit}
+                hideImported={prefs.hideImportedSessions}
+              />
+            ) : (
+              <button
+                type="button"
+                className="dw-btn-secondary text-sm"
+                onClick={() => setFlowExpanded(true)}
+              >
+                {t("projectDetail.showSessionFlow")}
+              </button>
+            )}
           </SectionCard>
         )}
 
-        {(skillsQ.data?.skills ?? []).length > 0 && (
-          <SectionCard title={t("projectDetail.projectSkills")} noPadding>
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("projectDetail.skillCol")}</th>
-                  <th>{t("common.path")}</th>
-                  <th>{t("projectDetail.enabled")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(skillsQ.data?.skills ?? []).map((sk) => (
-                  <tr key={sk.id}>
-                    <td>
-                      <Link
-                        to="/agents/$skillId"
-                        params={{ skillId: sk.id }}
-                        className="font-medium no-underline hover:underline"
-                      >
-                        {sk.name}
-                      </Link>
-                    </td>
-                    <td className="text-secondary font-code text-xs">{sk.source_path}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={sk.enabled ?? false}
-                        disabled={toggleSkill.isPending}
-                        onChange={(e) =>
-                          toggleSkill.mutate({
-                            skillId: sk.id,
-                            enabled: e.target.checked,
-                          })
-                        }
-                        className="accent-primary"
-                      />
-                    </td>
+        {allSkills.length > 0 && (
+          <SectionCard
+            title={t("projectDetail.projectSkills")}
+            noPadding
+            action={
+              allSkills.length > 6 ? (
+                <button
+                  type="button"
+                  className="dw-btn-ghost text-xs"
+                  onClick={() => setSkillsExpanded((v) => !v)}
+                >
+                  {skillsExpanded ? t("projectDetail.showLess") : t("projectDetail.showMore")}
+                </button>
+              ) : undefined
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="dw-table">
+                <thead>
+                  <tr>
+                    <th>{t("projectDetail.skillCol")}</th>
+                    <th>{t("common.path")}</th>
+                    <th>{t("projectDetail.enabled")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visibleSkills.map((sk) => (
+                    <tr key={sk.id}>
+                      <td>
+                        <Link
+                          to="/agents/$skillId"
+                          params={{ skillId: sk.id }}
+                          className="font-medium no-underline hover:underline"
+                        >
+                          {sk.name}
+                        </Link>
+                      </td>
+                      <td className="text-secondary font-code text-xs">{sk.source_path}</td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={sk.enabled ?? false}
+                          disabled={toggleSkill.isPending}
+                          onChange={(e) =>
+                            toggleSkill.mutate({
+                              skillId: sk.id,
+                              enabled: e.target.checked,
+                            })
+                          }
+                          className="accent-primary"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </SectionCard>
         )}
-
-        <ProjectKnowledgePanel projectId={projectId} />
 
         <SectionCard
           title={t("projectDetail.recentEvents")}
-        action={
-          <input
-            type="search"
-            className="dw-input w-48"
-            placeholder={t("events.searchPlaceholder")}
-            value={eventSearch}
-            onChange={(e) => setEventSearch(e.target.value)}
-          />
-        }
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="search"
+                className="dw-input w-40 text-sm"
+                placeholder={t("events.searchPlaceholder")}
+                value={eventSearch}
+                onChange={(e) => setEventSearch(e.target.value)}
+              />
+              {eventRows.length >= DEFAULT_EVENT_LIMIT && (
+                <button
+                  type="button"
+                  className="dw-btn-ghost text-xs"
+                  onClick={() => setEventsExpanded((v) => !v)}
+                >
+                  {eventsExpanded
+                    ? t("projectDetail.showLess")
+                    : t("projectDetail.showMoreEvents")}
+                </button>
+              )}
+            </div>
+          }
         >
           <div className="flex flex-wrap gap-2 mb-2">
-          <button
-            type="button"
-            className={`dw-chip${eventFilter === null ? " active" : ""}`}
-            onClick={() => setEventFilter(null)}
-          >
-            {t("events.allTypes")}
-          </button>
-          <button
-            type="button"
-            className={`dw-chip${eventFilter === TOOL_CALL_FILTER ? " active" : ""}`}
-            onClick={() =>
-              setEventFilter((f) => (f === TOOL_CALL_FILTER ? null : TOOL_CALL_FILTER))
-            }
-          >
-            {t("session.filterToolCalls")}
-          </button>
-          {(projectEventTypes.data?.event_types ?? [])
-            .filter((etype) => !etype.startsWith("tool_call"))
-            .map((etype) => (
             <button
-              key={etype}
               type="button"
-              className={`dw-chip${eventFilter === etype ? " active" : ""}`}
-              onClick={() => setEventFilter(etype)}
+              className={`dw-chip${eventFilter === null ? " active" : ""}`}
+              onClick={() => setEventFilter(null)}
             >
-              {etype}
+              {t("events.allTypes")}
             </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          <button
-            type="button"
-            className={`dw-chip${severityFilter === null ? " active" : ""}`}
-            onClick={() => setSeverityFilter(null)}
-          >
-            {t("events.allSeverities")}
-          </button>
-          {SEVERITIES.map((s) => (
             <button
-              key={s}
               type="button"
-              className={`dw-chip${severityFilter === s ? " active" : ""}`}
-              onClick={() => setSeverityFilter(s)}
+              className={`dw-chip${eventFilter === TOOL_CALL_FILTER ? " active" : ""}`}
+              onClick={() =>
+                setEventFilter((f) => (f === TOOL_CALL_FILTER ? null : TOOL_CALL_FILTER))
+              }
             >
-              {t(`status.${s}`)}
+              {t("session.filterToolCalls")}
             </button>
-          ))}
-        </div>
-          <EventTimeline events={events.data?.events ?? []} />
+            {(projectEventTypes.data?.event_types ?? [])
+              .filter((etype) => !etype.startsWith("tool_call"))
+              .slice(0, 12)
+              .map((etype) => (
+                <button
+                  key={etype}
+                  type="button"
+                  className={`dw-chip${eventFilter === etype ? " active" : ""}`}
+                  onClick={() => setEventFilter(etype)}
+                >
+                  {formatEventTypeLabel(etype, t)}
+                </button>
+              ))}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              type="button"
+              className={`dw-chip${severityFilter === null ? " active" : ""}`}
+              onClick={() => setSeverityFilter(null)}
+            >
+              {t("events.allSeverities")}
+            </button>
+            {SEVERITIES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`dw-chip${severityFilter === s ? " active" : ""}`}
+                onClick={() => setSeverityFilter(s)}
+              >
+                {t(`status.${s}`)}
+              </button>
+            ))}
+          </div>
+          <EventTimeline events={eventRows} compact={!eventsExpanded} />
         </SectionCard>
       </div>
     </>

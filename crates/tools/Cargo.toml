@@ -53,6 +53,7 @@ cron = "0.12"
 # File operations
 walkdir = { workspace = true }
 ignore = { workspace = true }
+rust-embed = "8.9"
 
 # Search / glob
 globset = "0.4"

@@ -114,6 +114,7 @@ mod eval;
 mod mcp;
 mod memory;
 mod model;
+mod project;
 mod skills;
 mod statusline;
 mod workflow;
@@ -128,6 +129,7 @@ pub(crate) use eval::*;
 pub(crate) use mcp::*;
 pub(crate) use memory::*;
 pub(crate) use model::*;
+pub(crate) use project::*;
 pub(crate) use skills::*;
 pub(crate) use statusline::*;
 pub(crate) use workflow::*;
@@ -228,6 +230,12 @@ pub(crate) enum Commands {
     Workspace {
         #[command(subcommand)]
         sub: WorkspaceCommands,
+    },
+
+    /// 📦  Create projects from built-in templates (Flutter app pack, …)
+    Project {
+        #[command(subcommand)]
+        sub: ProjectCommands,
     },
 
     /// 📋 Validate declarative workflow plans

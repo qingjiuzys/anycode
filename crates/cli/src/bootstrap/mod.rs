@@ -1,6 +1,7 @@
 //! Wire LLM client, tool registry, and `AgentRuntime` (shared by TUI, `run`, and long-lived bridges).
 
 mod agents;
+mod browser_mcp;
 mod llm_session;
 mod llm_stack;
 mod mcp_env;

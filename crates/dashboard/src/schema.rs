@@ -1,5 +1,6 @@
 //! API DTOs for the Digital Workbench.
 
+use crate::control::vision_payload::VisionImagePayload;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -305,13 +306,31 @@ pub struct InsertEventRequest {
     pub payload: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpsertProjectRequest {
     pub root_path: String,
     pub name: Option<String>,
     pub description: Option<String>,
     /// When true, create `root_path` on disk if it does not exist yet.
     pub create_root: Option<bool>,
+    /// Built-in project template id (e.g. `flutter-app`).
+    pub template_id: Option<String>,
+    /// Display title for template rendering.
+    pub app_title: Option<String>,
+    /// Flutter bundle org (e.g. `com.anycode.demo`).
+    pub bundle_org: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectTemplateSummary {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_zh: Option<String>,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description_zh: Option<String>,
+    pub default_dir: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -337,6 +356,8 @@ pub struct StartConversationRequest {
     pub agent: Option<String>,
     #[serde(default)]
     pub skills: Option<Vec<String>>,
+    #[serde(default)]
+    pub vision_images: Option<Vec<VisionImagePayload>>,
 }
 
 fn default_start_kind() -> String {
@@ -350,6 +371,8 @@ pub struct SendConversationMessageRequest {
     pub agent: Option<String>,
     #[serde(default)]
     pub skills: Option<Vec<String>>,
+    #[serde(default)]
+    pub vision_images: Option<Vec<VisionImagePayload>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

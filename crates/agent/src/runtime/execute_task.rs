@@ -90,12 +90,16 @@ impl AgentRuntime {
         );
 
         // 用户消息
+        let mut user_metadata = HashMap::new();
+        if !task.context.user_vision_images.is_empty() {
+            attach_vision_images(&mut user_metadata, &task.context.user_vision_images);
+        }
         messages.push(Message {
             id: Uuid::new_v4(),
             role: MessageRole::User,
             content: MessageContent::Text(task.prompt.clone()),
             timestamp: chrono::Utc::now(),
-            metadata: HashMap::new(),
+            metadata: user_metadata,
         });
 
         // 4. 工具名与 schema（与 TUI turn 共用 tool_surface）

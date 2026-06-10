@@ -711,6 +711,7 @@ mod tests {
                 name: Some("M".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -764,6 +765,7 @@ mod tests {
                 name: Some("B".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

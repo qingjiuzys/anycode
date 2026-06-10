@@ -44,6 +44,7 @@ impl SubAgentExecutor for AgentRuntime {
                 channel_progress_tx: None,
                 tool_deny_names: invoke.tool_deny_names.clone(),
                 tool_deny_prefixes: invoke.tool_deny_prefixes.clone(),
+                user_vision_images: vec![],
                 budget: nested_budget_from_env(),
             },
             created_at: chrono::Utc::now(),

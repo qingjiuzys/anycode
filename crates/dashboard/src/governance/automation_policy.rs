@@ -230,6 +230,7 @@ mod tests {
                 name: Some("Auto".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

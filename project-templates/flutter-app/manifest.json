@@ -1,0 +1,12 @@
+{
+  "id": "flutter-app",
+  "name": "Flutter App",
+  "name_zh": "Flutter 应用",
+  "description": "Agent-first Flutter MVP: skeleton at create, bootstrap Flutter SDK when needed, then gates.",
+  "description_zh": "Agent 自主 Flutter：创建时仅骨架，由 Agent 安装 SDK 与平台目录，再跑门禁与 Goal。",
+  "default_dir": "my_flutter_app",
+  "flutter": {
+    "platforms": ["ios", "android", "web"],
+    "default_org": "com.anycode.demo"
+  }
+}

@@ -117,6 +117,7 @@ pub(crate) fn save_merged_config(
             .map(|c| c.channels.clone())
             .unwrap_or_default(),
         lsp: existing.as_ref().map(|c| c.lsp.clone()).unwrap_or_default(),
+        mcp: existing.as_ref().map(|c| c.mcp.clone()).unwrap_or_default(),
         notifications: existing
             .as_ref()
             .map(|c| c.notifications.clone())

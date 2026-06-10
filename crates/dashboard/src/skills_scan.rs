@@ -135,6 +135,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn discovers_project_dot_anycode_skills() {
+        let dir = tempfile::tempdir().unwrap();
+        let skill_dir = dir.path().join(".anycode/skills/flutter-prd");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "# flutter-prd\n").unwrap();
+        let wp = dir.path().display().to_string();
+        let found: Vec<_> = discover_skills(&[wp]).into_iter().map(|s| s.id).collect();
+        assert!(found.contains(&"flutter-prd".to_string()));
+    }
+
+    #[test]
     fn parses_skill_frontmatter() {
         let dir = tempfile::tempdir().unwrap();
         let skill_dir = dir.path().join("demo-skill");

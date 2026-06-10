@@ -30,6 +30,7 @@ pub use model_instructions::{
     discover_model_instructions, ModelInstructionsConfig, ModelInstructionsFile,
     DEFAULT_MODEL_INSTRUCTIONS_FILENAME, MODEL_INSTRUCTIONS_FILENAMES,
 };
+pub use prompt_assembler::{render_system_prompt_segments, PromptAssembler, SystemPromptSegment};
 pub use runtime::{
     failover::{error_triggers_failover, FailoverPolicy},
     AgentClaudeToolGating, AgentRuntime, RuntimeCoreDeps, RuntimeMemoryOptions, RuntimeToolPolicy,

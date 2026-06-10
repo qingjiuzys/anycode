@@ -32,6 +32,7 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
             channel_progress_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
+            user_vision_images: vec![],
             budget: TaskBudget::default(),
         },
         created_at: chrono::Utc::now(),
@@ -104,6 +105,7 @@ async fn recorder_begin_attaches_precreated_session_and_preserves_title() {
             name: Some("attach-test".into()),
             description: None,
             create_root: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -156,6 +158,7 @@ async fn recorder_begin_attaches_precreated_session_and_preserves_title() {
             channel_progress_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
+            user_vision_images: vec![],
             budget: TaskBudget::default(),
         },
         created_at: chrono::Utc::now(),

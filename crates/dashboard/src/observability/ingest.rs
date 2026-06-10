@@ -58,6 +58,7 @@ pub async fn ingest_recent_disk_tasks(
                 name: None,
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await?;
 

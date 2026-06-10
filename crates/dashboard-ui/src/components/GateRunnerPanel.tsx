@@ -25,7 +25,6 @@ export function GateRunnerPanel({ projectId }: { projectId: string }) {
   });
 
   const rows = presets.data?.presets ?? [];
-  if (rows.length === 0 && !lastResult && liveLines.length === 0) return null;
 
   async function runPreset(presetId: string) {
     abortRef.current?.abort();
@@ -80,6 +79,9 @@ export function GateRunnerPanel({ projectId }: { projectId: string }) {
         />
         {t("projectDetail.gateRequired")}
       </label>
+      {rows.length === 0 && (
+        <p className="text-sm text-secondary m-0 mb-3">{t("projectDetail.config.gates.noPresets")}</p>
+      )}
       <div className="flex flex-wrap gap-2 mb-3">
         {rows.map((p) => (
           <button

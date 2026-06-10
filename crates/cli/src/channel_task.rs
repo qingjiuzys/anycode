@@ -30,6 +30,7 @@ pub(crate) struct ChannelTaskInput {
     pub channel_id: String,
     pub user_id: String,
     pub channel_name: &'static str,
+    pub user_vision_images: Vec<VisionImage>,
 }
 
 /// Truncate runtime/provider error text for IM (UTF-8 safe, character-wise).
@@ -117,6 +118,7 @@ mod tests {
             terminal: Default::default(),
             channels: Default::default(),
             lsp: Default::default(),
+            mcp: Default::default(),
             notifications: Default::default(),
         }
     }
@@ -146,6 +148,7 @@ mod tests {
                 channel_id: "9".into(),
                 user_id: "1".into(),
                 channel_name: "telegram",
+                user_vision_images: vec![],
             },
             &config,
         );
@@ -165,6 +168,7 @@ mod tests {
                 channel_id: "9".into(),
                 user_id: "1".into(),
                 channel_name: "telegram",
+                user_vision_images: vec![],
             },
             &config,
         );

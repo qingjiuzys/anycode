@@ -235,6 +235,7 @@ mod tests {
                 name: Some("Replay".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();
@@ -269,6 +270,7 @@ mod tests {
                 name: Some("Meta".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

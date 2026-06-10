@@ -64,6 +64,8 @@ Output (macOS):
 | `.app` | `apps/anycode-desktop/target/release/bundle/macos/anyCode.app` |
 | `.dmg` | `apps/anycode-desktop/target/release/bundle/dmg/anyCode_<version>_aarch64.dmg` |
 
+The release bundle includes **Playwright MCP + Chromium** under `resources/browser/` (no manual `npx playwright install`). Enable in Workbench → **Settings → Notifications → Browser connector**, then start a new conversation.
+
 ## GitHub Release
 
 On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the DMG and attaches it to the GitHub Release (alongside CLI tarballs from `release-binaries.yml`).

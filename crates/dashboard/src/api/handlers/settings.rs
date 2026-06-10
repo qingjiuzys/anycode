@@ -82,6 +82,14 @@ pub async fn get_doctor(State(state): State<AppState>) -> impl IntoResponse {
     report
         .checks
         .extend(crate::connector_health::connector_doctor_checks(&state.db).await);
+    if let Ok((_, cfg)) = crate::config_patch::read_config_root() {
+        let enabled = crate::browser_connector::read_browser_enabled(&cfg);
+        report
+            .checks
+            .push(crate::browser_connector::browser_connector_doctor_check(
+                enabled,
+            ));
+    }
     report
         .checks
         .extend(crate::governance::workbench_doctor::workbench_doctor_checks(&state.db).await);

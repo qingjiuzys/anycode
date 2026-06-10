@@ -6,8 +6,10 @@ mod inner {
         body::Body,
         http::{header, StatusCode, Uri},
         response::{IntoResponse, Response},
+        Json,
     };
     use rust_embed::Embed;
+    use serde_json::json;
 
     #[derive(Embed)]
     #[folder = "../dashboard-ui/dist/"]
@@ -51,6 +53,13 @@ mod inner {
     }
 
     pub async fn fallback(uri: Uri) -> impl IntoResponse {
+        if uri.path().starts_with("/api/") {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "API route not found" })),
+            )
+                .into_response();
+        }
         serve_path(uri.path()).unwrap_or_else(|| {
             Response::builder()
                 .status(StatusCode::NOT_FOUND)

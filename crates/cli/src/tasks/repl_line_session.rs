@@ -129,16 +129,12 @@ pub(crate) async fn run_line_repl_turn(
     session: &mut ReplLineSession,
     agent: &str,
     prompt: &str,
+    vision_images: &[anycode_core::VisionImage],
     sink: &mut ReplSink,
 ) -> anyhow::Result<()> {
     let at = AgentType::new(agent.to_string());
-    let user_msg = Message {
-        id: Uuid::new_v4(),
-        role: MessageRole::User,
-        content: MessageContent::Text(prompt.to_string()),
-        timestamp: chrono::Utc::now(),
-        metadata: HashMap::new(),
-    };
+    let user_msg =
+        crate::vision_prompt::user_message_with_vision(prompt.to_string(), vision_images);
     {
         let mut g = session.messages.lock().await;
         g.push(user_msg);

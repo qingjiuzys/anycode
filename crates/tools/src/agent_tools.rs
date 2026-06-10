@@ -6,7 +6,9 @@
 //! `SendMessage` 接受 `to` 作为 `recipient` 别名。
 
 use crate::services::ToolServices;
-use crate::skills::{truncate_skill_output, SkillCatalog, MAX_SKILL_OUTPUT_BYTES};
+use crate::skills::{
+    load_skill_instructions, truncate_skill_output, SkillCatalog, MAX_SKILL_OUTPUT_BYTES,
+};
 use anycode_core::prelude::*;
 use anycode_core::DiskTaskOutput;
 use async_trait::async_trait;
@@ -423,7 +425,7 @@ impl Tool for SkillTool {
         "Skill"
     }
     fn description(&self) -> &str {
-        "Run a skill's `run` executable from a discovered skill directory (see system prompt \"Available skills\"). Pass `name` (skill id) and optional `args`."
+        "Run a skill from a discovered skill directory (see system prompt \"Available skills\"). With a `run` script: pass `name` and optional `args`. Documentation-only skills: pass `name` only to load `SKILL.md` instructions."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -491,12 +493,23 @@ impl Tool for SkillTool {
         };
         let runner = root.join("run");
         if !runner.is_file() {
+            let Some(body) = load_skill_instructions(&root) else {
+                return Ok(ToolOutput {
+                    result: serde_json::json!({
+                        "error": "skill run script not found and SKILL.md body empty",
+                        "expected_path": runner.to_string_lossy(),
+                    }),
+                    error: Some("skill has no run script".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            };
             return Ok(ToolOutput {
                 result: serde_json::json!({
-                    "error": "skill run script not found",
-                    "expected_path": runner.to_string_lossy(),
+                    "skill": skill_name,
+                    "mode": "instructions",
+                    "instructions": body,
                 }),
-                error: Some("skill has no run script".into()),
+                error: None,
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }

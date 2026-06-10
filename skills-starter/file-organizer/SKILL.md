@@ -5,6 +5,9 @@ description: Organize files in a folder by rules (date, extension, naming patter
 
 # file-organizer
 
+> **中文**：按规则（日期、扩展名、命名模式）整理文件夹。  
+> **English**: Organize files in a folder by rules (date, extension, naming patterns).
+
 Use **Glob**, **FileRead**, and **Bash** (with user approval) to sort or rename files.
 Always preview the plan before moving files. Prefer dry-run listing first.
 Stay within user-authorized directories.

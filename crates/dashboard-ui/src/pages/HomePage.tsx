@@ -16,6 +16,7 @@ import {
   usePendingApprovalCounts,
 } from "@/components/SecurityApprovalInbox";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
+import { HomeQuickCompose } from "@/components/HomeQuickCompose";
 import { HomePanelOverlays, type HomePanelSection } from "@/components/HomePanelOverlays";
 import { WorkspacePathsPanel } from "@/components/WorkspacePathsPanel";
 import { MetricsChart } from "@/components/MetricsChart";
@@ -171,6 +172,14 @@ export function HomePage() {
     <>
       <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
 
+      <HomeQuickCompose
+        sseStatus={sseStatus}
+        projectOptions={list.map((p) => ({ id: p.id, name: p.name }))}
+        activePanelId={expandedSection}
+        onPanelChange={setExpandedSection}
+        showRecentPanel={recentSessions.length > 0}
+      />
+
       <div className="flex flex-wrap items-center gap-2 text-xs font-code text-secondary">
         <span>{t("layout.localMode")}</span>
         <span className="text-outline-variant">•</span>
@@ -179,18 +188,6 @@ export function HomePage() {
         </span>
         <span className="text-outline-variant">•</span>
         <span>v{health.data?.version ?? "…"}</span>
-        <span className="text-outline-variant">•</span>
-        <SseStatusBadge
-          status={
-            sseStatus === "live"
-              ? "live"
-              : sseStatus === "connecting"
-                ? "connecting"
-                : sseStatus === "reconnecting"
-                  ? "reconnecting"
-                  : "offline"
-          }
-        />
       </div>
 
       {ov && ov.sessions_blocked > 0 && (
@@ -277,7 +274,11 @@ export function HomePage() {
         </div>
       )}
 
-      <HomeInsightCards overview={ov} readiness={readiness.data?.readiness} />
+      <HomeInsightCards
+        overview={ov}
+        readiness={readiness.data?.readiness}
+        firstProjectId={list[0]?.id}
+      />
 
       {(running.data?.sessions ?? []).length > 0 && (
         <SectionCard title={t("home.running")} noPadding>

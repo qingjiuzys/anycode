@@ -11,7 +11,20 @@ export const BUILTIN_AGENT_CATALOG = [
   { id: "file-operator", icon: "folder_open", labelKey: "fileOperator" },
 ] as const;
 
+/** Shown first in composer agent picker; others grouped under “More”. */
+export const PRIMARY_AGENT_IDS = [
+  "general-purpose",
+  "explore",
+  "plan",
+  "builder",
+  "goal-runner",
+] as const;
+
 export type BuiltinAgentId = (typeof BUILTIN_AGENT_CATALOG)[number]["id"];
+
+export function isPrimaryAgentId(id: string): boolean {
+  return (PRIMARY_AGENT_IDS as readonly string[]).includes(id);
+}
 
 export function builtinAgentMeta(id: string) {
   return BUILTIN_AGENT_CATALOG.find((a) => a.id === id);

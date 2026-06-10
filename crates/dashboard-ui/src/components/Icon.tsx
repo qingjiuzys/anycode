@@ -15,6 +15,20 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   add: <path d="M12 5v14M5 12h14" />,
+  arrow_upward: <path d="M12 19V5M5 12l7-7 7 7" />,
+  analytics: (
+    <>
+      <path d="M4 19h16" />
+      <path d="M7 16l3-4 3 2 4-6" />
+    </>
+  ),
+  article: (
+    <>
+      <path d="M6 4h10l4 4v12H6z" />
+      <path d="M14 4v4h4" />
+      <path d="M9 13h6M9 17h6" />
+    </>
+  ),
   bar_chart: (
     <>
       <path d="M5 19V9" />
@@ -65,6 +79,14 @@ const icons: Record<string, ReactNode> = {
       <rect x="4" y="13" width="7" height="7" rx="1.5" />
     </>
   ),
+  dashboard_customize: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <path d="M14 17h7M14 20h5" />
+    </>
+  ),
   dark_mode: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />,
   description: (
     <>
@@ -86,6 +108,7 @@ const icons: Record<string, ReactNode> = {
       <path d="M12 7.5v5M12 16.5h.01" />
     </>
   ),
+  expand_less: <path d="m7 15 5-5 5 5" />,
   expand_more: <path d="m7 9 5 5 5-5" />,
   fact_check: (
     <>
@@ -128,6 +151,13 @@ const icons: Record<string, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8" />
       <path d="M9.75 9a2.5 2.5 0 1 1 3.55 2.25c-.8.45-1.3.9-1.3 1.75M12 16.5h.01" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M12 8v4l2.5 1.5" />
+      <path d="M12 20a8 8 0 1 0-8-8" />
+      <path d="M4 4v5h5" />
     </>
   ),
   home: <path d="m4 11 8-7 8 7v9H6v-6h12" />,
@@ -193,6 +223,12 @@ const icons: Record<string, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8" />
       <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="5.5" />
+      <path d="m15.5 15.5 4 4" />
     </>
   ),
   send: <path d="M4 4l17 8-17 8 3-8zM7 12h8" />,

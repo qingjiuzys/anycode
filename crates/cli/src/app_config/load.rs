@@ -199,6 +199,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         terminal: cfg.terminal.into(),
         channels: cfg.channels.into(),
         lsp: lsp_runtime,
+        mcp: cfg.mcp.clone().into(),
         notifications: cfg.notifications,
     })
 }

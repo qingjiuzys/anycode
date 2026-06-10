@@ -16,6 +16,7 @@ pub const DEFAULT_MODEL_INSTRUCTIONS_FILENAME: &str = "AGENTS.md";
 /// Alternative filenames to search (in order of preference).
 pub const MODEL_INSTRUCTIONS_FILENAMES: &[&str] = &[
     "AGENTS.md",
+    "CLAUDE.md",
     ".agents.md",
     "agents.md",
     "MODEL_INSTRUCTIONS.md",

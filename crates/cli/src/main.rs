@@ -25,6 +25,7 @@ mod task_builders;
 mod tasks;
 mod term;
 mod tool_policy;
+mod vision_prompt;
 mod workbench;
 mod workspace;
 

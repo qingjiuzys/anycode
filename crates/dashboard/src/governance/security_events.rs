@@ -114,6 +114,7 @@ mod tests {
                 name: Some("sec-test".into()),
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await
             .unwrap();

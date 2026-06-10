@@ -38,11 +38,25 @@ export const projectsClient = {
     if (opts?.sort) q.set("sort", opts.sort);
     return get<ProjectsListResponse>(`/api/projects?${q}`);
   },
+  projectTemplates: () =>
+    get<{
+      templates: Array<{
+        id: string;
+        name: string;
+        name_zh?: string;
+        description: string;
+        description_zh?: string;
+        default_dir: string;
+      }>;
+    }>("/api/project-templates"),
   upsertProject: (body: {
     root_path: string;
     name?: string;
     description?: string;
     create_root?: boolean;
+    template_id?: string;
+    app_title?: string;
+    bundle_org?: string;
   }) =>
     post<{ project: ProjectDetail }>("/api/projects", body),
   scanProjects: () =>
@@ -101,6 +115,7 @@ export const projectsClient = {
       goal?: string;
       agent?: string;
       skills?: string[];
+      vision_images?: { mime_type: string; data_base64: string }[];
     },
   ) =>
     post<{ session: SessionDetail; chat: WebChatResult }>(
@@ -109,7 +124,12 @@ export const projectsClient = {
     ),
   sendSessionMessage: (
     sessionId: string,
-    body: { prompt: string; agent?: string; skills?: string[] },
+    body: {
+      prompt: string;
+      agent?: string;
+      skills?: string[];
+      vision_images?: { mime_type: string; data_base64: string }[];
+    },
   ) =>
     post<{ ok: boolean; session_id: string; chat: WebChatResult }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/message`,

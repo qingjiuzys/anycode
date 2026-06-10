@@ -10,6 +10,7 @@ import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
 import { SettingsModelSection } from "@/pages/settings/SettingsModelSection";
 import { SettingsNotifySection } from "@/pages/settings/SettingsNotifySection";
 import { SettingsOpsSection } from "@/pages/settings/SettingsOpsSection";
+import { SettingsPreferencesSection } from "@/pages/settings/SettingsPreferencesSection";
 import { SettingsOverviewBanner } from "@/pages/settings/SettingsOverviewBanner";
 import { SettingsSecuritySection } from "@/pages/settings/SettingsSecuritySection";
 import { SettingsServiceSection } from "@/pages/settings/SettingsServiceSection";
@@ -17,6 +18,7 @@ import { SettingsSkillsSection } from "@/pages/settings/SettingsSkillsSection";
 
 const VALID_SECTIONS = new Set<SettingsSection>([
   "auth",
+  "prefs",
   "data",
   "service",
   "model",
@@ -68,6 +70,7 @@ export function SettingsPage() {
 
         <div className="dw-settings-content space-y-6">
           {section === "auth" && <SettingsAuthSection />}
+          {section === "prefs" && <SettingsPreferencesSection />}
           {section === "data" && <SettingsDataSection />}
           {section === "service" && <SettingsServiceSection />}
           {section === "model" && <SettingsModelSection />}

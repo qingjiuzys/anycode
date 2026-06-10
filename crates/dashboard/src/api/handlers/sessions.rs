@@ -141,6 +141,15 @@ pub async fn send_session_message(
         state.web_chat.evict(&session_id).await;
     }
     let prompt_for_chat = crate::task_trigger::prompt_with_skills(prompt, body.skills.as_deref());
+    if let Some(ref imgs) = body.vision_images {
+        if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    }
     let dashboard_url = super::chat_util::dashboard_loopback_url(&state.host, state.port);
     match state
         .web_chat
@@ -151,6 +160,7 @@ pub async fn send_session_message(
             effective_agent,
             &dashboard_url,
             &prompt_for_chat,
+            body.vision_images.as_deref(),
         )
         .await
     {

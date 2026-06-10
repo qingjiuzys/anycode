@@ -1,50 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { useDashboardPreferences } from "@/hooks/useDashboardPreferences";
 import { useT } from "@/i18n/context";
 import { useState, useEffect } from "react";
 
 export function DashboardPreferencesForm() {
   const t = useT();
-  const qc = useQueryClient();
-  const prefs = useQuery({ queryKey: ["dashboard-preferences"], queryFn: api.dashboardPreferences });
-  const view = prefs.data?.preferences;
+  const { view, src, save } = useDashboardPreferences();
 
   const [host, setHost] = useState("127.0.0.1");
   const [port, setPort] = useState("43180");
   const [dbPath, setDbPath] = useState("");
-  const [assetStrict, setAssetStrict] = useState(false);
 
   useEffect(() => {
-    const src = view?.saved ?? view?.active;
     if (src) {
       setHost(src.host);
       setPort(String(src.port));
       setDbPath(src.db_path);
-      setAssetStrict(Boolean(src.asset_read_strict));
     }
-  }, [view?.saved, view?.active]);
-
-  const save = useMutation({
-    mutationFn: () => {
-      const base = view?.saved ?? view?.active;
-      return api.saveDashboardPreferences({
-        host: host.trim(),
-        port: Number(port),
-        db_path: dbPath.trim(),
-        asset_read_strict: assetStrict,
-        report_output_format: base?.report_output_format ?? "markdown",
-        report_generation_mode: base?.report_generation_mode ?? "llm",
-        model_fallback_provider: view?.saved?.model_fallback_provider ?? view?.active?.model_fallback_provider,
-        model_fallback_model: view?.saved?.model_fallback_model ?? view?.active?.model_fallback_model,
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard-preferences"] });
-      qc.invalidateQueries({ queryKey: ["audit"] });
-    },
-  });
+  }, [src]);
 
   return (
     <SectionCard title={t("settings.prefs.title")}>
@@ -60,7 +34,11 @@ export function DashboardPreferencesForm() {
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           <span className="text-secondary font-medium">{t("settings.database")}</span>
-          <input className="dw-input font-code text-xs" value={dbPath} onChange={(e) => setDbPath(e.target.value)} />
+          <input
+            className="dw-input font-code text-xs"
+            value={dbPath}
+            onChange={(e) => setDbPath(e.target.value)}
+          />
         </label>
       </div>
 
@@ -68,8 +46,14 @@ export function DashboardPreferencesForm() {
         <button
           type="button"
           className="dw-btn-primary"
-          disabled={save.isPending}
-          onClick={() => save.mutate()}
+          disabled={save.isPending || !src}
+          onClick={() =>
+            save.mutate({
+              host: host.trim(),
+              port: Number(port),
+              db_path: dbPath.trim(),
+            })
+          }
         >
           {save.isPending ? t("common.loading") : t("settings.prefs.save")}
         </button>
@@ -91,12 +75,6 @@ export function DashboardPreferencesForm() {
           <code className="font-code text-xs flex-1 break-all">{view.restart_command}</code>
           <CopyButton text={view.restart_command} />
         </div>
-      )}
-
-      {view?.preferences_path && (
-        <p className="text-xs text-secondary mt-3 m-0">
-          {t("settings.prefs.file")}: <code className="font-code">{view.preferences_path}</code>
-        </p>
       )}
     </SectionCard>
   );

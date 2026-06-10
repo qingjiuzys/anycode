@@ -90,6 +90,7 @@ impl DashboardRecorder {
                 name: None,
                 description: None,
                 create_root: None,
+                ..Default::default()
             })
             .await?;
         let metadata_json = session_metadata_json(kind, task);

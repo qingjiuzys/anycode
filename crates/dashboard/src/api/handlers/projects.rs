@@ -69,6 +69,37 @@ pub async fn get_project(
     }
 }
 
+fn builtin_project_template_summaries() -> Vec<crate::schema::ProjectTemplateSummary> {
+    vec![crate::schema::ProjectTemplateSummary {
+        id: "flutter-app".into(),
+        name: "Flutter App".into(),
+        name_zh: Some("Flutter 应用".into()),
+        description: "Agent-first Flutter MVP with skills, gates, and goal workflow.".into(),
+        description_zh: Some(
+            "Agent 自主 Flutter：创建时仅骨架，由 Agent 安装 SDK 与平台目录。".into(),
+        ),
+        default_dir: "my_flutter_app".into(),
+    }]
+}
+
+pub async fn list_project_templates() -> impl IntoResponse {
+    let summaries = match anycode_tools::list_project_templates() {
+        Ok(list) if !list.is_empty() => list
+            .into_iter()
+            .map(|t| crate::schema::ProjectTemplateSummary {
+                id: t.id,
+                name: t.name,
+                name_zh: t.name_zh,
+                description: t.description,
+                description_zh: t.description_zh,
+                default_dir: t.default_dir,
+            })
+            .collect(),
+        _ => builtin_project_template_summaries(),
+    };
+    Json(json!({ "templates": summaries })).into_response()
+}
+
 pub async fn upsert_project(
     State(state): State<AppState>,
     Json(req): Json<UpsertProjectRequest>,
@@ -81,27 +112,80 @@ pub async fn upsert_project(
         )
             .into_response();
     }
-    let root_path = match crate::project_root::ensure_project_root(
-        std::path::Path::new(root),
-        req.create_root.unwrap_or(false),
-    ) {
-        Ok(path) => path,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string() })),
+    let template_id = req
+        .template_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let root_path = if let Some(tid) = template_id.clone() {
+        let target = std::path::PathBuf::from(root);
+        let name = req.name.clone();
+        let app_title = req.app_title.clone();
+        let bundle_org = req.bundle_org.clone();
+        let force = req.create_root.unwrap_or(true);
+        match tokio::task::spawn_blocking(move || {
+            anycode_tools::apply_project_template(
+                &tid,
+                &target,
+                anycode_tools::ApplyTemplateOptions {
+                    project_name: name,
+                    app_title,
+                    bundle_org,
+                    force,
+                    run_flutter_create: std::env::var_os("ANYCODE_TEMPLATE_RUN_FLUTTER_CREATE")
+                        .is_some(),
+                },
             )
-                .into_response();
+        })
+        .await
+        {
+            Ok(Ok(r)) => r.root,
+            Ok(Err(e)) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": e.to_string() })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": e.to_string() })),
+                )
+                    .into_response();
+            }
+        }
+    } else {
+        match crate::project_root::ensure_project_root(
+            std::path::Path::new(root),
+            req.create_root.unwrap_or(false),
+        ) {
+            Ok(path) => path,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": e.to_string() })),
+                )
+                    .into_response();
+            }
         }
     };
-    let req = UpsertProjectRequest {
-        root_path: root_path.display().to_string(),
+    let root_display = root_path.display().to_string();
+    let upsert = UpsertProjectRequest {
+        root_path: root_display.clone(),
         name: req.name,
         description: req.description,
         create_root: req.create_root,
+        template_id: req.template_id,
+        app_title: req.app_title,
+        bundle_org: req.bundle_org,
     };
-    match state.db.upsert_project(req).await {
-        Ok(p) => Json(json!({ "project": p })).into_response(),
+    match state.db.upsert_project(upsert).await {
+        Ok(p) => {
+            let _ = skills_scan::sync_skills_to_db(&state.db, &[root_display]).await;
+            Json(json!({ "project": p })).into_response()
+        }
         Err(e) => {
             let msg = e.to_string();
             let status = if msg.contains("does not exist") || msg.contains("root_path") {

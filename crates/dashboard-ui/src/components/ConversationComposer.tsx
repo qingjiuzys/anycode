@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { WebChatResult } from "@/api/client/projects";
 import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { Icon } from "@/components/Icon";
+import { isPrimaryAgentId } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
 
 type ConversationStartSuccess = {
@@ -28,7 +29,27 @@ type StartProps = {
 
 type Props = FollowUpProps | StartProps;
 
+type VisionAttachment = {
+  mime_type: string;
+  data_base64: string;
+  previewUrl: string;
+};
+
 const SLASH_COMMANDS = ["help", "skills"] as const;
+
+async function fileToVisionAttachment(file: File): Promise<VisionAttachment> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return {
+    mime_type: file.type || "image/jpeg",
+    data_base64: btoa(binary),
+    previewUrl: URL.createObjectURL(file),
+  };
+}
 
 function parseSkillAllowlist(skillsJson: string): string[] | null {
   if (!skillsJson.trim()) return null;
@@ -75,6 +96,8 @@ export function ConversationComposer(props: Props) {
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [attachedImages, setAttachedImages] = useState<VisionAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (props.mode === "start" && props.initialAgent) {
@@ -107,6 +130,14 @@ export function ConversationComposer(props: Props) {
     return ids.filter((id) => allow.includes(id));
   }, [agent, agentProfiles.data?.profiles, allSkills.data?.skills]);
 
+  const { primaryProfiles, moreProfiles } = useMemo(() => {
+    const profiles = agentProfiles.data?.profiles ?? [];
+    return {
+      primaryProfiles: profiles.filter((p) => isPrimaryAgentId(p.id)),
+      moreProfiles: profiles.filter((p) => !isPrimaryAgentId(p.id)),
+    };
+  }, [agentProfiles.data?.profiles]);
+
   useEffect(() => {
     setSelectedSkills((prev) => prev.filter((id) => skillOptions.includes(id)));
   }, [skillOptions]);
@@ -133,10 +164,16 @@ export function ConversationComposer(props: Props) {
   }, [mentionFilter, slashQuery]);
 
   const sendFollowUp = useMutation({
-    mutationFn: (payload: { prompt: string; agent?: string; skills?: string[] }) =>
-      api.sendSessionMessage(session!.id, payload),
+    mutationFn: (payload: {
+      prompt: string;
+      agent?: string;
+      skills?: string[];
+      vision_images?: { mime_type: string; data_base64: string }[];
+    }) => api.sendSessionMessage(session!.id, payload),
     onSuccess: () => {
       setMessage("");
+      attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setAttachedImages([]);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["session", session!.id] });
@@ -152,9 +189,18 @@ export function ConversationComposer(props: Props) {
         prompt: message.trim(),
         agent: agent.trim() || undefined,
         skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+        vision_images:
+          attachedImages.length > 0
+            ? attachedImages.map(({ mime_type, data_base64 }) => ({
+                mime_type,
+                data_base64,
+              }))
+            : undefined,
       }),
     onSuccess: (data) => {
       setMessage("");
+      attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setAttachedImages([]);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["session", data.session.id] });
@@ -168,7 +214,7 @@ export function ConversationComposer(props: Props) {
   const running = session?.status === "running";
   const pending = isStart ? startSession.isPending : sendFollowUp.isPending;
   const canSend =
-    message.trim().length > 0 &&
+    (message.trim().length > 0 || attachedImages.length > 0) &&
     !pending &&
     (!isStart ? !running : true);
 
@@ -207,6 +253,13 @@ export function ConversationComposer(props: Props) {
       prompt: prompt.trim(),
       agent: agent.trim() || undefined,
       skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+      vision_images:
+        attachedImages.length > 0
+          ? attachedImages.map(({ mime_type, data_base64 }) => ({
+              mime_type,
+              data_base64,
+            }))
+          : undefined,
     };
   }
 
@@ -354,6 +407,42 @@ export function ConversationComposer(props: Props) {
           rows={isStart ? 4 : 3}
           onKeyDown={onComposerKeyDown}
         />
+        {attachedImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {attachedImages.map((img, idx) => (
+              <div key={img.previewUrl} className="relative">
+                <img
+                  src={img.previewUrl}
+                  alt=""
+                  className="h-14 w-14 object-cover rounded-md border border-outline-variant"
+                />
+                <button
+                  type="button"
+                  className="absolute -top-1 -right-1 dw-btn-ghost text-[10px] px-1 py-0 min-h-0"
+                  onClick={() => {
+                    URL.revokeObjectURL(img.previewUrl);
+                    setAttachedImages((prev) => prev.filter((_, i) => i !== idx));
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          multiple
+          onChange={async (e) => {
+            const files = Array.from(e.target.files ?? []).slice(0, 3);
+            e.target.value = "";
+            const next = await Promise.all(files.map(fileToVisionAttachment));
+            setAttachedImages((prev) => [...prev, ...next].slice(0, 3));
+          }}
+        />
       </div>
 
       <div className="dw-composer-toolbar">
@@ -370,11 +459,24 @@ export function ConversationComposer(props: Props) {
             title={t("conversations.agentFollowUpHint")}
           >
             <option value="">{t("conversations.agentDefault")}</option>
-            {(agentProfiles.data?.profiles ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.id}
-              </option>
-            ))}
+            {primaryProfiles.length > 0 && (
+              <optgroup label={t("conversations.agentGroupPrimary")}>
+                {primaryProfiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.id}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {moreProfiles.length > 0 && (
+              <optgroup label={t("conversations.agentGroupMore")}>
+                {moreProfiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.id}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
 
           {skillOptions.length > 0 && (
@@ -412,6 +514,16 @@ export function ConversationComposer(props: Props) {
               )}
             </div>
           )}
+
+          <button
+            type="button"
+            className="dw-btn-secondary text-xs py-1"
+            disabled={running || pending || attachedImages.length >= 3}
+            title={t("conversations.attachImage")}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Icon name="image" size={14} />
+          </button>
 
           <span
             className="text-[11px] text-secondary truncate max-w-[12rem]"

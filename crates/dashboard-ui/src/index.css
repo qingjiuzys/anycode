@@ -133,12 +133,17 @@
     @apply mb-2 pt-6 pb-2;
   }
 
+  /* Match main nav horizontal inset (nav uses px-2; avoid extra mx-2 on footer). */
   .dw-sidebar-footer {
-    @apply mx-2 mt-auto space-y-0.5 border-t border-outline-variant px-2 pt-4;
+    @apply mt-auto shrink-0 space-y-0.5 border-t border-outline-variant px-2 pt-3;
   }
 
   .dw-sidebar-version {
-    @apply m-0 px-3 py-2 text-left text-[10px] tabular-nums text-secondary;
+    @apply m-0 flex min-w-0 items-center gap-3 px-3 py-2 text-[10px] text-secondary;
+  }
+
+  .dw-sidebar-version-gutter {
+    @apply h-[18px] w-[18px] shrink-0;
   }
 
   .dw-main-wrap {
@@ -149,10 +154,6 @@
   .dw-topbar {
     @apply shrink-0 z-40 grid items-center gap-x-2 gap-y-1 min-h-12 h-12 bg-surface px-4 lg:px-6;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
-  }
-
-  .dw-topbar--home {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, max-content);
   }
 
   .dw-topbar-start {
@@ -789,6 +790,80 @@
     @apply inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary text-on-primary border-0 cursor-pointer transition-opacity hover:bg-primary-container disabled:opacity-40 disabled:cursor-not-allowed shrink-0;
   }
 
+  .dw-quick-compose {
+    @apply rounded-2xl border border-outline-variant/70 bg-surface-container-lowest shadow-sm overflow-hidden;
+  }
+
+  .dw-quick-compose__input-row {
+    @apply flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-3 min-w-0;
+  }
+
+  .dw-quick-compose__logo {
+    @apply w-7 h-7 shrink-0 rounded-md object-cover;
+  }
+
+  .dw-quick-compose__input {
+    @apply flex-1 min-w-0 border-0 bg-transparent text-sm text-on-surface outline-none placeholder:text-outline;
+  }
+
+  .dw-quick-compose__project-select {
+    @apply relative hidden sm:flex items-center gap-0.5 shrink-0 text-sm text-on-surface max-w-[11rem];
+  }
+
+  .dw-quick-compose__new-chat {
+    @apply shrink-0 font-medium whitespace-nowrap;
+  }
+
+  .dw-quick-compose__select {
+    @apply min-w-0 max-w-[6.5rem] truncate appearance-none bg-transparent border-0 text-sm text-secondary pr-4 cursor-pointer outline-none disabled:cursor-not-allowed;
+  }
+
+  .dw-quick-compose__submit {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border-0 shrink-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed;
+    background: #e8a090;
+  }
+
+  .dw-quick-compose__submit:not(:disabled):hover {
+    background: #df8f7c;
+  }
+
+  .dw-quick-compose__status {
+    @apply px-4 py-1.5 text-xs leading-snug;
+  }
+
+  .dw-quick-compose__status--ok {
+    @apply bg-success/10 text-success;
+  }
+
+  .dw-quick-compose__status--warn {
+    background: #fce8ec;
+    color: #c62828;
+  }
+
+  .dw-quick-compose__footer {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-outline-variant/50;
+  }
+
+  .dw-quick-compose__footer-title {
+    @apply text-sm font-semibold text-on-surface m-0;
+  }
+
+  .dw-quick-compose__footer-hint {
+    @apply text-xs text-secondary m-0 mt-0.5;
+  }
+
+  .dw-quick-compose__pills {
+    @apply flex flex-wrap items-center gap-2 sm:justify-end;
+  }
+
+  .dw-quick-compose__pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-outline-variant text-xs font-medium text-on-surface bg-transparent hover:bg-surface-container cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .dw-quick-compose__pill.active {
+    @apply bg-primary/10 border-primary/40 text-primary;
+  }
+
   .dw-transcript-markdown {
     @apply text-sm leading-relaxed break-words;
   }
@@ -853,5 +928,18 @@ html.dark .dw-section-card,
 html.dark .dw-stat-card {
   background: var(--color-surface-container-lowest);
   border-color: var(--color-outline-variant);
+}
+
+html.dark .dw-quick-compose__status--warn {
+  background: rgba(198, 40, 40, 0.18);
+  color: #f48fb1;
+}
+
+html.dark .dw-quick-compose__submit {
+  background: #c97a68;
+}
+
+html.dark .dw-quick-compose__submit:not(:disabled):hover {
+  background: #b86a58;
 }
 

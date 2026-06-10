@@ -78,9 +78,32 @@ pub(crate) async fn build_tools_setup(
 
     #[cfg(feature = "tools-mcp")]
     {
+        use super::browser_mcp;
         use super::mcp_env::{self, McpHttpTransport, McpServerEntry};
         use anycode_tools::{mcp_connected::McpConnected, mcp_rmcp_session::McpRmcpSession};
-        for entry in mcp_env::mcp_server_entries_from_env() {
+        let mut entries = mcp_env::mcp_server_entries_merged(&config.mcp.servers, true);
+        if config.mcp.browser.enabled {
+            let slug = browser_mcp::browser_mcp_slug().to_string();
+            let already = entries.iter().any(|e| match e {
+                McpServerEntry::Stdio { slug: s, .. } | McpServerEntry::Http { slug: s, .. } => {
+                    s == &slug
+                }
+            });
+            if !already {
+                if let Some(root) = browser_mcp::resolve_browser_mcp_bundle_root() {
+                    entries.push(McpServerEntry::Stdio {
+                        slug,
+                        command: browser_mcp::browser_mcp_stdio_command(&root),
+                    });
+                } else {
+                    tracing::warn!(
+                        target: "anycode_cli",
+                        "mcp.browser.enabled but ANYCODE_BROWSER_MCP_ROOT bundle not found"
+                    );
+                }
+            }
+        }
+        for entry in entries {
             match entry {
                 McpServerEntry::Stdio { slug, command } => {
                     match anycode_tools::mcp_session::McpStdioSession::connect(&command, &slug)

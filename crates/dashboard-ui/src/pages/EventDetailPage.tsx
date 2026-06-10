@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
 
 export function EventDetailPage() {
@@ -64,10 +65,10 @@ export function EventDetailPage() {
       </nav>
 
       <PageHeader
-        title={e?.title ?? eventId}
+        title={e ? formatEventTitle(e, t) : eventId}
         meta={
           <>
-            <span>{e?.event_type}</span>
+            <span>{e ? formatEventTypeLabel(e.event_type, t) : "…"}</span>
             <span className="text-outline-variant">·</span>
             <StatusBadge status={e?.severity ?? "info"} />
             <span className="text-outline-variant">·</span>

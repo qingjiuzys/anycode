@@ -17,7 +17,7 @@ anycode dashboard --open
 
 ## macOS 桌面应用
 
-1. 在 [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) 下载 `anyCode_<version>_aarch64.dmg`（Apple Silicon）。
+1. 在 [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) 下载对应平台安装包（Apple Silicon / Intel 的 `.dmg`，Windows 的 `.msi` 或 `.exe`，Linux 的 `.deb` 或 `.AppImage`）。
 2. 打开 DMG，将 **anyCode** 拖入「应用程序」。
 3. 从启动台打开应用；会自动启动内置工作台。
 
