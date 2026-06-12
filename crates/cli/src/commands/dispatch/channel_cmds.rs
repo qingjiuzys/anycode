@@ -32,6 +32,13 @@ pub(super) async fn handle(
                 channels::wechat::run_onboard(data_dir, config_path.clone(), debug).await?;
             }
         }
+        ChannelCommands::WechatSendTest {
+            message,
+            data_dir,
+            json,
+        } => {
+            channels::wechat::send_test_message(data_dir, message, json).await?;
+        }
         ChannelCommands::Telegram {
             bot_token,
             chat_id,

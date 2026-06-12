@@ -1,0 +1,5 @@
+- 微信状态检查为 ok。
+- 命令输出 JSON 中 `ok=true`。
+- 输出不包含 token、user id、context token。
+- `outbound.jsonl` 新增同一 marker 的 `pending` 和 `sent` 记录。
+- 失败时输出 redacted 状态和最近 failed 记录。

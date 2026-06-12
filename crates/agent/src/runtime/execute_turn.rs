@@ -382,7 +382,9 @@ impl AgentRuntime {
             let text = strip_llm_reasoning_xml_blocks(raw_assistant);
             if !text.trim().is_empty() {
                 last_assistant_text = text.clone();
-                logger.assistant_response(task_id, turn, &text);
+                if response.tool_calls.is_empty() {
+                    logger.assistant_response(task_id, turn, &text);
+                }
             }
             // If we streamed, assistant message is already in `messages`; no need to push again.
             // If we didn't stream, we already replaced placeholder with `r.message` above.

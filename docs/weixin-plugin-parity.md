@@ -31,6 +31,7 @@
 | P2 | 多账号 / `normalizeAccountId` 迁移 | 单账号 LaunchAgent 为主 | 文档化多 profile 非目标，除非用户要 parity |
 | P1 | 出站媒体：`sendWeixinMediaFile`（image/video/file CDN） | `send_media.rs` + `WxSender::send_*_message` | **Done**（2026-06-12）：MIME 路由、`file_item.len`/`encrypt_type`、artifacts 触发 |
 | P1 | 出站触发：`ReplyPayload.mediaUrl` / session attachments | `collect_outbound_media_paths`（artifacts + 输出路径） | **Done**（2026-06-12） |
+| P1 | 工具出站媒体：`SendWeChatMessage` + `path`/`file` | `send_wechat_media` + `send_deliverable_path` | **Done**（2026-06-13）：文本/文件/说明文本，复用 bridge CDN 路由 |
 | P3 | 插件 SDK 根别名桥 | N/A（非插件） | 仅当改共享协议时参考 |
 
 ## 跟踪方式

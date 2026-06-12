@@ -2,6 +2,7 @@
 
 use crate::ask_user_question_host::AskUserQuestionHostArc;
 use crate::skills::{SkillCatalog, SkillsGovernance};
+use crate::wechat_outbound_host::WeChatOutboundHostArc;
 use anycode_core::{
     CoreError, NestedTaskRun, SubAgentExecutor, TaskResult, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
@@ -200,6 +201,8 @@ pub struct ToolServices {
     sub_agent_executor: Mutex<Option<Arc<dyn SubAgentExecutor>>>,
     /// REPL/TUI 注入：`AskUserQuestion` 主机侧选题。
     ask_user_question_host: Mutex<Option<AskUserQuestionHostArc>>,
+    /// CLI 注入：`SendWeChatMessage` 真实 iLink 出站。
+    wechat_outbound_host: Mutex<Option<WeChatOutboundHostArc>>,
     /// `LSP` 工具：`tools-lsp` 下读此配置（CLI bootstrap 写入）。
     lsp: Mutex<LspConnectionConfig>,
     sub_agent_depth: AtomicU32,
@@ -244,6 +247,7 @@ impl Default for ToolServices {
             config_overrides: Mutex::new(HashMap::new()),
             sub_agent_executor: Mutex::new(None),
             ask_user_question_host: Mutex::new(None),
+            wechat_outbound_host: Mutex::new(None),
             lsp: Mutex::new(LspConnectionConfig::default()),
             sub_agent_depth: AtomicU32::new(0),
             background_agents: Mutex::new(HashMap::new()),
@@ -432,6 +436,20 @@ impl ToolServices {
         self.ask_user_question_host
             .lock()
             .expect("ask_user_question_host")
+            .clone()
+    }
+
+    pub fn attach_wechat_outbound_host(&self, host: WeChatOutboundHostArc) {
+        *self
+            .wechat_outbound_host
+            .lock()
+            .expect("wechat_outbound_host") = Some(host);
+    }
+
+    pub fn wechat_outbound_host(&self) -> Option<WeChatOutboundHostArc> {
+        self.wechat_outbound_host
+            .lock()
+            .expect("wechat_outbound_host")
             .clone()
     }
 

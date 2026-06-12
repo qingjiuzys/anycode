@@ -47,6 +47,7 @@ pub const TOOL_STRUCTURED_OUTPUT: &str = "StructuredOutput";
 pub const TOOL_POWERSHELL: &str = "PowerShell";
 pub const TOOL_CONFIG: &str = "Config";
 pub const TOOL_SEND_USER_MESSAGE: &str = "SendUserMessage";
+pub const TOOL_SEND_WECHAT_MESSAGE: &str = "SendWeChatMessage";
 pub const TOOL_BRIEF: &str = "Brief";
 pub const TOOL_ASK_USER_QUESTION: &str = "AskUserQuestion";
 pub const TOOL_REPL: &str = "REPL";
@@ -310,6 +311,7 @@ mod workspace_assistant_tools_tests {
             TOOL_POWERSHELL,
             TOOL_CONFIG,
             TOOL_SEND_USER_MESSAGE,
+            TOOL_SEND_WECHAT_MESSAGE,
             TOOL_BRIEF,
             TOOL_ASK_USER_QUESTION,
             TOOL_REPL,
@@ -405,7 +407,11 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         ),
         (TOOL_ENTER_WORKTREE, "git worktree add + record path"),
         (TOOL_STRUCTURED_OUTPUT, "Structured JSON passthrough"),
-        (TOOL_SEND_USER_MESSAGE, "User-visible message payload"),
+        (TOOL_SEND_USER_MESSAGE, "In-session user-visible message (not WeChat)"),
+        (
+            TOOL_SEND_WECHAT_MESSAGE,
+            "Send text to bound WeChat chat via iLink bridge",
+        ),
         (TOOL_BRIEF, "Alias of SendUserMessage"),
     ]
     .into_iter()

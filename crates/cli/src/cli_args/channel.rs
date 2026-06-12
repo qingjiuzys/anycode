@@ -23,6 +23,19 @@ pub(crate) enum ChannelCommands {
         #[arg(long, default_value = "workspace-assistant", hide = true)]
         agent: String,
     },
+    /// Send a redacted real WeChat test message to the last channel target
+    #[command(hide = true)]
+    WechatSendTest {
+        /// Test message body. Include a unique marker such as [anycode-e2e:<run_id>].
+        #[arg(long)]
+        message: String,
+        /// Data directory (default ~/.anycode/wechat; `WCC_DATA_DIR` for legacy wechat-claude-code paths)
+        #[arg(long, env = "WCC_DATA_DIR")]
+        data_dir: Option<PathBuf>,
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// Telegram bridge (Bot Token + polling)
     Telegram {
         /// Telegram bot token (fallback: TELEGRAM_BOT_TOKEN)

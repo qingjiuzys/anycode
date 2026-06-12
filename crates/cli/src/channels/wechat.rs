@@ -1,6 +1,7 @@
 //! `anycode channel wechat`：扫码绑定并安装后台服务；`--run-as-bridge` 仅供系统服务调用。
 
 use anyhow::Context;
+use serde::Serialize;
 
 /// 扫码 → 写入账号 → 安装 LaunchAgent/systemd 并拉起桥接进程。
 pub async fn run_onboard(
@@ -28,4 +29,44 @@ pub async fn run_bridged_start(
         .context("加载 anycode 配置")?;
     crate::app_config::apply_wechat_bridge_no_tool_approval(&mut cfg);
     super::wx::run_wechat_daemon(&cfg, config, ignore_approval, data_dir, agent).await
+}
+
+#[derive(Serialize)]
+struct WechatSendTestOutput {
+    ok: bool,
+    channel: &'static str,
+    marker: Option<String>,
+    data_dir: String,
+    cron_target: &'static str,
+    outbound_log: String,
+    message_chars: usize,
+}
+
+pub async fn send_test_message(
+    data_dir: Option<std::path::PathBuf>,
+    message: String,
+    json: bool,
+) -> anyhow::Result<()> {
+    let sent = super::wx::outbound::send_wechat_text(data_dir, message.clone()).await?;
+    let data_root = std::path::PathBuf::from(&sent.data_dir);
+    let outbound_log = super::wx::outbound_queue::wechat_outbound_log_path(&data_root);
+    let marker = message
+        .split_whitespace()
+        .find(|part| part.starts_with("[anycode-e2e:"))
+        .map(|s| s.trim_matches(&['[', ']'][..]).to_string());
+    let out = WechatSendTestOutput {
+        ok: true,
+        channel: "wechat",
+        marker,
+        data_dir: sent.data_dir,
+        cron_target: "present",
+        outbound_log: outbound_log.display().to_string(),
+        message_chars: sent.message_chars,
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    } else {
+        println!("wechat test message sent ({})", out.message_chars);
+    }
+    Ok(())
 }

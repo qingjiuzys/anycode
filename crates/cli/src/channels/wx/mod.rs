@@ -9,11 +9,12 @@ mod config_watch;
 pub(crate) mod cron_notify;
 mod deliverable;
 mod fields;
-mod ilink;
+pub(crate) mod ilink;
+pub(crate) mod outbound;
 pub(crate) mod outbound_queue;
 mod permission;
 mod send_media;
-mod store;
+pub(crate) mod store;
 mod voice_stt;
 
 pub use bridge::run_wechat_daemon;

@@ -1,0 +1,3 @@
+- `readonly_db_select.csv` 存在并包含 `region,sales,refunds,refund_rate_pct`。
+- UPDATE 退出码非 0。
+- UPDATE stderr 包含 `attempt to write a readonly database`。

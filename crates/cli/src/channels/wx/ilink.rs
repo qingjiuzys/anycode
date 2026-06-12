@@ -1,5 +1,6 @@
 //! iLink Bot HTTP（getupdates / sendmessage）。
 
+use super::fields::{i64_snake_camel, str_snake_camel};
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use rand::RngCore;
@@ -8,6 +9,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 const DEFAULT_BASE: &str = "https://ilinkai.weixin.qq.com";
+const SESSION_EXPIRED: i64 = -14;
+const RATE_LIMIT_RET: i64 = -2;
 pub(crate) const CDN_BASE: &str = "https://novac2c.cdn.weixin.qq.com/c2c";
 
 fn generate_uin_b64() -> String {
@@ -118,20 +121,100 @@ impl WeChatApi {
                     15_000,
                 )
                 .await?;
-            if v.get("ret").and_then(|x| x.as_i64()) == Some(-2) {
-                if attempt == 3 {
-                    tracing::warn!("sendmessage 限流，已放弃");
-                    return Ok(());
+            match classify_send_response(&v) {
+                Ok(()) => return Ok(()),
+                Err(SendMessageFailure::StaleSession { detail }) => {
+                    return Err(anyhow::anyhow!("stale wechat session: {detail}"));
                 }
-                tracing::warn!(delay_ms, "sendmessage 限流，重试");
-                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-                delay_ms = (delay_ms * 2).min(60_000);
-                continue;
+                Err(SendMessageFailure::RateLimited { detail }) if attempt < 3 => {
+                    tracing::warn!(
+                        attempt = attempt + 1,
+                        delay_ms,
+                        detail,
+                        "sendmessage rate limited, retrying"
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                    delay_ms = (delay_ms * 2).min(60_000);
+                }
+                Err(e) => return Err(anyhow::Error::new(e)),
             }
-            return Ok(());
         }
-        Ok(())
+        Err(anyhow::anyhow!(
+            "sendmessage rate limited after retries (iLink ret={RATE_LIMIT_RET})"
+        ))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SendMessageFailure {
+    StaleSession { detail: String },
+    RateLimited { detail: String },
+    Api { detail: String },
+}
+
+impl std::fmt::Display for SendMessageFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::StaleSession { detail } | Self::RateLimited { detail } | Self::Api { detail } => {
+                write!(f, "{detail}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SendMessageFailure {}
+
+fn response_errmsg(v: &Value) -> String {
+    str_snake_camel(v, "errmsg", "errMsg")
+        .or_else(|| str_snake_camel(v, "msg", "message"))
+        .unwrap_or("unknown error")
+        .to_string()
+}
+
+fn is_stale_session_ret(ret: Option<i64>, errcode: Option<i64>, errmsg: &str) -> bool {
+    if ret == Some(SESSION_EXPIRED) || errcode == Some(SESSION_EXPIRED) {
+        return true;
+    }
+    let minus_two = ret == Some(RATE_LIMIT_RET) || errcode == Some(RATE_LIMIT_RET);
+    minus_two && errmsg.eq_ignore_ascii_case("unknown error")
+}
+
+fn is_rate_limited_ret(ret: Option<i64>, errcode: Option<i64>, errmsg: &str) -> bool {
+    (ret == Some(RATE_LIMIT_RET) || errcode == Some(RATE_LIMIT_RET))
+        && !is_stale_session_ret(ret, errcode, errmsg)
+}
+
+fn send_response_ok(v: &Value) -> bool {
+    let ret = i64_snake_camel(v, "ret", "ret");
+    let errcode = i64_snake_camel(v, "errcode", "errCode");
+    match (ret, errcode) {
+        (Some(0), _) | (_, Some(0)) => true,
+        (None, None) => true,
+        (Some(r), None) => r == 0,
+        (None, Some(c)) => c == 0,
+        _ => false,
+    }
+}
+
+fn classify_send_response(v: &Value) -> Result<(), SendMessageFailure> {
+    if send_response_ok(v) {
+        return Ok(());
+    }
+    let ret = i64_snake_camel(v, "ret", "ret");
+    let errcode = i64_snake_camel(v, "errcode", "errCode");
+    let errmsg = response_errmsg(v);
+    let detail = format!("ret={ret:?} errcode={errcode:?} errmsg={errmsg}");
+    if is_stale_session_ret(ret, errcode, &errmsg) {
+        return Err(SendMessageFailure::StaleSession { detail });
+    }
+    if is_rate_limited_ret(ret, errcode, &errmsg) {
+        return Err(SendMessageFailure::RateLimited { detail });
+    }
+    Err(SendMessageFailure::Api { detail })
+}
+
+pub(crate) fn is_stale_wechat_session(err: &anyhow::Error) -> bool {
+    err.to_string().contains("stale wechat session")
 }
 
 pub fn load_sync_buf(data_root: &Path) -> String {
@@ -185,22 +268,25 @@ pub fn cdn_upload_url(upload_param: &str, filekey: &str) -> Result<String> {
 pub fn build_outbound_text(
     bot_account_id: &str,
     to_user_id: &str,
-    context_token: &str,
+    context_token: Option<&str>,
     text: &str,
     client_id: &str,
 ) -> Value {
-    serde_json::json!({
+    let mut msg = serde_json::json!({
         "from_user_id": bot_account_id,
         "to_user_id": to_user_id,
         "client_id": client_id,
         "message_type": 2,
         "message_state": 2,
-        "context_token": context_token,
         "item_list": [{
             "type": 1,
             "text_item": { "text": text }
         }]
-    })
+    });
+    if let Some(tok) = context_token.filter(|s| !s.is_empty()) {
+        msg["context_token"] = serde_json::json!(tok);
+    }
+    msg
 }
 
 fn build_cdn_media_json(encrypt_query_param: &str, aes_key_b64: &str) -> Value {
@@ -348,19 +434,20 @@ impl WxSender {
                 Err(e) => return Err(e),
             }
         }
-        Ok(())
+        anyhow::bail!("wx {label} send exhausted retries")
     }
 
     pub async fn send_text(&self, to_user_id: &str, context_token: &str, text: &str) -> Result<()> {
         use super::outbound_queue::{append_outbound_record, OutboundRecord};
 
+        let marker = text
+            .split_whitespace()
+            .find(|part| part.starts_with("[anycode-e2e:"))
+            .map(|s| s.trim_matches(&['[', ']'][..]).to_string());
         let n = self
             .counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let client_id = format!("anycode-{}-{}", chrono::Utc::now().timestamp_millis(), n);
-        let msg = build_outbound_text(&self.bot_id, to_user_id, context_token, text, &client_id);
-        let mut delay_ms: u64 = 2_000;
-        let mut retry_count = 0u32;
         if let Some(path) = &self.outbound_log {
             append_outbound_record(
                 path,
@@ -369,14 +456,19 @@ impl WxSender {
                     channel: "wechat".into(),
                     to_user_id: to_user_id.to_string(),
                     status: "pending".into(),
-                    retry_count,
+                    marker: marker.clone(),
+                    retry_count: 0,
                     last_error: String::new(),
                     chars: text.chars().count(),
                 },
             );
         }
-        for attempt in 0..=3 {
-            match self.api.send_message(msg.clone()).await {
+
+        let mut use_token: Option<&str> = Some(context_token);
+        let mut tried_tokenless = false;
+        loop {
+            let msg = build_outbound_text(&self.bot_id, to_user_id, use_token, text, &client_id);
+            match self.api.send_message(msg).await {
                 Ok(()) => {
                     if let Some(path) = &self.outbound_log {
                         append_outbound_record(
@@ -386,7 +478,8 @@ impl WxSender {
                                 channel: "wechat".into(),
                                 to_user_id: to_user_id.to_string(),
                                 status: "sent".into(),
-                                retry_count,
+                                marker: marker.clone(),
+                                retry_count: 0,
                                 last_error: String::new(),
                                 chars: text.chars().count(),
                             },
@@ -394,16 +487,12 @@ impl WxSender {
                     }
                     return Ok(());
                 }
-                Err(e) if attempt < 3 => {
-                    retry_count += 1;
-                    tracing::warn!(
-                        attempt = attempt + 1,
-                        delay_ms,
-                        error = %e,
-                        "wx send_text transient failure, retrying"
-                    );
-                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-                    delay_ms = (delay_ms * 2).min(30_000);
+                Err(e)
+                    if is_stale_wechat_session(&e) && !tried_tokenless && use_token.is_some() =>
+                {
+                    tried_tokenless = true;
+                    use_token = None;
+                    tracing::warn!("wx context_token stale, retrying without context_token");
                 }
                 Err(e) => {
                     if let Some(path) = &self.outbound_log {
@@ -414,7 +503,8 @@ impl WxSender {
                                 channel: "wechat".into(),
                                 to_user_id: to_user_id.to_string(),
                                 status: "failed".into(),
-                                retry_count,
+                                marker: marker.clone(),
+                                retry_count: if tried_tokenless { 1 } else { 0 },
                                 last_error: e.to_string(),
                                 chars: text.chars().count(),
                             },
@@ -424,7 +514,6 @@ impl WxSender {
                 }
             }
         }
-        Ok(())
     }
 
     /// Upload bytes to WeChat CDN and send as `file_item` (type 4).
@@ -508,6 +597,7 @@ impl WxSender {
 #[cfg(test)]
 mod send_retry_tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn send_retry_backoff_caps_at_thirty_seconds() {
@@ -516,6 +606,47 @@ mod send_retry_tests {
             delay_ms = (delay_ms * 2).min(30_000);
         }
         assert_eq!(delay_ms, 30_000);
+    }
+
+    #[test]
+    fn stale_session_ret_minus_two_unknown_error() {
+        let resp = json!({ "ret": -2, "errmsg": "unknown error" });
+        assert!(is_stale_session_ret(
+            i64_snake_camel(&resp, "ret", "ret"),
+            i64_snake_camel(&resp, "errcode", "errCode"),
+            &response_errmsg(&resp),
+        ));
+        assert!(matches!(
+            classify_send_response(&resp),
+            Err(SendMessageFailure::StaleSession { .. })
+        ));
+    }
+
+    #[test]
+    fn rate_limit_ret_minus_two_without_unknown_error() {
+        let resp = json!({ "ret": -2, "errmsg": "rate limited" });
+        assert!(is_rate_limited_ret(
+            i64_snake_camel(&resp, "ret", "ret"),
+            i64_snake_camel(&resp, "errcode", "errCode"),
+            &response_errmsg(&resp),
+        ));
+        assert!(matches!(
+            classify_send_response(&resp),
+            Err(SendMessageFailure::RateLimited { .. })
+        ));
+    }
+
+    #[test]
+    fn send_response_ok_when_ret_zero() {
+        let resp = json!({ "ret": 0 });
+        assert!(send_response_ok(&resp));
+        assert!(classify_send_response(&resp).is_ok());
+    }
+
+    #[test]
+    fn outbound_text_omits_empty_context_token() {
+        let msg = build_outbound_text("bot", "user", None, "hi", "cid");
+        assert!(msg.get("context_token").is_none());
     }
 
     #[test]

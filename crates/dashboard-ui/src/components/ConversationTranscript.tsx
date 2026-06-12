@@ -24,7 +24,7 @@ import {
   transcriptQueryOptions,
   transcriptStaleTime,
 } from "@/lib/sessionQuery";
-import { stripTrailingEnglishTail } from "@/lib/assistantText";
+import { sanitizeAssistantDisplay } from "@/lib/assistantText";
 import { humanizeTranscriptError } from "@/lib/transcriptError";
 import { useLocale, useT } from "@/i18n/context";
 
@@ -347,11 +347,18 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
   const role = blockStyle(block.block_type);
   const displayBody =
     block.block_type === "assistant_message"
-      ? stripTrailingEnglishTail(block.body, locale)
+      ? sanitizeAssistantDisplay(block.body, locale)
       : block.body;
   const missing =
     block.block_type === "system_notice" &&
     block.meta?.source === "missing_turn";
+
+  if (
+    block.block_type === "assistant_message" &&
+    displayBody.trim().length === 0
+  ) {
+    return null;
+  }
 
   if (missing) {
     return (

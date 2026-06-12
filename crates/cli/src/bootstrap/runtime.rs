@@ -190,6 +190,11 @@ pub(crate) async fn initialize_runtime(
     if let Some(h) = ask_host {
         tools_setup.tool_services.attach_ask_user_question_host(h);
     }
+    tools_setup
+        .tool_services
+        .attach_wechat_outbound_host(std::sync::Arc::new(
+            crate::workbench::wechat_outbound_host::CliWeChatOutboundHost,
+        ));
 
     build_agents_setup(
         &runtime,

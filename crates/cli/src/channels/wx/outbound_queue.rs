@@ -11,6 +11,8 @@ pub(crate) struct OutboundRecord {
     pub channel: String,
     pub to_user_id: String,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker: Option<String>,
     pub retry_count: u32,
     pub last_error: String,
     pub chars: usize,

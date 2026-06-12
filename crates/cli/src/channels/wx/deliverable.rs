@@ -3,6 +3,7 @@
 use super::ilink::WxSender;
 use super::send_media::{resolve_media_path, send_weixin_media_file};
 use anycode_core::Artifact;
+use anycode_tools::WeChatMediaDelivery;
 use anyhow::Result;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -111,7 +112,8 @@ pub async fn send_deliverable_file(
     let Some(path) = resolve_media_path(path_token, None) else {
         return Ok(());
     };
-    send_deliverable_path(sender, to_user_id, context_token, &path).await
+    send_deliverable_path(sender, to_user_id, context_token, &path, None).await?;
+    Ok(())
 }
 
 pub async fn send_outbound_media_paths(
@@ -121,7 +123,7 @@ pub async fn send_outbound_media_paths(
     paths: &[PathBuf],
 ) -> Result<()> {
     for path in paths {
-        if let Err(e) = send_deliverable_path(sender, to_user_id, context_token, path).await {
+        if let Err(e) = send_deliverable_path(sender, to_user_id, context_token, path, None).await {
             tracing::warn!(
                 error = %e,
                 path = %path.display(),
@@ -132,12 +134,17 @@ pub async fn send_outbound_media_paths(
     Ok(())
 }
 
-async fn send_deliverable_path(
+pub async fn send_deliverable_path(
     sender: &WxSender,
     to_user_id: &str,
     context_token: &str,
     path: &Path,
-) -> Result<()> {
+    caption: Option<&str>,
+) -> Result<WeChatMediaDelivery> {
+    if let Some(cap) = caption.map(str::trim).filter(|s| !s.is_empty()) {
+        sender.send_text(to_user_id, context_token, cap).await?;
+    }
+
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
     let meta = std::fs::metadata(path)?;
     let ext = path
@@ -152,7 +159,7 @@ async fn send_deliverable_path(
         for chunk in split_message(&msg, CHUNK_MAX) {
             sender.send_text(to_user_id, context_token, &chunk).await?;
         }
-        return Ok(());
+        return Ok(WeChatMediaDelivery::InlineText);
     }
 
     if meta.len() <= CDN_FILE_MAX_BYTES {
@@ -161,7 +168,7 @@ async fn send_deliverable_path(
                 sender
                     .send_text(to_user_id, context_token, &format!("📎 已发送：{name}"))
                     .await?;
-                return Ok(());
+                return Ok(WeChatMediaDelivery::CdnMedia);
             }
             Err(e) => {
                 tracing::warn!(error = %e, path = %path.display(), "CDN media send failed");
@@ -175,7 +182,7 @@ async fn send_deliverable_path(
         path.display()
     );
     sender.send_text(to_user_id, context_token, &note).await?;
-    Ok(())
+    Ok(WeChatMediaDelivery::PathNote)
 }
 
 fn split_message(text: &str, max_chars: usize) -> Vec<String> {

@@ -563,7 +563,143 @@ fn finalize_conversation_timeline(
     promote_failed_tasks(blocks, lifecycle);
     fill_missing_turn_replies(blocks, lifecycle, session);
     blocks.sort_by(|a, b| a.at.cmp(&b.at));
+    consolidate_turn_assistant_replies(blocks);
     uncollapse_final_assistant_replies(blocks);
+}
+
+fn normalize_assistant_body(body: &str) -> String {
+    body.trim().to_string()
+}
+
+fn is_prose_section_block(block: &TranscriptBlock) -> bool {
+    block
+        .meta
+        .get("source")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| s == "prose_section")
+}
+
+fn bodies_overlap(a: &str, b: &str) -> bool {
+    let a = a.trim();
+    let b = b.trim();
+    if a.is_empty() || b.is_empty() {
+        return false;
+    }
+    a == b || a.contains(b) || b.contains(a)
+}
+
+fn fold_to_intermediate_notice(block: &mut TranscriptBlock) {
+    block.block_type = "system_notice".into();
+    block.title = "Intermediate reply".into();
+    block.collapsible = true;
+    block.default_collapsed = true;
+    block.meta = json!({ "source": "intermediate_assistant" });
+}
+
+/// Within each user turn: dedupe identical assistant replies, drop prose overlaps,
+/// and fold earlier assistant messages into collapsed system notices.
+fn consolidate_turn_assistant_replies(blocks: &mut Vec<TranscriptBlock>) {
+    let mut turn_ranges: Vec<(usize, usize)> = Vec::new();
+    let mut turn_start = 0usize;
+    for (i, block) in blocks.iter().enumerate() {
+        if i > turn_start && block.block_type == "user_message" {
+            turn_ranges.push((turn_start, i));
+            turn_start = i;
+        }
+    }
+    if turn_start < blocks.len() {
+        turn_ranges.push((turn_start, blocks.len()));
+    }
+
+    for (start, end) in turn_ranges.into_iter().rev() {
+        consolidate_single_turn(blocks, start, end);
+    }
+}
+
+fn consolidate_single_turn(blocks: &mut Vec<TranscriptBlock>, start: usize, end: usize) {
+    let assistant_indices: Vec<usize> = (start + 1..end)
+        .filter(|&i| blocks[i].block_type == "assistant_message")
+        .collect();
+    if assistant_indices.len() <= 1 {
+        return;
+    }
+
+    // Drop consecutive duplicates, keeping the last occurrence in each run.
+    let mut dedupe_remove = Vec::new();
+    let mut run_start = 0usize;
+    while run_start < assistant_indices.len() {
+        let mut run_end = run_start + 1;
+        let body = normalize_assistant_body(&blocks[assistant_indices[run_start]].body);
+        while run_end < assistant_indices.len() {
+            let next_body = normalize_assistant_body(&blocks[assistant_indices[run_end]].body);
+            if next_body != body {
+                break;
+            }
+            run_end += 1;
+        }
+        if run_end - run_start > 1 {
+            for idx in &assistant_indices[run_start..run_end - 1] {
+                dedupe_remove.push(*idx);
+            }
+        }
+        run_start = run_end;
+    }
+    dedupe_remove.sort_unstable_by(|a, b| b.cmp(a));
+    for idx in dedupe_remove {
+        blocks.remove(idx);
+    }
+
+    let end = turn_boundary(blocks, start);
+    let mut assistant_indices: Vec<usize> = (start + 1..end)
+        .filter(|&i| blocks[i].block_type == "assistant_message")
+        .collect();
+    if assistant_indices.len() <= 1 {
+        return;
+    }
+
+    // Remove prose-section blocks that overlap a fuller assistant reply.
+    let mut prose_remove = Vec::new();
+    for &i in &assistant_indices {
+        if !is_prose_section_block(&blocks[i]) {
+            continue;
+        }
+        let body_i = normalize_assistant_body(&blocks[i].body);
+        for &j in &assistant_indices {
+            if i == j {
+                continue;
+            }
+            let body_j = normalize_assistant_body(&blocks[j].body);
+            if bodies_overlap(&body_i, &body_j) && body_j.len() >= body_i.len() {
+                prose_remove.push(i);
+                break;
+            }
+        }
+    }
+    prose_remove.sort_unstable_by(|a, b| b.cmp(a));
+    for idx in prose_remove {
+        blocks.remove(idx);
+    }
+
+    let end = turn_boundary(blocks, start);
+    assistant_indices = (start + 1..end)
+        .filter(|&i| blocks[i].block_type == "assistant_message")
+        .collect();
+    if assistant_indices.len() <= 1 {
+        return;
+    }
+
+    let final_idx = *assistant_indices.last().expect("assistant_indices");
+    for &idx in &assistant_indices[..assistant_indices.len() - 1] {
+        if idx != final_idx {
+            fold_to_intermediate_notice(&mut blocks[idx]);
+        }
+    }
+}
+
+fn turn_boundary(blocks: &[TranscriptBlock], start: usize) -> usize {
+    (start + 1..blocks.len())
+        .find(|&i| blocks[i].block_type == "user_message")
+        .unwrap_or(blocks.len())
 }
 
 /// The last assistant reply of each user turn is the de-facto summary for that
@@ -909,6 +1045,58 @@ mod tests {
             .lifecycle
             .iter()
             .any(|b| b.title.contains("task")));
+    }
+
+    #[test]
+    fn consolidates_duplicate_and_intermediate_assistant_replies() {
+        let mk = |id: &str, block_type: &str, body: &str, at: &str| TranscriptBlock {
+            id: id.into(),
+            block_type: block_type.into(),
+            at: at.into(),
+            title: if block_type == "assistant_message" {
+                "Assistant".into()
+            } else {
+                "You".into()
+            },
+            body: body.into(),
+            meta: json!({}),
+            collapsible: false,
+            default_collapsed: false,
+            event_id: None,
+        };
+        let mut blocks = vec![
+            mk("u1", "user_message", "resend", "2026-01-01T00:00:00Z"),
+            mk(
+                "a1",
+                "assistant_message",
+                "The user wants me to send a WeChat message saying \"你好\".",
+                "2026-01-01T00:01:00Z",
+            ),
+            mk(
+                "a2",
+                "assistant_message",
+                "The user wants me to send a WeChat message saying \"你好\".",
+                "2026-01-01T00:02:00Z",
+            ),
+            mk(
+                "a3",
+                "assistant_message",
+                "Let me check context.",
+                "2026-01-01T00:03:00Z",
+            ),
+            mk(
+                "a4",
+                "assistant_message",
+                "已发送\"你好\"到你的微信。",
+                "2026-01-01T00:04:00Z",
+            ),
+        ];
+        consolidate_turn_assistant_replies(&mut blocks);
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(blocks[1].block_type, "system_notice");
+        assert_eq!(blocks[2].block_type, "system_notice");
+        assert_eq!(blocks[3].block_type, "assistant_message");
+        assert_eq!(blocks[3].body, "已发送\"你好\"到你的微信。");
     }
 
     #[test]

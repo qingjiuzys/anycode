@@ -247,7 +247,7 @@ impl AgentRuntime {
                     _ => None,
                 })
                 .unwrap_or_default();
-            if !turn_plain.trim().is_empty() {
+            if !turn_plain.trim().is_empty() && response.tool_calls.is_empty() {
                 logger.assistant_response(task.id, turn, &turn_plain);
             }
 

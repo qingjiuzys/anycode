@@ -211,7 +211,7 @@ impl Tool for SendUserMessageTool {
     }
 
     fn description(&self) -> &str {
-        "Primary user-visible message channel (Claude Code Brief / SendUserMessage)."
+        "In-session user-visible message (Claude Code Brief). Does NOT send to WeChat; use SendWeChatMessage for WeChat outbound."
     }
 
     fn schema(&self) -> serde_json::Value {

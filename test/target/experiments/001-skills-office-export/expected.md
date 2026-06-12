@@ -1,0 +1,4 @@
+- `report_table.csv` 存在，包含 `区域,销售额,订单数,退款数,退款率`。
+- `sales_daily_analysis.pdf` 存在，大小大于 10KB。
+- `file sales_daily_analysis.pdf` 返回包含 `PDF document`。
+- `skills vet md-to-pdf` 通过。
