@@ -4,6 +4,11 @@ import { Icon } from "@/components/Icon";
 import { useMediaStatus } from "@/hooks/useMediaStatus";
 import { useT } from "@/i18n/context";
 import {
+  appleTranscribeAudio,
+  isAppleSpeechProvider,
+  isTauriDesktop,
+} from "@/lib/desktopShell";
+import {
   blobToWav16k,
   extensionForMime,
   isVoiceRecordingSupported,
@@ -29,11 +34,12 @@ function appendText(prev: string, next: string): string {
 
 export function VoiceInputButton({ onTranscribed, disabled, className }: Props) {
   const t = useT();
-  const { sttAvailable, sttBuiltin, isLoading } = useMediaStatus();
+  const { sttAvailable, sttBuiltin, sttProvider, isLoading } = useMediaStatus();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
   const timerRef = useRef<number | null>(null);
+  const appleSpeech = isAppleSpeechProvider(sttProvider);
 
   useEffect(() => {
     return () => {
@@ -43,9 +49,11 @@ export function VoiceInputButton({ onTranscribed, disabled, className }: Props) 
     };
   }, []);
 
-  if (isLoading || !sttAvailable || !isVoiceRecordingSupported()) {
+  if (isLoading || !sttAvailable) {
     return null;
   }
+
+  const recordingSupported = isVoiceRecordingSupported();
 
   const clearTimer = () => {
     if (timerRef.current !== null) {
@@ -57,6 +65,14 @@ export function VoiceInputButton({ onTranscribed, disabled, className }: Props) 
 
   const handleClick = async () => {
     if (disabled || phase === "transcribing") return;
+    if (!recordingSupported) {
+      setError(t("settings.model.voiceInput.unsupported"));
+      return;
+    }
+    if (appleSpeech && !isTauriDesktop()) {
+      setError(t("settings.model.voiceInput.desktopOnly"));
+      return;
+    }
     setError(null);
 
     if (phase === "recording") {
@@ -64,6 +80,33 @@ export function VoiceInputButton({ onTranscribed, disabled, className }: Props) 
       setPhase("transcribing");
       try {
         const blob = await stopRecording();
+        if (appleSpeech) {
+          const wav = await blobToWav16k(blob);
+          const result = await appleTranscribeAudio(wav);
+          if (!result.ok) {
+            const err = result.error.toLowerCase();
+            const msg =
+              result.error === "not_desktop"
+                ? t("settings.model.voiceInput.desktopOnly")
+                : result.error === "apple_media_timeout"
+                  ? t("settings.model.voiceInput.timeout")
+                  : err.includes("no speech detected") || err.includes("empty transcription")
+                    ? t("settings.model.voiceInput.empty")
+                    : result.error;
+            setError(msg);
+            setPhase("idle");
+            return;
+          }
+          if (!result.text.trim()) {
+            setError(t("settings.model.voiceInput.empty"));
+            setPhase("idle");
+            return;
+          }
+          onTranscribed(result.text.trim());
+          setPhase("idle");
+          return;
+        }
+
         let upload = blob;
         let filename = `recording.${extensionForMime(blob.type)}`;
         if (sttBuiltin) {

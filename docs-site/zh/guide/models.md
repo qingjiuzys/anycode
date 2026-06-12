@@ -71,3 +71,33 @@ anyCode 对以下情况做指数退避重试：
 - 网络请求错误（发送失败）
 
 不重试：鉴权类错误（例如 401/403）以及其他非 retryable 状态码。
+
+## 本地预设（视觉 / 嵌入 / STT / TTS）
+
+工作台 **设置 → 模型与路由** 中的 **本地预设** 可一键启用本地或 HTTP 模型。权重**不会**打进 anycode 二进制，首次使用时下载（例如 FastEmbed → `~/.cache/fastembed`，Whisper/Piper → `~/.anycode/models/`）。
+
+| 能力 | 内置（可选 feature） | 外部（零二进制体积） |
+|------|---------------------|---------------------|
+| **Embedding** | `local_fastembed` + `--features embedding-local` | Ollama `nomic-embed-text`，`http://127.0.0.1:11434/v1` |
+| **Vision** | —（走 chat 模型） | Ollama `llava`，同时启用 `chat` + `vision` |
+| **STT** | `local_whisper` + `--features stt-local` | `whisper_cpp` HTTP，`http://127.0.0.1:8080/v1` |
+| **STT（macOS 桌面）** | **anyCode.app** 内 `apple_speech`（Apple Speech，无需下载模型） | — |
+| **TTS** | `local_piper` + `--features tts-local` | `piper` HTTP，`http://127.0.0.1:5000/v1` |
+
+### macOS 桌面原生 STT 与 OCR
+
+在 **anyCode.app**（macOS Tauri 壳）中，可在 **设置 → 模型与路由 → 本地预设** 启用 **Apple Speech（macOS 原生）**，替代 whisper.cpp。输入框语音按钮走系统 Speech 框架（无需约 74MB whisper 模型）。图片附件旁有 **提取文字**，使用 Apple Vision（`VNRecognizeTextRequest`）本地 OCR。
+
+- 需授予 **语音识别** 与 **麦克风** 权限（系统设置 → 隐私与安全性）。
+- 浏览器访问 `http://127.0.0.1:43180` **不能**使用 `apple_speech`；请在该场景选用 whisper 或 HTTP STT。
+- OCR 仅桌面 App 可用，不替代 LLM **vision** 的图像理解能力。
+
+启用全部可选本地后端：
+
+```bash
+cargo build -p anycode --features media-local
+```
+
+**Vision** 无独立路由：图片作为 chat 消息附件发送，需选用带 **`vision`** 能力的 chat 模型（或启用 Ollama LLaVA 预设）。
+
+预设目录：`GET /api/settings/model-catalog` → `local_presets`。

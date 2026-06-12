@@ -6,6 +6,7 @@ describe("voiceRecording", () => {
     expect(extensionForMime("audio/webm")).toBe("webm");
     expect(extensionForMime("audio/ogg")).toBe("ogg");
     expect(extensionForMime("audio/wav")).toBe("wav");
+    expect(extensionForMime("audio/mp4")).toBe("m4a");
   });
 
   it("encodeWav16kMono produces RIFF WAVE header", async () => {

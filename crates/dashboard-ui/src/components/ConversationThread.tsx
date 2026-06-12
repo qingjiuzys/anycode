@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
@@ -141,11 +141,13 @@ export function ConversationThread({
   onFollowUpStarted,
   showHeader = true,
   sseLive = false,
+  toolbarStart,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
   showHeader?: boolean;
   sseLive?: boolean;
+  toolbarStart?: ReactNode;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -226,7 +228,19 @@ export function ConversationThread({
         </div>
       )}
 
-      <ExecutionProgressBar sessionId={session.id} isRunning={running} sseLive={sseLive} />
+      {toolbarStart ? (
+        <div className="hidden lg:flex items-center gap-3 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
+          <div className="shrink-0">{toolbarStart}</div>
+          <ExecutionProgressBar
+            sessionId={session.id}
+            isRunning={running}
+            sseLive={sseLive}
+            embedded
+          />
+        </div>
+      ) : (
+        <ExecutionProgressBar sessionId={session.id} isRunning={running} sseLive={sseLive} />
+      )}
       <AskUserQuestionInbox sessionId={session.id} />
 
       {running && (

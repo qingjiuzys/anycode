@@ -612,14 +612,20 @@ function SetupChannelsStep({
           {wechatQr.isError && (
             <div className="dw-alert-error">{(wechatQr.error as Error).message}</div>
           )}
-          {wechatQr.data?.qr?.content && (
+          {wechatQr.data?.qr && (
             <div className="setup-wechat-qr">
-              {wechatQr.data.qr.content.trimStart().startsWith("http") ? (
-                <p className="font-code text-xs break-all">{wechatQr.data.qr.content}</p>
-              ) : (
-                <pre className="text-xs whitespace-pre-wrap font-code">
-                  {wechatQr.data.qr.terminal_render ?? wechatQr.data.qr.content.slice(0, 200)}
+              {wechatQr.data.qr.qr_svg ? (
+                <div
+                  className="setup-wechat-qr__svg"
+                  aria-label="WeChat QR code"
+                  dangerouslySetInnerHTML={{ __html: wechatQr.data.qr.qr_svg }}
+                />
+              ) : wechatQr.data.qr.terminal_render ? (
+                <pre className="setup-wechat-qr__matrix text-xs whitespace-pre font-code">
+                  {wechatQr.data.qr.terminal_render}
                 </pre>
+              ) : (
+                <p className="font-code text-xs break-all">{wechatQr.data.qr.content}</p>
               )}
               <p className="text-secondary text-sm mt-2">
                 {wechatConfirmed

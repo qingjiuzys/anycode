@@ -140,7 +140,16 @@ The workbench **Settings → Model & routing** panel includes **Local presets**:
 | **Embedding** | `local_fastembed` + `--features embedding-local` | Ollama `nomic-embed-text` at `http://127.0.0.1:11434/v1` |
 | **Vision** | — (uses chat model) | Ollama `llava` with `chat` + `vision` capabilities |
 | **STT** | `local_whisper` + `--features stt-local` | `whisper_cpp` HTTP at `http://127.0.0.1:8080/v1` |
+| **STT (macOS desktop)** | `apple_speech` via **anyCode.app** (Apple Speech, no model download) | — |
 | **TTS** | `local_piper` + `--features tts-local` | `piper` HTTP at `http://127.0.0.1:5000/v1` |
+
+### macOS desktop native STT & OCR
+
+In **anyCode.app** (Tauri shell on macOS), you can enable **Apple Speech (macOS native)** under **Settings → Model & routing → Local presets** instead of whisper.cpp. Voice input in the composer uses the system Speech framework (no ~74MB whisper model). Image attachments show **Extract text**, which runs on-device OCR via Apple Vision (`VNRecognizeTextRequest`).
+
+- Requires **Speech Recognition** and **Microphone** permissions (System Settings → Privacy).
+- Browser sessions at `http://127.0.0.1:43180` cannot use `apple_speech`; use whisper or an HTTP STT provider there.
+- OCR is desktop-only and does not replace LLM **vision** for image understanding.
 
 Enable all optional local backends:
 

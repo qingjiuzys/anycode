@@ -160,7 +160,7 @@ export interface LocalMediaPreset {
   label: string;
   description: string;
   capabilities: string[];
-  mode: "builtin" | "external";
+  mode: "builtin" | "external" | "platform_native";
   provider: string;
   model: string;
   base_url?: string | null;
@@ -169,6 +169,7 @@ export interface LocalMediaPreset {
   model_download_hint?: string | null;
   required_feature?: string | null;
   feature_available: boolean;
+  desktop_only?: boolean;
 }
 
 export interface LocalPresetsView {

@@ -1,6 +1,5 @@
 //! On-device speech-to-text via whisper.cpp bindings (feature `stt-local`).
 
-use crate::model_cache::whisper_model_path;
 use anycode_core::CoreError;
 
 #[cfg(feature = "stt-local")]
@@ -9,14 +8,7 @@ use whisper_cpp_plus::WhisperContext;
 /// Transcribe 16 kHz mono PCM `f32` samples (whisper.cpp input format).
 #[cfg(feature = "stt-local")]
 pub async fn transcribe_pcm(model_id: &str, samples: &[f32]) -> Result<String, CoreError> {
-    let path = whisper_model_path(model_id);
-    if !path.exists() {
-        return Err(CoreError::LLMError(format!(
-            "whisper model not found at {} — download ggml-{}.bin to this path",
-            path.display(),
-            model_id
-        )));
-    }
+    let path = crate::whisper_model_fetch::ensure_whisper_model(model_id).await?;
     let path_str = path.to_string_lossy().into_owned();
     let audio = samples.to_vec();
     let text = tokio::task::spawn_blocking(move || transcribe_blocking(&path_str, &audio))

@@ -1,6 +1,6 @@
 //! 定时任务触发后向微信会话投递（读取最近对话方 `cron_notify_target.json`）。
 
-use super::deliverable::{extract_deliverable_path, send_deliverable_file};
+use super::deliverable::{collect_outbound_media_paths, send_outbound_media_paths};
 use super::WxSender;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -59,9 +59,12 @@ pub async fn deliver_cron_to_wechat(
         );
         return;
     }
-    if let Some(path) = extract_deliverable_path(&format!("{command}\n{text}")) {
+    let combined = format!("{command}\n{text}");
+    let paths = collect_outbound_media_paths(&[], &combined, None);
+    if !paths.is_empty() {
         if let Err(e) =
-            send_deliverable_file(sender, &target.from_user_id, &target.context_token, &path).await
+            send_outbound_media_paths(sender, &target.from_user_id, &target.context_token, &paths)
+                .await
         {
             tracing::warn!(
                 target: "anycode_scheduler",

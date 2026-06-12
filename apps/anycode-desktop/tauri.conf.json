@@ -45,7 +45,10 @@
       "resources/browser/",
       "resources/project-templates/",
       "resources/dashboard-ui/"
-    ]
+    ],
+    "macOS": {
+      "entitlements": "./Entitlements.plist"
+    }
   },
   "plugins": {}
 }

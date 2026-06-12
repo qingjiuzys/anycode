@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod apple_media;
+
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
@@ -135,6 +137,11 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            apple_media::apple_media_capabilities,
+            apple_media::apple_media_transcribe,
+            apple_media::apple_media_ocr_image,
+        ])
         .manage(SidecarState(Mutex::new(Vec::new())))
         .setup(|app| {
             let program = resolve_anycode_program(app.handle());
@@ -142,32 +149,41 @@ fn main() {
                 "anycode-desktop: using anycode binary {}",
                 program.display()
             );
-            let mut children = Vec::new();
-            let dashboard_ok = if let Some(c) =
-                spawn_sidecar("anycode dashboard", &program, &["dashboard"], app.handle())
-            {
-                children.push(c);
-                wait_for_dashboard_port(60)
-            } else {
-                false
-            };
-            if std::env::var("ANYCODE_DESKTOP_WECHAT")
-                .ok()
-                .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-            {
-                if let Some(c) = spawn_sidecar(
-                    "WeChat bridge",
-                    &program,
-                    &["channel", "wechat", "--run-as-bridge"],
-                    app.handle(),
-                ) {
+
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let mut children = Vec::new();
+                let dashboard_ok = if let Some(c) =
+                    spawn_sidecar("anycode dashboard", &program, &["dashboard"], &handle)
+                {
                     children.push(c);
+                    wait_for_dashboard_port(60)
+                } else {
+                    false
+                };
+                if std::env::var("ANYCODE_DESKTOP_WECHAT")
+                    .ok()
+                    .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+                {
+                    if let Some(c) = spawn_sidecar(
+                        "WeChat bridge",
+                        &program,
+                        &["channel", "wechat", "--run-as-bridge"],
+                        &handle,
+                    ) {
+                        children.push(c);
+                    }
                 }
-            }
-            if let Some(state) = app.try_state::<SidecarState>() {
-                *state.0.lock().unwrap() = children;
-            }
-            show_workbench(app.handle(), dashboard_ok);
+                if let Some(state) = handle.try_state::<SidecarState>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        *guard = children;
+                    }
+                }
+                let show_handle = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    show_workbench(&show_handle, dashboard_ok);
+                });
+            });
 
             let open_i = MenuItem::with_id(app, "open", "Open Workbench", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

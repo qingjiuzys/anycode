@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { HomeHeroComposer } from "@/components/HomeHeroComposer";
-import { HomeSuggestionCards } from "@/components/HomeSuggestionCards";
+import { HomeWorkbenchPanel } from "@/components/HomeWorkbenchPanel";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 import {
   usePendingApprovalCounts,
@@ -46,7 +46,13 @@ export function HomePage() {
           pendingCount={pendingTotal}
           budgetExceededCount={ov?.sessions_budget_exceeded ?? 0}
         />
-        <HomeSuggestionCards onNewProject={() => setNewProjectOpen(true)} />
+        <HomeWorkbenchPanel
+          overview={ov}
+          projects={list}
+          loadingProjects={projects.isLoading}
+          pendingApprovals={pendingTotal}
+          onNewProject={() => setNewProjectOpen(true)}
+        />
       </section>
     </>
   );

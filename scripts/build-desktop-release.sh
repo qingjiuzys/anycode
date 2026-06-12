@@ -8,8 +8,12 @@ cd "$ROOT"
 echo "==> build dashboard UI (must run before CLI — embedded-ui bakes dist/)"
 "$ROOT/scripts/build-dashboard-ui.sh"
 
-echo "==> cargo build --release -p anycode (embedded-ui + tools-mcp)"
-cargo build --release -p anycode --features embedded-ui,tools-mcp,knowledge-embeddings
+echo "==> cargo build --release -p anycode (embedded-ui + tools-mcp + media-local)"
+cargo build --release -p anycode --features embedded-ui,tools-mcp,knowledge-embeddings,media-local
+
+echo "==> build Apple native media helper (macOS STT/OCR)"
+chmod +x "$ROOT/scripts/build-apple-media-cli.sh"
+"$ROOT/scripts/build-apple-media-cli.sh"
 
 echo "==> prepare bundled browser MCP (Playwright + Chromium)"
 chmod +x "$ROOT/scripts/prepare-browser-mcp.sh"

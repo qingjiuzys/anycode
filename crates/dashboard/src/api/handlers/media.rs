@@ -120,6 +120,17 @@ pub async fn transcribe_audio(mut multipart: Multipart) -> impl IntoResponse {
         }
     };
 
+    if stt.profile.provider.eq_ignore_ascii_case("apple_speech") {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "ok": false,
+                "error": "Apple Speech STT runs in the macOS desktop app — open anyCode.app and use the microphone button there"
+            })),
+        )
+            .into_response();
+    }
+
     if is_builtin_local_provider(&stt.profile.provider) && !is_wav(&audio) {
         return (
             StatusCode::BAD_REQUEST,

@@ -5,6 +5,7 @@ import type { WebChatResult } from "@/api/client/projects";
 import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
+import { appendOcrToMessage, ImageOcrButton } from "@/components/ImageOcrButton";
 import { isPrimaryAgentId } from "@/lib/agentCatalog";
 import { useLocale, useT } from "@/i18n/context";
 import { skillDisplayDescription } from "@/lib/skillCatalog";
@@ -665,6 +666,12 @@ export function ConversationComposer(props: Props) {
           <VoiceInputButton
             disabled={running || pending}
             onTranscribed={(text) => setMessage((prev) => mergeVoiceTranscript(prev, text))}
+          />
+
+          <ImageOcrButton
+            disabled={running || pending}
+            images={attachedImages.map(({ mime_type, data_base64 }) => ({ mime_type, data_base64 }))}
+            onText={(text) => setMessage((prev) => appendOcrToMessage(prev, text))}
           />
 
           {session && <AutoApproveToggle sessionId={session.id} />}

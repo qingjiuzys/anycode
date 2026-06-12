@@ -321,7 +321,7 @@ fn index_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
             block_type: "session_error".into(),
             at: event.occurred_at.clone(),
             title: "Tool denied".into(),
-            body: pick_body(event),
+            body: error_event_body(event),
             meta: event.payload.clone(),
             collapsible: false,
             default_collapsed: false,
@@ -367,7 +367,7 @@ fn index_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
                 block_type: "session_error".into(),
                 at: event.occurred_at.clone(),
                 title: "Task failed".into(),
-                body: pick_body(event),
+                body: error_event_body(event),
                 meta: event.payload.clone(),
                 collapsible: false,
                 default_collapsed: false,
@@ -379,7 +379,7 @@ fn index_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
             block_type: "session_error".into(),
             at: event.occurred_at.clone(),
             title: event.title.clone(),
-            body: pick_body(event),
+            body: error_event_body(event),
             meta: event.payload.clone(),
             collapsible: false,
             default_collapsed: false,
@@ -443,7 +443,7 @@ fn tool_body(event: &ProjectEvent) -> String {
         }
     }
     if parts.is_empty() {
-        event.title.clone()
+        humanize_error_text(&event.title)
     } else {
         parts.join("\n")
     }
@@ -469,6 +469,41 @@ fn collapse_policy_for_text(body: &str) -> (bool, bool) {
     let chars = trimmed.chars().count();
     let long = lines > 8 || chars > 480;
     (long, long)
+}
+
+fn is_bare_schema_token(s: &str) -> bool {
+    matches!(
+        s.trim().to_ascii_lowercase().as_str(),
+        "path" | "command" | "query" | "duration_ms"
+    )
+}
+
+fn humanize_bare_schema_token(s: &str) -> String {
+    format!("Tool parameter error: missing or invalid `{s}`")
+}
+
+fn humanize_error_text(text: &str) -> String {
+    let t = text.trim();
+    if t.is_empty() {
+        return String::new();
+    }
+    if is_bare_schema_token(t) {
+        humanize_bare_schema_token(t)
+    } else {
+        t.to_string()
+    }
+}
+
+fn error_event_body(event: &ProjectEvent) -> String {
+    for key in ["error", "message"] {
+        if let Some(v) = event.payload.get(key).and_then(|v| v.as_str()) {
+            let t = v.trim();
+            if !t.is_empty() && t != "<none>" {
+                return t.to_string();
+            }
+        }
+    }
+    humanize_error_text(&pick_body(event))
 }
 
 fn pick_body(event: &ProjectEvent) -> String {
@@ -578,9 +613,9 @@ fn promote_failed_tasks(blocks: &mut Vec<TranscriptBlock>, lifecycle: &[Transcri
 fn pick_failure_body(block: &TranscriptBlock) -> String {
     let body = block.body.trim();
     if !body.is_empty() {
-        return body.to_string();
+        return humanize_error_text(body);
     }
-    block.title.trim().to_string()
+    humanize_error_text(&block.title)
 }
 
 fn fill_missing_turn_replies(
@@ -712,6 +747,15 @@ fn time_in_range(at: &str, start: &str, end: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn humanize_error_text_bare_path() {
+        assert_eq!(
+            humanize_error_text("path"),
+            "Tool parameter error: missing or invalid `path`"
+        );
+        assert_eq!(humanize_error_text("real failure"), "real failure");
+    }
     use crate::schema::{
         CreateSessionRequest, InsertEventRequest, SessionDetail, UpsertProjectRequest,
     };

@@ -14,6 +14,9 @@ pub struct WechatQrPayload {
     /// Terminal-style Unicode block rendering (optional display fallback).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_render: Option<String>,
+    /// SVG QR for web/desktop setup (scannable on screen).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qr_svg: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -88,10 +91,12 @@ pub async fn fetch_wechat_qr() -> anyhow::Result<WechatQrPayload> {
     }
     let content = content.unwrap();
     let terminal_render = render_qr_terminal(&content).ok();
+    let qr_svg = render_qr_svg(&content).ok();
     Ok(WechatQrPayload {
         qrcode_id: qrcode_id.unwrap(),
         content,
         terminal_render,
+        qr_svg,
     })
 }
 
@@ -250,4 +255,28 @@ fn render_qr_terminal(payload: &str) -> anyhow::Result<String> {
         .dark_color(qrcode::render::unicode::Dense1x2::Dark)
         .light_color(qrcode::render::unicode::Dense1x2::Light)
         .build())
+}
+
+fn render_qr_svg(payload: &str) -> anyhow::Result<String> {
+    use qrcode::render::svg;
+    use qrcode::QrCode;
+    let code = QrCode::new(payload.as_bytes())?;
+    Ok(code
+        .render::<svg::Color>()
+        .min_dimensions(240, 240)
+        .dark_color(svg::Color("#000"))
+        .light_color(svg::Color("#fff"))
+        .build())
+}
+
+#[cfg(test)]
+mod qr_render_tests {
+    use super::*;
+
+    #[test]
+    fn render_qr_svg_produces_svg_markup() {
+        let svg = render_qr_svg("https://liteapp.weixin.qq.com/q/test").unwrap();
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
+    }
 }

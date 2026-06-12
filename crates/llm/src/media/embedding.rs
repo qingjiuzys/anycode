@@ -6,6 +6,8 @@ use crate::media::MediaProfile;
 use anycode_core::CoreError;
 
 #[cfg(feature = "embedding-local")]
+use anycode_core::EmbeddingProvider;
+#[cfg(feature = "embedding-local")]
 use anycode_memory::FastEmbedEmbeddingProvider;
 #[cfg(feature = "embedding-local")]
 use std::path::PathBuf;

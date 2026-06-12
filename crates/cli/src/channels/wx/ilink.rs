@@ -203,6 +203,14 @@ pub fn build_outbound_text(
     })
 }
 
+fn build_cdn_media_json(encrypt_query_param: &str, aes_key_b64: &str) -> Value {
+    serde_json::json!({
+        "encrypt_query_param": encrypt_query_param,
+        "aes_key": aes_key_b64,
+        "encrypt_type": 1,
+    })
+}
+
 pub fn build_outbound_file(
     bot_account_id: &str,
     to_user_id: &str,
@@ -210,6 +218,8 @@ pub fn build_outbound_file(
     file_name: &str,
     encrypt_query_param: &str,
     aes_key_b64: &str,
+    plaintext_len: u64,
+    md5_hex: &str,
     client_id: &str,
 ) -> Value {
     serde_json::json!({
@@ -223,10 +233,61 @@ pub fn build_outbound_file(
             "type": 4,
             "file_item": {
                 "file_name": file_name,
-                "media": {
-                    "encrypt_query_param": encrypt_query_param,
-                    "aes_key": aes_key_b64,
-                }
+                "len": plaintext_len.to_string(),
+                "md5": md5_hex,
+                "media": build_cdn_media_json(encrypt_query_param, aes_key_b64),
+            }
+        }]
+    })
+}
+
+pub fn build_outbound_image(
+    bot_account_id: &str,
+    to_user_id: &str,
+    context_token: &str,
+    encrypt_query_param: &str,
+    aes_key_b64: &str,
+    mid_size: u64,
+    client_id: &str,
+) -> Value {
+    serde_json::json!({
+        "from_user_id": bot_account_id,
+        "to_user_id": to_user_id,
+        "client_id": client_id,
+        "message_type": 2,
+        "message_state": 2,
+        "context_token": context_token,
+        "item_list": [{
+            "type": 2,
+            "image_item": {
+                "mid_size": mid_size,
+                "media": build_cdn_media_json(encrypt_query_param, aes_key_b64),
+            }
+        }]
+    })
+}
+
+pub fn build_outbound_video(
+    bot_account_id: &str,
+    to_user_id: &str,
+    context_token: &str,
+    encrypt_query_param: &str,
+    aes_key_b64: &str,
+    video_size: u64,
+    client_id: &str,
+) -> Value {
+    serde_json::json!({
+        "from_user_id": bot_account_id,
+        "to_user_id": to_user_id,
+        "client_id": client_id,
+        "message_type": 2,
+        "message_state": 2,
+        "context_token": context_token,
+        "item_list": [{
+            "type": 5,
+            "video_item": {
+                "video_size": video_size,
+                "media": build_cdn_media_json(encrypt_query_param, aes_key_b64),
             }
         }]
     })
@@ -249,9 +310,45 @@ impl WxSender {
         }
     }
 
+    pub fn api(&self) -> &WeChatApi {
+        &self.api
+    }
+
     pub fn with_outbound_log(mut self, path: std::path::PathBuf) -> Self {
         self.outbound_log = Some(path);
         self
+    }
+
+    fn next_client_id(&self, prefix: &str) -> String {
+        let n = self
+            .counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        format!(
+            "anycode-{prefix}-{}-{n}",
+            chrono::Utc::now().timestamp_millis()
+        )
+    }
+
+    async fn send_message_with_retry(&self, msg: Value, label: &str) -> Result<()> {
+        let mut delay_ms: u64 = 2_000;
+        for attempt in 0..=3 {
+            match self.api.send_message(msg.clone()).await {
+                Ok(()) => return Ok(()),
+                Err(e) if attempt < 3 => {
+                    tracing::warn!(
+                        attempt = attempt + 1,
+                        delay_ms,
+                        error = %e,
+                        label,
+                        "wx send_message transient failure, retrying"
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                    delay_ms = (delay_ms * 2).min(30_000);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
     }
 
     pub async fn send_text(&self, to_user_id: &str, context_token: &str, text: &str) -> Result<()> {
@@ -341,14 +438,18 @@ impl WxSender {
         use super::cdn_upload::upload_bytes_to_cdn;
 
         let media = upload_bytes_to_cdn(self.api.as_ref(), plaintext, to_user_id).await?;
-        let n = self
-            .counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let client_id = format!(
-            "anycode-file-{}-{}",
-            chrono::Utc::now().timestamp_millis(),
-            n
-        );
+        self.send_file_message(to_user_id, context_token, file_name, &media)
+            .await
+    }
+
+    pub async fn send_file_message(
+        &self,
+        to_user_id: &str,
+        context_token: &str,
+        file_name: &str,
+        media: &super::cdn_upload::UploadedCdnMedia,
+    ) -> Result<()> {
+        let client_id = self.next_client_id("file");
         let msg = build_outbound_file(
             &self.bot_id,
             to_user_id,
@@ -356,14 +457,58 @@ impl WxSender {
             file_name,
             &media.encrypt_query_param,
             &media.aes_key_b64,
+            media.raw_size as u64,
+            &media.rawfilemd5,
             &client_id,
         );
-        self.api.send_message(msg).await
+        self.send_message_with_retry(msg, "send_file_message").await
+    }
+
+    pub async fn send_image_message(
+        &self,
+        to_user_id: &str,
+        context_token: &str,
+        media: &super::cdn_upload::UploadedCdnMedia,
+    ) -> Result<()> {
+        let client_id = self.next_client_id("image");
+        let msg = build_outbound_image(
+            &self.bot_id,
+            to_user_id,
+            context_token,
+            &media.encrypt_query_param,
+            &media.aes_key_b64,
+            media.ciphertext_size as u64,
+            &client_id,
+        );
+        self.send_message_with_retry(msg, "send_image_message")
+            .await
+    }
+
+    pub async fn send_video_message(
+        &self,
+        to_user_id: &str,
+        context_token: &str,
+        media: &super::cdn_upload::UploadedCdnMedia,
+    ) -> Result<()> {
+        let client_id = self.next_client_id("video");
+        let msg = build_outbound_video(
+            &self.bot_id,
+            to_user_id,
+            context_token,
+            &media.encrypt_query_param,
+            &media.aes_key_b64,
+            media.ciphertext_size as u64,
+            &client_id,
+        );
+        self.send_message_with_retry(msg, "send_video_message")
+            .await
     }
 }
 
 #[cfg(test)]
 mod send_retry_tests {
+    use super::*;
+
     #[test]
     fn send_retry_backoff_caps_at_thirty_seconds() {
         let mut delay_ms: u64 = 2_000;
@@ -371,5 +516,42 @@ mod send_retry_tests {
             delay_ms = (delay_ms * 2).min(30_000);
         }
         assert_eq!(delay_ms, 30_000);
+    }
+
+    #[test]
+    fn outbound_file_includes_len_and_encrypt_type() {
+        let msg = build_outbound_file(
+            "bot",
+            "user",
+            "ctx",
+            "report.pdf",
+            "enc_param",
+            "aes_b64",
+            1234,
+            "abcd1234",
+            "cid",
+        );
+        let item = &msg["item_list"][0];
+        assert_eq!(item["type"], 4);
+        assert_eq!(item["file_item"]["len"], "1234");
+        assert_eq!(item["file_item"]["md5"], "abcd1234");
+        assert_eq!(item["file_item"]["media"]["encrypt_type"], 1);
+    }
+
+    #[test]
+    fn outbound_image_includes_mid_size() {
+        let msg = build_outbound_image("bot", "user", "ctx", "enc", "aes", 32, "cid");
+        let item = &msg["item_list"][0];
+        assert_eq!(item["type"], 2);
+        assert_eq!(item["image_item"]["mid_size"], 32);
+        assert_eq!(item["image_item"]["media"]["encrypt_type"], 1);
+    }
+
+    #[test]
+    fn outbound_video_includes_video_size() {
+        let msg = build_outbound_video("bot", "user", "ctx", "enc", "aes", 64, "cid");
+        let item = &msg["item_list"][0];
+        assert_eq!(item["type"], 5);
+        assert_eq!(item["video_item"]["video_size"], 64);
     }
 }

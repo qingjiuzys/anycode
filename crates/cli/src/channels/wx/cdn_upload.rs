@@ -4,18 +4,26 @@ use super::ilink::{cdn_upload_url, WeChatApi, CDN_BASE};
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::Aes128;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use md5;
 use rand::RngCore;
 use serde_json::{json, Value};
 
-/// `getUploadUrl.media_type` for generic files.
+/// `getUploadUrl.media_type` — aligned with openclaw-weixin `UploadMediaType`.
+pub const UPLOAD_MEDIA_IMAGE: i64 = 1;
+pub const UPLOAD_MEDIA_VIDEO: i64 = 2;
 pub const UPLOAD_MEDIA_FILE: i64 = 3;
 
 pub struct UploadedCdnMedia {
     pub encrypt_query_param: String,
     pub aes_key_b64: String,
+    /// Plaintext file size in bytes.
+    pub raw_size: usize,
+    /// AES-128-ECB padded ciphertext size in bytes.
+    pub ciphertext_size: usize,
+    /// MD5 hex of plaintext.
+    pub rawfilemd5: String,
 }
 
 pub fn aes_ecb_padded_size(raw: usize) -> usize {
@@ -46,6 +54,15 @@ pub async fn upload_bytes_to_cdn(
     plaintext: &[u8],
     to_user_id: &str,
 ) -> Result<UploadedCdnMedia> {
+    upload_bytes_to_cdn_with_media_type(api, plaintext, to_user_id, UPLOAD_MEDIA_FILE).await
+}
+
+pub async fn upload_bytes_to_cdn_with_media_type(
+    api: &WeChatApi,
+    plaintext: &[u8],
+    to_user_id: &str,
+    media_type: i64,
+) -> Result<UploadedCdnMedia> {
     let rawsize = plaintext.len();
     let rawfilemd5 = format!("{:x}", md5::compute(plaintext));
     let filesize = aes_ecb_padded_size(rawsize);
@@ -57,7 +74,7 @@ pub async fn upload_bytes_to_cdn(
 
     let body = json!({
         "filekey": filekey,
-        "media_type": UPLOAD_MEDIA_FILE,
+        "media_type": media_type,
         "to_user_id": to_user_id,
         "rawsize": rawsize,
         "rawfilemd5": rawfilemd5,
@@ -90,6 +107,9 @@ pub async fn upload_bytes_to_cdn(
     Ok(UploadedCdnMedia {
         encrypt_query_param: download_param,
         aes_key_b64: B64.encode(aeskey),
+        raw_size: rawsize,
+        ciphertext_size: filesize,
+        rawfilemd5,
     })
 }
 
@@ -198,5 +218,12 @@ mod tests {
         let key = [7u8; 16];
         let enc = encrypt_aes_128_ecb(&key, b"hello");
         assert_eq!(enc.len(), 16);
+    }
+
+    #[test]
+    fn upload_media_type_constants_match_openclaw() {
+        assert_eq!(UPLOAD_MEDIA_IMAGE, 1);
+        assert_eq!(UPLOAD_MEDIA_VIDEO, 2);
+        assert_eq!(UPLOAD_MEDIA_FILE, 3);
     }
 }

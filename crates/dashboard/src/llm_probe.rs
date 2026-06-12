@@ -139,6 +139,7 @@ fn stt_docs_hint(provider: &str) -> Option<&'static str> {
     match provider.trim().to_ascii_lowercase().as_str() {
         "whisper_cpp" | "whisper-cpp" => preset_by_id("whisper-cpp-tiny").and_then(|p| p.docs_url),
         "local_whisper" => preset_by_id("local-whisper-tiny").and_then(|p| p.docs_url),
+        "apple_speech" => preset_by_id("apple-speech-macos").and_then(|p| p.docs_url),
         _ => None,
     }
 }
@@ -149,6 +150,11 @@ async fn probe_stt(registry: &ResolvedModelRegistry) -> Result<String, String> {
         .stt
         .as_ref()
         .ok_or_else(|| "models.speech.stt not configured".to_string())?;
+    if prof.profile.provider.eq_ignore_ascii_case("apple_speech") {
+        return Ok(
+            "apple_speech configured — use voice input in anyCode.app (macOS desktop)".into(),
+        );
+    }
     if is_builtin_local_provider(&prof.profile.provider) && !cfg!(feature = "stt-local") {
         return Err(
             "built-in STT requires build with --features stt-local (or media-local)".into(),

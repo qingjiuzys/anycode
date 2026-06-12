@@ -58,6 +58,18 @@ Needs a machine that can complete QR login (browser/GUI).
 If tasks run in the wrong project folder, set project directory in WeChat with `/cwd`.
 Expected output: following tasks run in the selected project directory.
 
+## Agent outbound files / images / videos
+
+After a task completes, the bridge can deliver artifacts to WeChat (parity with OpenClaw `openclaw-weixin` outbound media):
+
+- **Triggers**: tool-written files (`FileWrite` / `Edit` artifacts), or file paths in the final reply
+- **Types**: documents (pdf, docx, zip…), images (png, jpg…), videos (mp4, mov…)
+- **Small text**: `.md` / `.txt` ≤24KB may be sent inline as text
+- **Size limit**: CDN upload ≤10MB per file; larger files get a local-path note only
+- **Voice**: inbound voice is transcribed; outbound voice messages are not supported yet
+
+Example: ask the agent to “create report.pdf and send it to me”. Include the absolute path in the reply, or rely on tool artifacts even if the path is omitted.
+
 ## Advanced notes
 
 - WeChat data directory is usually `~/.anycode/wechat`

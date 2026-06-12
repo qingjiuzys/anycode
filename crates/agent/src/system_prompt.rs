@@ -101,7 +101,7 @@ fn reply_language_section() -> Option<String> {
     let lang = std::env::var("ANYCODE_REPLY_LANG").ok()?;
     let lang = lang.trim().to_lowercase();
     let directive = if lang.starts_with("zh") {
-        "除非用户明确使用其它语言提问，否则始终使用中文回复（代码、命令与标识符除外）。"
+        "除非用户明确使用其它语言提问，否则全文仅使用中文回复（代码、命令、路径与标识符除外）。禁止在中文回复后再附英文总结、复述或探索性段落（例如 \"Now I have…\"）；不要中英双语重复同一内容。"
     } else if lang.starts_with("en") {
         "Always reply in English unless the user writes in another language."
     } else {

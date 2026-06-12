@@ -14,5 +14,65 @@ if ! command -v pandoc >/dev/null 2>&1; then
   echo "pandoc not installed (brew install pandoc or your distro package)" >&2
   exit 1
 fi
-pandoc "$in" -o "$out"
-echo "$out"
+
+if [[ "$out" != *.pdf ]]; then
+  pandoc "$in" -o "$out"
+  echo "$out"
+  exit 0
+fi
+
+chrome_bin=""
+for candidate in \
+  "google-chrome" \
+  "chromium" \
+  "chromium-browser" \
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    chrome_bin="$(command -v "$candidate")"
+    break
+  elif [[ -x "$candidate" ]]; then
+    chrome_bin="$candidate"
+    break
+  fi
+done
+
+for engine in xelatex lualatex pdflatex tectonic wkhtmltopdf weasyprint prince; do
+  if command -v "$engine" >/dev/null 2>&1; then
+    pandoc "$in" --pdf-engine="$engine" -o "$out"
+    echo "$out"
+    exit 0
+  fi
+done
+
+if [[ -n "$chrome_bin" ]]; then
+  tmpdir="$(mktemp -d)"
+  cleanup() {
+    rm -rf "$tmpdir"
+  }
+  trap cleanup EXIT
+  html="$tmpdir/input.html"
+  pandoc "$in" \
+    --standalone \
+    --metadata title="$(basename "${in%.*}")" \
+    -o "$html"
+  "$chrome_bin" \
+    --headless=new \
+    --disable-gpu \
+    --no-first-run \
+    --no-default-browser-check \
+    --print-to-pdf="$out" \
+    "file://$html" >/dev/null 2>&1
+  if [[ -s "$out" ]]; then
+    echo "$out"
+    exit 0
+  fi
+fi
+
+fallback="${out%.pdf}.html"
+pandoc "$in" \
+  --standalone \
+  --metadata title="$(basename "${in%.*}")" \
+  -o "$fallback"
+echo "pdf engine not installed; wrote HTML fallback: $fallback" >&2
+echo "$fallback"

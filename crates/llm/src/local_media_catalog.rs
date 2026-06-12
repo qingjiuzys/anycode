@@ -16,6 +16,8 @@ pub enum LocalMode {
     Builtin,
     /// Connect to a local HTTP service (whisper.cpp server, Piper, Ollama, …).
     External,
+    /// macOS platform APIs (Speech / Vision) via desktop shell only.
+    PlatformNative,
 }
 
 /// A one-click local media preset for the model registry.
@@ -35,6 +37,8 @@ pub struct LocalMediaPreset {
     pub model_download_hint: Option<&'static str>,
     /// Compile-time feature required for builtin mode (`embedding-local`, `stt-local`, …).
     pub required_feature: Option<&'static str>,
+    /// Only usable from the macOS desktop app (Tauri + native helper).
+    pub desktop_only: bool,
 }
 
 pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
@@ -54,6 +58,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
             "~/.cache/fastembed or memory.pipeline.embedding_local_cache_dir",
         ),
         required_feature: Some("embedding-local"),
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "local-fastembed-bge-zh",
@@ -69,6 +74,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: None,
         model_download_hint: Some("~/.cache/fastembed"),
         required_feature: Some("embedding-local"),
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "ollama-nomic-embed",
@@ -84,6 +90,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://ollama.com/library/nomic-embed-text"),
         model_download_hint: Some("ollama pull nomic-embed-text"),
         required_feature: None,
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "ollama-llava-vision",
@@ -99,6 +106,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://ollama.com/library/llava"),
         model_download_hint: Some("ollama pull llava"),
         required_feature: None,
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "whisper-cpp-tiny",
@@ -114,6 +122,23 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://github.com/ggml-org/whisper.cpp"),
         model_download_hint: Some("Download ggml-tiny.bin and run whisper.cpp server"),
         required_feature: None,
+        desktop_only: false,
+    },
+    LocalMediaPreset {
+        id: "apple-speech-macos",
+        label: "Apple Speech (macOS native)",
+        description: "On-device speech recognition via Apple Speech framework. No model download; macOS desktop app only.",
+        capabilities: &[ModelCapability::Stt],
+        mode: LocalMode::PlatformNative,
+        provider: "apple_speech",
+        model: "on-device",
+        base_url: None,
+        api_key: Some("local"),
+        voice: None,
+        docs_url: Some("https://developer.apple.com/documentation/speech"),
+        model_download_hint: None,
+        required_feature: None,
+        desktop_only: true,
     },
     LocalMediaPreset {
         id: "local-whisper-tiny",
@@ -129,6 +154,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://github.com/ggml-org/whisper.cpp"),
         model_download_hint: Some("~/.anycode/models/whisper/tiny.bin"),
         required_feature: Some("stt-local"),
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "piper-zh-medium",
@@ -144,6 +170,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://github.com/rhasspy/piper"),
         model_download_hint: Some("Download voice from huggingface.co/rhasspy/piper-voices"),
         required_feature: None,
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "local-piper-zh",
@@ -159,6 +186,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://github.com/thewh1teagle/piper-rs"),
         model_download_hint: Some("~/.anycode/models/piper/zh_CN-huayan-medium"),
         required_feature: Some("tts-local"),
+        desktop_only: false,
     },
 ];
 
@@ -185,7 +213,13 @@ pub fn presets_for_capability(cap: ModelCapability) -> Vec<&'static LocalMediaPr
 pub fn local_media_provider_allows_placeholder_key(provider: &str) -> bool {
     matches!(
         provider.trim().to_ascii_lowercase().as_str(),
-        "local_fastembed" | "local_whisper" | "local_piper" | "ollama" | "whisper_cpp" | "piper"
+        "local_fastembed"
+            | "local_whisper"
+            | "local_piper"
+            | "apple_speech"
+            | "ollama"
+            | "whisper_cpp"
+            | "piper"
     )
 }
 
@@ -238,6 +272,7 @@ pub fn local_presets_json() -> Value {
                 "mode": match p.mode {
                     LocalMode::Builtin => "builtin",
                     LocalMode::External => "external",
+                    LocalMode::PlatformNative => "platform_native",
                 },
                 "provider": p.provider,
                 "model": p.model,
@@ -247,6 +282,7 @@ pub fn local_presets_json() -> Value {
                 "model_download_hint": p.model_download_hint,
                 "required_feature": p.required_feature,
                 "feature_available": feature_available,
+                "desktop_only": p.desktop_only,
             })
         })
         .collect();

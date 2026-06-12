@@ -24,7 +24,9 @@ import {
   transcriptQueryOptions,
   transcriptStaleTime,
 } from "@/lib/sessionQuery";
-import { useT } from "@/i18n/context";
+import { stripTrailingEnglishTail } from "@/lib/assistantText";
+import { humanizeTranscriptError } from "@/lib/transcriptError";
+import { useLocale, useT } from "@/i18n/context";
 
 interface Props {
   sessionId: string | null;
@@ -341,7 +343,12 @@ function UserBubble({ block }: { block: TranscriptBlock }) {
 
 function ReplyBubble({ block }: { block: TranscriptBlock }) {
   const t = useT();
+  const locale = useLocale();
   const role = blockStyle(block.block_type);
+  const displayBody =
+    block.block_type === "assistant_message"
+      ? stripTrailingEnglishTail(block.body, locale)
+      : block.body;
   const missing =
     block.block_type === "system_notice" &&
     block.meta?.source === "missing_turn";
@@ -355,7 +362,7 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
   }
 
   const isError = role === "error" || looksLikeError(block.body);
-  const { shouldCollapse, lines } = useContentCollapse(block.body);
+  const { shouldCollapse, lines } = useContentCollapse(displayBody);
   const usePanel =
     shouldCollapse ||
     block.collapsible ||
@@ -386,7 +393,7 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
 
   if (usePanel && !isError) {
     const title = formatTranscriptBlockTitle(block, t);
-    const subtitle = previewLines(block.body, 2, 200);
+    const subtitle = previewLines(displayBody, 2, 200);
     const meta =
       lines > 0
         ? t("conversations.messageMeta").replace("{lines}", String(lines))
@@ -400,7 +407,7 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
         icon="smart_toy"
         headerActions={headerActions}
       >
-        <TranscriptMarkdown text={block.body} />
+        <TranscriptMarkdown text={displayBody} />
         <time className="block mt-2 text-[11px] text-secondary">
           {formatRelativeTime(block.at)}
         </time>
@@ -427,7 +434,7 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
       {isError ? (
         <ErrorMessageBody text={block.body} />
       ) : (
-        <TranscriptMarkdown text={block.body} />
+        <TranscriptMarkdown text={displayBody} />
       )}
       <time className="block mt-2 text-[11px] text-secondary">
         {formatRelativeTime(block.at)}
@@ -438,7 +445,15 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
 
 function ErrorMessageBody({ text }: { text: string }) {
   const t = useT();
-  const summary = useMemo(() => summarizeError(text), [text]);
+  const { summary, raw } = useMemo(
+    () =>
+      humanizeTranscriptError(
+        text,
+        (field) => t("conversations.errorToolField").replace("{field}", field),
+        (field) => t("conversations.errorMissingField").replace("{field}", field),
+      ),
+    [text, t],
+  );
   const geoError = useMemo(() => isGeoProviderError(text), [text]);
   return (
     <div className="space-y-2 text-sm leading-relaxed">
@@ -455,24 +470,16 @@ function ErrorMessageBody({ text }: { text: string }) {
           </Link>
         </p>
       )}
-      {text.length > summary.length + 20 && (
+      {raw.length > summary.length + 20 && (
         <details className="text-xs">
           <summary className="cursor-pointer text-secondary">{t("common.details")}</summary>
           <pre className="mt-2 m-0 whitespace-pre-wrap break-words font-code opacity-90">
-            {text}
+            {raw}
           </pre>
         </details>
       )}
     </div>
   );
-}
-
-function summarizeError(text: string): string {
-  const first = text.split("\n").find((line) => line.trim())?.trim() ?? text.trim();
-  if (first.length > 220) {
-    return `${first.slice(0, 220)}…`;
-  }
-  return first;
 }
 
 const STALL_WARN_SECONDS = 120;

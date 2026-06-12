@@ -36,6 +36,7 @@ export type WechatQrPayload = {
   qrcode_id: string;
   content: string;
   terminal_render?: string | null;
+  qr_svg?: string | null;
 };
 
 export type WechatQrPollResult = {

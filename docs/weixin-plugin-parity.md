@@ -29,6 +29,8 @@
 | P2 | 入站媒体 IMAGE>VIDEO>FILE>VOICE | `cdn_media::select_inbound_media_item` | **Done**（2026-05-20）：`select_video_before_file` 单测锁定 VIDEO>FILE |
 | P2 | CDN 拉取 URL 白名单 | `cdn_get_url_trusted` | **Done**（2026-05-20）：仅 `*.weixin.qq.com` / `*.wechat.com` 等 |
 | P2 | 多账号 / `normalizeAccountId` 迁移 | 单账号 LaunchAgent 为主 | 文档化多 profile 非目标，除非用户要 parity |
+| P1 | 出站媒体：`sendWeixinMediaFile`（image/video/file CDN） | `send_media.rs` + `WxSender::send_*_message` | **Done**（2026-06-12）：MIME 路由、`file_item.len`/`encrypt_type`、artifacts 触发 |
+| P1 | 出站触发：`ReplyPayload.mediaUrl` / session attachments | `collect_outbound_media_paths`（artifacts + 输出路径） | **Done**（2026-06-12） |
 | P3 | 插件 SDK 根别名桥 | N/A（非插件） | 仅当改共享协议时参考 |
 
 ## 跟踪方式

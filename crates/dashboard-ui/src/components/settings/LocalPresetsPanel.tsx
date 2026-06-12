@@ -3,6 +3,7 @@ import type { ConfiguredModel, LocalMediaPreset, LocalPresetsView, ModelCatalog 
 import { api } from "@/api/client";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { isTauriDesktop } from "@/lib/desktopShell";
 
 const CAP_ORDER = ["embedding", "vision", "chat", "stt", "tts"] as const;
 
@@ -16,7 +17,12 @@ function presetToConfigured(preset: LocalMediaPreset): ConfiguredModel {
     capabilities: preset.capabilities,
     plan: null,
     base_url: preset.base_url ?? null,
-    api_key: preset.mode === "builtin" ? "local" : preset.provider === "ollama" ? "ollama" : "local",
+    api_key:
+      preset.mode === "builtin" || preset.mode === "platform_native"
+        ? "local"
+        : preset.provider === "ollama"
+          ? "ollama"
+          : "local",
     api_key_ref: null,
     temperature: null,
     max_tokens: null,
@@ -43,6 +49,7 @@ export function LocalPresetsPanel({ catalog, existingIds }: Props) {
     qc.invalidateQueries({ queryKey: ["models-registry"] });
     qc.invalidateQueries({ queryKey: ["llm-config"] });
     qc.invalidateQueries({ queryKey: ["runtime-settings"] });
+    qc.invalidateQueries({ queryKey: ["media-status"] });
   };
 
   const applyPreset = useMutation({
@@ -109,6 +116,19 @@ export function LocalPresetsPanel({ catalog, existingIds }: Props) {
               {(byCap.get(cap) ?? []).map((preset) => {
                 const installed = existingIds.has(preset.id);
                 const needsBuild = preset.mode === "builtin" && !preset.feature_available;
+                const desktopBlocked = preset.desktop_only && !isTauriDesktop();
+                const modeLabel =
+                  preset.mode === "builtin"
+                    ? t("settings.model.localPresets.modeBuiltin")
+                    : preset.mode === "platform_native"
+                      ? t("settings.model.localPresets.modePlatformNative")
+                      : t("settings.model.localPresets.modeExternal");
+                const modeClass =
+                  preset.mode === "builtin"
+                    ? "bg-primary/10 text-primary"
+                    : preset.mode === "platform_native"
+                      ? "bg-tertiary/10 text-tertiary"
+                      : "bg-secondary/10 text-secondary";
                 return (
                   <div
                     key={preset.id}
@@ -117,17 +137,16 @@ export function LocalPresetsPanel({ catalog, existingIds }: Props) {
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-sm font-medium m-0">{preset.label}</span>
                       <span
-                        className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${
-                          preset.mode === "builtin"
-                            ? "bg-primary/10 text-primary"
-                            : "bg-secondary/10 text-secondary"
-                        }`}
+                        className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 ${modeClass}`}
                       >
-                        {preset.mode === "builtin"
-                          ? t("settings.model.localPresets.modeBuiltin")
-                          : t("settings.model.localPresets.modeExternal")}
+                        {modeLabel}
                       </span>
                     </div>
+                    {preset.desktop_only && (
+                      <span className="text-[10px] text-secondary uppercase tracking-wide">
+                        {t("settings.model.localPresets.desktopOnly")}
+                      </span>
+                    )}
                     <p className="text-xs text-secondary m-0">{preset.description}</p>
                     {preset.model_download_hint && (
                       <p className="text-[11px] font-code text-secondary m-0 truncate" title={preset.model_download_hint}>
@@ -155,8 +174,12 @@ export function LocalPresetsPanel({ catalog, existingIds }: Props) {
                     <button
                       type="button"
                       className="dw-btn-secondary text-xs mt-1 self-start"
-                      disabled={applyPreset.isPending || installed}
-                      onClick={() => applyPreset.mutate(preset)}
+                      disabled={applyPreset.isPending || installed || desktopBlocked}
+                      title={desktopBlocked ? t("settings.model.localPresets.desktopRequired") : undefined}
+                      onClick={() => {
+                        if (desktopBlocked) return;
+                        applyPreset.mutate(preset);
+                      }}
                     >
                       {installed
                         ? t("settings.model.localPresets.installed")

@@ -12,5 +12,6 @@ export function useMediaStatus() {
     ...query,
     sttAvailable: query.data?.stt_configured === true,
     sttBuiltin: query.data?.stt_builtin === true,
+    sttProvider: query.data?.stt_provider ?? null,
   };
 }

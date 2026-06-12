@@ -12,6 +12,7 @@ mod fields;
 mod ilink;
 pub(crate) mod outbound_queue;
 mod permission;
+mod send_media;
 mod store;
 mod voice_stt;
 

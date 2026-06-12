@@ -939,6 +939,114 @@
     @apply text-xs text-secondary m-0 mt-0.5 leading-snug;
   }
 
+  .dw-home-workbench {
+    @apply w-full max-w-4xl flex flex-col gap-3;
+  }
+
+  .dw-home-workbench__grid {
+    @apply grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-3;
+  }
+
+  .dw-home-panel {
+    @apply rounded-xl border border-outline-variant/70 bg-surface-container-lowest shadow-sm overflow-hidden;
+  }
+
+  .dw-home-panel__head {
+    @apply flex items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant/50 bg-surface-bright;
+  }
+
+  .dw-home-panel__title {
+    @apply text-sm font-semibold text-on-surface m-0;
+  }
+
+  .dw-home-panel__sub {
+    @apply text-xs text-secondary m-0 mt-0.5;
+  }
+
+  .dw-home-panel__link {
+    @apply text-xs font-medium text-primary no-underline shrink-0 hover:underline;
+  }
+
+  .dw-home-recent-list {
+    @apply divide-y divide-outline-variant/35;
+  }
+
+  .dw-home-recent-item {
+    @apply flex items-center gap-3 px-4 py-3 no-underline transition-colors hover:bg-surface-container-low;
+  }
+
+  .dw-home-recent-item__icon {
+    @apply flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0;
+  }
+
+  .dw-home-recent-item__name {
+    @apply block truncate text-sm font-medium text-on-surface;
+  }
+
+  .dw-home-recent-item__meta {
+    @apply block truncate text-xs text-secondary mt-0.5;
+  }
+
+  .dw-home-pending-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-2 p-3;
+  }
+
+  .dw-home-pending-item {
+    @apply flex min-w-0 items-center gap-2.5 rounded-lg border border-outline-variant/45 bg-surface-container-low px-3 py-2.5 text-left no-underline transition-colors hover:border-primary/30 hover:bg-surface-container;
+  }
+
+  .dw-home-pending-item__icon {
+    @apply flex h-8 w-8 items-center justify-center rounded-lg shrink-0;
+  }
+
+  .dw-home-pending-item__icon--error {
+    @apply bg-error/10 text-error;
+  }
+
+  .dw-home-pending-item__icon--warn {
+    @apply bg-warn/15 text-warn;
+  }
+
+  .dw-home-pending-item__icon--neutral {
+    @apply bg-surface-container-high text-secondary;
+  }
+
+  .dw-home-pending-item__label {
+    @apply block truncate text-xs font-medium text-on-surface;
+  }
+
+  .dw-home-pending-item__detail {
+    @apply block truncate text-[11px] text-secondary mt-0.5;
+  }
+
+  .dw-home-pending-item__value {
+    @apply text-base font-semibold tabular-nums shrink-0;
+  }
+
+  .dw-home-pending-item__value--error {
+    @apply text-error;
+  }
+
+  .dw-home-pending-item__value--warn {
+    @apply text-warn;
+  }
+
+  .dw-home-pending-item__value--neutral {
+    @apply text-secondary;
+  }
+
+  .dw-home-action-bar {
+    @apply flex flex-wrap items-center justify-center gap-2 rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-3 py-2.5 shadow-sm;
+  }
+
+  .dw-home-action {
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/55 bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface no-underline transition-colors hover:border-primary/30 hover:bg-surface-container disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .dw-home-empty {
+    @apply px-4 py-6 text-sm text-secondary m-0;
+  }
+
   .dw-overview-pills {
     @apply flex flex-wrap items-center gap-2;
   }
@@ -1137,4 +1245,23 @@ html.dark .dw-hero-composer__submit:not(:disabled):hover {
   border-radius: 0.5rem;
   max-width: 100%;
   overflow-x: auto;
+}
+
+.setup-wechat-qr__svg {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+  background: #fff;
+  border-radius: 0.375rem;
+}
+
+.setup-wechat-qr__svg svg {
+  display: block;
+  width: 240px;
+  height: 240px;
+}
+
+.setup-wechat-qr__matrix {
+  line-height: 1.1;
+  letter-spacing: 0;
 }

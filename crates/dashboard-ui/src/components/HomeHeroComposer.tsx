@@ -132,19 +132,21 @@ export function HomeHeroComposer({
             </select>
             <Icon name="expand_more" size={14} className="text-secondary shrink-0 pointer-events-none" />
           </label>
-          <VoiceInputButton
-            disabled={start.isPending}
-            onTranscribed={(text) => setPrompt((prev) => mergeVoiceTranscript(prev, text))}
-          />
-          <button
-            type="button"
-            className="dw-hero-composer__submit"
-            disabled={!canSubmit}
-            aria-label={t("home.hero.send")}
-            onClick={() => start.mutate()}
-          >
-            <Icon name="arrow_upward" size={20} className="text-on-primary" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <VoiceInputButton
+              disabled={start.isPending}
+              onTranscribed={(text) => setPrompt((prev) => mergeVoiceTranscript(prev, text))}
+            />
+            <button
+              type="button"
+              className="dw-hero-composer__submit"
+              disabled={!canSubmit}
+              aria-label={t("home.hero.send")}
+              onClick={() => start.mutate()}
+            >
+              <Icon name="arrow_upward" size={20} className="text-on-primary" />
+            </button>
+          </div>
         </div>
       </div>
 

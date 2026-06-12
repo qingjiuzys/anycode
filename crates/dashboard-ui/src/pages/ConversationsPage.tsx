@@ -417,24 +417,24 @@ export function ConversationsPage() {
                 listCollapsed ? "lg:col-span-9 lg:border-r" : "lg:col-span-6 lg:border-r"
               }`}
             >
-              {listCollapsed && (
-                <div className="hidden lg:flex px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
-                  <button
-                    type="button"
-                    className="dw-btn-secondary text-xs"
-                    onClick={() => setListCollapsed(false)}
-                  >
-                    <Icon name="chevron_right" size={16} />
-                    {t("conversations.listExpand")}
-                  </button>
-                </div>
-              )}
               <div className="flex-1 min-h-0 flex flex-col">
                 <ConversationThread
                   session={selected}
                   onFollowUpStarted={selectSession}
                   showHeader={false}
                   sseLive={sseLive}
+                  toolbarStart={
+                    listCollapsed ? (
+                      <button
+                        type="button"
+                        className="dw-btn-secondary text-xs"
+                        onClick={() => setListCollapsed(false)}
+                      >
+                        <Icon name="chevron_right" size={16} />
+                        {t("conversations.listExpand")}
+                      </button>
+                    ) : undefined
+                  }
                 />
               </div>
             </div>

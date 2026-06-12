@@ -43,6 +43,9 @@ pub fn default_db_path() -> PathBuf {
 
 pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Result<()> {
     let _ = anycode_setup::ensure_layout();
+    if let Err(e) = crate::media_defaults::ensure_default_local_stt() {
+        tracing::warn!(error = %e, "default local STT bootstrap skipped");
+    }
     crate::control::task_trigger::init_default_anycode_bin();
     let db = DashboardDb::open(&config.db_path)
         .await

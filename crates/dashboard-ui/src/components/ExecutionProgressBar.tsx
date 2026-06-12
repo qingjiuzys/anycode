@@ -15,9 +15,16 @@ type Props = {
   sessionId: string;
   isRunning?: boolean;
   sseLive?: boolean;
+  /** When true, omit outer chrome (parent row provides border/padding). */
+  embedded?: boolean;
 };
 
-export function ExecutionProgressBar({ sessionId, isRunning, sseLive = false }: Props) {
+export function ExecutionProgressBar({
+  sessionId,
+  isRunning,
+  sseLive = false,
+  embedded = false,
+}: Props) {
   const t = useT();
   const [collapsed, setCollapsed] = useState(false);
   const pollWhileRunning = Boolean(isRunning) && !sseLive;
@@ -78,7 +85,13 @@ export function ExecutionProgressBar({ sessionId, isRunning, sseLive = false }: 
   const doneCount = steps.filter((s) => s.status === "done").length;
 
   return (
-    <div className="px-4 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
+    <div
+      className={
+        embedded
+          ? "min-w-0"
+          : "px-4 py-2 border-b border-outline-variant bg-surface-container-low shrink-0"
+      }
+    >
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide text-secondary inline-flex items-center gap-1.5">
           <Icon name="timeline" size={14} />

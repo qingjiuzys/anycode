@@ -14,27 +14,38 @@ export class VoiceRecordingError extends Error {
   }
 }
 
+/** Reject accidental tap-and-stop before STT (Apple Speech / whisper). */
+export const MIN_RECORDING_MS = 500;
+
 type ActiveRecording = {
   recorder: MediaRecorder;
   stream: MediaStream;
   chunks: BlobPart[];
   mimeType: string;
+  startedAt: number;
 };
 
 let active: ActiveRecording | null = null;
 
 function pickMimeType(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
-  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mp4;codecs=mp4a",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
   return candidates.find((t) => MediaRecorder.isTypeSupported(t));
 }
 
+/** True when getUserMedia + MediaRecorder exist (mime type may be chosen at record time). */
 export function isVoiceRecordingSupported(): boolean {
   return (
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices?.getUserMedia &&
-    typeof MediaRecorder !== "undefined" &&
-    pickMimeType() !== undefined
+    typeof MediaRecorder !== "undefined"
   );
 }
 
@@ -55,14 +66,27 @@ export async function startRecording(): Promise<void> {
     }
     throw new VoiceRecordingError("unsupported", e instanceof Error ? e.message : String(e));
   }
-  const mimeType = pickMimeType()!;
-  const recorder = new MediaRecorder(stream, { mimeType });
+  const mimeType = pickMimeType();
+  const recorder = mimeType
+    ? new MediaRecorder(stream, { mimeType })
+    : new MediaRecorder(stream);
   const chunks: BlobPart[] = [];
   recorder.ondataavailable = (ev) => {
     if (ev.data.size > 0) chunks.push(ev.data);
   };
   recorder.start(250);
-  active = { recorder, stream, chunks, mimeType };
+  active = {
+    recorder,
+    stream,
+    chunks,
+    mimeType: mimeType ?? recorder.mimeType ?? "audio/mp4",
+    startedAt: Date.now(),
+  };
+}
+
+export function recordingElapsedMs(): number {
+  if (!active) return 0;
+  return Date.now() - active.startedAt;
 }
 
 export function isRecording(): boolean {
@@ -103,11 +127,16 @@ export async function stopRecording(): Promise<Blob> {
   for (const track of session.stream.getTracks()) {
     track.stop();
   }
+  const elapsed = Date.now() - session.startedAt;
+  if (elapsed < MIN_RECORDING_MS) {
+    throw new VoiceRecordingError("empty_recording", "Recording too short");
+  }
   return blob;
 }
 
 export function extensionForMime(mime: string): string {
   if (mime.includes("wav")) return "wav";
+  if (mime.includes("mp4") || mime.includes("m4a")) return "m4a";
   if (mime.includes("ogg")) return "ogg";
   return "webm";
 }

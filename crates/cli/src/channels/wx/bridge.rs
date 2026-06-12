@@ -6,7 +6,9 @@ use super::cdn_media::{
     has_voice_item_without_stt,
 };
 use super::commands::{route_command, CmdCtx, CmdOut};
-use super::deliverable::{extract_deliverable_path, send_deliverable_file, with_deliverable_hint};
+use super::deliverable::{
+    collect_outbound_media_paths, send_outbound_media_paths, with_deliverable_hint,
+};
 use super::fields::{
     i64_snake_camel, item_type, msgs_array, str_snake_camel, sync_buf_from_response,
 };
@@ -653,6 +655,7 @@ async fn run_agent_pipeline(
     let h = tokio::spawn(async move {
         let coop = Arc::new(AtomicBool::new(false));
         *wx_turn_cancel_slot.lock().unwrap() = Some(coop.clone());
+        let cwd_for_media = cwd.clone();
 
         let _ = sender
             .send_text(&from_user_id, &context_token, &tr("wx-task-running"))
@@ -686,12 +689,13 @@ async fn run_agent_pipeline(
         gate.set_active_chat(None).await;
 
         let mut session = session_arc.lock().await;
-        let mut deliverable_path: Option<String> = None;
+        let mut outbound_media_paths = Vec::new();
         let reply = match result {
-            Ok(TaskResult::Success { output, .. }) => {
+            Ok(TaskResult::Success { output, artifacts }) => {
                 let cleaned = sanitize_wechat_reply_output(&output);
                 add_chat_message(&mut session, "assistant", &cleaned);
-                deliverable_path = extract_deliverable_path(&output);
+                outbound_media_paths =
+                    collect_outbound_media_paths(&artifacts, &output, Some(&cwd_for_media));
                 with_deliverable_hint(cleaned, &output)
             }
             Ok(TaskResult::Failure { error, details }) => {
@@ -708,8 +712,11 @@ async fn run_agent_pipeline(
                 reply
             }
             Ok(TaskResult::Partial { success, remaining }) => {
-                let t = sanitize_wechat_reply_output(&format!("{}\n{}", success, remaining));
+                let combined = format!("{success}\n{remaining}");
+                let t = sanitize_wechat_reply_output(&combined);
                 add_chat_message(&mut session, "assistant", &t);
+                outbound_media_paths =
+                    collect_outbound_media_paths(&[], &combined, Some(&cwd_for_media));
                 t
             }
             Err(e) => {
@@ -734,15 +741,16 @@ async fn run_agent_pipeline(
                 );
             }
         }
-        if let Some(path) = deliverable_path {
-            if let Err(e) =
-                send_deliverable_file(&sender, &from_user_id, &context_token, &path).await
+        if !outbound_media_paths.is_empty() {
+            if let Err(e) = send_outbound_media_paths(
+                &sender,
+                &from_user_id,
+                &context_token,
+                &outbound_media_paths,
+            )
+            .await
             {
-                tracing::warn!(
-                    error = %e,
-                    path = %path,
-                    "wx deliverable file send failed"
-                );
+                tracing::warn!(error = %e, "wx outbound media batch send failed");
             }
         }
         let _ = active_task.lock().await.take();
@@ -792,6 +800,14 @@ fn build_wechat_system_append(
             .to_string(),
     );
     sections.push(crate::channel_task::im_channel_cron_scheduling_hint().to_string());
+    sections.push(
+        "## WeChat outbound files（出站文件）\n\
+         - When you create files the user should receive (reports, images, exports), include the **absolute path** in your final reply; the bridge auto-sends via WeChat CDN.\n\
+         - Prefer `.png`/`.jpg` for screenshots; `.pdf`/`.docx`/`.zip` for documents; `.mp4` for short videos.\n\
+         - Single file limit: 10 MB; larger files — tell the user the local path only.\n\
+         - 中文：需要发给用户的文件，请在最终回复写出**绝对路径**；桥接会自动通过 CDN 发送。单文件 ≤10MB。"
+            .to_string(),
+    );
     if let Some(existing) = existing {
         if !existing.trim().is_empty() {
             sections.push(existing.trim().to_string());

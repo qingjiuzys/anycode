@@ -1,0 +1,8 @@
+[[permission]]
+identifier = "apple-media-default"
+description = "Apple native STT and OCR via anycode-apple-media helper"
+commands.allow = [
+  "apple_media_capabilities",
+  "apple_media_transcribe",
+  "apple_media_ocr_image",
+]
