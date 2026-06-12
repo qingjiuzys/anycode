@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-skin="indigo" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Overview — anyCode Glass</title>
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/glass.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../shared/base.css" />
+</head>
+<body>
+<div class="dw-shell">
+  <aside class="dw-sidebar glass-panel">
+    <div class="dw-sidebar-brand">anyCode</div>
+    <nav class="dw-nav">
+      <a class="dw-nav-link" href="home.html">Home</a>
+      <a class="dw-nav-link dw-nav-link--active" href="overview.html">Overview</a>
+      <a class="dw-nav-link" href="conversations.html">Conversations</a>
+    </nav>
+  </aside>
+  <div class="dw-main-wrap">
+    <header class="dw-topbar glass-panel">
+      <strong>Overview</strong>
+      <div class="dw-topbar-right no-drag">
+        <button type="button" class="skin-swatch skin-swatch--teal" data-skin-btn="teal" aria-pressed="false"></button>
+        <button type="button" class="btn-ghost" id="theme-toggle">Light</button>
+      </div>
+    </header>
+    <main class="dw-main">
+      <div class="kpi-grid">
+        <div class="glass-card kpi-card glass-card--static"><div class="label">Sessions</div><div class="value">128</div></div>
+        <div class="glass-card kpi-card glass-card--static"><div class="label">Success rate</div><div class="value">94%</div></div>
+        <div class="glass-card kpi-card glass-card--static"><div class="label">Tokens</div><div class="value">2.4M</div></div>
+        <div class="glass-card kpi-card glass-card--static"><div class="label">Saved hours</div><div class="value">36h</div></div>
+      </div>
+      <div class="overview-layout">
+        <div class="glass-card chart-card glass-card--static">
+          <div class="label" style="margin-bottom:16px">Session activity</div>
+          <svg viewBox="0 0 400 120" preserveAspectRatio="none">
+            <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,90 L50,70 L100,75 L150,40 L200,55 L250,30 L300,45 L350,20 L400,35 L400,120 L0,120 Z" fill="url(#g)"/>
+            <polyline points="0,90 50,70 100,75 150,40 200,55 250,30 300,45 350,20 400,35" fill="none" stroke="var(--accent)" stroke-width="2"/>
+          </svg>
+        </div>
+        <div>
+          <div class="glass-card glass-card--static" style="padding:16px;margin-bottom:16px">
+            <strong>Recent sessions</strong>
+            <p style="font-size:12px;color:var(--on-surface-variant);margin:8px 0 0">rate-limit · completed</p>
+            <p style="font-size:12px;color:var(--on-surface-variant);margin:4px 0 0">wechat-send · running</p>
+          </div>
+          <div class="glass-card glass-card--static" style="padding:16px">
+            <strong>Approvals</strong>
+            <p style="font-size:12px;color:var(--warn);margin:8px 0 0">1 pending Bash</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../shared/shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-skin="indigo" class="dark dw-tauri">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home — anyCode Glass</title>
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/glass.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../shared/base.css" />
+</head>
+<body>
+<div class="dw-shell">
+  <aside class="dw-sidebar glass-panel">
+    <div class="dw-sidebar-brand">anyCode<small>Workbench</small></div>
+    <nav class="dw-nav">
+      <a class="dw-nav-link dw-nav-link--active" href="home.html">Home</a>
+      <a class="dw-nav-link" href="overview.html">Overview</a>
+      <a class="dw-nav-link" href="conversations.html">Conversations</a>
+      <a class="dw-nav-link" href="settings-skin.html">Settings</a>
+    </nav>
+    <div class="dw-sidebar-footer" style="font-size:11px;color:var(--on-surface-variant)">Pro Plan</div>
+  </aside>
+  <div class="dw-main-wrap">
+    <header class="dw-topbar glass-panel">
+      <div class="no-drag"></div>
+      <div class="dw-topbar-right no-drag">
+        <span class="status-dot"></span>
+        <button type="button" class="skin-swatch skin-swatch--mono" data-skin-btn="mono" aria-pressed="false"></button>
+        <button type="button" class="skin-swatch skin-swatch--indigo" data-skin-btn="indigo" aria-pressed="true"></button>
+        <button type="button" class="skin-swatch skin-swatch--coral" data-skin-btn="coral" aria-pressed="false"></button>
+        <button type="button" class="skin-swatch skin-swatch--teal" data-skin-btn="teal" aria-pressed="false"></button>
+        <button type="button" class="btn-ghost" id="theme-toggle">Light</button>
+      </div>
+    </header>
+    <main class="dw-main">
+      <div class="hero-glow"></div>
+      <section class="dw-home-hero">
+        <h1>Build with your <span class="accent-text">agent</span></h1>
+        <p>Plan, code, test, and ship with AI by your side.</p>
+      </section>
+      <section class="dw-composer glass-panel">
+        <textarea placeholder="What would you like to build today?" aria-label="Prompt"></textarea>
+        <div class="dw-composer-toolbar">
+          <div class="dw-composer-tools">
+            <button type="button" class="btn-ghost">Attach</button>
+            <button type="button" class="btn-ghost">@</button>
+            <button type="button" class="btn-ghost">Code</button>
+          </div>
+          <button type="button" class="btn-accent" aria-label="Send">↑</button>
+        </div>
+      </section>
+      <div class="dw-suggestion-grid">
+        <article class="glass-card"><h3>Scaffold an API</h3><p>Create REST endpoints with auth and tests.</p></article>
+        <article class="glass-card"><h3>Fix and optimize</h3><p>Find bugs and improve performance.</p></article>
+        <article class="glass-card"><h3>Automate workflows</h3><p>Connect cron, channels, and agents.</p></article>
+      </div>
+      <footer class="dw-home-footer">anyCode Workbench · v0.2.0 · <a href="index.html">All prototypes</a></footer>
+    </main>
+  </div>
+</div>
+<script src="../shared/shell.js"></script>
+</body>
+</html>

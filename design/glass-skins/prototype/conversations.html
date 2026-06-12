@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-skin="indigo" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversations — anyCode Glass</title>
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/glass.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../shared/base.css" />
+</head>
+<body>
+<div class="dw-shell">
+  <div class="dw-main-wrap" style="margin-left:0">
+    <header class="dw-topbar glass-panel">
+      <a href="index.html" class="btn-ghost no-drag">← Hub</a>
+      <div class="dw-topbar-right no-drag">
+        <button type="button" class="skin-swatch skin-swatch--indigo" data-skin-btn="indigo" aria-pressed="true"></button>
+        <button type="button" class="skin-swatch skin-swatch--coral" data-skin-btn="coral" aria-pressed="false"></button>
+        <button type="button" class="btn-ghost" id="theme-toggle">Light</button>
+      </div>
+    </header>
+    <div class="conv-layout">
+      <aside class="conv-sidebar glass-panel">
+        <button type="button" class="btn-ghost" style="width:100%;margin-bottom:12px">+ New conversation</button>
+        <div class="conv-session-group">Today</div>
+        <div class="conv-session-item conv-session-item--active">Add rate limiting middleware</div>
+        <div class="conv-session-item">WeChat send test</div>
+        <div class="conv-session-group">Yesterday</div>
+        <div class="conv-session-item">Office report export</div>
+      </aside>
+      <section class="conv-thread">
+        <div class="conv-messages">
+          <div class="bubble-row bubble-row--user">
+            <div class="bubble-user">帮我给 API 加上 rate limiting，每分钟 100 次。</div>
+          </div>
+          <div class="bubble-row bubble-row--assistant">
+            <div class="bubble-assistant glass-panel">
+              <p style="margin:0 0 12px">已在 middleware 目录创建限流中间件，默认 100 req/min。</p>
+              <div class="code-block">
+                <div class="code-block__header"><span>middleware/rateLimit.ts</span><span>Copy</span></div>
+                <pre class="code-block__body">export function rateLimit(max = 100) {
+  // token bucket per IP
+}</pre>
+              </div>
+              <div class="tool-strip" style="margin-top:12px">▸ 3 tool calls · Bash, Edit</div>
+            </div>
+          </div>
+          <div class="bubble-row bubble-row--assistant">
+            <div class="bubble-assistant glass-panel typing-dots"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+        <section class="dw-composer dw-composer--sticky glass-panel">
+          <textarea placeholder="Ask anyCode…" rows="2" style="min-height:48px"></textarea>
+          <div class="dw-composer-toolbar">
+            <div class="dw-composer-tools"><button type="button" class="btn-ghost">Attach</button></div>
+            <button type="button" class="btn-accent">↑</button>
+          </div>
+        </section>
+      </section>
+      <aside class="conv-artifacts glass-panel">
+        <strong>Artifacts (0)</strong>
+        <p style="margin-top:12px;font-size:12px">Generated files will appear here.</p>
+      </aside>
+    </div>
+  </div>
+</div>
+<script src="../shared/shell.js"></script>
+</body>
+</html>

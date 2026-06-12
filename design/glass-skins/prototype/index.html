@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-skin="indigo" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anyCode Glass Skins — Hub</title>
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/glass.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../shared/base.css" />
+</head>
+<body>
+  <div class="hub-toolbar glass-panel">
+    <span style="font-weight:600">Skin</span>
+    <button type="button" class="skin-swatch skin-swatch--mono" data-skin-btn="mono" aria-pressed="false" title="Mono"></button>
+    <button type="button" class="skin-swatch skin-swatch--indigo" data-skin-btn="indigo" aria-pressed="true" title="Indigo"></button>
+    <button type="button" class="skin-swatch skin-swatch--coral" data-skin-btn="coral" aria-pressed="false" title="Coral"></button>
+    <button type="button" class="skin-swatch skin-swatch--teal" data-skin-btn="teal" aria-pressed="false" title="Teal"></button>
+    <button type="button" class="btn-ghost" id="theme-toggle">Light</button>
+  </div>
+
+  <main class="dw-main" style="max-width:960px;margin:0 auto">
+    <div class="dw-home-hero" style="margin-top:24px">
+      <h1>anyCode <span class="accent-text">Glass Skins</span></h1>
+      <p>4 套 macOS 毛玻璃皮肤 · HTML 设计原型</p>
+    </div>
+
+    <div class="hub-grid">
+      <a class="glass-card hub-card" href="home.html">
+        <h3>Home</h3>
+        <p>客户端首页 · Hero + Composer + 建议卡片</p>
+      </a>
+      <a class="glass-card hub-card" href="conversations.html">
+        <h3>Conversations</h3>
+        <p>三栏会话 · 气泡 + 工具条 + Composer</p>
+      </a>
+      <a class="glass-card hub-card" href="overview.html">
+        <h3>Overview</h3>
+        <p>KPI + SVG 图表 + 侧栏列表</p>
+      </a>
+      <a class="glass-card hub-card" href="settings-skin.html" style="grid-column: span 2">
+        <h3>Settings — Skin Picker</h3>
+        <p>2×2 皮肤预览选择器</p>
+      </a>
+    </div>
+
+    <p class="hub-status" id="hub-status">Skin: indigo · Theme: dark</p>
+  </main>
+  <script src="../shared/shell.js"></script>
+</body>
+</html>

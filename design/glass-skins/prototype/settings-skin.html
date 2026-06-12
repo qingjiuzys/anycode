@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-skin="indigo" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skin Picker — anyCode Glass</title>
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/glass.css" />
+  <link rel="stylesheet" href="../shared/motion.css" />
+  <link rel="stylesheet" href="../shared/base.css" />
+</head>
+<body>
+<main class="dw-main" style="max-width:640px;margin:0 auto">
+  <h1 style="font-size:24px;font-weight:600">Appearance</h1>
+  <p style="color:var(--on-surface-variant)">Choose a skin accent. Works with light and dark mode.</p>
+  <div class="skin-picker-grid" style="margin-top:24px">
+    <div class="glass-card skin-preview-card" data-skin-btn="mono" role="button" tabindex="0">
+      <strong>Mono</strong><p style="font-size:12px;color:var(--on-surface-variant)">无彩色</p>
+      <div class="skin-preview-mini"><div class="skin-preview-mini-bar"></div><div class="skin-preview-mini-dot" style="background:#fff"></div></div>
+    </div>
+    <div class="glass-card skin-preview-card skin-preview-card--selected" data-skin-btn="indigo" role="button" tabindex="0">
+      <strong>Indigo</strong><p style="font-size:12px;color:var(--on-surface-variant)">电光蓝紫</p>
+      <div class="skin-preview-mini"><div class="skin-preview-mini-bar"></div><div class="skin-preview-mini-dot"></div></div>
+    </div>
+    <div class="glass-card skin-preview-card" data-skin-btn="coral" role="button" tabindex="0">
+      <strong>Coral</strong><p style="font-size:12px;color:var(--on-surface-variant)">珊瑚暖橙</p>
+      <div class="skin-preview-mini"><div class="skin-preview-mini-bar"></div><div class="skin-preview-mini-dot" style="background:#e8826b"></div></div>
+    </div>
+    <div class="glass-card skin-preview-card" data-skin-btn="teal" role="button" tabindex="0">
+      <strong>Teal</strong><p style="font-size:12px;color:var(--on-surface-variant)">青绿</p>
+      <div class="skin-preview-mini"><div class="skin-preview-mini-bar"></div><div class="skin-preview-mini-dot" style="background:#2dd4bf"></div></div>
+    </div>
+  </div>
+  <p style="margin-top:24px"><button type="button" class="btn-ghost" id="theme-toggle">Toggle light/dark</button></p>
+  <p style="font-size:12px;color:var(--on-surface-variant)"><a href="index.html">← Back to hub</a></p>
+</main>
+<script src="../shared/shell.js"></script>
+<script>
+document.querySelectorAll('.skin-preview-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.skin-preview-card').forEach(c => c.classList.remove('skin-preview-card--selected'));
+    card.classList.add('skin-preview-card--selected');
+  });
+});
+</script>
+</body>
+</html>
