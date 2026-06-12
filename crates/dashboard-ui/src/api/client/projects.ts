@@ -9,6 +9,7 @@ import type {
   ProjectEvent,
   ProjectMetrics,
   ProjectStats,
+  ProjectViewPrefs,
   ProjectsListResponse,
   ReportDocument,
   SessionDetail,
@@ -26,6 +27,13 @@ export interface WebChatResult {
   log_path: string;
   started_at: string;
   queued: boolean;
+}
+
+/** Current UI language (same persistence as the i18n provider) for reply-language hints. */
+function currentUiLang(): "zh" | "en" {
+  const saved = localStorage.getItem("anycode-dashboard-locale");
+  if (saved === "en" || saved === "zh") return saved;
+  return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
 export const projectsClient = {
@@ -116,11 +124,13 @@ export const projectsClient = {
       agent?: string;
       skills?: string[];
       vision_images?: { mime_type: string; data_base64: string }[];
+      text_files?: { filename: string; content: string }[];
+      lang?: string;
     },
   ) =>
     post<{ session: SessionDetail; chat: WebChatResult }>(
       `/api/projects/${encodeURIComponent(projectId)}/conversations/start`,
-      body,
+      { lang: currentUiLang(), ...body },
     ),
   sendSessionMessage: (
     sessionId: string,
@@ -129,11 +139,13 @@ export const projectsClient = {
       agent?: string;
       skills?: string[];
       vision_images?: { mime_type: string; data_base64: string }[];
+      text_files?: { filename: string; content: string }[];
+      lang?: string;
     },
   ) =>
     post<{ ok: boolean; session_id: string; chat: WebChatResult }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/message`,
-      body,
+      { lang: currentUiLang(), ...body },
     ),
   indexProjectAssets: (projectId: string) =>
     post<{ ok: boolean; result: IndexAssetsResult }>(
@@ -207,5 +219,19 @@ export const projectsClient = {
     patch<{ ok: boolean; project_id: string; status: string }>(
       `/api/projects/${encodeURIComponent(projectId)}/status`,
       { status },
+    ),
+  renameProject: (projectId: string, name: string) =>
+    patch<{ ok: boolean; project_id: string; name: string }>(
+      `/api/projects/${encodeURIComponent(projectId)}`,
+      { name },
+    ),
+  projectViewPrefs: (projectId: string) =>
+    get<{ view_prefs: ProjectViewPrefs }>(
+      `/api/projects/${encodeURIComponent(projectId)}/view-prefs`,
+    ),
+  setProjectViewPrefs: (projectId: string, prefs: ProjectViewPrefs) =>
+    put<{ ok: boolean; view_prefs: ProjectViewPrefs }>(
+      `/api/projects/${encodeURIComponent(projectId)}/view-prefs`,
+      prefs,
     ),
 };

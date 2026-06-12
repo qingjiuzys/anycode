@@ -69,6 +69,7 @@ fn parses_extended_skill_frontmatter() {
     assert_eq!(foo.model.as_deref(), Some("plan"));
     assert_eq!(foo.approval.as_deref(), Some("required"));
     assert_eq!(foo.channel_capabilities, vec!["inlineButtons"]);
+    assert_eq!(foo.category.as_deref(), Some("dev"));
 }
 
 #[test]

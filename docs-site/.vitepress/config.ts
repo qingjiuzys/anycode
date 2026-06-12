@@ -33,6 +33,8 @@ const guideSidebarEn = [
     collapsed: true,
     items: [
       { text: 'WeChat & setup', link: '/guide/wechat' },
+      { text: 'Telegram', link: '/guide/telegram' },
+      { text: 'Discord', link: '/guide/discord' },
       { text: 'Run, REPL & TUI', link: '/guide/cli-sessions' },
       { text: 'Models', link: '/guide/models' },
       { text: 'Config & security', link: '/guide/config-security' },
@@ -75,6 +77,8 @@ const guideSidebarZh = [
     collapsed: true,
     items: [
       { text: '微信与配置', link: '/zh/guide/wechat' },
+      { text: 'Telegram', link: '/zh/guide/telegram' },
+      { text: 'Discord', link: '/zh/guide/discord' },
       { text: 'run / REPL / 全屏界面', link: '/zh/guide/cli-sessions' },
       { text: '模型与端点', link: '/zh/guide/models' },
       { text: '配置与安全', link: '/zh/guide/config-security' },

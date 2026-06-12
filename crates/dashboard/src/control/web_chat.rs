@@ -53,6 +53,7 @@ impl WebChatHub {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send(
         &self,
         db: DashboardDb,
@@ -62,9 +63,14 @@ impl WebChatHub {
         dashboard_url: &str,
         prompt: &str,
         vision_images: Option<&[crate::control::vision_payload::VisionImagePayload]>,
+        text_files: Option<&[crate::control::text_upload::TextFilePayload]>,
+        reply_lang: Option<&str>,
     ) -> Result<WebChatSendResult> {
         let prompt = prompt.trim();
-        if prompt.is_empty() && vision_images.is_none_or(|v| v.is_empty()) {
+        if prompt.is_empty()
+            && vision_images.is_none_or(|v| v.is_empty())
+            && text_files.is_none_or(|v| v.is_empty())
+        {
             bail!("message is required");
         }
         let root = crate::project_root::ensure_project_root(project_root, false)?;
@@ -92,7 +98,14 @@ impl WebChatHub {
             } else {
                 let proc = tokio::time::timeout(
                     SPAWN_TIMEOUT,
-                    self.spawn_process(db, session_id.to_string(), &root, agent, dashboard_url),
+                    self.spawn_process(
+                        db,
+                        session_id.to_string(),
+                        &root,
+                        agent,
+                        dashboard_url,
+                        reply_lang,
+                    ),
                 )
                 .await
                 .map_err(|_| anyhow::anyhow!("timed out starting web chat process"))??;
@@ -119,6 +132,14 @@ impl WebChatHub {
                         )
                         .await
                         .context("write vision file line to web chat session")?;
+                }
+            }
+            if let Some(files) = text_files.filter(|v| !v.is_empty()) {
+                for path in crate::control::text_upload::write_text_payloads(session_id, files)? {
+                    proc.stdin
+                        .write_all(crate::control::text_upload::text_file_line(&path).as_bytes())
+                        .await
+                        .context("write text file line to web chat session")?;
                 }
             }
             if !prompt.is_empty() {
@@ -157,6 +178,7 @@ impl WebChatHub {
         root: &Path,
         agent: Option<&str>,
         dashboard_url: &str,
+        reply_lang: Option<&str>,
     ) -> Result<WebChatProcess> {
         let dir = dashboard_state_dir().join("web-chat");
         std::fs::create_dir_all(&dir)?;
@@ -179,6 +201,9 @@ impl WebChatHub {
             .env("ANYCODE_MEMORY_ATTACH", "shared")
             .env(crate::ipc::approval_ipc::SESSION_ENV, &session_id)
             .env("ANYCODE_DASHBOARD_SESSION_STICKY", "1");
+        if let Some(lang) = reply_lang.map(str::trim).filter(|l| !l.is_empty()) {
+            cmd.env("ANYCODE_REPLY_LANG", lang);
+        }
         let mut child = cmd.spawn().context("spawn anycode web chat repl")?;
         let pid = child.id().unwrap_or(0);
         let stdin = child
@@ -206,6 +231,23 @@ impl WebChatHub {
             });
             if let Ok(Some(sess)) = db.get_session(&watch_session_id).await {
                 if sess.status == "running" || sess.status == "pending" {
+                    // Surface the failure inline in the conversation transcript.
+                    let _ = db
+                        .insert_event(crate::schema::InsertEventRequest {
+                            project_id: sess.project_id.clone(),
+                            session_id: Some(watch_session_id.clone()),
+                            task_id: None,
+                            agent_id: None,
+                            event_type: "session_error".into(),
+                            severity: Some("error".into()),
+                            title: "Web chat process exited".into(),
+                            body: Some(summary.clone()),
+                            payload: Some(serde_json::json!({
+                                "source": "web_chat",
+                                "log_path": watch_log.display().to_string(),
+                            })),
+                        })
+                        .await;
                     let _ = db
                         .finish_session(&watch_session_id, "failed", Some(&summary))
                         .await;

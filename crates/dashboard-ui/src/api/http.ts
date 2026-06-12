@@ -48,8 +48,8 @@ async function readJsonBody<T>(res: Response, path: string): Promise<T> {
   }
 }
 
-export async function get<T>(path: string): Promise<T> {
-  const res = await fetchWithTimeout(path, fetchOpts, READ_TIMEOUT_MS);
+export async function get<T>(path: string, opts?: { timeoutMs?: number }): Promise<T> {
+  const res = await fetchWithTimeout(path, fetchOpts, opts?.timeoutMs ?? READ_TIMEOUT_MS);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${path}: ${body}`);

@@ -5,6 +5,8 @@ export type ProjectViewPrefs = {
   acceptancePresetIds: string[];
 };
 
+export type ApiProjectViewPrefs = ProjectViewPrefs;
+
 const DEFAULTS: ProjectViewPrefs = {
   sessionFlowLimit: 8,
   hideImportedSessions: false,
@@ -15,35 +17,76 @@ function storageKey(projectId: string) {
   return `anycode-project-view-${projectId}`;
 }
 
+export function clampSessionFlowLimit(n: number): number {
+  if (!Number.isFinite(n)) return 8;
+  return Math.min(20, Math.max(3, Math.round(n)));
+}
+
+export function normalizeProjectViewPrefs(
+  partial: Partial<ProjectViewPrefs> | null | undefined,
+): ProjectViewPrefs {
+  return {
+    sessionFlowLimit: clampSessionFlowLimit(
+      partial?.sessionFlowLimit ?? DEFAULTS.sessionFlowLimit,
+    ),
+    hideImportedSessions: Boolean(partial?.hideImportedSessions),
+    acceptancePresetIds: Array.isArray(partial?.acceptancePresetIds)
+      ? partial!.acceptancePresetIds.filter((x): x is string => typeof x === "string")
+      : DEFAULTS.acceptancePresetIds,
+  };
+}
+
 export function loadProjectViewPrefs(projectId: string): ProjectViewPrefs {
   try {
     const raw = localStorage.getItem(storageKey(projectId));
     if (!raw) return { ...DEFAULTS };
-    const parsed = JSON.parse(raw) as Partial<ProjectViewPrefs>;
-    return {
-      sessionFlowLimit: clampLimit(parsed.sessionFlowLimit ?? DEFAULTS.sessionFlowLimit),
-      hideImportedSessions: Boolean(parsed.hideImportedSessions),
-      acceptancePresetIds: Array.isArray(parsed.acceptancePresetIds)
-        ? parsed.acceptancePresetIds.filter((x): x is string => typeof x === "string")
-        : DEFAULTS.acceptancePresetIds,
-    };
+    return normalizeProjectViewPrefs(JSON.parse(raw) as Partial<ProjectViewPrefs>);
   } catch {
     return { ...DEFAULTS };
   }
 }
 
 export function saveProjectViewPrefs(projectId: string, prefs: ProjectViewPrefs) {
-  localStorage.setItem(
-    storageKey(projectId),
-    JSON.stringify({
-      sessionFlowLimit: clampLimit(prefs.sessionFlowLimit),
-      hideImportedSessions: prefs.hideImportedSessions,
-      acceptancePresetIds: prefs.acceptancePresetIds,
-    }),
-  );
+  const normalized = normalizeProjectViewPrefs(prefs);
+  localStorage.setItem(storageKey(projectId), JSON.stringify(normalized));
+  return normalized;
 }
 
-function clampLimit(n: number): number {
-  if (!Number.isFinite(n)) return 8;
-  return Math.min(20, Math.max(3, Math.round(n)));
+/** Merge server prefs over local defaults; local-only fields win when server is empty. */
+export function mergeProjectViewPrefs(
+  server: Partial<ProjectViewPrefs> | null | undefined,
+  local: ProjectViewPrefs,
+): ProjectViewPrefs {
+  const fromServer = normalizeProjectViewPrefs(server);
+  return normalizeProjectViewPrefs({
+    sessionFlowLimit: fromServer.sessionFlowLimit,
+    hideImportedSessions: fromServer.hideImportedSessions,
+    acceptancePresetIds:
+      fromServer.acceptancePresetIds.length > 0
+        ? fromServer.acceptancePresetIds
+        : local.acceptancePresetIds,
+  });
+}
+
+export function shouldMigrateLocalToServer(
+  server: Partial<ProjectViewPrefs> | null | undefined,
+  local: ProjectViewPrefs,
+): boolean {
+  const fromServer = normalizeProjectViewPrefs(server);
+  if (local.acceptancePresetIds.length > 0 && fromServer.acceptancePresetIds.length === 0) {
+    return true;
+  }
+  if (
+    local.sessionFlowLimit !== DEFAULTS.sessionFlowLimit &&
+    fromServer.sessionFlowLimit === DEFAULTS.sessionFlowLimit
+  ) {
+    return true;
+  }
+  if (
+    local.hideImportedSessions !== DEFAULTS.hideImportedSessions &&
+    fromServer.hideImportedSessions === DEFAULTS.hideImportedSessions
+  ) {
+    return true;
+  }
+  return false;
 }

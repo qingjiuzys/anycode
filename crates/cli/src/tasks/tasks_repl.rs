@@ -269,19 +269,36 @@ pub(crate) async fn run_interactive(
             if trimmed.is_empty() {
                 continue;
             }
-            let prompt_line = if let Some(path) =
+            let (prompt_line, text_paths) = if let Some(path) =
                 crate::vision_prompt::parse_vision_file_line(trimmed)
             {
                 vision_images = crate::vision_prompt::load_vision_file(&path).unwrap_or_default();
                 crate::vision_prompt::remove_vision_file(&path);
-                match lines.next_line().await? {
+                let next = match lines.next_line().await? {
                     None => break,
                     Some(l) => l.trim().to_string(),
-                }
+                };
+                (next, Vec::new())
             } else {
+                let mut text_paths = Vec::new();
+                let mut current = trimmed.to_string();
+                while let Some(path) = crate::text_file_prompt::parse_text_file_line(&current) {
+                    text_paths.push(path);
+                    current = match lines.next_line().await? {
+                        None => break,
+                        Some(l) => l.trim().to_string(),
+                    };
+                }
+                if current.is_empty() && text_paths.is_empty() {
+                    continue;
+                }
                 vision_images.clear();
-                trimmed.to_string()
+                let augmented =
+                    crate::text_file_prompt::augment_prompt_with_text_files(&current, &text_paths);
+                crate::text_file_prompt::remove_text_files(&text_paths);
+                (augmented, text_paths)
             };
+            let _ = text_paths;
             if prompt_line.is_empty() && vision_images.is_empty() {
                 continue;
             }

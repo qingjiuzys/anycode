@@ -1,6 +1,8 @@
-//! Text-to-speech via OpenAI-compatible `audio/speech`.
+//! Text-to-speech via OpenAI-compatible HTTP or on-device Piper.
 
-use crate::media::http::{bearer_headers, http_client, openai_base};
+use crate::local_media_catalog::is_builtin_local_provider;
+use crate::media::http::{bearer_headers, http_client, openai_base, resolve_tts_voice};
+use crate::media::tts_local::synthesize_local;
 use crate::media::MediaProfile;
 use anycode_core::CoreError;
 
@@ -20,12 +22,21 @@ impl TtsClient {
     }
 
     pub async fn synthesize(&self, text: &str) -> Result<TtsResult, CoreError> {
+        if is_builtin_local_provider(&self.profile.provider) {
+            let voice = resolve_tts_voice(&self.profile);
+            let audio_bytes = synthesize_local(&voice, text).await?;
+            return Ok(TtsResult {
+                audio_bytes,
+                content_type: "audio/wav".to_string(),
+            });
+        }
         let base = openai_base(&self.profile)?;
         let url = format!("{}/audio/speech", base.trim_end_matches('/'));
+        let voice = resolve_tts_voice(&self.profile);
         let body = serde_json::json!({
             "model": self.profile.model,
             "input": text,
-            "voice": "alloy"
+            "voice": voice
         });
         let resp = http_client()
             .post(url)

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { DeliveryReadiness, OverviewStats } from "@/api/types";
+import { buildConversationsHref } from "@/lib/conversationsSearch";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
@@ -24,14 +25,12 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
   const risks: {
     label: string;
     to: string;
-    trusted?: "blocked";
     trust?: "unverified";
   }[] = [];
   if (overview.sessions_blocked > 0) {
     risks.push({
       label: t("home.insightBlocked").replace("{n}", String(overview.sessions_blocked)),
-      to: "/conversations",
-      trusted: "blocked",
+      to: buildConversationsHref({ filter: "blocked" }),
     });
   }
   if (overview.gates_failed > 0) {
@@ -51,7 +50,6 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
   const suggestions: {
     label: string;
     to: string;
-    search?: { status?: "running" };
     params?: { projectId: string };
   }[] = [];
   if (overview.projects_count === 0) {
@@ -70,8 +68,7 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
   if (overview.sessions_running > 0) {
     suggestions.push({
       label: t("home.suggestRunning"),
-      to: "/conversations",
-      search: { status: "running" },
+      to: buildConversationsHref({ filter: "running" }),
     });
   }
 
@@ -101,15 +98,9 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
               <li key={r.label}>
                 <Link
                   to={r.to}
-                  search={
-                    r.trusted
-                      ? { trusted: r.trusted }
-                      : r.trust
-                        ? { trust: r.trust }
-                        : undefined
-                  }
+                  search={r.trust ? { trust: r.trust } : undefined}
                   className={`text-sm no-underline hover:underline ${
-                    r.trusted === "blocked"
+                    r.to.includes("filter=blocked")
                       ? "text-error"
                       : r.trust
                         ? "text-secondary"
@@ -134,7 +125,6 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
                 <Link
                   to={s.to}
                   params={s.params}
-                  search={s.search}
                   className="text-sm text-primary no-underline hover:underline"
                 >
                   {s.label}

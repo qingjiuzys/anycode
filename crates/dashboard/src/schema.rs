@@ -1,5 +1,6 @@
 //! API DTOs for the Digital Workbench.
 
+use crate::control::text_upload::TextFilePayload;
 use crate::control::vision_payload::VisionImagePayload;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -105,6 +106,8 @@ pub struct SessionWithProject {
     pub kind: String,
     pub task_id: Option<String>,
     pub title: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prompt_preview: String,
     pub status: String,
     pub trusted_status: String,
     pub agent_type: String,
@@ -145,7 +148,12 @@ pub struct SkillRecord {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_zh: Option<String>,
     pub source_path: String,
+    /// Anthropic-style category slug (library-ref/verification/data/…/other).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
     pub projects_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
@@ -358,6 +366,11 @@ pub struct StartConversationRequest {
     pub skills: Option<Vec<String>>,
     #[serde(default)]
     pub vision_images: Option<Vec<VisionImagePayload>>,
+    #[serde(default)]
+    pub text_files: Option<Vec<TextFilePayload>>,
+    /// UI language hint (`zh` / `en`) — propagated to the agent reply language.
+    #[serde(default)]
+    pub lang: Option<String>,
 }
 
 fn default_start_kind() -> String {
@@ -373,6 +386,11 @@ pub struct SendConversationMessageRequest {
     pub skills: Option<Vec<String>>,
     #[serde(default)]
     pub vision_images: Option<Vec<VisionImagePayload>>,
+    #[serde(default)]
+    pub text_files: Option<Vec<TextFilePayload>>,
+    /// UI language hint (`zh` / `en`) — propagated to the agent reply language.
+    #[serde(default)]
+    pub lang: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -394,6 +412,8 @@ pub struct CronJobRecord {
     pub session_id: Option<String>,
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -713,7 +733,11 @@ pub struct SkillDetailRecord {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_zh: Option<String>,
     pub source_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
     pub permissions: Value,
     pub projects_count: i64,
     pub projects: Vec<SkillProjectLink>,
@@ -937,6 +961,8 @@ pub struct DashboardPreferences {
     pub report_generation_mode: String,
     #[serde(default = "chrono_now")]
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_completed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1008,6 +1034,31 @@ pub struct RecentNotification {
 
 fn chrono_now() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectViewPrefs {
+    #[serde(default = "default_session_flow_limit")]
+    pub session_flow_limit: u32,
+    #[serde(default)]
+    pub hide_imported_sessions: bool,
+    #[serde(default)]
+    pub acceptance_preset_ids: Vec<String>,
+}
+
+fn default_session_flow_limit() -> u32 {
+    8
+}
+
+impl Default for ProjectViewPrefs {
+    fn default() -> Self {
+        Self {
+            session_flow_limit: default_session_flow_limit(),
+            hide_imported_sessions: false,
+            acceptance_preset_ids: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

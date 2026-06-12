@@ -4,7 +4,19 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: "html-build-stamp",
+      transformIndexHtml(html) {
+        return html.replace(
+          "<head>",
+          `<head>\n    <meta name="anycode-ui-build" content="${new Date().toISOString()}" />`,
+        );
+      },
+    },
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -21,7 +33,7 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    emptyOutDir: false,
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {

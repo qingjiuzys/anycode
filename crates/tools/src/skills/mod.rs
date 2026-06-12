@@ -30,6 +30,9 @@ struct SkillFrontmatter {
     description: String,
     #[serde(default)]
     description_zh: Option<String>,
+    /// Grouping hint (e.g. office/docs/dev/data/other); passed through, not validated.
+    #[serde(default)]
+    category: Option<String>,
     #[serde(default)]
     model: Option<String>,
     #[serde(default)]
@@ -45,6 +48,8 @@ pub struct SkillMeta {
     pub id: String,
     pub description: String,
     pub description_zh: Option<String>,
+    /// Grouping hint (e.g. office/docs/dev/data/other).
+    pub category: Option<String>,
     pub root_dir: PathBuf,
     pub has_run: bool,
     pub model: Option<String>,
@@ -157,6 +162,10 @@ impl SkillCatalog {
                         description: fm.description.trim().to_string(),
                         description_zh: fm
                             .description_zh
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
+                        category: fm
+                            .category
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
                         root_dir: skill_dir,

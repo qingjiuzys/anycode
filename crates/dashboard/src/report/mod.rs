@@ -76,6 +76,8 @@ pub async fn project_report(
             None,
             None,
             None,
+            None,
+            false,
             false,
             false,
             opts.artifacts_limit,
@@ -155,6 +157,8 @@ pub async fn session_report(
             Some(session_id),
             None,
             None,
+            None,
+            false,
             false,
             false,
             opts.artifacts_limit,
@@ -472,6 +476,7 @@ mod tests {
             report_output_format: "both".into(),
             report_generation_mode: "template".into(),
             updated_at: Utc::now().to_rfc3339(),
+            setup_completed_at: None,
         })
         .unwrap();
 

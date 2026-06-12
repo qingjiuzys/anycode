@@ -15,8 +15,7 @@ export async function openExternal(url: string): Promise<void> {
     }
   }
 
-  const tab = window.open(url, "_blank", "noopener,noreferrer");
-  if (!tab) {
-    window.location.assign(url);
-  }
+  // Cross-origin window.open often returns null even when the tab opened; never
+  // navigate the current dashboard away as a fallback.
+  window.open(url, "_blank", "noopener,noreferrer");
 }

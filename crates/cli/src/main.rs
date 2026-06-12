@@ -24,6 +24,7 @@ mod slash_commands;
 mod task_builders;
 mod tasks;
 mod term;
+mod text_file_prompt;
 mod tool_policy;
 mod vision_prompt;
 mod workbench;

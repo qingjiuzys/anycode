@@ -14,7 +14,17 @@ pub async fn session_replay(db: &DashboardDb, session_id: &str) -> Result<Sessio
 
     let gates = db.list_gates_for_session(session_id).await?;
     let artifacts = db
-        .list_artifacts(None, Some(session_id), None, None, false, false, 50)
+        .list_artifacts(
+            None,
+            Some(session_id),
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+            50,
+        )
         .await?;
     let events = db
         .list_session_events(session_id, None, 100, None, None, None)
@@ -44,6 +54,8 @@ pub async fn session_replay(db: &DashboardDb, session_id: &str) -> Result<Sessio
             Some(session_id),
             Some("report"),
             None,
+            None,
+            false,
             false,
             false,
             10,

@@ -6,6 +6,7 @@ import { useT } from "@/i18n/context";
 import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
 import { SettingsAuthSection } from "@/pages/settings/SettingsAuthSection";
 import { SettingsAssetsSection } from "@/pages/settings/SettingsAssetsSection";
+import { SettingsChannelsSection } from "@/pages/settings/SettingsChannelsSection";
 import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
 import { SettingsModelSection } from "@/pages/settings/SettingsModelSection";
 import { SettingsNotifySection } from "@/pages/settings/SettingsNotifySection";
@@ -27,6 +28,7 @@ const VALID_SECTIONS = new Set<SettingsSection>([
   "assets",
   "security",
   "notify",
+  "channels",
   "ops",
 ]);
 
@@ -79,6 +81,7 @@ export function SettingsPage() {
           {section === "assets" && <SettingsAssetsSection />}
           {section === "security" && <SettingsSecuritySection />}
           {section === "notify" && <SettingsNotifySection />}
+          {section === "channels" && <SettingsChannelsSection />}
           {section === "ops" && <SettingsOpsSection />}
         </div>
       </div>

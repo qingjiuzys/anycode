@@ -36,6 +36,7 @@ export function HomePanelOverlays({
           <button
             type="button"
             className="fixed inset-0 z-[90] border-0 bg-on-surface/20 cursor-default"
+            style={{ top: "var(--dw-topbar-height, 3rem)" }}
             aria-label={t("home.panelClose")}
             onClick={() => onActiveChange(null)}
           />

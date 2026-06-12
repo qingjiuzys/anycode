@@ -1,7 +1,6 @@
 //! User workspace `~/.anycode/workspace`: default WeChat cwd and project registry (OpenClaw-style).
 
 use crate::app_config::Config;
-use crate::i18n::tr;
 use anycode_core::RuntimeMode;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -28,14 +27,7 @@ pub fn canonical_root_string() -> String {
 
 /// 创建 `workspace`、`projects/`，并写入 `README.md`（若不存在）。
 pub fn ensure_layout() -> anyhow::Result<()> {
-    let r = root();
-    fs::create_dir_all(r.join("projects"))?;
-    let readme = r.join("README.md");
-    if !readme.is_file() {
-        let body = tr("workspace-readme");
-        fs::write(&readme, format!("{body}\n"))?;
-    }
-    Ok(())
+    anycode_setup::ensure_layout()
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -96,3 +96,9 @@ export interface TriggerRunResult {
   started_at: string;
   sandbox_note?: string;
 }
+
+export interface ProjectViewPrefs {
+  sessionFlowLimit: number;
+  hideImportedSessions: boolean;
+  acceptancePresetIds: string[];
+}

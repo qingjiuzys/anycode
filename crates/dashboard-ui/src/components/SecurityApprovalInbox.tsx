@@ -21,7 +21,9 @@ export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Pro
   const inbox = useQuery({
     queryKey: ["security-approvals-pending", sessionId ?? ""],
     queryFn: () => api.pendingApprovals({ limit: 10, sessionId }),
-    refetchInterval: 2_000,
+    staleTime: 5_000,
+    refetchInterval: sessionId ? 8_000 : 12_000,
+    refetchIntervalInBackground: false,
   });
 
   const respond = useMutation({
@@ -121,6 +123,16 @@ export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Pro
                 }
               />
               <ActionButton
+                label={t("home.securityAllowAllSession")}
+                disabled={!canRespond || respond.isPending}
+                onClick={() =>
+                  respond.mutate({
+                    approvalId: row.approval_id,
+                    decision: "allow_all_session",
+                  })
+                }
+              />
+              <ActionButton
                 label={t("home.securityDeny")}
                 variant="secondary"
                 disabled={!canRespond || respond.isPending}
@@ -172,7 +184,7 @@ export function PendingApprovalBadge({
   const summary = useQuery({
     queryKey: ["security-approvals-summary"],
     queryFn: api.approvalSummary,
-    refetchInterval: 3_000,
+    refetchInterval: 12_000,
     enabled: count === undefined,
   });
   const resolved =
@@ -192,7 +204,9 @@ export function usePendingApprovalCounts() {
   const summary = useQuery({
     queryKey: ["security-approvals-summary"],
     queryFn: api.approvalSummary,
-    refetchInterval: 2_000,
+    staleTime: 8_000,
+    refetchInterval: 12_000,
+    refetchIntervalInBackground: false,
   });
   const bySession = summary.data?.summary.by_session ?? [];
   const counts = new Map(bySession.map((row) => [row.session_id, row.count]));

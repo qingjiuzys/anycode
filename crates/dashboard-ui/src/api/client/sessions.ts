@@ -40,6 +40,20 @@ export const sessionsClient = {
       `/api/sessions/${encodeURIComponent(sessionId)}/cancel`,
       {},
     ),
+  acknowledgeSessionBlock: (sessionId: string) =>
+    post<{ ok: boolean; session_id: string }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/acknowledge-block`,
+      {},
+    ),
+  sessionAutoApprove: (sessionId: string) =>
+    get<{ session_id: string; enabled: boolean }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/auto-approve`,
+    ),
+  setSessionAutoApprove: (sessionId: string, enabled: boolean) =>
+    post<{ ok: boolean; session_id: string; enabled: boolean }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/auto-approve`,
+      { enabled },
+    ),
   sessionUsage: (sessionId: string) =>
     get<{ usage: TokenUsageStats; by_model: TokenUsageDetail["by_model"] }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/usage`,
@@ -65,6 +79,11 @@ export const sessionsClient = {
     get<{ artifacts: ArtifactRecord[] }>(
       `/api/sessions/${sessionId}/artifacts?${buildArtifactQuery({ ...opts, sessionId })}`,
     ),
+  scanSessionArtifacts: (sessionId: string) =>
+    post<{ ok: boolean; session_id: string; registered: number }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/scan-artifacts`,
+      {},
+    ),
   sessionReport: (sessionId: string, lang?: string) =>
     get<{ report: ReportDocument }>(
       `/api/sessions/${sessionId}/report${lang ? `?lang=${encodeURIComponent(lang)}` : ""}`,
@@ -76,6 +95,7 @@ export const sessionsClient = {
   sessionTranscript: (sessionId: string) =>
     get<{ transcript: SessionTranscriptResponse }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/transcript`,
+      { timeoutMs: 45_000 },
     ),
   sessionExecutionLog: (
     sessionId: string,

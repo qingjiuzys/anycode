@@ -687,6 +687,7 @@ impl Tool for CronCreateTool {
                 failure_destination: c.failure_destination,
                 tool_profile: c.tool_profile,
                 tool_allowlist: c.tool_allowlist,
+                project_id: None,
             },
         );
         let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&stored_schedule);

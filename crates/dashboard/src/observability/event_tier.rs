@@ -16,6 +16,9 @@ pub fn is_index_event_type(event_type: &str) -> bool {
             | "budget_warning"
             | "budget_degrade"
             | "budget_exceeded"
+            | "workflow_step"
+            | "plan_step"
+            | "session_error"
     )
 }
 

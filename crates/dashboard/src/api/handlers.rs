@@ -48,6 +48,7 @@ fn default_events_limit() -> i64 {
 #[derive(Deserialize)]
 pub struct ArtifactsQuery {
     pub kind: Option<String>,
+    pub exclude_kind: Option<String>,
     pub project_id: Option<String>,
     pub session_id: Option<String>,
     pub trust_level: Option<String>,
@@ -55,6 +56,9 @@ pub struct ArtifactsQuery {
     pub unverified_only: bool,
     #[serde(default)]
     pub blocked_session_only: bool,
+    /// When true, only `is_final=1` artifacts (default deliverables).
+    #[serde(default)]
+    pub final_only: bool,
     #[serde(default = "default_limit")]
     pub limit: i64,
 }
@@ -83,6 +87,7 @@ mod agents;
 mod assets;
 mod auth;
 mod browser_connector;
+mod channels;
 mod chat_util;
 mod connectors;
 mod conversations;
@@ -91,6 +96,7 @@ mod gates;
 mod governance;
 mod knowledge;
 mod mcp_settings;
+mod media;
 mod model_catalog;
 mod models;
 mod operations;
@@ -99,12 +105,14 @@ mod prompt_settings;
 mod reports;
 mod sessions;
 mod settings;
+mod setup;
 mod system;
 
 pub use agents::*;
 pub use assets::*;
 pub use auth::*;
 pub use browser_connector::*;
+pub use channels::*;
 pub use connectors::*;
 pub use conversations::*;
 pub use events::*;
@@ -112,6 +120,7 @@ pub use gates::*;
 pub use governance::*;
 pub use knowledge::*;
 pub use mcp_settings::*;
+pub use media::*;
 pub use model_catalog::*;
 pub use models::*;
 pub use operations::*;
@@ -120,4 +129,5 @@ pub use prompt_settings::*;
 pub use reports::*;
 pub use sessions::*;
 pub use settings::*;
+pub use setup::*;
 pub use system::*;

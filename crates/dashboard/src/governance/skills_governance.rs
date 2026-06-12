@@ -14,7 +14,7 @@ pub async fn get_skill_detail(
 ) -> Result<Option<SkillDetailRecord>> {
     let row = sqlx::query(
         r#"
-        SELECT s.id, s.name, s.description, s.source_path, s.permissions_json,
+        SELECT s.id, s.name, s.description, s.description_zh, s.source_path, s.category, s.permissions_json,
                (SELECT COUNT(*) FROM project_skills ps WHERE ps.skill_id = s.id AND ps.enabled = 1) AS projects_count
         FROM skills s WHERE s.id = ?
         "#,
@@ -37,7 +37,9 @@ pub async fn get_skill_detail(
         id: r.get("id"),
         name: r.get("name"),
         description: r.get("description"),
+        description_zh: r.get("description_zh"),
         source_path,
+        category: r.get("category"),
         permissions,
         projects_count: r.get("projects_count"),
         projects,

@@ -131,6 +131,29 @@ Capabilities: **`chat`**, **`vision`** (multimodal input), **`embedding`**, **`s
 
 Each entry uses the same shape as a routing agent profile (`provider`, `model`, `api_key`, `base_url`, …). Video generation may use **`endpoint_overrides.submit`** for custom POST URLs.
 
+## Local presets (vision / embedding / STT / TTS)
+
+The workbench **Settings → Model & routing** panel includes **Local presets**: one-click registry entries for on-device or local-HTTP models. Model weights are **not** bundled in the anycode binary; they download on first use (e.g. FastEmbed → `~/.cache/fastembed`, Whisper/Piper → `~/.anycode/models/`).
+
+| Capability | Built-in (optional feature) | External (zero binary size) |
+|------------|---------------------------|-----------------------------|
+| **Embedding** | `local_fastembed` + `--features embedding-local` | Ollama `nomic-embed-text` at `http://127.0.0.1:11434/v1` |
+| **Vision** | — (uses chat model) | Ollama `llava` with `chat` + `vision` capabilities |
+| **STT** | `local_whisper` + `--features stt-local` | `whisper_cpp` HTTP at `http://127.0.0.1:8080/v1` |
+| **TTS** | `local_piper` + `--features tts-local` | `piper` HTTP at `http://127.0.0.1:5000/v1` |
+
+Enable all optional local backends:
+
+```bash
+cargo build -p anycode --features media-local
+```
+
+When you set **embedding** active to `local_fastembed`, anyCode syncs `memory.pipeline.embedding_provider` to `"local"` so memory recall and tools share the same embedding path.
+
+**Vision** does not use a separate runtime route: images are attached to chat messages. Pick a chat model that also has the **`vision`** capability (or enable an Ollama LLaVA preset, which sets both `chat` and `vision` active).
+
+Preset catalog: `GET /api/settings/model-catalog` → `local_presets`.
+
 ---
 
 More detail (Chinese, including feature matrix and env vars) lives in [模型与端点（中文）](/zh/guide/models).

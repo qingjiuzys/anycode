@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { EventTimeline } from "@/components/EventTimeline";
 import { DataHealthPanel } from "@/components/DataHealthPanel";
 import { Icon } from "@/components/Icon";
+import { InlineRename } from "@/components/InlineRename";
 import { ProjectConfigDialog } from "@/components/ProjectConfigDialog";
 import { ProjectInsightCharts } from "@/components/ProjectInsightCharts";
 import { ProjectKnowledgeSummary } from "@/components/project/ProjectKnowledgeSummary";
@@ -18,7 +19,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useProjectEventStream } from "@/hooks/useProjectEventStream";
 import { useProjectViewPrefs } from "@/hooks/useProjectViewPrefs";
 import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
-import { useT } from "@/i18n/context";
+import { useLocale, useT } from "@/i18n/context";
+import { skillDisplayDescription } from "@/lib/skillCatalog";
 
 const SEVERITIES = ["info", "warn", "error"] as const;
 const TOOL_CALL_FILTER = "tool_call_end";
@@ -27,6 +29,7 @@ const DEFAULT_SESSION_LIMIT = 8;
 
 export function ProjectDetailPage() {
   const t = useT();
+  const locale = useLocale();
   const { projectId } = useParams({ from: "/_shell/projects/$projectId" });
   const queryClient = useQueryClient();
   const { prefs } = useProjectViewPrefs(projectId);
@@ -42,6 +45,14 @@ export function ProjectDetailPage() {
   const [skillsExpanded, setSkillsExpanded] = useState(false);
 
   useProjectEventStream(projectId);
+
+  const rename = useMutation({
+    mutationFn: (name: string) => api.renameProject(projectId, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
 
   const reindex = useMutation({
     mutationFn: () => api.reindexProject(projectId),
@@ -134,7 +145,23 @@ export function ProjectDetailPage() {
           { label: t("nav.projects"), to: "/projects" },
           { label: p?.name ?? projectId },
         ]}
-        title={p?.name ?? projectId}
+        title={
+          p ? (
+            <span className="group inline-flex items-center gap-1">
+              <InlineRename
+                value={p.name}
+                label={t("projects.rename")}
+                disabled={rename.isPending}
+                inputClassName="dw-input text-xl font-bold"
+                onSave={(name) => rename.mutate(name)}
+              >
+                {p.name}
+              </InlineRename>
+            </span>
+          ) : (
+            projectId
+          )
+        }
         subtitle={p?.root_path}
         meta={
           p ? (
@@ -508,6 +535,11 @@ export function ProjectDetailPage() {
                         >
                           {sk.name}
                         </Link>
+                        {skillDisplayDescription(sk, locale) && (
+                          <div className="text-xs text-secondary mt-0.5 line-clamp-1">
+                            {skillDisplayDescription(sk, locale)}
+                          </div>
+                        )}
                       </td>
                       <td className="text-secondary font-code text-xs">{sk.source_path}</td>
                       <td>

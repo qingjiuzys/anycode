@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEventSource, type SseStatus } from "@/hooks/useEventSource";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const INVALIDATION_DEBOUNCE_MS = 750;
+const INVALIDATION_DEBOUNCE_MS = 5_000;
 
 /** Global SSE + query invalidation; returns connection status for the sidebar badge. */
 export function useGlobalEventStream(enabled = true): SseStatus {
@@ -18,8 +18,6 @@ export function useGlobalEventStream(enabled = true): SseStatus {
 
     void queryClient.invalidateQueries({ queryKey: ["projects"] });
     void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
-    void queryClient.invalidateQueries({ queryKey: ["recent-events"] });
-    void queryClient.invalidateQueries({ queryKey: ["overview"] });
     void queryClient.invalidateQueries({ queryKey: ["running-sessions"] });
 
     for (const projectId of projectIds) {

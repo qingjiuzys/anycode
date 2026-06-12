@@ -1,9 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { streamGateExecute } from "@/api/gateStream";
 import type { GateExecuteResult } from "@/api/types";
 import { GateRunHistory } from "@/components/GateRunHistory";
+import { Icon } from "@/components/Icon";
+import { CollapsiblePanel } from "@/components/ui/CollapsiblePanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useProjectViewPrefs } from "@/hooks/useProjectViewPrefs";
 import { useT } from "@/i18n/context";
@@ -27,16 +29,32 @@ export function ProjectGateConfigPanel({ projectId }: { projectId: string }) {
     staleTime: 60_000,
   });
 
+  const gates = useQuery({
+    queryKey: ["gates", projectId],
+    queryFn: () => api.gates(projectId),
+    staleTime: 15_000,
+  });
+
   const rows = presets.data?.presets ?? [];
+
+  const lastStatusByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of gates.data?.gates ?? []) {
+      if (!map.has(g.name)) map.set(g.name, g.status);
+    }
+    return map;
+  }, [gates.data?.gates]);
 
   function toggleAcceptance(presetId: string) {
     const set = new Set(prefs.acceptancePresetIds);
-    if (set.has(presetId)) {
-      set.delete(presetId);
-    } else {
-      set.add(presetId);
-    }
+    if (set.has(presetId)) set.delete(presetId);
+    else set.add(presetId);
     update({ acceptancePresetIds: [...set] });
+  }
+
+  function stopRun() {
+    abortRef.current?.abort();
+    setRunningPreset(null);
   }
 
   async function runGate(body: {
@@ -77,6 +95,12 @@ export function ProjectGateConfigPanel({ projectId }: { projectId: string }) {
   const outputText =
     liveLines.length > 0 ? liveLines.join("\n") : (lastResult?.output_excerpt ?? "");
 
+  const logTitle = lastResult
+    ? `${lastResult.name} · ${lastResult.status} · ${lastResult.elapsed_ms}ms`
+    : runningPreset
+      ? t("projectDetail.gateStreaming")
+      : t("projectDetail.config.gates.logTitle");
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-secondary m-0">{t("projectDetail.config.gates.intro")}</p>
@@ -93,54 +117,94 @@ export function ProjectGateConfigPanel({ projectId }: { projectId: string }) {
       )}
 
       {rows.length > 0 && (
-        <ul className="list-none m-0 p-0 space-y-2">
-          {rows.map((p) => {
-            const isAcceptance = prefs.acceptancePresetIds.includes(p.id);
-            const required = isAcceptance;
-            return (
-              <li
-                key={p.id}
-                className="flex flex-col gap-2 rounded-lg border border-outline-variant p-3 bg-surface-container-low"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-sm">{p.name}</span>
-                  <label className="text-xs text-secondary inline-flex items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={isAcceptance}
-                      onChange={() => toggleAcceptance(p.id)}
-                      disabled={runningPreset != null}
-                      className="accent-primary"
-                    />
-                    {t("projectDetail.config.gates.markAcceptance")}
-                  </label>
-                </div>
-                <code className="text-xs text-secondary font-code break-all">{p.command}</code>
-                <button
-                  type="button"
-                  className="dw-btn-secondary text-sm self-start"
-                  disabled={runningPreset != null}
-                  onClick={() =>
-                    runGate({
-                      preset_id: p.id,
-                      required,
-                    })
-                  }
-                >
-                  {runningPreset === p.id
-                    ? t("projectDetail.gateRunning")
-                    : t("projectDetail.config.gates.runPreset")}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="overflow-x-auto rounded-lg border border-outline-variant">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-xs text-secondary border-b border-outline-variant bg-surface-container-low">
+                <th className="px-3 py-2 font-medium">{t("projectDetail.config.gates.colName")}</th>
+                <th className="px-3 py-2 font-medium">{t("projectDetail.config.gates.colCommand")}</th>
+                <th className="px-3 py-2 font-medium">{t("projectDetail.config.gates.colRequired")}</th>
+                <th className="px-3 py-2 font-medium">{t("projectDetail.config.gates.colStatus")}</th>
+                <th className="px-3 py-2 font-medium w-20">{t("projectDetail.config.gates.colAction")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p) => {
+                const isAcceptance = prefs.acceptancePresetIds.includes(p.id);
+                const last = lastStatusByName.get(p.name);
+                return (
+                  <tr key={p.id} className="border-b border-outline-variant/60 last:border-0">
+                    <td className="px-3 py-2 font-medium align-top">{p.name}</td>
+                    <td className="px-3 py-2 align-top">
+                      <code className="text-xs font-code text-secondary break-all line-clamp-2" title={p.command}>
+                        {p.command}
+                      </code>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <label
+                        className="inline-flex items-center gap-2 cursor-pointer"
+                        title={t("projectDetail.config.gates.markAcceptanceHint")}
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-primary w-4 h-4"
+                          checked={isAcceptance}
+                          onChange={() => toggleAcceptance(p.id)}
+                          disabled={runningPreset != null}
+                        />
+                        <span className="text-xs text-secondary sr-only sm:not-sr-only">
+                          {t("projectDetail.config.gates.markAcceptance")}
+                        </span>
+                      </label>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {last ? (
+                        <StatusBadge status={last === "passed" ? "passed" : "failed"} />
+                      ) : (
+                        <span className="text-xs text-secondary">
+                          {t("projectDetail.config.gates.neverRun")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {runningPreset === p.id ? (
+                        <button
+                          type="button"
+                          className="dw-btn-secondary text-xs px-2 py-1"
+                          onClick={stopRun}
+                        >
+                          {t("projectDetail.config.gates.stopRun")}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="dw-btn-ghost p-1"
+                          disabled={runningPreset != null}
+                          title={t("projectDetail.config.gates.runPreset")}
+                          onClick={() =>
+                            runGate({ preset_id: p.id, required: isAcceptance })
+                          }
+                        >
+                          <Icon name="play_arrow" size={20} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <div className="pt-3 border-t border-outline-variant">
-        <h3 className="text-sm font-medium m-0 mb-2">{t("projectDetail.config.gates.customTitle")}</h3>
-        <p className="text-xs text-secondary m-0 mb-2">{t("projectDetail.config.gates.customHint")}</p>
-        <div className="flex flex-col gap-2">
+      <CollapsiblePanel
+        title={t("projectDetail.config.gates.addCustom")}
+        defaultOpen={false}
+        tone="muted"
+        icon="add"
+      >
+        <div className="pt-2 flex flex-col gap-2">
+          <p className="text-xs text-secondary m-0">{t("projectDetail.config.gates.customHint")}</p>
           <input
             className="dw-input text-sm"
             placeholder={t("projectDetail.config.gates.customNamePlaceholder")}
@@ -162,49 +226,48 @@ export function ProjectGateConfigPanel({ projectId }: { projectId: string }) {
             />
             <span>{t("projectDetail.gateRequired")}</span>
           </label>
-          <button
-            type="button"
-            className="dw-btn-secondary text-sm self-start"
-            disabled={
-              runningPreset != null || !customName.trim() || !customCommand.trim()
-            }
-            onClick={() => {
-              void runGate({
-                name: customName.trim(),
-                command: customCommand.trim(),
-                required: customRequired,
-              });
-            }}
-          >
-            {runningPreset === "custom"
-              ? t("projectDetail.gateRunning")
-              : t("projectDetail.config.gates.runCustom")}
-          </button>
+          <div className="flex gap-2">
+            {runningPreset === "custom" ? (
+              <button type="button" className="dw-btn-secondary text-sm" onClick={stopRun}>
+                {t("projectDetail.config.gates.stopRun")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="dw-btn-secondary text-sm"
+                disabled={
+                  runningPreset != null || !customName.trim() || !customCommand.trim()
+                }
+                onClick={() => {
+                  void runGate({
+                    name: customName.trim(),
+                    command: customCommand.trim(),
+                    required: customRequired,
+                  });
+                }}
+              >
+                {t("projectDetail.config.gates.runCustom")}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </CollapsiblePanel>
 
       {streamError && <p className="text-sm text-error m-0">{streamError}</p>}
+
       {(runningPreset || lastResult || liveLines.length > 0) && (
-        <div className="border border-outline-variant rounded-lg p-3 text-sm">
-          {lastResult && (
-            <div className="flex items-center gap-2 mb-2">
-              <StatusBadge status={lastResult.status === "passed" ? "passed" : "failed"} />
-              <span className="font-medium">{lastResult.name}</span>
-              {lastResult.elapsed_ms > 0 && (
-                <span className="text-secondary text-xs">
-                  {lastResult.elapsed_ms}ms · {lastResult.command}
-                </span>
-              )}
-            </div>
-          )}
-          {runningPreset && !lastResult && (
-            <p className="text-xs text-secondary m-0 mb-2">{t("projectDetail.gateStreaming")}</p>
-          )}
-          <pre className="m-0 text-xs overflow-x-auto max-h-48 whitespace-pre-wrap font-code text-secondary">
+        <CollapsiblePanel
+          title={logTitle}
+          defaultOpen={Boolean(runningPreset)}
+          tone={lastResult?.status === "failed" ? "error" : runningPreset ? "running" : "default"}
+          icon="terminal"
+        >
+          <pre className="m-0 mt-2 text-xs overflow-x-auto max-h-48 whitespace-pre-wrap font-code text-secondary">
             {outputText || t("projectDetail.gateNoOutput")}
           </pre>
-        </div>
+        </CollapsiblePanel>
       )}
+
       <GateRunHistory projectId={projectId} />
     </div>
   );

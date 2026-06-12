@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { buildConversationsHref } from "@/lib/conversationsSearch";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
@@ -29,6 +30,7 @@ export function NotificationsDropdown() {
   const badgeCount = items.length;
 
   useEffect(() => {
+    if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
@@ -36,7 +38,11 @@ export function NotificationsDropdown() {
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+  }, [open]);
+
+  function toggleOpen() {
+    setOpen((v) => !v);
+  }
 
   return (
     <div className="relative" ref={ref}>
@@ -44,8 +50,16 @@ export function NotificationsDropdown() {
         type="button"
         className="dw-btn-ghost p-2 relative"
         title={t("layout.notifications")}
-        onClick={() => setOpen((v) => !v)}
+        aria-label={t("layout.notifications")}
         aria-expanded={open}
+        aria-haspopup="menu"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleOpen();
+        }}
       >
         <Icon name="notifications" size={20} />
         {badgeCount > 0 && (
@@ -55,7 +69,10 @@ export function NotificationsDropdown() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg z-50 py-2">
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-2 w-80 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg z-[110] py-2"
+        >
           <div className="px-4 py-2 border-b border-outline-variant flex items-center justify-between">
             <span className="text-sm font-semibold">{t("notifications.title")}</span>
             <Link
@@ -72,8 +89,7 @@ export function NotificationsDropdown() {
                 {t("notifications.blockedSessions")}
               </div>
               <Link
-                to="/conversations"
-                search={{ trusted: "blocked" }}
+                to={buildConversationsHref({ filter: "blocked" })}
                 className="text-sm text-error no-underline hover:underline"
                 onClick={() => setOpen(false)}
               >

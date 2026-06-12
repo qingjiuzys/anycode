@@ -10,6 +10,7 @@ fn anycode_bin() -> PathBuf {
 #[test]
 fn eval_run_mock_fixture_passes() {
     let out = Command::new(anycode_bin())
+        .env("ANYCODE_DASHBOARD_RECORD", "0")
         .args(["eval", "run", "--mock", "--json"])
         .output()
         .expect("spawn eval run --mock");

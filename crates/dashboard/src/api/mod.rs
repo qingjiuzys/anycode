@@ -10,16 +10,21 @@ use axum::{
     },
     middleware,
     response::{Html, IntoResponse},
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use serde_json::json;
 use std::path::PathBuf;
+use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
+    set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
+
+/// Hashed bundles under /assets/ — revalidate so localhost dev picks up new builds.
+const UI_ASSET_CACHE: &str = "no-cache, must-revalidate";
 
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
@@ -28,6 +33,46 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/login", post(handlers::post_auth_login))
         .route("/auth/logout", post(handlers::post_auth_logout))
         .route("/bootstrap", get(handlers::get_bootstrap))
+        .route("/setup/status", get(handlers::get_setup_status))
+        .route("/setup/quick-auth", get(handlers::get_setup_quick_auth))
+        .route(
+            "/setup/workspace/ensure",
+            post(handlers::post_setup_workspace_ensure),
+        )
+        .route("/setup/memory", patch(handlers::patch_setup_memory))
+        .route(
+            "/setup/channels/telegram",
+            post(handlers::post_setup_channels_telegram),
+        )
+        .route(
+            "/setup/channels/telegram/verify",
+            post(handlers::post_setup_channels_telegram_verify),
+        )
+        .route(
+            "/setup/channels/telegram/chats",
+            post(handlers::post_setup_channels_telegram_chats),
+        )
+        .route(
+            "/setup/channels/discord",
+            post(handlers::post_setup_channels_discord),
+        )
+        .route(
+            "/setup/channels/discord/verify",
+            post(handlers::post_setup_channels_discord_verify),
+        )
+        .route(
+            "/setup/channels/discord/test",
+            post(handlers::post_setup_channels_discord_test),
+        )
+        .route(
+            "/setup/channels/wechat/qr",
+            get(handlers::get_setup_channels_wechat_qr),
+        )
+        .route(
+            "/setup/channels/wechat/status",
+            get(handlers::get_setup_channels_wechat_status),
+        )
+        .route("/setup/complete", post(handlers::post_setup_complete))
         .route("/overview", get(handlers::get_overview))
         .route("/reports/recent", get(handlers::list_recent_reports))
         .route("/metrics/readiness", get(handlers::get_delivery_readiness))
@@ -51,6 +96,14 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/security/approvals/{approval_id}/respond",
             post(handlers::respond_to_approval),
+        )
+        .route(
+            "/security/questions/pending",
+            get(handlers::list_pending_questions),
+        )
+        .route(
+            "/security/questions/{question_id}/respond",
+            post(handlers::respond_to_question),
         )
         .route(
             "/notifications/recent",
@@ -136,6 +189,7 @@ pub fn router(state: AppState) -> Router {
             "/orchestration/tasks",
             get(handlers::list_orchestration_tasks),
         )
+        .route("/skills/market", get(handlers::list_skill_market))
         .route("/skills/import", post(handlers::import_skill))
         .route(
             "/projects/{project_id}/knowledge",
@@ -179,10 +233,17 @@ pub fn router(state: AppState) -> Router {
             get(handlers::list_projects).post(handlers::upsert_project),
         )
         .route("/projects/scan", post(handlers::scan_projects))
-        .route("/projects/{project_id}", get(handlers::get_project))
+        .route(
+            "/projects/{project_id}",
+            get(handlers::get_project).patch(handlers::patch_project),
+        )
         .route(
             "/projects/{project_id}/status",
             axum::routing::patch(handlers::patch_project_status),
+        )
+        .route(
+            "/projects/{project_id}/view-prefs",
+            get(handlers::get_project_view_prefs).put(handlers::put_project_view_prefs),
         )
         .route(
             "/projects/{project_id}/stats",
@@ -251,6 +312,14 @@ pub fn router(state: AppState) -> Router {
             axum::routing::post(handlers::cancel_session),
         )
         .route(
+            "/sessions/{session_id}/acknowledge-block",
+            axum::routing::post(handlers::acknowledge_session_block),
+        )
+        .route(
+            "/sessions/{session_id}/auto-approve",
+            get(handlers::get_session_auto_approve).post(handlers::set_session_auto_approve),
+        )
+        .route(
             "/sessions/{session_id}/usage",
             get(handlers::get_session_usage),
         )
@@ -287,15 +356,22 @@ pub fn router(state: AppState) -> Router {
             get(handlers::list_session_artifacts),
         )
         .route(
+            "/sessions/{session_id}/scan-artifacts",
+            post(handlers::scan_session_artifacts),
+        )
+        .route(
             "/sessions/{session_id}/background-tasks",
             get(handlers::get_session_background_tasks),
         )
+        .route("/media/status", get(handlers::get_media_status))
+        .route("/media/transcribe", post(handlers::transcribe_audio))
         .route("/settings/services", get(handlers::list_services))
         .route(
             "/settings/service-status",
             get(handlers::get_service_status),
         )
         .route("/settings/doctor", get(handlers::get_doctor))
+        .route("/settings/channels", get(handlers::get_settings_channels))
         .route("/settings/runtime", get(handlers::get_runtime_settings))
         .route("/settings/model-catalog", get(handlers::get_model_catalog))
         .route(
@@ -406,11 +482,24 @@ pub fn router(state: AppState) -> Router {
         if index.is_file() {
             let assets = dir.join("assets");
             if assets.is_dir() {
-                app = app.route_service("/assets/{*path}", ServeDir::new(dir.clone()));
+                // SPA route `/assets` (artifacts page) must not collide with Vite bundle mount.
+                let index_for_assets_page = index.clone();
+                app = app.route(
+                    "/assets",
+                    get(move || serve_spa_index(index_for_assets_page.clone())),
+                );
+                let asset_service = ServiceBuilder::new()
+                    .layer(SetResponseHeaderLayer::overriding(
+                        CACHE_CONTROL,
+                        HeaderValue::from_static(UI_ASSET_CACHE),
+                    ))
+                    .service(ServeDir::new(assets));
+                app = app.nest_service("/assets/", asset_service);
             }
+            let static_root = dir.clone();
             let index_for_fallback = index.clone();
             app = app.fallback(get(move |uri: Uri| async move {
-                spa_fallback(uri, index_for_fallback.clone()).await
+                spa_fallback(uri, static_root.clone(), index_for_fallback.clone()).await
             }));
         }
     } else if crate::embedded_ui::available() {
@@ -425,7 +514,7 @@ pub fn router(state: AppState) -> Router {
     )
 }
 
-async fn spa_fallback(uri: Uri, index: PathBuf) -> axum::response::Response {
+async fn spa_fallback(uri: Uri, static_root: PathBuf, index: PathBuf) -> axum::response::Response {
     if uri.path().starts_with("/api/") {
         return (
             StatusCode::NOT_FOUND,
@@ -433,7 +522,43 @@ async fn spa_fallback(uri: Uri, index: PathBuf) -> axum::response::Response {
         )
             .into_response();
     }
+    let rel = uri.path().trim_start_matches('/');
+    if !rel.is_empty() && !rel.contains("..") {
+        let file = static_root.join(rel);
+        if file.is_file() {
+            return serve_static_file(file).await.into_response();
+        }
+    }
     serve_spa_index(index).await.into_response()
+}
+
+async fn serve_static_file(path: PathBuf) -> impl IntoResponse {
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => {
+            let mut headers = HeaderMap::new();
+            headers.insert(CACHE_CONTROL, HeaderValue::from_static(UI_ASSET_CACHE));
+            if let Some(ct) = mime_for_path(&path) {
+                headers.insert(CONTENT_TYPE, HeaderValue::from_static(ct));
+            }
+            (headers, bytes).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn mime_for_path(path: &PathBuf) -> Option<&'static str> {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| match ext {
+            "png" => "image/png",
+            "ico" => "image/x-icon",
+            "svg" => "image/svg+xml",
+            "css" => "text/css; charset=utf-8",
+            "js" => "text/javascript; charset=utf-8",
+            "json" => "application/json; charset=utf-8",
+            "woff2" => "font/woff2",
+            _ => "application/octet-stream",
+        })
 }
 
 async fn serve_spa_index(index: PathBuf) -> impl IntoResponse {

@@ -18,3 +18,4 @@ test/
 .omx/
 .cursor/debug-*.log
 scripts/.venv-icon/
+.venv-ppt/

@@ -7,6 +7,12 @@ import { useT } from "@/i18n/context";
 
 type Tab = "knowledge" | "gates" | "pipeline";
 
+const TAB_ICONS: Record<Tab, string> = {
+  knowledge: "folder",
+  gates: "verified",
+  pipeline: "account_tree",
+};
+
 export function ProjectConfigDialog({
   projectId,
   open,
@@ -20,6 +26,7 @@ export function ProjectConfigDialog({
 }) {
   const t = useT();
   const [tab, setTab] = useState<Tab>(initialTab ?? "knowledge");
+  const [knowledgeDirty, setKnowledgeDirty] = useState(false);
 
   useEffect(() => {
     if (open && initialTab) {
@@ -46,7 +53,7 @@ export function ProjectConfigDialog({
       }}
     >
       <div
-        className="w-full max-w-2xl max-h-[min(90vh,720px)] flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg overflow-hidden"
+        className="w-full max-w-3xl max-h-[min(90vh,720px)] flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-3 shrink-0">
@@ -56,7 +63,12 @@ export function ProjectConfigDialog({
             </h2>
             <p className="text-sm text-secondary m-0 mt-1">{t("projectDetail.config.subtitle")}</p>
           </div>
-          <button type="button" className="dw-btn-ghost p-1 shrink-0" onClick={onClose} aria-label={t("newProject.cancel")}>
+          <button
+            type="button"
+            className="dw-btn-ghost p-1 shrink-0"
+            onClick={onClose}
+            aria-label={t("projectDetail.config.close")}
+          >
             <Icon name="close" size={20} />
           </button>
         </div>
@@ -66,27 +78,39 @@ export function ProjectConfigDialog({
             <button
               key={item.id}
               type="button"
-              className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
                 tab === item.id
                   ? "border-primary text-primary font-medium"
                   : "border-transparent text-secondary hover:text-on-surface"
               }`}
               onClick={() => setTab(item.id)}
             >
+              <Icon name={TAB_ICONS[item.id]} size={16} />
               {item.label}
+              {item.id === "knowledge" && knowledgeDirty && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-warn"
+                  title={t("projectDetail.config.unsavedDot")}
+                />
+              )}
             </button>
           ))}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-          {tab === "knowledge" && <ProjectKnowledgeConfigPanel projectId={projectId} />}
+          {tab === "knowledge" && (
+            <ProjectKnowledgeConfigPanel
+              projectId={projectId}
+              onDirtyChange={setKnowledgeDirty}
+            />
+          )}
           {tab === "gates" && <ProjectGateConfigPanel projectId={projectId} />}
           {tab === "pipeline" && <ProjectPipelineConfigPanel projectId={projectId} />}
         </div>
 
         <div className="px-6 py-3 border-t border-outline-variant shrink-0 flex justify-end">
-          <button type="button" className="dw-btn-secondary" onClick={onClose}>
-            {t("newProject.cancel")}
+          <button type="button" className="dw-btn-primary" onClick={onClose}>
+            {t("projectDetail.config.close")}
           </button>
         </div>
       </div>

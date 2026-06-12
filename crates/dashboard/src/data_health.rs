@@ -255,6 +255,8 @@ async fn missing_artifact_files(db: &DashboardDb, project_id: &str) -> Result<He
             None,
             Some("file"),
             None,
+            None,
+            false,
             false,
             false,
             500,

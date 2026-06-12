@@ -22,6 +22,8 @@ pub struct CronJobRecord {
     pub session_id: Option<String>,
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

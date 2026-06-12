@@ -1,6 +1,8 @@
 ---
 name: md-to-pdf
 description: Convert Markdown reports to PDF for sharing (requires pandoc locally).
+description_zh: 将 Markdown 报告转为 PDF 便于分享（需本地 pandoc）。
+category: business
 ---
 
 # md-to-pdf

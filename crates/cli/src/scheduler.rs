@@ -296,6 +296,25 @@ pub(crate) async fn run_builtin_scheduler(
                     .session_id
                     .as_deref()
                     .and_then(|s| uuid::Uuid::parse_str(s).ok());
+                // Project-scoped jobs run from the project root (dashboard DB lookup);
+                // unresolvable projects fall back to the scheduler workdir.
+                let job_workdir = match pj.job.project_id.as_deref() {
+                    Some(pid) => {
+                        match anycode_dashboard::project_skills::project_root_for_id(pid).await {
+                            Some(root) => root,
+                            None => {
+                                warn!(
+                                    target: "anycode_scheduler",
+                                    "cron job {}: project {} root unavailable; using scheduler workdir",
+                                    pj.job.id,
+                                    pid
+                                );
+                                working_dir.clone()
+                            }
+                        }
+                    }
+                    None => working_dir.clone(),
+                };
                 let run_options = RunTaskOptions {
                     session_id: cron_session_id,
                     tool_profile: pj.job.tool_profile.clone(),
@@ -309,7 +328,7 @@ pub(crate) async fn run_builtin_scheduler(
                     &disk,
                     default_agent.clone(),
                     cron_prompt,
-                    working_dir.clone(),
+                    job_workdir,
                     &mut sink,
                     if wechat_hooks.is_some() {
                         Some(&mut captured)
@@ -471,6 +490,7 @@ mod tests {
                 failure_destination: None,
                 tool_profile: None,
                 tool_allowlist: None,
+                project_id: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -494,6 +514,7 @@ mod tests {
                 failure_destination: None,
                 tool_profile: None,
                 tool_allowlist: None,
+                project_id: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -522,6 +543,7 @@ mod tests {
                 failure_destination: None,
                 tool_profile: None,
                 tool_allowlist: None,
+                project_id: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -561,6 +583,7 @@ mod tests {
                 failure_destination: None,
                 tool_profile: None,
                 tool_allowlist: None,
+                project_id: None,
             },
             schedule: Schedule::from_str("0 */15 * * * *").unwrap(),
         };

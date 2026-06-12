@@ -11,6 +11,7 @@ export type SettingsSection =
   | "assets"
   | "security"
   | "notify"
+  | "channels"
   | "ops";
 
 const SECTIONS: SettingsSection[] = [
@@ -24,6 +25,7 @@ const SECTIONS: SettingsSection[] = [
   "assets",
   "security",
   "notify",
+  "channels",
   "ops",
 ];
 

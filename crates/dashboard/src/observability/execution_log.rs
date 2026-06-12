@@ -4,10 +4,13 @@ use crate::log_parser::parse_line;
 use crate::schema::SessionDetail;
 use anyhow::{Context, Result};
 use serde::Serialize;
-use std::path::PathBuf;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 
 const DEFAULT_LIMIT: usize = 200;
 const MAX_LIMIT: usize = 500;
+/// When offset is 0 (live tail), read at most this many bytes from EOF instead of the whole file.
+const TAIL_READ_CHUNK: u64 = 512 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecutionLogResponse {
@@ -77,19 +80,36 @@ pub fn read_execution_log(
         });
     }
 
-    let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("read execution log {}", path.display()))?;
-    let all_lines: Vec<&str> = content.lines().collect();
+    let (all_lines, tail_only) = if offset == 0 {
+        read_tail_line_strings(&path, limit)?
+    } else {
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("read execution log {}", path.display()))?;
+        (content.lines().map(str::to_string).collect(), false)
+    };
     let start = offset.min(all_lines.len());
-    let end = (start + limit).min(all_lines.len());
-    let slice = &all_lines[start..end];
-    let has_more = end < all_lines.len();
+    let end = if tail_only {
+        all_lines.len()
+    } else {
+        (start + limit).min(all_lines.len())
+    };
+    let slice_start = if tail_only {
+        all_lines.len().saturating_sub(limit)
+    } else {
+        start
+    };
+    let slice = &all_lines[slice_start..end];
+    let has_more = if tail_only {
+        false
+    } else {
+        end < all_lines.len()
+    };
 
     let lines = slice
         .iter()
         .enumerate()
         .map(|(i, raw)| {
-            let line_no = start + i + 1;
+            let line_no = slice_start + i + 1;
             let parsed = parse_line(raw);
             ExecutionLogLine {
                 line_no,
@@ -113,11 +133,41 @@ pub fn read_execution_log(
         session_id: session.id.clone(),
         task_id: Some(tid.clone()),
         log_path: Some(path.to_string_lossy().to_string()),
-        offset: start,
+        offset: slice_start,
         next_offset: end,
         has_more,
         lines,
     })
+}
+
+/// Read the last `limit` lines without loading the entire log (for live session polling).
+fn read_tail_line_strings(path: &Path, limit: usize) -> Result<(Vec<String>, bool)> {
+    let mut file = std::fs::File::open(path)
+        .with_context(|| format!("read execution log {}", path.display()))?;
+    let len = file.metadata()?.len();
+    if len == 0 {
+        return Ok((Vec::new(), true));
+    }
+    let read_from = len.saturating_sub(TAIL_READ_CHUNK);
+    file.seek(SeekFrom::Start(read_from))?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)?;
+    let mut lines: Vec<String> = buf.lines().map(str::to_string).collect();
+    if read_from > 0 && !lines.is_empty() {
+        lines.remove(0);
+    }
+    let start = lines.len().saturating_sub(limit);
+    Ok((lines[start..].to_vec(), true))
+}
+
+pub async fn read_execution_log_async(
+    session: SessionDetail,
+    offset: usize,
+    limit: Option<usize>,
+) -> Result<ExecutionLogResponse> {
+    tokio::task::spawn_blocking(move || read_execution_log(&session, offset, limit))
+        .await
+        .context("execution log task cancelled")?
 }
 
 #[cfg(test)]

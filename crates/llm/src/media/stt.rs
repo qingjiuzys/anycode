@@ -1,6 +1,8 @@
-//! Speech-to-text via OpenAI-compatible `audio/transcriptions`.
+//! Speech-to-text via OpenAI-compatible HTTP or on-device whisper.cpp.
 
+use crate::local_media_catalog::is_builtin_local_provider;
 use crate::media::http::{bearer_headers, http_client, openai_base};
+use crate::media::stt_local::{transcribe_pcm, wav_bytes_to_pcm16k};
 use crate::media::MediaProfile;
 use anycode_core::CoreError;
 use reqwest::multipart;
@@ -20,6 +22,19 @@ impl SttClient {
     }
 
     pub async fn transcribe(
+        &self,
+        audio_bytes: &[u8],
+        filename: &str,
+    ) -> Result<SttResult, CoreError> {
+        if is_builtin_local_provider(&self.profile.provider) {
+            let pcm = wav_bytes_to_pcm16k(audio_bytes)?;
+            let text = transcribe_pcm(&self.profile.model, &pcm).await?;
+            return Ok(SttResult { text });
+        }
+        self.transcribe_http(audio_bytes, filename).await
+    }
+
+    async fn transcribe_http(
         &self,
         audio_bytes: &[u8],
         filename: &str,

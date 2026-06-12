@@ -138,6 +138,8 @@ pub async fn list_recent_reports(
         session_id,
         Some("report"),
         None,
+        None,
+        false,
         false,
         false,
         limit,

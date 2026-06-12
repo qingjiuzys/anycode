@@ -305,6 +305,8 @@ async fn usage_by_model(
         LEFT JOIN sessions s ON s.id = e.session_id
         WHERE e.event_type = 'llm_response_end'
           AND datetime(e.occurred_at) >= datetime('now', ?)
+          AND LOWER(TRIM(COALESCE(s.model, ''))) != 'mock'
+          AND LOWER(TRIM(COALESCE(s.model, ''))) NOT LIKE 'mock/%'
         "#,
     );
     if project_id.filter(|s| !s.is_empty()).is_some() {
@@ -514,6 +516,8 @@ async fn usage_by_model_session(
         LEFT JOIN sessions s ON s.id = e.session_id
         WHERE e.event_type = 'llm_response_end'
           AND e.session_id = ?
+          AND LOWER(TRIM(COALESCE(s.model, ''))) != 'mock'
+          AND LOWER(TRIM(COALESCE(s.model, ''))) NOT LIKE 'mock/%'
         GROUP BY model ORDER BY input_tokens + output_tokens DESC LIMIT 20
         "#,
     )

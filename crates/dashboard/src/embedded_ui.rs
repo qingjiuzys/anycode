@@ -60,7 +60,21 @@ mod inner {
             )
                 .into_response();
         }
-        serve_path(uri.path()).unwrap_or_else(|| {
+        let path = uri.path();
+        // Artifacts page route `/assets` collides with Vite's `/assets/*` bundle prefix.
+        if path == "/assets" {
+            if let Some(resp) = serve_path("index.html") {
+                return resp.into_response();
+            }
+        }
+        if let Some(rest) = path.strip_prefix("/assets/") {
+            if !rest.is_empty() {
+                if let Some(resp) = serve_path(&format!("assets/{rest}")) {
+                    return resp.into_response();
+                }
+            }
+        }
+        serve_path(path).unwrap_or_else(|| {
             Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())

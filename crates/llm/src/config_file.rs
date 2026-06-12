@@ -1,6 +1,8 @@
 //! Read/migrate/patch helpers for `~/.anycode/config.json` (flat AnyCodeConfig SSOT).
 
+use crate::capability_catalog::ModelCapability;
 use crate::config_models::{ModelFallbackConfig, ModelProfileFile, ModelsConfigFile};
+use crate::local_media_catalog::is_builtin_local_provider;
 use crate::model_registry::{
     sync_flat_chat_fields, sync_legacy_models_section, ResolvedModelRegistry,
 };
@@ -176,9 +178,49 @@ fn merge_models_section(existing: &mut Map<String, Value>, patch: &ModelsConfigF
     Ok(())
 }
 
+/// Keep `memory.pipeline` embedding settings aligned with active registry embedding model.
+pub fn sync_memory_embedding_pipeline(cfg: &mut Value, registry: &ResolvedModelRegistry) {
+    let Some(item) = registry.active_item(ModelCapability::Embedding) else {
+        return;
+    };
+    let provider = registry.resolve_provider(item);
+    let model = registry.resolve_model(item);
+    let Some(obj) = cfg.as_object_mut() else {
+        return;
+    };
+    let memory = obj.entry("memory").or_insert_with(|| json!({}));
+    if !memory.is_object() {
+        *memory = json!({});
+    }
+    let pipeline = memory
+        .as_object_mut()
+        .expect("memory object")
+        .entry("pipeline")
+        .or_insert_with(|| json!({}));
+    if !pipeline.is_object() {
+        *pipeline = json!({});
+    }
+    let pipe = pipeline.as_object_mut().expect("pipeline object");
+    pipe.insert("embedding_enabled".into(), json!(true));
+    if is_builtin_local_provider(&provider) {
+        pipe.insert("embedding_provider".into(), json!("local"));
+        pipe.insert("embedding_local_model".into(), json!(model));
+        pipe.remove("embedding_base_url");
+        pipe.remove("embedding_model");
+    } else {
+        pipe.insert("embedding_provider".into(), json!("http"));
+        pipe.insert("embedding_model".into(), json!(model));
+        if let Some(url) = registry.resolve_base_url(item) {
+            pipe.insert("embedding_base_url".into(), json!(url));
+        }
+        pipe.remove("embedding_local_model");
+    }
+}
+
 fn apply_registry_sync(cfg: &mut Value) -> Result<()> {
     let registry = ResolvedModelRegistry::from_config(cfg);
     sync_flat_chat_fields(cfg, &registry);
+    sync_memory_embedding_pipeline(cfg, &registry);
     let legacy = sync_legacy_models_section(&registry);
     let obj = cfg.as_object_mut().context("config root must be object")?;
     let models_val = obj.entry("models").or_insert(json!({}));
@@ -378,6 +420,35 @@ pub fn patch_llm_config(path: Option<&Path>, patch: &LlmConfigPatch) -> Result<(
 mod tests {
     use super::*;
     use crate::config_models::{FailoverTrigger, ModelProfileFile, ModelsConfigFile};
+
+    #[test]
+    fn sync_memory_embedding_local_fastembed() {
+        let mut cfg = json!({
+            "memory": { "pipeline": { "embedding_provider": "http", "embedding_model": "old" } },
+            "models": {
+                "active": { "embedding": "local-fastembed-minilm" },
+                "items": [{
+                    "id": "local-fastembed-minilm",
+                    "provider": "local_fastembed",
+                    "model": "AllMiniLML6V2",
+                    "capabilities": ["embedding"],
+                    "enabled": true,
+                    "api_key": "local"
+                }]
+            }
+        });
+        let registry = ResolvedModelRegistry::from_config(&cfg);
+        sync_memory_embedding_pipeline(&mut cfg, &registry);
+        let pipe = cfg.pointer("/memory/pipeline").expect("pipeline");
+        assert_eq!(
+            pipe.get("embedding_provider").and_then(|v| v.as_str()),
+            Some("local")
+        );
+        assert_eq!(
+            pipe.get("embedding_local_model").and_then(|v| v.as_str()),
+            Some("AllMiniLML6V2")
+        );
+    }
 
     #[test]
     fn migrate_legacy_llm_to_flat() {

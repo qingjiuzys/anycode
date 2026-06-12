@@ -3,7 +3,8 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::UNIX_EPOCH;
+use std::sync::Mutex;
+use std::time::{Duration, Instant, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub const SESSION_ENV: &str = "ANYCODE_DASHBOARD_SESSION_ID";
@@ -53,6 +54,68 @@ fn pending_dir() -> PathBuf {
 
 fn response_dir() -> PathBuf {
     crate::cancel_ipc::dashboard_state_dir().join("approvals/responses")
+}
+
+fn auto_approve_dir() -> PathBuf {
+    crate::cancel_ipc::dashboard_state_dir().join("approvals/auto")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionAutoApproveRecord {
+    pub session_id: String,
+    pub enabled: bool,
+    pub set_at: String,
+}
+
+/// Enable / disable session-level approval delegation ("托管模式"): while
+/// enabled, the live CLI auto-allows tool approvals for this session (except
+/// high-risk commands, which still require explicit confirmation).
+pub fn set_session_auto_approve(session_id: &str, enabled: bool) -> Result<()> {
+    let dir = auto_approve_dir();
+    let path = dir.join(format!("{session_id}.json"));
+    if !enabled {
+        let _ = std::fs::remove_file(&path);
+        return Ok(());
+    }
+    std::fs::create_dir_all(&dir)?;
+    let rec = SessionAutoApproveRecord {
+        session_id: session_id.to_string(),
+        enabled: true,
+        set_at: chrono::Utc::now().to_rfc3339(),
+    };
+    std::fs::write(&path, serde_json::to_string_pretty(&rec)?)?;
+    Ok(())
+}
+
+#[must_use]
+pub fn session_auto_approve_enabled(session_id: &str) -> bool {
+    let path = auto_approve_dir().join(format!("{session_id}.json"));
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    serde_json::from_str::<SessionAutoApproveRecord>(&raw)
+        .map(|r| r.enabled)
+        .unwrap_or(false)
+}
+
+/// High-risk inputs keep explicit confirmation even under session delegation.
+#[must_use]
+pub fn input_is_high_risk(tool: &str, input_preview: &str) -> bool {
+    if tool != "Bash" {
+        return false;
+    }
+    let lower = input_preview.to_lowercase();
+    const PATTERNS: [&str; 8] = [
+        "rm -rf",
+        "rm -fr",
+        "sudo ",
+        "mkfs",
+        "dd if=",
+        "git push --force",
+        "shutdown",
+        ":(){",
+    ];
+    PATTERNS.iter().any(|p| lower.contains(p))
 }
 
 pub fn register_pending(session_id: &str, tool: &str, input_preview: &str) -> Result<String> {
@@ -118,8 +181,33 @@ pub struct PendingApprovalSummary {
     pub by_session: Vec<PendingApprovalSessionCount>,
 }
 
+static PENDING_SUMMARY_CACHE: Mutex<Option<(Instant, PendingApprovalSummary)>> = Mutex::new(None);
+const PENDING_SUMMARY_TTL: Duration = Duration::from_secs(2);
+
+pub fn invalidate_pending_summary_cache() {
+    if let Ok(mut guard) = PENDING_SUMMARY_CACHE.lock() {
+        *guard = None;
+    }
+}
+
 #[must_use]
 pub fn pending_summary() -> PendingApprovalSummary {
+    let now = Instant::now();
+    if let Ok(guard) = PENDING_SUMMARY_CACHE.lock() {
+        if let Some((at, summary)) = guard.as_ref() {
+            if now.duration_since(*at) < PENDING_SUMMARY_TTL {
+                return summary.clone();
+            }
+        }
+    }
+    let summary = build_pending_summary();
+    if let Ok(mut guard) = PENDING_SUMMARY_CACHE.lock() {
+        *guard = Some((now, summary.clone()));
+    }
+    summary
+}
+
+fn build_pending_summary() -> PendingApprovalSummary {
     let rows = list_pending(500);
     let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for row in &rows {
@@ -159,6 +247,7 @@ pub fn submit_response(approval_id: &str, decision: &str) -> Result<()> {
     };
     let path = response_dir().join(format!("{approval_id}.json"));
     std::fs::write(&path, serde_json::to_string_pretty(&body)?)?;
+    invalidate_pending_summary_cache();
     Ok(())
 }
 
@@ -259,6 +348,29 @@ mod tests {
         assert_eq!(summary.by_session.len(), 2);
         assert_eq!(summary.by_session[0].session_id, "sess_a");
         assert_eq!(summary.by_session[0].count, 2);
+    }
+
+    #[test]
+    fn session_auto_approve_roundtrip() {
+        let _guard = test_util::lock_state_dir_env();
+        let dir = tempdir().unwrap();
+        test_state(&dir);
+        assert!(!session_auto_approve_enabled("sess_x"));
+        set_session_auto_approve("sess_x", true).unwrap();
+        assert!(session_auto_approve_enabled("sess_x"));
+        set_session_auto_approve("sess_x", false).unwrap();
+        assert!(!session_auto_approve_enabled("sess_x"));
+    }
+
+    #[test]
+    fn high_risk_inputs_detected() {
+        assert!(input_is_high_risk(
+            "Bash",
+            "{\"command\": \"rm -rf /tmp/x\"}"
+        ));
+        assert!(input_is_high_risk("Bash", "sudo reboot"));
+        assert!(!input_is_high_risk("Bash", "ls -la"));
+        assert!(!input_is_high_risk("Edit", "rm -rf mention in text"));
     }
 
     #[test]

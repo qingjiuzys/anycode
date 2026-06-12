@@ -9,19 +9,66 @@ impl DashboardDb {
         kind: &str,
         title: &str,
     ) -> Result<String> {
+        self.upsert_artifact_with_final(project_id, session_id, path, kind, title, true)
+            .await
+    }
+
+    pub async fn upsert_artifact_scanned(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        path: &str,
+        kind: &str,
+        title: &str,
+    ) -> Result<String> {
+        self.upsert_artifact_with_final(project_id, session_id, path, kind, title, false)
+            .await
+    }
+
+    async fn upsert_artifact_with_final(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        path: &str,
+        kind: &str,
+        title: &str,
+        is_final: bool,
+    ) -> Result<String> {
         let id = format!("art_{}_{}", project_id, path.replace('/', "_"));
         let session_id = if session_id.is_empty() {
             None
         } else {
             Some(session_id)
         };
+        let existing_meta: Option<String> = sqlx::query_scalar(
+            "SELECT metadata_json FROM artifacts WHERE project_id = ? AND path = ?",
+        )
+        .bind(project_id)
+        .bind(path)
+        .fetch_optional(&self.pool)
+        .await?;
+        let version = existing_meta
+            .as_deref()
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+            .and_then(|v| v.get("version").and_then(|n| n.as_u64()))
+            .map(|n| n + 1)
+            .unwrap_or(1);
+        let metadata_json = serde_json::json!({
+            "version": version,
+            "is_final": is_final,
+            "updated_session_id": session_id,
+        })
+        .to_string();
+        let is_final_i: i64 = if is_final { 1 } else { 0 };
         sqlx::query(
             r#"
-            INSERT INTO artifacts (id, project_id, session_id, path, kind, title, trust_level, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'needs_verify', datetime('now'))
+            INSERT INTO artifacts (id, project_id, session_id, path, kind, title, trust_level, metadata_json, is_final, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'needs_verify', ?, ?, datetime('now'))
             ON CONFLICT(project_id, path) DO UPDATE SET
               session_id = excluded.session_id,
               title = excluded.title,
+              metadata_json = excluded.metadata_json,
+              is_final = excluded.is_final,
               updated_at = datetime('now')
             "#,
         )
@@ -31,19 +78,24 @@ impl DashboardDb {
         .bind(path)
         .bind(kind)
         .bind(title)
+        .bind(&metadata_json)
+        .bind(is_final_i)
         .execute(&self.pool)
         .await?;
         Ok(id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_artifacts(
         &self,
         project_id: Option<&str>,
         session_id: Option<&str>,
         kind: Option<&str>,
+        exclude_kind: Option<&str>,
         trust_level: Option<&str>,
         unverified_only: bool,
         blocked_session_only: bool,
+        final_only: bool,
         limit: i64,
     ) -> Result<Vec<ArtifactRecord>> {
         let mut sql = String::from(
@@ -68,6 +120,9 @@ impl DashboardDb {
         if kind.is_some() {
             sql.push_str(" AND a.kind = ?");
         }
+        if exclude_kind.filter(|k| !k.is_empty()).is_some() {
+            sql.push_str(" AND a.kind <> ?");
+        }
         if trust_level.filter(|t| !t.is_empty()).is_some() {
             sql.push_str(" AND a.trust_level = ?");
         }
@@ -76,6 +131,9 @@ impl DashboardDb {
         }
         if blocked_session_only {
             sql.push_str(" AND s.trusted_status = 'blocked'");
+        }
+        if final_only {
+            sql.push_str(" AND a.is_final = 1");
         }
         sql.push_str(" ORDER BY a.updated_at DESC LIMIT ?");
         let mut q = sqlx::query(&sql);
@@ -87,6 +145,9 @@ impl DashboardDb {
         }
         if let Some(k) = kind {
             q = q.bind(k);
+        }
+        if let Some(ek) = exclude_kind.filter(|k| !k.is_empty()) {
+            q = q.bind(ek);
         }
         if let Some(tl) = trust_level.filter(|t| !t.is_empty()) {
             q = q.bind(tl);

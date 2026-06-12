@@ -52,4 +52,6 @@ From repo root:
 
 User docs: [docs-site/guide/dashboard-planning.md](../../docs-site/guide/dashboard-planning.md)
 
-Tests: `npm test` · `npm run test:e2e` (11 specs) · `cargo test -p anycode-dashboard`
+Tests: `npm test` · `npm run test:e2e` · `cargo test -p anycode-dashboard`
+
+Real LLM manual checklist: [`docs/qa-manual-llm-checklist.md`](../../docs/qa-manual-llm-checklist.md)

@@ -1,6 +1,8 @@
 ---
 name: content-repurpose
 description: Repurpose long content into shorter posts or alternate formats (draft only).
+description_zh: 将长文改写为短文帖或多种格式草稿（仅生成草稿）。
+category: business
 ---
 
 # content-repurpose

@@ -1,13 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import type { RuntimeSettings } from "@/api/types";
 import { api } from "@/api/client";
+import { Icon } from "@/components/Icon";
+import { SkillsImportDialog } from "@/components/SkillsImportDialog";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { useT } from "@/i18n/context";
+import { useLocale, useT } from "@/i18n/context";
+import {
+  categoriesWithEntries,
+  filterSkillsByCategory,
+  normalizeSkillCategory,
+  skillDisplayDescription,
+  type SkillCategory,
+} from "@/lib/skillCatalog";
 
 export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }) {
   const t = useT();
+  const locale = useLocale();
   const qc = useQueryClient();
+  const [importOpen, setImportOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<SkillCategory | "all">("all");
   const skills = useQuery({ queryKey: ["skills"], queryFn: () => api.skills(100) });
 
   const rescan = useMutation({
@@ -30,10 +43,27 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
   });
 
   const list = skills.data?.skills ?? [];
+  const visibleCategories = useMemo(() => categoriesWithEntries(list), [list]);
+  const filtered = useMemo(
+    () => filterSkillsByCategory(list, categoryFilter),
+    [list, categoryFilter],
+  );
 
   return (
     <>
-      <SectionCard title={t("settings.tabs.skills")}>
+      <SectionCard
+        title={t("settings.tabs.skills")}
+        action={
+          <button
+            type="button"
+            className="dw-btn-secondary text-xs"
+            onClick={() => setImportOpen(true)}
+          >
+            <Icon name="upload" size={14} className="inline mr-1" />
+            {t("settings.skillsGov.importBtn")}
+          </button>
+        }
+      >
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="dw-stat-card">
             <div className="dw-stat-value">{runtime?.skills_total ?? "…"}</div>
@@ -66,20 +96,40 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
       </SectionCard>
 
       <SectionCard title={t("settings.skillsGov.globalTitle")} noPadding>
+        {list.length > 0 && visibleCategories.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pt-4 pb-2">
+            <FilterPill
+              active={categoryFilter === "all"}
+              label={t("agents.skillCategory.all")}
+              onClick={() => setCategoryFilter("all")}
+            />
+            {visibleCategories.map((cat) => (
+              <FilterPill
+                key={cat}
+                active={categoryFilter === cat}
+                label={t(`agents.skillCategory.${cat}`)}
+                onClick={() => setCategoryFilter(cat)}
+              />
+            ))}
+          </div>
+        )}
         {list.length === 0 ? (
           <p className="text-sm text-secondary px-4 py-4 m-0">{t("agents.emptySkills")}</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-secondary px-4 py-4 m-0">{t("agents.skillMarketEmpty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="dw-table">
               <thead>
                 <tr>
                   <th>{t("common.name")}</th>
+                  <th>{t("settings.skillsGov.categoryCol")}</th>
                   <th className="text-right">{t("settings.skillsGov.enabledProjects")}</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {list.map((sk) => (
+                {filtered.map((sk) => (
                   <tr key={sk.id}>
                     <td>
                       <Link
@@ -89,11 +139,16 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
                       >
                         {sk.name}
                       </Link>
-                      {sk.description && (
+                      {skillDisplayDescription(sk, locale) && (
                         <div className="text-xs text-secondary mt-0.5 line-clamp-1">
-                          {sk.description}
+                          {skillDisplayDescription(sk, locale)}
                         </div>
                       )}
+                    </td>
+                    <td>
+                      <span className="text-xs text-secondary">
+                        {t(`agents.skillCategory.${normalizeSkillCategory(sk.category)}`)}
+                      </span>
                     </td>
                     <td className="text-right tabular-nums">{sk.projects_count}</td>
                     <td className="text-right whitespace-nowrap">
@@ -121,6 +176,32 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
           </div>
         )}
       </SectionCard>
+
+      <SkillsImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </>
+  );
+}
+
+function FilterPill({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+        active
+          ? "bg-primary/15 border-primary/40 text-primary font-medium"
+          : "border-outline-variant text-secondary hover:bg-surface-container-low"
+      }`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
   );
 }

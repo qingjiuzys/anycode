@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { TranscriptBlock } from "@/api/types";
 import { CollapsiblePanel, contentStats, previewLines } from "@/components/ui/CollapsiblePanel";
@@ -25,16 +25,25 @@ export function TranscriptToolBlock({ tools, defaultCollapsed }: Props) {
 
   const summary = useMemo(() => buildGroupSummary(tools, t), [tools, t]);
   const initialOpen = defaultCollapsed === false && !running;
+  const elapsed = useRunningElapsedSeconds(running ? tools[0]?.at : undefined);
+  const subtitle =
+    running && elapsed != null ? `${summary.subtitle} · ${elapsed}s` : summary.subtitle;
 
   return (
     <CollapsiblePanel
       title={summary.title}
-      subtitle={summary.subtitle}
+      subtitle={subtitle}
       defaultOpen={initialOpen}
       tone={failed ? "error" : running ? "running" : "muted"}
       icon="build"
       headerActions={
         <>
+          {running && (
+            <span
+              aria-hidden
+              className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse"
+            />
+          )}
           <CopyButton text={summary.combined} label={t("conversations.copyMessage")} />
           {summary.eventId && (
             <Link
@@ -55,6 +64,19 @@ export function TranscriptToolBlock({ tools, defaultCollapsed }: Props) {
       </ul>
     </CollapsiblePanel>
   );
+}
+
+function useRunningElapsedSeconds(startedAt?: string): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  if (Number.isNaN(start)) return null;
+  return Math.max(0, Math.floor((now - start) / 1000));
 }
 
 function ToolStepRow({ tool }: { tool: TranscriptBlock }) {

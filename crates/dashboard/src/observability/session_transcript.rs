@@ -2,9 +2,10 @@
 
 use super::execution_log::{output_log_path, read_execution_log};
 use super::session_trace::session_trace;
+use super::transcript_cache::{event_fingerprint, get_cached, invalidate_session, put_cached};
 use crate::db::DashboardDb;
 use crate::log_parser::parse_prose_sections;
-use crate::schema::{ProjectEvent, SessionTranscriptResponse, TranscriptBlock};
+use crate::schema::{ProjectEvent, SessionDetail, SessionTranscriptResponse, TranscriptBlock};
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::collections::HashSet;
@@ -35,32 +36,87 @@ pub async fn session_transcript(
         .await?;
     index_events.sort_by(|a, b| a.occurred_at.cmp(&b.occurred_at));
 
-    let task_ids = collect_task_ids(&session, &index_events);
-    let mut log_events = parsed_log_events_for_tasks(&session, &task_ids);
-    if log_events.is_empty() {
-        if let Ok(trace) = session_trace(db, session_id).await {
-            for row in trace.events {
-                log_events.push(ProjectEvent {
-                    id: format!("trace:{}", row.event_type),
-                    project_id: session.project_id.clone(),
-                    session_id: Some(session_id.to_string()),
-                    task_id: session.task_id.clone(),
-                    agent_id: None,
-                    event_type: row.event_type,
-                    severity: row.severity,
-                    title: row.title,
-                    body: row.body,
-                    payload: row.payload,
-                    occurred_at: if row.occurred_at.is_empty() {
-                        session.started_at.clone()
-                    } else {
-                        row.occurred_at
-                    },
-                });
-            }
-        }
+    let is_running = session.status == "running";
+    let (event_count, last_event_id) = event_fingerprint(&index_events);
+    if let Some(cached) = get_cached(session_id, event_count, &last_event_id, is_running) {
+        return Ok(cached);
     }
 
+    let transcript = if should_use_index_only(&session, &index_events) {
+        assemble_transcript(&session, session_id, index_events, Vec::new())?
+    } else {
+        let task_ids = collect_task_ids(&session, &index_events);
+        let session_for_logs = session.clone();
+        let mut log_events = tokio::task::spawn_blocking(move || {
+            parsed_log_events_for_tasks(&session_for_logs, &task_ids)
+        })
+        .await
+        .context("transcript log parse cancelled")?;
+        if log_events.is_empty() {
+            if let Ok(trace) = session_trace(db, session_id).await {
+                for row in trace.events {
+                    log_events.push(ProjectEvent {
+                        id: format!("trace:{}", row.event_type),
+                        project_id: session.project_id.clone(),
+                        session_id: Some(session_id.to_string()),
+                        task_id: session.task_id.clone(),
+                        agent_id: None,
+                        event_type: row.event_type,
+                        severity: row.severity,
+                        title: row.title,
+                        body: row.body,
+                        payload: row.payload,
+                        occurred_at: if row.occurred_at.is_empty() {
+                            session.started_at.clone()
+                        } else {
+                            row.occurred_at
+                        },
+                    });
+                }
+            }
+        }
+        assemble_transcript(&session, session_id, index_events, log_events)?
+    };
+
+    put_cached(
+        session_id,
+        transcript.clone(),
+        event_count,
+        last_event_id,
+        is_running,
+    );
+    Ok(transcript)
+}
+
+fn should_use_index_only(session: &SessionDetail, index_events: &[ProjectEvent]) -> bool {
+    if session.status == "running" {
+        return false;
+    }
+    index_has_conversation(index_events)
+}
+
+fn index_has_conversation(events: &[ProjectEvent]) -> bool {
+    let mut has_user = false;
+    let mut has_assistant = false;
+    for event in events {
+        match event.event_type.as_str() {
+            "user_prompt" | "prompt" => has_user = true,
+            "assistant_response" => has_assistant = true,
+            _ => {}
+        }
+        if has_user && has_assistant {
+            return true;
+        }
+    }
+    false
+}
+
+fn assemble_transcript(
+    session: &SessionDetail,
+    session_id: &str,
+    index_events: Vec<ProjectEvent>,
+    log_events: Vec<ProjectEvent>,
+) -> Result<SessionTranscriptResponse> {
     let mut lifecycle = Vec::new();
     let mut blocks = Vec::new();
 
@@ -90,7 +146,7 @@ pub async fn session_transcript(
     }
 
     blocks.sort_by(|a, b| a.at.cmp(&b.at));
-    finalize_conversation_timeline(&mut blocks, &lifecycle, &session);
+    finalize_conversation_timeline(&mut blocks, &lifecycle, session);
 
     Ok(SessionTranscriptResponse {
         schema_version: SCHEMA_VERSION,
@@ -98,6 +154,11 @@ pub async fn session_transcript(
         blocks,
         lifecycle,
     })
+}
+
+/// Invalidate cached transcript after index events change.
+pub fn invalidate_transcript_cache(session_id: &str) {
+    invalidate_session(session_id);
 }
 
 fn collect_task_ids(
@@ -467,6 +528,28 @@ fn finalize_conversation_timeline(
     promote_failed_tasks(blocks, lifecycle);
     fill_missing_turn_replies(blocks, lifecycle, session);
     blocks.sort_by(|a, b| a.at.cmp(&b.at));
+    uncollapse_final_assistant_replies(blocks);
+}
+
+/// The last assistant reply of each user turn is the de-facto summary for that
+/// turn — keep it expanded regardless of length. Intermediate long replies
+/// keep the regular collapse policy.
+fn uncollapse_final_assistant_replies(blocks: &mut [TranscriptBlock]) {
+    let mut pending: Option<usize> = None;
+    for i in 0..blocks.len() {
+        match blocks[i].block_type.as_str() {
+            "user_message" => {
+                if let Some(p) = pending.take() {
+                    blocks[p].default_collapsed = false;
+                }
+            }
+            "assistant_message" => pending = Some(i),
+            _ => {}
+        }
+    }
+    if let Some(p) = pending {
+        blocks[p].default_collapsed = false;
+    }
 }
 
 fn promote_failed_tasks(blocks: &mut Vec<TranscriptBlock>, lifecycle: &[TranscriptBlock]) {
@@ -641,6 +724,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn completed_session_uses_index_only_without_log() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("transcript-index-only.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: dir.path().join("proj-index").display().to_string(),
+                name: Some("IndexOnly".into()),
+                description: None,
+                create_root: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let session = db
+            .create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "repl".into(),
+                task_id: Some("task-no-log".into()),
+                title: "chat".into(),
+                prompt_preview: Some("hello".into()),
+                agent_type: None,
+                model: None,
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        db.insert_event(InsertEventRequest {
+            project_id: project.id.clone(),
+            session_id: Some(session.id.clone()),
+            task_id: None,
+            agent_id: None,
+            event_type: "user_prompt".into(),
+            severity: Some("info".into()),
+            title: "User prompt".into(),
+            body: Some("hello".into()),
+            payload: None,
+        })
+        .await
+        .unwrap();
+        db.insert_event(InsertEventRequest {
+            project_id: project.id.clone(),
+            session_id: Some(session.id.clone()),
+            task_id: None,
+            agent_id: None,
+            event_type: "assistant_response".into(),
+            severity: Some("info".into()),
+            title: "Assistant".into(),
+            body: Some("world".into()),
+            payload: None,
+        })
+        .await
+        .unwrap();
+        db.finish_session(&session.id, "completed", None)
+            .await
+            .unwrap();
+
+        let transcript = session_transcript(&db, &session.id).await.unwrap();
+        assert_eq!(transcript.blocks.len(), 2);
+        assert_eq!(transcript.blocks[0].block_type, "user_message");
+        assert_eq!(transcript.blocks[1].block_type, "assistant_message");
+    }
+
+    #[tokio::test]
     async fn builds_transcript_from_index_events() {
         let dir = tempdir().unwrap();
         let db = DashboardDb::open(dir.path().join("transcript.db"))
@@ -717,6 +865,34 @@ mod tests {
             .lifecycle
             .iter()
             .any(|b| b.title.contains("task")));
+    }
+
+    #[test]
+    fn final_assistant_reply_per_turn_is_never_default_collapsed() {
+        let mk = |id: &str, block_type: &str, at: &str, collapsed: bool| TranscriptBlock {
+            id: id.into(),
+            block_type: block_type.into(),
+            at: at.into(),
+            title: String::new(),
+            body: "x".into(),
+            meta: json!({}),
+            collapsible: collapsed,
+            default_collapsed: collapsed,
+            event_id: None,
+        };
+        let mut blocks = vec![
+            mk("u1", "user_message", "2026-01-01T00:00:00Z", false),
+            mk("a1", "assistant_message", "2026-01-01T00:01:00Z", true),
+            mk("a2", "assistant_message", "2026-01-01T00:02:00Z", true),
+            mk("u2", "user_message", "2026-01-01T00:03:00Z", false),
+            mk("a3", "assistant_message", "2026-01-01T00:04:00Z", true),
+        ];
+        uncollapse_final_assistant_replies(&mut blocks);
+        // Intermediate reply keeps the collapse policy.
+        assert!(blocks[1].default_collapsed);
+        // Final reply of each turn is expanded.
+        assert!(!blocks[2].default_collapsed);
+        assert!(!blocks[4].default_collapsed);
     }
 
     #[test]

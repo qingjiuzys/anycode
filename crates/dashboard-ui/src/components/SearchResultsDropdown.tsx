@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { SearchResults } from "@/api/types";
 import { useT } from "@/i18n/context";
+import { localizeLogTitle } from "@/lib/eventFormat";
 
 export function SearchResultsDropdown({
   data,
@@ -47,7 +48,8 @@ export function SearchResultsDropdown({
           params={{ eventId: e.id }}
           className={`block px-3 py-2 text-sm hover:bg-surface-container no-underline ${className}`}
         >
-          <span className="text-secondary text-xs">{t("search.events")}</span> {e.title}
+          <span className="text-secondary text-xs">{t("search.events")}</span>{" "}
+          {localizeLogTitle(e.title, "", t) ?? e.title}
         </Link>
       ))}
     </>

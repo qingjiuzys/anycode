@@ -32,7 +32,7 @@ const STATUS_STYLE: Record<string, { bg: string; dot: string; text: string }> = 
   cancelled: { bg: "bg-surface-variant", dot: "bg-outline", text: "text-secondary" },
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
   const t = useT();
   const key = status.toLowerCase();
   const style = STATUS_STYLE[key] ?? {
@@ -41,14 +41,14 @@ export function StatusBadge({ status }: { status: string }) {
     text: "text-on-surface-variant",
   };
   const labelKey = STATUS_KEYS.find((k) => k === key);
-  const label = labelKey ? t(`status.${labelKey}`) : status;
+  const text = label ?? (labelKey ? t(`status.${labelKey}`) : status);
 
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${style.bg} ${style.text}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
-      {label}
+      {text}
     </span>
   );
 }

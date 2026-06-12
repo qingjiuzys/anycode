@@ -119,6 +119,16 @@ impl DashboardDb {
         ))
     }
 
+    pub async fn rename_project(&self, project_id: &str, name: &str) -> Result<bool> {
+        let result =
+            sqlx::query("UPDATE projects SET name = ?, updated_at = datetime('now') WHERE id = ?")
+                .bind(name)
+                .bind(project_id)
+                .execute(&self.pool)
+                .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn set_project_status(&self, project_id: &str, status: &str) -> Result<bool> {
         let result = sqlx::query(
             "UPDATE projects SET status = ?, updated_at = datetime('now') WHERE id = ?",
@@ -523,7 +533,9 @@ impl DashboardDb {
               (SELECT COUNT(*) FROM projects) AS projects_count,
               (SELECT COUNT(*) FROM sessions) AS sessions_total,
               (SELECT COUNT(*) FROM sessions WHERE status = 'running') AS sessions_running,
-              (SELECT COUNT(*) FROM sessions WHERE trusted_status = 'blocked') AS sessions_blocked,
+              (SELECT COUNT(*) FROM sessions
+                 WHERE trusted_status = 'blocked'
+                   AND blocked_acknowledged_at IS NULL) AS sessions_blocked,
               (SELECT COUNT(DISTINCT session_id) FROM project_events
                  WHERE event_type = 'budget_exceeded'
                    AND session_id IS NOT NULL
@@ -642,5 +654,111 @@ impl DashboardDb {
             gate_statuses,
             recent_failures,
         })
+    }
+
+    pub async fn get_project_view_prefs(
+        &self,
+        project_id: &str,
+    ) -> Result<Option<ProjectViewPrefs>> {
+        let row =
+            sqlx::query_scalar::<_, String>("SELECT metadata_json FROM projects WHERE id = ?")
+                .bind(project_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|raw| parse_project_view_prefs(&raw)))
+    }
+
+    pub async fn set_project_view_prefs(
+        &self,
+        project_id: &str,
+        prefs: &ProjectViewPrefs,
+    ) -> Result<bool> {
+        let raw: String = sqlx::query_scalar("SELECT metadata_json FROM projects WHERE id = ?")
+            .bind(project_id)
+            .fetch_optional(&self.pool)
+            .await?
+            .unwrap_or_else(|| "{}".into());
+        let mut meta: serde_json::Value =
+            serde_json::from_str(&raw).unwrap_or(serde_json::json!({}));
+        if !meta.is_object() {
+            meta = serde_json::json!({});
+        }
+        meta["view_prefs"] = serde_json::to_value(prefs)?;
+        let updated = sqlx::query(
+            "UPDATE projects SET metadata_json = ?, updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(meta.to_string())
+        .bind(project_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+}
+
+fn parse_project_view_prefs(raw: &str) -> ProjectViewPrefs {
+    let Ok(meta) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return ProjectViewPrefs::default();
+    };
+    meta.get("view_prefs")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn clamp_session_flow_limit(n: u32) -> u32 {
+    n.clamp(3, 20)
+}
+
+impl ProjectViewPrefs {
+    pub fn normalized(self) -> Self {
+        Self {
+            session_flow_limit: clamp_session_flow_limit(self.session_flow_limit),
+            hide_imported_sessions: self.hide_imported_sessions,
+            acceptance_preset_ids: self
+                .acceptance_preset_ids
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod view_prefs_tests {
+    use super::*;
+    use crate::schema::UpsertProjectRequest;
+
+    #[tokio::test]
+    async fn project_view_prefs_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("view-prefs.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: dir.path().join("proj").display().to_string(),
+                name: Some("prefs".into()),
+                description: None,
+                create_root: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let prefs = ProjectViewPrefs {
+            session_flow_limit: 12,
+            hide_imported_sessions: true,
+            acceptance_preset_ids: vec!["lint".into()],
+        };
+        assert!(db
+            .set_project_view_prefs(&project.id, &prefs)
+            .await
+            .unwrap());
+        let loaded = db
+            .get_project_view_prefs(&project.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.session_flow_limit, 12);
+        assert!(loaded.hide_imported_sessions);
+        assert_eq!(loaded.acceptance_preset_ids, vec!["lint"]);
     }
 }

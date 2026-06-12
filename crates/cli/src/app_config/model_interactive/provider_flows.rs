@@ -20,6 +20,8 @@ use dialoguer::{Confirm, Input, Password, Select};
 use fluent_bundle::FluentArgs;
 use std::path::{Path, PathBuf};
 
+pub(super) use anycode_setup::{QuickAuthChoice as AuthChoice, QUICK_AUTH_CHOICES};
+
 /// [`run_global_provider_flow`] 结束方式：setup 下从提供方列表返回不可结束整个 `run_onboard`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum GlobalProviderFlowResult {
@@ -29,100 +31,6 @@ pub(super) enum GlobalProviderFlowResult {
     SetupBackToModePicker,
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct AuthChoice {
-    pub(super) id: &'static str,
-    pub(super) label: &'static str,
-    pub(super) provider: &'static str,
-    pub(super) plan: &'static str,
-    pub(super) default_model: &'static str,
-    pub(super) base_url: &'static str,
-    pub(super) key_envs: &'static [&'static str],
-}
-
-pub(super) const QUICK_AUTH_CHOICES: &[AuthChoice] = &[
-    AuthChoice {
-        id: "zai-coding",
-        label: "z.ai Coding Plan — Global (api.z.ai)",
-        provider: "z.ai",
-        plan: "coding",
-        default_model: "glm-5",
-        base_url: "https://api.z.ai/api/coding/paas/v4/chat/completions",
-        key_envs: &["ZAI_API_KEY"],
-    },
-    AuthChoice {
-        id: "zai-coding-cn",
-        label: "z.ai / 智谱 国内编码套餐 (open.bigmodel.cn)",
-        provider: "z.ai",
-        plan: "coding_cn",
-        default_model: "glm-5",
-        base_url: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
-        key_envs: &["ZAI_API_KEY"],
-    },
-    AuthChoice {
-        id: "zai-general",
-        label: "z.ai General — Global (api.z.ai)",
-        provider: "z.ai",
-        plan: "general",
-        default_model: "glm-5",
-        base_url: "https://api.z.ai/api/paas/v4/chat/completions",
-        key_envs: &["ZAI_API_KEY"],
-    },
-    AuthChoice {
-        id: "deepseek-api-key",
-        label: "DeepSeek API Key",
-        provider: "deepseek",
-        plan: "general",
-        default_model: "deepseek-v4-pro",
-        base_url: "https://api.deepseek.com/chat/completions",
-        key_envs: &["DEEPSEEK_API_KEY"],
-    },
-    AuthChoice {
-        id: "gemini-api-key",
-        label: "Google Gemini API Key",
-        provider: "google",
-        plan: "general",
-        default_model: "gemini-2.5-pro",
-        base_url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        key_envs: &["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-    },
-    AuthChoice {
-        id: "qwen-api-key",
-        label: "Qwen API Key (Global Coding Plan)",
-        provider: "qwen",
-        plan: "general",
-        default_model: "qwen3-coder-plus",
-        base_url: "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
-        key_envs: &["QWEN_API_KEY", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY"],
-    },
-    AuthChoice {
-        id: "qwen-api-key-cn",
-        label: "Qwen API Key (China Coding Plan)",
-        provider: "qwen",
-        plan: "general",
-        default_model: "qwen3-coder-plus",
-        base_url: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
-        key_envs: &["QWEN_API_KEY", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY"],
-    },
-    AuthChoice {
-        id: "anthropic-api-key",
-        label: "Anthropic API Key",
-        provider: "anthropic",
-        plan: "general",
-        default_model: "claude-sonnet-4-20250514",
-        base_url: "https://api.anthropic.com/v1/messages",
-        key_envs: &["ANTHROPIC_API_KEY"],
-    },
-    AuthChoice {
-        id: "openai-api-key",
-        label: "OpenAI API Key",
-        provider: "openai",
-        plan: "general",
-        default_model: "gpt-4.1",
-        base_url: "https://api.openai.com/v1/chat/completions",
-        key_envs: &["OPENAI_API_KEY"],
-    },
-];
 fn lookup_env_first(envs: &[&str]) -> Option<String> {
     for k in envs {
         if let Ok(v) = std::env::var(k) {

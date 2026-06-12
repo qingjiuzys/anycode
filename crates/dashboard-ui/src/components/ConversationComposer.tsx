@@ -4,8 +4,10 @@ import { api } from "@/api/client";
 import type { WebChatResult } from "@/api/client/projects";
 import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { Icon } from "@/components/Icon";
+import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { isPrimaryAgentId } from "@/lib/agentCatalog";
-import { useT } from "@/i18n/context";
+import { useLocale, useT } from "@/i18n/context";
+import { skillDisplayDescription } from "@/lib/skillCatalog";
 
 type ConversationStartSuccess = {
   session: SessionDetail;
@@ -34,6 +36,14 @@ type VisionAttachment = {
   data_base64: string;
   previewUrl: string;
 };
+
+type TextAttachment = {
+  filename: string;
+  content: string;
+};
+
+const TEXT_FILE_ACCEPT = ".txt,.md,.json,.csv,.log,.pdf";
+const MAX_TEXT_FILE_BYTES = 1024 * 1024;
 
 const SLASH_COMMANDS = ["help", "skills"] as const;
 
@@ -77,6 +87,37 @@ function parseSlashCommand(text: string): string | null {
   return null;
 }
 
+/** Session-level approval delegation toggle ("托管模式"). */
+function AutoApproveToggle({ sessionId }: { sessionId: string }) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const state = useQuery({
+    queryKey: ["session-auto-approve", sessionId],
+    queryFn: () => api.sessionAutoApprove(sessionId),
+    refetchInterval: 12_000,
+  });
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) => api.setSessionAutoApprove(sessionId, enabled),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["session-auto-approve", sessionId] });
+    },
+  });
+  const enabled = state.data?.enabled ?? false;
+  return (
+    <button
+      type="button"
+      className={`text-xs py-1 ${enabled ? "dw-btn-primary" : "dw-btn-secondary"}`}
+      disabled={toggle.isPending}
+      title={t("conversations.autoApproveHint")}
+      aria-pressed={enabled}
+      onClick={() => toggle.mutate(!enabled)}
+    >
+      <Icon name="verified_user" size={14} />
+      {t("conversations.autoApprove")}
+    </button>
+  );
+}
+
 export function ConversationComposer(props: Props) {
   const t = useT();
   const queryClient = useQueryClient();
@@ -97,7 +138,9 @@ export function ConversationComposer(props: Props) {
   const [slashOpen, setSlashOpen] = useState(false);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [attachedImages, setAttachedImages] = useState<VisionAttachment[]>([]);
+  const [attachedTextFiles, setAttachedTextFiles] = useState<TextAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (props.mode === "start" && props.initialAgent) {
@@ -121,6 +164,8 @@ export function ConversationComposer(props: Props) {
     queryFn: () => api.skills(100),
   });
 
+  const locale = useLocale();
+
   const skillOptions = useMemo(() => {
     const rows = allSkills.data?.skills ?? [];
     const profile = (agentProfiles.data?.profiles ?? []).find((p) => p.id === agent);
@@ -129,6 +174,14 @@ export function ConversationComposer(props: Props) {
     if (!allow) return ids;
     return ids.filter((id) => allow.includes(id));
   }, [agent, agentProfiles.data?.profiles, allSkills.data?.skills]);
+
+  const skillById = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof allSkills.data>["skills"][number]>();
+    for (const s of allSkills.data?.skills ?? []) {
+      map.set(s.id, s);
+    }
+    return map;
+  }, [allSkills.data?.skills]);
 
   const { primaryProfiles, moreProfiles } = useMemo(() => {
     const profiles = agentProfiles.data?.profiles ?? [];
@@ -169,11 +222,13 @@ export function ConversationComposer(props: Props) {
       agent?: string;
       skills?: string[];
       vision_images?: { mime_type: string; data_base64: string }[];
+      text_files?: { filename: string; content: string }[];
     }) => api.sendSessionMessage(session!.id, payload),
     onSuccess: () => {
       setMessage("");
       attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setAttachedImages([]);
+      setAttachedTextFiles([]);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["session", session!.id] });
@@ -196,11 +251,16 @@ export function ConversationComposer(props: Props) {
                 data_base64,
               }))
             : undefined,
+        text_files:
+          attachedTextFiles.length > 0
+            ? attachedTextFiles.map(({ filename, content }) => ({ filename, content }))
+            : undefined,
       }),
     onSuccess: (data) => {
       setMessage("");
       attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setAttachedImages([]);
+      setAttachedTextFiles([]);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["session", data.session.id] });
@@ -214,7 +274,9 @@ export function ConversationComposer(props: Props) {
   const running = session?.status === "running";
   const pending = isStart ? startSession.isPending : sendFollowUp.isPending;
   const canSend =
-    (message.trim().length > 0 || attachedImages.length > 0) &&
+    (message.trim().length > 0 ||
+      attachedImages.length > 0 ||
+      attachedTextFiles.length > 0) &&
     !pending &&
     (!isStart ? !running : true);
 
@@ -259,6 +321,10 @@ export function ConversationComposer(props: Props) {
               mime_type,
               data_base64,
             }))
+          : undefined,
+      text_files:
+        attachedTextFiles.length > 0
+          ? attachedTextFiles.map(({ filename, content }) => ({ filename, content }))
           : undefined,
     };
   }
@@ -407,6 +473,28 @@ export function ConversationComposer(props: Props) {
           rows={isStart ? 4 : 3}
           onKeyDown={onComposerKeyDown}
         />
+        {attachedTextFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {attachedTextFiles.map((f, idx) => (
+              <span
+                key={`${f.filename}-${idx}`}
+                className="inline-flex items-center gap-1 rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
+              >
+                <Icon name="description" size={14} className="text-secondary" />
+                <span className="font-code truncate max-w-[10rem]">{f.filename}</span>
+                <button
+                  type="button"
+                  className="dw-btn-ghost text-[10px] px-1 py-0 min-h-0"
+                  onClick={() =>
+                    setAttachedTextFiles((prev) => prev.filter((_, i) => i !== idx))
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {attachedImages.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
             {attachedImages.map((img, idx) => (
@@ -441,6 +529,35 @@ export function ConversationComposer(props: Props) {
             e.target.value = "";
             const next = await Promise.all(files.map(fileToVisionAttachment));
             setAttachedImages((prev) => [...prev, ...next].slice(0, 3));
+          }}
+        />
+        <input
+          ref={textFileInputRef}
+          type="file"
+          accept={TEXT_FILE_ACCEPT}
+          className="hidden"
+          multiple
+          onChange={async (e) => {
+            const files = Array.from(e.target.files ?? []).slice(0, 3);
+            e.target.value = "";
+            const next: TextAttachment[] = [];
+            for (const file of files) {
+              if (file.size > MAX_TEXT_FILE_BYTES) continue;
+              const lower = file.name.toLowerCase();
+              if (lower.endsWith(".pdf")) {
+                const buf = await file.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                let binary = "";
+                for (let i = 0; i < bytes.length; i += 1) {
+                  binary += String.fromCharCode(bytes[i]!);
+                }
+                next.push({ filename: file.name, content: btoa(binary) });
+              } else {
+                const content = await file.text();
+                next.push({ filename: file.name, content });
+              }
+            }
+            setAttachedTextFiles((prev) => [...prev, ...next].slice(0, 3));
           }}
         />
       </div>
@@ -497,19 +614,29 @@ export function ConversationComposer(props: Props) {
               </button>
               {skillsOpen && (
                 <div className="absolute bottom-full left-0 mb-1 z-20 min-w-[14rem] max-w-[20rem] max-h-48 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg p-2">
-                  {skillOptions.map((id) => (
-                    <label
-                      key={id}
-                      className="flex items-center gap-2 text-xs px-2 py-1 rounded hover:bg-surface-container-low cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedSkills.includes(id)}
-                        onChange={() => toggleSkill(id)}
-                      />
-                      <span className="font-code">{id}</span>
-                    </label>
-                  ))}
+                  {skillOptions.map((id) => {
+                    const row = skillById.get(id);
+                    const desc = row ? skillDisplayDescription(row, locale) : "";
+                    return (
+                      <label
+                        key={id}
+                        className="flex items-start gap-2 text-xs px-2 py-1 rounded hover:bg-surface-container-low cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={selectedSkills.includes(id)}
+                          onChange={() => toggleSkill(id)}
+                        />
+                        <span className="min-w-0">
+                          <span className="font-code block">{id}</span>
+                          {desc && (
+                            <span className="text-secondary line-clamp-2 block">{desc}</span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -524,6 +651,23 @@ export function ConversationComposer(props: Props) {
           >
             <Icon name="image" size={14} />
           </button>
+
+          <button
+            type="button"
+            className="dw-btn-secondary text-xs py-1"
+            disabled={running || pending || attachedTextFiles.length >= 3}
+            title={t("conversations.attachTextFile")}
+            onClick={() => textFileInputRef.current?.click()}
+          >
+            <Icon name="attach_file" size={14} />
+          </button>
+
+          <VoiceInputButton
+            disabled={running || pending}
+            onTranscribed={(text) => setMessage((prev) => mergeVoiceTranscript(prev, text))}
+          />
+
+          {session && <AutoApproveToggle sessionId={session.id} />}
 
           <span
             className="text-[11px] text-secondary truncate max-w-[12rem]"

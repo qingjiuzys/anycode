@@ -2,6 +2,7 @@
 
 use crate::capability_catalog::ModelCapability;
 use crate::config_models::EndpointOverrides;
+use crate::local_media_catalog::local_media_provider_allows_placeholder_key;
 use crate::model_registry::ResolvedModelRegistry;
 use serde_json::Value;
 
@@ -42,10 +43,16 @@ impl MediaClientRegistry {
             if !item.enabled {
                 return None;
             }
-            let api_key = registry.resolve_api_key(item)?;
-            if api_key.is_empty() {
-                return None;
-            }
+            let api_key = registry
+                .resolve_api_key(item)
+                .filter(|k| !k.trim().is_empty())
+                .or_else(|| {
+                    if local_media_provider_allows_placeholder_key(&item.provider) {
+                        Some("local".to_string())
+                    } else {
+                        None
+                    }
+                })?;
             let provider = registry.resolve_provider(item);
             let model = registry.resolve_model(item);
             if provider.is_empty() || model.is_empty() {
@@ -110,6 +117,28 @@ mod tests {
         let reg = MediaClientRegistry::from_config(&cfg);
         let stt = reg.stt.expect("stt");
         assert_eq!(stt.profile.model, "whisper-1");
+    }
+
+    #[test]
+    fn resolves_local_fastembed_without_api_key() {
+        let cfg = json!({
+            "provider": "openai",
+            "api_key": "sk-test",
+            "models": {
+                "active": { "embedding": "local-fastembed-minilm" },
+                "items": [{
+                    "id": "local-fastembed-minilm",
+                    "provider": "local_fastembed",
+                    "model": "AllMiniLML6V2",
+                    "capabilities": ["embedding"],
+                    "enabled": true
+                }]
+            }
+        });
+        let reg = MediaClientRegistry::from_config(&cfg);
+        let emb = reg.embedding.expect("embedding");
+        assert_eq!(emb.profile.provider, "local_fastembed");
+        assert_eq!(emb.profile.api_key, "local");
     }
 
     #[test]

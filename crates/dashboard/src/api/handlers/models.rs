@@ -6,10 +6,11 @@
 use super::*;
 use crate::config_patch::{self, LlmConfigPatchBody};
 use crate::llm_probe::LlmProbeService;
+use crate::model_identity::is_mock_llm_profile;
 use anycode_llm::{
-    capability_catalog::ModelCapability, migrate_legacy_llm_section, read_config_value,
-    remove_registry_item, set_active_capability, sync_legacy_models_section, upsert_registry_item,
-    ConfiguredModelFile, ResolvedModelRegistry,
+    capability_catalog::ModelCapability, migrate_legacy_llm_section, remove_registry_item,
+    set_active_capability, sync_legacy_models_section, upsert_registry_item, ConfiguredModelFile,
+    ResolvedModelRegistry,
 };
 use axum::Json;
 use serde::Deserialize;
@@ -28,10 +29,19 @@ pub async fn get_models_registry() -> impl IntoResponse {
         }
     };
     let view = anycode_llm::RegistryView::from_config(&cfg);
+    let items: Vec<_> = view
+        .items
+        .into_iter()
+        .filter(|item| {
+            let provider = item.get("provider").and_then(|v| v.as_str()).unwrap_or("");
+            let model = item.get("model").and_then(|v| v.as_str()).unwrap_or("");
+            !is_mock_llm_profile(provider, model)
+        })
+        .collect();
     Json(json!({
         "config_present": view.config_present,
         "active": view.active,
-        "items": view.items,
+        "items": items,
         "routing": cfg.get("routing").cloned().unwrap_or(json!({})),
         "model_fallback": view.model_fallback,
         "global": {

@@ -1,14 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { api } from "@/api/client";
-import type { AgentUsageStat, SkillRecord } from "@/api/types";
+import type { AgentUsageStat } from "@/api/types";
+import type { AgentProfileRecord } from "@/api/types/agents";
 import { AgentRoleCards } from "@/components/AgentRoleCards";
+import { AgentUsageDrawer } from "@/components/AgentUsageDrawer";
 import { EmptyState } from "@/components/EmptyState";
+import { InstalledSkillsPanel } from "@/components/InstalledSkillsPanel";
+import { SkillMarketPanel } from "@/components/SkillMarketPanel";
 import { SkillSuggestionsPanel } from "@/components/SkillSuggestionsPanel";
+import { AgentEditorDrawer } from "@/components/settings/AgentEditorDrawer";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { builtinAgentMeta } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
+
+function isMockModel(model: string | null | undefined): boolean {
+  const m = (model ?? "").trim().toLowerCase();
+  return m === "mock" || m.startsWith("mock/");
+}
 
 function aggregateAgentStats(agents: AgentUsageStat[]): AgentUsageStat[] {
   const grouped = new Map<
@@ -17,6 +28,7 @@ function aggregateAgentStats(agents: AgentUsageStat[]): AgentUsageStat[] {
   >();
 
   for (const row of agents) {
+    if (isMockModel(row.model)) continue;
     const current = grouped.get(row.agent_type) ?? {
       sessions_count: 0,
       models: new Set<string>(),
@@ -69,12 +81,18 @@ export function AgentsPage() {
   });
   const skills = useQuery({
     queryKey: ["skills"],
-    queryFn: () => api.skills(80),
+    queryFn: () => api.skills(200),
   });
   const suggestions = useQuery({
     queryKey: ["skill-suggestions"],
     queryFn: api.skillSuggestions,
   });
+  const profiles = useQuery({
+    queryKey: ["agent-profiles"],
+    queryFn: () => api.agentProfiles(),
+  });
+  const [editor, setEditor] = useState<{ id?: string } | null>(null);
+  const [agentDrawer, setAgentDrawer] = useState<string | null>(null);
   const rescan = useMutation({
     mutationFn: api.rescanSkills,
     onSuccess: () => {
@@ -92,8 +110,11 @@ export function AgentsPage() {
     },
   });
 
+  const rawAgents = (stats.data?.agents ?? []).filter((a) => !isMockModel(a.model));
   const agentRows = aggregateAgentStats(stats.data?.agents ?? []);
   const skillList = skills.data?.skills ?? [];
+  const customProfiles = (profiles.data?.profiles ?? []).filter((p) => !p.builtin);
+  const allProfiles = profiles.data?.profiles ?? [];
   const missingStarter = suggestions.data?.missing_starter ?? [];
   const totalSessions = agentRows.reduce((n, r) => n + r.sessions_count, 0);
   const activeAgentTypes = agentRows.filter((r) => r.sessions_count > 0).length;
@@ -110,6 +131,14 @@ export function AgentsPage() {
         ]}
         actions={
           <nav className="dw-agents-quick-nav" aria-label={t("agents.configureTitle")}>
+            <button
+              type="button"
+              className="dw-btn-primary text-sm"
+              onClick={() => setEditor({})}
+            >
+              <Icon name="add" size={16} />
+              {t("agents.newAgent")}
+            </button>
             <Link to="/settings" search={{ section: "agents" }} className="dw-agents-quick-nav__item">
               <Icon name="tune" size={16} />
               {t("agents.configLink")}
@@ -147,146 +176,157 @@ export function AgentsPage() {
           <KpiChip
             icon="folder"
             label={t("agents.summaryPaths")}
-            value="2"
+            value={skills.isLoading ? "…" : String(skills.data?.scan_roots ?? 0)}
             hint={t("agents.summaryPathsHint")}
           />
         </div>
 
-        <SkillSuggestionsPanel />
+        <div className="dw-agents-workbench">
+          <main className="dw-agents-main-stack" aria-label={t("agents.skills")}>
+            <SkillSuggestionsPanel />
+            <InstalledSkillsPanel
+              skills={skillList}
+              loading={skills.isLoading}
+              rescanPending={rescan.isPending}
+              onRescan={() => rescan.mutate()}
+              rescanSuccess={rescan.isSuccess ? rescan.data.skills_synced : undefined}
+              missingStarterCount={missingStarter.length}
+              onInstallStarter={() => installStarter.mutate()}
+              installStarterPending={installStarter.isPending}
+            />
+            <SkillMarketPanel />
+          </main>
 
-        <div className="dw-agents-split">
-          <section className="dw-agents-panel" aria-labelledby="agents-builtin-heading">
-            <header className="dw-agents-panel__head">
-              <h2 id="agents-builtin-heading" className="dw-agents-panel__title">
-                {t("agents.builtinCards")}
-              </h2>
-            </header>
-            <div className="dw-agents-panel__body dw-agents-panel__body--flush-x">
-              <AgentRoleCards agents={stats.data?.agents ?? []} />
-            </div>
-
-            <header className="dw-agents-panel__head dw-agents-panel__head--sub">
-              <h3 className="dw-agents-panel__title">{t("agents.agentStats")}</h3>
-              {agentRows[0] && (
-                <span className="dw-agents-panel__meta font-code">{agentRows[0].agent_type}</span>
-              )}
-            </header>
-            <div className="dw-agents-panel__body">
-              {stats.isLoading ? (
-                <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
-              ) : agentRows.length === 0 ? (
-                <EmptyState
-                  title={t("agents.emptyUsage")}
-                  icon="smart_toy"
-                  compact
-                  actions={
-                    <Link to="/conversations" className="dw-btn-primary text-sm no-underline">
-                      <Icon name="chat" size={16} />
-                      {t("agents.startConversation")}
-                    </Link>
-                  }
-                />
-              ) : (
-                <ul className="dw-agents-stat-list m-0 p-0 list-none">
-                  {agentRows.map((row, index) => (
-                    <AgentStatRow
-                      key={row.agent_type}
-                      row={row}
-                      maxSessions={maxSessions}
-                      top={index === 0 && row.sessions_count > 0}
-                      topLabel={t("agents.topAgent")}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-
-          <section className="dw-agents-panel" aria-labelledby="agents-skills-heading">
-            <header className="dw-agents-panel__head">
-              <div>
-                <h2 id="agents-skills-heading" className="dw-agents-panel__title">
-                  {t("agents.skills")}
+          <aside className="dw-agents-side-stack" aria-label={t("agents.builtinCards")}>
+            <section className="dw-agents-panel" aria-labelledby="agents-builtin-heading">
+              <header className="dw-agents-panel__head">
+                <h2 id="agents-builtin-heading" className="dw-agents-panel__title">
+                  {t("agents.builtinCards")}
                 </h2>
-                {!skills.isLoading && (
-                  <p className="dw-agents-panel__sub m-0">
-                    {skillList.length > 0
-                      ? t("agents.skillsSyncedCount").replace("{n}", String(skillList.length))
-                      : t("agents.skillsSyncedNone")}
-                  </p>
-                )}
+              </header>
+              <div className="dw-agents-panel__body dw-agents-panel__body--flush-x">
+                <AgentRoleCards agents={rawAgents} onSelectAgent={setAgentDrawer} />
               </div>
-              <button
-                type="button"
-                className="dw-btn-secondary text-sm shrink-0"
-                disabled={rescan.isPending}
-                onClick={() => rescan.mutate()}
-              >
-                <Icon name="refresh" size={16} />
-                {rescan.isPending ? t("agents.rescanning") : t("agents.rescan")}
-              </button>
-            </header>
 
-            <div className="dw-agents-panel__body dw-agents-panel__body--list">
-              {rescan.isSuccess && (
-                <p className="dw-agents-toast m-0" role="status">
-                  <Icon name="check_circle" size={16} className="text-success" />
-                  {t("agents.rescanSuccess").replace("{n}", String(rescan.data.skills_synced))}
-                </p>
-              )}
-              {skills.isLoading ? (
-                <p className="text-sm text-secondary m-0 px-4 py-6">{t("common.loading")}</p>
-              ) : skillList.length === 0 ? (
-                <div className="px-4 py-2">
+              <header className="dw-agents-panel__head dw-agents-panel__head--sub">
+                <h3 className="dw-agents-panel__title">{t("agents.agentStats")}</h3>
+                {agentRows[0] && (
+                  <span className="dw-agents-panel__meta font-code">{agentRows[0].agent_type}</span>
+                )}
+              </header>
+              <div className="dw-agents-panel__body">
+                {stats.isLoading ? (
+                  <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+                ) : agentRows.length === 0 ? (
                   <EmptyState
-                    title={t("agents.emptySkillsTitle")}
-                    description={t("agents.emptySkills")}
-                    icon="extension"
+                    title={t("agents.emptyUsage")}
+                    icon="smart_toy"
                     compact
                     actions={
-                      <>
-                        {missingStarter.length > 0 && (
-                          <button
-                            type="button"
-                            className="dw-btn-primary text-sm"
-                            disabled={installStarter.isPending}
-                            onClick={() => installStarter.mutate()}
-                          >
-                            <Icon name="download" size={16} />
-                            {installStarter.isPending
-                              ? t("agents.rescanning")
-                              : t("agents.installStarterBtn")}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="dw-btn-secondary text-sm"
-                          disabled={rescan.isPending}
-                          onClick={() => rescan.mutate()}
-                        >
-                          <Icon name="refresh" size={16} />
-                          {t("agents.rescan")}
-                        </button>
-                      </>
+                      <Link to="/conversations" className="dw-btn-primary text-sm no-underline">
+                        <Icon name="chat" size={16} />
+                        {t("agents.startConversation")}
+                      </Link>
                     }
                   />
-                </div>
-              ) : (
-                <ul className="dw-agents-skill-list m-0 p-0 list-none">
-                  {skillList.map((skill) => (
-                    <SkillRow
-                      key={skill.id}
-                      skill={skill}
-                      projectsLabel={t("agents.projectsCount")}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
+                ) : (
+                  <ul className="dw-agents-stat-list m-0 p-0 list-none">
+                    {agentRows.map((row, index) => (
+                      <AgentStatRow
+                        key={row.agent_type}
+                        row={row}
+                        maxSessions={maxSessions}
+                        top={index === 0 && row.sessions_count > 0}
+                        topLabel={t("agents.topAgent")}
+                        onSelect={() => setAgentDrawer(row.agent_type)}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            <section className="dw-agents-panel" aria-labelledby="agents-custom-heading">
+              <header className="dw-agents-panel__head">
+                <h2 id="agents-custom-heading" className="dw-agents-panel__title">
+                  {t("agents.customAgents")}
+                </h2>
+                <button
+                  type="button"
+                  className="dw-btn-secondary text-sm shrink-0"
+                  onClick={() => setEditor({})}
+                >
+                  <Icon name="add" size={16} />
+                  {t("agents.newAgent")}
+                </button>
+              </header>
+              <div className="dw-agents-panel__body">
+                {profiles.isLoading ? (
+                  <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+                ) : customProfiles.length === 0 ? (
+                  <p className="text-sm text-secondary m-0">{t("agents.emptyCustomAgents")}</p>
+                ) : (
+                  <ul className="m-0 p-0 list-none flex flex-col">
+                    {customProfiles.map((p) => (
+                      <CustomProfileRow
+                        key={p.id}
+                        profile={p}
+                        onEdit={() => setEditor({ id: p.id })}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
+
+      <AgentUsageDrawer
+        agentId={agentDrawer}
+        stats={stats.data?.agents ?? []}
+        profiles={allProfiles}
+        onClose={() => setAgentDrawer(null)}
+        onEditProfile={(id) => setEditor({ id })}
+      />
+
+      {editor !== null && (
+        <AgentEditorDrawer
+          profileId={editor.id}
+          onClose={() => setEditor(null)}
+          onSaved={() => {
+            setEditor(null);
+            queryClient.invalidateQueries({ queryKey: ["agent-profiles"] });
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function CustomProfileRow({
+  profile,
+  onEdit,
+}: {
+  profile: AgentProfileRecord;
+  onEdit: () => void;
+}) {
+  const t = useT();
+  return (
+    <li className="flex items-center gap-3 py-2 border-b border-outline-variant/30 last:border-b-0 min-w-0">
+      <span className="dw-agents-stat-row__icon text-primary bg-primary/10 shrink-0">
+        <Icon name="person" size={18} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="font-medium text-sm font-code truncate block">{profile.id}</span>
+        <span className="text-xs text-secondary truncate block">
+          {profile.description || profile.extends}
+        </span>
+      </span>
+      <button type="button" className="dw-btn-ghost text-xs shrink-0" onClick={onEdit}>
+        {t("common.details")}
+      </button>
+    </li>
   );
 }
 
@@ -320,77 +360,49 @@ function AgentStatRow({
   maxSessions,
   top,
   topLabel,
+  onSelect,
 }: {
   row: AgentUsageStat;
   maxSessions: number;
   top: boolean;
   topLabel: string;
+  onSelect: () => void;
 }) {
   const t = useT();
   const meta = builtinAgentMeta(row.agent_type);
   const pct = Math.round((row.sessions_count / maxSessions) * 100);
 
   return (
-    <li className="dw-agents-stat-row">
-      <div
-        className={`dw-agents-stat-row__icon ${
-          row.sessions_count > 0 ? "text-primary bg-primary/10" : "text-secondary bg-surface-container-high"
-        }`}
-      >
-        <Icon name={meta?.icon ?? "smart_toy"} size={18} />
-      </div>
-      <div className="dw-agents-stat-row__main min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium text-sm truncate">{row.agent_type}</span>
-          {top && (
-            <span className="dw-agents-stat-row__top">{topLabel}</span>
-          )}
-        </div>
-        <span className="text-xs text-secondary font-code truncate block">{row.model}</span>
-        <div className="dw-agents-stat-row__bar" aria-hidden>
-          <span style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-      <div className="dw-agents-stat-row__nums shrink-0 text-right">
-        <div className="text-lg font-semibold tabular-nums leading-none">{row.sessions_count}</div>
-        <div className="text-[10px] text-secondary mt-0.5">{t("agents.sessionsShort")}</div>
-      </div>
-      <time className="dw-agents-stat-row__time hidden lg:block shrink-0 font-code text-[11px] text-secondary">
-        {formatShortTime(row.last_started_at)}
-      </time>
-      <Link
-        to="/conversations"
-        search={{ agent: row.agent_type }}
-        className="dw-agents-stat-row__go shrink-0"
-        title="Open conversations"
-      >
-        <Icon name="arrow_forward" size={18} />
-      </Link>
-    </li>
-  );
-}
-
-function SkillRow({ skill, projectsLabel }: { skill: SkillRecord; projectsLabel: string }) {
-  return (
     <li>
-      <Link to="/agents/$skillId" params={{ skillId: skill.id }} className="dw-agents-skill-row">
-        <span className="dw-agents-skill-row__icon">
-          <Icon name="extension" size={18} />
+      <button type="button" className="dw-agents-stat-row dw-agents-stat-row--clickable" onClick={onSelect}>
+        <div
+          className={`dw-agents-stat-row__icon ${
+            row.sessions_count > 0 ? "text-primary bg-primary/10" : "text-secondary bg-surface-container-high"
+          }`}
+        >
+          <Icon name={meta?.icon ?? "smart_toy"} size={18} />
+        </div>
+        <div className="dw-agents-stat-row__main min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-medium text-sm truncate">{row.agent_type}</span>
+            {top && <span className="dw-agents-stat-row__top">{topLabel}</span>}
+          </div>
+          <span className="text-xs text-secondary font-code truncate block">{row.model}</span>
+          <div className="dw-agents-stat-row__bar" aria-hidden>
+            <span style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+        <div className="dw-agents-stat-row__nums shrink-0 text-right">
+          <div className="text-lg font-semibold tabular-nums leading-none">{row.sessions_count}</div>
+          <div className="text-[10px] text-secondary mt-0.5">{t("agents.sessionsShort")}</div>
+        </div>
+        <time className="dw-agents-stat-row__time hidden lg:block shrink-0 font-code text-[11px] text-secondary">
+          {formatShortTime(row.last_started_at)}
+        </time>
+        <span className="dw-agents-stat-row__go shrink-0 text-outline" aria-hidden>
+          <Icon name="chevron_right" size={18} />
         </span>
-        <span className="dw-agents-skill-row__body min-w-0">
-          <span className="dw-agents-skill-row__name">{skill.name}</span>
-          <span className="dw-agents-skill-row__id font-code">{skill.id}</span>
-          {skill.description && (
-            <span className="dw-agents-skill-row__desc">{skill.description}</span>
-          )}
-        </span>
-        <span className="dw-agents-skill-row__meta shrink-0">
-          <span className="tabular-nums">
-            {skill.projects_count} {projectsLabel}
-          </span>
-          <Icon name="chevron_right" size={18} className="text-outline" />
-        </span>
-      </Link>
+      </button>
     </li>
   );
 }

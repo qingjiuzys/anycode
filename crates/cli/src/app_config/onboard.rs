@@ -4,23 +4,10 @@ use super::*;
 use crate::i18n::tr;
 use std::path::PathBuf;
 
-fn has_non_empty_secret(v: &str) -> bool {
-    !v.trim().is_empty()
-}
-
 fn has_usable_model_config(cfg: &AnyCodeConfig) -> bool {
-    if cfg.provider.trim().is_empty() || cfg.model.trim().is_empty() {
-        return false;
-    }
-    if validate_llm_provider(&cfg.provider).is_err() {
-        return false;
-    }
-    if has_non_empty_secret(&cfg.api_key) {
-        return true;
-    }
-    cfg.provider_credentials
-        .values()
-        .any(|v| has_non_empty_secret(v))
+    serde_json::to_value(cfg)
+        .ok()
+        .is_some_and(|v| anycode_setup::has_usable_model_config(&v))
 }
 
 /// 首次安装聚合：模型向导 →（TTY）记忆/向量向导 → channel（wechat/telegram/discord）。
@@ -30,7 +17,7 @@ pub(crate) async fn run_onboard_flow(
     channel: Option<String>,
     debug: bool,
 ) -> anyhow::Result<()> {
-    crate::workspace::ensure_layout()?;
+    anycode_setup::ensure_layout()?;
     {
         let term = console::Term::stdout();
         if term.is_term() {

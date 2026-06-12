@@ -5,6 +5,7 @@ import type {
   DeliveryReadiness,
   GlobalTimelineMetrics,
   PendingApprovalsResponse,
+  PendingQuestionsResponse,
   SavedHoursKpi,
   SecurityActivitySummary,
   TokenUsageDetail,
@@ -45,6 +46,23 @@ export const governanceClient = {
     post<{ ok: boolean; approval_id: string; decision: string }>(
       `/api/security/approvals/${encodeURIComponent(approvalId)}/respond`,
       { decision },
+    ),
+  pendingQuestions: (opts?: { limit?: number; sessionId?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.sessionId) params.set("session_id", opts.sessionId);
+    const q = params.toString();
+    return get<PendingQuestionsResponse>(
+      `/api/security/questions/pending${q ? `?${q}` : ""}`,
+    );
+  },
+  respondToQuestion: (
+    questionId: string,
+    body: { selected_labels: string[]; other_text?: string },
+  ) =>
+    post<{ ok: boolean; question_id: string }>(
+      `/api/security/questions/${encodeURIComponent(questionId)}/respond`,
+      body,
     ),
   usageExportUrl: (days = 7, projectId?: string) => {
     const q = new URLSearchParams({ days: String(days) });

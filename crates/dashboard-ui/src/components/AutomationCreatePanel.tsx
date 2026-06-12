@@ -15,16 +15,23 @@ const TIMEZONES = [
 
 const TOOL_PROFILES = ["default", "read_only", "observability", "allowlist"] as const;
 
-export function AutomationCreatePanel() {
+function AutomationCreateForm({
+  defaultProjectId = "",
+  onCreated,
+}: {
+  /** Pre-selected project when opened from a project context; "" = whole workspace. */
+  defaultProjectId?: string;
+  onCreated?: () => void;
+}) {
   const t = useT();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [schedule, setSchedule] = useState("0 0 8 * * *");
   const [naturalSchedule, setNaturalSchedule] = useState("");
   const [command, setCommand] = useState("");
   const [scheduleTimezone, setScheduleTimezone] = useState("local");
   const [toolProfile, setToolProfile] = useState<(typeof TOOL_PROFILES)[number]>("observability");
+  const [projectId, setProjectId] = useState(defaultProjectId);
   const [sessionId, setSessionId] = useState("");
   const [failureDestination, setFailureDestination] = useState("");
   const [msg, setMsg] = useState("");
@@ -32,6 +39,11 @@ export function AutomationCreatePanel() {
   const templates = useQuery({
     queryKey: ["cron-templates"],
     queryFn: api.cronTemplates,
+  });
+
+  const projects = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => api.projects({ limit: 500 }),
   });
 
   const parseSchedule = useMutation({
@@ -52,31 +64,18 @@ export function AutomationCreatePanel() {
         tool_profile: toolProfile,
         session_id: sessionId.trim() || undefined,
         failure_destination: failureDestination.trim() || undefined,
+        project_id: projectId || undefined,
       }),
     onSuccess: () => {
       setMsg(t("automations.createOk"));
       void qc.invalidateQueries({ queryKey: ["cron-jobs"] });
+      onCreated?.();
     },
     onError: (e: Error) => setMsg(e.message),
   });
 
   return (
-    <SectionCard
-      title={t("automations.createTitle")}
-      action={
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs text-secondary hover:text-primary cursor-pointer"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          <Icon name={open ? "expand_less" : "expand_more"} size={16} />
-          {open ? t("automations.collapseForm") : t("automations.expandForm")}
-        </button>
-      }
-    >
-      {open ? (
-        <>
+    <>
       <p className="text-sm text-secondary m-0 mb-4">{t("automations.createHint")}</p>
       {(templates.data?.templates ?? []).length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
@@ -135,6 +134,19 @@ export function AutomationCreatePanel() {
         value={command}
         onChange={(e) => setCommand(e.target.value)}
       />
+      <label className="block text-xs text-secondary mb-1">{t("automations.jobProject")}</label>
+      <select
+        className="dw-input w-full mb-3"
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+      >
+        <option value="">{t("automations.wholeWorkspace")}</option>
+        {(projects.data?.projects ?? []).map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
       <button
         type="button"
         className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs text-secondary hover:text-primary cursor-pointer mb-3"
@@ -211,10 +223,72 @@ export function AutomationCreatePanel() {
         {create.isPending ? "…" : t("automations.createBtn")}
       </button>
       {msg && <p className="text-sm text-secondary mt-2 m-0">{msg}</p>}
-        </>
+    </>
+  );
+}
+
+export function AutomationCreatePanel({ defaultProjectId }: { defaultProjectId?: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(true);
+
+  return (
+    <SectionCard
+      title={t("automations.createTitle")}
+      action={
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs text-secondary hover:text-primary cursor-pointer"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <Icon name={open ? "expand_less" : "expand_more"} size={16} />
+          {open ? t("automations.collapseForm") : t("automations.expandForm")}
+        </button>
+      }
+    >
+      {open ? (
+        <AutomationCreateForm defaultProjectId={defaultProjectId} />
       ) : (
         <p className="text-sm text-secondary m-0">{t("automations.createCollapsedHint")}</p>
       )}
     </SectionCard>
+  );
+}
+
+export function AutomationCreateDialog({
+  open,
+  onClose,
+  defaultProjectId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  defaultProjectId?: string;
+}) {
+  const t = useT();
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/25 p-4"
+      role="dialog"
+      aria-modal
+      aria-labelledby="new-automation-title"
+    >
+      <div className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 id="new-automation-title" className="text-lg font-semibold m-0">
+            {t("automations.createTitle")}
+          </h2>
+          <button
+            type="button"
+            className="dw-btn-ghost p-1"
+            onClick={onClose}
+            aria-label={t("newProject.cancel")}
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+        <AutomationCreateForm defaultProjectId={defaultProjectId} />
+      </div>
+    </div>
   );
 }

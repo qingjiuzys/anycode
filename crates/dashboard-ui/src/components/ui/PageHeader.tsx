@@ -11,7 +11,7 @@ export function PageHeader({
   actions,
   breadcrumbs,
 }: {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   meta?: ReactNode;
   actions?: ReactNode;

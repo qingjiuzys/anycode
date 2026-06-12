@@ -61,6 +61,7 @@ export interface CronJobRecord {
   session_id: string | null;
   failure_destination: string | null;
   tool_profile: string | null;
+  project_id?: string | null;
 }
 
 export interface AgentUsageStat {

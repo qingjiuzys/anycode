@@ -5,7 +5,7 @@ import { useAuth } from "@/auth/context";
 import { useI18n } from "@/i18n/context";
 import { LanguageSwitcher } from "@/components/UserMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import brandLogo from "@/assets/anycode-logo-app-icon.png";
+import { BrandMark } from "@/components/BrandMark";
 
 export function LoginPage() {
   const { t } = useI18n();
@@ -53,13 +53,7 @@ export function LoginPage() {
     <div className="h-full min-h-0 overflow-y-auto bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <img src={brandLogo} alt="" className="w-10 h-10 rounded-lg shadow-sm object-contain bg-surface-container-lowest" />
-            <div>
-              <h1 className="text-xl font-bold text-on-surface m-0">{t("layout.brand")}</h1>
-              <p className="text-xs text-secondary m-0">{t("layout.title")}</p>
-            </div>
-          </div>
+          <BrandMark size="sm" showTitle variant="login" />
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <ThemeToggle />

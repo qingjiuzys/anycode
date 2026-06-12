@@ -24,7 +24,10 @@ export interface SkillRecord {
   id: string;
   name: string;
   description: string;
+  description_zh?: string | null;
   source_path: string;
+  /** Anthropic-style category slug (library-ref/verification/data/…/other). */
+  category?: string | null;
   projects_count: number;
   enabled?: boolean;
 }
@@ -33,11 +36,23 @@ export interface SkillDetailRecord {
   id: string;
   name: string;
   description: string;
+  description_zh?: string | null;
   source_path: string;
+  category?: string | null;
   permissions: Record<string, unknown>;
   projects_count: number;
   projects: SkillProjectLink[];
   recent_runs: SkillRunRecord[];
+}
+
+export interface SkillMarketEntry {
+  id: string;
+  name: string;
+  description: string;
+  description_zh?: string | null;
+  category: string;
+  source: string;
+  badge: string;
 }
 
 export interface SkillProjectLink {
@@ -95,7 +110,7 @@ export interface ToolGovernanceResponse {
   tools: ToolGovernanceEntry[];
 }
 
-export type ApprovalDecision = "allow_once" | "deny" | "allow_tool";
+export type ApprovalDecision = "allow_once" | "deny" | "allow_tool" | "allow_all_session";
 
 export interface PendingApprovalRecord {
   approval_id: string;
@@ -124,6 +139,28 @@ export interface PendingApprovalSummary {
 
 export interface ApprovalSummaryResponse {
   summary: PendingApprovalSummary;
+  web_enabled: boolean;
+  respond_allowed: boolean;
+}
+
+export interface QuestionOptionRecord {
+  label: string;
+  description?: string;
+}
+
+export interface PendingQuestionRecord {
+  question_id: string;
+  session_id: string;
+  question: string;
+  header: string;
+  options: QuestionOptionRecord[];
+  multi_select: boolean;
+  created_at: string;
+  status: string;
+}
+
+export interface PendingQuestionsResponse {
+  pending: PendingQuestionRecord[];
   web_enabled: boolean;
   respond_allowed: boolean;
 }

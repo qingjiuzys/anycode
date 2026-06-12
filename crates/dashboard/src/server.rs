@@ -42,6 +42,7 @@ pub fn default_db_path() -> PathBuf {
 }
 
 pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Result<()> {
+    let _ = anycode_setup::ensure_layout();
     crate::control::task_trigger::init_default_anycode_bin();
     let db = DashboardDb::open(&config.db_path)
         .await
@@ -84,16 +85,8 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             }
         }
     }
-    let events = Arc::new(EventBus::new());
-    db.upsert_local_service(
-        "dashboard",
-        &config.host,
-        config.port,
-        "running",
-        "local",
-        Some(std::process::id()),
-    )
-    .await?;
+    let _ = db.reconcile_local_services("dashboard").await;
+    crate::local_service::terminate_live_dashboard_peers(&db, &config.host, config.port).await?;
 
     let started_at = chrono::Utc::now().to_rfc3339();
     if !crate::service_governance::is_loopback_host(&config.host) {
@@ -115,6 +108,7 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
     if static_dir.is_some() {
         info!("serving dashboard UI static files");
     }
+    let events = Arc::new(EventBus::new());
     let state = AppState {
         db,
         events,
@@ -152,19 +146,59 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             Err(e) => tracing::warn!(error = %e, "project trust score backfill failed"),
         }
     });
-    let app = api::router(state);
+    let app = api::router(state.clone());
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()
         .context("parse listen address")?;
     let listener = TcpListener::bind(addr)
         .await
         .context("bind dashboard port")?;
+
+    state
+        .db
+        .upsert_local_service(
+            "dashboard",
+            &config.host,
+            config.port,
+            "running",
+            "local",
+            Some(std::process::id()),
+        )
+        .await?;
+
+    let db_shutdown = state.db.clone();
+    let shutdown_host = config.host.clone();
+    let shutdown_port = config.port;
+
     info!(
         url = %format!("http://{}:{}/", config.host, config.port),
         db = %config.db_path.display(),
         "digital workbench listening"
     );
     axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            let ctrl_c = async {
+                tokio::signal::ctrl_c()
+                    .await
+                    .expect("failed to install Ctrl+C handler");
+            };
+            #[cfg(unix)]
+            let terminate = async {
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("failed to install signal handler")
+                    .recv()
+                    .await;
+            };
+            #[cfg(not(unix))]
+            let terminate = std::future::pending::<()>();
+
+            tokio::select! {
+                _ = ctrl_c => {},
+                _ = terminate => {},
+            }
+            crate::local_service::mark_self_stopped(&db_shutdown, &shutdown_host, shutdown_port)
+                .await;
+        })
         .await
         .context("dashboard server stopped")
 }

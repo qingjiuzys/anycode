@@ -131,6 +131,9 @@ pub struct CronJob {
     /// Explicit tool ids when `tool_profile` is `allowlist`.
     #[serde(default)]
     pub tool_allowlist: Option<Vec<String>>,
+    /// Dashboard project scope. `None` (incl. legacy entries) = whole workspace.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
 }
 
 /// Optional production fields when creating cron jobs via `CronCreate` or scheduler APIs.
@@ -140,6 +143,7 @@ pub struct CronJobCreateOptions {
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
     pub tool_allowlist: Option<Vec<String>>,
+    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -814,6 +818,7 @@ impl ToolServices {
                         .filter(|s| !s.is_empty())
                         .collect()
                 }),
+            project_id: opts.project_id.filter(|s| !s.trim().is_empty()),
         };
         self.crons.lock().expect("crons mutex").push(job.clone());
         self.try_persist();
@@ -961,6 +966,7 @@ pub fn append_cron_job_to_orchestration_file(
                 .unwrap_or_else(|| "default".to_string()),
         ),
         tool_allowlist: opts.tool_allowlist.filter(|list| !list.is_empty()),
+        project_id: opts.project_id.filter(|s| !s.trim().is_empty()),
     };
     snap.crons.push(job.clone());
     let text = serde_json::to_string_pretty(&snap)?;
@@ -1013,6 +1019,7 @@ mod orchestration_persist_tests {
                 failure_destination: Some("http".into()),
                 tool_profile: Some("allowlist".into()),
                 tool_allowlist: Some(vec!["FileRead".into(), "Glob".into()]),
+                project_id: None,
             },
         );
         assert_eq!(job.session_id.as_deref(), Some("sess-abc"));

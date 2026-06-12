@@ -155,6 +155,33 @@ export interface CatalogRoutingPreset {
   hint: string;
 }
 
+export interface LocalMediaPreset {
+  id: string;
+  label: string;
+  description: string;
+  capabilities: string[];
+  mode: "builtin" | "external";
+  provider: string;
+  model: string;
+  base_url?: string | null;
+  voice?: string | null;
+  docs_url?: string | null;
+  model_download_hint?: string | null;
+  required_feature?: string | null;
+  feature_available: boolean;
+}
+
+export interface LocalPresetsView {
+  presets: LocalMediaPreset[];
+  lightweight_bundle: string[];
+  build_features: {
+    embedding_local: boolean;
+    stt_local: boolean;
+    tts_local: boolean;
+    media_local: boolean;
+  };
+}
+
 export interface ModelCatalog {
   providers: CatalogProviderRow[];
   zai_models: CatalogModelRow[];
@@ -166,6 +193,7 @@ export interface ModelCatalog {
   routing_agent_presets: CatalogRoutingPreset[];
   capabilities: { id: string; label?: string }[];
   cache_meta?: Record<string, CatalogRefreshMeta>;
+  local_presets?: LocalPresetsView;
 }
 
 export interface CatalogRefreshMeta {

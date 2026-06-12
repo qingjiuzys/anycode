@@ -4,13 +4,20 @@ import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
+import { InlineRename } from "@/components/InlineRename";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge, TrustBar } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
 
 type StatusFilter = "all" | "active" | "archived" | "error";
-const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+
+/** Last 1-2 path segments, used to disambiguate same-named projects. */
+function rootPathSuffix(rootPath: string): string {
+  const segments = rootPath.split(/[\\/]+/).filter(Boolean);
+  return segments.slice(-2).join("/");
+}
 
 export function ProjectsPage() {
   const t = useT();
@@ -19,6 +26,7 @@ export function ProjectsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
@@ -39,11 +47,11 @@ export function ProjectsPage() {
         : statusFilter;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["projects", debouncedSearch, statusFilter, page],
+    queryKey: ["projects", debouncedSearch, statusFilter, page, pageSize],
     queryFn: () =>
       api.projects({
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
+        limit: pageSize,
+        offset: page * pageSize,
         q: debouncedSearch || undefined,
         status: statusParam,
         sort: "updated_at_desc",
@@ -71,17 +79,32 @@ export function ProjectsPage() {
     },
   });
 
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api.renameProject(id, name),
+    onSuccess: (_data, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["project", id] });
+    },
+  });
+
   if (error) {
     return <div className="dw-alert-error">{(error as Error).message}</div>;
   }
 
   const projects = data?.projects ?? [];
   const total = data?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
-  const showingLabel = t("projects.showing")
-    .replace("{shown}", String(projects.length))
+  const pageInfoLabel = t("projects.pageInfo")
+    .replace("{page}", String(page + 1))
+    .replace("{pages}", String(pageCount))
     .replace("{total}", String(total));
+
+  const nameCounts = new Map<string, number>();
+  for (const p of projects) {
+    nameCounts.set(p.name, (nameCounts.get(p.name) ?? 0) + 1);
+  }
 
   return (
     <>
@@ -146,7 +169,44 @@ export function ProjectsPage() {
             <option value="error">{t("projects.statusError")}</option>
           </select>
         </div>
-        <div className="text-xs text-secondary px-2 shrink-0">{showingLabel}</div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-secondary px-1">{pageInfoLabel}</span>
+          <select
+            className="dw-input h-[34px] text-xs"
+            aria-label={t("projects.pageSizeLabel")}
+            title={t("projects.pageSizeLabel")}
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(0);
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="dw-btn-secondary text-xs"
+            disabled={page <= 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            {t("common.previous")}
+          </button>
+          <span className="text-xs text-secondary tabular-nums">
+            {page + 1} / {pageCount}
+          </span>
+          <button
+            type="button"
+            className="dw-btn-secondary text-xs"
+            disabled={page + 1 >= pageCount}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            {t("common.next")}
+          </button>
+        </div>
       </div>
 
       {isLoading && <p className="text-secondary text-sm">{t("common.loading")}</p>}
@@ -179,16 +239,28 @@ export function ProjectsPage() {
                 {projects.map((p) => (
                   <tr key={p.id} className="group">
                     <td>
-                      <Link
-                        to="/projects/$projectId"
-                        params={{ projectId: p.id }}
-                        className="flex items-center gap-2 font-medium no-underline hover:underline"
+                      <InlineRename
+                        value={p.name}
+                        label={t("projects.rename")}
+                        disabled={rename.isPending}
+                        onSave={(name) => rename.mutate({ id: p.id, name })}
                       >
-                        <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-                          <Icon name="folder" size={16} />
-                        </div>
-                        {p.name}
-                      </Link>
+                        <Link
+                          to="/projects/$projectId"
+                          params={{ projectId: p.id }}
+                          className="flex items-center gap-2 font-medium no-underline hover:underline"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary shrink-0">
+                            <Icon name="folder" size={16} />
+                          </div>
+                          {p.name}
+                          {(nameCounts.get(p.name) ?? 0) > 1 && (
+                            <span className="text-[11px] text-outline font-code font-normal">
+                              · {rootPathSuffix(p.root_path)}
+                            </span>
+                          )}
+                        </Link>
+                      </InlineRename>
                     </td>
                     <td>
                       <div className="flex flex-col gap-1 max-w-[240px]">

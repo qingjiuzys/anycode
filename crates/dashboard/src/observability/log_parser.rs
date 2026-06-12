@@ -241,6 +241,38 @@ fn parse_tagged(tag: &str, kv: &str) -> Option<ParsedLine> {
                 payload: fields_to_json(&fields),
             })
         }
+        "workflow_step" => {
+            let status = field(&fields, "status");
+            Some(ParsedLine {
+                event_type: "workflow_step".into(),
+                severity: if status == "failed" { "error" } else { "info" }.into(),
+                title: field(&fields, "title"),
+                body: String::new(),
+                payload: fields_to_json(&fields),
+            })
+        }
+        "plan_step" => {
+            let status = field(&fields, "status");
+            let title = field(&fields, "title");
+            Some(ParsedLine {
+                event_type: "plan_step".into(),
+                severity: if status == "failed" || status == "blocked" {
+                    "error"
+                } else if status == "done" || status == "completed" {
+                    "info"
+                } else {
+                    "info"
+                }
+                .into(),
+                title: if title.is_empty() {
+                    field(&fields, "id")
+                } else {
+                    title
+                },
+                body: String::new(),
+                payload: fields_to_json(&fields),
+            })
+        }
         _ => None,
     }
 }

@@ -1,6 +1,8 @@
 ---
 name: daily-brief
 description: Fetch news or RSS topics and produce a Markdown daily brief.
+description_zh: 抓取新闻或 RSS 主题，生成 Markdown 格式日报。
+category: business
 ---
 
 # daily-brief

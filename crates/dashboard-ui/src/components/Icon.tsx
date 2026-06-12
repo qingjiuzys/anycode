@@ -102,7 +102,19 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   download: <path d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14" />,
+  edit: (
+    <>
+      <path d="M4 20h4l10-10-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </>
+  ),
   error: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5v5M12 16.5h.01" />
+    </>
+  ),
+  error_outline: (
     <>
       <circle cx="12" cy="12" r="8" />
       <path d="M12 7.5v5M12 16.5h.01" />
@@ -110,6 +122,14 @@ const icons: Record<string, ReactNode> = {
   ),
   expand_less: <path d="m7 15 5-5 5 5" />,
   expand_more: <path d="m7 9 5 5 5-5" />,
+  extension: (
+    <>
+      <path d="M9 3h6v6H9z" />
+      <path d="M9 15h6v6H9z" />
+      <path d="M3 9h6v6H3z" />
+      <path d="M15 9h6v6h-6z" />
+    </>
+  ),
   fact_check: (
     <>
       <path d="M4 5h16v14H4z" />
@@ -117,6 +137,30 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   filter_list: <path d="M4 7h16M7 12h10M10 17h4" />,
+  attach_file: (
+    <>
+      <path d="M8 12l7-7a3 3 0 0 1 4.24 4.24l-9 9a5 5 0 0 1-7.07-7.07l8-8" />
+    </>
+  ),
+  arrow_forward: <path d="M5 12h12m0 0-4-4m4 4-4 4" />,
+  build: (
+    <>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z" />
+    </>
+  ),
+  content_copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="1.5" />
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+    </>
+  ),
+  document_scanner: (
+    <>
+      <path d="M7 3h10v4H7zM7 17h10v4H7z" />
+      <path d="M5 7v10M19 7v10" />
+      <path d="M9 12h6" />
+    </>
+  ),
   folder: (
     <>
       <path d="M3.5 6.5h6l2 2H20a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-10a1 1 0 0 1 1-1z" />
@@ -153,6 +197,18 @@ const icons: Record<string, ReactNode> = {
       <path d="M9.75 9a2.5 2.5 0 1 1 3.55 2.25c-.8.45-1.3.9-1.3 1.75M12 16.5h.01" />
     </>
   ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </>
+  ),
+  hourglass_empty: (
+    <>
+      <path d="M6 4h12v4l-4 4 4 4v4H6v-4l4-4-4-4z" />
+    </>
+  ),
   history: (
     <>
       <path d="M12 8v4l2.5 1.5" />
@@ -161,6 +217,19 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   home: <path d="m4 11 8-7 8 7v9H6v-6h12" />,
+  image: (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path d="m4 16 5-5 4 4 3-3 4 4" />
+    </>
+  ),
+  mic: (
+    <>
+      <path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3" />
+      <path d="M6 11a6 6 0 0 0 12 0M12 17v3" />
+    </>
+  ),
   inventory: (
     <>
       <path d="M4 7h16v13H4z" />
@@ -180,11 +249,37 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   login: <path d="M10 7V5h9v14h-9v-2M4 12h10m0 0-3-3m3 3-3 3" />,
+  link: (
+    <>
+      <path d="M10 13a3 3 0 0 0 4.24 0l2.12-2.12a3 3 0 0 0-4.24-4.24L10.5 7.5" />
+      <path d="M14 11a3 3 0 0 0-4.24 0L7.64 13.12a3 3 0 0 0 4.24 4.24L13.5 16.5" />
+    </>
+  ),
   logout: <path d="M14 7V5H5v14h9v-2M10 12h10m0 0-3-3m3 3-3 3" />,
+  more_horiz: <path d="M6 12h.01M12 12h.01M18 12h.01" />,
   notifications: (
     <>
       <path d="M6 17h12l-1.5-2.5V11a4.5 4.5 0 0 0-9 0v3.5z" />
       <path d="M10 19a2 2 0 0 0 4 0" />
+    </>
+  ),
+  open_in_new: (
+    <>
+      <path d="M14 3h7v7" />
+      <path d="M10 14 21 3M21 10v11H3V3h11" />
+    </>
+  ),
+  pause: (
+    <>
+      <path d="M9 7v10M15 7v10" />
+    </>
+  ),
+  stop: <rect x="7" y="7" width="10" height="10" rx="1.5" />,
+  play_arrow: <path d="M9 7.5v9l8-4.5z" />,
+  person: (
+    <>
+      <circle cx="12" cy="8" r="3.25" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
     </>
   ),
   policy: (
@@ -197,6 +292,12 @@ const icons: Record<string, ReactNode> = {
     <>
       <path d="M9 18H8a4 4 0 0 1-1-7.87A5.5 5.5 0 0 1 17.5 8a4.5 4.5 0 0 1-1.5 8.74V21h-6v-3" />
       <path d="M10 9h.01M14 9h.01M10 13h4" />
+    </>
+  ),
+  quiz: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M9.75 9a2.5 2.5 0 1 1 3.55 2.25c-.8.45-1.3.9-1.3 1.75M12 16.5h.01" />
     </>
   ),
   radar: (
@@ -213,6 +314,13 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   refresh: <path d="M20 6v5h-5M4 18v-5h5M19 11a7 7 0 0 0-12-4.9M5 13a7 7 0 0 0 12 4.9" />,
+  route: (
+    <>
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="5" r="2" />
+      <path d="M8 19h5a4 4 0 0 0 4-4V9" />
+    </>
+  ),
   robot_2: (
     <>
       <rect x="6" y="8" width="12" height="9" rx="2" />
@@ -225,6 +333,12 @@ const icons: Record<string, ReactNode> = {
       <path d="M12 7.5V12l3 2" />
     </>
   ),
+  save: (
+    <>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M17 21v-8H7v8M7 3v5h8" />
+    </>
+  ),
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="5.5" />
@@ -232,6 +346,12 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   send: <path d="M4 4l17 8-17 8 3-8zM7 12h8" />,
+  smart_toy: (
+    <>
+      <rect x="6" y="8" width="12" height="9" rx="2" />
+      <path d="M12 8V4M9 4h6M8.5 12h.01M15.5 12h.01M10 16h4" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -247,6 +367,31 @@ const icons: Record<string, ReactNode> = {
   ),
   sync: <path d="M20 7v5h-5M4 17v-5h5M19 12a7 7 0 0 0-12-5M5 12a7 7 0 0 0 12 5" />,
   terminal: <path d="m5 7 5 5-5 5M12 17h7" />,
+  timeline: (
+    <>
+      <path d="M4 19h16" />
+      <path d="M7 16l3-4 3 2 4-6" />
+      <circle cx="7" cy="16" r="1.5" />
+      <circle cx="10" cy="12" r="1.5" />
+      <circle cx="13" cy="14" r="1.5" />
+      <circle cx="17" cy="8" r="1.5" />
+    </>
+  ),
+  tune: (
+    <>
+      <path d="M4 7h7M13 7h7M4 12h4M10 12h10M4 17h9M15 17h5" />
+      <circle cx="12" cy="7" r="2" />
+      <circle cx="8" cy="12" r="2" />
+      <circle cx="14" cy="17" r="2" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 16V6" />
+      <path d="m8 10 4-4 4 4" />
+      <path d="M5 20h14" />
+    </>
+  ),
   verified: (
     <>
       <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6z" />
@@ -259,6 +404,12 @@ const icons: Record<string, ReactNode> = {
       <path d="m9 12 2 2 4-5" />
     </>
   ),
+  visibility: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </>
+  ),
   warning: (
     <>
       <path d="M12 4 3.5 19h17z" />
@@ -266,6 +417,8 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
 };
+
+export const registeredIconNames = new Set(Object.keys(icons));
 
 export function Icon({ name, filled, className, size = 20 }: IconProps) {
   const icon = icons[name] ?? <circle cx="12" cy="12" r="3" />;

@@ -1,6 +1,8 @@
 ---
 name: weekly-report
 description: Compile a weekly work summary from notes, git activity, or user-provided bullets.
+description_zh: 根据笔记、Git 活动或用户要点，整理周报摘要。
+category: business
 ---
 
 # weekly-report

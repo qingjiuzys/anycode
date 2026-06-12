@@ -252,6 +252,48 @@ pub async fn get_project_data_health(
 }
 
 #[derive(Deserialize)]
+pub struct PatchProjectRequest {
+    pub name: String,
+}
+
+pub async fn patch_project(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Json(body): Json<PatchProjectRequest>,
+) -> impl IntoResponse {
+    let name = body.name.trim();
+    if name.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "name is required" })),
+        )
+            .into_response();
+    }
+    if name.chars().count() > 120 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "name must be at most 120 characters" })),
+        )
+            .into_response();
+    }
+    match state.db.rename_project(&project_id, name).await {
+        Ok(true) => {
+            Json(json!({ "ok": true, "project_id": project_id, "name": name })).into_response()
+        }
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "project not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
 pub struct PatchProjectStatusRequest {
     pub status: String,
 }
@@ -394,4 +436,44 @@ pub async fn list_project_triggers(
     let triggers =
         crate::task_trigger::list_recent_triggers(&project_id, q.limit.clamp(1, 50) as usize);
     Json(json!({ "triggers": triggers })).into_response()
+}
+
+pub async fn get_project_view_prefs(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+) -> impl IntoResponse {
+    match state.db.get_project_view_prefs(&project_id).await {
+        Ok(Some(prefs)) => Json(json!({ "view_prefs": prefs.normalized() })).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "project not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn put_project_view_prefs(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Json(body): Json<crate::schema::ProjectViewPrefs>,
+) -> impl IntoResponse {
+    let prefs = body.normalized();
+    match state.db.set_project_view_prefs(&project_id, &prefs).await {
+        Ok(true) => Json(json!({ "ok": true, "view_prefs": prefs })).into_response(),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "project not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
 }

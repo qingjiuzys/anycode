@@ -1,8 +1,7 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TopbarSearch } from "@/components/TopbarSearch";
-import { NewProjectDialog } from "@/components/NewProjectDialog";
+import { TopbarNewMenu } from "@/components/TopbarNewMenu";
 import { SidebarWorkspaceCard } from "@/components/SidebarWorkspaceCard";
 import { Icon } from "@/components/Icon";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
@@ -15,10 +14,11 @@ import { docsHomeUrl, helpGuideUrl } from "@/lib/docLinks";
 import { ExternalNavLink } from "@/components/ExternalNavLink";
 import { useSseStatus } from "@/context/SseContext";
 import { api } from "@/api/client";
-import brandLogo from "@/assets/anycode-logo-app-icon.png";
+import { BrandMark } from "@/components/BrandMark";
 
 const NAV = [
-  { to: "/", key: "nav.overview", icon: "dashboard", countKey: null },
+  { to: "/", key: "nav.home", icon: "home", countKey: null },
+  { to: "/overview", key: "nav.overview", icon: "dashboard", countKey: null },
   { to: "/projects", key: "nav.projects", icon: "folder", countKey: "projects" as const },
   { to: "/conversations", key: "nav.conversations", icon: "chat", countKey: "sessions" as const },
   { to: "/automations", key: "nav.automations", icon: "settings_suggest", countKey: null },
@@ -58,7 +58,6 @@ function navCount(
 export function Layout() {
   const { t, locale } = useI18n();
   const { loading: authLoading } = useAuth();
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const sseStatus = useSseStatus();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
@@ -79,14 +78,9 @@ export function Layout() {
 
   return (
     <div className="dw-shell">
-      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
-
       <aside className="dw-sidebar">
         <div className="dw-sidebar-brand">
-          <div className="dw-sidebar-brand-inner">
-            <img src={brandLogo} alt="" className="dw-sidebar-brand-logo" />
-            <div className="dw-sidebar-brand-title">{t("layout.brand")}</div>
-          </div>
+          <BrandMark size="md" showTitle linked />
         </div>
 
         <SidebarWorkspaceCard />
@@ -130,34 +124,41 @@ export function Layout() {
 
       <div className="dw-main-wrap">
         <header className="dw-topbar">
-          <div className="dw-topbar-start">
-            {pathname !== "/" && <TopbarSearch />}
+          <div className={`dw-topbar-start ${pathname === "/" ? "dw-topbar-start--empty" : ""}`}>
+            {pathname !== "/" && (
+              <div className="dw-topbar-hit w-full min-w-0">
+                <TopbarSearch />
+              </div>
+            )}
           </div>
           <div className="dw-topbar-end">
             {pathname !== "/" && (
-              <div className="hidden xl:block shrink-0">
+              <div className="hidden xl:block dw-topbar-hit">
                 <SseStatusBadge status={mapSseStatus(sseStatus)} />
               </div>
             )}
-            <LanguageSwitcher />
-            <ThemeToggle />
-            <div className="w-px h-6 bg-outline-variant hidden sm:block" />
-            <NotificationsDropdown />
+            <div className="dw-topbar-hit">
+              <LanguageSwitcher />
+            </div>
+            <div className="dw-topbar-hit">
+              <ThemeToggle />
+            </div>
+            <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
+            <div className="dw-topbar-hit">
+              <NotificationsDropdown />
+            </div>
             <ExternalNavLink
               href={helpGuideUrl(locale)}
-              className="dw-btn-secondary hidden md:inline-flex no-underline"
+              className="dw-btn-secondary hidden md:inline-flex no-underline dw-topbar-hit"
             >
               {t("nav.help")}
             </ExternalNavLink>
-            <button
-              type="button"
-              className="dw-btn-primary hidden sm:inline-flex"
-              onClick={() => setNewProjectOpen(true)}
-            >
-              <Icon name="add" size={16} />
-              {t("layout.newProject")}
-            </button>
-            <UserMenu />
+            <div className="dw-topbar-hit">
+              <TopbarNewMenu />
+            </div>
+            <div className="dw-topbar-hit">
+              <UserMenu />
+            </div>
           </div>
         </header>
         <main className="dw-main">

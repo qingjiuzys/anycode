@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import type { SessionDetail, SessionWithProject } from "@/api/types";
@@ -32,12 +32,20 @@ export function SessionDetailPage() {
   const [eventFilter, setEventFilter] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string | null>(null);
   const [eventSearch, setEventSearch] = useState("");
-  const sseLive = useSessionEventStream(sessionId);
+  const sseLive = useSessionEventStream(sessionId, "detail");
+  const queryClient = useQueryClient();
+  const ackBlock = useMutation({
+    mutationFn: () => api.acknowledgeSessionBlock(sessionId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+    },
+  });
 
   const session = useQuery({
     queryKey: ["session", sessionId],
     queryFn: () => api.session(sessionId),
-    refetchInterval: sseLive ? 2_000 : false,
+    refetchInterval: false,
   });
   const eventTypes = useQuery({
     queryKey: ["session-event-types", sessionId],
@@ -57,27 +65,27 @@ export function SessionDetailPage() {
         severity: severityFilter ?? undefined,
         q: eventSearch.trim() || undefined,
       }),
-    refetchInterval: sseLive ? 2_000 : false,
+    refetchInterval: false,
   });
   const gates = useQuery({
     queryKey: ["session-gates", sessionId],
     queryFn: () => api.sessionGates(sessionId),
-    refetchInterval: sseLive ? 3_000 : false,
+    refetchInterval: false,
   });
   const artifacts = useQuery({
     queryKey: ["session-artifacts", sessionId],
     queryFn: () => api.sessionArtifacts(sessionId),
-    refetchInterval: sseLive ? 5_000 : false,
+    refetchInterval: false,
   });
   const replay = useQuery({
     queryKey: ["session-replay", sessionId],
     queryFn: () => api.sessionReplay(sessionId),
-    refetchInterval: sseLive ? 5_000 : false,
+    refetchInterval: false,
   });
   const trace = useQuery({
     queryKey: ["session-trace", sessionId],
     queryFn: () => api.sessionTrace(sessionId),
-    refetchInterval: sseLive ? 5_000 : false,
+    refetchInterval: false,
   });
 
   if (session.isError) {
@@ -204,8 +212,22 @@ export function SessionDetailPage() {
       )}
 
       {blocked && (
-        <div className="dw-alert-error">
-          {t("session.gateBlocked").replace("{status}", s?.trusted_status ?? "")}
+        <div className="dw-alert-error flex flex-wrap items-center gap-3">
+          <span className="flex-1">
+            {t("session.gateBlocked").replace("{status}", s?.trusted_status ?? "")}
+          </span>
+          {s?.trusted_status === "blocked" && (
+            <button
+              type="button"
+              className="dw-btn-secondary text-xs whitespace-nowrap"
+              disabled={ackBlock.isPending || ackBlock.isSuccess}
+              onClick={() => ackBlock.mutate()}
+            >
+              {ackBlock.isSuccess
+                ? t("session.blockAcknowledged")
+                : t("session.acknowledgeBlock")}
+            </button>
+          )}
         </div>
       )}
 
@@ -466,6 +488,7 @@ function toSessionWithProject(s: SessionDetail): SessionWithProject {
     kind: s.kind,
     task_id: s.task_id,
     title: s.title,
+    prompt_preview: s.prompt_preview,
     status: s.status,
     trusted_status: s.trusted_status,
     agent_type: s.agent_type,

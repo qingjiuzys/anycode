@@ -5,7 +5,10 @@ pub async fn list_skills(
     Query(q): Query<LimitQuery>,
 ) -> impl IntoResponse {
     match state.db.list_skills(q.limit).await {
-        Ok(skills) => Json(json!({ "skills": skills })).into_response(),
+        Ok(skills) => {
+            let scan_roots = skills_scan::count_skill_scan_roots(&state.workspace_paths);
+            Json(json!({ "skills": skills, "scan_roots": scan_roots })).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
@@ -37,6 +40,11 @@ pub async fn get_skill_suggestions(State(state): State<AppState>) -> impl IntoRe
         )
             .into_response(),
     }
+}
+
+pub async fn list_skill_market() -> impl IntoResponse {
+    let market = crate::skill_market::list_market_entries();
+    Json(json!({ "market": market })).into_response()
 }
 
 pub async fn install_starter_skills(State(state): State<AppState>) -> impl IntoResponse {
@@ -196,8 +204,14 @@ pub async fn list_pending_approvals(
 ) -> impl IntoResponse {
     let web_enabled = crate::approval_ipc::web_approvals_enabled();
     let respond_allowed = crate::approval_ipc::respond_allowed(&state.host);
+    let session_id = q.session_id.clone();
+    let limit = q.limit;
     let pending = if web_enabled {
-        crate::approval_ipc::list_pending_for_session(q.session_id.as_deref(), q.limit)
+        tokio::task::spawn_blocking(move || {
+            crate::approval_ipc::list_pending_for_session(session_id.as_deref(), limit)
+        })
+        .await
+        .unwrap_or_default()
     } else {
         vec![]
     };
@@ -213,7 +227,12 @@ pub async fn get_approval_summary(State(state): State<AppState>) -> impl IntoRes
     let web_enabled = crate::approval_ipc::web_approvals_enabled();
     let respond_allowed = crate::approval_ipc::respond_allowed(&state.host);
     let summary = if web_enabled {
-        crate::approval_ipc::pending_summary()
+        tokio::task::spawn_blocking(crate::approval_ipc::pending_summary)
+            .await
+            .unwrap_or(crate::approval_ipc::PendingApprovalSummary {
+                pending_total: 0,
+                by_session: vec![],
+            })
     } else {
         crate::approval_ipc::PendingApprovalSummary {
             pending_total: 0,
@@ -257,7 +276,21 @@ pub async fn respond_to_approval(
                 .into_response()
         }
     };
-    if let Err(e) = crate::approval_ipc::submit_response(&approval_id, &body.decision) {
+    // "allow_all_session" = allow this approval and delegate the rest of the
+    // session (session-level auto-approve flag picked up by the live CLI).
+    let effective_decision = if body.decision == "allow_all_session" {
+        if let Err(e) = crate::approval_ipc::set_session_auto_approve(&pending.session_id, true) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+        "allow_once".to_string()
+    } else {
+        body.decision.clone()
+    };
+    if let Err(e) = crate::approval_ipc::submit_response(&approval_id, &effective_decision) {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": e.to_string() })),
@@ -284,6 +317,89 @@ pub async fn respond_to_approval(
         "ok": true,
         "approval_id": approval_id,
         "decision": body.decision
+    }))
+    .into_response()
+}
+
+pub async fn list_pending_questions(
+    State(state): State<AppState>,
+    Query(q): Query<PendingApprovalsQuery>,
+) -> impl IntoResponse {
+    let web_enabled = crate::question_ipc::web_questions_enabled();
+    let respond_allowed = crate::question_ipc::respond_allowed(&state.host);
+    let pending = if web_enabled {
+        crate::question_ipc::list_pending_for_session(q.session_id.as_deref(), q.limit)
+    } else {
+        vec![]
+    };
+    Json(json!({
+        "pending": pending,
+        "web_enabled": web_enabled,
+        "respond_allowed": respond_allowed,
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+pub struct QuestionRespondBody {
+    pub selected_labels: Vec<String>,
+    #[serde(default)]
+    pub other_text: Option<String>,
+}
+
+pub async fn respond_to_question(
+    State(state): State<AppState>,
+    Path(question_id): Path<String>,
+    Json(body): Json<QuestionRespondBody>,
+) -> impl IntoResponse {
+    if !crate::question_ipc::respond_allowed(&state.host) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "Web question respond is disabled for this binding. Use loopback or set ANYCODE_DASHBOARD_WEB_QUESTION_REMOTE=1."
+            })),
+        )
+            .into_response();
+    }
+    let pending = match crate::question_ipc::get_pending(&question_id) {
+        Some(p) => p,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "question not found or already resolved" })),
+            )
+                .into_response()
+        }
+    };
+    if let Err(e) = crate::question_ipc::submit_response(
+        &question_id,
+        &body.selected_labels,
+        body.other_text.as_deref(),
+    ) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response();
+    }
+    let _ = crate::audit::record_audit(
+        &state.db,
+        crate::audit::AuditEventInput {
+            project_id: None,
+            session_id: Some(pending.session_id.clone()),
+            action: "ask_user_question_responded".into(),
+            risk: "low".into(),
+            detail: json!({
+                "question_id": question_id,
+                "selected_labels": body.selected_labels,
+                "source": "dashboard"
+            }),
+        },
+    )
+    .await;
+    Json(json!({
+        "ok": true,
+        "question_id": question_id,
     }))
     .into_response()
 }

@@ -12,6 +12,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunSessionKind {
@@ -48,6 +49,7 @@ pub struct DashboardRecorder {
     log_offset: u64,
     pending_tool_name: Option<String>,
     pending_tool_json: Option<String>,
+    started_at: SystemTime,
 }
 
 impl DashboardRecorder {
@@ -195,7 +197,22 @@ impl DashboardRecorder {
             log_offset: 0,
             pending_tool_name: None,
             pending_tool_json: None,
+            started_at: SystemTime::now(),
         })
+    }
+
+    async fn scan_workspace_artifacts(&self) {
+        if let Err(e) = crate::workspace_scan::scan_and_register_artifacts(
+            &self.db,
+            &self.project_id,
+            &self.session_id,
+            &self.project_root,
+            self.started_at,
+        )
+        .await
+        {
+            tracing::debug!(error = %e, session_id = %self.session_id, "workspace artifact scan");
+        }
     }
 
     pub async fn ingest_delta(&mut self, disk: &DiskTaskOutput, task_id: TaskId) {
@@ -360,6 +377,7 @@ impl DashboardRecorder {
     }
 
     pub async fn finish_with_status(&self, status: &str, summary: Option<&str>) {
+        self.scan_workspace_artifacts().await;
         if let Err(e) = self
             .db
             .finish_session(&self.session_id, status, summary)
@@ -376,6 +394,7 @@ impl DashboardRecorder {
             .ok()
             .and_then(|c| task_end_status(&c.lines().collect::<Vec<_>>()))
             .unwrap_or_else(|| "completed".into());
+        self.scan_workspace_artifacts().await;
         if let Err(e) = self
             .db
             .finish_session(&self.session_id, &status, summary)
@@ -416,6 +435,7 @@ impl DashboardRecorder {
         {
             tracing::debug!(error = %e, "dashboard goal_attempts metadata");
         }
+        self.scan_workspace_artifacts().await;
         if let Err(e) = self
             .db
             .finish_session(&self.session_id, status, summary)

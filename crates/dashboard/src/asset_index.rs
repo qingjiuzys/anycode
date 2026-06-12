@@ -35,7 +35,17 @@ pub async fn index_project_assets(db: &DashboardDb, project_id: &str) -> Result<
     .await?;
 
     let artifacts = db
-        .list_artifacts(Some(project_id), None, None, None, false, false, 500)
+        .list_artifacts(
+            Some(project_id),
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+            500,
+        )
         .await?;
     let mut indexed = 0usize;
     let mut missing = 0usize;
@@ -131,7 +141,7 @@ pub async fn get_artifact_detail(
     artifact_id: &str,
 ) -> Result<Option<ArtifactDetail>> {
     let rows = db
-        .list_artifacts(None, None, None, None, false, false, 1000)
+        .list_artifacts(None, None, None, None, None, false, false, false, 1000)
         .await?;
     let Some(base) = rows.into_iter().find(|a| a.id == artifact_id) else {
         return Ok(None);

@@ -39,6 +39,14 @@ pub(crate) async fn initialize_runtime(
     memory_attach: MemoryAttachMode,
     project_enabled: Option<HashSet<String>>,
 ) -> anyhow::Result<Arc<AgentRuntime>> {
+    // Reply-language fallback: the dashboard sets ANYCODE_REPLY_LANG explicitly
+    // (UI language); plain CLI usage follows the resolved locale.
+    if std::env::var_os("ANYCODE_REPLY_LANG").is_none() {
+        std::env::set_var(
+            "ANYCODE_REPLY_LANG",
+            anycode_locale::resolve_locale().as_str(),
+        );
+    }
     let llm_client = build_llm_stack(config).await?;
 
     let (memory_store, memory_pipeline) = build_memory_layer(config, memory_attach)?;
@@ -161,7 +169,16 @@ pub(crate) async fn initialize_runtime(
 
     let ask_host: Option<std::sync::Arc<dyn AskUserQuestionHost>> = ask_user_question_host_override
         .or_else(|| {
-            if stdin().is_terminal() && stdout().is_terminal() {
+            let dashboard_session = std::env::var(anycode_dashboard::approval_ipc::SESSION_ENV)
+                .ok()
+                .filter(|s| !s.is_empty());
+            if dashboard_session.is_some()
+                && anycode_dashboard::question_ipc::web_questions_enabled()
+            {
+                Some(std::sync::Arc::new(
+                    crate::workbench::workbench_ask::WorkbenchAskUserQuestionHost::new(),
+                ) as std::sync::Arc<dyn AskUserQuestionHost>)
+            } else if stdin().is_terminal() && stdout().is_terminal() {
                 Some(
                     std::sync::Arc::new(crate::ask_user_host::DialoguerAskUserQuestionHost)
                         as std::sync::Arc<dyn AskUserQuestionHost>,

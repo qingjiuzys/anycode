@@ -16,6 +16,8 @@ interface Props {
   sessions: SessionSummary[];
   limit?: number;
   hideImported?: boolean;
+  /** Read-only compact preview for settings modal */
+  preview?: boolean;
 }
 
 const KIND_COLORS: Record<string, string> = {
@@ -26,7 +28,7 @@ const KIND_COLORS: Record<string, string> = {
   cron: "#ca8a04",
 };
 
-export function SessionFlow({ sessions, limit = 8, hideImported = false }: Props) {
+export function SessionFlow({ sessions, limit = 8, hideImported = false, preview = false }: Props) {
   const t = useT();
   const navigate = useNavigate();
   const { nodes, edges } = useMemo(() => {
@@ -71,16 +73,22 @@ export function SessionFlow({ sessions, limit = 8, hideImported = false }: Props
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      if (node.id === "start") {
+      if (preview || node.id === "start") {
         return;
       }
       void navigate({ to: "/sessions/$sessionId", params: { sessionId: node.id } });
     },
-    [navigate],
+    [navigate, preview],
   );
 
+  const heightClass = preview ? "h-[120px]" : "h-[280px]";
+
   return (
-    <div className="h-[280px] border border-outline-variant rounded bg-surface-container-low overflow-hidden session-flow">
+    <div
+      className={`${heightClass} border border-outline-variant rounded bg-surface-container-low overflow-hidden session-flow ${
+        preview ? "pointer-events-none opacity-90" : ""
+      }`}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -89,10 +97,14 @@ export function SessionFlow({ sessions, limit = 8, hideImported = false }: Props
         onNodeClick={onNodeClick}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable
+        elementsSelectable={!preview}
+        panOnDrag={!preview}
+        zoomOnScroll={!preview}
+        zoomOnPinch={!preview}
+        zoomOnDoubleClick={!preview}
       >
         <Background className="session-flow-bg" color="var(--session-flow-grid)" gap={16} />
-        <Controls />
+        {!preview && <Controls />}
       </ReactFlow>
     </div>
   );

@@ -4,6 +4,7 @@ use crate::{
     capability_catalog::ModelCapability,
     deepseek_catalog::{catalog_entry_for_id, DEEPSEEK_MODEL_CATALOG, DEEPSEEK_OPENAI_API_ROOT},
     google_catalog::GOOGLE_MODEL_CATALOG,
+    local_media_catalog::local_presets_json,
     provider_catalog::PROVIDER_CATALOG,
     providers::zai::ZAI_MODEL_CATALOG,
     ROUTING_AGENT_PRESETS, ZAI_AUTH_METHODS,
@@ -430,6 +431,7 @@ pub fn aggregate_catalog_view() -> Value {
         "routing_agent_presets": routing_presets,
         "capabilities": capabilities,
         "cache_meta": cache_meta,
+        "local_presets": local_presets_json(),
     })
 }
 

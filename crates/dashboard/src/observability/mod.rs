@@ -7,3 +7,4 @@ pub mod project_trust;
 pub mod session_replay;
 pub mod session_trace;
 pub mod session_transcript;
+pub mod transcript_cache;

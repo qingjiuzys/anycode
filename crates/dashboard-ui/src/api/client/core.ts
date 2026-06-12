@@ -62,6 +62,7 @@ export const coreClient = {
     session_id?: string;
     failure_destination?: string;
     tool_profile?: string;
+    project_id?: string;
   }) => post<{ ok: boolean; job: CronJobRecord }>("/api/cron/jobs", body),
   parseCronSchedule: (text: string) =>
     post<{ ok: boolean; schedule: string; summary: string }>(
@@ -81,6 +82,12 @@ export const coreClient = {
     ),
   importSkill: (source: string) =>
     post<{ ok: boolean; id: string; path: string }>("/api/skills/import", { source }),
+  skillMarket: () =>
+    get<{
+      market: {
+        entries: import("@/api/types").SkillMarketEntry[];
+      };
+    }>("/api/skills/market"),
   agentStats: (limit = 30) =>
     get<{ agents: AgentUsageStat[] }>(`/api/agents/stats?limit=${limit}`),
 };

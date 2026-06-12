@@ -2,9 +2,9 @@ use crate::db::trusted::compute_trusted_status;
 use crate::schema::{
     AgentUsageStat, ArtifactRecord, CreateSessionRequest, GateRecord, InsertEventRequest,
     LabelCount, OverviewStats, ProjectDetail, ProjectEvent, ProjectStats, ProjectStatsFailure,
-    ProjectSummary, PruneStaleProjectsReport, PrunedProjectRow, RecentEvent, SessionDetail,
-    SessionFacetsResponse, SessionSummary, SessionWithProject, SkillRecord, UpsertProjectRequest,
-    LOCAL_ORG_ID,
+    ProjectSummary, ProjectViewPrefs, PruneStaleProjectsReport, PrunedProjectRow, RecentEvent,
+    SessionDetail, SessionFacetsResponse, SessionSummary, SessionWithProject, SkillRecord,
+    UpsertProjectRequest, LOCAL_ORG_ID,
 };
 use anyhow::{Context, Result};
 use serde_json::Value;
@@ -261,7 +261,17 @@ mod tests {
         let updated = db.get_session(&session.id).await.unwrap().unwrap();
         assert_eq!(updated.trusted_status, "verified");
         let arts = db
-            .list_artifacts(None, Some(&session.id), None, None, false, false, 10)
+            .list_artifacts(
+                None,
+                Some(&session.id),
+                None,
+                None,
+                None,
+                false,
+                false,
+                false,
+                10,
+            )
             .await
             .unwrap();
         assert_eq!(arts.len(), 1);

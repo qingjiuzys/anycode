@@ -2,113 +2,20 @@
 
 use crate::app_config::{
     load_anycode_config_resolved, save_anycode_config_resolved, AnyCodeConfig, MemoryConfigFile,
-    MemoryPipelineConfigFile,
 };
 use crate::i18n::{tr, tr_args};
+use anycode_setup::MemorySetupPreset;
 use fluent_bundle::FluentArgs;
 use std::path::PathBuf;
 
-/// Preset applied by the setup wizard and unit tests.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum MemorySetupPreset {
-    /// Disable persistent memory / recall (`memory.backend = noop`).
-    Noop,
-    SimpleFile,
-    HybridBackend,
-    PipelineNoEmbedding,
-    PipelineHttp {
-        embedding_base_url: String,
-        embedding_model: String,
-    },
-    #[cfg(feature = "embedding-local")]
-    PipelineLocalOnnx {
-        model_id: String,
-        hf_endpoint: Option<String>,
-    },
-}
-
-fn clear_pipeline_embedding_local_fields(
-    pipeline: &mut crate::app_config::MemoryPipelineConfigFile,
-) {
-    pipeline.embedding_local_model = None;
-    pipeline.embedding_hf_endpoint = None;
-    pipeline.embedding_local_cache_dir = None;
-}
-
-fn apply_noop_memory(cfg: &mut AnyCodeConfig) {
-    cfg.memory.backend = "noop".to_string();
-}
-
-fn apply_hybrid_memory(cfg: &mut AnyCodeConfig) {
-    let path = cfg.memory.path.clone();
-    let auto_save = cfg.memory.auto_save;
-    cfg.memory.backend = "hybrid".to_string();
-    cfg.memory.pipeline = MemoryPipelineConfigFile::default();
-    cfg.memory.path = path;
-    cfg.memory.auto_save = auto_save;
-}
-
-fn apply_pipeline_no_embedding_memory(cfg: &mut AnyCodeConfig) {
-    cfg.memory.backend = "pipeline".to_string();
-    cfg.memory.pipeline.embedding_enabled = Some(false);
-    cfg.memory.pipeline.embedding_model = None;
-    cfg.memory.pipeline.embedding_base_url = None;
-    cfg.memory.pipeline.embedding_provider = None;
-    clear_pipeline_embedding_local_fields(&mut cfg.memory.pipeline);
-}
-
-fn apply_simple_file_memory(cfg: &mut AnyCodeConfig) {
-    let path = cfg.memory.path.clone();
-    let auto_save = cfg.memory.auto_save;
-    cfg.memory = MemoryConfigFile::default();
-    cfg.memory.path = path;
-    cfg.memory.auto_save = auto_save;
-}
-
-fn apply_pipeline_http_memory(
-    cfg: &mut AnyCodeConfig,
-    embedding_base_url: String,
-    embedding_model: String,
-) {
-    cfg.memory.backend = "pipeline".to_string();
-    cfg.memory.pipeline.embedding_enabled = Some(true);
-    cfg.memory.pipeline.embedding_provider = Some("http".into());
-    cfg.memory.pipeline.embedding_base_url = Some(embedding_base_url);
-    cfg.memory.pipeline.embedding_model = Some(embedding_model);
-    clear_pipeline_embedding_local_fields(&mut cfg.memory.pipeline);
-}
-
-#[cfg(feature = "embedding-local")]
-fn apply_pipeline_local_memory(
-    cfg: &mut AnyCodeConfig,
-    model_id: String,
-    hf_endpoint: Option<String>,
-) {
-    cfg.memory.backend = "pipeline".to_string();
-    cfg.memory.pipeline.embedding_enabled = Some(true);
-    cfg.memory.pipeline.embedding_provider = Some("local".into());
-    cfg.memory.pipeline.embedding_local_model = Some(model_id);
-    cfg.memory.pipeline.embedding_hf_endpoint = hf_endpoint;
-    cfg.memory.pipeline.embedding_base_url = None;
-    cfg.memory.pipeline.embedding_model = None;
-}
-
 /// Apply a memory preset to `cfg` (wizard branches and tests).
 pub(crate) fn apply_memory_preset(cfg: &mut AnyCodeConfig, preset: MemorySetupPreset) {
-    match preset {
-        MemorySetupPreset::Noop => apply_noop_memory(cfg),
-        MemorySetupPreset::SimpleFile => apply_simple_file_memory(cfg),
-        MemorySetupPreset::HybridBackend => apply_hybrid_memory(cfg),
-        MemorySetupPreset::PipelineNoEmbedding => apply_pipeline_no_embedding_memory(cfg),
-        MemorySetupPreset::PipelineHttp {
-            embedding_base_url,
-            embedding_model,
-        } => apply_pipeline_http_memory(cfg, embedding_base_url, embedding_model),
-        #[cfg(feature = "embedding-local")]
-        MemorySetupPreset::PipelineLocalOnnx {
-            model_id,
-            hf_endpoint,
-        } => apply_pipeline_local_memory(cfg, model_id, hf_endpoint),
+    let mut full = serde_json::to_value(&*cfg).unwrap_or_default();
+    anycode_setup::apply_memory_preset(&mut full, preset);
+    if let Some(mem) = full.get("memory") {
+        if let Ok(parsed) = serde_json::from_value::<MemoryConfigFile>(mem.clone()) {
+            cfg.memory = parsed;
+        }
     }
 }
 

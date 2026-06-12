@@ -216,6 +216,64 @@ async fn fixture_api_smoke() {
     assert_eq!(bootstrap["bootstrap"]["workbench_phase"], "v3_week10");
     assert!(bootstrap["bootstrap"]["planning_doc"].is_string());
 
+    let setup = get_json(app.clone(), "/api/setup/status").await;
+    assert!(setup["setup"]["ready"].is_boolean());
+    assert!(setup["setup"]["steps"].is_array());
+    assert!(setup["setup"]["platform"].is_string());
+
+    let setup_ws = post_json(app.clone(), "/api/setup/workspace/ensure", json!({})).await;
+    assert_eq!(setup_ws["ok"], true);
+
+    let quick = get_json(app.clone(), "/api/setup/quick-auth").await;
+    assert!(quick["presets"].is_array());
+
+    let channels_settings = get_json(app.clone(), "/api/settings/channels").await;
+    assert!(channels_settings["channels"]["telegram"]["configured"].is_boolean());
+    assert!(channels_settings["channels"]["discord"]["configured"].is_boolean());
+    assert!(channels_settings["channels"]["platform"].is_string());
+    assert!(channels_settings["channels"]["telegram_start_command"].is_string());
+
+    for (path, body) in [
+        (
+            "/api/setup/channels/telegram/verify",
+            json!({ "bot_token": "not-a-valid-token" }),
+        ),
+        (
+            "/api/setup/channels/telegram/chats",
+            json!({ "bot_token": "not-a-valid-token" }),
+        ),
+        (
+            "/api/setup/channels/discord/verify",
+            json!({ "bot_token": "not-a-valid-token" }),
+        ),
+        (
+            "/api/setup/channels/discord/test",
+            json!({ "bot_token": "not-a-valid-token", "channel_id": "123" }),
+        ),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(path)
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            res.status(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "POST {path}"
+        );
+        let bytes = res.into_body().collect().await.unwrap().to_bytes();
+        let v: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["ok"], false);
+        assert!(v["error"].is_string());
+    }
+
     let pending = get_json(app.clone(), "/api/security/approvals/pending?limit=5").await;
     assert!(pending["pending"].is_array());
     assert!(pending["web_enabled"].is_boolean());
@@ -592,6 +650,85 @@ async fn projects_pagination_and_missing_root_create() {
 }
 
 #[tokio::test]
+async fn project_rename_updates_name() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("rename.db");
+    let app = app_for_test(&db).await.unwrap();
+
+    let root = dir.path().join("rename-proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": root.display().to_string(),
+            "name": "Before rename",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap().to_string();
+
+    let renamed = patch_json(
+        app.clone(),
+        &format!("/api/projects/{project_id}"),
+        json!({ "name": "  After rename  " }),
+    )
+    .await;
+    assert_eq!(renamed["ok"], true);
+    assert_eq!(renamed["name"], "After rename");
+
+    let detail = get_json(app.clone(), &format!("/api/projects/{project_id}")).await;
+    assert_eq!(detail["project"]["name"], "After rename");
+
+    // Empty (whitespace-only) name is rejected.
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/projects/{project_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "name": "   " }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    // Overly long name is rejected.
+    let long_name = "x".repeat(121);
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/projects/{project_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "name": long_name }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    // Unknown project id returns 404.
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri("/api/projects/does-not-exist")
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "name": "whatever" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn session_message_rejects_invalid_skills() {
     let dir = tempdir().unwrap();
     let db = dir.path().join("message_skills.db");
@@ -768,6 +905,66 @@ async fn session_transcript_api_returns_blocks() {
 }
 
 #[tokio::test]
+async fn artifacts_kind_and_exclude_kind_filters() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("artifact_filters.db");
+    let work = dir.path().join("repo");
+    std::fs::create_dir_all(&work).unwrap();
+
+    let db = anycode_dashboard::db::DashboardDb::open(&db_path)
+        .await
+        .unwrap();
+    let project = db
+        .upsert_project(anycode_dashboard::schema::UpsertProjectRequest {
+            root_path: work.to_string_lossy().into(),
+            name: Some("artifact-filter-test".into()),
+            description: None,
+            create_root: None,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    db.upsert_artifact(&project.id, "", "src/main.rs", "file", "main.rs")
+        .await
+        .unwrap();
+    db.upsert_artifact(
+        &project.id,
+        "",
+        "dashboard/reports/project/r1/t.md",
+        "report",
+        "Report: r1",
+    )
+    .await
+    .unwrap();
+    db.pool().close().await;
+
+    let app = app_for_test(&db_path).await.unwrap();
+
+    let all = get_json(app.clone(), "/api/artifacts?limit=10").await;
+    assert_eq!(all["artifacts"].as_array().unwrap().len(), 2);
+
+    let reports = get_json(app.clone(), "/api/artifacts?kind=report&limit=10").await;
+    let reports = reports["artifacts"].as_array().unwrap().clone();
+    assert_eq!(reports.len(), 1);
+    assert!(reports.iter().all(|a| a["kind"] == "report"));
+
+    let deliverables = get_json(app.clone(), "/api/artifacts?exclude_kind=report&limit=10").await;
+    let deliverables = deliverables["artifacts"].as_array().unwrap().clone();
+    assert_eq!(deliverables.len(), 1);
+    assert!(deliverables.iter().all(|a| a["kind"] != "report"));
+
+    let scoped = get_json(
+        app.clone(),
+        &format!(
+            "/api/projects/{}/artifacts?exclude_kind=report&limit=10",
+            project.id
+        ),
+    )
+    .await;
+    assert_eq!(scoped["artifacts"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn memory_retention_preview_api() {
     let bin = std::env::var("CARGO_BIN_EXE_anycode")
         .ok()
@@ -791,4 +988,210 @@ async fn memory_retention_preview_api() {
         v.get("older_than_days").and_then(|x| x.as_i64()),
         Some(3650)
     );
+}
+
+#[tokio::test]
+async fn setup_memory_and_complete_with_isolated_home() {
+    let home = tempdir().unwrap();
+    let cfg_dir = home.path().join(".anycode");
+    std::fs::create_dir_all(&cfg_dir).unwrap();
+    std::fs::write(
+        cfg_dir.join("config.json"),
+        r#"{"provider":"openai","model":"gpt-4o","api_key":"sk-test"}"#,
+    )
+    .unwrap();
+    std::env::set_var("HOME", home.path());
+
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("setup_mem.db");
+    let app = app_for_test(&db).await.unwrap();
+
+    let hybrid = patch_json(
+        app.clone(),
+        "/api/setup/memory",
+        json!({ "preset": "hybrid" }),
+    )
+    .await;
+    assert_eq!(hybrid["ok"], true);
+    let saved: Value =
+        serde_json::from_slice(&std::fs::read(cfg_dir.join("config.json")).unwrap()).unwrap();
+    assert_eq!(saved["memory"]["backend"], "hybrid");
+
+    let bad = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri("/api/setup/memory")
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "preset": "pipeline_http" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bad.status(), axum::http::StatusCode::BAD_REQUEST);
+
+    let complete = post_json(
+        app,
+        "/api/setup/complete",
+        json!({ "scan_projects": false }),
+    )
+    .await;
+    assert_eq!(complete["ok"], true);
+    assert!(complete["setup_completed_at"].is_string());
+}
+
+#[tokio::test]
+async fn skills_market_and_scan_roots() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("skills_market.db");
+    let app = app_for_test(&db).await.unwrap();
+
+    let market = get_json(app.clone(), "/api/skills/market").await;
+    assert!(market["market"]["entries"].is_array());
+
+    let skills = get_json(app.clone(), "/api/skills?limit=10").await;
+    assert!(skills["skills"].is_array());
+    assert!(skills["scan_roots"].is_number());
+}
+
+#[tokio::test]
+async fn security_questions_roundtrip() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("questions.db");
+    let state_dir = dir.path().join("dashboard-state");
+    std::fs::create_dir_all(&state_dir).unwrap();
+    std::env::set_var("ANYCODE_DASHBOARD_STATE_DIR", &state_dir);
+
+    let app = app_for_test(&db).await.unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": dir.path().join("proj").display().to_string(),
+            "name": "q-proj",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "q-session"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+
+    let qid = anycode_dashboard::ipc::question_ipc::register_pending(
+        session_id,
+        "Pick one",
+        "Choice",
+        &[anycode_dashboard::ipc::question_ipc::QuestionOptionRecord {
+            label: "A".into(),
+            description: String::new(),
+        }],
+        false,
+    )
+    .unwrap();
+
+    let pending = get_json(app.clone(), "/api/security/questions/pending?limit=5").await;
+    let list = pending["pending"].as_array().unwrap();
+    assert!(list.iter().any(|q| q["question_id"] == qid));
+
+    let responded = post_json(
+        app.clone(),
+        &format!("/api/security/questions/{qid}/respond"),
+        json!({ "selected_labels": ["A"] }),
+    )
+    .await;
+    assert_eq!(responded["ok"], true);
+}
+
+#[tokio::test]
+async fn session_message_with_text_files() {
+    let bin = std::env::var("CARGO_BIN_EXE_anycode")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| {
+            let candidate =
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/anycode");
+            candidate.is_file().then_some(candidate)
+        });
+    let Some(bin) = bin else {
+        eprintln!("skip session_message_with_text_files: anycode binary not found");
+        return;
+    };
+    std::env::set_var("ANYCODE_BIN", &bin);
+
+    let dir = tempdir().unwrap();
+    let state_dir = dir.path().join("dashboard-state");
+    std::fs::create_dir_all(&state_dir).unwrap();
+    std::env::set_var("ANYCODE_DASHBOARD_STATE_DIR", &state_dir);
+
+    let db = dir.path().join("text_files.db");
+    let app = app_for_test(&db).await.unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": dir.path().join("tf-proj").display().to_string(),
+            "name": "tf",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "tf-session"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/sessions/{session_id}/message"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "prompt": "read attached",
+                        "text_files": [{
+                            "filename": "note.txt",
+                            "content": "hello from upload"
+                        }]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        res.status().is_success() || res.status() == axum::http::StatusCode::ACCEPTED,
+        "message status={}",
+        res.status()
+    );
+}
+
+#[tokio::test]
+async fn quick_auth_presets_match_setup_crate() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("quick_auth.db");
+    let app = app_for_test(&db).await.unwrap();
+    let quick = get_json(app, "/api/setup/quick-auth").await;
+    let presets = quick["presets"].as_array().unwrap();
+    assert_eq!(presets.len(), anycode_setup::QUICK_AUTH_CHOICES.len());
 }

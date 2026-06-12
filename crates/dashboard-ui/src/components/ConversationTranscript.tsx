@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/api/client";
 import type { TranscriptBlock } from "@/api/types";
@@ -19,12 +19,20 @@ import {
 } from "@/components/ui/CollapsiblePanel";
 import { formatRelativeTime } from "@/utils/formatTime";
 import { formatLiveToolLabel, formatTranscriptBlockTitle } from "@/lib/eventFormat";
+import {
+  SESSION_QUERY_GC_MS,
+  transcriptQueryOptions,
+  transcriptStaleTime,
+} from "@/lib/sessionQuery";
 import { useT } from "@/i18n/context";
 
 interface Props {
   sessionId: string | null;
   isRunning?: boolean;
+  sseLive?: boolean;
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
+  /** Shown while transcript loads (from session list). */
+  promptPreview?: string | null;
 }
 
 type ConversationTurn = {
@@ -42,24 +50,35 @@ const VIRTUAL_TURN_THRESHOLD = 30;
 export function ConversationTranscript({
   sessionId,
   isRunning,
+  sseLive = false,
   scrollContainerRef,
+  promptPreview,
 }: Props) {
   const t = useT();
   const bottomRef = useRef<HTMLDivElement>(null);
   const localScrollRef = useRef<HTMLDivElement>(null);
+  const prevTurnCountRef = useRef(0);
+
+  const running = Boolean(isRunning);
+  const pollWhileRunning = running && !sseLive;
 
   const transcript = useQuery({
-    queryKey: ["session-transcript", sessionId],
-    queryFn: () => api.sessionTranscript(sessionId!),
+    ...transcriptQueryOptions(sessionId!, running),
     enabled: Boolean(sessionId),
-    refetchInterval: isRunning ? 1_000 : 3_000,
+    refetchInterval: pollWhileRunning ? 5_000 : false,
+    refetchIntervalInBackground: false,
+    placeholderData: (prev) => prev,
   });
 
   const liveLog = useQuery({
     queryKey: ["session-execution-log-live", sessionId],
     queryFn: () => api.sessionExecutionLog(sessionId!, { offset: 0, limit: 120 }),
     enabled: Boolean(sessionId) && Boolean(isRunning),
-    refetchInterval: 1_000,
+    staleTime: running ? 3_000 : transcriptStaleTime(false),
+    gcTime: SESSION_QUERY_GC_MS,
+    placeholderData: (prev) => prev,
+    refetchInterval: pollWhileRunning ? 4_000 : false,
+    refetchIntervalInBackground: false,
   });
 
   const blocks = transcript.data?.transcript.blocks ?? [];
@@ -74,6 +93,13 @@ export function ConversationTranscript({
     turns.length > 0 &&
     turns[turns.length - 1].replies.length === 0;
 
+  const stalledSeconds = useStalledSeconds(
+    Boolean(isRunning),
+    `${blocks.length}:${liveLog.data?.execution_log.lines.length ?? 0}:${activeTool ?? ""}`,
+  );
+  const lastUserPrompt =
+    turns.length > 0 ? turns[turns.length - 1].user.body : null;
+
   const useVirtual = turns.length >= VIRTUAL_TURN_THRESHOLD;
   const virtualParentRef = scrollContainerRef ?? localScrollRef;
 
@@ -85,28 +111,40 @@ export function ConversationTranscript({
   });
 
   useEffect(() => {
+    const grew = turns.length > prevTurnCountRef.current;
+    prevTurnCountRef.current = turns.length;
+    if (!grew) return;
+
+    const behavior: ScrollBehavior = isRunning ? "auto" : "smooth";
     if (useVirtual) {
-      virtualizer.scrollToIndex(turns.length - 1, { align: "end", behavior: "smooth" });
+      virtualizer.scrollToIndex(turns.length - 1, { align: "end", behavior });
       return;
     }
     const container = scrollContainerRef?.current;
     if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollTo({ top: container.scrollHeight, behavior });
       return;
     }
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [
-    turns.length,
-    blocks.length,
-    isRunning,
-    activeTool,
-    scrollContainerRef,
-    useVirtual,
-    virtualizer,
-  ]);
+    bottomRef.current?.scrollIntoView({ behavior, block: "nearest" });
+  }, [turns.length, isRunning, scrollContainerRef, useVirtual, virtualizer]);
 
   if (!sessionId) return null;
-  if (transcript.isLoading) {
+
+  const showColdLoading = transcript.isPending && !transcript.data;
+  if (showColdLoading) {
+    const preview = promptPreview?.trim();
+    if (preview) {
+      return (
+        <div className="space-y-4 opacity-80">
+          <div className="flex w-full justify-end">
+            <div className="max-w-[min(100%,42rem)] rounded-2xl bg-surface-container-high px-4 py-3 text-sm">
+              {preview}
+            </div>
+          </div>
+          <p className="text-xs text-secondary m-0">{t("common.loading")}</p>
+        </div>
+      );
+    }
     return <p className="text-sm text-secondary">{t("common.loading")}</p>;
   }
   if (transcript.isError) {
@@ -138,14 +176,37 @@ export function ConversationTranscript({
           </div>
         </div>
       )}
+      {isRunning && stalledSeconds >= STALL_WARN_SECONDS && (
+        <div className="flex w-full justify-start">
+          <div className="max-w-[min(100%,42rem)] w-full">
+            <StalledIndicator
+              sessionId={sessionId}
+              seconds={stalledSeconds}
+              lastUserPrompt={lastUserPrompt}
+            />
+          </div>
+        </div>
+      )}
       {lifecycleCount > 0 && <ExecutionLogLink sessionId={sessionId} />}
       <div ref={bottomRef} aria-hidden className="h-px shrink-0" />
     </>
   );
 
+  const fetchingBar =
+    transcript.isFetching && transcript.data ? (
+      <div
+        className="h-0.5 w-full bg-primary/15 overflow-hidden mb-3 rounded-full shrink-0"
+        aria-hidden
+      >
+        <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+      </div>
+    ) : null;
+
   if (useVirtual) {
     return (
-      <div
+      <>
+        {fetchingBar}
+        <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
           width: "100%",
@@ -177,11 +238,14 @@ export function ConversationTranscript({
         })}
         <div className="flex flex-col gap-8 pt-4">{tail}</div>
       </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <>
+      {fetchingBar}
+      <div className="flex flex-col gap-8">
       {turns.map((turn, index) => (
         <ConversationTurnView
           key={turn.id}
@@ -192,6 +256,7 @@ export function ConversationTranscript({
       ))}
       {tail}
     </div>
+    </>
   );
 }
 
@@ -216,16 +281,9 @@ function ConversationTurnView({
         if (item.kind === "tool_group") {
           return (
             <MessageRow key={item.id} align="left">
-              <TranscriptToolBlock
-                tools={item.tools}
-                defaultCollapsed={
-                  !isRunning ||
-                  !item.tools.some(
-                    (tool) =>
-                      tool.block_type === "tool_call" && !tool.default_collapsed,
-                  )
-                }
-              />
+              {/* Running groups render as a compact single-line card; completed
+                  groups stay collapsed by default and can be expanded. */}
+              <TranscriptToolBlock tools={item.tools} />
             </MessageRow>
           );
         }
@@ -415,6 +473,90 @@ function summarizeError(text: string): string {
     return `${first.slice(0, 220)}…`;
   }
   return first;
+}
+
+const STALL_WARN_SECONDS = 120;
+
+/** Seconds since the transcript / live log last changed while running. */
+function useStalledSeconds(isRunning: boolean, dataSignature: string): number {
+  const lastActivityRef = useRef(Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    lastActivityRef.current = Date.now();
+  }, [dataSignature]);
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, [isRunning]);
+  if (!isRunning) return 0;
+  return Math.max(0, Math.floor((now - lastActivityRef.current) / 1000));
+}
+
+function StalledIndicator({
+  sessionId,
+  seconds,
+  lastUserPrompt,
+}: {
+  sessionId: string;
+  seconds: number;
+  lastUserPrompt: string | null;
+}) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+  };
+  const cancel = useMutation({
+    mutationFn: () => api.cancelSession(sessionId),
+    onSuccess: invalidate,
+  });
+  const retry = useMutation({
+    mutationFn: async () => {
+      await api.cancelSession(sessionId).catch(() => undefined);
+      if (lastUserPrompt) {
+        await api.sendSessionMessage(sessionId, { prompt: lastUserPrompt });
+      }
+    },
+    onSuccess: invalidate,
+  });
+  return (
+    <div className="rounded-2xl rounded-bl-md border border-warn/40 bg-warn/10 px-4 py-3 text-sm">
+      <div className="flex items-center gap-2 font-medium">
+        <Icon name="hourglass_empty" size={16} className="text-warn" />
+        <span>
+          {t("conversations.stalledWarning").replace("{s}", String(seconds))}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 mt-2">
+        <button
+          type="button"
+          className="dw-btn-secondary text-xs"
+          disabled={cancel.isPending}
+          onClick={() => cancel.mutate()}
+        >
+          {t("conversations.stalledCancel")}
+        </button>
+        {lastUserPrompt && (
+          <button
+            type="button"
+            className="dw-btn-secondary text-xs"
+            disabled={retry.isPending}
+            onClick={() => retry.mutate()}
+          >
+            {t("conversations.stalledRetry")}
+          </button>
+        )}
+      </div>
+      {(cancel.isError || retry.isError) && (
+        <p className="m-0 mt-2 text-xs text-error">
+          {((cancel.error ?? retry.error) as Error)?.message}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function TypingIndicator({ compact }: { compact?: boolean }) {

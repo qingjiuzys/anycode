@@ -1,5 +1,9 @@
 use super::*;
 
+fn is_user_visible_session_model(model: &str) -> bool {
+    !crate::model_identity::is_mock_llm_model(model)
+}
+
 impl DashboardDb {
     pub async fn session_facets(&self) -> Result<SessionFacetsResponse> {
         let status = label_counts(
@@ -92,7 +96,7 @@ impl DashboardDb {
         let sql = format!(
             r#"
             SELECT s.id, s.project_id, p.name AS project_name, s.kind, s.task_id, s.title,
-                   s.status, s.trusted_status, s.agent_type, s.model, s.started_at, s.ended_at
+                   s.prompt_preview, s.status, s.trusted_status, s.agent_type, s.model, s.started_at, s.ended_at
             FROM sessions s
             JOIN projects p ON p.id = s.project_id
             WHERE {where_clause}
@@ -125,6 +129,7 @@ impl DashboardDb {
                 kind: r.get("kind"),
                 task_id: r.get("task_id"),
                 title: r.get("title"),
+                prompt_preview: r.get("prompt_preview"),
                 status: r.get("status"),
                 trusted_status: r.get("trusted_status"),
                 agent_type: r.get("agent_type"),
@@ -219,6 +224,7 @@ impl DashboardDb {
         for row in &mut rows {
             *row = self.enrich_session_with_project(row.clone()).await?;
         }
+        rows.retain(|row| is_user_visible_session_model(&row.model));
         Ok(rows)
     }
 
@@ -231,6 +237,7 @@ impl DashboardDb {
         for row in &mut rows {
             *row = self.enrich_session_summary(row.clone()).await?;
         }
+        rows.retain(|row| is_user_visible_session_model(&row.model));
         Ok(rows)
     }
 
@@ -548,6 +555,23 @@ impl DashboardDb {
         Ok(true)
     }
 
+    /// Mark a blocked session as acknowledged so it stops counting toward the
+    /// overview blocked banner. Returns false when the session does not exist
+    /// or is not currently blocked.
+    pub async fn acknowledge_session_block(&self, session_id: &str) -> Result<bool> {
+        let result = sqlx::query(
+            r#"
+            UPDATE sessions
+            SET blocked_acknowledged_at = datetime('now')
+            WHERE id = ? AND trusted_status = 'blocked'
+            "#,
+        )
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn update_session_model(&self, session_id: &str, model: &str) -> Result<()> {
         sqlx::query("UPDATE sessions SET model = ? WHERE id = ? AND (model = '' OR model IS NULL)")
             .bind(model)
@@ -573,11 +597,22 @@ impl DashboardDb {
         let session_status = self.get_session(session_id).await?.map(|s| s.status);
         let status =
             compute_trusted_status(counts.0, counts.1, counts.2, session_status.as_deref());
-        sqlx::query("UPDATE sessions SET trusted_status = ? WHERE id = ?")
-            .bind(status.as_str())
-            .bind(session_id)
-            .execute(&self.pool)
-            .await?;
+        // Leaving the blocked state clears any acknowledgement so a future
+        // re-block surfaces in the overview banner again.
+        sqlx::query(
+            r#"
+            UPDATE sessions
+            SET trusted_status = ?,
+                blocked_acknowledged_at = CASE WHEN ? = 'blocked'
+                    THEN blocked_acknowledged_at ELSE NULL END
+            WHERE id = ?
+            "#,
+        )
+        .bind(status.as_str())
+        .bind(status.as_str())
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
         self.sync_session_artifact_trust(session_id, status).await?;
         if let Some(sess) = self.get_session(session_id).await? {
             self.refresh_project_trust_score(&sess.project_id).await?;
@@ -675,6 +710,8 @@ impl DashboardDb {
             SELECT agent_type, model, COUNT(*) AS cnt, MAX(started_at) AS last_at
             FROM sessions
             WHERE agent_type != ''
+              AND LOWER(TRIM(COALESCE(model, ''))) != 'mock'
+              AND LOWER(TRIM(COALESCE(model, ''))) NOT LIKE 'mock/%'
             GROUP BY agent_type, model
             ORDER BY cnt DESC
             LIMIT ?
@@ -698,7 +735,7 @@ impl DashboardDb {
         let rows = sqlx::query(
             r#"
             SELECT s.id, s.project_id, p.name AS project_name, s.kind, s.task_id, s.title,
-                   s.status, s.trusted_status, s.agent_type, s.model, s.started_at, s.ended_at
+                   s.prompt_preview, s.status, s.trusted_status, s.agent_type, s.model, s.started_at, s.ended_at
             FROM sessions s
             JOIN projects p ON p.id = s.project_id
             WHERE s.status = 'running'
@@ -718,6 +755,7 @@ impl DashboardDb {
                 kind: r.get("kind"),
                 task_id: r.get("task_id"),
                 title: r.get("title"),
+                prompt_preview: r.get("prompt_preview"),
                 status: r.get("status"),
                 trusted_status: r.get("trusted_status"),
                 agent_type: r.get("agent_type"),
@@ -727,6 +765,7 @@ impl DashboardDb {
                 block_reason: None,
                 block_kind: None,
             })
+            .filter(|row| is_user_visible_session_model(&row.model))
             .collect())
     }
 }
@@ -735,6 +774,81 @@ impl DashboardDb {
 mod tests {
     use super::*;
     use crate::schema::CreateSessionRequest;
+
+    #[tokio::test]
+    async fn agent_usage_stats_exclude_mock_models() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("agent-stats.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/agent-stats".into(),
+                name: Some("demo".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        for (agent_type, model) in [("code", "mock/model"), ("code", "glm-5"), ("plan", "mock")] {
+            db.create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "run".into(),
+                task_id: None,
+                title: format!("{agent_type}-{model}"),
+                prompt_preview: None,
+                agent_type: Some(agent_type.into()),
+                model: Some(model.into()),
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        }
+
+        let stats = db.list_agent_usage_stats(10).await.unwrap();
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].agent_type, "code");
+        assert_eq!(stats[0].model, "glm-5");
+        assert_eq!(stats[0].sessions_count, 1);
+    }
+
+    #[tokio::test]
+    async fn list_sessions_enriched_excludes_mock_models() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("sessions-filter.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/sessions-filter".into(),
+                name: Some("demo".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        for (title, model) in [("mock-run", "mock/model"), ("real-run", "glm-5")] {
+            db.create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "run".into(),
+                task_id: None,
+                title: title.into(),
+                prompt_preview: None,
+                agent_type: Some("code".into()),
+                model: Some(model.into()),
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        }
+
+        let sessions = db.list_sessions_enriched(&project.id, 10).await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].title, "real-run");
+        assert_eq!(sessions[0].model, "glm-5");
+    }
 
     #[tokio::test]
     async fn create_or_get_session_by_task_id_is_idempotent() {

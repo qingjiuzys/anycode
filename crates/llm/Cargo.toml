@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 anycode-core = { path = "../core" }
+anycode-memory = { path = "../memory", optional = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
@@ -26,11 +27,20 @@ dirs = "6.0.0"
 url = "2.5"
 rand = "0.8"
 base64 = "0.22"
+whisper-cpp-plus = { version = "0.1.4", optional = true }
+piper-rs = { version = "0.2", optional = true }
 
 [features]
 default = ["anthropic"]
 anthropic = []
 openai = []
+# Local ONNX embeddings (FastEmbed); pairs with provider `local_fastembed`.
+embedding-local = ["dep:anycode-memory", "anycode-memory/embedding-local"]
+# On-device whisper.cpp (optional; increases compile time).
+stt-local = ["dep:whisper-cpp-plus"]
+# On-device Piper TTS (optional).
+tts-local = ["dep:piper-rs"]
+media-local = ["embedding-local", "stt-local", "tts-local"]
 # local = ["candle-core"]  # Disabled until candle is added as a dependency
 
 [dev-dependencies]

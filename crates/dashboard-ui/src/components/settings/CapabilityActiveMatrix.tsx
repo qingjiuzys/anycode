@@ -18,6 +18,10 @@ function labelForItem(items: ConfiguredModel[], id: string) {
   return item.display_name ?? `${item.provider}/${item.model}`;
 }
 
+function candidatesForCap(items: ConfiguredModel[], cap: string) {
+  return items.filter((m) => m.enabled && m.capabilities.includes(cap));
+}
+
 export function CapabilityActiveMatrix({ registry, items, onEnable, enabling }: Props) {
   const t = useT();
   const active = registry?.active ?? {};
@@ -28,7 +32,8 @@ export function CapabilityActiveMatrix({ registry, items, onEnable, enabling }: 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {CAPABILITIES.map((cap) => {
           const activeId = active[cap];
-          const activeItem = activeId ? items.find((m) => m.id === activeId) : undefined;
+          const candidates = candidatesForCap(items, cap);
+          const showPicker = candidates.length > 0;
           return (
             <div
               key={cap}
@@ -44,10 +49,18 @@ export function CapabilityActiveMatrix({ registry, items, onEnable, enabling }: 
                   <StatusBadge status="pending" />
                 )}
               </div>
-              <p className="text-sm font-code m-0 truncate" title={activeId ? labelForItem(items, activeId) : undefined}>
+              {cap === "vision" && (
+                <p className="text-[11px] text-secondary m-0 leading-snug">
+                  {t("settings.model.visionHint")}
+                </p>
+              )}
+              <p
+                className="text-sm font-code m-0 truncate"
+                title={activeId ? labelForItem(items, activeId) : undefined}
+              >
                 {activeId ? labelForItem(items, activeId) : t("settings.model.notConfigured")}
               </p>
-              {activeItem && (
+              {showPicker && (
                 <select
                   className="dw-input text-xs font-code"
                   value={activeId ?? ""}
@@ -57,9 +70,13 @@ export function CapabilityActiveMatrix({ registry, items, onEnable, enabling }: 
                     if (next) onEnable(next, cap);
                   }}
                 >
-                  <option value={activeId}>{t("settings.model.keepActive")}</option>
-                  {items
-                    .filter((m) => m.enabled && m.capabilities.includes(cap))
+                  {!activeId && (
+                    <option value="">{t("settings.model.selectActive")}</option>
+                  )}
+                  {activeId && (
+                    <option value={activeId}>{t("settings.model.keepActive")}</option>
+                  )}
+                  {candidates
                     .filter((m) => m.id !== activeId)
                     .map((m) => (
                       <option key={m.id} value={m.id}>

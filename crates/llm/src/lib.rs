@@ -15,7 +15,9 @@ pub mod config_models;
 pub mod copilot_token;
 mod deepseek_catalog;
 mod google_catalog;
+mod local_media_catalog;
 pub mod media;
+mod model_cache;
 mod model_catalog;
 mod model_context;
 mod model_registry;
@@ -39,8 +41,8 @@ pub use chat_model_ref::{
 };
 pub use config_file::{
     default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,
-    read_config_value, read_model_fallback, read_models_config, string_field, write_config_value,
-    LlmConfigPatch,
+    read_config_value, read_model_fallback, read_models_config, string_field,
+    sync_memory_embedding_pipeline, write_config_value, LlmConfigPatch,
 };
 pub use config_models::{
     ConfiguredModelFile, EndpointOverrides, FailoverTrigger, FallbackChainEntry, MaskedSecret,
@@ -56,6 +58,12 @@ pub use deepseek_catalog::{
     DEEPSEEK_MODEL_CATALOG, DEEPSEEK_OPENAI_API_ROOT, DEEPSEEK_OPENAI_CHAT_URL,
 };
 pub use google_catalog::{is_known_google_model_id, GoogleModelCatalogEntry, GOOGLE_MODEL_CATALOG};
+pub use local_media_catalog::{
+    build_features_json, is_builtin_local_provider, local_media_provider_allows_placeholder_key,
+    local_presets_json, preset_by_id, preset_to_configured_model, presets_for_capability,
+    LocalMediaPreset, LocalMode, LIGHTWEIGHT_LOCAL_BUNDLE, LOCAL_MEDIA_PRESETS,
+};
+pub use model_cache::{anycode_models_dir, ensure_models_dir, piper_voice_dir, whisper_model_path};
 pub use model_catalog::{
     clone_with_model, is_known_model_alias, known_model_aliases, ModelAliasDescriptor,
     MODEL_ALIASES,

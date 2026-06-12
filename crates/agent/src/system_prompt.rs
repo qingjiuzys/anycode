@@ -94,6 +94,22 @@ impl RuntimePromptConfig {
     }
 }
 
+/// Reply-language directive from `ANYCODE_REPLY_LANG` (`zh` / `en`).
+/// Set by the dashboard web-chat spawn (UI language) or the CLI bootstrap
+/// (locale fallback); unknown values yield no directive.
+fn reply_language_section() -> Option<String> {
+    let lang = std::env::var("ANYCODE_REPLY_LANG").ok()?;
+    let lang = lang.trim().to_lowercase();
+    let directive = if lang.starts_with("zh") {
+        "除非用户明确使用其它语言提问，否则始终使用中文回复（代码、命令与标识符除外）。"
+    } else if lang.starts_with("en") {
+        "Always reply in English unless the user writes in another language."
+    } else {
+        return None;
+    };
+    Some(format!("# Reply language\n\n{directive}"))
+}
+
 fn env_section(cwd: &str) -> String {
     let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let os = std::env::consts::OS;
@@ -117,6 +133,11 @@ pub(crate) fn default_stack_sections(
             agent.tools().join(", ")
         ),
     ];
+    if let Some(lang) = reply_language_section() {
+        parts.push(lang);
+    }
+    parts.push("# User clarification\n\nWhen requirements are ambiguous, multiple valid approaches exist, or confidence is low, **call `AskUserQuestion` before executing** — present concise options (single- or multi-select) rather than guessing.".to_string());
+    parts.push("# Plan progress\n\nFor multi-step work, emit plan checkpoints as log lines `[plan_step] id=<slug> title=<label> status=running|done|failed` so the dashboard timeline can track checklist progress.".to_string());
     if let Some(sk) = skills_section {
         let t = sk.trim();
         if !t.is_empty() {

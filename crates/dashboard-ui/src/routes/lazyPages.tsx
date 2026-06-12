@@ -38,6 +38,9 @@ function lazyWithChunkReload<T extends { default: ComponentType<unknown> }>(
 export const HomePage = lazyWithChunkReload(() =>
   import("@/pages/HomePage").then((m) => ({ default: m.HomePage })),
 );
+export const OverviewPage = lazyWithChunkReload(() =>
+  import("@/pages/OverviewPage").then((m) => ({ default: m.OverviewPage })),
+);
 export const ProjectsPage = lazyWithChunkReload(() =>
   import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })),
 );
@@ -76,6 +79,9 @@ export const AuditPage = lazyWithChunkReload(() =>
 );
 export const SettingsPage = lazyWithChunkReload(() =>
   import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+export const SetupWizardPage = lazyWithChunkReload(() =>
+  import("@/pages/SetupWizardPage").then((m) => ({ default: m.SetupWizardPage })),
 );
 export const LoginPage = lazyWithChunkReload(() =>
   import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })),

@@ -51,6 +51,7 @@ pub async fn list_cron_jobs(State(_state): State<AppState>) -> impl IntoResponse
                     session_id: j.session_id,
                     failure_destination: j.failure_destination,
                     tool_profile: j.tool_profile,
+                    project_id: j.project_id,
                 })
                 .collect();
             Json(json!({

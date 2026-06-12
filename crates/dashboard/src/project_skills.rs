@@ -32,6 +32,15 @@ pub async fn enabled_skill_ids_for_path(
     Ok(Some(rows.into_iter().collect()))
 }
 
+/// Project root path for `project_id` from the default dashboard DB.
+/// `None` when the DB/project is missing or the root no longer exists on disk.
+pub async fn project_root_for_id(project_id: &str) -> Option<std::path::PathBuf> {
+    let db = open_default_db_if_exists().await.ok().flatten()?;
+    let detail = db.get_project(project_id).await.ok().flatten()?;
+    let root = std::path::PathBuf::from(detail.root_path);
+    root.is_dir().then_some(root)
+}
+
 /// Open DB at default path if present; otherwise `None`.
 pub async fn open_default_db_if_exists() -> Result<Option<DashboardDb>> {
     let path = crate::server::default_db_path();

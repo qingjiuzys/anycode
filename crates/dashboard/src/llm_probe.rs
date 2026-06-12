@@ -4,8 +4,12 @@ use anycode_core::{CoreError, LLMProvider, Message, MessageContent, MessageRole,
 use anycode_llm::{
     build_llm_client,
     capability_catalog::ModelCapability,
-    media::{EmbeddingClient, ImageGenClient, MediaClientRegistry, TtsClient, VideoGenClient},
-    ProviderConfig, ResolvedModelRegistry,
+    is_builtin_local_provider,
+    media::{
+        probe_fixtures::minimal_wav_silence_1s, EmbeddingClient, ImageGenClient,
+        MediaClientRegistry, SttClient, TtsClient, VideoGenClient,
+    },
+    preset_by_id, ProviderConfig, ResolvedModelRegistry,
 };
 use chrono::Utc;
 use serde_json::Value;
@@ -57,6 +61,14 @@ fn chat_provider_config(registry: &ResolvedModelRegistry) -> Result<ProviderConf
     let model = registry.resolve_model(item);
     let api_key = registry
         .resolve_api_key(item)
+        .filter(|k| !k.trim().is_empty())
+        .or_else(|| {
+            if anycode_llm::local_media_provider_allows_placeholder_key(&provider) {
+                Some("ollama".to_string())
+            } else {
+                None
+            }
+        })
         .ok_or_else(|| "api_key not configured".to_string())?;
     Ok(ProviderConfig {
         provider,
@@ -108,6 +120,12 @@ async fn probe_embedding(registry: &ResolvedModelRegistry) -> Result<String, Str
         .embedding
         .as_ref()
         .ok_or_else(|| "models.embedding not configured".to_string())?;
+    if is_builtin_local_provider(&prof.profile.provider) && !cfg!(feature = "embedding-local") {
+        return Err(
+            "local_fastembed requires build with --features embedding-local (or media-local)"
+                .into(),
+        );
+    }
     let client = EmbeddingClient::new(prof.profile.clone());
     let dim = client
         .embed("hello")
@@ -117,18 +135,53 @@ async fn probe_embedding(registry: &ResolvedModelRegistry) -> Result<String, Str
     Ok(format!("embedding ok: dim={dim}"))
 }
 
+fn stt_docs_hint(provider: &str) -> Option<&'static str> {
+    match provider.trim().to_ascii_lowercase().as_str() {
+        "whisper_cpp" | "whisper-cpp" => preset_by_id("whisper-cpp-tiny").and_then(|p| p.docs_url),
+        "local_whisper" => preset_by_id("local-whisper-tiny").and_then(|p| p.docs_url),
+        _ => None,
+    }
+}
+
 async fn probe_stt(registry: &ResolvedModelRegistry) -> Result<String, String> {
     let reg = MediaClientRegistry::from_registry(registry);
     let prof = reg
         .stt
         .as_ref()
         .ok_or_else(|| "models.speech.stt not configured".to_string())?;
-    if prof.profile.base_url.is_none() && prof.profile.provider != "openai" {
-        return Err("STT requires base_url or openai provider".into());
+    if is_builtin_local_provider(&prof.profile.provider) && !cfg!(feature = "stt-local") {
+        return Err(
+            "built-in STT requires build with --features stt-local (or media-local)".into(),
+        );
     }
+    if prof.profile.base_url.is_none()
+        && prof.profile.provider != "openai"
+        && !is_builtin_local_provider(&prof.profile.provider)
+    {
+        let hint = stt_docs_hint(&prof.profile.provider)
+            .map(|u| format!(" — see {u}"))
+            .unwrap_or_default();
+        return Err(format!(
+            "STT requires base_url or a known local provider (provider={}){hint}",
+            prof.profile.provider
+        ));
+    }
+    let client = SttClient::new(prof.profile.clone());
+    let wav = minimal_wav_silence_1s();
+    let out = client
+        .transcribe(&wav, "probe.wav")
+        .await
+        .map_err(|e: CoreError| {
+            let hint = stt_docs_hint(&prof.profile.provider)
+                .map(|u| format!(" ({u})"))
+                .unwrap_or_default();
+            format!("{e}{hint}")
+        })?;
     Ok(format!(
-        "stt configured: provider={} model={}",
-        prof.profile.provider, prof.profile.model
+        "stt ok: provider={} model={} text_len={}",
+        prof.profile.provider,
+        prof.profile.model,
+        out.text.len()
     ))
 }
 
@@ -138,12 +191,24 @@ async fn probe_tts(registry: &ResolvedModelRegistry) -> Result<String, String> {
         .tts
         .as_ref()
         .ok_or_else(|| "models.speech.tts not configured".to_string())?;
+    if is_builtin_local_provider(&prof.profile.provider) && !cfg!(feature = "tts-local") {
+        return Err(
+            "built-in TTS requires build with --features tts-local (or media-local)".into(),
+        );
+    }
     let client = TtsClient::new(prof.profile.clone());
     let out = client
         .synthesize("ok")
         .await
         .map_err(|e: CoreError| e.to_string())?;
-    Ok(format!("tts ok: {} bytes", out.audio_bytes.len()))
+    if out.audio_bytes.is_empty() {
+        return Err("tts returned empty audio".into());
+    }
+    Ok(format!(
+        "tts ok: provider={} {} bytes",
+        prof.profile.provider,
+        out.audio_bytes.len()
+    ))
 }
 
 async fn probe_image(registry: &ResolvedModelRegistry) -> Result<String, String> {

@@ -35,9 +35,11 @@ export interface ArtifactListOpts {
   projectId?: string;
   sessionId?: string;
   kind?: string;
+  excludeKind?: string;
   trustLevel?: string;
   unverifiedOnly?: boolean;
   blockedSessionOnly?: boolean;
+  finalOnly?: boolean;
   limit?: number;
 }
 
@@ -47,8 +49,10 @@ export function buildArtifactQuery(opts?: ArtifactListOpts): URLSearchParams {
   if (opts?.projectId) q.set("project_id", opts.projectId);
   if (opts?.sessionId) q.set("session_id", opts.sessionId);
   if (opts?.kind) q.set("kind", opts.kind);
+  if (opts?.excludeKind) q.set("exclude_kind", opts.excludeKind);
   if (opts?.trustLevel) q.set("trust_level", opts.trustLevel);
   if (opts?.unverifiedOnly) q.set("unverified_only", "true");
   if (opts?.blockedSessionOnly) q.set("blocked_session_only", "true");
+  if (opts?.finalOnly) q.set("final_only", "true");
   return q;
 }

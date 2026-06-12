@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
-import { api, type SessionListOpts } from "@/api/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/api/client";
 import {
   ConversationSessionList,
   ConversationThread,
@@ -10,93 +9,100 @@ import { ConversationArtifactsPanel } from "@/components/ConversationArtifactsPa
 import { ConversationComposer } from "@/components/ConversationComposer";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { SessionStatusBadges } from "@/components/ui/StatusBadge";
 import { usePendingApprovalCounts } from "@/components/SecurityApprovalInbox";
 import { useSessionEventStream } from "@/hooks/useSessionEventStream";
+import { useSseStatus } from "@/context/SseContext";
 import { useT } from "@/i18n/context";
-
-type ConversationSearch = {
-  status?: string;
-  trusted?: string;
-  kind?: string;
-  needs_approval?: boolean;
-  budget_exceeded?: boolean;
-  project?: string;
-  session?: string;
-  agent?: string;
-};
-
-function searchToSessionOpts(search: ConversationSearch): SessionListOpts {
-  return {
-    limit: 100,
-    status: search.status,
-    trustedStatus: search.trusted,
-    kind: search.kind,
-    projectId: search.project,
-    budgetExceeded: search.budget_exceeded,
-  };
-}
-
-function activeChip(search: ConversationSearch): string {
-  if (search.needs_approval) return "needs_approval";
-  if (search.status === "running" && !search.kind && !search.trusted) return "running";
-  if (search.trusted === "blocked") return "blocked";
-  if (search.kind === "workflow") return "workflow";
-  if (search.kind === "cron") return "cron";
-  if (search.budget_exceeded) return "budget";
-  if (search.kind) return `kind:${search.kind}`;
-  if (!search.status && !search.trusted && !search.kind && !search.needs_approval) return "all";
-  return "custom";
-}
+import {
+  buildConversationsHref,
+  conversationSearchParams,
+  conversationsCanonicalHref,
+  filterToQuerySearch,
+  parseConversationSearch,
+  parseFilterFromSearchStr,
+  searchToSessionOpts,
+  type ConversationSearch,
+} from "@/lib/conversationsSearch";
+import { prefetchSessionConversation } from "@/lib/sessionQuery";
+import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 
 export function ConversationsPage() {
   const t = useT();
   const navigate = useNavigate();
-  const rawSearch = useSearch({ from: "/_shell/conversations" }) as ConversationSearch;
-  const search = rawSearch;
+  const queryClient = useQueryClient();
+  const search = useSearch({ from: "/_shell/conversations" }) as ConversationSearch;
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr });
 
   const [projectId, setProjectId] = useState(search.project ?? "");
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(search.session ?? null);
   const [showStartForm, setShowStartForm] = useState(Boolean(search.agent));
   const [artifactsDrawerOpen, setArtifactsDrawerOpen] = useState(false);
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
-  const { counts: pendingCounts, pendingTotal } = usePendingApprovalCounts();
-  const active = activeChip(search);
+  /** Instant list highlight while router search catches up. */
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const globalSseLive = useSseStatus() === "live";
+  const { counts: pendingCounts, pendingTotal, isLoading: pendingCountsLoading } =
+    usePendingApprovalCounts();
 
-  const updateSearch = useCallback(
-    (next: Partial<ConversationSearch> & { sessionId?: string | null }) => {
-      const merged: ConversationSearch = {
-        ...search,
-        ...next,
-        session: next.sessionId === undefined ? search.session : next.sessionId || undefined,
-      };
-      if ("sessionId" in next) delete (merged as { sessionId?: string | null }).sessionId;
+  /** Chip + list query follow the URL bar immediately (not lagging useSearch). */
+  const active = useMemo(() => parseFilterFromSearchStr(searchStr), [searchStr]);
+
+  const effectiveSearch = useMemo((): ConversationSearch => {
+    const fromFilter = filterToQuerySearch(active);
+    return {
+      ...fromFilter,
+      project: search.project ?? (projectId || undefined),
+      session: search.session,
+      agent: search.agent,
+    };
+  }, [active, projectId, search.agent, search.project, search.session]);
+
+  const navigateSearch = useCallback(
+    (next: ConversationSearch) => {
+      const canon = conversationSearchParams(next);
+      const href = buildConversationsHref(canon);
+      // Router navigate merges stray query keys — replace the browser URL first.
+      window.history.replaceState(window.history.state, "", href);
       void navigate({
         to: "/conversations",
-        search: {
-          status: merged.status,
-          trusted: merged.trusted,
-          kind: merged.kind,
-          needs_approval: merged.needs_approval || undefined,
-          budget_exceeded: merged.budget_exceeded || undefined,
-          project: merged.project || undefined,
-          session: merged.session || undefined,
-          agent: merged.agent || undefined,
-        },
+        search: () => canon,
         replace: true,
       });
     },
-    [navigate, search],
+    [navigate],
   );
+
+  useEffect(() => {
+    const canonicalHref = conversationsCanonicalHref(searchStr);
+    if (!canonicalHref) return;
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (canonicalHref === current) return;
+    window.history.replaceState(window.history.state, "", canonicalHref);
+    const canon = conversationSearchParams(
+      parseConversationSearch(canonicalHref.split("?")[1] ?? ""),
+    );
+    void navigate({
+      to: "/conversations",
+      search: () => canon,
+      replace: true,
+    });
+  }, [navigate, searchStr]);
 
   const selectSession = useCallback(
     (sessionId: string | null) => {
-      setSelectedSessionId(sessionId);
-      updateSearch({ sessionId });
+      if (sessionId) {
+        setPendingSessionId(sessionId);
+      } else {
+        setPendingSessionId(null);
+      }
+      queueMicrotask(() => {
+        navigateSearch({
+          ...effectiveSearch,
+          session: sessionId || undefined,
+        });
+      });
     },
-    [updateSearch],
+    [effectiveSearch, navigateSearch],
   );
 
   const renderStartComposer = (compact?: boolean) => (
@@ -119,10 +125,6 @@ export function ConversationsPage() {
     }
   }, [search.project]);
 
-  useEffect(() => {
-    if (search.session) setSelectedSessionId(search.session);
-  }, [search.session]);
-
   const projects = useQuery({
     queryKey: ["projects", "picker"],
     queryFn: () => api.projects({ limit: 200, sort: "updated_at_desc" }),
@@ -134,36 +136,68 @@ export function ConversationsPage() {
   });
 
   const sessions = useQuery({
-    queryKey: ["all-sessions", search.status, search.trusted, search.kind, search.budget_exceeded, projectId],
-    queryFn: () => api.allSessions(searchToSessionOpts({ ...search, project: projectId || undefined })),
-    refetchInterval: 3_000,
+    queryKey: ["all-sessions", active, projectId, search.project],
+    queryFn: () => api.allSessions(searchToSessionOpts(effectiveSearch, projectId || undefined)),
+    staleTime: 8_000,
+    refetchInterval: globalSseLive
+      ? false
+      : active === "running" || active === "needs_approval"
+        ? 20_000
+        : 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const rows = useMemo(() => {
     const base = sessions.data?.sessions ?? [];
-    if (search.needs_approval) {
+    if (active === "needs_approval") {
       return base.filter((s) => s.status === "running" && (pendingCounts.get(s.id) ?? 0) > 0);
     }
     return base;
-  }, [pendingCounts, search.needs_approval, sessions.data?.sessions]);
+  }, [active, pendingCounts, sessions.data?.sessions]);
+
+  /** URL-derived selection (shareable / refresh). */
+  const urlSessionId = useMemo(() => {
+    if (rows.length === 0) return null;
+    const fromUrl = search.session;
+    if (fromUrl && rows.some((s) => s.id === fromUrl)) return fromUrl;
+    return rows[0]!.id;
+  }, [rows, search.session]);
 
   useEffect(() => {
-    if (rows.length === 0 || sessions.isLoading) return;
-    if (!selectedSessionId) {
-      selectSession(rows[0].id);
-      return;
+    if (pendingSessionId && search.session === pendingSessionId) {
+      setPendingSessionId(null);
     }
-    if (!search.session && !rows.some((s) => s.id === selectedSessionId)) {
-      selectSession(rows[0].id);
-    }
-  }, [rows, search.session, selectSession, selectedSessionId, sessions.isLoading]);
+  }, [pendingSessionId, search.session]);
+
+  const displaySessionId = pendingSessionId ?? urlSessionId;
 
   const selected = useMemo(
-    () => rows.find((s) => s.id === selectedSessionId) ?? null,
-    [rows, selectedSessionId],
+    () => rows.find((s) => s.id === displaySessionId) ?? null,
+    [rows, displaySessionId],
   );
 
-  const sseLive = useSessionEventStream(selectedSessionId ?? undefined);
+  useEffect(() => {
+    if (!displaySessionId || rows.length === 0) return;
+    const idx = rows.findIndex((s) => s.id === displaySessionId);
+    if (idx < 0) return;
+    const neighbors = [rows[idx - 1], rows[idx + 1]].filter(Boolean) as typeof rows;
+    const runIdle = () => {
+      for (const s of neighbors) {
+        prefetchSessionConversation(queryClient, s.id, s.status === "running");
+      }
+    };
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(runIdle);
+      return () => cancelIdleCallback(id);
+    }
+    const timer = setTimeout(runIdle, 200);
+    return () => clearTimeout(timer);
+  }, [displaySessionId, queryClient, rows]);
+
+  const sseLive = useSessionEventStream(
+    selected?.status === "running" ? (displaySessionId ?? undefined) : undefined,
+    "conversation",
+  );
 
   const quickChips = useMemo(() => {
     const chips = [
@@ -190,97 +224,30 @@ export function ConversationsPage() {
   }, [facets.data?.facets.budget_exceeded_7d, facets.data?.facets.kind, facets.data?.facets.pending_approval_total, pendingTotal, t]);
 
   const applyChip = (chipId: string) => {
-    if (chipId === "all") {
-      updateSearch({
-        status: undefined,
-        trusted: undefined,
-        kind: undefined,
-        needs_approval: undefined,
-        budget_exceeded: undefined,
-      });
-      return;
-    }
-    if (chipId === "running") {
-      updateSearch({
-        status: "running",
-        trusted: undefined,
-        kind: undefined,
-        needs_approval: undefined,
-        budget_exceeded: undefined,
-      });
-      return;
-    }
-    if (chipId === "blocked") {
-      updateSearch({
-        trusted: "blocked",
-        status: undefined,
-        kind: undefined,
-        needs_approval: undefined,
-        budget_exceeded: undefined,
-      });
-      return;
-    }
-    if (chipId === "needs_approval") {
-      updateSearch({
-        status: "running",
-        needs_approval: true,
-        trusted: undefined,
-        kind: undefined,
-        budget_exceeded: undefined,
-      });
-      return;
-    }
-    if (chipId === "budget") {
-      updateSearch({
-        budget_exceeded: true,
-        status: undefined,
-        trusted: undefined,
-        kind: undefined,
-        needs_approval: undefined,
-      });
-      return;
-    }
-    if (chipId.startsWith("kind:")) {
-      updateSearch({
-        kind: chipId.slice("kind:".length),
-        status: undefined,
-        trusted: undefined,
-        needs_approval: undefined,
-        budget_exceeded: undefined,
-      });
-    }
+    setPendingSessionId(null);
+    navigateSearch({
+      project: projectId || search.project || undefined,
+      agent: search.agent,
+      filter: chipId === "all" ? undefined : chipId,
+    });
   };
 
+  const listBusy = sessions.isFetching;
+
   return (
-    <>
-      <PageHeader
-        title={t("conversations.title")}
-        subtitle={t("conversations.subtitleChat")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("conversations.title") },
-        ]}
-        meta={
-          selected ? (
-            <>
-              <SessionStatusBadges
-                status={selected.status}
-                trustedStatus={selected.trusted_status}
-                pendingApprovalCount={pendingCounts.get(selected.id)}
-              />
-            </>
-          ) : undefined
-        }
-      />
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+    <div className="flex flex-col min-h-[calc(100vh-9rem)]">
+      <div className="flex flex-wrap items-center gap-2 mb-3 shrink-0">
         <select
           className="dw-input min-w-[12rem]"
           value={projectId}
           onChange={(e) => {
             const nextProject = e.target.value;
             setProjectId(nextProject);
-            setSelectedSessionId(null);
-            updateSearch({ project: nextProject || undefined, sessionId: null });
+            navigateSearch({
+              ...effectiveSearch,
+              project: nextProject || undefined,
+              session: undefined,
+            });
           }}
         >
           <option value="">{t("conversations.allProjects")}</option>
@@ -325,7 +292,18 @@ export function ConversationsPage() {
 
       {sessions.isLoading && <p className="text-sm text-secondary">{t("common.loading")}</p>}
 
-      {!sessions.isLoading && !projectId && rows.length === 0 && active === "all" && (
+      {!sessions.isLoading &&
+        active === "needs_approval" &&
+        pendingCountsLoading &&
+        rows.length === 0 && (
+          <p className="text-sm text-secondary">{t("common.loading")}</p>
+        )}
+
+      {!sessions.isLoading &&
+        !(active === "needs_approval" && pendingCountsLoading) &&
+        !projectId &&
+        rows.length === 0 &&
+        active === "all" && (
         <EmptyState
           title={t("conversations.selectProjectFirst")}
           description={t("conversations.selectProjectFirstDesc")}
@@ -333,7 +311,11 @@ export function ConversationsPage() {
         />
       )}
 
-      {!sessions.isLoading && projectId && rows.length === 0 && active === "all" && (
+      {!sessions.isLoading &&
+        !(active === "needs_approval" && pendingCountsLoading) &&
+        projectId &&
+        rows.length === 0 &&
+        active === "all" && (
         <div className="p-6 border border-outline-variant rounded-lg bg-surface-container-lowest">
           {!showStartForm && (
             <EmptyState
@@ -358,7 +340,10 @@ export function ConversationsPage() {
         </div>
       )}
 
-      {!sessions.isLoading && rows.length === 0 && active !== "all" && (
+      {!sessions.isLoading &&
+        !(active === "needs_approval" && pendingCountsLoading) &&
+        rows.length === 0 &&
+        active !== "all" && (
         <EmptyState
           title={
             active === "needs_approval"
@@ -377,7 +362,7 @@ export function ConversationsPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="flex flex-col flex-1 min-h-0 border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest">
+        <div className="flex flex-col flex-1 min-h-0 border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest min-h-[calc(100vh-12rem)]">
           <div className="lg:hidden flex items-center justify-between gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
             <button
               type="button"
@@ -396,7 +381,7 @@ export function ConversationsPage() {
               {t("conversations.artifactsPanel")}
             </button>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 min-h-[min(720px,calc(100vh-16rem))]">
+          <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0">
             {!listCollapsed && (
               <div className="hidden lg:flex lg:col-span-3 border-r border-outline-variant flex-col min-h-0">
                 <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-secondary border-b border-outline-variant bg-surface-container-low shrink-0 flex items-center justify-between gap-2">
@@ -412,12 +397,17 @@ export function ConversationsPage() {
                     <Icon name="chevron_left" size={18} />
                   </button>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto">
+                <div
+                  className={`flex-1 min-h-0 overflow-y-auto transition-opacity ${listBusy ? "opacity-60 pointer-events-none" : ""}`}
+                >
                   <ConversationSessionList
                     sessions={rows}
-                    selectedId={selectedSessionId}
+                    selectedId={displaySessionId}
                     onSelect={selectSession}
                     pendingCounts={pendingCounts}
+                    onPrefetch={(id, isRunning) =>
+                      prefetchSessionConversation(queryClient, id, isRunning)
+                    }
                   />
                 </div>
               </div>
@@ -425,7 +415,7 @@ export function ConversationsPage() {
             <div
               className={`flex flex-col min-h-0 border-outline-variant ${
                 listCollapsed ? "lg:col-span-9 lg:border-r" : "lg:col-span-6 lg:border-r"
-              } min-h-[min(720px,calc(100vh-16rem))] lg:min-h-0`}
+              }`}
             >
               {listCollapsed && (
                 <div className="hidden lg:flex px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
@@ -439,17 +429,20 @@ export function ConversationsPage() {
                   </button>
                 </div>
               )}
-              <div className="flex-1 min-h-0 flex flex-col min-h-[360px] lg:min-h-0">
+              <div className="flex-1 min-h-0 flex flex-col">
                 <ConversationThread
                   session={selected}
                   onFollowUpStarted={selectSession}
+                  showHeader={false}
+                  sseLive={sseLive}
                 />
               </div>
             </div>
             <div className="hidden lg:flex lg:col-span-3 flex-col min-h-0">
               <ConversationArtifactsPanel
-                sessionId={selectedSessionId}
+                sessionId={displaySessionId}
                 live={sseLive}
+                isRunning={selected?.status === "running"}
               />
             </div>
           </div>
@@ -479,12 +472,15 @@ export function ConversationsPage() {
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ConversationSessionList
                   sessions={rows}
-                  selectedId={selectedSessionId}
+                  selectedId={displaySessionId}
                   onSelect={(id) => {
                     selectSession(id);
                     setSessionsDrawerOpen(false);
                   }}
                   pendingCounts={pendingCounts}
+                  onPrefetch={(id, isRunning) =>
+                    prefetchSessionConversation(queryClient, id, isRunning)
+                  }
                 />
               </div>
             </div>
@@ -502,8 +498,9 @@ export function ConversationsPage() {
           />
           <div className="fixed inset-y-0 right-0 z-50 w-[min(100%,20rem)] lg:hidden shadow-xl">
             <ConversationArtifactsPanel
-              sessionId={selectedSessionId}
+              sessionId={displaySessionId}
               live={sseLive}
+              isRunning={selected?.status === "running"}
               className="h-full border-l border-outline-variant"
             />
             <button
@@ -516,6 +513,6 @@ export function ConversationsPage() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

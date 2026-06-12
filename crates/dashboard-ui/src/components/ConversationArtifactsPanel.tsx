@@ -1,15 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import type { ArtifactRecord } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
+import {
+  sessionArtifactsQueryOptions,
+} from "@/lib/sessionQuery";
 
 type Props = {
   sessionId: string | null;
   className?: string;
   live?: boolean;
+  isRunning?: boolean;
 };
 
 type ArtifactGroup = {
@@ -19,14 +23,29 @@ type ArtifactGroup = {
   items: ArtifactRecord[];
 };
 
-export function ConversationArtifactsPanel({ sessionId, className = "", live }: Props) {
+export function ConversationArtifactsPanel({
+  sessionId,
+  className = "",
+  live,
+  isRunning = false,
+}: Props) {
   const t = useT();
+  const queryClient = useQueryClient();
+  const running = Boolean(isRunning);
 
   const artifacts = useQuery({
-    queryKey: ["session-artifacts", sessionId],
-    queryFn: () => api.sessionArtifacts(sessionId!),
+    ...sessionArtifactsQueryOptions(sessionId!, running),
     enabled: Boolean(sessionId),
-    refetchInterval: live ? 5_000 : false,
+    refetchInterval: live ? false : false,
+    refetchIntervalInBackground: false,
+    placeholderData: (prev) => prev,
+  });
+
+  const scan = useMutation({
+    mutationFn: () => api.scanSessionArtifacts(sessionId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["session-artifacts", sessionId] });
+    },
   });
 
   if (!sessionId) {
@@ -40,7 +59,8 @@ export function ConversationArtifactsPanel({ sessionId, className = "", live }: 
     );
   }
 
-  if (artifacts.isLoading) {
+  const showColdLoading = artifacts.isPending && !artifacts.data;
+  if (showColdLoading) {
     return (
       <aside className={`flex flex-col h-full min-h-0 bg-surface-container-lowest ${className}`}>
         <PanelHeader count={0} />
@@ -53,7 +73,11 @@ export function ConversationArtifactsPanel({ sessionId, className = "", live }: 
   const groups = groupArtifacts(rows, t);
 
   return (
-    <aside className={`flex flex-col h-full min-h-0 bg-surface-container-lowest ${className}`}>
+    <aside
+      className={`flex flex-col h-full min-h-0 bg-surface-container-lowest ${className} ${
+        artifacts.isFetching && artifacts.data ? "opacity-90" : ""
+      }`}
+    >
       <PanelHeader count={rows.length} />
       <div className="flex-1 min-h-0 overflow-y-auto">
         {rows.length === 0 ? (
@@ -63,6 +87,22 @@ export function ConversationArtifactsPanel({ sessionId, className = "", live }: 
               description={t("conversations.artifactsEmptyDesc")}
               icon="inventory_2"
             />
+            <div className="text-center mt-3">
+              <button
+                type="button"
+                className="dw-btn-secondary text-xs"
+                disabled={scan.isPending}
+                onClick={() => scan.mutate()}
+              >
+                <Icon name="document_scanner" size={14} className="inline mr-1" />
+                {scan.isPending ? t("conversations.artifactsScanning") : t("conversations.artifactsScan")}
+              </button>
+              {scan.isSuccess && scan.data.registered > 0 && (
+                <p className="text-xs text-secondary mt-2 m-0">
+                  {t("conversations.artifactsScanDone").replace("{n}", String(scan.data.registered))}
+                </p>
+              )}
+            </div>
             <div className="text-center mt-4">
               <Link
                 to="/sessions/$sessionId"

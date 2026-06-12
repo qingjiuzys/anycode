@@ -29,14 +29,18 @@ export function AssetsPage() {
     if (trustSearch) setTrustFilter(trustSearch);
   }, [trustSearch]);
 
+  // Default view ("") shows deliverables only: report artifacts are excluded
+  // server-side; "all" shows everything including reports.
   const artifacts = useQuery({
     queryKey: ["artifacts", projectId, kind, trustFilter],
     queryFn: () =>
       api.artifacts({
         projectId: projectId || undefined,
-        kind: kind || undefined,
+        kind: kind && kind !== "all" ? kind : undefined,
+        excludeKind: kind === "" ? "report" : undefined,
         unverifiedOnly: trustFilter === "unverified",
         blockedSessionOnly: trustFilter === "blocked",
+        finalOnly: kind === "",
         limit: 100,
       }),
   });
@@ -86,7 +90,8 @@ export function AssetsPage() {
           ))}
         </select>
         <select className="dw-input" value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">{t("assets.allTypes")}</option>
+          <option value="">{t("assets.deliverables")}</option>
+          <option value="all">{t("assets.allTypes")}</option>
           <option value="file">{t("assets.kinds.file")}</option>
           <option value="notebook">{t("assets.kinds.notebook")}</option>
           <option value="report">{t("assets.kinds.report")}</option>
@@ -134,13 +139,23 @@ export function AssetsPage() {
                   <tr key={a.id}>
                     <td>{a.project_name ?? "—"}</td>
                     <td className="text-secondary">
-                      <Link
-                        to="/assets/$artifactId"
-                        params={{ artifactId: a.id }}
-                        className="font-code text-xs no-underline hover:underline"
-                      >
-                        {a.path}
-                      </Link>
+                      {a.kind === "report" ? (
+                        <Link
+                          to="/reports"
+                          search={{ artifact_id: a.id }}
+                          className="font-code text-xs no-underline hover:underline"
+                        >
+                          {a.path}
+                        </Link>
+                      ) : (
+                        <Link
+                          to="/assets/$artifactId"
+                          params={{ artifactId: a.id }}
+                          className="font-code text-xs no-underline hover:underline"
+                        >
+                          {a.path}
+                        </Link>
+                      )}
                     </td>
                     <td>{a.kind}</td>
                     <td>

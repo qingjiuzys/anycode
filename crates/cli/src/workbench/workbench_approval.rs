@@ -126,6 +126,22 @@ impl ApprovalCallback for WorkbenchApprovalCallback {
         }
 
         let preview = serde_json::to_string_pretty(input).unwrap_or_else(|_| "{}".to_string());
+
+        // Session-level approval delegation: the dashboard can enable a
+        // per-session auto-approve flag; high-risk commands still confirm.
+        if let Some(sid) = self.session_id() {
+            if approval_ipc::session_auto_approve_enabled(&sid)
+                && !approval_ipc::input_is_high_risk(tool, &preview)
+            {
+                tracing::info!(
+                    target: "anycode_dashboard",
+                    session_id = %sid,
+                    tool = %tool,
+                    "tool auto-approved via session delegation"
+                );
+                return Ok(true);
+            }
+        }
         let web_id = if approval_ipc::web_approvals_enabled() {
             self.session_id()
                 .and_then(|sid| approval_ipc::register_pending(&sid, tool, &preview).ok())

@@ -10,6 +10,10 @@ build = "build.rs"
 default = []
 embedded-ui = ["dep:rust-embed"]
 knowledge-embeddings = ["anycode-tools/knowledge-embeddings"]
+embedding-local = ["anycode-llm/embedding-local"]
+stt-local = ["anycode-llm/stt-local"]
+tts-local = ["anycode-llm/tts-local"]
+media-local = ["embedding-local", "stt-local", "tts-local"]
 
 [lib]
 name = "anycode_dashboard"
@@ -20,9 +24,10 @@ anyhow = { workspace = true }
 anycode-agent = { path = "../agent" }
 anycode-core = { path = "../core" }
 anycode-llm = { path = "../llm" }
+anycode-setup = { path = "../setup" }
 anycode-tools = { path = "../tools" }
 async-stream = "0.3"
-axum = { version = "0.8", features = ["json", "macros"] }
+axum = { version = "0.8", features = ["json", "macros", "multipart"] }
 chrono = { workspace = true, features = ["serde"] }
 futures = "0.3"
 serde = { workspace = true, features = ["derive"] }
@@ -30,16 +35,20 @@ serde_json = { workspace = true }
 sqlx = { workspace = true, features = ["runtime-tokio", "sqlite", "migrate"] }
 tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "signal"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"] }
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 sha2 = "0.10"
 base64 = "0.22"
 dirs = "5"
+walkdir = { workspace = true }
+pdf-extract = "0.7"
 reqwest = { workspace = true, features = ["json"] }
 rust-embed = { version = "8.9", optional = true }
 
 [dev-dependencies]
+anycode-setup = { path = "../setup" }
 tempfile = "3.10"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 http-body-util = "0.1"

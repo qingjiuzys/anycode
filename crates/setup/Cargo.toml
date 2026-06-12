@@ -1,0 +1,29 @@
+[package]
+name = "anycode-setup"
+version.workspace = true
+edition.workspace = true
+description = "Shared first-run setup logic for anyCode CLI and Dashboard"
+license = "MIT"
+
+[lib]
+name = "anycode_setup"
+path = "src/lib.rs"
+
+[features]
+default = []
+embedding-local = []
+
+[dependencies]
+anyhow = { workspace = true }
+anycode-llm = { path = "../llm" }
+chrono = { workspace = true, features = ["serde"] }
+dirs = "5"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+urlencoding = "2.1"
+qrcode = "0.14"
+tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+tempfile = "3"

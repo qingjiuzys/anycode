@@ -262,3 +262,22 @@ fn line_repl_help_no_literal_backslash_n() {
         "expected run hint in help: {stdout}"
     );
 }
+
+#[test]
+fn setup_help_prints_usage() {
+    let out = anycode()
+        .arg("setup")
+        .arg("--help")
+        .output()
+        .expect("spawn anycode setup --help");
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("setup") || stdout.contains("Setup"),
+        "stdout={stdout}"
+    );
+}

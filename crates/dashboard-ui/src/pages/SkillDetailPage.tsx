@@ -4,10 +4,12 @@ import { api } from "@/api/client";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { useT } from "@/i18n/context";
+import { useLocale, useT } from "@/i18n/context";
+import { normalizeSkillCategory, skillDisplayDescription } from "@/lib/skillCatalog";
 
 export function SkillDetailPage() {
   const t = useT();
+  const locale = useLocale();
   const qc = useQueryClient();
   const { skillId } = useParams({ from: "/_shell/agents/$skillId" });
   const skill = useQuery({
@@ -77,7 +79,12 @@ export function SkillDetailPage() {
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title={t("skillDetail.descPerms")}>
-          <p className="text-sm m-0 mb-4">{s.description || "—"}</p>
+          {s.category && (
+            <p className="text-xs text-secondary m-0 mb-2">
+              {t(`agents.skillCategory.${normalizeSkillCategory(s.category)}`)}
+            </p>
+          )}
+          <p className="text-sm m-0 mb-4">{skillDisplayDescription(s, locale) || "—"}</p>
           <dl className="grid grid-cols-[minmax(4rem,auto)_1fr] gap-x-4 gap-y-2 text-sm m-0">
             <dt className="text-secondary font-medium m-0">{t("skillDetail.readOnly")}</dt>
             <dd className="m-0">{(perms.read_dirs ?? []).join(", ") || "—"}</dd>

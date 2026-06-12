@@ -10,9 +10,11 @@ pub async fn list_artifacts(
             q.project_id.as_deref(),
             q.session_id.as_deref(),
             q.kind.as_deref(),
+            q.exclude_kind.as_deref(),
             q.trust_level.as_deref(),
             q.unverified_only,
             q.blocked_session_only,
+            q.final_only,
             q.limit,
         )
         .await
@@ -37,9 +39,11 @@ pub async fn list_session_artifacts(
             None,
             Some(&session_id),
             q.kind.as_deref(),
+            q.exclude_kind.as_deref(),
             q.trust_level.as_deref(),
             q.unverified_only,
             q.blocked_session_only,
+            q.final_only,
             q.limit,
         )
         .await
@@ -64,9 +68,11 @@ pub async fn list_project_artifacts(
             Some(&project_id),
             q.session_id.as_deref(),
             q.kind.as_deref(),
+            q.exclude_kind.as_deref(),
             q.trust_level.as_deref(),
             q.unverified_only,
             q.blocked_session_only,
+            q.final_only,
             q.limit,
         )
         .await
@@ -138,6 +144,76 @@ pub async fn index_project_assets(
 ) -> impl IntoResponse {
     match crate::asset_index::index_project_assets(&state.db, &project_id).await {
         Ok(result) => Json(json!({ "ok": true, "result": result })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn scan_session_artifacts(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    let session = match state.db.get_session(&session_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "session not found" })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let project = match state.db.get_project(&session.project_id).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "project not found" })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    };
+    let root = std::path::Path::new(&project.root_path);
+    if !root.is_dir() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "project root does not exist on disk" })),
+        )
+            .into_response();
+    }
+    let since = crate::workspace_scan::parse_session_started_at(&session.started_at);
+    match crate::workspace_scan::scan_and_register_artifacts(
+        &state.db,
+        &session.project_id,
+        &session_id,
+        root,
+        since,
+    )
+    .await
+    {
+        Ok(registered) => Json(json!({
+            "ok": true,
+            "session_id": session_id,
+            "registered": registered,
+        }))
+        .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),

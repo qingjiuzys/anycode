@@ -19,6 +19,7 @@ export function AutomationsPage() {
   const t = useT();
   const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState("");
+  const [cronProjectFilter, setCronProjectFilter] = useState("");
   const [policyName, setPolicyName] = useState("");
   const [policyType, setPolicyType] = useState("gate_block");
   const [policyEnabled, setPolicyEnabled] = useState(true);
@@ -86,6 +87,13 @@ export function AutomationsPage() {
   });
 
   const cronJobList = cronJobs.data?.jobs ?? [];
+  const projectNameById = new Map(projectList.map((p) => [p.id, p.name]));
+  const filteredCronJobs =
+    cronProjectFilter === ""
+      ? cronJobList
+      : cronProjectFilter === "__workspace__"
+        ? cronJobList.filter((j) => !j.project_id)
+        : cronJobList.filter((j) => j.project_id === cronProjectFilter);
   const cronRunList = cronRuns.data?.runs ?? [];
   const policyList = policies.data?.policies ?? [];
   const failedRuns = cronRunList.filter((r) => r.status === "failed" || r.status === "error").length;
@@ -235,8 +243,32 @@ export function AutomationsPage() {
         </SectionCard>
       )}
 
-      <SectionCard title={t("automations.cronJobs")} noPadding>
-        <CronJobsTable jobs={cronJobList} loading={cronJobs.isLoading} />
+      <SectionCard
+        title={t("automations.cronJobs")}
+        noPadding
+        action={
+          <select
+            className="dw-input text-xs"
+            value={cronProjectFilter}
+            onChange={(e) => setCronProjectFilter(e.target.value)}
+            aria-label={t("automations.jobProject")}
+          >
+            <option value="">{t("automations.allProjects")}</option>
+            <option value="__workspace__">{t("automations.wholeWorkspace")}</option>
+            {projectList.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        }
+      >
+        <CronJobsTable
+          jobs={filteredCronJobs}
+          loading={cronJobs.isLoading}
+          projectNameById={projectNameById}
+          orchestrationPath={cronJobs.data?.orchestration_path}
+        />
       </SectionCard>
 
       <SectionCard title={t("automations.cronRuns")} noPadding>
@@ -282,18 +314,40 @@ function AutomationMetric({
   );
 }
 
-function CronJobsTable({ jobs, loading }: { jobs: CronJobRecord[]; loading: boolean }) {
+function CronJobsTable({
+  jobs,
+  loading,
+  projectNameById,
+  orchestrationPath,
+}: {
+  jobs: CronJobRecord[];
+  loading: boolean;
+  projectNameById: Map<string, string>;
+  orchestrationPath?: string;
+}) {
   const t = useT();
   if (loading) return <p className="text-sm text-secondary px-4 py-6 m-0">{t("common.loading")}</p>;
   return (
     <DataTable
       isEmpty={jobs.length === 0}
-      empty={<DataTableEmpty message={t("automations.noCronJobs")} />}
+      empty={
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-sm text-secondary m-0">{t("automations.noCronJobs")}</p>
+          {orchestrationPath && (
+            <p className="text-xs text-secondary m-0">
+              {t("automations.orchestrationFileLabel")}:{" "}
+              <code className="font-code break-all">{orchestrationPath}</code>
+            </p>
+          )}
+          <p className="text-xs text-secondary m-0">{t("automations.registerHint")}</p>
+        </div>
+      }
     >
       <thead>
         <tr>
           <th>{t("common.id")}</th>
           <th>{t("automations.schedule")}</th>
+          <th>{t("automations.jobProject")}</th>
           <th>{t("automations.sessionCol")}</th>
           <th>{t("automations.toolProfile")}</th>
           <th>{t("automations.commandSummary")}</th>
@@ -306,6 +360,17 @@ function CronJobsTable({ jobs, loading }: { jobs: CronJobRecord[]; loading: bool
               <code className="font-code">{j.id}</code>
             </td>
             <td className="text-secondary text-xs">{j.schedule}</td>
+            <td className="text-xs">
+              {j.project_id ? (
+                <span className="text-on-surface">
+                  {projectNameById.get(j.project_id) ?? j.project_id}
+                </span>
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-container-high text-secondary">
+                  {t("automations.wholeWorkspace")}
+                </span>
+              )}
+            </td>
             <td className="text-secondary font-code text-xs">
               {j.session_id ? (
                 <Link

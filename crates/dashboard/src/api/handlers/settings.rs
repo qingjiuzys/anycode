@@ -1,6 +1,7 @@
 use super::*;
 
 pub async fn list_services(State(state): State<AppState>) -> impl IntoResponse {
+    let _ = state.db.reconcile_local_services("dashboard").await;
     match state.db.list_local_services().await {
         Ok(rows) => {
             let services: Vec<LocalServiceRecord> = rows
@@ -142,7 +143,7 @@ pub async fn get_runtime_settings(State(state): State<AppState>) -> impl IntoRes
     Json(json!({ "runtime": runtime })).into_response()
 }
 
-fn active_preferences(state: &AppState) -> crate::schema::DashboardPreferences {
+pub(crate) fn active_preferences(state: &AppState) -> crate::schema::DashboardPreferences {
     let mut prefs = crate::schema::DashboardPreferences {
         host: state.host.clone(),
         port: state.port,
@@ -151,11 +152,13 @@ fn active_preferences(state: &AppState) -> crate::schema::DashboardPreferences {
         report_output_format: crate::schema::default_report_output_format(),
         report_generation_mode: crate::schema::default_report_generation_mode_pref(),
         updated_at: state.started_at.clone(),
+        setup_completed_at: None,
     };
     if let Some(saved) = crate::preferences::load_preferences() {
         prefs.asset_read_strict = saved.asset_read_strict;
         prefs.report_output_format = saved.report_output_format;
         prefs.report_generation_mode = saved.report_generation_mode;
+        prefs.setup_completed_at = saved.setup_completed_at.clone();
     }
     prefs
 }
@@ -238,6 +241,8 @@ pub async fn put_dashboard_preferences(
         "template" => "template",
         _ => "llm",
     };
+    let existing_setup_at =
+        crate::preferences::load_preferences().and_then(|p| p.setup_completed_at);
     let prefs = crate::schema::DashboardPreferences {
         host: host.into(),
         port: body.port,
@@ -246,6 +251,7 @@ pub async fn put_dashboard_preferences(
         report_output_format: output_format.into(),
         report_generation_mode: generation_mode.into(),
         updated_at: chrono::Utc::now().to_rfc3339(),
+        setup_completed_at: existing_setup_at,
     };
 
     match crate::preferences::save_preferences(&prefs) {
@@ -361,6 +367,15 @@ pub async fn get_llm_config() -> impl IntoResponse {
         }
     };
     let view = anycode_llm::RegistryView::from_config(&cfg);
+    let registry_items: Vec<_> = view
+        .items
+        .into_iter()
+        .filter(|item| {
+            let provider = item.get("provider").and_then(|v| v.as_str()).unwrap_or("");
+            let model = item.get("model").and_then(|v| v.as_str()).unwrap_or("");
+            !crate::model_identity::is_mock_llm_profile(provider, model)
+        })
+        .collect();
     Json(json!({
         "config_present": view.config_present,
         "provider": view.provider,
@@ -374,7 +389,7 @@ pub async fn get_llm_config() -> impl IntoResponse {
         "routing_agents": view.routing_agents,
         "registry": {
             "active": view.active,
-            "items": view.items,
+            "items": registry_items,
         }
     }))
     .into_response()

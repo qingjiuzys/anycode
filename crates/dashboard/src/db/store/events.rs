@@ -59,9 +59,14 @@ impl DashboardDb {
             .bind(&req.project_id)
             .execute(&self.pool)
             .await?;
-        self.get_event(&id)
+        let evt = self
+            .get_event(&id)
             .await?
-            .context("event missing after insert")
+            .context("event missing after insert")?;
+        if let Some(ref sid) = req.session_id {
+            crate::session_transcript::invalidate_transcript_cache(sid);
+        }
+        Ok(evt)
     }
 
     pub async fn get_event(&self, event_id: &str) -> Result<Option<ProjectEvent>> {

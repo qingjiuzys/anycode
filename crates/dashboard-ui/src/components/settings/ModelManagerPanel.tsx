@@ -4,6 +4,7 @@ import type { ConfiguredModel } from "@/api/types";
 import { api } from "@/api/client";
 import { CapabilityActiveMatrix } from "@/components/settings/CapabilityActiveMatrix";
 import { ConfiguredModelsList } from "@/components/settings/ConfiguredModelsList";
+import { LocalPresetsPanel } from "@/components/settings/LocalPresetsPanel";
 import { ModelCatalogBrowser } from "@/components/settings/ModelCatalogBrowser";
 import { ModelEditorDrawer } from "@/components/settings/ModelEditorDrawer";
 import { ModelSettingsPanel } from "@/components/settings/ModelSettingsPanel";
@@ -36,6 +37,12 @@ function maskToConfigured(
   }));
 }
 
+function isMockModelProfile(provider: string, model: string): boolean {
+  const p = provider.trim().toLowerCase();
+  const m = model.trim().toLowerCase();
+  return p === "mock" || m === "mock" || m.startsWith("mock/");
+}
+
 export function ModelManagerPanel() {
   const t = useT();
   const qc = useQueryClient();
@@ -59,9 +66,14 @@ export function ModelManagerPanel() {
 
   const items: ConfiguredModel[] = useMemo(() => {
     const fromRegistry = registryQuery.data?.items ?? [];
-    if (fromRegistry.length > 0) return fromRegistry;
-    return maskToConfigured(llm.data?.registry?.items ?? []);
+    const source = fromRegistry.length > 0 ? fromRegistry : maskToConfigured(llm.data?.registry?.items ?? []);
+    return source.filter((item) => !isMockModelProfile(item.provider, item.model));
   }, [registryQuery.data?.items, llm.data?.registry?.items]);
+
+  const existingPresetIds = useMemo(
+    () => new Set(items.map((i) => i.id)),
+    [items],
+  );
 
   const refreshAll = () => {
     qc.invalidateQueries({ queryKey: ["models-registry"] });
@@ -127,6 +139,8 @@ export function ModelManagerPanel() {
           {t("settings.model.addCustom")}
         </button>
       </SectionCard>
+
+      <LocalPresetsPanel catalog={catalog.data} existingIds={existingPresetIds} />
 
       <CapabilityActiveMatrix
         registry={registryQuery.data}

@@ -149,6 +149,8 @@ pub async fn start_project_conversation(
             &dashboard_url,
             &prompt_for_chat,
             body.vision_images.as_deref(),
+            body.text_files.as_deref(),
+            body.lang.as_deref(),
         )
         .await
     {

@@ -16,6 +16,12 @@ fn anycode_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_anycode"))
 }
 
+fn anycode_cmd() -> Command {
+    let mut cmd = Command::new(anycode_bin());
+    cmd.env("ANYCODE_DASHBOARD_RECORD", "0");
+    cmd
+}
+
 fn find_headers_end(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n").map(|p| p + 4)
 }
@@ -152,7 +158,7 @@ fn e2e_run_single_task_mock_llm() {
     let (port, mock_join) = start_mock_server(Arc::clone(&done), 1, "run");
     write_min_config(tmp.path(), port);
 
-    let out = Command::new(anycode_bin())
+    let out = anycode_cmd()
         .args([
             "-c",
             tmp.path().join("config.json").to_str().unwrap(),
@@ -208,7 +214,7 @@ steps:
     let (port, mock_join) = start_mock_server(Arc::clone(&done), 2, "wf");
     write_min_config(tmp.path(), port);
 
-    let out = Command::new(anycode_bin())
+    let out = anycode_cmd()
         .args([
             "-c",
             tmp.path().join("config.json").to_str().unwrap(),
@@ -258,7 +264,7 @@ fn e2e_line_repl_two_natural_turns_mock_llm() {
     let (port, mock_join) = start_mock_server(Arc::clone(&done), 2, "repl");
     write_min_config(tmp.path(), port);
 
-    let mut child = Command::new(anycode_bin())
+    let mut child = anycode_cmd()
         .args([
             "-c",
             tmp.path().join("config.json").to_str().unwrap(),
@@ -322,7 +328,7 @@ fn e2e_line_repl_three_natural_turns_mock_llm() {
     let (port, mock_join) = start_mock_server(Arc::clone(&done), 3, "repl3");
     write_min_config(tmp.path(), port);
 
-    let mut child = Command::new(anycode_bin())
+    let mut child = anycode_cmd()
         .args([
             "-c",
             tmp.path().join("config.json").to_str().unwrap(),

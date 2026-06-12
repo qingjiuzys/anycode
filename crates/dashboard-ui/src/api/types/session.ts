@@ -9,6 +9,7 @@ export interface SessionWithProject {
   kind: string;
   task_id: string | null;
   title: string;
+  prompt_preview?: string;
   status: string;
   trusted_status: string;
   agent_type: string;

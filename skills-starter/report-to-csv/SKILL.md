@@ -1,6 +1,8 @@
 ---
 name: report-to-csv
 description: Extract Markdown tables or bullet lists into CSV for spreadsheets.
+description_zh: 从 Markdown 表格或列表提取数据并导出为 CSV。
+category: data
 ---
 
 # report-to-csv

@@ -5,7 +5,7 @@ use anycode_llm::config_models::ModelFallbackConfig;
 use anycode_llm::{normalize_provider_id, read_config_value, read_model_fallback, string_field};
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 fn fallback_configured(fb: &ModelFallbackConfig) -> bool {
     fb.provider.as_ref().is_some_and(|s| !s.trim().is_empty())
@@ -361,14 +361,16 @@ pub fn doctor_next_steps(
         .iter()
         .any(|c| c.id == "llm_config_exists" && c.status == "warn")
     {
-        steps.push("Configure LLM: `anycode model` or Dashboard Settings → Models".into());
+        steps.push(
+            "Open Workbench Setup (/setup) or run `anycode setup` to configure your model".into(),
+        );
     }
     if report
         .checks
         .iter()
         .any(|c| c.id == "llm_api_key" && c.status == "warn")
     {
-        steps.push("Set `api_key` in ~/.anycode/config.json (Dashboard Settings → Models)".into());
+        steps.push("Set your API key in Workbench Setup (/setup) or Settings → Models".into());
     }
     if report
         .checks
@@ -382,12 +384,124 @@ pub fn doctor_next_steps(
     steps
 }
 
-fn port_available(host: &str, port: u16) -> bool {
+pub fn port_available(host: &str, port: u16) -> bool {
     let addr: SocketAddr = match format!("{host}:{port}").parse() {
         Ok(a) => a,
         Err(_) => return false,
     };
     StdTcpListener::bind(addr).is_ok()
+}
+
+pub fn dashboard_allow_multi() -> bool {
+    std::env::var("ANYCODE_DASHBOARD_ALLOW_MULTI")
+        .ok()
+        .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+}
+
+#[must_use]
+pub fn is_process_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}")])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .any(|line| line.contains(&pid.to_string()))
+            })
+            .unwrap_or(false)
+    }
+}
+
+pub async fn probe_dashboard_health(host: &str, port: u16) -> bool {
+    let url = format!("http://{host}:{port}/api/health");
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_millis(500))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    client
+        .get(&url)
+        .send()
+        .await
+        .ok()
+        .is_some_and(|r| r.status().is_success())
+}
+
+pub async fn is_dashboard_service_live(host: &str, port: u16, pid: Option<u32>) -> bool {
+    if probe_dashboard_health(host, port).await {
+        return true;
+    }
+    pid.is_some_and(is_process_alive)
+}
+
+/// Send SIGTERM (or platform equivalent), wait `grace_ms`, then SIGKILL if needed.
+#[must_use]
+pub fn terminate_dashboard_process(pid: u32, grace_ms: u64) -> bool {
+    if !is_process_alive(pid) {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .status();
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string()])
+            .status();
+    }
+    let deadline = Instant::now() + Duration::from_millis(grace_ms);
+    while Instant::now() < deadline {
+        if !is_process_alive(pid) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", &pid.to_string()])
+            .status();
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .status();
+    }
+    std::thread::sleep(Duration::from_millis(100));
+    !is_process_alive(pid)
+}
+
+pub async fn wait_for_port(host: &str, port: u16, timeout_ms: u64) {
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    while Instant::now() < deadline {
+        if port_available(host, port) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 pub fn dist_build_time(static_dir: &Path) -> Option<String> {
@@ -418,6 +532,21 @@ mod tests {
         assert!(is_loopback_host("127.0.0.1"));
         assert!(is_loopback_host("localhost"));
         assert!(!is_loopback_host("0.0.0.0"));
+    }
+
+    #[test]
+    fn dead_pid_is_not_alive() {
+        assert!(!is_process_alive(0));
+        assert!(!is_process_alive(9_999_999));
+    }
+
+    #[test]
+    fn dashboard_allow_multi_env() {
+        std::env::remove_var("ANYCODE_DASHBOARD_ALLOW_MULTI");
+        assert!(!dashboard_allow_multi());
+        std::env::set_var("ANYCODE_DASHBOARD_ALLOW_MULTI", "1");
+        assert!(dashboard_allow_multi());
+        std::env::remove_var("ANYCODE_DASHBOARD_ALLOW_MULTI");
     }
 
     #[test]

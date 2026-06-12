@@ -100,7 +100,8 @@ export const settingsClient = {
     ),
   revokeToken: (tokenId: string) =>
     post<{ ok: boolean }>(`/api/settings/tokens/${tokenId}/revoke`),
-  skills: (limit = 80) => get<{ skills: SkillRecord[] }>(`/api/skills?limit=${limit}`),
+  skills: (limit = 80) =>
+    get<{ skills: SkillRecord[]; scan_roots?: number }>(`/api/skills?limit=${limit}`),
   rescanSkills: () => post<{ ok: boolean; skills_synced: number }>("/api/skills"),
   skillDetail: (skillId: string) =>
     get<{ skill: SkillDetailRecord }>(`/api/skills/${skillId}`),

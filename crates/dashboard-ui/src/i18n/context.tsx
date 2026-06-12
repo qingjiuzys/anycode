@@ -77,3 +77,7 @@ export function useI18n() {
 export function useT() {
   return useI18n().t;
 }
+
+export function useLocale(): Locale {
+  return useI18n().locale;
+}

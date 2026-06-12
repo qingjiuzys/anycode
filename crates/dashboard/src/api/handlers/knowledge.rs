@@ -126,7 +126,7 @@ pub struct ImportSkillBody {
 }
 
 pub async fn import_skill(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<ImportSkillBody>,
 ) -> impl IntoResponse {
     let Some(home) = dirs::home_dir() else {
@@ -138,12 +138,15 @@ pub async fn import_skill(
     };
     let dest = home.join(".anycode/skills");
     match anycode_tools::install_skill(body.source.trim(), &dest) {
-        Ok(r) => Json(json!({
-            "ok": true,
-            "id": r.id,
-            "path": r.dest.display().to_string(),
-        }))
-        .into_response(),
+        Ok(r) => {
+            let _ = crate::skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            Json(json!({
+                "ok": true,
+                "id": r.id,
+                "path": r.dest.display().to_string(),
+            }))
+            .into_response()
+        }
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": e.to_string() })),
@@ -161,6 +164,8 @@ pub struct CreateCronJobBody {
     pub session_id: Option<String>,
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 fn default_cron_tz() -> String {
@@ -207,6 +212,7 @@ pub async fn create_cron_job(Json(body): Json<CreateCronJobBody>) -> impl IntoRe
         failure_destination: body.failure_destination,
         tool_profile: body.tool_profile,
         tool_allowlist: None,
+        project_id: body.project_id,
     };
     match anycode_tools::append_cron_job_to_orchestration_file(&path, schedule, body.command, opts)
     {

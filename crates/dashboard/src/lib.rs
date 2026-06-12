@@ -17,8 +17,10 @@ pub mod events;
 pub mod governance;
 pub mod ipc;
 pub mod llm_probe;
+pub mod local_service;
 pub mod mcp_config;
 pub mod memory_ops;
+pub mod model_identity;
 pub mod notifications;
 pub mod notify;
 pub mod observability;
@@ -33,18 +35,22 @@ pub mod runtime_config;
 pub mod schema;
 pub mod search;
 pub mod server;
+pub mod skill_market;
+pub mod skill_meta;
 pub mod skill_suggestions;
 pub mod skills_scan;
 pub mod static_ui;
 pub mod tokens;
 pub mod workspace_index;
+pub mod workspace_scan;
 
 pub use control::{gate_runner, task_trigger};
 pub use governance::{automation_policy, security_events, service_governance, skills_governance};
-pub use ipc::{approval_ipc, cancel_ipc};
+pub use ipc::{approval_ipc, cancel_ipc, question_ipc};
 pub use observability::{event_tier, execution_log};
 pub use observability::{
     ingest, log_parser, metrics, session_replay, session_trace, session_transcript,
+    transcript_cache,
 };
 
 #[cfg(test)]

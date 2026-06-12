@@ -1,14 +1,14 @@
 import type { AgentUsageStat } from "@/api/types";
-import { Link } from "@tanstack/react-router";
 import { Icon } from "@/components/Icon";
 import { BUILTIN_AGENT_CATALOG } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
 
 interface Props {
   agents: AgentUsageStat[];
+  onSelectAgent: (agentId: string) => void;
 }
 
-export function AgentRoleCards({ agents }: Props) {
+export function AgentRoleCards({ agents, onSelectAgent }: Props) {
   const t = useT();
 
   const roles = [...BUILTIN_AGENT_CATALOG]
@@ -22,12 +22,12 @@ export function AgentRoleCards({ agents }: Props) {
   return (
     <div className="dw-agents-builtin-scroll" role="list">
       {roles.map(({ role, sessions, active }) => (
-        <Link
+        <button
           key={role.id}
-          to="/conversations"
-          search={{ agent: role.id }}
+          type="button"
           role="listitem"
           className={`dw-agents-builtin-chip ${active ? "dw-agents-builtin-chip--active" : ""}`}
+          onClick={() => onSelectAgent(role.id)}
         >
           <span
             className={`dw-agents-builtin-chip__icon ${
@@ -56,7 +56,7 @@ export function AgentRoleCards({ agents }: Props) {
               t("agents.roleStandby")
             )}
           </span>
-        </Link>
+        </button>
       ))}
     </div>
   );

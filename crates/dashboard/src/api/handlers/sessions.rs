@@ -161,6 +161,8 @@ pub async fn send_session_message(
             &dashboard_url,
             &prompt_for_chat,
             body.vision_images.as_deref(),
+            body.text_files.as_deref(),
+            body.lang.as_deref(),
         )
         .await
     {
@@ -253,6 +255,88 @@ pub async fn cancel_session(
         )
             .into_response(),
     }
+}
+
+pub async fn acknowledge_session_block(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match state.db.acknowledge_session_block(&session_id).await {
+        Ok(true) => {
+            if let Ok(Some(sess)) = state.db.get_session(&session_id).await {
+                let _ = crate::audit::record_audit(
+                    &state.db,
+                    crate::audit::AuditEventInput {
+                        project_id: Some(sess.project_id.clone()),
+                        session_id: Some(session_id.clone()),
+                        action: "session_block_acknowledged".into(),
+                        risk: "low".into(),
+                        detail: json!({ "source": "dashboard" }),
+                    },
+                )
+                .await;
+            }
+            Json(json!({ "ok": true, "session_id": session_id })).into_response()
+        }
+        Ok(false) => (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "session not found or not blocked" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_session_auto_approve(Path(session_id): Path<String>) -> impl IntoResponse {
+    Json(json!({
+        "session_id": session_id,
+        "enabled": crate::approval_ipc::session_auto_approve_enabled(&session_id),
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+pub struct AutoApproveBody {
+    pub enabled: bool,
+}
+
+pub async fn set_session_auto_approve(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Json(body): Json<AutoApproveBody>,
+) -> impl IntoResponse {
+    if !crate::approval_ipc::respond_allowed(&state.host) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "Web approval respond is disabled for this binding. Use loopback or set ANYCODE_DASHBOARD_WEB_APPROVAL_REMOTE=1."
+            })),
+        )
+            .into_response();
+    }
+    if let Err(e) = crate::approval_ipc::set_session_auto_approve(&session_id, body.enabled) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response();
+    }
+    let _ = crate::audit::record_audit(
+        &state.db,
+        crate::audit::AuditEventInput {
+            project_id: None,
+            session_id: Some(session_id.clone()),
+            action: "session_auto_approve_toggled".into(),
+            risk: "medium".into(),
+            detail: json!({ "enabled": body.enabled, "source": "dashboard" }),
+        },
+    )
+    .await;
+    Json(json!({ "ok": true, "session_id": session_id, "enabled": body.enabled })).into_response()
 }
 
 pub async fn list_all_sessions(
@@ -464,7 +548,9 @@ pub async fn get_session_execution_log(
 ) -> impl IntoResponse {
     match state.db.get_session(&session_id).await {
         Ok(Some(session)) => {
-            match crate::execution_log::read_execution_log(&session, q.offset, Some(q.limit)) {
+            match crate::execution_log::read_execution_log_async(session, q.offset, Some(q.limit))
+                .await
+            {
                 Ok(log) => Json(json!({ "execution_log": log })).into_response(),
                 Err(e) => (
                     StatusCode::INTERNAL_SERVER_ERROR,

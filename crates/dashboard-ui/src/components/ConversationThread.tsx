@@ -4,7 +4,9 @@ import type { SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ConversationComposer } from "@/components/ConversationComposer";
 import { ConversationTranscript } from "@/components/ConversationTranscript";
-import { PendingApprovalBadge, SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
+import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
+import { ExecutionProgressBar } from "@/components/ExecutionProgressBar";
+import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { Icon } from "@/components/Icon";
 import { SessionStatusBadges } from "@/components/ui/StatusBadge";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
@@ -15,6 +17,30 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   pendingCounts?: Map<string, number>;
+  onPrefetch?: (sessionId: string, isRunning: boolean) => void;
+}
+
+type SessionGroup = "today" | "week" | "earlier";
+
+function sessionGroupKey(startedAt: string): SessionGroup {
+  const normalized = startedAt.includes("T") ? startedAt : startedAt.replace(" ", "T");
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "earlier";
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfWeek.getDate() - 7);
+  if (d >= startOfToday) return "today";
+  if (d >= startOfWeek) return "week";
+  return "earlier";
+}
+
+function statusDotClass(status: string, trusted: string): string {
+  if (trusted === "blocked") return "bg-error";
+  if (status === "running") return "bg-primary animate-pulse";
+  if (status === "failed") return "bg-error";
+  if (status === "completed") return "bg-secondary";
+  return "bg-outline";
 }
 
 export function ConversationSessionList({
@@ -22,6 +48,7 @@ export function ConversationSessionList({
   selectedId,
   onSelect,
   pendingCounts,
+  onPrefetch,
 }: Props) {
   const t = useT();
 
@@ -29,53 +56,83 @@ export function ConversationSessionList({
     return <p className="text-sm text-secondary px-3 py-4 m-0">{t("conversations.noSessions")}</p>;
   }
 
+  const grouped: Record<SessionGroup, SessionWithProject[]> = {
+    today: [],
+    week: [],
+    earlier: [],
+  };
+  for (const s of sessions) {
+    grouped[sessionGroupKey(s.started_at)].push(s);
+  }
+
+  const sections: { key: SessionGroup; label: string }[] = [
+    { key: "today", label: t("conversations.listGroupToday") },
+    { key: "week", label: t("conversations.listGroupWeek") },
+    { key: "earlier", label: t("conversations.listGroupEarlier") },
+  ];
+
   return (
-    <ul className="m-0 p-0 list-none divide-y divide-outline-variant">
-      {sessions.map((s) => {
-        const active = s.id === selectedId;
+    <div className="py-1">
+      {sections.map(({ key, label }) => {
+        const rows = grouped[key];
+        if (rows.length === 0) return null;
         return (
-          <li key={s.id}>
-            <button
-              type="button"
-              onClick={() => onSelect(s.id)}
-              className={`w-full text-left px-3 py-2.5 border-0 cursor-pointer transition-colors ${
-                active
-                  ? "bg-surface-container-high"
-                  : "bg-transparent hover:bg-surface-container-low"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-medium line-clamp-2">
-                  {s.title}
-                  <PendingApprovalBadge
-                    sessionId={s.id}
-                    count={pendingCounts?.get(s.id)}
-                  />
-                </span>
-                <SessionStatusBadges
-                  status={s.status}
-                  trustedStatus={s.trusted_status}
-                  pendingApprovalCount={pendingCounts?.get(s.id)}
-                />
-              </div>
-              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-secondary">
-                <span>{s.kind}</span>
-                <span>·</span>
-                <span title={s.started_at}>{formatRelativeTime(s.started_at)}</span>
-                {s.block_reason && (
-                  <>
-                    <span>·</span>
-                    <span className="text-error line-clamp-1" title={s.block_reason}>
-                      {s.block_reason}
-                    </span>
-                  </>
-                )}
-              </div>
-            </button>
-          </li>
+          <section key={key}>
+            <h4 className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-secondary m-0 sticky top-0 bg-surface-container-lowest/95 backdrop-blur-sm z-[1]">
+              {label}
+            </h4>
+            <ul className="m-0 p-0 list-none">
+              {rows.map((s) => {
+                const active = s.id === selectedId;
+                const pending = pendingCounts?.get(s.id) ?? 0;
+                return (
+                  <li key={s.id} className="group">
+                    <button
+                      type="button"
+                      onClick={() => onSelect(s.id)}
+                      onMouseEnter={() =>
+                        onPrefetch?.(s.id, s.status === "running")
+                      }
+                      onFocus={() => onPrefetch?.(s.id, s.status === "running")}
+                      className={`w-full text-left px-3 py-2 border-0 cursor-pointer transition-colors flex items-center gap-2 min-w-0 ${
+                        active
+                          ? "bg-surface-container-high"
+                          : "bg-transparent hover:bg-surface-container-low"
+                      }`}
+                    >
+                      <span
+                        className={`shrink-0 w-2 h-2 rounded-full ${statusDotClass(s.status, s.trusted_status)}`}
+                        title={s.status}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-sm font-medium truncate block">
+                          {s.title || s.id}
+                        </span>
+                        <span className="text-[11px] text-secondary truncate block">
+                          {formatRelativeTime(s.started_at)}
+                          {pending > 0 && (
+                            <span className="text-warn ml-1">
+                              · {t("home.securityPendingBadge").replace("{n}", String(pending))}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <SessionStatusBadges
+                          status={s.status}
+                          trustedStatus={s.trusted_status}
+                          pendingApprovalCount={pending}
+                        />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
@@ -83,10 +140,12 @@ export function ConversationThread({
   session,
   onFollowUpStarted,
   showHeader = true,
+  sseLive = false,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
   showHeader?: boolean;
+  sseLive?: boolean;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -167,6 +226,9 @@ export function ConversationThread({
         </div>
       )}
 
+      <ExecutionProgressBar sessionId={session.id} isRunning={running} sseLive={sseLive} />
+      <AskUserQuestionInbox sessionId={session.id} />
+
       {running && (
         <div className="px-4 py-2 border-b border-outline-variant bg-surface-container-lowest shrink-0">
           <SecurityApprovalInbox sessionId={session.id} hideWhenEmpty compact />
@@ -178,7 +240,9 @@ export function ConversationThread({
           <ConversationTranscript
             sessionId={session.id}
             isRunning={running}
+            sseLive={sseLive}
             scrollContainerRef={scrollRef}
+            promptPreview={session.prompt_preview}
           />
         </div>
       </div>

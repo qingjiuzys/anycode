@@ -117,16 +117,25 @@
     @apply mx-2 mb-3 px-1;
   }
 
-  .dw-sidebar-brand-inner {
-    @apply flex w-full flex-row items-center gap-2;
+  .dw-brand-mark__link,
+  .dw-brand-mark__wrap {
+    @apply flex min-w-0 items-center gap-2.5;
   }
 
-  .dw-sidebar-brand-logo {
-    @apply h-11 w-11 shrink-0 rounded-lg bg-surface-container-lowest object-contain shadow-sm;
+  .dw-brand-mark__link {
+    @apply rounded-lg px-1 py-0.5 transition-colors hover:bg-surface-container;
   }
 
-  .dw-sidebar-brand-title {
-    @apply text-base font-semibold tracking-tight text-primary;
+  .dw-brand-mark {
+    @apply h-8 w-8 shrink-0 rounded-md object-contain;
+  }
+
+  .dw-brand-mark--sm {
+    @apply h-9 w-9;
+  }
+
+  .dw-brand-mark__title {
+    @apply text-base font-semibold tracking-tight text-primary truncate;
   }
 
   html.dw-tauri .dw-sidebar-brand {
@@ -152,7 +161,7 @@
   }
 
   .dw-topbar {
-    @apply shrink-0 z-40 grid items-center gap-x-2 gap-y-1 min-h-12 h-12 bg-surface px-4 lg:px-6;
+    @apply shrink-0 z-[100] grid items-center gap-x-2 gap-y-1 min-h-12 h-12 bg-surface px-4 lg:px-6 relative isolate;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
   }
 
@@ -160,12 +169,21 @@
     @apply min-w-0 flex items-center;
   }
 
+  .dw-topbar-start--empty {
+    pointer-events: none;
+  }
+
   .dw-topbar-center {
     @apply flex items-center justify-center shrink-0 min-w-0;
   }
 
   .dw-topbar-end {
-    @apply flex items-center justify-end gap-1.5 sm:gap-2 min-w-0 shrink-0 flex-nowrap overflow-hidden;
+    @apply flex items-center justify-end gap-1.5 sm:gap-2 min-w-0 shrink-0 flex-nowrap overflow-visible;
+  }
+
+  .dw-topbar-hit {
+    @apply relative z-[1] shrink-0;
+    -webkit-app-region: no-drag;
   }
 
   html.dw-tauri .dw-topbar {
@@ -173,19 +191,18 @@
     height: auto;
     min-height: 2.75rem;
     padding: 0.375rem 1rem 0.375rem 5.75rem;
-  }
-
-  html.dw-tauri .dw-topbar::before {
-    content: "";
-    position: absolute;
-    inset: 0;
     -webkit-app-region: drag;
-    pointer-events: none;
   }
 
-  html.dw-tauri .dw-topbar > * {
-    position: relative;
-    z-index: 1;
+  html.dw-tauri .dw-topbar button,
+  html.dw-tauri .dw-topbar a,
+  html.dw-tauri .dw-topbar input,
+  html.dw-tauri .dw-topbar select,
+  html.dw-tauri .dw-topbar textarea,
+  html.dw-tauri .dw-topbar [role="group"],
+  html.dw-tauri .dw-topbar .dw-topbar-hit,
+  html.dw-tauri .dw-topbar .dw-topbar-end,
+  html.dw-tauri .dw-topbar .dw-topbar-start:not(.dw-topbar-start--empty) {
     -webkit-app-region: no-drag;
   }
 
@@ -350,11 +367,11 @@
   }
 
   .dw-agents-kpi-strip {
-    @apply grid grid-cols-2 lg:grid-cols-4 gap-2;
+    @apply grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2;
   }
 
   .dw-agents-kpi-chip {
-    @apply flex items-start gap-2.5 rounded-xl bg-surface-container-low px-3 py-2.5 border border-outline-variant/35;
+    @apply flex items-start gap-2.5 rounded-lg bg-surface-container-low px-3 py-2.5 border border-outline-variant/35 min-w-0;
   }
 
   .dw-agents-kpi-chip--hi {
@@ -421,12 +438,20 @@
     @apply inline-flex items-center gap-1 text-xs text-primary no-underline shrink-0 hover:underline;
   }
 
-  .dw-agents-split {
-    @apply grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-4 items-start;
+  .dw-agents-workbench {
+    @apply grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem] gap-4 items-start;
+  }
+
+  .dw-agents-main-stack {
+    @apply flex flex-col gap-4 min-w-0;
+  }
+
+  .dw-agents-side-stack {
+    @apply flex flex-col gap-4 min-w-0 xl:sticky xl:top-4;
   }
 
   .dw-agents-panel {
-    @apply rounded-xl border border-outline-variant/45 bg-surface-container-lowest overflow-hidden shadow-sm flex flex-col min-h-0;
+    @apply rounded-lg border border-outline-variant/45 bg-surface-container-lowest overflow-hidden shadow-sm flex flex-col min-h-0;
   }
 
   .dw-agents-panel__head {
@@ -461,13 +486,38 @@
     @apply p-0;
   }
 
+  .dw-agents-panel__body--scroll {
+    @apply max-h-[min(68vh,38rem)] overflow-y-auto;
+    scrollbar-width: thin;
+  }
+
+  .dw-agents-panel--skills {
+    @apply flex flex-col min-h-0;
+  }
+
+  .dw-agents-skill-group__head {
+    @apply flex items-center gap-2 m-0 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-secondary bg-surface-container-low/50 border-b border-outline-variant/40 text-left transition-colors hover:bg-surface-container-low;
+  }
+
+  .dw-agents-skill-group__head--open .dw-agents-skill-group__chevron {
+    @apply rotate-180;
+  }
+
+  .dw-agents-skill-group__chevron {
+    @apply transition-transform;
+  }
+
+  .dw-agents-stat-row--clickable {
+    @apply w-full text-left cursor-pointer rounded-lg transition-colors hover:bg-surface-container-low/80 -mx-1 px-1 border-0 bg-transparent;
+  }
+
   .dw-agents-builtin-scroll {
-    @apply flex gap-2 overflow-x-auto px-4 pb-1 scroll-smooth;
+    @apply flex gap-2 overflow-x-auto px-4 pb-1 scroll-smooth xl:grid xl:grid-cols-1 xl:overflow-visible;
     scrollbar-width: thin;
   }
 
   .dw-agents-builtin-chip {
-    @apply flex items-center gap-2 shrink-0 w-[11.5rem] rounded-lg bg-surface-container-low px-2.5 py-2 no-underline transition-colors hover:bg-surface-container border border-transparent hover:border-primary/20;
+    @apply flex items-center gap-2 shrink-0 w-[11.5rem] xl:w-full rounded-lg bg-surface-container-low px-2.5 py-2 no-underline transition-colors hover:bg-surface-container border border-transparent hover:border-primary/20 cursor-pointer text-left;
   }
 
   .dw-agents-builtin-chip--active {
@@ -503,7 +553,7 @@
   }
 
   .dw-agents-stat-row {
-    @apply flex items-center gap-3 py-3 first:pt-0;
+    @apply flex items-center gap-3 py-3 first:pt-0 min-w-0;
   }
 
   .dw-agents-stat-row__icon {
@@ -790,77 +840,114 @@
     @apply inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary text-on-primary border-0 cursor-pointer transition-opacity hover:bg-primary-container disabled:opacity-40 disabled:cursor-not-allowed shrink-0;
   }
 
-  .dw-quick-compose {
+  .dw-hero {
+    @apply flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto flex-1;
+    min-height: calc(100dvh - 3rem - 5rem);
+    padding: 1rem 0;
+  }
+
+  .dw-hero__title {
+    @apply text-2xl sm:text-3xl font-semibold text-on-surface text-center m-0 leading-snug tracking-tight;
+  }
+
+  .dw-hero-composer {
+    @apply w-full flex flex-col gap-3;
+  }
+
+  .dw-hero-composer__card {
     @apply rounded-2xl border border-outline-variant/70 bg-surface-container-lowest shadow-sm overflow-hidden;
   }
 
-  .dw-quick-compose__input-row {
-    @apply flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-3 min-w-0;
+  .dw-hero-composer__textarea {
+    @apply w-full min-h-[7rem] max-h-48 resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-sm text-on-surface outline-none placeholder:text-outline;
   }
 
-  .dw-quick-compose__logo {
-    @apply w-7 h-7 shrink-0 rounded-md object-cover;
+  .dw-hero-composer__toolbar {
+    @apply flex items-center justify-between gap-3 px-3 py-2.5 border-t border-outline-variant/50 bg-surface-container-low;
   }
 
-  .dw-quick-compose__input {
-    @apply flex-1 min-w-0 border-0 bg-transparent text-sm text-on-surface outline-none placeholder:text-outline;
+  .dw-hero-composer__project-select {
+    @apply flex items-center gap-1.5 min-w-0 text-sm text-on-surface;
   }
 
-  .dw-quick-compose__project-select {
-    @apply relative hidden sm:flex items-center gap-0.5 shrink-0 text-sm text-on-surface max-w-[11rem];
+  .dw-hero-composer__select {
+    @apply min-w-0 max-w-[10rem] truncate appearance-none bg-transparent border-0 text-sm text-secondary pr-1 cursor-pointer outline-none disabled:cursor-not-allowed;
   }
 
-  .dw-quick-compose__new-chat {
-    @apply shrink-0 font-medium whitespace-nowrap;
-  }
-
-  .dw-quick-compose__select {
-    @apply min-w-0 max-w-[6.5rem] truncate appearance-none bg-transparent border-0 text-sm text-secondary pr-4 cursor-pointer outline-none disabled:cursor-not-allowed;
-  }
-
-  .dw-quick-compose__submit {
-    @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border-0 shrink-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed;
+  .dw-hero-composer__submit {
+    @apply inline-flex items-center justify-center w-10 h-10 rounded-full border-0 shrink-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed;
     background: #e8a090;
   }
 
-  .dw-quick-compose__submit:not(:disabled):hover {
+  .dw-hero-composer__submit:not(:disabled):hover {
     background: #df8f7c;
   }
 
-  .dw-quick-compose__status {
-    @apply px-4 py-1.5 text-xs leading-snug;
+  .dw-hero-composer__meta {
+    @apply flex items-center justify-center gap-2 text-xs;
   }
 
-  .dw-quick-compose__status--ok {
-    @apply bg-success/10 text-success;
+  .dw-hero-composer__status-dot {
+    @apply w-1.5 h-1.5 rounded-full shrink-0;
   }
 
-  .dw-quick-compose__status--warn {
-    background: #fce8ec;
-    color: #c62828;
+  .dw-hero-composer__status-dot--ok {
+    @apply bg-success;
   }
 
-  .dw-quick-compose__footer {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-outline-variant/50;
+  .dw-hero-composer__status-dot--warn {
+    @apply bg-error;
   }
 
-  .dw-quick-compose__footer-title {
-    @apply text-sm font-semibold text-on-surface m-0;
+  .dw-hero-composer__browser-hint {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-outline-variant/60 bg-surface-container-low px-3 py-2;
   }
 
-  .dw-quick-compose__footer-hint {
-    @apply text-xs text-secondary m-0 mt-0.5;
+  .dw-hero-composer__hint-btn {
+    @apply text-xs font-medium text-primary bg-transparent border-0 cursor-pointer hover:underline disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
-  .dw-quick-compose__pills {
-    @apply flex flex-wrap items-center gap-2 sm:justify-end;
+  .dw-hero-composer__alerts {
+    @apply flex flex-wrap items-center justify-center gap-2;
   }
 
-  .dw-quick-compose__pill {
-    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-outline-variant text-xs font-medium text-on-surface bg-transparent hover:bg-surface-container cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  .dw-hero-composer__alert-chip {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium no-underline transition-colors;
   }
 
-  .dw-quick-compose__pill.active {
+  .dw-hero-composer__alert-chip--error {
+    @apply bg-error/10 text-error border border-error/30 hover:bg-error/15;
+  }
+
+  .dw-hero-composer__alert-chip--warn {
+    @apply bg-warn/10 text-warn border border-warn/30 hover:bg-warn/15;
+  }
+
+  .dw-suggestion-cards {
+    @apply grid grid-cols-1 sm:grid-cols-3 gap-3 w-full;
+  }
+
+  .dw-suggestion-card {
+    @apply flex items-start gap-3 rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-4 py-3 text-left transition-all hover:border-outline hover:shadow-sm hover:-translate-y-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none;
+  }
+
+  .dw-suggestion-card__title {
+    @apply text-sm font-medium text-on-surface m-0;
+  }
+
+  .dw-suggestion-card__subtitle {
+    @apply text-xs text-secondary m-0 mt-0.5 leading-snug;
+  }
+
+  .dw-overview-pills {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .dw-overview-pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-outline-variant text-xs font-medium text-on-surface bg-transparent hover:bg-surface-container cursor-pointer transition-colors;
+  }
+
+  .dw-overview-pill.active {
     @apply bg-primary/10 border-primary/40 text-primary;
   }
 
@@ -903,13 +990,26 @@ html.dark {
   --color-surface-container: #232d48;
   --color-surface-container-high: #283352;
   --color-surface-container-highest: #2e3a5c;
+  --color-surface-bright: #232d48;
+  --color-surface-variant: #3a4360;
   --color-on-surface: #eef0ff;
   --color-on-surface-variant: #c3c6d7;
   --color-on-background: #eef0ff;
   --color-secondary: #b7c8e1;
-  --color-outline: #737686;
+  --color-outline: #8d92a6;
   --color-outline-variant: #434655;
+  --color-primary: #9db8ff;
+  --color-primary-container: #6d8fff;
+  --color-on-primary: #0d2b6b;
+  --color-on-primary-container: #dbe1ff;
   --color-primary-fixed: #1e3a8a;
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-success: #4ade80;
+  --color-success-container: #14532d;
+  --color-warn: #facc15;
+  --color-warn-container: #4a3a10;
   --session-flow-grid: #434655;
   --session-flow-node-bg: #1a2235;
   --session-flow-node-text: #eef0ff;
@@ -930,16 +1030,111 @@ html.dark .dw-stat-card {
   border-color: var(--color-outline-variant);
 }
 
-html.dark .dw-quick-compose__status--warn {
-  background: rgba(198, 40, 40, 0.18);
-  color: #f48fb1;
-}
-
-html.dark .dw-quick-compose__submit {
+html.dark .dw-hero-composer__submit {
   background: #c97a68;
 }
 
-html.dark .dw-quick-compose__submit:not(:disabled):hover {
+/* Submit keeps its hardcoded salmon bg, so its icon must stay white in dark
+   mode even though --color-on-primary flips to a dark tone. */
+html.dark .dw-hero-composer__submit .dw-icon {
+  color: #ffffff;
+}
+
+html.dark .dw-hero-composer__submit:not(:disabled):hover {
   background: #b86a58;
 }
 
+.setup-wizard {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.setup-wizard--loading {
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.setup-wizard__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.setup-wizard__title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.setup-wizard__review-link {
+  font-size: 0.875rem;
+  color: var(--color-primary);
+}
+
+.setup-wizard__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1.75rem;
+}
+
+.setup-wizard__nav-item {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-secondary);
+}
+
+.setup-wizard__nav-item--active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.setup-wizard__nav-item--current {
+  background: var(--color-primary-container);
+  font-weight: 600;
+}
+
+.setup-step h2 {
+  font-size: 1.125rem;
+  margin: 0 0 0.75rem;
+}
+
+.setup-step__list {
+  padding-left: 1.25rem;
+}
+
+.setup-step__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.setup-memory-option {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.setup-memory-option input {
+  margin-top: 0.2rem;
+}
+
+.setup-wechat-qr {
+  padding: 0.75rem;
+  border: 1px dashed var(--color-outline-variant);
+  border-radius: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
