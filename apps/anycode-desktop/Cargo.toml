@@ -2,7 +2,7 @@
 
 [package]
 name = "anycode-desktop"
-version = "0.2.2"
+version = "0.2.3"
 description = "anyCode desktop shell (Tauri + Digital Workbench)"
 edition = "2021"
 

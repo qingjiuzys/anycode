@@ -104,7 +104,18 @@ Set repository secrets to enable Apple signing in `.github/workflows/desktop-rel
 | `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: …` |
 | `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | Notarization (Tauri reads env at build) |
 
-Without secrets, CI still uploads **unsigned** artifacts (same as local `build-desktop-release.sh`).
+Without secrets, CI still uploads **unsigned/ad-hoc** artifacts (same as local `build-desktop-release.sh`).
+
+### CI failure: build and upload locally
+
+If the macOS desktop job fails but you need a DMG on the Release page:
+
+```bash
+./scripts/build-desktop-release.sh
+gh release upload v0.2.x apps/anycode-desktop/target/release/bundle/dmg/*.dmg --clobber
+```
+
+Ad-hoc DMG: first open may require **System Settings → Privacy & Security** or right-click **Open**. For distribution without Gatekeeper prompts, configure all Apple secrets above for signed + notarized builds.
 
 ## Notes
 

@@ -83,6 +83,10 @@ echo "==> cargo tauri build (apps/anycode-desktop)"
 cd "$ROOT/apps/anycode-desktop"
 # Ad-hoc sign when no Developer ID is configured (CI / local unsigned builds).
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
+# Unset partial notarization env so Tauri does not attempt notarization with empty strings.
+if [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
+  unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+fi
 cargo tauri build
 
 echo "Done. Bundles under apps/anycode-desktop/target/release/bundle/"
