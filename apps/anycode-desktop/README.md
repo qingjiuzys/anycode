@@ -36,6 +36,14 @@ On launch, the desktop shell **best-effort spawns** `anycode dashboard` and stop
 - **Release / `./scripts/build-desktop-release.sh`**: uses bundled `resources/bin/anycode` copied from `target/release/anycode`.
 - **Dev (`cargo tauri dev`)**: falls back to `anycode` on `PATH` when the bundled binary is absent.
 
+**Bundled CLI path (release `.app`):**
+
+```bash
+/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
+```
+
+You can symlink that binary to `/usr/local/bin/anycode` if you want terminal access on PATH.
+
 Optional WeChat bridge (same machine):
 
 ```bash
@@ -81,9 +89,9 @@ Other models (Whisper, FastEmbed, Piper voices) are **not** bundled at build tim
 
 ## GitHub Release
 
-On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the DMG and attaches it to the GitHub Release (alongside CLI tarballs from `release-binaries.yml`).
+On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the **macOS DMG** and attaches it to the GitHub Release. **Linux/Windows CLI** tarballs/zips ship via [`release-binaries.yml`](../../.github/workflows/release-binaries.yml) — macOS CLI tarballs are not published separately.
 
-Download: **GitHub → Releases → Assets → `anyCode_*_aarch64.dmg`** (Apple Silicon).
+Download: **GitHub → Releases → Assets → `anyCode_*_aarch64.dmg`** (Apple Silicon, CLI bundled inside).
 
 ## Optional code signing (CI / release)
 

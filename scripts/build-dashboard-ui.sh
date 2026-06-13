@@ -11,13 +11,22 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ -x "$ROOT/scripts/.venv-icon/bin/python" ]] || [[ -f "$ROOT/scripts/prepare-desktop-icon.py" ]]; then
+if [[ "$(uname -s)" == "Darwin" && -f "$ROOT/scripts/prepare-desktop-icon.py" ]]; then
   ICON_VENV="$ROOT/scripts/.venv-icon"
-  if [[ ! -x "$ICON_VENV/bin/python" ]]; then
+  if [[ -x "$ICON_VENV/bin/python" ]]; then
+    ICON_PY="$ICON_VENV/bin/python"
+  elif [[ -x "$ICON_VENV/Scripts/python.exe" ]]; then
+    ICON_PY="$ICON_VENV/Scripts/python.exe"
+  else
     python3 -m venv "$ICON_VENV"
-    "$ICON_VENV/bin/pip" install -q pillow
+    if [[ -x "$ICON_VENV/bin/python" ]]; then
+      ICON_PY="$ICON_VENV/bin/python"
+    else
+      ICON_PY="$ICON_VENV/Scripts/python.exe"
+    fi
+    "$ICON_PY" -m pip install -q pillow
   fi
-  "$ICON_VENV/bin/python" "$ROOT/scripts/prepare-desktop-icon.py" 2>/dev/null || true
+  "$ICON_PY" "$ROOT/scripts/prepare-desktop-icon.py" 2>/dev/null || true
 fi
 
 cd "$UI"

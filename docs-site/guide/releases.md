@@ -9,6 +9,11 @@ read_when:
 
 # Releases & feature flags
 
+## 0.2.2 (workspace)
+
+- **Release packaging**: macOS ships **`anyCode_<version>_aarch64.dmg` only** (CLI bundled inside the app). Linux/Windows keep standalone CLI tarballs/zips via `release-binaries.yml`.
+- **Desktop CI**: ad-hoc codesign when no Apple Developer ID secrets; tag-triggered desktop release runs macOS only.
+
 ## 0.2.0 (workspace)
 
 - **Models**: Z.ai / 智谱 GLM catalog aligned with OpenClaw `model-definitions` ids; `plan` values `coding_cn` / `general_cn` map to `open.bigmodel.cn` endpoints; Google Gemini picker catalog; `anycode model` routing wizard uses the OpenClaw provider list + z.ai plan menu.
@@ -22,7 +27,7 @@ read_when:
 ## Versioning
 
 - **Library / CLI version** follows the workspace `version` in the root `Cargo.toml`.
-- **GitHub Releases**: tag and attach platform `anycode` binaries when distributing outside `cargo install`. On macOS (Apple Silicon), releases also include **`anyCode_<version>_aarch64.dmg`** — the Tauri desktop Workbench installer (see [Digital Workbench — Desktop app](./dashboard#desktop-app-macos)).
+- **GitHub Releases**: tag and attach platform CLI binaries for **Linux and Windows** when distributing outside `cargo install`. **macOS** ships the **Tauri desktop `.dmg` only** — the CLI is bundled inside `anyCode.app` at `Contents/Resources/resources/bin/anycode` (see [Digital Workbench — Desktop app](./dashboard#desktop-app-macos)). macOS CLI tarballs are no longer published separately.
 - **Docs site** (VitePress under `docs-site/`): deploy to GitHub Pages with `VITEPRESS_BASE=/your-repo/` when using project pages.
 
 ## Runtime feature flags {#runtime-feature-flags}

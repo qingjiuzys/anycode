@@ -35,17 +35,26 @@ anyCode 集成了多家 LLM，但**维护者日常验证**主要集中在：
 2. 运行 `anycode setup` 完成模型与 channel 配置
 3. 运行一次任务验证
 
-macOS / Linux:
+**macOS（推荐）：** 从 [Releases](https://github.com/qingjiuzys/anycode/releases) 下载 **`anyCode_<version>_aarch64.dmg`**，打开后将 **anyCode** 拖入「应用程序」。桌面应用**已内置 CLI**（sidecar），自动打开工作台 — macOS 不再单独发布 CLI tar.gz。
+
+**Linux：**
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
-Windows PowerShell:
+**Windows PowerShell：**
 
 ```powershell
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
+```
+
+**macOS 无 GUI / 开发者：** 若只需 PATH 上的独立 CLI，仍可用 `install.sh`：
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 \
+  "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
 安装后验证:
@@ -64,7 +73,11 @@ anycode run --agent general-purpose "请只回复：OK"
 anycode dashboard --open
 ```
 
-**macOS 桌面应用：** 从 [Releases](https://github.com/qingjiuzys/anycode/releases) 安装，获得原生 STT/OCR 与 sidecar 打包体验。
+**macOS 桌面应用：** macOS 主交付物为 `.dmg`，内置 CLI、工作台、Apple Speech STT 与 Apple Vision OCR。从 App 内调用 CLI：
+
+```bash
+/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
+```
 
 ## 文档入口
 

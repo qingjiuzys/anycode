@@ -12,8 +12,12 @@ chmod +x "$ROOT/scripts/sync-workspace-version.sh"
 echo "==> build dashboard UI (must run before CLI — embedded-ui bakes dist/)"
 "$ROOT/scripts/build-dashboard-ui.sh"
 
-echo "==> cargo build --release -p anycode (embedded-ui + tools-mcp + media-local)"
-cargo build --release -p anycode --features embedded-ui,tools-mcp,knowledge-embeddings,media-local
+echo "==> cargo build --release -p anycode (embedded-ui + tools-mcp + media-local on macOS)"
+CLI_FEATURES="embedded-ui,tools-mcp,knowledge-embeddings"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CLI_FEATURES="${CLI_FEATURES},media-local"
+fi
+cargo build --release -p anycode --features "$CLI_FEATURES"
 
 echo "==> build Apple native media helper (macOS STT/OCR)"
 chmod +x "$ROOT/scripts/build-apple-media-cli.sh"
@@ -27,8 +31,13 @@ echo "==> stage bundled CLI + project templates for Tauri resources"
 DESKTOP_BIN="$ROOT/apps/anycode-desktop/resources/bin"
 DESKTOP_TPL="$ROOT/apps/anycode-desktop/resources/project-templates"
 mkdir -p "$DESKTOP_BIN"
-cp "$ROOT/target/release/anycode" "$DESKTOP_BIN/anycode"
-chmod +x "$DESKTOP_BIN/anycode"
+if [[ -f "$ROOT/target/release/anycode.exe" ]]; then
+  cp "$ROOT/target/release/anycode.exe" "$DESKTOP_BIN/anycode.exe"
+  chmod +x "$DESKTOP_BIN/anycode.exe"
+else
+  cp "$ROOT/target/release/anycode" "$DESKTOP_BIN/anycode"
+  chmod +x "$DESKTOP_BIN/anycode"
+fi
 rm -rf "$DESKTOP_TPL"
 cp -R "$ROOT/project-templates" "$DESKTOP_TPL"
 DESKTOP_UI="$ROOT/apps/anycode-desktop/resources/dashboard-ui"
@@ -41,11 +50,22 @@ test -f "$DESKTOP_UI/index.html" || {
 
 echo "==> prepare desktop app icon (crop + scale)"
 ICON_VENV="$ROOT/scripts/.venv-icon"
-if [[ ! -x "$ICON_VENV/bin/python" ]]; then
-  python3 -m venv "$ICON_VENV"
-  "$ICON_VENV/bin/pip" install -q pillow
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  if [[ -x "$ICON_VENV/bin/python" ]]; then
+    ICON_PY="$ICON_VENV/bin/python"
+  elif [[ -x "$ICON_VENV/Scripts/python.exe" ]]; then
+    ICON_PY="$ICON_VENV/Scripts/python.exe"
+  else
+    python3 -m venv "$ICON_VENV"
+    if [[ -x "$ICON_VENV/bin/python" ]]; then
+      ICON_PY="$ICON_VENV/bin/python"
+    else
+      ICON_PY="$ICON_VENV/Scripts/python.exe"
+    fi
+    "$ICON_PY" -m pip install -q pillow
+  fi
+  "$ICON_PY" "$ROOT/scripts/prepare-desktop-icon.py"
 fi
-"$ICON_VENV/bin/python" "$ROOT/scripts/prepare-desktop-icon.py"
 
 echo "==> generate desktop icons from assets/anycode-logo-app-icon.png"
 LOGO="$ROOT/apps/anycode-desktop/assets/anycode-logo-app-icon.png"
@@ -61,6 +81,8 @@ fi
 
 echo "==> cargo tauri build (apps/anycode-desktop)"
 cd "$ROOT/apps/anycode-desktop"
+# Ad-hoc sign when no Developer ID is configured (CI / local unsigned builds).
+export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 cargo tauri build
 
 echo "Done. Bundles under apps/anycode-desktop/target/release/bundle/"

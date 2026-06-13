@@ -1,6 +1,7 @@
-# 打 tag（如 v0.1.0）时构建并上传：
+# 打 tag（如 v0.1.0）时构建并上传 Linux/Windows CLI：
 # - Unix: anycode-<asset-target>.tar.gz（linux 包名去掉三元组中的 unknown）
 # - Windows: anycode-<target>.zip
+# macOS 用户请下载 desktop-release 产出的 .dmg（内置 CLI），不再单独发布 macOS CLI tar.gz。
 # 与 scripts/install.sh / scripts/install.ps1 约定一致。
 name: Release binaries
 
@@ -12,14 +13,15 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.2.2
+
+### Changed
+
+- **Release packaging**: macOS GitHub Release ships **`.dmg` only`** with CLI bundled in `anyCode.app`; Linux/Windows keep standalone CLI tarballs/zips.
+- **Desktop CI**: ad-hoc codesign when Apple Developer ID secrets are absent; tag-triggered `desktop-release` runs **macOS only** (Windows/Linux desktop jobs are manual `workflow_dispatch`).
+- **Build scripts**: cross-platform icon venv in `build-dashboard-ui.sh`; Linux desktop builds skip `media-local` unless on macOS.
+
+### Fixed
+
+- **Desktop release CI**: Windows dashboard UI build no longer fails on `bin/pip`; macOS no longer fails codesign with empty identity.
+
 ## 0.2.1
 
 ### Added

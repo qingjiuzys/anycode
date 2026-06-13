@@ -17,16 +17,29 @@ read_when:
 - `anycode --help` 验证通过
 - 安装失败时的替代路径
 
-## 推荐方式（普通用户）
+## Recommended path
 
-如果你只是想尽快用起来，直接用一行安装命令。
+| OS | Recommended install |
+|----|---------------------|
+| **macOS** | 从 [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) 下载 **`anyCode_<version>_aarch64.dmg`** — 内置 CLI + 工作台 + 原生 STT/OCR。macOS 不再单独发布 CLI tar.gz。 |
+| **Linux** | `curl ... install.sh \| bash` |
+| **Windows** | `irm ... install.ps1 \| iex` |
 
-| 系统 | 命令 |
-|------|------|
-| macOS / Linux | `curl ... install.sh | bash` |
-| Windows | `irm ... install.ps1 | iex` |
+### macOS 桌面应用（推荐）
 
-## 一行安装（macOS / Linux）
+1. 打开 [Releases](https://github.com/qingjiuzys/anycode/releases)，下载 **`anyCode_<version>_aarch64.dmg`**。
+2. 打开 DMG，将 **anyCode** 拖入「应用程序」。
+3. 启动 **anyCode** — 自动拉起内置 CLI sidecar（`anycode dashboard`）并打开工作台。
+
+CLI 位于 App 包内（macOS Release 不再单独附 CLI 包）：
+
+```bash
+/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
+```
+
+仅在无 GUI 或需要 PATH 独立 CLI 时，macOS 才使用 `install.sh`。
+
+## 一行安装（Linux）
 
 本仓库为 **`qingjiuzys/anycode`**：
 
@@ -54,7 +67,7 @@ bash scripts/install.sh
 
 预期输出：安装脚本按环境变量指定仓库执行。
 
-常用选项：`--version latest` 或 `--version v0.2.0`（固定 release tag）；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `anycode setup`，且在交互终端默认显示下载进度。完整说明：
+常用选项：`--version latest` 或 `--version v0.2.2`（固定 release tag）；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `anycode setup`，且在交互终端默认显示下载进度。完整说明：
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
@@ -69,22 +82,28 @@ curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/in
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | \
-  bash -s -- --repo qingjiuzys/anycode --version v0.2.0
+  bash -s -- --repo qingjiuzys/anycode --version v0.2.2
 ```
 
-预期输出：安装固定版本 `v0.2.0`。
+预期输出：安装固定版本 `v0.2.2`。
 
 或（Cargo 直接按 tag 安装）：
 
 ```bash
-cargo install --git https://github.com/qingjiuzys/anycode --tag v0.2.0 anycode --force
+cargo install --git https://github.com/qingjiuzys/anycode --tag v0.2.2 anycode --force
 ```
 
 Release 页面：<https://github.com/qingjiuzys/anycode/releases>
 
-### macOS 桌面版（可选）
+**各平台 Release 资产：**
 
-希望用原生 Workbench 窗口而不是浏览器？Apple Silicon 可在同一 GitHub Release 下载 **`anyCode_<version>_aarch64.dmg`**，打开后将 **anyCode** 拖入「应用程序」。应用内置 CLI sidecar，启动后打开 `http://127.0.0.1:43180` 工作台。本地构建：`./scripts/build-desktop-release.sh`。
+| 平台 | GitHub Release 资产 |
+|------|---------------------|
+| macOS（Apple Silicon） | `anyCode_<version>_aarch64.dmg`（CLI 已内置） |
+| Linux x86_64 / arm64 | `anycode-<target>.tar.gz` |
+| Windows x86_64 / arm64 | `anycode-<target>.zip` |
+
+本地构建 macOS 桌面：`./scripts/build-desktop-release.sh`。
 
 ## 安装后验证
 

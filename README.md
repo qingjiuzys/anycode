@@ -35,7 +35,9 @@ All other catalog providers are **configuration-supported**. After you add crede
 2. Run `anycode setup` to configure the model and optional channels
 3. Run a task to verify
 
-**macOS / Linux:**
+**macOS (recommended):** download **`anyCode_<version>_aarch64.dmg`** from [Releases](https://github.com/qingjiuzys/anycode/releases), open it, and drag **anyCode** to Applications. The desktop app **bundles the CLI** (`anycode` sidecar inside the app) and opens Workbench automatically — no separate CLI tarball on macOS.
+
+**Linux:**
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
@@ -46,6 +48,13 @@ curl -fsSL --proto '=https' --tlsv1.2 \
 
 ```powershell
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
+```
+
+**macOS headless / developers:** use `install.sh` if you want a standalone CLI on PATH without the desktop app:
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 \
+  "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
 **After install:**
@@ -64,7 +73,11 @@ If you see `command not found`, check PATH notes in the install guide.
 anycode dashboard --open
 ```
 
-**macOS desktop app:** install from [Releases](https://github.com/qingjiuzys/anycode/releases) for native STT/OCR and bundled sidecar.
+**macOS desktop app:** primary macOS deliverable — `.dmg` with bundled CLI, Workbench, Apple Speech STT, and Apple Vision OCR. Terminal CLI from the app bundle:
+
+```bash
+/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
+```
 
 ## Documentation
 

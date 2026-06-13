@@ -19,14 +19,27 @@ After this page, you will have:
 
 ## Recommended path
 
-If you just want to use anyCode, use the one-line installer for your OS.
+| OS | Recommended install |
+|----|---------------------|
+| **macOS** | Download **`anyCode_<version>_aarch64.dmg`** from [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) — bundles CLI + Workbench + native STT/OCR. No separate macOS CLI tarball. |
+| **Linux** | `curl ... install.sh \| bash` |
+| **Windows** | `irm ... install.ps1 \| iex` |
 
-| OS | Command |
-|----|---------|
-| macOS / Linux | `curl ... install.sh | bash` |
-| Windows | `irm ... install.ps1 | iex` |
+### macOS desktop app (recommended)
 
-## One-line installer (macOS / Linux)
+1. Open [Releases](https://github.com/qingjiuzys/anycode/releases) and download **`anyCode_<version>_aarch64.dmg`**.
+2. Open the DMG and drag **anyCode** to Applications.
+3. Launch **anyCode** — it starts the bundled CLI sidecar (`anycode dashboard`) and opens Workbench.
+
+The CLI is **inside the app bundle** (not a separate Release asset on macOS):
+
+```bash
+/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
+```
+
+Use `install.sh` on macOS only for headless servers or when you want `anycode` on PATH without the desktop app.
+
+## One-line installer (Linux)
 
 Default repo is **`qingjiuzys/anycode`**:
 
@@ -70,7 +83,7 @@ By default installer:
 
 Useful flags:
 
-- `--version latest` or `--version v0.2.0` (pin a release tag)
+- `--version latest` or `--version v0.2.2` (pin a release tag)
 - `--bin-dir "$HOME/.local/bin"`
 - `--no-setup` (skip setup after install)
 - `--quiet` (less download output)
@@ -91,22 +104,28 @@ Default one-liner installs the [latest GitHub Release](https://github.com/qingji
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | \
-  bash -s -- --repo qingjiuzys/anycode --version v0.2.0
+  bash -s -- --repo qingjiuzys/anycode --version v0.2.2
 ```
 
-Expected output: installs pinned version `v0.2.0`.
+Expected output: installs pinned version `v0.2.2`.
 
 Or install from Cargo with the release tag:
 
 ```bash
-cargo install --git https://github.com/qingjiuzys/anycode --tag v0.2.0 anycode --force
+cargo install --git https://github.com/qingjiuzys/anycode --tag v0.2.2 anycode --force
 ```
 
 Release page: <https://github.com/qingjiuzys/anycode/releases>
 
-### macOS desktop (optional)
+**Release assets by platform:**
 
-Prefer a native Workbench app instead of the browser? On Apple Silicon, download **`anyCode_<version>_aarch64.dmg`** from the same GitHub Release, open the DMG, and drag **anyCode** to Applications. The app bundles the CLI sidecar and opens Workbench at `http://127.0.0.1:43180`. Build locally with `./scripts/build-desktop-release.sh`.
+| Platform | GitHub Release asset |
+|----------|----------------------|
+| macOS (Apple Silicon) | `anyCode_<version>_aarch64.dmg` (CLI bundled inside) |
+| Linux x86_64 / arm64 | `anycode-<target>.tar.gz` |
+| Windows x86_64 / arm64 | `anycode-<target>.zip` |
+
+Build the macOS desktop locally: `./scripts/build-desktop-release.sh`.
 
 ## Verify install
 

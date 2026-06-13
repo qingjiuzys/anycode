@@ -9,6 +9,11 @@ read_when:
 
 # 版本与特性开关
 
+## 0.2.2（工作区）
+
+- **发布打包**：macOS 仅发 **`anyCode_<version>_aarch64.dmg`**（CLI 已内置）；Linux/Windows 仍通过 `release-binaries.yml` 发独立 CLI tar/zip。
+- **桌面 CI**：无 Apple 开发者证书时使用 ad-hoc 签名；tag 触发时 desktop release 仅跑 macOS。
+
 ## 0.2.0（工作区）
 
 - **模型**：Z.ai / 智谱 GLM 与 OpenClaw `model-definitions` 对齐；`plan` 的 `coding_cn` / `general_cn` 对应 `open.bigmodel.cn`；Google Gemini 目录；`anycode model` 路由向导用 OpenClaw 风格选厂商与 z.ai 端点。
@@ -22,7 +27,7 @@ read_when:
 ## 版本与发布
 
 - **版本号**：工作区根目录 `Cargo.toml` 的 `version`。
-- **GitHub Releases**：对常用平台打 tag 并附带 `anycode` 二进制（非 `cargo install` 场景）。macOS（Apple Silicon）另附 **`anyCode_<version>_aarch64.dmg`** 桌面 Workbench 安装包（见 [数字工作台 — 桌面应用](./dashboard#桌面应用-macos)）。
+- **GitHub Releases**：对 **Linux / Windows** 打 tag 并附带 CLI 二进制（非 `cargo install` 场景）。**macOS 仅发布 Tauri 桌面 `.dmg`** — CLI 内置在 `anyCode.app` 的 `Contents/Resources/resources/bin/anycode`（见 [数字工作台 — 桌面应用](./dashboard#桌面应用-macos)），不再单独发布 macOS CLI tar.gz。
 - **文档站**（`docs-site/` VitePress）：GitHub Pages 部署时设置 `VITEPRESS_BASE=/仓库名/`。
 
 ## 运行时特性（enable / disable）{#runtime-feature-flags}
