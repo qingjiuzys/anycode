@@ -26,6 +26,7 @@ if [[ -f package-lock.json ]]; then
 else
   npm install
 fi
+"$ROOT/scripts/sync-workspace-version.sh"
 npm run build
 
 if [[ ! -f dist/index.html ]]; then

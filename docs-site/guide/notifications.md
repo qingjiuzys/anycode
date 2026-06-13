@@ -10,7 +10,7 @@ read_when:
 Session notifications send **JSON** to an **HTTP URL** and/or a **shell command** (stdin) when tool results or agent turns complete. They are **independent** of **`memory.pipeline.hook_*`** (embedding / memory side effects).
 
 - **User guide (config fields):** [Config & security](./config-security) — same file, different section.
-- **Maintainer lifecycle (MCP):** repo [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md)
+- **Maintainer lifecycle (MCP):** repo [`docs/ops/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/mcp-stdio-lifecycle.md)
 
 ## Fields (summary)
 

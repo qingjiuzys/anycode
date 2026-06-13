@@ -10,7 +10,7 @@ read_when:
 在工具结果或 assistant 回合结束时，向 **HTTP URL** 和/或 **shell 命令（stdin）** 发送 **JSON**。与 **`memory.pipeline.hook_*`**（嵌入/记忆侧）**解耦**。
 
 - **字段与安全：** 见 [配置与安全](./config-security)。
-- **MCP stdio 生命周期（维护者）：** 仓库 [`docs/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/mcp-stdio-lifecycle.md)
+- **MCP stdio 生命周期（维护者）：** 仓库 [`docs/ops/mcp-stdio-lifecycle.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/mcp-stdio-lifecycle.md)
 
 ## 字段（摘要）
 

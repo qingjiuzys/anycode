@@ -2,7 +2,7 @@
 //!
 //! **对照基准**：[OpenClaw Provider Directory](https://docs.molt.bot/providers)；canonical `providerId` 以
 //! [openclaw/openclaw](https://github.com/openclaw/openclaw) 插件为准（维护者定期对照 **2026.5.19** 线，见
-//! `docs/openclaw-sync-brief-2026-05.md`）。config 中 `provider` 使用 **snake_case**
+//! `docs/comparisons/openclaw-sync-brief-2026-05.md`）。config 中 `provider` 使用 **snake_case**
 //! 规范 id；OpenClaw 文档常见的 **kebab-case** 经 [`normalize_provider_id`] 映射到同一 id。
 //! 运行时传输见 [`LlmTransport`]。非 LLM（转写/图像/视频等）不列入本表，避免与 Chat 协议混用。
 

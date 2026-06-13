@@ -1,5 +1,7 @@
 //! Bundled Playwright browser MCP (desktop resources or `ANYCODE_BROWSER_MCP_ROOT`).
 
+#![cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
+
 use std::path::{Path, PathBuf};
 
 const BROWSER_SLUG: &str = "browser";

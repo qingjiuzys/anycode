@@ -21,11 +21,11 @@
   --color-outline: #737686;
   --color-outline-variant: #c3c6d7;
 
-  --color-primary: #004ac6;
-  --color-primary-container: #2563eb;
-  --color-on-primary: #ffffff;
-  --color-on-primary-container: #eeefff;
-  --color-primary-fixed: #dbe1ff;
+  --color-primary: var(--accent);
+  --color-primary-container: var(--accent-hover);
+  --color-on-primary: var(--accent-on);
+  --color-on-primary-container: var(--accent-hover);
+  --color-primary-fixed: var(--accent-muted);
 
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
@@ -46,6 +46,85 @@
   :root {
     --dw-topbar-height: 3rem;
     --dw-panel-top: 3.25rem;
+    --sidebar-width: 240px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+    /* Default skin (indigo) until JS applies data-skin */
+    --accent: #6e6bff;
+    --accent-hover: #8b7cff;
+    --accent-muted: rgba(110, 107, 255, 0.18);
+    --accent-glow: rgba(110, 107, 255, 0.18);
+    --accent-on: #ffffff;
+  }
+
+  :root[data-skin="mono"] {
+    --accent: #ffffff;
+    --accent-hover: #e5e5e5;
+    --accent-muted: rgba(255, 255, 255, 0.12);
+    --accent-glow: rgba(255, 255, 255, 0.04);
+    --accent-on: #0a0a0c;
+  }
+
+  :root[data-skin="indigo"] {
+    --accent: #6e6bff;
+    --accent-hover: #8b7cff;
+    --accent-muted: rgba(110, 107, 255, 0.18);
+    --accent-glow: rgba(110, 107, 255, 0.18);
+    --accent-on: #ffffff;
+  }
+
+  :root[data-skin="coral"] {
+    --accent: #e8826b;
+    --accent-hover: #df8f7c;
+    --accent-muted: rgba(232, 130, 107, 0.16);
+    --accent-glow: rgba(232, 130, 107, 0.16);
+    --accent-on: #ffffff;
+  }
+
+  :root[data-skin="teal"] {
+    --accent: #2dd4bf;
+    --accent-hover: #22d3ee;
+    --accent-muted: rgba(45, 212, 191, 0.14);
+    --accent-glow: rgba(45, 212, 191, 0.14);
+    --accent-on: #0a0a0c;
+  }
+
+  html:not(.dark)[data-skin="mono"] {
+    --accent-on: #1d1d1f;
+  }
+
+  html:not(.dark)[data-skin="teal"] {
+    --accent-on: #ffffff;
+  }
+
+  html.dark {
+    --bg: #0a0a0c;
+    --bg-elevated: #121214;
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-bg-strong: rgba(255, 255, 255, 0.08);
+    --on-surface: #f5f5f7;
+    --on-surface-variant: #8e8e93;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --solid-bubble: #2c2c2e;
+    --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.24);
+    --hero-glow-opacity: 1;
+  }
+
+  html:not(.dark) {
+    --bg: #f7f7f8;
+    --bg-elevated: #ffffff;
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-bg-strong: rgba(255, 255, 255, 0.92);
+    --on-surface: #1d1d1f;
+    --on-surface-variant: #6e6e73;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --solid-bubble: #e8e8ed;
+    --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.08);
+    --hero-glow-opacity: 0.55;
   }
 
   html.dw-tauri {
@@ -64,8 +143,8 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.43;
-    color: var(--color-on-surface);
-    background: var(--color-background);
+    color: var(--on-surface, var(--color-on-surface));
+    background: var(--bg, var(--color-background));
     -webkit-font-smoothing: antialiased;
   }
 
@@ -110,7 +189,9 @@
 
   .dw-sidebar {
     width: var(--spacing-sidebar);
-    @apply fixed left-0 top-0 h-full min-h-0 z-50 flex flex-col overflow-hidden border-r border-outline-variant bg-surface py-4;
+    @apply fixed left-0 top-0 h-full min-h-0 z-50 flex flex-col overflow-hidden py-4;
+    border-right: 1px solid var(--border, var(--color-outline-variant));
+    background: var(--glass-bg, var(--color-surface));
   }
 
   .dw-sidebar-brand {
@@ -161,8 +242,10 @@
   }
 
   .dw-topbar {
-    @apply shrink-0 z-[100] grid items-center gap-x-2 gap-y-1 min-h-12 h-12 bg-surface px-4 lg:px-6 relative isolate;
+    @apply shrink-0 z-[100] grid items-center gap-x-2 gap-y-1 min-h-12 h-12 px-4 lg:px-6 relative isolate;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    border-bottom: 1px solid var(--border, var(--color-outline-variant));
+    background: var(--glass-bg, var(--color-surface));
   }
 
   .dw-topbar-start {
@@ -234,7 +317,9 @@
   }
 
   .dw-nav-link.active {
-    @apply bg-surface-container-high text-primary border-primary;
+    @apply text-primary;
+    background: var(--glass-bg-strong, var(--color-surface-container-high));
+    border-left-color: var(--accent);
   }
 
   .dw-nav-link .dw-icon {
@@ -246,7 +331,12 @@
   }
 
   .dw-section-card {
-    @apply bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm;
+    background: var(--glass-bg, var(--color-surface-container-lowest));
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--border, var(--color-outline-variant));
+    @apply rounded-lg overflow-hidden shadow-sm;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   }
 
   .dw-section-header {
@@ -302,7 +392,11 @@
   }
 
   .dw-stat-card {
-    @apply bg-surface-container-lowest border border-outline-variant rounded-lg p-4 flex flex-col gap-1 shadow-sm;
+    background: var(--glass-bg, var(--color-surface-container-lowest));
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--border, var(--color-outline-variant));
+    @apply rounded-lg p-4 flex flex-col gap-1 shadow-sm;
   }
 
   .dw-stat-label {
@@ -821,7 +915,8 @@
   }
 
   .dw-composer {
-    @apply flex flex-col bg-surface-container-lowest;
+    @apply flex flex-col;
+    border-top: 1px solid var(--border, var(--color-outline-variant));
   }
 
   .dw-composer-input-wrap {
@@ -829,7 +924,15 @@
   }
 
   .dw-composer-textarea {
-    @apply w-full min-h-[5.5rem] max-h-48 resize-y rounded-2xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary outline-none;
+    @apply w-full min-h-[5.5rem] max-h-48 resize-y rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-outline outline-none;
+    border: 1px solid var(--border, var(--color-outline-variant));
+    background: var(--glass-bg-strong, var(--color-surface-container-lowest));
+    transition: box-shadow 0.15s ease;
+  }
+
+  .dw-composer-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
   }
 
   .dw-composer-toolbar {
@@ -837,13 +940,29 @@
   }
 
   .dw-composer-send {
-    @apply inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary text-on-primary border-0 cursor-pointer transition-opacity hover:bg-primary-container disabled:opacity-40 disabled:cursor-not-allowed shrink-0;
+    @apply inline-flex items-center justify-center w-10 h-10 rounded-full border-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0;
+    background: var(--accent);
+    color: var(--accent-on);
+  }
+
+  .dw-composer-send:not(:disabled):hover {
+    background: var(--accent-hover);
   }
 
   .dw-hero {
     @apply flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto flex-1;
     min-height: calc(100dvh - 3rem - 5rem);
     padding: 1rem 0;
+  }
+
+  .dw-home-hero {
+    position: relative;
+    max-width: none;
+  }
+
+  .dw-home-hero > :not(.hero-glow) {
+    position: relative;
+    z-index: 1;
   }
 
   .dw-hero__title {
@@ -855,11 +974,18 @@
   }
 
   .dw-hero-composer__card {
-    @apply rounded-2xl border border-outline-variant/70 bg-surface-container-lowest shadow-sm overflow-hidden;
+    @apply rounded-2xl overflow-hidden;
+    border: 1px solid var(--border, var(--color-outline-variant));
+    box-shadow: var(--shadow-float, 0 1px 2px rgba(0, 0, 0, 0.06));
   }
 
   .dw-hero-composer__textarea {
     @apply w-full min-h-[7rem] max-h-48 resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-sm text-on-surface outline-none placeholder:text-outline;
+    transition: box-shadow 0.15s ease;
+  }
+
+  .dw-hero-composer__card:focus-within {
+    box-shadow: 0 0 0 2px var(--accent);
   }
 
   .dw-hero-composer__toolbar {
@@ -876,11 +1002,16 @@
 
   .dw-hero-composer__submit {
     @apply inline-flex items-center justify-center w-10 h-10 rounded-full border-0 shrink-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed;
-    background: #e8a090;
+    background: var(--accent);
+    color: var(--accent-on);
   }
 
   .dw-hero-composer__submit:not(:disabled):hover {
-    background: #df8f7c;
+    background: var(--accent-hover);
+  }
+
+  .dw-hero-composer__submit .dw-icon {
+    color: var(--accent-on);
   }
 
   .dw-hero-composer__meta {
@@ -928,7 +1059,18 @@
   }
 
   .dw-suggestion-card {
-    @apply flex items-start gap-3 rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-4 py-3 text-left transition-all hover:border-outline hover:shadow-sm hover:-translate-y-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none;
+    @apply flex items-start gap-3 rounded-xl px-4 py-3 text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+    background: var(--glass-bg, var(--color-surface-container-lowest));
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--border, var(--color-outline-variant));
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .dw-suggestion-card:hover:not(:disabled) {
+    border-color: var(--border-strong, var(--color-outline));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-float);
   }
 
   .dw-suggestion-card__title {
@@ -1084,43 +1226,44 @@
   }
 
   .dw-transcript-inline-code {
-    @apply rounded bg-surface-container-highest px-1 py-0.5 text-[0.85em];
+    @apply rounded px-1 py-0.5 text-[0.85em];
     font-family: var(--font-mono);
+    background: var(--glass-bg-strong, var(--color-surface-container-highest));
   }
 }
 
 html.dark {
   color-scheme: dark;
-  --color-surface: #131b2e;
-  --color-background: #0f1524;
-  --color-surface-container-lowest: #1a2235;
-  --color-surface-container-low: #1e2740;
-  --color-surface-container: #232d48;
-  --color-surface-container-high: #283352;
-  --color-surface-container-highest: #2e3a5c;
-  --color-surface-bright: #232d48;
-  --color-surface-variant: #3a4360;
-  --color-on-surface: #eef0ff;
-  --color-on-surface-variant: #c3c6d7;
-  --color-on-background: #eef0ff;
-  --color-secondary: #b7c8e1;
-  --color-outline: #8d92a6;
-  --color-outline-variant: #434655;
-  --color-primary: #9db8ff;
-  --color-primary-container: #6d8fff;
-  --color-on-primary: #0d2b6b;
-  --color-on-primary-container: #dbe1ff;
-  --color-primary-fixed: #1e3a8a;
-  --color-error: #ffb4ab;
+  --color-surface: #121214;
+  --color-background: #0a0a0c;
+  --color-surface-container-lowest: #1a1a1c;
+  --color-surface-container-low: #1e1e22;
+  --color-surface-container: #232328;
+  --color-surface-container-high: #2a2a30;
+  --color-surface-container-highest: #32323a;
+  --color-surface-bright: #232328;
+  --color-surface-variant: #3a3a42;
+  --color-on-surface: #f5f5f7;
+  --color-on-surface-variant: #8e8e93;
+  --color-on-background: #f5f5f7;
+  --color-secondary: #8e8e93;
+  --color-outline: #6e6e73;
+  --color-outline-variant: rgba(255, 255, 255, 0.08);
+  --color-primary: var(--accent);
+  --color-primary-container: var(--accent-hover);
+  --color-on-primary: var(--accent-on);
+  --color-on-primary-container: var(--accent-hover);
+  --color-primary-fixed: var(--accent-muted);
+  --color-error: #f87171;
   --color-error-container: #93000a;
   --color-on-error-container: #ffdad6;
   --color-success: #4ade80;
   --color-success-container: #14532d;
   --color-warn: #facc15;
   --color-warn-container: #4a3a10;
-  --session-flow-grid: #434655;
-  --session-flow-node-bg: #1a2235;
-  --session-flow-node-text: #eef0ff;
+  --session-flow-grid: rgba(255, 255, 255, 0.08);
+  --session-flow-node-bg: #1a1a1c;
+  --session-flow-node-text: #f5f5f7;
   --session-flow-node-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
@@ -1128,28 +1271,167 @@ html.dark .session-flow .react-flow__node:hover {
   filter: brightness(1.08);
 }
 
-html.dark .dw-sidebar {
-  background: var(--color-surface-container-lowest);
+/* Glass skin utilities (design/glass-skins) */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
 }
 
-html.dark .dw-section-card,
-html.dark .dw-stat-card {
-  background: var(--color-surface-container-lowest);
-  border-color: var(--color-outline-variant);
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-html.dark .dw-hero-composer__submit {
-  background: #c97a68;
+.glass-card:hover:not(.glass-card--static) {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
 }
 
-/* Submit keeps its hardcoded salmon bg, so its icon must stay white in dark
-   mode even though --color-on-primary flips to a dark tone. */
-html.dark .dw-hero-composer__submit .dw-icon {
-  color: #ffffff;
+.hero-glow {
+  position: absolute;
+  inset: -20% 10% auto 10%;
+  height: 420px;
+  background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%);
+  opacity: var(--hero-glow-opacity);
+  pointer-events: none;
+  z-index: 0;
 }
 
-html.dark .dw-hero-composer__submit:not(:disabled):hover {
-  background: #b86a58;
+.accent-text {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+html[data-skin="mono"] .accent-text {
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.bubble-user {
+  background: var(--solid-bubble);
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.bubble-assistant {
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.skin-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease;
+}
+
+.skin-swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--bg, var(--color-background)), 0 0 0 4px var(--accent);
+  transform: scale(1.05);
+}
+
+.skin-swatch--mono {
+  background: linear-gradient(135deg, #fff, #888);
+}
+
+.skin-swatch--indigo {
+  background: #6e6bff;
+}
+
+.skin-swatch--coral {
+  background: #e8826b;
+}
+
+.skin-swatch--teal {
+  background: #2dd4bf;
+}
+
+.skin-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skin-preview-card {
+  padding: 16px;
+}
+
+.skin-preview-card--selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.skin-preview-mini-bar {
+  width: 32px;
+  height: 48px;
+  border-radius: 4px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--border);
+}
+
+.skin-preview-mini-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  align-self: center;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.typing-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--on-surface-variant, var(--color-secondary));
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.dw-hero-composer__textarea:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-card,
+  .dw-suggestion-card,
+  .skin-swatch,
+  .typing-dots span {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 .setup-wizard {

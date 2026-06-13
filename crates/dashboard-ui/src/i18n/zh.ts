@@ -1433,6 +1433,14 @@ export const zh = {
       densityHint: "影响表格行高与信息密度，保存在本浏览器。",
       assetHint: "严格模式下，未验证的外部路径会在资产读取时更保守地标记。",
     },
+    skin: {
+      title: "外观皮肤",
+      hint: "选择 accent 强调色，可与浅色/深色模式自由组合。",
+      mono: "无彩色 · 黑白灰",
+      indigo: "电光蓝紫",
+      coral: "珊瑚暖橙",
+      teal: "青绿",
+    },
     assetsRedirect: {
       title: "资产读取策略",
       hint: "严格模式与策略说明已移至「偏好」页，与报告设置一并保存。",

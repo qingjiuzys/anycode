@@ -6,6 +6,7 @@ import { SidebarWorkspaceCard } from "@/components/SidebarWorkspaceCard";
 import { Icon } from "@/components/Icon";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SkinPickerCompact } from "@/components/SkinPicker";
 import { UserMenu, LanguageSwitcher } from "@/components/UserMenu";
 import { NotificationsDropdown } from "@/components/NotificationsDropdown";
 import { useAuth } from "@/auth/context";
@@ -78,7 +79,7 @@ export function Layout() {
 
   return (
     <div className="dw-shell">
-      <aside className="dw-sidebar">
+      <aside className="dw-sidebar glass-panel">
         <div className="dw-sidebar-brand">
           <BrandMark size="md" showTitle linked />
         </div>
@@ -123,7 +124,7 @@ export function Layout() {
       </aside>
 
       <div className="dw-main-wrap">
-        <header className="dw-topbar">
+        <header className="dw-topbar glass-panel">
           <div className={`dw-topbar-start ${pathname === "/" ? "dw-topbar-start--empty" : ""}`}>
             {pathname !== "/" && (
               <div className="dw-topbar-hit w-full min-w-0">
@@ -139,6 +140,9 @@ export function Layout() {
             )}
             <div className="dw-topbar-hit">
               <LanguageSwitcher />
+            </div>
+            <div className="dw-topbar-hit">
+              <SkinPickerCompact />
             </div>
             <div className="dw-topbar-hit">
               <ThemeToggle />

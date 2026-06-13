@@ -1,6 +1,8 @@
 import ReactECharts from "echarts-for-react";
 import type { ModelUsageRow } from "@/api/types";
+import { useSkin } from "@/hooks/useSkin";
 import { useT } from "@/i18n/context";
+import { chartPalette } from "@/lib/chartTheme";
 
 interface Props {
   rows: ModelUsageRow[];
@@ -8,6 +10,9 @@ interface Props {
 
 export function SessionTokenChart({ rows }: Props) {
   const t = useT();
+  const { skin } = useSkin();
+  const palette = chartPalette();
+
   if (rows.length === 0) return null;
 
   const labels = rows.map((r) => r.model || r.provider || "unknown");
@@ -19,24 +24,24 @@ export function SessionTokenChart({ rows }: Props) {
     tooltip: { trigger: "axis" },
     legend: {
       data: [t("home.tokenTotal"), t("home.tokenCost")],
-      textStyle: { color: "#505f76", fontSize: 11 },
+      textStyle: { color: palette.secondary, fontSize: 11 },
     },
     grid: { left: 48, right: 48, top: 36, bottom: 28 },
     xAxis: {
       type: "category",
       data: labels,
-      axisLabel: { color: "#737686", fontSize: 10, rotate: labels.length > 4 ? 24 : 0 },
+      axisLabel: { color: palette.outline, fontSize: 10, rotate: labels.length > 4 ? 24 : 0 },
     },
     yAxis: [
       {
         type: "value",
         name: "tokens",
-        axisLabel: { color: "#737686", fontSize: 10 },
+        axisLabel: { color: palette.outline, fontSize: 10 },
       },
       {
         type: "value",
         name: "USD",
-        axisLabel: { color: "#737686", fontSize: 10 },
+        axisLabel: { color: palette.outline, fontSize: 10 },
       },
     ],
     series: [
@@ -44,14 +49,14 @@ export function SessionTokenChart({ rows }: Props) {
         name: t("home.tokenTotal"),
         type: "bar",
         data: tokens,
-        itemStyle: { color: "#2563eb", borderRadius: [2, 2, 0, 0] },
+        itemStyle: { color: palette.primary, borderRadius: [2, 2, 0, 0] },
       },
       {
         name: t("home.tokenCost"),
         type: "line",
         yAxisIndex: 1,
         data: costs,
-        itemStyle: { color: "#16a34a" },
+        itemStyle: { color: palette.success },
         lineStyle: { width: 2 },
       },
     ],
@@ -59,7 +64,7 @@ export function SessionTokenChart({ rows }: Props) {
 
   return (
     <div className="h-44 mt-3">
-      <ReactECharts option={option} style={{ height: "100%" }} />
+      <ReactECharts key={skin} option={option} style={{ height: "100%" }} />
     </div>
   );
 }

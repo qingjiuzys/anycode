@@ -4,8 +4,7 @@ use super::accent_title;
 use super::provider_flows::provider_default_model;
 use crate::app_config::prompts::{prompt_line, prompt_model_for_google, prompt_model_for_zai};
 use crate::app_config::{
-    load_anycode_config_resolved, resolve_config_path, save_anycode_config_resolved,
-    validate_llm_provider, AnyCodeConfig, ModelProfile,
+    load_anycode_config_resolved, save_anycode_config_resolved, validate_llm_provider, ModelProfile,
 };
 use crate::i18n::{tr, tr_args};
 use anycode_llm::{
@@ -15,7 +14,7 @@ use anycode_llm::{
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use fluent_bundle::FluentArgs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(super) async fn run_routing_agents_flow(
     config_file: Option<PathBuf>,

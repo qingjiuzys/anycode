@@ -1,8 +1,8 @@
 # Digital Workbench — Status (one page)
 
-**Last updated:** 2026-05-24 · **Phase:** V3 Week 1–10 done · **Production convergence:** Local/single-machine production ready, Tier 1.5 harness closed for default scope ([log](production-convergence-log.md))
+**Last updated:** 2026-05-24 · **Phase:** V3 Week 1–10 done · **Production convergence:** Local/single-machine production ready, Tier 1.5 harness closed for default scope ([log](../archive/sprints/production-convergence-log.md))
 
-**Repo root:** [WORKBENCH.md](../WORKBENCH.md) · **Closure archive:** [archive/workbench/digital-workbench-closure-report.md](archive/workbench/digital-workbench-closure-report.md)
+**Repo root:** [WORKBENCH.md](../WORKBENCH.md) · **Closure archive:** [archive/workbench/digital-workbench-closure-report.md](../archive/workbench/digital-workbench-closure-report.md)
 
 ## Ship checklist
 
@@ -39,10 +39,10 @@ anycode dashboard --open
 ## Planning docs (read in order)
 
 1. **[digital-workbench-next-steps.md](digital-workbench-next-steps.md)** ← start V3 planning here  
-2. [production-harness-hardening.md](production-harness-hardening.md) ← Tier 1.5 runtime hardening
-3. [archive/workbench/digital-workbench-handoff.md](archive/workbench/digital-workbench-handoff.md)  
-4. [archive/workbench/digital-workbench-v2-complete.md](archive/workbench/digital-workbench-v2-complete.md)  
-5. [archive/workbench/digital-workbench-v1-mvp.md](archive/workbench/digital-workbench-v1-mvp.md)  
+2. [production-harness-hardening.md](../planning/production-harness-hardening.md) ← Tier 1.5 runtime hardening
+3. [archive/workbench/digital-workbench-handoff.md](../archive/workbench/digital-workbench-handoff.md)  
+4. [archive/workbench/digital-workbench-v2-complete.md](../archive/workbench/digital-workbench-v2-complete.md)  
+5. [archive/workbench/digital-workbench-v1-mvp.md](../archive/workbench/digital-workbench-v1-mvp.md)  
 
 中文：[digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md)
 
@@ -50,7 +50,9 @@ User docs: [docs-site/guide/dashboard.md](../docs-site/guide/dashboard.md) · [P
 
 ## Explicitly not done (V3+)
 
-SSO/RBAC · Connector OAuth/write · Tauri · browser visual gates
+SSO/RBAC · Connector OAuth/write · browser visual gates
+
+macOS Tauri v0.1 (sidecar) shipped; Tier 2 multi-user / OAuth write-back remains deferred.
 
 Control plane notes: [digital-workbench-control-plane.md](digital-workbench-control-plane.md)
 

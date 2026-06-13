@@ -1,8 +1,8 @@
 # Digital Workbench — Next Steps (planning)
 
-**You are here:** V1 MVP + V2 + **V3 Week 1–10 (control plane) complete** for local single-user use. See [archive/workbench/digital-workbench-closure-report.md](archive/workbench/digital-workbench-closure-report.md) for the frozen scope and verification summary.
+**You are here:** V1 MVP + V2 + **V3 Week 1–10 (control plane) complete** for local single-user use. See [archive/workbench/digital-workbench-closure-report.md](../archive/workbench/digital-workbench-closure-report.md) for the frozen scope and verification summary.
 
-**Next recommended slice:** [Production Harness Hardening](production-harness-hardening.md) — a Tier 1.5 pass that adds execution trace, runtime budgets, trajectory eval, tool/MCP governance, declarative workflow validation, and memory retention before larger Tier 2/3 expansion.
+**Next recommended slice:** [Production Harness Hardening](../planning/production-harness-hardening.md) — a Tier 1.5 pass that adds execution trace, runtime budgets, trajectory eval, tool/MCP governance, declarative workflow validation, and memory retention before larger Tier 2/3 expansion.
 
 ## Current capability (done)
 
@@ -35,12 +35,12 @@ anycode dashboard --open
 
 | Doc | Use when |
 |-----|----------|
-| [`archive/workbench/digital-workbench-closure-report.md`](archive/workbench/digital-workbench-closure-report.md) | **Control-plane closure summary (start here)** |
+| [`archive/workbench/digital-workbench-closure-report.md`](../archive/workbench/digital-workbench-closure-report.md) | **Control-plane closure summary (start here)** |
 | [`digital-workbench-STATUS.md`](digital-workbench-STATUS.md) | One-page ship checklist |
 | [`digital-workbench-control-plane.md`](digital-workbench-control-plane.md) | Cancel / trigger / approval behavior |
-| [`archive/workbench/digital-workbench-handoff.md`](archive/workbench/digital-workbench-handoff.md) | Full handoff + deferred backlog |
+| [`archive/workbench/digital-workbench-handoff.md`](../archive/workbench/digital-workbench-handoff.md) | Full handoff + deferred backlog |
 | [`digital-workbench-api.md`](digital-workbench-api.md) | API contract |
-| [`production-harness-hardening.md`](production-harness-hardening.md) | Tier 1.5 runtime hardening roadmap |
+| [`production-harness-hardening.md`](../planning/production-harness-hardening.md) | Tier 1.5 runtime hardening roadmap |
 
 中文：[digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md)
 
@@ -85,4 +85,4 @@ Do **not** expand the V3 control-plane slice further without a new planning pass
 3. **Connector value?** GitHub/Linear read-only enough, or write-back/Slack blocking?
 4. **Control appetite?** Observation-only vs approved actions from Web (control plane slice is **done** for local loopback)
 
-Answer these → pick deferred items → open issues from [`archive/workbench/digital-workbench-handoff.md`](archive/workbench/digital-workbench-handoff.md).
+Answer these → pick deferred items → open issues from [`archive/workbench/digital-workbench-handoff.md`](../archive/workbench/digital-workbench-handoff.md).

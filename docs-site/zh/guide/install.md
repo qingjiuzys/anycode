@@ -54,7 +54,7 @@ bash scripts/install.sh
 
 预期输出：安装脚本按环境变量指定仓库执行。
 
-常用选项：`--version v0.1.0` 或 `latest`；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `anycode setup`，且在交互终端默认显示下载进度。完整说明：
+常用选项：`--version latest` 或 `--version v0.2.0`（固定 release tag）；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `anycode setup`，且在交互终端默认显示下载进度。完整说明：
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
@@ -62,23 +62,25 @@ curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/in
 
 下一步：确认参数后，重新执行安装命令。
 
-## 安装 v0.1.0（固定版本）
+## 安装固定版本
+
+默认一行命令安装 [GitHub Releases 最新版](https://github.com/qingjiuzys/anycode/releases/latest)。若要固定当前工作区版本：
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | \
-  bash -s -- --repo qingjiuzys/anycode --version v0.1.0
+  bash -s -- --repo qingjiuzys/anycode --version v0.2.0
 ```
 
-预期输出：安装固定版本 `v0.1.0`。
+预期输出：安装固定版本 `v0.2.0`。
 
 或（Cargo 直接按 tag 安装）：
 
 ```bash
-cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode --force
+cargo install --git https://github.com/qingjiuzys/anycode --tag v0.2.0 anycode --force
 ```
 
-Release 页面：<https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
+Release 页面：<https://github.com/qingjiuzys/anycode/releases>
 
 ### macOS 桌面版（可选）
 

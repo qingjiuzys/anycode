@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-`virtual_scroll` was removed from the default path to avoid unmaintained code. [`docs/tui-smoothness-baseline.md`](../tui-smoothness-baseline.md) defines **Phase 0** metrics and a **backlog** note for revisiting virtual scroll.
+`virtual_scroll` was removed from the default path to avoid unmaintained code. [`docs/ops/term-smoothness-baseline.md`](../ops/term-smoothness-baseline.md) defines **Phase 0** metrics and a **backlog** note for revisiting virtual scroll.
 
 Before reintroducing any virtual scroll layer, we need explicit **load targets** (max transcript length, scroll frequency, latency budget) and a retest plan against Phase 0.
 
@@ -22,5 +22,5 @@ _To be filled._ Default stance: **do not reintroduce** until this RFC records ta
 
 ## Related
 
-- [`docs/tui-smoothness-baseline.md`](../tui-smoothness-baseline.md)  
+- [`docs/ops/term-smoothness-baseline.md`](../ops/term-smoothness-baseline.md)  
 - [`docs/roadmap.md`](../roadmap.md) §4 / §6

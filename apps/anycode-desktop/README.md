@@ -66,6 +66,19 @@ Output (macOS):
 
 The release bundle includes **Playwright MCP + Chromium** under `resources/browser/` (no manual `npx playwright install`). Enable in Workbench → **Settings → Notifications → Browser connector**, then start a new conversation.
 
+### Build-time downloads vs bundled app
+
+| Command | Browser MCP / Chromium | Notes |
+|---------|------------------------|-------|
+| `cargo build --release -p anycode` | **No** | CLI binary only; may run `npm ci` for dashboard-ui if `dist/` is missing |
+| `./scripts/build-desktop-release.sh` | **Yes** (first time or lockfile change) | Stages into `resources/browser/` then Tauri bundles it into `.app` / `.dmg` |
+
+End users who install the DMG **do not** download Playwright at runtime. Developers re-running the desktop release script reuse `resources/browser/` when `browser-mcp/package-lock.json` and platform are unchanged (`prepare-browser-mcp.sh` cache hit). Force a full refresh with `ANYCODE_BROWSER_MCP_FORCE=1`.
+
+If dashboard-ui is already built, skip the UI npm step during Rust release builds with `ANYCODE_SKIP_DASHBOARD_UI_BUILD=1` (see `crates/dashboard/build.rs`).
+
+Other models (Whisper, FastEmbed, Piper voices) are **not** bundled at build time; they download on first use under `~/.anycode` or `~/.cache`.
+
 ## GitHub Release
 
 On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the DMG and attaches it to the GitHub Release (alongside CLI tarballs from `release-binaries.yml`).
@@ -88,4 +101,4 @@ Without secrets, CI still uploads **unsigned** artifacts (same as local `build-d
 ## Notes
 
 - v0.1 wraps embedded dashboard UI; CLI remains the advanced entry.
-- See [docs/workbuddy-comparison-2026-06.md](../../docs/workbuddy-comparison-2026-06.md) for WorkBuddy parity scope.
+- See [docs/comparisons/workbuddy-comparison-2026-06.md](../../docs/comparisons/workbuddy-comparison-2026-06.md) for WorkBuddy parity scope.

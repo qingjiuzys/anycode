@@ -23,4 +23,4 @@ If buttons fail, users may reply with a **digit** `1`–`N` matching the listed 
 ## Maintainer references
 
 - [ADR 008](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/008-channel-ask-user-question-phasing.md) — phasing and scope  
-- [Spike notes](https://github.com/qingjiuzys/anycode/blob/main/docs/channel-ask-user-question-spike.md) — design sketch  
+- [Spike notes](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/channel-ask-user-question-spike.md) — design sketch  

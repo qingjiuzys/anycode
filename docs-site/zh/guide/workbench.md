@@ -30,7 +30,7 @@ anycode dashboard --open
 
 - **网页对话**：在项目会话中可直接粘贴或选择图片发送（需 Vision 模型）。
 - **渠道**：微信、Telegram、Discord 支持图片；Telegram/Discord 语音消息在配置了 `models.speech.stt` 时会自动转写。
-- 详见仓库内 [运行流说明](https://github.com/qingjiuzys/anycode/blob/main/docs/run-flow.md)。
+- 详见仓库内 [运行流说明](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/run-flow.md)。
 
 ## 项目知识库
 

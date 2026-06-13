@@ -1,7 +1,9 @@
 import ReactECharts from "echarts-for-react";
 import type { ProjectStats } from "@/api/types";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { useSkin } from "@/hooks/useSkin";
 import { useT } from "@/i18n/context";
+import { chartPalette } from "@/lib/chartTheme";
 
 interface Props {
   stats: ProjectStats;
@@ -9,20 +11,26 @@ interface Props {
 
 export function ProjectInsightCharts({ stats }: Props) {
   const t = useT();
+  const { skin } = useSkin();
+  const palette = chartPalette();
+
   const eventTypeOption = pieOption(
     t("charts.eventTypes"),
     stats.event_types.map((x) => x.label),
     stats.event_types.map((x) => x.count),
+    palette,
   );
   const gateOption = pieOption(
     t("charts.gateStatus"),
     stats.gate_statuses.map((x) => x.label),
     stats.gate_statuses.map((x) => x.count),
+    palette,
   );
   const sessionOption = barOption(
     t("charts.sessionStatus"),
     stats.session_statuses.map((x) => x.label),
     stats.session_statuses.map((x) => x.count),
+    palette,
   );
 
   return (
@@ -30,7 +38,11 @@ export function ProjectInsightCharts({ stats }: Props) {
       <SectionCard title={t("charts.eventDistribution")} className="dw-project-chart-card">
         {stats.event_types.length > 0 ? (
           <div className="h-[240px]">
-            <ReactECharts option={eventTypeOption} style={{ height: "100%", width: "100%" }} />
+            <ReactECharts
+              key={`events-${skin}`}
+              option={eventTypeOption}
+              style={{ height: "100%", width: "100%" }}
+            />
           </div>
         ) : (
           <p className="text-sm text-secondary m-0 py-8 text-center">{t("events.empty")}</p>
@@ -40,7 +52,11 @@ export function ProjectInsightCharts({ stats }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[240px]">
           <div className="flex flex-col min-h-[200px]">
             {stats.gate_statuses.length > 0 ? (
-              <ReactECharts option={gateOption} style={{ height: "200px", width: "100%" }} />
+              <ReactECharts
+                key={`gates-${skin}`}
+                option={gateOption}
+                style={{ height: "200px", width: "100%" }}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-sm text-secondary m-0">{t("charts.noGates")}</p>
@@ -49,7 +65,11 @@ export function ProjectInsightCharts({ stats }: Props) {
           </div>
           <div className="flex flex-col min-h-[200px]">
             {stats.session_statuses.length > 0 ? (
-              <ReactECharts option={sessionOption} style={{ height: "200px", width: "100%" }} />
+              <ReactECharts
+                key={`sessions-${skin}`}
+                option={sessionOption}
+                style={{ height: "200px", width: "100%" }}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <p className="text-sm text-secondary m-0">{t("charts.noSessions")}</p>
@@ -62,7 +82,12 @@ export function ProjectInsightCharts({ stats }: Props) {
   );
 }
 
-function pieOption(title: string, labels: string[], values: number[]) {
+function pieOption(
+  title: string,
+  labels: string[],
+  values: number[],
+  palette: ReturnType<typeof chartPalette>,
+) {
   return {
     backgroundColor: "transparent",
     tooltip: { trigger: "item" },
@@ -70,7 +95,7 @@ function pieOption(title: string, labels: string[], values: number[]) {
       orient: "vertical",
       right: 0,
       top: "center",
-      textStyle: { color: "#737686", fontSize: 11 },
+      textStyle: { color: palette.outline, fontSize: 11 },
     },
     series: [
       {
@@ -85,7 +110,12 @@ function pieOption(title: string, labels: string[], values: number[]) {
   };
 }
 
-function barOption(title: string, labels: string[], values: number[]) {
+function barOption(
+  title: string,
+  labels: string[],
+  values: number[],
+  palette: ReturnType<typeof chartPalette>,
+) {
   return {
     backgroundColor: "transparent",
     tooltip: { trigger: "axis" },
@@ -93,18 +123,18 @@ function barOption(title: string, labels: string[], values: number[]) {
     xAxis: {
       type: "category",
       data: labels,
-      axisLabel: { color: "#737686", fontSize: 10 },
+      axisLabel: { color: palette.outline, fontSize: 10 },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "#737686" },
+      axisLabel: { color: palette.outline },
     },
     series: [
       {
         name: title,
         type: "bar",
         data: values,
-        itemStyle: { color: "#2563eb", borderRadius: [3, 3, 0, 0] },
+        itemStyle: { color: palette.primary, borderRadius: [3, 3, 0, 0] },
       },
     ],
   };

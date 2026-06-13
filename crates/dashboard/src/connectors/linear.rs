@@ -105,7 +105,7 @@ pub async fn fetch_linear_issues(
     });
 
     let client = reqwest::Client::builder()
-        .user_agent("anycode-dashboard/1.0")
+        .user_agent(anycode_core::user_agent("anycode-dashboard"))
         .build()
         .context("http client")?;
     let res = client

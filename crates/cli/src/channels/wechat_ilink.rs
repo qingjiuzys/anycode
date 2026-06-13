@@ -238,7 +238,7 @@ pub async fn run_interactive_setup(data_dir: Option<PathBuf>) -> anyhow::Result<
     std::fs::create_dir_all(&data_root).context(tr("wx-ilink-ctx-create-data-root"))?;
 
     let client = reqwest::Client::builder()
-        .user_agent("anycode-wechat-ilink/0.1")
+        .user_agent(anycode_core::user_agent("anycode-wechat-ilink"))
         .build()
         .context(tr("wx-ilink-http-client"))?;
 

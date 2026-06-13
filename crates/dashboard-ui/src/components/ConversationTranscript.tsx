@@ -331,7 +331,7 @@ function MessageRow({
 function UserBubble({ block }: { block: TranscriptBlock }) {
   const t = useT();
   return (
-    <div className="rounded-2xl rounded-br-md bg-primary text-on-primary px-4 py-3 text-sm shadow-sm group relative">
+    <div className="bubble-user rounded-2xl rounded-br-md px-4 py-3 text-sm shadow-sm group relative">
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <CopyButton text={block.body} label={t("conversations.copyMessage")} />
       </div>
@@ -427,7 +427,7 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
       className={`rounded-2xl px-4 py-3 text-sm group relative ${
         isError
           ? "rounded-bl-md bg-error-container/80 text-on-error-container border border-error/25"
-          : "rounded-bl-md bg-surface-container-lowest text-on-surface border border-outline-variant/60"
+          : "bubble-assistant glass-panel rounded-2xl rounded-bl-md px-4 py-3 text-sm group relative text-on-surface"
       }`}
     >
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">

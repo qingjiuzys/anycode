@@ -1,7 +1,10 @@
 //! On-device text-to-speech via piper-rs (feature `tts-local`).
 
-use crate::model_cache::piper_voice_dir;
 use anycode_core::CoreError;
+
+#[cfg(feature = "tts-local")]
+use crate::model_cache::piper_voice_dir;
+#[cfg(feature = "tts-local")]
 use std::path::Path;
 
 #[cfg(feature = "tts-local")]

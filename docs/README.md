@@ -1,45 +1,116 @@
 # 文档位置说明
 
-面向用户的正文以 **VitePress 文档站**（中英双语入口）为准；本目录保留维护者文档、ADR、路线图、Workbench 运营材料和归档资料：
+面向用户的正文以 **VitePress 文档站**（中英双语）为准；本目录保留**维护者文档**、ADR 与按主题归类的运营材料。
 
-- **源码**：仓库根目录 [`docs-site/`](../docs-site/)
-- **本地预览**：`cd docs-site && npm install && npm run dev`
-- **中文**：`/zh/guide/` 下各页（由 `docs-site/zh/guide/*.md` 构建）
-- **English**：`/guide/` 下各页（`docs-site/guide/*.md`）
+| 受众 | 入口 |
+|------|------|
+| 用户 | [`docs-site/guide/`](../docs-site/guide/) · 本地 `cd docs-site && npm run dev` |
+| 维护者 backlog | **[`roadmap.md`](roadmap.md)**（SSOT，含 §3.5 **0.3** 计划） |
+| 架构 | [`architecture.md`](architecture.md) · ADR [`adr/`](adr/) |
+| 文档地图 | 本文件 |
 
-GitHub Actions 工作流 [`.github/workflows/docs.yml`](../.github/workflows/docs.yml) 在推送 `main` 时构建并发布到 **GitHub Pages**（需在仓库 Settings → Pages 中选择 GitHub Actions 源）。
+GitHub Pages：见 [`.github/workflows/docs.yml`](../.github/workflows/docs.yml)。
 
-若外链仍指向旧用户文档（例如 `docs/cli.md`），请更新为文档站 URL 或 `docs-site/zh/guide/cli.md`。维护者文档可以继续放在 `docs/`，但应在本文件登记。
+---
 
-## 架构决策记录（ADR）
+## 目录结构（2026-06 整理后）
 
-设计与边界类决策放在 [`adr/`](adr/)（Markdown，不参与 VitePress 构建）。当前条目：
+```text
+docs/
+ README.md          ← 本文件
+ roadmap.md         ← 执行层 backlog / 0.3 SSOT
+ architecture.md
 
-- [`000-runtime-orchestration.md`](adr/000-runtime-orchestration.md) — **`AgentRuntime` 为编排权威**，`Agent::execute` 非 CLI/TUI 主路径。
-- [`001-memory-pipeline-and-store.md`](adr/001-memory-pipeline-and-store.md) — **`MemoryStore` 与 `pipeline` 后端**的关系与组合方式。
-- [`002-cli-composition-root.md`](adr/002-cli-composition-root.md) — **CLI `bootstrap` 组合根**边界与依赖方向。
-- [`003-http-daemon-deprecated.md`](adr/003-http-daemon-deprecated.md) — **不恢复 HTTP `anycode daemon`**（已移除 `daemon_http`）。
-- [`004-session-rewind.md`](adr/004-session-rewind.md) — **会话 rewind / 撤销展示**（Proposed，待填决策）。
-- [`005-repl-clear-vs-transcript.md`](adr/005-repl-clear-vs-transcript.md) — **`/clear` 与纯文本 transcript**（Proposed，待填决策）。
-- [`006-transcript-virtual-scroll-rfc.md`](adr/006-transcript-virtual-scroll-rfc.md) — **虚拟滚动复启 RFC**（Proposed，待填决策）。
-- [`007-mcp-session-reconnect-policy.md`](adr/007-mcp-session-reconnect-policy.md) — **MCP stdio 健康 / 快速失败 / 受控重连策略**（**Accepted**，政策；代码层自动重连仍待定）。
-- [`008-channel-ask-user-question-phasing.md`](adr/008-channel-ask-user-question-phasing.md) — **IM 通道 AskUserQuestion** 分期实现（**Telegram MVP 已落地**；仍为 Proposed 以覆盖后续通道）。
-- [`009-graph-memory-spike.md`](adr/009-graph-memory-spike.md) — **Graph memory** spike notes。
-- [`010-cooperative-cancel-and-nested-agents.md`](adr/010-cooperative-cancel-and-nested-agents.md) — **主会话、turn 与嵌套 agent 协作取消**。
+ adr/               ← 架构决策（不参与 VitePress 构建）
 
-## 开发备忘（非文档站）
+ planning/          ← 计划、验收、Harness（0.3-A 相关）
+ comparisons/       ← OpenClaw / Claude / WorkBuddy / 微信对标
+ ops/               ← Cron、MCP、工具治理、终端、通道运维备忘
+ workbench/         ← Digital Workbench 状态、API、部署、控制面
+ archive/           ← 历史 sprint / 旧 Workbench 里程碑（只读）
+ references/        ← 外部实现对照备忘
+ issue-drafts/      ← GitHub issue 草稿
+```
 
-- [`roadmap.md`](roadmap.md) — **维护者 backlog 单一事实来源**（now / next / later、决策与待决项）。
-- [`refactor-map.md`](refactor-map.md) — **可持续重构地图**：模块所有权、热点、命名规则和迁移顺序。
-- [`production-harness-hardening.md`](production-harness-hardening.md) — Digital Workbench **Tier 1.5**：执行轨迹、运行时预算、轨迹评估、工具/MCP 治理、声明式 workflow 和记忆治理。
-- [`workbench-ipc.md`](workbench-ipc.md) — Digital Workbench 与 live CLI 之间的 approval、cancel、session、SSE 合约。
-- [`digital-workbench-STATUS.md`](digital-workbench-STATUS.md) — Digital Workbench 当前状态和后续验收入口。
-- [`digital-workbench-next-steps.md`](digital-workbench-next-steps.md) / [`digital-workbench-next-steps-zh.md`](digital-workbench-next-steps-zh.md) — Workbench 后续路线图。
-- [`digital-workbench-api.md`](digital-workbench-api.md) / [`digital-workbench-deploy-production.md`](digital-workbench-deploy-production.md) / [`digital-workbench-permissions.md`](digital-workbench-permissions.md) — Workbench API、部署和权限说明。
-- [`issue-drafts/`](issue-drafts/) — GitHub issue 正文草稿（与 §3 主线对齐时可复制或 `gh issue create --body-file`）。
-- [`term-smoothness-baseline.md`](term-smoothness-baseline.md) — 流式终端观感迭代基线与终端矩阵清单（与 `ANYCODE_TERM_*` 等环境变量对照）。
-- [`stream-repl-layout.md`](stream-repl-layout.md) — **`anycode repl` 流式 TTY**：自上而下页面结构、宿主 scrollback 与 Inline 视口、Dock 栈与 Tokio/UI 线程数据流。
-- [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md) — OpenClaw **2026.5.19** 对标矩阵（维护者）。
-- [`weixin-plugin-parity.md`](weixin-plugin-parity.md) — 微信 npm 插件 vs Rust 桥差异表。
-- [`cron-observability.md`](cron-observability.md) — 内置调度器 `cron-runs.jsonl` 字段说明。
-- [`implementation-audit-checklist.md`](implementation-audit-checklist.md) — 重定向至 [`roadmap.md`](roadmap.md)（勿重复编辑清单正文）。
+**原则**
+
+1. **迭代任务只改 [`roadmap.md`](roadmap.md)**（及 `adr/`）；不要在 `docs-site` 重复 now/next/later 列表。
+2. **产品 MVP / 工具矩阵** 仍以 [`docs-site/guide/roadmap.md`](../docs-site/guide/roadmap.md) 为准。
+3. **一次性 sprint 日志、QA 缺陷表、HTML 快照** 已删除；历史 Workbench 里程碑见 [`archive/workbench/`](archive/workbench/)。
+
+---
+
+## 当前入口（按主题）
+
+### 规划与 0.3
+
+| 文档 | 用途 |
+|------|------|
+| [`roadmap.md`](roadmap.md) | now / next / later、§3.5 **0.3** 交付包、决策表 |
+| [`planning/closure-plan-2026-06.md`](planning/closure-plan-2026-06.md) | 2026-06 套件收口波次 |
+| [`planning/production-harness-hardening.md`](planning/production-harness-hardening.md) | Tier 1.5 Harness M0–M8 |
+| [`planning/eval-harness.md`](planning/eval-harness.md) | `anycode eval` / mock LLM |
+| [`planning/release-readiness-2026-05.md`](planning/release-readiness-2026-05.md) | 发布验收 checklist |
+
+### 对标参考
+
+| 文档 | 用途 |
+|------|------|
+| [`comparisons/openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md) | OpenClaw 差距矩阵 |
+| [`comparisons/claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md) | Claude TS / Rust 参考 |
+| [`comparisons/workbuddy-comparison-2026-06.md`](comparisons/workbuddy-comparison-2026-06.md) | WorkBuddy 七域矩阵 |
+| [`comparisons/weixin-plugin-parity.md`](comparisons/weixin-plugin-parity.md) | 微信 npm 插件 vs Rust 桥 |
+
+### 运维与实现（0.3-B/C/D/F/G）
+
+| 文档 | 用途 |
+|------|------|
+| [`ops/tool-governance.md`](ops/tool-governance.md) | 工具审计 / 权限 |
+| [`ops/mcp-stdio-lifecycle.md`](ops/mcp-stdio-lifecycle.md) | MCP stdio 生命周期 |
+| [`ops/mcp-controlled-reconnect.md`](ops/mcp-controlled-reconnect.md) | ADR 007 摘要 |
+| [`ops/cron-observability.md`](ops/cron-observability.md) | `cron-runs.jsonl` |
+| [`ops/cron-production.md`](ops/cron-production.md) | Cron 生产语义 |
+| [`ops/channel-production.md`](ops/channel-production.md) | IM 通道运维 |
+| [`ops/stream-repl-layout.md`](ops/stream-repl-layout.md) | 流式 REPL 布局 |
+| [`ops/term-smoothness-baseline.md`](ops/term-smoothness-baseline.md) | 终端观感基线 |
+| [`ops/terminal-load-model.md`](ops/terminal-load-model.md) | transcript 负载模型 |
+
+### Digital Workbench
+
+| 文档 | 用途 |
+|------|------|
+| [`workbench/digital-workbench-STATUS.md`](workbench/digital-workbench-STATUS.md) | 一页状态 |
+| [`workbench/digital-workbench-next-steps-zh.md`](workbench/digital-workbench-next-steps-zh.md) | 后续规划（中文） |
+| [`workbench/digital-workbench-api.md`](workbench/digital-workbench-api.md) | API 合约 |
+| [`workbench/workbench-ipc.md`](workbench/workbench-ipc.md) | CLI ↔ Dashboard IPC |
+| 用户指南 | [`docs-site/guide/dashboard.md`](../docs-site/guide/dashboard.md) |
+
+仓库根 [`WORKBENCH.md`](../WORKBENCH.md) 为 Workbench 快捷入口。
+
+---
+
+## ADR 索引
+
+| ADR | 主题 |
+|-----|------|
+| [000](adr/000-runtime-orchestration.md) | `AgentRuntime` 编排权威 |
+| [001](adr/001-memory-pipeline-and-store.md) | Memory pipeline / store |
+| [002](adr/002-cli-composition-root.md) | CLI bootstrap 组合根 |
+| [003](adr/003-http-daemon-deprecated.md) | 不恢复 HTTP daemon |
+| [004](adr/004-session-rewind.md) | 会话 rewind（Proposed） |
+| [005](adr/005-repl-clear-vs-transcript.md) | `/clear` vs transcript（Proposed） |
+| [006](adr/006-transcript-virtual-scroll-rfc.md) | 虚拟滚动 RFC（Proposed） |
+| [007](adr/007-mcp-session-reconnect-policy.md) | MCP 受控重连政策 |
+| [008](adr/008-channel-ask-user-question-phasing.md) | 通道 AskUserQuestion |
+| [009](adr/009-graph-memory-spike.md) | Graph memory spike |
+| [010](adr/010-cooperative-cancel-and-nested-agents.md) | 协作取消 / 嵌套 agent |
+
+---
+
+## 已删除 / 归档说明
+
+**已删除**（内容已被 SSOT 覆盖或过期）：`implementation-audit-checklist.md`、`autonomous-8h-*`、`qa-defect-log.md`、`qa-manual-llm-checklist.md`、`customer-feedback-issues-2026-06.html`、`flutter-app-template.md`、`work-run/`、`google-api-test-results-2026-05-29.md`。
+
+**已归档**：`archive/sprints/`（production-convergence、autonomous-8h、旧 product-plan）、`archive/workbench/`（V1/V2 handoff、静态原型 HTML）。
+
+若外链仍指向旧路径（如 `docs/cron-observability.md`），请改为 `docs/ops/cron-observability.md` 或文档站 URL。

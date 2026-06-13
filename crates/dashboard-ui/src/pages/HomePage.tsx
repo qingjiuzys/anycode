@@ -37,7 +37,8 @@ export function HomePage() {
     <>
       <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
 
-      <section className="dw-hero">
+      <section className="dw-hero dw-home-hero">
+        <div className="hero-glow" aria-hidden />
         <h1 className="dw-hero__title">{t("home.hero.title")}</h1>
         <HomeHeroComposer
           sseStatus={sseStatus}

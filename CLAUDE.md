@@ -135,4 +135,4 @@ All channels use the same `AgentRuntime` via `initialize_runtime` but with diffe
 - **Architecture**: `docs/architecture.md`, `docs-site/guide/architecture.md`
 - **ADRs**: `docs/adr/` (design decisions)
 - **Roadmap**: `docs/roadmap.md` (maintainer backlog)
-- **OpenClaw sync**: `docs/openclaw-sync-brief-2026-05.md`, `docs/weixin-plugin-parity.md`, `docs/cron-observability.md`
+- **OpenClaw sync**: `docs/comparisons/openclaw-sync-brief-2026-05.md`, `docs/comparisons/weixin-plugin-parity.md`, `docs/ops/cron-observability.md`

@@ -50,7 +50,7 @@ With explicit repo / version (save then execute):
 ```powershell
 $tmp = Join-Path $env:TEMP "anycode-install.ps1"
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 -OutFile $tmp
-& $tmp -Repo qingjiuzys/anycode -Version v0.1.0
+& $tmp -Repo qingjiuzys/anycode -Version latest
 ```
 
 Or:
@@ -70,7 +70,7 @@ By default installer:
 
 Useful flags:
 
-- `--version v0.1.0` or `latest`
+- `--version latest` or `--version v0.2.0` (pin a release tag)
 - `--bin-dir "$HOME/.local/bin"`
 - `--no-setup` (skip setup after install)
 - `--quiet` (less download output)
@@ -84,23 +84,25 @@ curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/in
 
 Next step: pick the flags you need, then rerun install.
 
-## Install v0.1.0 (pinned)
+## Install a pinned release
+
+Default one-liner installs the [latest GitHub Release](https://github.com/qingjiuzys/anycode/releases/latest). To pin the current workspace version:
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | \
-  bash -s -- --repo qingjiuzys/anycode --version v0.1.0
+  bash -s -- --repo qingjiuzys/anycode --version v0.2.0
 ```
 
-Expected output: installs pinned version `v0.1.0`.
+Expected output: installs pinned version `v0.2.0`.
 
 Or install from Cargo with the release tag:
 
 ```bash
-cargo install --git https://github.com/qingjiuzys/anycode --tag v0.1.0 anycode --force
+cargo install --git https://github.com/qingjiuzys/anycode --tag v0.2.0 anycode --force
 ```
 
-Release page: <https://github.com/qingjiuzys/anycode/releases/tag/v0.1.0>
+Release page: <https://github.com/qingjiuzys/anycode/releases>
 
 ### macOS desktop (optional)
 

@@ -5,6 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+echo "==> sync workspace version to dashboard-ui / desktop manifests"
+chmod +x "$ROOT/scripts/sync-workspace-version.sh"
+"$ROOT/scripts/sync-workspace-version.sh"
+
 echo "==> build dashboard UI (must run before CLI — embedded-ui bakes dist/)"
 "$ROOT/scripts/build-dashboard-ui.sh"
 

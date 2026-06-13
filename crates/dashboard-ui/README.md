@@ -46,12 +46,12 @@ From repo root:
 
 | Doc | Purpose |
 |-----|---------|
-| [`docs/digital-workbench-STATUS.md`](../../docs/digital-workbench-STATUS.md) | One-page ship checklist |
-| [`docs/digital-workbench-next-steps-zh.md`](../../docs/digital-workbench-next-steps-zh.md) | **Start V3 planning here** (中文) |
-| [`docs/digital-workbench-next-steps.md`](../../docs/digital-workbench-next-steps.md) | V3 tiers + sample roadmap (EN) |
+| [`docs/workbench/digital-workbench-STATUS.md`](../../docs/workbench/digital-workbench-STATUS.md) | One-page ship checklist |
+| [`docs/workbench/digital-workbench-next-steps-zh.md`](../../docs/workbench/digital-workbench-next-steps-zh.md) | **Start V3 planning here** (中文) |
+| [`docs/workbench/digital-workbench-next-steps.md`](../../docs/workbench/digital-workbench-next-steps.md) | V3 tiers + sample roadmap (EN) |
 
 User docs: [docs-site/guide/dashboard-planning.md](../../docs-site/guide/dashboard-planning.md)
 
 Tests: `npm test` · `npm run test:e2e` · `cargo test -p anycode-dashboard`
 
-Real LLM manual checklist: [`docs/qa-manual-llm-checklist.md`](../../docs/qa-manual-llm-checklist.md)
+Real LLM manual checklist: [`docs/planning/eval-harness.md`](../../docs/planning/eval-harness.md)

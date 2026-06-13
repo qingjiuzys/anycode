@@ -1,6 +1,6 @@
 //! 内置 Agent 约定：小写 id、`/` 切换命令、子 Agent 默认类型。
 
-use anycode_agent::{BUILTIN_AGENT_SEED, SHIPPED_ROLE_IDS};
+use anycode_agent::BUILTIN_AGENT_SEED;
 
 /// 与 `AgentRuntime::new` 注册的 `AgentType` 一致。
 pub const BUILTIN_AGENT_IDS: [&str; 5] = [

@@ -6,19 +6,16 @@ use crate::app_config::prompts::{
     prompt_api_key_and_base_url, prompt_line, prompt_model_for_anthropic, prompt_model_for_google,
     prompt_model_for_zai,
 };
-use crate::app_config::{
-    default_base_url_for, load_anycode_config_resolved, resolve_config_path,
-    save_anycode_config_resolved, validate_llm_provider, AnyCodeConfig,
-};
+use crate::app_config::{default_base_url_for, load_anycode_config_resolved, AnyCodeConfig};
 use crate::i18n::{tr, tr_args};
 use anycode_llm::{
-    normalize_provider_id, transport_for_provider_id, LlmTransport, ProviderCatalogEntry,
-    PROVIDER_CATALOG, ZAI_AUTH_METHODS,
+    normalize_provider_id, transport_for_provider_id, LlmTransport, PROVIDER_CATALOG,
+    ZAI_AUTH_METHODS,
 };
 use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Confirm, Input, Password, Select};
+use dialoguer::{Input, Password, Select};
 use fluent_bundle::FluentArgs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(super) use anycode_setup::{QuickAuthChoice as AuthChoice, QUICK_AUTH_CHOICES};
 

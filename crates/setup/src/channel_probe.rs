@@ -15,7 +15,7 @@ const DISCORD_BOT_PERMISSIONS: u64 = 0x400 | 0x800 | 0x10000;
 fn probe_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(PROBE_TIMEOUT)
-        .user_agent("anycode-channel-setup/1.0")
+        .user_agent(anycode_core::user_agent("anycode-channel-setup"))
         .build()
         .context("build HTTP client")
 }

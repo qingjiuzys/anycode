@@ -4,7 +4,7 @@
 
 **相关文档**
 
-- 分层与扩展点：[`architecture.md`](architecture.md)
+- 分层与扩展点：[`architecture.md`](../architecture.md)
 - 用户向工作台说明：[`docs-site/guide/workbench.md`](../docs-site/guide/workbench.md)
 - ADR 000（编排权威）：[`adr/000-agent-runtime-orchestration.md`](adr/000-agent-runtime-orchestration.md)
 
@@ -122,6 +122,19 @@
 - `anycode` 二进制
 - `dashboard-ui/dist`（或 `embedded-ui`）
 - `project-templates/`
-- `browser-mcp/`（Playwright bundle）
+- `resources/browser/`（Playwright MCP + Chromium，由 `prepare-browser-mcp.sh` 生成）
 
 Tauri 启动逻辑：`apps/anycode-desktop/src/main.rs`。
+
+### 构建时下载 vs 最终安装包
+
+| 命令 | 浏览器 MCP / Chromium | 说明 |
+|------|----------------------|------|
+| `cargo build --release -p anycode` | **否** | 仅 CLI；若 `dist/` 缺失可能在 release 下触发 dashboard-ui 的 `npm ci` |
+| `./scripts/build-desktop-release.sh` | **是**（首次或 lockfile 变更） | 写入 `resources/browser/` 后打进 DMG/App |
+
+**用户**安装 DMG 后无需再执行 `npx playwright install`。**开发者**重复桌面打包时，`prepare-browser-mcp.sh` 在 lockfile 与平台未变时会命中本地缓存（`resources/browser/.bundle-fingerprint`）；强制全量刷新：`ANYCODE_BROWSER_MCP_FORCE=1`。
+
+dashboard-ui 已构建时可设 `ANYCODE_SKIP_DASHBOARD_UI_BUILD=1` 跳过 UI 的 npm build（`crates/dashboard/build.rs`）。
+
+Whisper / FastEmbed / Piper 等模型**不在 build 阶段打包**，首次使用时下载到 `~/.anycode` 或 `~/.cache`。

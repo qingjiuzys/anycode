@@ -1,6 +1,6 @@
 //! Curated skill market entries (anyCode starter pack).
 
-use crate::skill_meta::{normalize_category, parse_frontmatter_text};
+use crate::skill_meta::parse_frontmatter_text;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

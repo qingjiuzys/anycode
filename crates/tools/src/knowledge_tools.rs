@@ -21,6 +21,7 @@ fn default_limit() -> usize {
 }
 
 pub struct KnowledgeSearchTool {
+    #[allow(dead_code)] // registry DI slot; search uses cwd + knowledge_index directly
     services: Arc<ToolServices>,
 }
 

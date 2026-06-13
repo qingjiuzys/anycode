@@ -344,7 +344,7 @@ pub fn doctor_next_steps(
         steps.push("Start dashboard: `anycode dashboard --open`".into());
     }
     if report.status == "ok" {
-        steps.push("Digital Workbench status: docs/digital-workbench-STATUS.md".into());
+        steps.push("Digital Workbench status: docs/workbench/digital-workbench-STATUS.md".into());
     }
     if report
         .checks

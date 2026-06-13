@@ -229,7 +229,7 @@ impl Default for ToolServices {
     fn default() -> Self {
         Self {
             http: Client::builder()
-                .user_agent("anycode-tools/0.1")
+                .user_agent(anycode_core::user_agent("anycode-tools"))
                 .build()
                 .expect("reqwest client"),
             max_fetch_bytes: 2 * 1024 * 1024,

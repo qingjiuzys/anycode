@@ -99,4 +99,4 @@ No outbound write/sync — previews only.
 
 SSO/RBAC · Postgres backend · connector write-back · Tauri desktop shell
 
-See [production-harness-hardening.md](production-harness-hardening.md) for Tier 1.5 harness status and [digital-workbench-next-steps.md](digital-workbench-next-steps.md) for Tier 2–3 roadmap.
+See [production-harness-hardening.md](production-harness-hardening.md) for Tier 1.5 harness status and [digital-workbench-next-steps.md](../workbench/digital-workbench-next-steps.md) for Tier 2–3 roadmap.

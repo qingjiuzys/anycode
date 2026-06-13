@@ -2,7 +2,7 @@
 
 use crate::db::DashboardDb;
 use anyhow::Result;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 const MAX_SCAN_FILES: usize = 200;

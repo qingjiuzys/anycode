@@ -38,9 +38,9 @@
 
 1. 查看 npm：<https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin> 的 **版本** 与 **CHANGELOG**（对标基线 **2.4.3**，2026-05-18 核对）。
 2. 与 OpenClaw 仓库 `CHANGELOG.md` 中 `Channels/Weixin` 条目交叉核对。
-3. 差异记入本文件；需改代码的项开 GitHub issue，并在 [roadmap.md](roadmap.md) §4 引用。
+3. 差异记入本文件；需改代码的项开 GitHub issue，并在 [roadmap.md](../roadmap.md) §4 引用。
 
 ## 相关
 
-- [openclaw-sync-brief-2026-05.md](openclaw-sync-brief-2026-05.md)
+- [openclaw-sync-brief-2026-05.md](../comparisons/openclaw-sync-brief-2026-05.md)
 - [wx-streaming-bridge.md](wx-streaming-bridge.md)

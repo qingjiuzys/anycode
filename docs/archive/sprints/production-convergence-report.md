@@ -24,7 +24,9 @@ See [production-convergence-log.md](production-convergence-log.md) for the detai
 
 ## Deferred (unchanged)
 
-SSO/RBAC · Connector OAuth/write · Tauri · Postgres · browser visual gates
+SSO/RBAC · Connector OAuth/write · Postgres · browser visual gates
+
+**Note:** macOS Tauri desktop v0.1 (dashboard sidecar) shipped 2026-06 — see `apps/anycode-desktop/` and [product-convergence audit](audits/product-convergence-2026-06.md).
 
 ## Residual risks
 

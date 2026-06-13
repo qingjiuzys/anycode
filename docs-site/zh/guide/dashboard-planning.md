@@ -36,7 +36,7 @@ anycode dashboard --open
 
 | 文档 | 用途 |
 |------|------|
-| [digital-workbench-next-steps-zh.md](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-next-steps-zh.md) | **规划入口** — V3 分级 + 示例四周路线 |
+| [digital-workbench-next-steps-zh.md](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps-zh.md) | **规划入口** — V3 分级 + 示例四周路线 |
 | [digital-workbench-handoff-zh.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-handoff-zh.md) | 交接摘要 |
 | [digital-workbench-v2-complete.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-v2-complete.md) | V2 清单 |
 | [digital-workbench-v1-mvp.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-v1-mvp.md) | V1 UX 验收 |
@@ -70,4 +70,4 @@ anycode dashboard --open
 3. Connector 是否够用？
 4. 是否要从 Web 控制 Agent？
 
-详见 [next-steps-zh](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-next-steps-zh.md)。
+详见 [next-steps-zh](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps-zh.md)。

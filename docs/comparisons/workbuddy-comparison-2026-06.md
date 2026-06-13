@@ -2,7 +2,7 @@
 
 维护者用：记录 anyCode 相对腾讯 WorkBuddy 的差距与取舍。**IM 通道策略：仅个人微信**（不扩展飞书/钉钉/企微/QQ）。
 
-产品 MVP 边界仍以 [docs-site/guide/roadmap.md](../docs-site/guide/roadmap.md) 为准；可执行 backlog 见 [roadmap.md](roadmap.md)。
+产品 MVP 边界仍以 [docs-site/guide/roadmap.md](../docs-site/guide/roadmap.md) 为准；可执行 backlog 见 [roadmap.md](../roadmap.md)。
 
 ## 同步基线
 
@@ -10,7 +10,7 @@
 |----|-----|
 | WorkBuddy 公开上线 | 2026-03-09 |
 | anyCode 对照 | WorkBuddy 对标 Phase 1–3（Skills / 专家 / 资料库 / 自动化 / 微信 UX / Tauri） |
-| OpenClaw 关系 | 两者均对齐 OpenClaw **Skills 形态**；anyCode 仍以 [openclaw-sync-brief](openclaw-sync-brief-2026-05.md) 跟踪上游 |
+| OpenClaw 关系 | 两者均对齐 OpenClaw **Skills 形态**；anyCode 仍以 [openclaw-sync-brief](../comparisons/openclaw-sync-brief-2026-05.md) 跟踪上游 |
 
 ---
 
@@ -107,7 +107,7 @@
 ## 相关文档
 
 - [closure-plan-2026-06.md](closure-plan-2026-06.md) — **套件收口规划（Wave 0–4 + Exit Criteria）**
-- [openclaw-sync-brief-2026-05.md](openclaw-sync-brief-2026-05.md)
-- [weixin-plugin-parity.md](weixin-plugin-parity.md)
-- [digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md)
+- [openclaw-sync-brief-2026-05.md](../comparisons/openclaw-sync-brief-2026-05.md)
+- [weixin-plugin-parity.md](../comparisons/weixin-plugin-parity.md)
+- [digital-workbench-next-steps-zh.md](../workbench/digital-workbench-next-steps-zh.md)
 - [docs-site/guide/skills.md](../docs-site/guide/skills.md)

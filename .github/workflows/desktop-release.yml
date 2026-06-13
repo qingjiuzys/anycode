@@ -15,6 +15,9 @@ on:
 permissions:
   contents: write
 
+env:
+  ANYCODE_BROWSER_NODE_VERSION: "22.16.0"
+
 jobs:
   desktop-macos:
     runs-on: macos-latest
@@ -33,7 +36,17 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: crates/dashboard-ui/package-lock.json
+          cache-dependency-path: |
+            crates/dashboard-ui/package-lock.json
+            apps/anycode-desktop/browser-mcp/package-lock.json
+
+      - name: Cache browser MCP bundle
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/anycode-desktop/resources/browser/
+            apps/anycode-desktop/browser-mcp/node_modules/
+          key: browser-mcp-${{ hashFiles('apps/anycode-desktop/browser-mcp/package-lock.json') }}-${{ env.ANYCODE_BROWSER_NODE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
@@ -92,7 +105,17 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: crates/dashboard-ui/package-lock.json
+          cache-dependency-path: |
+            crates/dashboard-ui/package-lock.json
+            apps/anycode-desktop/browser-mcp/package-lock.json
+
+      - name: Cache browser MCP bundle
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/anycode-desktop/resources/browser/
+            apps/anycode-desktop/browser-mcp/node_modules/
+          key: browser-mcp-${{ hashFiles('apps/anycode-desktop/browser-mcp/package-lock.json') }}-${{ env.ANYCODE_BROWSER_NODE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
@@ -134,7 +157,17 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: crates/dashboard-ui/package-lock.json
+          cache-dependency-path: |
+            crates/dashboard-ui/package-lock.json
+            apps/anycode-desktop/browser-mcp/package-lock.json
+
+      - name: Cache browser MCP bundle
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/anycode-desktop/resources/browser/
+            apps/anycode-desktop/browser-mcp/node_modules/
+          key: browser-mcp-${{ hashFiles('apps/anycode-desktop/browser-mcp/package-lock.json') }}-${{ env.ANYCODE_BROWSER_NODE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked

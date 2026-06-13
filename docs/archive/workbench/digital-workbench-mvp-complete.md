@@ -33,7 +33,7 @@ Status: **V1 acceptance complete** + **V2 slices A–D complete** — see [`digi
 
 ## Out of scope (V3+)
 
-See **`docs/digital-workbench-handoff.md`** or **`docs/digital-workbench-next-steps.md`** for roadmap.
+See **`docs/digital-workbench-handoff.md`** or **`docs/workbench/digital-workbench-next-steps.md`** for roadmap.
 
 ## Verify locally
 

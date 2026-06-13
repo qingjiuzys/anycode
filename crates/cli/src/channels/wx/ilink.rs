@@ -55,7 +55,7 @@ impl WeChatApi {
             base_url: sanitize_base_url(&base_url),
             uin: generate_uin_b64(),
             client: reqwest::Client::builder()
-                .user_agent("anycode-wx/0.1")
+                .user_agent(anycode_core::user_agent("anycode-wx"))
                 .build()
                 .expect("reqwest client"),
         }

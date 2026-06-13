@@ -24,7 +24,6 @@ use anycode_core::prelude::*;
 use anycode_llm::ModelRouter;
 use model_resolve::resolve_model_profile;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub(crate) fn compile_tool_name_deny_regexes(patterns: &[String]) -> Vec<regex::Regex> {
     use crate::i18n::tr_args;

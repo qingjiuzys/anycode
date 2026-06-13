@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
 import { initDensity } from "./hooks/useDensity";
+import { applySkin, getSkin } from "./hooks/useSkin";
 import { getTheme, setTheme } from "./hooks/useTheme";
 import { I18nProvider } from "./i18n/context";
 import { AuthProvider } from "./auth/context";
@@ -11,6 +12,7 @@ import { SseProvider } from "./context/SseContext";
 import "./index.css";
 
 initDensity();
+applySkin(getSkin());
 setTheme(getTheme());
 
 if ("__TAURI_INTERNALS__" in window) {

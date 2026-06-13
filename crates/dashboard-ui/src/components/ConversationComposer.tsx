@@ -395,7 +395,7 @@ export function ConversationComposer(props: Props) {
   }
 
   return (
-    <form className="dw-composer" onSubmit={onSubmit}>
+    <form className="dw-composer glass-panel" onSubmit={onSubmit}>
       {isStart && !props.compact && (
         <div className="px-4 pt-3 pb-1 border-b border-outline-variant/50">
           <input

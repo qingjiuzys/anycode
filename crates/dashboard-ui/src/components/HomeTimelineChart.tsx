@@ -1,6 +1,8 @@
 import ReactECharts from "echarts-for-react";
 import type { GlobalTimelineMetrics } from "@/api/types";
+import { useSkin } from "@/hooks/useSkin";
 import { useT } from "@/i18n/context";
+import { chartPalette } from "@/lib/chartTheme";
 
 export function HomeTimelineChart({
   timeline,
@@ -10,6 +12,9 @@ export function HomeTimelineChart({
   tall?: boolean;
 }) {
   const t = useT();
+  const { skin } = useSkin();
+  const palette = chartPalette();
+
   if (!timeline || timeline.points.length === 0) {
     return <p className="text-sm text-secondary px-4 py-6 m-0">{t("charts.noTimeline")}</p>;
   }
@@ -24,17 +29,17 @@ export function HomeTimelineChart({
     tooltip: { trigger: "axis" },
     legend: {
       data: [t("charts.sessions"), t("charts.events")],
-      textStyle: { color: "#505f76" },
+      textStyle: { color: palette.secondary },
     },
     grid: { left: 40, right: 12, top: 40, bottom: 32 },
     xAxis: {
       type: "category",
       data: dates,
-      axisLabel: { color: "#737686", fontSize: 10 },
+      axisLabel: { color: palette.outline, fontSize: 10 },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "#737686", fontSize: 10 },
+      axisLabel: { color: palette.outline, fontSize: 10 },
     },
     series: [
       {
@@ -42,14 +47,14 @@ export function HomeTimelineChart({
         type: "line",
         smooth: true,
         data: sessions,
-        itemStyle: { color: "#2563eb" },
-        areaStyle: { color: "rgba(37,99,235,0.08)" },
+        itemStyle: { color: palette.primary },
+        areaStyle: { color: palette.accentMuted },
       },
       {
         name: t("charts.events"),
         type: "bar",
         data: events,
-        itemStyle: { color: "#16a34a", borderRadius: [2, 2, 0, 0] },
+        itemStyle: { color: palette.success, borderRadius: [2, 2, 0, 0] },
       },
     ],
   };
@@ -66,7 +71,7 @@ export function HomeTimelineChart({
         </span>
       </div>
       <div className={`px-2 pb-3 ${tall ? "h-52 sm:h-56" : "h-44"}`}>
-        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
+        <ReactECharts key={skin} option={option} style={{ height: "100%", width: "100%" }} />
       </div>
     </div>
   );

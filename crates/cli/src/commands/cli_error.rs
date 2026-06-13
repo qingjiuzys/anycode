@@ -154,7 +154,7 @@ fn category_label(c: CliErrorCategory) -> &'static str {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct TaxonomyRow {
+pub(crate) struct TaxonomyRow {
     category: CliErrorCategory,
     code: String,
     description: String,

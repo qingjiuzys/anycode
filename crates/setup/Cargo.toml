@@ -15,6 +15,7 @@ embedding-local = []
 
 [dependencies]
 anyhow = { workspace = true }
+anycode-core = { path = "../core" }
 anycode-llm = { path = "../llm" }
 chrono = { workspace = true, features = ["serde"] }
 dirs = "5"

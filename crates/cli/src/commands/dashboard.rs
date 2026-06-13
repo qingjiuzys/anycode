@@ -75,7 +75,7 @@ pub async fn run_dashboard(
         println!("Reports: {url}reports");
         println!("Audit: {url}audit");
         println!("DB: {}", config.db_path.display());
-        println!("Planning (V3): docs/digital-workbench-STATUS.md · docs/digital-workbench-next-steps-zh.md");
+        println!("Planning (V3): docs/workbench/digital-workbench-STATUS.md · docs/workbench/digital-workbench-next-steps-zh.md");
         if let Some(ref ui) = static_dir {
             println!("UI: {} (bundled)", ui.display());
         } else if anycode_dashboard::embedded_ui::available() {

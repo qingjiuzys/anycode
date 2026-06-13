@@ -6,7 +6,7 @@ Implementation: **no automatic stdio reconnect** + **fail-fast** on dead transpo
 ## Context
 
 - Long-lived MCP connections use [`McpStdioSession`](../../crates/tools/src/mcp_session.rs).
-- Operational rules today: line read timeouts, optional `tools/call` wall timeouts, **`stdio_child_is_running`**, **no automatic reconnect** ([`docs/mcp-stdio-lifecycle.md`](../mcp-stdio-lifecycle.md), roadmap §6).
+- Operational rules today: line read timeouts, optional `tools/call` wall timeouts, **`stdio_child_is_running`**, **no automatic reconnect** ([`docs/ops/mcp-stdio-lifecycle.md`](../mcp-stdio-lifecycle.md), roadmap §6).
 - Users still see opaque failures when the child has exited but the session object remains in a registry.
 
 ## Decision (current product behavior)

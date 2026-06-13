@@ -96,7 +96,7 @@ export function HomeHeroComposer({
 
   return (
     <div className="dw-hero-composer">
-      <div className="dw-hero-composer__card">
+      <div className="dw-hero-composer__card glass-panel">
         <textarea
           className="dw-hero-composer__textarea"
           placeholder={t("home.hero.placeholder")}
@@ -144,7 +144,7 @@ export function HomeHeroComposer({
               aria-label={t("home.hero.send")}
               onClick={() => start.mutate()}
             >
-              <Icon name="arrow_upward" size={20} className="text-on-primary" />
+              <Icon name="arrow_upward" size={20} />
             </button>
           </div>
         </div>

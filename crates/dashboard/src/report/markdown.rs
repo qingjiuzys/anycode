@@ -313,7 +313,7 @@ fn format_time_short(raw: &str) -> String {
 mod tests {
     use super::*;
     use crate::report::locale::Lang;
-    use crate::schema::{ReportArtifactRow, ReportHighlights, ReportSourceCounts, ReportSummary};
+    use crate::schema::{ReportHighlights, ReportSourceCounts, ReportSummary};
 
     fn minimal_snap() -> ReportSnapshot {
         ReportSnapshot {

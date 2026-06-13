@@ -1,7 +1,6 @@
 //! Persist text reference uploads for web-chat stdin protocol.
 
 use anyhow::{bail, Result};
-use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;

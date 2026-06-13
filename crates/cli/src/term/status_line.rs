@@ -259,7 +259,15 @@ mod tests {
     fn payload_serializes_keys() {
         let session = SessionConfig::default();
         let v = build_status_line_payload(
-            "0.2.0", "sid", "/a", "/a", "glm-5", &session, "z.ai", 1000, None,
+            anycode_core::VERSION,
+            "sid",
+            "/a",
+            "/a",
+            "glm-5",
+            &session,
+            "z.ai",
+            1000,
+            None,
         )
         .unwrap();
         let s = String::from_utf8(v).unwrap();
@@ -277,7 +285,7 @@ mod tests {
             cache_read_tokens: None,
         };
         let v = build_status_line_payload(
-            "0.2.0",
+            anycode_core::VERSION,
             "sid",
             "/proj",
             "/proj",

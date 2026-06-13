@@ -1,6 +1,8 @@
 import ReactECharts from "echarts-for-react";
 import type { ProjectSummary } from "@/api/types";
+import { useSkin } from "@/hooks/useSkin";
 import { useT } from "@/i18n/context";
+import { chartPalette } from "@/lib/chartTheme";
 
 interface Props {
   projects: ProjectSummary[];
@@ -8,6 +10,8 @@ interface Props {
 
 export function MetricsChart({ projects, tall }: Props & { tall?: boolean }) {
   const t = useT();
+  const { skin } = useSkin();
+  const palette = chartPalette();
   const names = projects.map((p) => p.name);
   const sessions = projects.map((p) => p.sessions_count);
   const trust = projects.map((p) =>
@@ -19,25 +23,29 @@ export function MetricsChart({ projects, tall }: Props & { tall?: boolean }) {
     tooltip: { trigger: "axis" },
     legend: {
       data: [t("charts.sessionCount"), t("charts.trustScore")],
-      textStyle: { color: "#505f76" },
+      textStyle: { color: palette.secondary },
     },
     grid: { left: 44, right: 16, top: 44, bottom: tall ? 56 : 36 },
     xAxis: {
       type: "category",
       data: names,
-      axisLabel: { color: "#737686", fontSize: 10, rotate: tall && names.length > 4 ? 24 : 0 },
+      axisLabel: {
+        color: palette.outline,
+        fontSize: 10,
+        rotate: tall && names.length > 4 ? 24 : 0,
+      },
     },
     yAxis: [
       {
         type: "value",
         name: t("charts.sessions"),
-        axisLabel: { color: "#737686" },
+        axisLabel: { color: palette.outline },
       },
       {
         type: "value",
         name: t("charts.trustPct"),
         max: 100,
-        axisLabel: { color: "#737686" },
+        axisLabel: { color: palette.outline },
       },
     ],
     series: [
@@ -45,14 +53,14 @@ export function MetricsChart({ projects, tall }: Props & { tall?: boolean }) {
         name: t("charts.sessionCount"),
         type: "bar",
         data: sessions,
-        itemStyle: { color: "#2563eb", borderRadius: [2, 2, 0, 0] },
+        itemStyle: { color: palette.primary, borderRadius: [2, 2, 0, 0] },
       },
       {
         name: t("charts.trustScore"),
         type: "line",
         yAxisIndex: 1,
         data: trust,
-        itemStyle: { color: "#16a34a" },
+        itemStyle: { color: palette.success },
         lineStyle: { width: 2 },
       },
     ],
@@ -60,7 +68,11 @@ export function MetricsChart({ projects, tall }: Props & { tall?: boolean }) {
 
   return (
     <div className={tall ? "h-52 sm:h-56" : "h-48"}>
-      <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
+      <ReactECharts
+        key={skin}
+        option={option}
+        style={{ height: "100%", width: "100%" }}
+      />
     </div>
   );
 }

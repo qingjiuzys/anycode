@@ -18,7 +18,8 @@ The goal is to turn anycode from a locally observable agent CLI into a productio
 ## Non-goals
 
 - No marketing cloud, CDP, customer segmentation, or enterprise campaign journey features.
-- No SSO/OIDC, RBAC enforcement, multi-tenant server mode, or Tauri desktop shell in this slice.
+- No SSO/OIDC, RBAC enforcement, or multi-tenant server mode in this slice.
+- macOS Tauri desktop v0.1 (dashboard sidecar only) is shipped; it does not replace CLI runtime wiring.
 - No connector write-back until OAuth/write threat modeling is done.
 - No replacement for the current workflow/task/runtime paths.
 
@@ -26,7 +27,7 @@ The goal is to turn anycode from a locally observable agent CLI into a productio
 
 | Milestone | Outcome | Primary files |
 |-----------|---------|---------------|
-| M0 — Roadmap | Add this Tier 1.5 roadmap and keep English/Chinese planning docs aligned. | `docs/digital-workbench-next-steps*.md` |
+| M0 — Roadmap | Add this Tier 1.5 roadmap and keep English/Chinese planning docs aligned. | `docs/workbench/digital-workbench-next-steps*.md` |
 | M1 — Execution trace | Emit structured trace events for tasks, turns, LLM calls, tool calls, gates, budgets, and task end states. | `crates/core`, `crates/agent/src/runtime`, `crates/dashboard` |
 | M2 — Runtime budget | Enforce task-level token/cost/duration budgets with warning, degradation, and hard-stop states. | `crates/agent/src/runtime`, `crates/cli`, `crates/dashboard` |
 | M3 — Trajectory eval | Extend mock eval to assert tool paths, repeated calls, forbidden tools, gates, and budget outcomes. | `crates/cli/src/commands/eval_mock.rs`, `scripts/eval` |

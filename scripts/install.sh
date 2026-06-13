@@ -105,7 +105,7 @@ usage() {
 Usage: install.sh [options]
 
   --repo OWNER/REPO     GitHub repository (default: $ANYCODE_GITHUB_REPO; canonical: qingjiuzys/anycode)
-  --version TAG         Release tag: v0.1.0, 0.1.0, or latest (default: latest or $ANYCODE_VERSION)
+  --version TAG         Release tag: v0.2.0, 0.2.0, or latest (default: latest or $ANYCODE_VERSION)
   --bin-dir DIR         Install directory for `anycode` (default: $ANYCODE_INSTALL_BIN, else first writable PATH dir, else $HOME/.local/bin)
   --method MODE         binary | auto | source (default: binary)
                          binary: only install GitHub Release tarball (no cargo fallback)

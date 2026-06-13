@@ -31,9 +31,11 @@ Returns SSE events while the shell command runs: `line` chunks then `done` with 
 
 ## Not implemented (Tier 2+)
 
-- Tauri desktop shell · browser visual gates · SSO/RBAC
+- Browser visual gates · SSO/RBAC · Connector OAuth/write-back
 
-See [digital-workbench-permissions.md](digital-workbench-permissions.md) and [digital-workbench-next-steps.md](digital-workbench-next-steps.md).
+**Shipped separately:** macOS Tauri desktop v0.1 (`apps/anycode-desktop`) wraps embedded Workbench via dashboard sidecar — not a second runtime.
+
+See [digital-workbench-permissions.md](digital-workbench-permissions.md) and [digital-workbench-next-steps.md](../workbench/digital-workbench-next-steps.md).
 
 ## Web tool approval (V3 Week 8)
 

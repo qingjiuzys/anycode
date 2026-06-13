@@ -40,7 +40,7 @@ pub async fn fetch_github_issues(
     }
     let url = format!("https://api.github.com/repos/{repo}/issues?state=open&per_page=20");
     let client = reqwest::Client::builder()
-        .user_agent("anycode-dashboard/1.0")
+        .user_agent(anycode_core::user_agent("anycode-dashboard"))
         .build()
         .context("http client")?;
     let mut req = client

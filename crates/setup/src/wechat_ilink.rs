@@ -70,7 +70,7 @@ fn validate_account_id(id: &str) -> anyhow::Result<()> {
 
 pub async fn fetch_wechat_qr() -> anyhow::Result<WechatQrPayload> {
     let client = reqwest::Client::builder()
-        .user_agent("anycode-wechat-ilink/0.1")
+        .user_agent(anycode_core::user_agent("anycode-wechat-ilink"))
         .timeout(Duration::from_secs(30))
         .build()?;
     let base = ilink_base();
@@ -102,7 +102,7 @@ pub async fn fetch_wechat_qr() -> anyhow::Result<WechatQrPayload> {
 
 pub async fn poll_wechat_qr_status(qrcode_id: &str) -> anyhow::Result<WechatQrPollResult> {
     let client = reqwest::Client::builder()
-        .user_agent("anycode-wechat-ilink/0.1")
+        .user_agent(anycode_core::user_agent("anycode-wechat-ilink"))
         .timeout(Duration::from_secs(60))
         .build()?;
     let base = ilink_base();

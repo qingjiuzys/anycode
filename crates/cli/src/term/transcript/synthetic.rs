@@ -1,4 +1,4 @@
-//! Synthetic transcript fixtures for terminal load-model measurements (see docs/terminal-load-model.md).
+//! Synthetic transcript fixtures for terminal load-model measurements (see docs/ops/terminal-load-model.md).
 
 use super::types::TranscriptEntry;
 

@@ -6,7 +6,7 @@ Status: **Proposed** (2026-04). **Update 2026-04-20:** Slices **(1)** task-local
 
 - In-process hosts already implement **`AskUserQuestion`** (TUI, stream REPL, etc.).
 - IM channels (WeChat, Telegram, Discord) need structured choices without elevating a **public** trait before a second real host exists.
-- Spike: [`docs/channel-ask-user-question-spike.md`](../channel-ask-user-question-spike.md).
+- Spike: [`docs/ops/channel-ask-user-question-spike.md`](../ops/channel-ask-user-question-spike.md).
 
 ## Implementation slices (ordered)
 

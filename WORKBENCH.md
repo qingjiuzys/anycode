@@ -12,16 +12,16 @@ anycode dashboard --open
 
 ## Ship checklist
 
-See **[docs/digital-workbench-STATUS.md](docs/digital-workbench-STATUS.md)** (one page). Historical control-plane closure: **[docs/archive/workbench/digital-workbench-closure-report.md](docs/archive/workbench/digital-workbench-closure-report.md)**.
+See **[docs/workbench/digital-workbench-STATUS.md](docs/workbench/digital-workbench-STATUS.md)** (one page). Historical control-plane closure: **[docs/archive/workbench/digital-workbench-closure-report.md](docs/archive/workbench/digital-workbench-closure-report.md)**.
 
 ## Plan next (Tier 2+)
 
 | Language | Document |
 |----------|----------|
-| 中文 | **[docs/digital-workbench-next-steps-zh.md](docs/digital-workbench-next-steps-zh.md)** |
-| English | [docs/digital-workbench-next-steps.md](docs/digital-workbench-next-steps.md) |
+| 中文 | **[docs/workbench/digital-workbench-next-steps-zh.md](docs/workbench/digital-workbench-next-steps-zh.md)** |
+| English | [docs/workbench/digital-workbench-next-steps.md](docs/workbench/digital-workbench-next-steps.md) |
 
-Also: [STATUS](docs/digital-workbench-STATUS.md) · [control plane](docs/digital-workbench-control-plane.md) · [deploy](docs/digital-workbench-deploy-production.md) · [API](docs/digital-workbench-api.md) · [production convergence log](docs/production-convergence-log.md)
+Also: [STATUS](docs/workbench/digital-workbench-STATUS.md) · [control plane](docs/workbench/digital-workbench-control-plane.md) · [deploy](docs/workbench/digital-workbench-deploy-production.md) · [API](docs/workbench/digital-workbench-api.md) · [production convergence log](docs/archive/sprints/production-convergence-log.md)
 
 ## Code
 

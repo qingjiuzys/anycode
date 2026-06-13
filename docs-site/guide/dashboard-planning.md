@@ -36,11 +36,11 @@ anycode dashboard --open
 
 | Document | Purpose |
 |----------|---------|
-| [digital-workbench-next-steps.md](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-next-steps.md) | **Start here** — V3 tiers + sample 4-week plan |
+| [digital-workbench-next-steps.md](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps.md) | **Start here** — V3 tiers + sample 4-week plan |
 | [digital-workbench-handoff.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-handoff.md) | Full handoff |
 | [digital-workbench-v2-complete.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-v2-complete.md) | V2 checklist |
 | [digital-workbench-v1-mvp.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-v1-mvp.md) | V1 UX acceptance |
-| [digital-workbench-api.md](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-api.md) | API contract |
+| [digital-workbench-api.md](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-api.md) | API contract |
 
 User guide: [Digital Workbench](./dashboard.md).
 
@@ -73,4 +73,4 @@ User guide: [Digital Workbench](./dashboard.md).
 3. **Connectors?** GitHub read-only enough, or Linear/Slack blocking?
 4. **Control?** Observation-only vs approved actions from Web
 
-Answer these → open issues from the Tier 1 list in [next-steps](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-next-steps.md).
+Answer these → open issues from the Tier 1 list in [next-steps](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps.md).

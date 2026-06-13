@@ -1,5 +1,7 @@
 //! Download whisper.cpp ggml weights into `~/.anycode/models/whisper/`.
 
+#![cfg_attr(not(feature = "stt-local"), allow(dead_code))]
+
 use crate::model_cache::whisper_model_path;
 use anycode_core::CoreError;
 use std::path::{Path, PathBuf};

@@ -78,11 +78,11 @@ fn parse_skill_hint_ids(body: &str) -> Vec<String> {
     };
     list.split(',')
         .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty() && SkillCatalogish::is_valid(s))
+        .filter(|s| !s.is_empty() && skill_catalogish::is_valid(s))
         .collect()
 }
 
-mod SkillCatalogish {
+mod skill_catalogish {
     pub fn is_valid(id: &str) -> bool {
         !id.is_empty()
             && id.len() <= 64

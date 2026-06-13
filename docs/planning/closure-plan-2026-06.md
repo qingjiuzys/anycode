@@ -2,16 +2,16 @@
 
 **目的：** 在 WorkBuddy 对标 Phase 1–3 已基本落地的前提下，用 **可验收的波次** 收掉剩余 Partial / 未验项，把「大套件」推到 **可对外宣称 MVP+ 闭环** 的状态，再进入 Tier 2（Connector 写回 / SSO）讨论。
 
-**边界（本规划内不做）：** 飞书/钉钉/企微/QQ、腾讯 Credits/文档 OAuth、Gateway/云 relay、多机集群、SSO/RBAC、Connector 写回。见 [workbuddy-comparison-2026-06.md](workbuddy-comparison-2026-06.md)「明确不做」。
+**边界（本规划内不做）：** 飞书/钉钉/企微/QQ、腾讯 Credits/文档 OAuth、Gateway/云 relay、多机集群、SSO/RBAC、Connector 写回。见 [workbuddy-comparison-2026-06.md](../comparisons/workbuddy-comparison-2026-06.md)「明确不做」。
 
 **关联 SSOT：**
 
 | 文档 | 角色 |
 |------|------|
-| [workbuddy-comparison-2026-06.md](workbuddy-comparison-2026-06.md) | WorkBuddy 七域差距矩阵 |
+| [workbuddy-comparison-2026-06.md](../comparisons/workbuddy-comparison-2026-06.md) | WorkBuddy 七域差距矩阵 |
 | [production-harness-hardening.md](production-harness-hardening.md) | Harness M0–M8 技术里程碑 |
-| [roadmap.md](roadmap.md) | 维护者 backlog 索引 |
-| [digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md) | Workbench Tier 1.5–3 |
+| [roadmap.md](../roadmap.md) | 维护者 backlog 索引 |
+| [digital-workbench-next-steps-zh.md](../workbench/digital-workbench-next-steps-zh.md) | Workbench Tier 1.5–3 |
 
 ---
 
@@ -121,8 +121,8 @@ cargo test -p anycode-dashboard --test fixture_api
 
 | 任务 | 交付 |
 |------|------|
-| 更新 [workbuddy-comparison-2026-06.md](workbuddy-comparison-2026-06.md) | 收口状态、G1/G9 结论 |
-| 更新 [roadmap.md](roadmap.md) §2 最近已交付 | 收口摘要 + 链到本文 |
+| 更新 [workbuddy-comparison-2026-06.md](../comparisons/workbuddy-comparison-2026-06.md) | 收口状态、G1/G9 结论 |
+| 更新 [roadmap.md](../roadmap.md) §2 最近已交付 | 收口摘要 + 链到本文 |
 | CHANGELOG | 用户可见特性与 breaking（若有） |
 | Release | `cargo build --release -p anycode`；tag 可选 |
 

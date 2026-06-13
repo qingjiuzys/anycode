@@ -57,7 +57,7 @@ pub async fn bootstrap_summary(
         sessions_total: stats.sessions_total,
         next_steps,
         workbench_phase: "v3_week10".into(),
-        planning_doc: "docs/digital-workbench-next-steps-zh.md".into(),
+        planning_doc: "docs/workbench/digital-workbench-next-steps-zh.md".into(),
         workspace_registered,
         generated_at: chrono::Utc::now().to_rfc3339(),
     })

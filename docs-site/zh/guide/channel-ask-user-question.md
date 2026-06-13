@@ -23,4 +23,4 @@ read_when:
 ## 维护者引用
 
 - [ADR 008](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/008-channel-ask-user-question-phasing.md) — 分阶段与范围  
-- [Spike 草案](https://github.com/qingjiuzys/anycode/blob/main/docs/channel-ask-user-question-spike.md)  
+- [Spike 草案](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/channel-ask-user-question-spike.md)  

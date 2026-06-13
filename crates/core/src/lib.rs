@@ -79,6 +79,15 @@ pub use workflow::{
     WorkflowStep,
 };
 
+/// Workspace product version (from root `Cargo.toml` via `CARGO_PKG_VERSION`).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// HTTP User-Agent string for a named anyCode component.
+#[must_use]
+pub fn user_agent(component: &str) -> String {
+    format!("{component}/{VERSION}")
+}
+
 pub mod prelude {
     pub use super::anyhow_error_is_cooperative_cancel;
     pub use super::CoreError;

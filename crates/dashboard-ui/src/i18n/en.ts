@@ -1440,6 +1440,14 @@ export const en = {
       densityHint: "Table spacing and information density (stored locally in this browser).",
       assetHint: "In strict mode, unverified external paths are flagged more aggressively on asset reads.",
     },
+    skin: {
+      title: "Appearance skin",
+      hint: "Pick an accent color; works independently from light/dark mode.",
+      mono: "Monochrome · black & white",
+      indigo: "Electric indigo",
+      coral: "Warm coral",
+      teal: "Teal cyan",
+    },
     assetsRedirect: {
       title: "Asset read policy",
       hint: "Strict mode and policy details moved to Preferences, saved together with report settings.",

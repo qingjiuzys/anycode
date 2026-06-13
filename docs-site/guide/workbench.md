@@ -30,7 +30,7 @@ Default URL: `http://127.0.0.1:43180`
 
 - **Web chat:** attach images in project conversations (requires a vision-capable model).
 - **Channels:** WeChat, Telegram, and Discord accept images; Telegram/Discord voice messages are transcribed when `models.speech.stt` is configured.
-- See [run-flow.md](https://github.com/qingjiuzys/anycode/blob/main/docs/run-flow.md) in the repo.
+- See [run-flow.md](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/run-flow.md) in the repo.
 
 ## Project knowledge
 

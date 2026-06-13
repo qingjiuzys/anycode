@@ -25,7 +25,7 @@ read_when:
 | 无 TTY、微信扫码、MCP | [排错](./troubleshooting) |
 | 微信桥与 `setup` | [微信与 setup](./wechat) |
 | 本地项目看板（会话、门禁、资产） | [数字工作台](./dashboard) |
-| 工作台已完成 + **V3 规划** | [工作台规划 (V3)](./dashboard-planning) · 仓库 [`digital-workbench-STATUS.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/digital-workbench-STATUS.md) |
+| 工作台已完成 + **V3 规划** | [工作台规划 (V3)](./dashboard-planning) · 仓库 [`digital-workbench-STATUS.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-STATUS.md) |
 | 贡献、测试、工具注册门禁 | [开发与贡献](./development) |
 | 维护者 backlog（now / next / later） | 仓库 [`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md) · [跳转说明](./implementation-checklist) |
 | MVP、工具矩阵、后续里程碑 | [路线图](./roadmap) |

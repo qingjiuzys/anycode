@@ -40,9 +40,9 @@
 - **Cron / 微信**：`scheduler.lock`；桥内嵌调度器；`CronCreate` 本地墙钟→UTC；**先推送微信再跑 agent**（`cron_notify`）；`weekday *` 避免一次性任务永不触发。  
 - **微信 UX**：不再向会话推送 `🔧`/`✓` 工具进度行。  
 - **会话与 CLI**：协作取消、流式 REPL 模块化、**Telegram `AskUserQuestion`**（`tg_ask`）、MCP stdio 超时 + **`mcp_stdio_dead`**、会话通知、HUD/`/context`/`/export`/`/cost` 等。  
-- **OpenClaw 对标**：本地已拉至 **2026.5.19** 线（`ddeaebfc`）；见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)、[`weixin-plugin-parity.md`](weixin-plugin-parity.md)。  
+- **OpenClaw 对标**：本地已拉至 **2026.5.19** 线（`ddeaebfc`）；见 [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md)、[`weixin-plugin-parity.md`](comparisons/weixin-plugin-parity.md)。  
 - **5.19 小步**：stream→chat 不重复 assistant；DeepSeek `anyOf` schema 规范化；pipeline 向量/嵌入降级 WARN；`cron-runs.jsonl` + `CronCreate` 校验；流式 REPL resize tick 顺序；`WebFetch` 私网主机 + 重定向跳数上限；provider kebab 别名补全（`zhipu-ai` 等）；微信出站 `send_text` 重试。  
-- **Digital Workbench V1+V2**：`anycode dashboard` 本地 WebUI（SQLite 录制、信任门禁、embedded-ui、V2 观测/GitHub POC/Gate Runner）。**已完成** — 规划见 [`digital-workbench-STATUS.md`](digital-workbench-STATUS.md)、[`digital-workbench-next-steps-zh.md`](digital-workbench-next-steps-zh.md)。
+- **Digital Workbench V1+V2**：`anycode dashboard` 本地 WebUI（SQLite 录制、信任门禁、embedded-ui、V2 观测/GitHub POC/Gate Runner）。**已完成** — 规划见 [`digital-workbench-STATUS.md`](workbench/digital-workbench-STATUS.md)、[`digital-workbench-next-steps-zh.md`](workbench/digital-workbench-next-steps-zh.md)。
 
 ---
 
@@ -59,9 +59,40 @@
 
 ---
 
+## 3.5 anyCode **0.3** 迭代范围（2026-06 对标更新）
+
+**对标基线**（2026-06-13）：OpenClaw 本地 `ddeaebfc`（5.19 线），远端 `origin/main` 已前进至 `7190fc4`（fetch 待网络恢复后补全）；Claude TS 归档 `936e6c8`（远端 `d229a9b`）；claude-code-rust `4b87a363`。详见 [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md) 增量 §2026-06-13、[`claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md)。
+
+**原则**：不搬 OpenClaw Gateway/Codex 托管或 Claude Ink/swarm 栈；0.3 聚焦**生产诊断、工具审计、MCP/Cron 运维、终端可观测、通道可靠性**。与 §4 Epic A–G 对齐，下列为 **0.3 首批交付包**（Next ≤6）。
+
+| 包 | 映射 Epic | 主题 | 完成定义（简） |
+|----|-----------|------|----------------|
+| **0.3-A** | A | **Eval / Release Gate** | `anycode eval` 最小 fixture repo + mock LLM；approval-denial / no-fake-progress 负向场景；工具覆盖摘要；[`release-readiness-2026-05.md`](planning/release-readiness-2026-05.md) gate 条目可勾选 |
+| **0.3-B** | B | **Tool Governance** | `~/.anycode/logs/tool-calls.jsonl` + dashboard ingest；权限规则写入校验（借鉴 Claude `permissionValidation`）；WebFetch/MCP/Bash 审计一行摘要 |
+| **0.3-C** | D | **MCP Doctor** | `anycode doctor mcp` / `mcp status`：stdio 存活、工具数、最近错误、env 丢弃项；**不**默认自动重连（ADR 007） |
+| **0.3-D** | E | **Cron Ops** | `anycode doctor cron`；`cron runs` 字段对齐 OpenClaw run log；**stable cron session** 关联 task；failure destination（微信/日志）；per-job tool profile 设计稿 |
+| **0.3-E** | G | **Terminal / Session UX** | HUD/status 与 executing 态收敛；slash + plugin 命令 autocomplete 入口；transcript search / rewind 语义预研（ADR 004/005/006 输入） |
+| **0.3-F** | F | **Channel Reliability** | `channel status` + 出站队列诊断；Telegram topic/回复上下文回归；微信 parity closure 余项；TG draft 工具进度仍 **Later** 且默认关 |
+
+### 3.5.1 执行顺序（0.3）
+
+1. **0.3-A** — 评测 harness 约束后续改动（对齐 OpenClaw QA-Lab 思路，本地 mock 即可）。
+2. **0.3-B + 0.3-C** — 工具/MCP 风险面：先审计与 doctor，再议 ADR 007 受控重连。
+3. **0.3-D** — cron stable session + failure destination（内嵌 scheduler，**Skip** Gateway ledger）。
+4. **0.3-F** — 通道队列与 topic 可靠性。
+5. **0.3-E** — 终端 UX 收束；virtual scroll 仍绑负载模型，不抢先实现。
+
+### 3.5.2 明确 Skip（0.3 不做）
+
+- OpenClaw：Gateway cron store、Webhook/TaskFlow、Codex app-server、memory-wiki/dreaming、Mac/Android 客户端。
+- Claude：Ink UI、swarm/tmux team、telemetry/MDM、claude-code-rust egui 壳。
+- anyCode：HTTP daemon（ADR 003）、跨进程后台 Agent **恢复执行**（先 diagnostic state）。
+
+---
+
 ## 4. 生产级下一阶段（2026-05 起）
 
-**2026-06 套件收口：** WorkBuddy Phase 1–3 已基本落地；剩余 Partial（微信 CDN live、Harness M1–M6、eval 负向 fixture 等）按 **[closure-plan-2026-06.md](closure-plan-2026-06.md)** 四波次收完。Exit 后再开 Tier 2 Connector/SSO 讨论。
+**2026-06 套件收口：** WorkBuddy Phase 1–3 已基本落地；剩余 Partial（微信 CDN live、Harness M1–M6、eval 负向 fixture 等）按 **[closure-plan-2026-06.md](planning/closure-plan-2026-06.md)** 四波次收完。Exit 后再开 Tier 2 Connector/SSO 讨论。
 
 **方向切换**：OpenClaw 5.19 parity 的短线修补已基本完成；下一阶段按生产级能力推进，避免继续以 provider alias / 小单测数量作为主目标。每个 Epic 的完成定义必须包含：用户场景、失败场景、targeted tests、日志/诊断入口、文档/CHANGELOG、禁用或回滚边界。
 
@@ -75,7 +106,7 @@
 | F | Channels | **IM 生产可靠性** | WeChat parity closure、Discord / WeChat AskUserQuestion、outbound queue、`channel status` |
 | G | Memory / Terminal / Ops | **上下文、终端与诊断** | evidence index、memory doctor、transcript 负载模型、error taxonomy、doctor 命令 |
 
-**2026-05 已交付**：OpenClaw 对标简报、流式 REPL resize 不变量、DeepSeek `anyOf` schema 规范化、stream→chat fallback transcript、pipeline 向量 WARN、[`cron-runs.jsonl`](cron-observability.md)、`CronCreate` 校验 + IANA 时区、WebFetch 私网/DNS/redirect 防护、provider kebab 别名、微信出站重试、cli_smoke 隔离。详见 [`openclaw-sync-brief-2026-05.md`](openclaw-sync-brief-2026-05.md)。
+**2026-05 已交付**：OpenClaw 对标简报、流式 REPL resize 不变量、DeepSeek `anyOf` schema 规范化、stream→chat fallback transcript、pipeline 向量 WARN、[`cron-runs.jsonl`](ops/cron-observability.md)、`CronCreate` 校验 + IANA 时区、WebFetch 私网/DNS/redirect 防护、provider kebab 别名、微信出站重试、cli_smoke 隔离。详见 [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md)。
 
 ### 4.1 执行顺序
 
@@ -104,7 +135,7 @@
 | 决策 | 记录 |
 |------|------|
 | **不提供 / 不恢复 HTTP `anycode daemon`** | [ADR 003](adr/003-http-daemon-deprecated.md) |
-| **MCP stdio 长驻会话不自动重连** | 子进程退出 / EOF / 超时后由用户修正命令或重启 CLI；见 [`mcp-stdio-lifecycle.md`](mcp-stdio-lifecycle.md) |
+| **MCP stdio 长驻会话不自动重连** | 子进程退出 / EOF / 超时后由用户修正命令或重启 CLI；见 [`mcp-stdio-lifecycle.md`](ops/mcp-stdio-lifecycle.md) |
 
 ---
 
@@ -116,13 +147,15 @@
 | **通道 AskUserQuestion 扩展** | Telegram 已 MVP；Discord / 微信文本回落等 | [ADR 008](adr/008-channel-ask-user-question-phasing.md) |
 | 会话 **rewind** / 撤销展示 | 与 `sessions` 快照格式兼容性 | [ADR 004](adr/004-session-rewind.md)（Proposed）— **暂缓**：无实现排期前保持 Proposed，改快照前必读。 |
 | **`/clear` vs 纯文本 transcript 缓冲** | 是否需独立于 agent messages 的视口重置 | [ADR 005](adr/005-repl-clear-vs-transcript.md)（Proposed）— **暂缓**：流式 REPL 已有 `turn_transcript_anchor` / `stream_exit_dump_anchor`，产品缺口再开。 |
-| **virtual scroll** | 见 §5 Later | [ADR 006](adr/006-transcript-virtual-scroll-rfc.md)（Proposed）— **暂缓**：与 [`term-smoothness-baseline.md`](term-smoothness-baseline.md) 负载模型挂钩后再审。 |
+| **virtual scroll** | 见 §5 Later | [ADR 006](adr/006-transcript-virtual-scroll-rfc.md)（Proposed）— **暂缓**：与 [`term-smoothness-baseline.md`](ops/term-smoothness-baseline.md) 负载模型挂钩后再审。 |
 
 ---
 
 ## 8. 相关链接
 
-- [`closure-plan-2026-06.md`](closure-plan-2026-06.md) — 2026-06 套件收口（Wave 0–4、G1–G12、Exit Criteria）
-- [`architecture.md`](architecture.md) — 维护者分层与流式/TUI 会话表  
+- [`closure-plan-2026-06.md`](planning/closure-plan-2026-06.md) — 2026-06 套件收口（Wave 0–4、G1–G12、Exit Criteria）
+- [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md) — OpenClaw 对标（含 2026-06-13 增量）
+- [`claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md) — Claude TS / claude-code-rust 参考与 0.3 映射
+- [`architecture.md`](../architecture.md) — 维护者分层与流式/TUI 会话表  
 - [`docs/README.md`](README.md) — ADR 索引与文档地图  
 - 仓库：<https://github.com/qingjiuzys/anycode>

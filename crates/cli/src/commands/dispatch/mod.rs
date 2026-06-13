@@ -75,7 +75,7 @@ pub(crate) async fn run_cli() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set tracing subscriber");
 
     if !interactive_quiet || args.debug {
-        info!("anyCode v0.2.0 starting...");
+        info!("anyCode v{} starting...", anycode_core::VERSION);
         info!("anyCode CLI ready");
     }
 

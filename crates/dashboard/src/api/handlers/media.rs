@@ -6,7 +6,6 @@ use anycode_llm::{
     media::{MediaClientRegistry, SttClient},
 };
 use axum::extract::Multipart;
-use futures::StreamExt;
 
 const MAX_AUDIO_BYTES: usize = 10 * 1024 * 1024;
 

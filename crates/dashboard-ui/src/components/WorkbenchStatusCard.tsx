@@ -31,9 +31,9 @@ export function WorkbenchStatusCard({ bootstrap }: { bootstrap?: BootstrapSummar
       </p>
       <p className="text-sm text-secondary m-0 mb-2">{t("home.workbenchStatusBody")}</p>
       <ul className="m-0 pl-5 text-sm space-y-1 font-code text-secondary">
-        <li>docs/digital-workbench-STATUS.md</li>
+        <li>docs/workbench/digital-workbench-STATUS.md</li>
         <li>{bootstrap.planning_doc}</li>
-        <li>docs/digital-workbench-deploy-production.md</li>
+        <li>docs/workbench/digital-workbench-deploy-production.md</li>
       </ul>
     </SectionCard>
   );

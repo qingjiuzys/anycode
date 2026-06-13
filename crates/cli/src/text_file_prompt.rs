@@ -1,6 +1,6 @@
 //! Dashboard / pipe REPL text-file injection (`@anycode/text-file:` line protocol).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub const TEXT_FILE_LINE_PREFIX: &str = "@anycode/text-file:";
 

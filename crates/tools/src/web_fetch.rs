@@ -232,7 +232,7 @@ impl Tool for WebFetchTool {
         }
 
         let client = reqwest::Client::builder()
-            .user_agent("anycode-tools/0.1")
+            .user_agent(anycode_core::user_agent("anycode-tools"))
             .redirect(Policy::none())
             .build()
             .map_err(|e| CoreError::Other(anyhow::anyhow!("http client: {}", e)))?;

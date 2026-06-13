@@ -1,6 +1,6 @@
 # Digital Workbench — 下一步规划
 
-**当前位置：** V1 MVP + V2 + **V3 Week 1–10** 已完成。下一步建议先做 **[Production Harness Hardening](production-harness-hardening.md)**：在进入 Connector 写回、SSO/RBAC 或桌面壳之前，补齐执行轨迹、运行时预算、轨迹评估、工具/MCP 治理、声明式 workflow 校验与记忆治理。
+**当前位置：** V1 MVP + V2 + **V3 Week 1–10** 已完成。下一步建议先做 **[Production Harness Hardening](../planning/production-harness-hardening.md)**：在进入 Connector 写回、SSO/RBAC 或桌面壳之前，补齐执行轨迹、运行时预算、轨迹评估、工具/MCP 治理、声明式 workflow 校验与记忆治理。
 
 ## 已有能力
 
@@ -34,12 +34,12 @@ anycode dashboard --open
 
 | 文档 | 用途 |
 |------|------|
-| [`archive/workbench/digital-workbench-closure-report.md`](archive/workbench/digital-workbench-closure-report.md) | Control-plane closure summary |
+| [`archive/workbench/digital-workbench-closure-report.md`](../archive/workbench/digital-workbench-closure-report.md) | Control-plane closure summary |
 | [`digital-workbench-STATUS.md`](digital-workbench-STATUS.md) | 一页状态 |
 | [`digital-workbench-control-plane.md`](digital-workbench-control-plane.md) | 控制面行为说明 |
 | [`digital-workbench-deploy-production.md`](digital-workbench-deploy-production.md) | 生产部署 |
 | [`digital-workbench-api.md`](digital-workbench-api.md) | API 合约 |
-| [`production-harness-hardening.md`](production-harness-hardening.md) | Tier 1.5 生产级 Harness 加固路线 |
+| [`production-harness-hardening.md`](../planning/production-harness-hardening.md) | Tier 1.5 生产级 Harness 加固路线 |
 
 ---
 
