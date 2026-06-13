@@ -52,12 +52,15 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: Import signing certificate (optional)
-        if: secrets.APPLE_CERTIFICATE_BASE64 != ''
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
           set -euo pipefail
+          if [[ -z "${APPLE_CERTIFICATE_BASE64:-}" ]]; then
+            echo "Skipping Apple signing import (APPLE_CERTIFICATE_BASE64 not set)"
+            exit 0
+          fi
           CERT_PATH="$RUNNER_TEMP/apple-signing.p12"
           echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
           security create-keychain -p "" build.keychain

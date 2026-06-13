@@ -50,7 +50,9 @@ jobs:
         run: ./scripts/build-dashboard-ui.sh
 
       - name: cargo build
-        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build -p anycode --release --features embedded-ui,knowledge-embeddings --target ${{ matrix.target }}
+        env:
+          ANYCODE_BUILD_DASHBOARD_UI: "1"
+        run: cargo build -p anycode --release --features embedded-ui,knowledge-embeddings --target ${{ matrix.target }}
 
       - name: Package tarball (unix)
         if: runner.os != 'Windows'
