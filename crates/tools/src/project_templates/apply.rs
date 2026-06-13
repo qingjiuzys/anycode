@@ -113,7 +113,13 @@ fn apply_flutter_app(
     if template_dir.join("overlay").is_dir() {
         copy_tree(&template_dir.join("overlay"), target, vars)?;
     }
-    if template_dir.join(".anycode").is_dir() {
+    if template_dir.join("skills").is_dir() {
+        copy_tree(
+            &template_dir.join("skills"),
+            &target.join(".anycode/skills"),
+            vars,
+        )?;
+    } else if template_dir.join(".anycode").is_dir() {
         copy_tree(
             &template_dir.join(".anycode"),
             &target.join(".anycode"),
