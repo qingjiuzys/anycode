@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- **Release packaging**: GitHub Release on tag ships **macOS `.dmg` only**; standalone Linux/Windows CLI tarballs/zips are no longer attached automatically (`release-binaries.yml` is manual `workflow_dispatch` only). Non-macOS installs: `cargo install` or build from source.
+
+## 0.2.3
+
+### Fixed
+
+- **Desktop release CI**: skip Apple notarization when `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` secrets are unset (empty env no longer triggers `Team ID must be at least 3 characters`).
+
 ## 0.2.2
 
 ### Changed

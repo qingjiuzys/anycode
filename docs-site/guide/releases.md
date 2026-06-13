@@ -11,7 +11,7 @@ read_when:
 
 ## 0.2.2 (workspace)
 
-- **Release packaging**: macOS ships **`anyCode_<version>_aarch64.dmg` only** (CLI bundled inside the app). Linux/Windows keep standalone CLI tarballs/zips via `release-binaries.yml`.
+- **Release packaging**: macOS ships **`anyCode_<version>_aarch64.dmg` only** (CLI bundled inside the app). Standalone Linux/Windows CLI tarballs are no longer attached on tag (see Unreleased in CHANGELOG); use `cargo install` or build from source.
 - **Desktop CI**: ad-hoc codesign when no Apple Developer ID secrets; tag-triggered desktop release runs macOS only.
 
 ## 0.2.0 (workspace)
@@ -27,7 +27,7 @@ read_when:
 ## Versioning
 
 - **Library / CLI version** follows the workspace `version` in the root `Cargo.toml`.
-- **GitHub Releases**: tag and attach platform CLI binaries for **Linux and Windows** when distributing outside `cargo install`. **macOS** ships the **Tauri desktop `.dmg` only** — the CLI is bundled inside `anyCode.app` at `Contents/Resources/resources/bin/anycode` (see [Digital Workbench — Desktop app](./dashboard#desktop-app-macos)). macOS CLI tarballs are no longer published separately.
+- **GitHub Releases**: tag push attaches **macOS Tauri `.dmg` only** — CLI is bundled inside `anyCode.app` at `Contents/Resources/resources/bin/anycode` (see [Digital Workbench — Desktop app](./dashboard#desktop-app-macos)). **Linux / Windows** are not published as release tarballs; install via `cargo install` or from source (`scripts/install.sh --method source`).
 - **Docs site** (VitePress under `docs-site/`): deploy to GitHub Pages with `VITEPRESS_BASE=/your-repo/` when using project pages.
 
 ## Runtime feature flags {#runtime-feature-flags}

@@ -1,5 +1,5 @@
 # macOS desktop bundle (Tauri) — tag push uploads DMG only.
-# Linux/Windows desktop jobs run on workflow_dispatch only (CLI tarballs ship via release-binaries.yml).
+# Linux/Windows desktop jobs run on workflow_dispatch only (CLI tarballs no longer auto-ship on tag).
 #
 # Optional signing/notarization (requires repository secrets):
 #   APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD,

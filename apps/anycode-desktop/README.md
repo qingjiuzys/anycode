@@ -89,7 +89,7 @@ Other models (Whisper, FastEmbed, Piper voices) are **not** bundled at build tim
 
 ## GitHub Release
 
-On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the **macOS DMG** and attaches it to the GitHub Release. **Linux/Windows CLI** tarballs/zips ship via [`release-binaries.yml`](../../.github/workflows/release-binaries.yml) — macOS CLI tarballs are not published separately.
+On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the **macOS DMG** and attaches it to the GitHub Release. **Linux/Windows CLI** tarballs are not published on tag; use `cargo install` / build from source, or run [`release-binaries.yml`](../../.github/workflows/release-binaries.yml) manually if needed.
 
 Download: **GitHub → Releases → Assets → `anyCode_*_aarch64.dmg`** (Apple Silicon, CLI bundled inside).
 

@@ -100,8 +100,7 @@ Release 页面：<https://github.com/qingjiuzys/anycode/releases>
 | 平台 | GitHub Release 资产 |
 |------|---------------------|
 | macOS（Apple Silicon） | `anyCode_<version>_aarch64.dmg`（CLI 已内置） |
-| Linux x86_64 / arm64 | `anycode-<target>.tar.gz` |
-| Windows x86_64 / arm64 | `anycode-<target>.zip` |
+| Linux / Windows | Release 页不再附带 CLI 包 — 请用 `cargo install --git … --tag vX.Y.Z` 或 `./scripts/install.sh --method source` |
 
 本地构建 macOS 桌面：`./scripts/build-desktop-release.sh`。
 
