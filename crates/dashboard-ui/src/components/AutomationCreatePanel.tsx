@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { useT } from "@/i18n/context";
 
 const TIMEZONES = [
@@ -76,7 +77,6 @@ function AutomationCreateForm({
 
   return (
     <>
-      <p className="text-sm text-secondary m-0 mb-4">{t("automations.createHint")}</p>
       {(templates.data?.templates ?? []).length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
           {(templates.data?.templates ?? []).map((tpl) => {
@@ -136,7 +136,7 @@ function AutomationCreateForm({
       />
       <label className="block text-xs text-secondary mb-1">{t("automations.jobProject")}</label>
       <select
-        className="dw-input w-full mb-3"
+        className="dw-input w-full mb-4"
         value={projectId}
         onChange={(e) => setProjectId(e.target.value)}
       >
@@ -147,17 +147,8 @@ function AutomationCreateForm({
           </option>
         ))}
       </select>
-      <button
-        type="button"
-        className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs text-secondary hover:text-primary cursor-pointer mb-3"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        aria-expanded={advancedOpen}
-      >
-        <Icon name={advancedOpen ? "expand_less" : "expand_more"} size={16} />
-        {advancedOpen ? t("automations.hideAdvanced") : t("automations.showAdvanced")}
-      </button>
       {advancedOpen && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-xs text-secondary mb-1">{t("automations.schedule")}</label>
             <input
@@ -214,15 +205,26 @@ function AutomationCreateForm({
           </div>
         </div>
       )}
-      <button
-        type="button"
-        className="dw-btn-primary"
-        disabled={!command.trim() || create.isPending}
-        onClick={() => create.mutate()}
-      >
-        {create.isPending ? "…" : t("automations.createBtn")}
-      </button>
-      {msg && <p className="text-sm text-secondary mt-2 m-0">{msg}</p>}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-xs text-secondary hover:text-primary cursor-pointer"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={advancedOpen}
+        >
+          <Icon name={advancedOpen ? "expand_less" : "expand_more"} size={16} />
+          {advancedOpen ? t("automations.hideAdvanced") : t("automations.showAdvanced")}
+        </button>
+        <button
+          type="button"
+          className="dw-btn-primary shrink-0"
+          disabled={!command.trim() || create.isPending}
+          onClick={() => create.mutate()}
+        >
+          {create.isPending ? "…" : t("automations.createBtn")}
+        </button>
+      </div>
+      {msg && <p className="text-sm text-secondary mt-3 m-0">{msg}</p>}
     </>
   );
 }
@@ -267,15 +269,10 @@ export function AutomationCreateDialog({
   const t = useT();
   if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/25 p-4"
-      role="dialog"
-      aria-modal
-      aria-labelledby="new-automation-title"
-    >
-      <div className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg p-6 max-h-[90vh] overflow-y-auto">
+    <ModalOverlay open={open} onClose={onClose} labelledBy="new-automation-title" className="w-full max-w-lg">
+      <div className="glass-modal rounded-xl p-6 max-h-[min(90dvh,720px)] overflow-y-auto">
         <div className="flex items-start justify-between gap-4 mb-4">
-          <h2 id="new-automation-title" className="text-lg font-semibold m-0">
+          <h2 id="new-automation-title" className="text-lg font-semibold m-0 text-on-surface">
             {t("automations.createTitle")}
           </h2>
           <button
@@ -287,8 +284,8 @@ export function AutomationCreateDialog({
             <Icon name="close" size={20} />
           </button>
         </div>
-        <AutomationCreateForm defaultProjectId={defaultProjectId} />
+        <AutomationCreateForm defaultProjectId={defaultProjectId} onCreated={onClose} />
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

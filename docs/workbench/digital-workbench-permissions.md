@@ -1,5 +1,7 @@
 # Digital Workbench Permissions and Automation Policy
 
+**0.3 scope:** roles and enterprise mode definitions support the **web account console** (org/member/RBAC shell). **Agent execution policy** (tool approval, run trigger) remains CLI-first; web control-plane actions are loopback-dev only unless explicitly reopened in a later ADR.
+
 ## Modes
 
 ### Local Trusted Mode

@@ -1,8 +1,8 @@
 # Digital Workbench — Next Steps (planning)
 
-**You are here:** V1 MVP + V2 + **V3 Week 1–10 (control plane) complete** for local single-user use. See [archive/workbench/digital-workbench-closure-report.md](../archive/workbench/digital-workbench-closure-report.md) for the frozen scope and verification summary.
+**You are here:** V1 MVP + V2 + **V3 Week 1–10 (local control plane) complete**. See [archive/workbench/digital-workbench-closure-report.md](../archive/workbench/digital-workbench-closure-report.md) for the frozen scope summary.
 
-**Next recommended slice:** [Production Harness Hardening](../planning/production-harness-hardening.md) — a Tier 1.5 pass that adds execution trace, runtime budgets, trajectory eval, tool/MCP governance, declarative workflow validation, and memory retention before larger Tier 2/3 expansion.
+**Next recommended slice (0.3):** **Web account console** — login, subscription/billing shell, usage & entitlements, API keys, and enterprise admin entry points. Agent **execution stays in CLI / local runtime**; the web UI is **not** an Agent operator in 0.3. See [`roadmap.md`](../roadmap.md) §3.5.
 
 ## Current capability (done)
 
@@ -12,14 +12,15 @@
 | **Recording** | run / goal / workflow / repl / cron → SQLite + SSE |
 | **Trust** | Gates block delivery; gate-less completed → verified |
 | **UI** | 12+ pages, zh/en, lazy routes, embedded release UI |
+| **Auth (local)** | `/login`, `/api/auth/*`, loopback `local_trusted` |
 | **Observability** | Global + per-project tokens, CSV export, timeline, readiness |
 | **Alerts** | `blocked_threshold_exceeded` when blocked sessions > N |
 | **Connectors** | GitHub + Linear open-issues read-only |
 | **Gate runner** | UI presets → shell + SSE streaming + run history |
-| **Control plane** | Live cancel, UI trigger run/goal, Web tool approval, Conversations workflow |
+| **Control plane (local)** | Live cancel, UI trigger run/goal, Web tool approval, Conversations workflow |
 | **Goal verify** | Engine runs real cargo/flutter checks; `[gate]` lines ingested |
 | **Install** | `./scripts/install-with-dashboard.sh` |
-| **Tests** | 59 Rust dashboard tests + 28 Playwright e2e |
+| **Tests** | 69+ Rust dashboard tests + 28 Playwright e2e |
 
 **Verify anytime:**
 
@@ -35,54 +36,65 @@ anycode dashboard --open
 
 | Doc | Use when |
 |-----|----------|
-| [`archive/workbench/digital-workbench-closure-report.md`](../archive/workbench/digital-workbench-closure-report.md) | **Control-plane closure summary (start here)** |
+| [`../roadmap.md`](../roadmap.md) | **0.3 SSOT** — web console packages A–E |
 | [`digital-workbench-STATUS.md`](digital-workbench-STATUS.md) | One-page ship checklist |
-| [`digital-workbench-control-plane.md`](digital-workbench-control-plane.md) | Cancel / trigger / approval behavior |
-| [`archive/workbench/digital-workbench-handoff.md`](../archive/workbench/digital-workbench-handoff.md) | Full handoff + deferred backlog |
-| [`digital-workbench-api.md`](digital-workbench-api.md) | API contract |
-| [`production-harness-hardening.md`](../planning/production-harness-hardening.md) | Tier 1.5 runtime hardening roadmap |
+| [`digital-workbench-api.md`](digital-workbench-api.md) | API contract (auth modes) |
+| [`digital-workbench-permissions.md`](digital-workbench-permissions.md) | Roles + enterprise mode |
+| [`production-harness-hardening.md`](../planning/production-harness-hardening.md) | **0.4** runtime hardening (not 0.3) |
+| [`archive/workbench/digital-workbench-closure-report.md`](../archive/workbench/digital-workbench-closure-report.md) | V3 control-plane closure |
 
 中文：[digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md)
 
 ---
 
-## Tier 1.5 — Production Harness Hardening
+## 0.3 — Web account console
 
-Do this before connector write-back, multi-user auth, or desktop packaging. The slice keeps `AgentRuntime` as the single orchestration authority and turns the completed Workbench control plane into a production-grade harness.
+Product shell modeled after a SaaS admin (plan, usage, billing, API, account). **Mock/local data OK** for subscription until payment integration.
 
 | Priority | Item | Effort | Outcome |
 |----------|------|--------|---------|
-| P0 | **Execution trace SSOT** | L | Structured task/turn/LLM/tool/gate/budget events power replay, eval, audit, and provenance |
-| P0 | **Runtime budget** | L | Token/cost/duration budgets warn, degrade, or hard-stop during execution |
-| P0 | **Trajectory eval** | M | CI catches repeated tools, forbidden tools, failed gates, and budget violations even when final text looks OK |
-| P1 | **Tool governance metadata** | M | Tool catalog records risk, category, approval policy, agent visibility, and audit level |
-| P1 | **MCP governance** | M | Optional strict whitelist, per-server quotas, and MCP trace events |
-| P1 | **Declarative workflow validation** | M–L | Planner emits plans; the harness validates agents, tools, gates, budgets, and dependencies before execution |
-| P2 | **Memory retention** | M | Hot/vector memory supports dry-run prune, retention scoring, and evidence provenance |
-| P2 | **Workbench operations UI** | M | Dashboard explains budget health, trace replay, trajectory verdicts, tool risk, and memory retention |
+| P0 | **Web login & session** | M | Email/password or token login; user menu; Settings → Auth; keep `local_trusted` on loopback |
+| P0 | **Plan / subscription shell** | M | Plan tier display, subscribe/upgrade CTAs, subscription status (mock OK) |
+| P0 | **Usage management** | M | Wrap existing token/cost metrics into a user-facing usage page; quota hints |
+| P1 | **Billing & invoices shell** | M | Invoice list, download placeholder, billing profile (no real payment in 0.3) |
+| P1 | **API management** | M | Create/revoke/rotate API keys; show last-used and scopes |
+| P1 | **Enterprise admin shell** | L | Org, members, roles, audit log entry; SSO/OIDC **design only** |
 
-Recommended order: trace first, then runtime budget, then trajectory eval. Those three create the foundation for every later hardening item.
+Recommended order: **0.3-A → B+C → D → E** (matches [`roadmap.md`](../roadmap.md) §3.5.1).
 
-## Deferred (Tier 2–3)
+### 0.3 out of scope
 
-Do **not** expand the V3 control-plane slice further without a new planning pass.
+- **Operating Agent from the web** (trigger run, approve tools, cancel sessions as a product promise).
+- Remote job queue, cloud-hosted Agent runtime, OpenClaw Gateway-style relay.
+- Real payment gateway (Stripe, WeChat Pay, etc.).
 
-| Item | Effort | Why deferred |
-|------|--------|--------------|
-| **Connector OAuth / write** | L | Needs OAuth + write threat model |
-| **Pending-approval notifications** | M | Policy design + delivery channels |
-| **SSO / OIDC** | L | Required before non-loopback multi-user |
+Local V3 control-plane features remain for **loopback dev**; they are not expanded as 0.3 product scope.
+
+---
+
+## 0.4 — Production Harness Hardening (deferred)
+
+Trace, runtime budget, trajectory eval, tool/MCP governance — see [`production-harness-hardening.md`](../planning/production-harness-hardening.md) and [`closure-plan-2026-06.md`](../planning/closure-plan-2026-06.md). Epic mapping in [`roadmap.md`](../roadmap.md) §4.
+
+---
+
+## Later (post 0.3)
+
+| Item | Effort | Notes |
+|------|--------|-------|
+| **Connector OAuth / write** | L | OAuth + write threat model |
+| **Full SSO / OIDC** | L | Beyond 0.3 design placeholder |
 | **RBAC enforcement** | L | Wire roles in permissions doc |
-| **Browser gate automation** | M–L | Headless visual rules beyond shell checks |
-| **Tauri desktop** | L | Wrap embedded UI; offline dist |
+| **Browser gate automation** | M–L | Headless visual rules |
+| **Real billing integration** | L | After subscription shell |
 
 ---
 
 ## Decision prompts for next sprint
 
-1. **Audience next?** Solo dev (stay local) vs small team (auth/RBAC) vs CI integration (API tokens + export only)
-2. **Primary metric?** Cost, trust/gates, or throughput (sessions/day)
-3. **Connector value?** GitHub/Linear read-only enough, or write-back/Slack blocking?
-4. **Control appetite?** Observation-only vs approved actions from Web (control plane slice is **done** for local loopback)
+1. **0.3 nav IA?** Plan · Usage · Billing · API · Account · Enterprise (CODEBUDDY-style sidebar).
+2. **Entitlement model?** Free / Pro / Team tiers; token quota vs seat-based.
+3. **Auth for remote bind?** Token-only vs email/password + session cookie.
+4. **Keep Agent off the web?** Default **yes** for 0.3 — CLI remains the execution surface.
 
-Answer these → pick deferred items → open issues from [`archive/workbench/digital-workbench-handoff.md`](../archive/workbench/digital-workbench-handoff.md).
+Answer these → open issues from §3.5 packages in [`roadmap.md`](../roadmap.md).

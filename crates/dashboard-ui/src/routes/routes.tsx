@@ -313,7 +313,6 @@ export const settingsRoute = createRoute({
       "model",
       "agents",
       "skills",
-      "assets",
       "security",
       "notify",
       "channels",

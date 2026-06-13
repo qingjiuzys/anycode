@@ -4,6 +4,7 @@ import { ProjectGateConfigPanel } from "@/components/project/ProjectGateConfigPa
 import { ProjectKnowledgeConfigPanel } from "@/components/project/ProjectKnowledgeConfigPanel";
 import { ProjectPipelineConfigPanel } from "@/components/project/ProjectPipelineConfigPanel";
 import { useT } from "@/i18n/context";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
 
 type Tab = "knowledge" | "gates" | "pipeline";
 
@@ -43,22 +44,16 @@ export function ProjectConfigDialog({
   ];
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/25 p-4"
-      role="dialog"
-      aria-modal
-      aria-labelledby="project-config-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <ModalOverlay
+      open={open}
+      onClose={onClose}
+      labelledBy="project-config-title"
+      className="w-full max-w-3xl"
     >
-      <div
-        className="w-full max-w-3xl max-h-[min(90vh,720px)] flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="glass-modal max-h-[min(90dvh,720px)] flex flex-col rounded-xl overflow-hidden">
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-3 shrink-0">
           <div>
-            <h2 id="project-config-title" className="text-lg font-semibold m-0">
+            <h2 id="project-config-title" className="text-lg font-semibold m-0 text-on-surface">
               {t("projectDetail.config.title")}
             </h2>
             <p className="text-sm text-secondary m-0 mt-1">{t("projectDetail.config.subtitle")}</p>
@@ -114,6 +109,6 @@ export function ProjectConfigDialog({
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

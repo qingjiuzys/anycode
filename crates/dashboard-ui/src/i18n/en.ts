@@ -121,6 +121,7 @@ export const en = {
   },
   overview: {
     subtitle: "Projects, sessions, and operational status at a glance",
+    workbenchQuick: "Workbench shortcuts",
   },
   home: {
     title: "Home",
@@ -233,8 +234,11 @@ export const en = {
     panelClose: "Close panel",
     morePanels: "More panels",
     hero: {
-      title: "What should we do in anycode?",
-      placeholder: "Just ask",
+      titleLead: "Build with your",
+      titleAccent: "agent",
+      titleRest: "",
+      subtitle: "Plan, code, test, and ship with AI by your side.",
+      placeholder: "What would you like to build today?",
       projectLabel: "Project",
       noProject: "No project",
       send: "Send",
@@ -250,6 +254,15 @@ export const en = {
       startError: "Could not start conversation. Try again.",
     },
     suggestions: {
+      scaffoldTitle: "Scaffold an API",
+      scaffoldSubtitle: "Create REST endpoints with auth and tests",
+      scaffoldPrompt: "Scaffold a REST API for this project with auth and basic tests.",
+      fixTitle: "Fix and optimize",
+      fixSubtitle: "Find bugs and improve performance",
+      fixPrompt: "Review this project for bugs and performance issues, then fix them.",
+      automateTitle: "Automate workflows",
+      automateSubtitle: "Connect cron, channels, and agents",
+      automatePrompt: "Design automation workflows for this project (cron, notifications, agents).",
       scanTitle: "Scan projects",
       scanSubtitle: "Discover and register ~/.anycode workspaces",
       newProjectTitle: "New project",
@@ -1220,7 +1233,6 @@ export const en = {
       model: "Model & routing",
       agents: "Agents",
       skills: "Skills",
-      assets: "Asset read",
       security: "Security",
       notify: "Notifications",
       channels: "Channels",
@@ -1447,11 +1459,6 @@ export const en = {
       indigo: "Electric indigo",
       coral: "Warm coral",
       teal: "Teal cyan",
-    },
-    assetsRedirect: {
-      title: "Asset read policy",
-      hint: "Strict mode and policy details moved to Preferences, saved together with report settings.",
-      openPrefs: "Open preferences",
     },
     reportPrefs: {
       title: "Report preferences",

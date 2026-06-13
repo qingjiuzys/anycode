@@ -69,6 +69,22 @@ Expected output: first command prints `OK`; second command opens TUI.
 
 In TUI you can try: `/help`, `/tools`, `/exit`.
 
+## Choose your next experience
+
+After setup, pick the path that matches how you want to use anyCode:
+
+| Goal | What to do | Guide |
+|------|------------|-------|
+| **Terminal chat & tools** | Run `anycode` or `anycode repl` in a project folder | [CLI overview](./cli) |
+| **Local Workbench** | `anycode dashboard --open` — projects, sessions, assets, security inbox | [Workbench tour](./workbench) |
+| **Personal WeChat** | `anycode channel wechat` — scan QR, send tasks from your phone | [WeChat & setup](./wechat) |
+| **Scheduled jobs** | Workbench **Automations** or `anycode` cron tools | [Scheduled jobs](./cli-scheduler) |
+| **macOS desktop (best experience)** | Install **anyCode.app** from Releases for Apple Speech STT + Apple Vision OCR | [Models — macOS native STT & OCR](./models#macos-desktop-native-stt-ocr) |
+| **Switch models / BYOK** | `anycode model` or Workbench Settings; see validation scope for GLM vs DeepSeek | [Models & endpoints](./models) |
+| **Integrate / extend** | Workbench REST API, API tokens, Skills, MCP | [Architecture](./architecture) · [Agent skills](./skills) |
+
+**Platform note:** macOS currently offers the richest experience (desktop app, native STT/OCR, sidecar Workbench). Linux and Windows support CLI + browser Workbench; WeChat bridge runs wherever you can complete QR login.
+
 ## If something fails
 
 - `anycode: command not found` -> check PATH in [Install](./install)
@@ -88,7 +104,10 @@ export ANYCODE_LANG=en
 ## Next
 
 - [Install](./install)
+- [Models & endpoints](./models)
+- [Digital Workbench](./workbench)
 - [WeChat & setup](./wechat)
+- [Scheduled jobs](./cli-scheduler)
 - [Troubleshooting](./troubleshooting)
 - [Docs directory](./docs-directory)
 

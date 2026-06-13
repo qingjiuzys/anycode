@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { resolveProjectTemplates } from "@/lib/projectTemplates";
 
 export function NewProjectDialog({
@@ -65,16 +66,11 @@ export function NewProjectDialog({
   const isFlutter = templateId === "flutter-app";
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/25 p-4"
-      role="dialog"
-      aria-modal
-      aria-labelledby="new-project-title"
-    >
-      <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg p-6 max-h-[90vh] overflow-y-auto">
+    <ModalOverlay open={open} onClose={onClose} labelledBy="new-project-title" className="w-full max-w-md">
+      <div className="glass-modal rounded-xl p-6 max-h-[min(90dvh,720px)] overflow-y-auto">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <h2 id="new-project-title" className="text-lg font-semibold m-0">
+            <h2 id="new-project-title" className="text-lg font-semibold m-0 text-on-surface">
               {t("newProject.title")}
             </h2>
             <p className="text-sm text-secondary m-0 mt-1">{t("newProject.subtitle")}</p>
@@ -181,6 +177,6 @@ export function NewProjectDialog({
           </div>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

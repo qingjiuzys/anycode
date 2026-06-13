@@ -26,6 +26,40 @@ read_when:
 
 完整厂商列表请用 **`anycode model`** 交互菜单，或直接查阅源码中的 `PROVIDER_CATALOG`。
 
+## 验证范围
+
+anyCode 提供较广的 provider 目录，但**维护者日常验证**主要集中在：
+
+| 层级 | Provider | 含义 |
+|------|----------|------|
+| **维护者验证** | **z.ai / 智谱 GLM**（默认，如 `glm-5`）、**DeepSeek**（OpenAI 兼容，含 tool schema 规范化） | 对话、tool calls、流式路径在开发中经常手工验证。 |
+| **CI 自动化** | 仅 Mock OpenAI 兼容服务 | Agent loop E2E（`cli_e2e_mock_llm`）覆盖编排逻辑，**不调用**真实厂商 API。 |
+| **目录可配置** | Anthropic、Bedrock、Copilot、OpenRouter、Ollama、`custom` 等 | 可通过 `config.json` 配置；兼容性因 endpoint/model 而异，配置后需自测。 |
+
+**自测步骤**（配置凭据后）：
+
+1. 运行 **`anycode status`** — 核对解析到的 `provider / model` 与路由。
+2. 打开 **工作台 → 设置 → 模型与路由**，使用 **探测**（`POST /api/settings/models/{id}/test`）。
+3. 执行短对话：`anycode run --agent general-purpose "请只回复：OK"`。
+
+默认配置为 **`provider: z.ai`**、**`model: glm-5`**。DeepSeek 有内置模型目录（`deepseek-v4-pro`、`deepseek-v4-flash`、旧版 `deepseek-chat` / `deepseek-reasoner`）及 `anycode setup` 快速认证预设。
+
+## DeepSeek（OpenAI 兼容）
+
+将 `provider` 设为 `deepseek`（别名如 `deep-seek` 会自动规范化）。填写 `api_key` 与内置目录或厂商文档中的 model id。运行时走共享 OpenAI Chat Completions 客户端，并对 DeepSeek 做 tool schema 规范化。
+
+示例：
+
+```json
+{
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "api_key": "YOUR_KEY"
+}
+```
+
+可用 **`anycode model`** 或工作台设置选择预设，再按上文自测步骤验证。
+
 ## 配置字段（`~/.anycode/config.json`）
 
 - `provider`：须为目录中的规范 id（及别名）。除 z.ai / Anthropic 外，另有 OpenRouter、Groq、DeepSeek、Bedrock、GitHub Copilot 等，见上节。

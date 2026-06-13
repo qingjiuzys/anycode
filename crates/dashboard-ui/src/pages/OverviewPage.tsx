@@ -5,6 +5,8 @@ import { buildConversationsHref } from "@/lib/conversationsSearch";
 import { api } from "@/api/client";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { HomeInsightCards } from "@/components/HomeInsightCards";
+import { HomeWorkbenchPanel } from "@/components/HomeWorkbenchPanel";
+import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { HomeTokenUsage } from "@/components/HomeTokenUsage";
 import { HomeSavedHoursKpi } from "@/components/HomeSavedHoursKpi";
 import { HomeTimelineChart } from "@/components/HomeTimelineChart";
@@ -33,6 +35,7 @@ export function OverviewPage() {
   const t = useT();
   const sseStatus = useSseStatus();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const analyticsOpen = expandedSection === "analytics";
   const workbenchOpen = expandedSection === "workbench";
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
@@ -172,6 +175,8 @@ export function OverviewPage() {
 
   return (
     <>
+      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
+
       <PageHeader
         title={t("nav.overview")}
         subtitle={t("overview.subtitle")}
@@ -184,6 +189,17 @@ export function OverviewPage() {
           />
         }
       />
+
+      <div className="mb-6">
+        <h2 className="text-base font-semibold text-on-surface m-0 mb-3">{t("overview.workbenchQuick")}</h2>
+        <HomeWorkbenchPanel
+          overview={ov}
+          projects={list}
+          loadingProjects={projects.isLoading}
+          pendingApprovals={pendingTotal}
+          onNewProject={() => setNewProjectOpen(true)}
+        />
+      </div>
 
       {ov && (ov.sessions_blocked > 0 || pendingTotal > 0 || ov.sessions_budget_exceeded > 0) && (
         <SectionCard title={t("home.opsSummary")}>

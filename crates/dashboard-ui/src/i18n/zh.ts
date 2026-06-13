@@ -121,6 +121,7 @@ export const zh = {
   },
   overview: {
     subtitle: "项目、会话与运维状态一览",
+    workbenchQuick: "工作台快捷区",
   },
   home: {
     title: "首页",
@@ -233,8 +234,11 @@ export const zh = {
     panelClose: "关闭面板",
     morePanels: "更多面板",
     hero: {
-      title: "我们应该在 anycode 中做些什么？",
-      placeholder: "尽管问",
+      titleLead: "与",
+      titleAccent: "智能体",
+      titleRest: "一起构建",
+      subtitle: "规划、编码、测试与交付，AI 全程协助。",
+      placeholder: "今天想构建什么？",
       projectLabel: "项目",
       noProject: "无项目",
       send: "发送",
@@ -250,6 +254,15 @@ export const zh = {
       startError: "无法启动会话，请重试。",
     },
     suggestions: {
+      scaffoldTitle: "搭建 API",
+      scaffoldSubtitle: "创建带认证与测试的 REST 接口",
+      scaffoldPrompt: "为当前项目搭建 REST API，包含认证与基础测试。",
+      fixTitle: "修复与优化",
+      fixSubtitle: "定位 bug 并提升性能",
+      fixPrompt: "检查当前项目的 bug 与性能问题，给出修复方案并实施。",
+      automateTitle: "自动化工作流",
+      automateSubtitle: "连接定时任务、通道与 Agent",
+      automatePrompt: "为当前项目设计自动化工作流（cron、通知、Agent 协作）。",
       scanTitle: "扫描项目",
       scanSubtitle: "发现 ~/.anycode 工作区并登记",
       newProjectTitle: "新建项目",
@@ -1213,7 +1226,6 @@ export const zh = {
       model: "模型与路由",
       agents: "Agent",
       skills: "Skills 权限",
-      assets: "资产读取",
       security: "安全与审计",
       notify: "通知与集成",
       channels: "消息渠道",
@@ -1440,11 +1452,6 @@ export const zh = {
       indigo: "电光蓝紫",
       coral: "珊瑚暖橙",
       teal: "青绿",
-    },
-    assetsRedirect: {
-      title: "资产读取策略",
-      hint: "严格模式与策略说明已移至「偏好」页，与报告设置一并保存。",
-      openPrefs: "打开偏好设置",
     },
     reportPrefs: {
       title: "报告偏好",

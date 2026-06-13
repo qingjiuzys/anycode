@@ -1,11 +1,13 @@
 ---
 title: Digital Workbench — Planning
-description: V1+V2 completion status and V3 roadmap entry point.
+description: V1–V3 completion status and 0.3 web console roadmap.
 ---
 
 # Digital Workbench — Planning
 
-**Status:** V1 MVP + V2 slices A–D are **complete** for local single-user use (2026-05).
+**Status:** V1 MVP + V2 + V3 control plane are **complete** for local single-user use (2026-05).
+
+**Next (0.3):** **Web account console** — login, plan/subscription, usage, billing, API keys, enterprise admin. **Agent execution stays in the terminal**; the web UI is not an Agent operator in 0.3.
 
 Use this page when deciding what to build next. Full detail lives in the repo under `docs/`.
 
@@ -17,10 +19,8 @@ Use this page when deciding what to build next. Full detail lives in the repo un
 | Data | SQLite recording from run/goal/workflow/repl/cron |
 | Trust | Gates → blocked; gate-less completed → verified |
 | UI | React/Vite, zh/en, SSE, 12+ pages, embedded release UI |
-| V2-A | Per-project tokens, CSV export, blocked-threshold alert |
-| V2-B | GitHub open-issues read-only (Settings + Automations) |
-| V2-C | Gate runner (presets, execute, DB persistence) |
-| V2-D | `install-with-dashboard.sh`, docs, 11 Playwright e2e tests |
+| Auth (local) | `/login`, session API, loopback `local_trusted` |
+| V2–V3 | Tokens, connectors, gate runner, local control plane, e2e |
 
 ## Verify
 
@@ -36,41 +36,31 @@ anycode dashboard --open
 
 | Document | Purpose |
 |----------|---------|
-| [digital-workbench-next-steps.md](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps.md) | **Start here** — V3 tiers + sample 4-week plan |
-| [digital-workbench-handoff.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-handoff.md) | Full handoff |
-| [digital-workbench-v2-complete.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-v2-complete.md) | V2 checklist |
-| [digital-workbench-v1-mvp.md](https://github.com/qingjiuzys/anycode/blob/main/docs/archive/workbench/digital-workbench-v1-mvp.md) | V1 UX acceptance |
+| [roadmap.md §3.5](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md) | **0.3 SSOT** — web console packages |
+| [digital-workbench-next-steps.md](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps.md) | Planning detail (EN) |
 | [digital-workbench-api.md](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-api.md) | API contract |
+| [production-harness-hardening.md](https://github.com/qingjiuzys/anycode/blob/main/docs/planning/production-harness-hardening.md) | **0.4** runtime hardening (not 0.3) |
 
 User guide: [Digital Workbench](./dashboard.md).
 
-## V3 — not built (pick your sprint)
+## 0.3 — web console (not built as product shell)
 
-### Tier 1 (local, high value)
+| Area | Target |
+|------|--------|
+| Account | Login, user menu, account settings |
+| Plan | Subscription tier, upgrade CTAs (mock OK) |
+| Usage | Token/cost dashboard for end users |
+| Billing | Invoices shell (no real payment in 0.3) |
+| API | Key create/revoke/rotate |
+| Enterprise | Org, members, roles, audit entry |
 
-- Per-provider/model cost table
-- Saved-hours KPI on Home
-- Gate run history + streaming output
-- Linear connector read-only
-- Production deploy checklist (nginx, TLS, token)
-
-### Tier 2 (control plane — needs security design)
-
-- Cancel running session from UI
-- Trigger `anycode run` from Web
-- Approval inbox for pending tools
-
-### Tier 3 (multi-user / external)
-
-- SSO / OIDC, RBAC
-- Connector OAuth + write-back
-- Browser gate automation, Tauri shell
+**Out of scope for 0.3:** operating Agent from the browser as a product promise; cloud Agent hosting; real payment gateways.
 
 ## Planning questions
 
-1. **Audience?** Solo dev vs team vs CI read-only integration
-2. **Primary metric?** Cost vs trust/gates vs throughput
-3. **Connectors?** GitHub read-only enough, or Linear/Slack blocking?
-4. **Control?** Observation-only vs approved actions from Web
+1. **Sidebar IA?** Plan · Usage · Billing · API · Account · Enterprise
+2. **Entitlement model?** Free / Pro / Team; quota vs seats
+3. **Remote auth?** API token only vs email/password session
+4. **Agent on web?** Default **no** for 0.3 — use CLI
 
-Answer these → open issues from the Tier 1 list in [next-steps](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps.md).
+See [next-steps](https://github.com/qingjiuzys/anycode/blob/main/docs/workbench/digital-workbench-next-steps.md).

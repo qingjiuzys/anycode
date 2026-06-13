@@ -59,40 +59,41 @@
 
 ---
 
-## 3.5 anyCode **0.3** 迭代范围（2026-06 对标更新）
+## 3.5 anyCode **0.3** 迭代范围（2026-06 产品方向）
 
-**对标基线**（2026-06-13）：OpenClaw 本地 `ddeaebfc`（5.19 线），远端 `origin/main` 已前进至 `7190fc4`（fetch 待网络恢复后补全）；Claude TS 归档 `936e6c8`（远端 `d229a9b`）；claude-code-rust `4b87a363`。详见 [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md) 增量 §2026-06-13、[`claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md)。
+**原则**：0.3 聚焦 **网页账号控制台** — 用户登录、订阅/用量/账单、API 与企业能力入口。Agent **执行**仍在 CLI / 本地 `AgentRuntime`；**不在 0.3 做网页端操作 Agent**、远程队列执行或云端 Agent 托管。对标参考见 [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md)、[`claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md)；技术 hardening 见 §4（**0.4**）。
 
-**原则**：不搬 OpenClaw Gateway/Codex 托管或 Claude Ink/swarm 栈；0.3 聚焦**生产诊断、工具审计、MCP/Cron 运维、终端可观测、通道可靠性**。与 §4 Epic A–G 对齐，下列为 **0.3 首批交付包**（Next ≤6）。
-
-| 包 | 映射 Epic | 主题 | 完成定义（简） |
-|----|-----------|------|----------------|
-| **0.3-A** | A | **Eval / Release Gate** | `anycode eval` 最小 fixture repo + mock LLM；approval-denial / no-fake-progress 负向场景；工具覆盖摘要；[`release-readiness-2026-05.md`](planning/release-readiness-2026-05.md) gate 条目可勾选 |
-| **0.3-B** | B | **Tool Governance** | `~/.anycode/logs/tool-calls.jsonl` + dashboard ingest；权限规则写入校验（借鉴 Claude `permissionValidation`）；WebFetch/MCP/Bash 审计一行摘要 |
-| **0.3-C** | D | **MCP Doctor** | `anycode doctor mcp` / `mcp status`：stdio 存活、工具数、最近错误、env 丢弃项；**不**默认自动重连（ADR 007） |
-| **0.3-D** | E | **Cron Ops** | `anycode doctor cron`；`cron runs` 字段对齐 OpenClaw run log；**stable cron session** 关联 task；failure destination（微信/日志）；per-job tool profile 设计稿 |
-| **0.3-E** | G | **Terminal / Session UX** | HUD/status 与 executing 态收敛；slash + plugin 命令 autocomplete 入口；transcript search / rewind 语义预研（ADR 004/005/006 输入） |
-| **0.3-F** | F | **Channel Reliability** | `channel status` + 出站队列诊断；Telegram topic/回复上下文回归；微信 parity closure 余项；TG draft 工具进度仍 **Later** 且默认关 |
+| 包 | 主题 | 完成定义（简） |
+|----|------|----------------|
+| **0.3-A** | **Web Account Console** | 网页登录/登出、会话态、用户菜单与账号设置；loopback **`local_trusted`** 保留；非 loopback 需 token/密码 |
+| **0.3-B** | **Subscription / Billing Shell** | 套餐管理、订阅状态、账单与发票入口 UI；可先本地/mock，**不绑真实支付** |
+| **0.3-C** | **Usage & Entitlements** | 现有 token/cost 指标包装为「用量管理」；套餐限额/权益模型（quota、overage 提示） |
+| **0.3-D** | **API / Developer Access** | API key 创建/撤销/轮换；开发者 token 状态与 scope 说明 |
+| **0.3-E** | **Enterprise Admin** | 组织、成员、角色、审计日志、企业设置入口；SSO/OIDC **设计/占位**，不强制完整 IdP |
 
 ### 3.5.1 执行顺序（0.3）
 
-1. **0.3-A** — 评测 harness 约束后续改动（对齐 OpenClaw QA-Lab 思路，本地 mock 即可）。
-2. **0.3-B + 0.3-C** — 工具/MCP 风险面：先审计与 doctor，再议 ADR 007 受控重连。
-3. **0.3-D** — cron stable session + failure destination（内嵌 scheduler，**Skip** Gateway ledger）。
-4. **0.3-F** — 通道队列与 topic 可靠性。
-5. **0.3-E** — 终端 UX 收束；virtual scroll 仍绑负载模型，不抢先实现。
+1. **0.3-A** — 账号与会话（`/login`、`/api/auth/*`、Settings → Auth）。
+2. **0.3-B + 0.3-C** — 套餐壳 + 用量页（可 mock 账单数据）。
+3. **0.3-D** — API 管理（key 生命周期）。
+4. **0.3-E** — 企业壳层（org/member/role/audit 入口）。
 
-### 3.5.2 明确 Skip（0.3 不做）
+### 3.5.2 明确 Out of scope（0.3 不做）
 
-- OpenClaw：Gateway cron store、Webhook/TaskFlow、Codex app-server、memory-wiki/dreaming、Mac/Android 客户端。
-- Claude：Ink UI、swarm/tmux team、telemetry/MDM、claude-code-rust egui 壳。
-- anyCode：HTTP daemon（ADR 003）、跨进程后台 Agent **恢复执行**（先 diagnostic state）。
+- **网页端操作 Agent**：Web 触发 run/goal、工具审批收件箱、会话 cancel 等本地控制面能力**不**作为 0.3 产品承诺；继续 CLI + 本地 Workbench 观测。
+- 远程队列执行、云端 Agent 控制台、OpenClaw Gateway/Codex 式托管。
+- HTTP `anycode daemon`（[ADR 003](adr/003-http-daemon-deprecated.md)）。
+- 真实支付网关集成（Stripe/微信 pay 等）；0.3 仅 UI + 本地 entitlement 模型。
+
+### 3.5.3 原 harness 对标项（→ 0.4 / §4）
+
+下列曾误标为 0.3 的项已移回 **§4 Epic A–G**（技术 hardening / **0.4**）：Eval/Release Gate、Tool Governance、MCP Doctor、Cron Ops、Terminal UX、Channel Reliability。见 [`planning/production-harness-hardening.md`](planning/production-harness-hardening.md)、[`planning/closure-plan-2026-06.md`](planning/closure-plan-2026-06.md)。
 
 ---
 
 ## 4. 生产级下一阶段（2026-05 起）
 
-**2026-06 套件收口：** WorkBuddy Phase 1–3 已基本落地；剩余 Partial（微信 CDN live、Harness M1–M6、eval 负向 fixture 等）按 **[closure-plan-2026-06.md](planning/closure-plan-2026-06.md)** 四波次收完。Exit 后再开 Tier 2 Connector/SSO 讨论。
+**2026-06 方向：** **0.3** 产品主线为网页账号控制台（§3.5）；Harness/eval/MCP/cron 等 runtime hardening 归入本节 Epic（**0.4**）。WorkBuddy Phase 1–3 已基本落地；剩余 Partial 按 **[closure-plan-2026-06.md](planning/closure-plan-2026-06.md)** 在 hardening 波次收完，**不阻塞** 0.3 账号/订阅壳层。
 
 **方向切换**：OpenClaw 5.19 parity 的短线修补已基本完成；下一阶段按生产级能力推进，避免继续以 provider alias / 小单测数量作为主目标。每个 Epic 的完成定义必须包含：用户场景、失败场景、targeted tests、日志/诊断入口、文档/CHANGELOG、禁用或回滚边界。
 
@@ -155,7 +156,8 @@
 
 - [`closure-plan-2026-06.md`](planning/closure-plan-2026-06.md) — 2026-06 套件收口（Wave 0–4、G1–G12、Exit Criteria）
 - [`openclaw-sync-brief-2026-05.md`](comparisons/openclaw-sync-brief-2026-05.md) — OpenClaw 对标（含 2026-06-13 增量）
-- [`claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md) — Claude TS / claude-code-rust 参考与 0.3 映射
+- [`claude-reference-brief-2026-06.md`](comparisons/claude-reference-brief-2026-06.md) — Claude TS / claude-code-rust 参考（技术项 → §4 / 0.4）
+- [`workbench/digital-workbench-next-steps-zh.md`](workbench/digital-workbench-next-steps-zh.md) — 0.3 网页控制台规划入口
 - [`architecture.md`](../architecture.md) — 维护者分层与流式/TUI 会话表  
 - [`docs/README.md`](README.md) — ADR 索引与文档地图  
 - 仓库：<https://github.com/qingjiuzys/anycode>

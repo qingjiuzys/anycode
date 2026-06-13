@@ -23,10 +23,10 @@ docs/
 
  adr/               ← 架构决策（不参与 VitePress 构建）
 
- planning/          ← 计划、验收、Harness（0.3-A 相关）
+ planning/          ← 计划、验收、Harness（0.4 技术 hardening）
  comparisons/       ← OpenClaw / Claude / WorkBuddy / 微信对标
  ops/               ← Cron、MCP、工具治理、终端、通道运维备忘
- workbench/         ← Digital Workbench 状态、API、部署、控制面
+ workbench/         ← Digital Workbench 状态、API、0.3 网页控制台规划
  archive/           ← 历史 sprint / 旧 Workbench 里程碑（只读）
  references/        ← 外部实现对照备忘
  issue-drafts/      ← GitHub issue 草稿
@@ -42,13 +42,16 @@ docs/
 
 ## 当前入口（按主题）
 
-### 规划与 0.3
+### 规划与 0.3（网页控制台）
 
 | 文档 | 用途 |
 |------|------|
-| [`roadmap.md`](roadmap.md) | now / next / later、§3.5 **0.3** 交付包、决策表 |
+| [`roadmap.md`](roadmap.md) | now / next / later、§3.5 **0.3** 交付包（登录/订阅/企业壳）、决策表 |
+| [`workbench/digital-workbench-next-steps-zh.md`](workbench/digital-workbench-next-steps-zh.md) | **0.3 规划入口** — 账号/套餐/用量/API/企业 |
+| [`workbench/digital-workbench-api.md`](workbench/digital-workbench-api.md) | API 合约（含 auth 模式） |
+| [`workbench/digital-workbench-permissions.md`](workbench/digital-workbench-permissions.md) | 角色与 enterprise 模式 |
 | [`planning/closure-plan-2026-06.md`](planning/closure-plan-2026-06.md) | 2026-06 套件收口波次 |
-| [`planning/production-harness-hardening.md`](planning/production-harness-hardening.md) | Tier 1.5 Harness M0–M8 |
+| [`planning/production-harness-hardening.md`](planning/production-harness-hardening.md) | Tier 1.5 Harness M0–M8（**0.4**，非 0.3） |
 | [`planning/eval-harness.md`](planning/eval-harness.md) | `anycode eval` / mock LLM |
 | [`planning/release-readiness-2026-05.md`](planning/release-readiness-2026-05.md) | 发布验收 checklist |
 
@@ -61,7 +64,7 @@ docs/
 | [`comparisons/workbuddy-comparison-2026-06.md`](comparisons/workbuddy-comparison-2026-06.md) | WorkBuddy 七域矩阵 |
 | [`comparisons/weixin-plugin-parity.md`](comparisons/weixin-plugin-parity.md) | 微信 npm 插件 vs Rust 桥 |
 
-### 运维与实现（0.3-B/C/D/F/G）
+### 运维与实现（0.4 / Epic A–G）
 
 | 文档 | 用途 |
 |------|------|

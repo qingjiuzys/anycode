@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useT } from "@/i18n/context";
 import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
 import { SettingsAuthSection } from "@/pages/settings/SettingsAuthSection";
-import { SettingsAssetsSection } from "@/pages/settings/SettingsAssetsSection";
 import { SettingsChannelsSection } from "@/pages/settings/SettingsChannelsSection";
 import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
 import { SettingsModelSection } from "@/pages/settings/SettingsModelSection";
@@ -25,7 +24,6 @@ const VALID_SECTIONS = new Set<SettingsSection>([
   "model",
   "agents",
   "skills",
-  "assets",
   "security",
   "notify",
   "channels",
@@ -78,7 +76,6 @@ export function SettingsPage() {
           {section === "model" && <SettingsModelSection />}
           {section === "agents" && <SettingsAgentsSection />}
           {section === "skills" && <SettingsSkillsSection />}
-          {section === "assets" && <SettingsAssetsSection />}
           {section === "security" && <SettingsSecuritySection />}
           {section === "notify" && <SettingsNotifySection />}
           {section === "channels" && <SettingsChannelsSection />}

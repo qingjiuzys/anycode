@@ -69,6 +69,22 @@ anycode
 
 TUI 里可先试：`/help`、`/tools`、`/exit`。
 
+## 下一步体验路线
+
+完成 setup 后，按你的使用方式选择路径：
+
+| 目标 | 操作 | 文档 |
+|------|------|------|
+| **终端对话与工具** | 在项目目录运行 `anycode` 或 `anycode repl` | [CLI 总览](./cli) |
+| **本地工作台** | `anycode dashboard --open` — 项目、会话、资产、安全审批 | [工作台导览](./workbench) |
+| **个人微信** | `anycode channel wechat` — 扫码绑定，手机下发任务 | [微信与 setup](./wechat) |
+| **定时任务** | 工作台 **Automations** 或 CLI cron 工具 | [定时任务](./cli-scheduler) |
+| **macOS 桌面（体验最佳）** | 从 Releases 安装 **anyCode.app**，获得 Apple Speech STT + Apple Vision OCR | [模型 — macOS 原生 STT/OCR](./models#macos-桌面原生-stt-与-ocr) |
+| **切换模型 / BYOK** | `anycode model` 或工作台设置；GLM 与 DeepSeek 为维护者主要验证路径 | [模型与端点](./models) |
+| **集成 / 二次开发** | Workbench REST API、API Token、Skills、MCP | [架构](./architecture) · [Agent skills](./skills) |
+
+**平台说明：** 当前 macOS 体验最完整（桌面 App、原生 STT/OCR、sidecar 工作台）。Linux / Windows 支持 CLI + 浏览器工作台；微信桥可在能完成扫码的机器上运行。
+
 ## 失败时下一步
 
 - 提示 `command not found` -> 看 [安装](./install) 里的 PATH 处理
@@ -87,7 +103,10 @@ export ANYCODE_LANG=zh
 ## 下一步
 
 - [安装](./install)
+- [模型与端点](./models)
+- [工作台导览](./workbench)
 - [微信与 setup](./wechat)
+- [定时任务](./cli-scheduler)
 - [排错](./troubleshooting)
 - [文档地图](./docs-directory)
 

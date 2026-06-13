@@ -5,6 +5,27 @@
   border: 1px solid var(--border);
 }
 
+.glass-modal {
+  background: var(--glass-modal-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-strong, var(--border));
+  box-shadow: var(--shadow-float);
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.glass-modal :where(.text-secondary, .text-on-surface-variant, .text-outline) {
+  color: var(--glass-modal-muted);
+}
+
+.glass-modal .dw-input,
+.glass-modal select.dw-input,
+.glass-modal textarea.dw-input {
+  background: var(--glass-modal-input-bg);
+  border-color: var(--glass-modal-input-border);
+  color: var(--on-surface, var(--color-on-surface));
+}
+
 .glass-card {
   background: var(--glass-bg);
   backdrop-filter: blur(16px) saturate(160%);

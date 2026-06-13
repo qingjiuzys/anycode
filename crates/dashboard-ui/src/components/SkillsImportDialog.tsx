@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
+import { ModalOverlay } from "@/components/ui/ModalOverlay";
 
 export function SkillsImportDialog({
   open,
@@ -32,20 +33,11 @@ export function SkillsImportDialog({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/25 p-4"
-      role="dialog"
-      aria-modal
-      aria-labelledby="skills-import-title"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalOverlay open={open} onClose={onClose} labelledBy="skills-import-title" className="w-full max-w-lg">
+      <div className="glass-modal rounded-xl p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <h2 id="skills-import-title" className="text-lg font-semibold m-0">
+            <h2 id="skills-import-title" className="text-lg font-semibold m-0 text-on-surface">
               {t("settings.skillsGov.importTitle")}
             </h2>
             <p className="text-sm text-secondary m-0 mt-1">{t("settings.skillsGov.importHint")}</p>
@@ -82,6 +74,6 @@ export function SkillsImportDialog({
           </p>
         )}
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

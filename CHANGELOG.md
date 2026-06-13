@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+## 0.2.1
+
 ### Added
+
+- **Docs / README:** Product positioning for BYOK, personal WeChat bridge, local Workbench, automations, macOS native STT/OCR, and enterprise-friendly integration boundaries. Model validation scope documents maintainer checks on **GLM** and **DeepSeek** vs catalog-supported providers.
+- **Docs site:** Updated home features, getting-started experience paths, docs directory index, and DeepSeek configuration section.
+- **WeChat bridge:** Outbound media CDN delivery, setup QR SVG, and `SendWeChatMessage` tool for agent-initiated file sends.
+- **macOS desktop:** Apple Speech STT and Apple Vision OCR via `anyCode.app` native media stack.
 
 - **Digital Workbench:** V3 control plane closed at `v3_week10` (live cancel, UI trigger run, Web tool approval, Conversations workflow). Closure report: [docs/archive/workbench/digital-workbench-closure-report.md](docs/archive/workbench/digital-workbench-closure-report.md). Playwright e2e 28 tests.
 - **Setup / config wizard:** Memory step is **five choices** (`Skip`, `noop`, **Markdown/`hybrid`**, **pipeline + HTTP** embeddings with optional base-URL probe, optional **local ONNX** when `--features embedding-local`). Default menu highlight targets **Hybrid** Markdown preset; pure `file`, pipeline without vectors remain **JSON-only**. **`anycode config`** reuses the same step; non‑TTY prints `setup-memory-non-tty-hint`.
@@ -58,6 +65,10 @@
 - **Stream REPL (TTY Inline):** transcript 主区由「整页 dim」改为按行语义色（`Turn failed` 等错误高亮、`❯` 用户行、会话恢复/命令总览偏品牌色、斜杠帮助表灰字、正文默认白字）；`/help` 去掉与表格重复的一长行 `repl-help-cmds`，等价 `run` 示例里的 cwd 改为可读路径并加引号；`slash_commands::help_lines` 列宽按显示宽度对齐。**Dock** 与全屏 TUI 对齐：执行中/审批/选题时 **两行 HUD**（`✶` + `⎿` 提示），脚标为 ctx / provider；**底部横线在脚标之上**（prompt → rule → footer）；底栏下横线与顶横线同为 `style_horizontal_rule`。**修复**：`ReplSink::Stream` 的 `eprint_line` 不再写 stderr（避免长错误/JSON 与 Inline 视口网格交错叠字）；artifact 列表与粘贴截断提示在 Stream 下走 transcript；**每帧清空整个 Inline 视口**再绘制（避免双缓冲残留 cell 与底栏 `─` 假叠字）；主区行宽仅由 ratatui `Paragraph` 截断，避免与 `unicode-width` 二次截断错位。
 - **Core:** `CoreError::CooperativeCancel` for cooperative turn/nested cancel (same `Display` as legacy `LLMError("cancelled")`); `CoreError::is_cooperative_cancel` and `anyhow_error_is_cooperative_cancel` for callers. ADR `docs/adr/010-cooperative-cancel-and-nested-agents.md`; docs-site architecture section; `TaskStop` JSON note aligned with background nested cancel wiring.
 - **Tests:** `repl_line_session` helpers for trailing-assistant pop + cancel detection; MCP wall-timeout `CoreError` maps to `TimedOut` IO. **Integration:** `tests/cli_e2e_mock_llm.rs` — local TCP OpenAI-compatible mock exercises `anycode run`, `run --workflow` (two steps), and non-TTY `repl` with two or three natural-language turns (no real API key). **Stream REPL:** `repl_inline::stream_repl_keyboard_tests` — expanded `handle_event` (Ctrl+L/D、历史去重、Esc 与多行光标、BackTab、Enter 同 Tab 补全、控制字符过滤等)、dock+审批高度、`apply_stream_*_key`（y/p/n、菜单 Down、选题 Up 环绕）。
+
+### Changed
+
+- **Digital Workbench UI:** Home suggestions, modal overlay, settings navigation, glass-skin styling, and assistant transcript cleanup.
 
 ## 0.2.0
 

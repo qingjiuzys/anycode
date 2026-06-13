@@ -38,23 +38,24 @@ anycode dashboard --open
 
 ## Planning docs (read in order)
 
-1. **[digital-workbench-next-steps.md](digital-workbench-next-steps.md)** ← start V3 planning here  
-2. [production-harness-hardening.md](../planning/production-harness-hardening.md) ← Tier 1.5 runtime hardening
-3. [archive/workbench/digital-workbench-handoff.md](../archive/workbench/digital-workbench-handoff.md)  
-4. [archive/workbench/digital-workbench-v2-complete.md](../archive/workbench/digital-workbench-v2-complete.md)  
-5. [archive/workbench/digital-workbench-v1-mvp.md](../archive/workbench/digital-workbench-v1-mvp.md)  
+1. **[digital-workbench-next-steps.md](digital-workbench-next-steps.md)** ← **0.3** web console planning  
+2. [`../roadmap.md`](../roadmap.md) §3.5 ← SSOT for 0.3 packages  
+3. [digital-workbench-api.md](digital-workbench-api.md) · [digital-workbench-permissions.md](digital-workbench-permissions.md)  
+4. [production-harness-hardening.md](../planning/production-harness-hardening.md) ← **0.4** runtime hardening (not 0.3)  
+5. [archive/workbench/digital-workbench-closure-report.md](../archive/workbench/digital-workbench-closure-report.md)  
 
 中文：[digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md)
 
 User docs: [docs-site/guide/dashboard.md](../docs-site/guide/dashboard.md) · [Planning page](../docs-site/guide/dashboard-planning.md)
 
-## Explicitly not done (V3+)
+## Explicitly not in 0.3 (product)
 
-SSO/RBAC · Connector OAuth/write · browser visual gates
+- **Web as Agent operator** (product promise to run/approve/cancel Agent from browser)
+- Real payment gateway · full IdP · Connector OAuth/write · browser visual gates
 
-macOS Tauri v0.1 (sidecar) shipped; Tier 2 multi-user / OAuth write-back remains deferred.
+**In 0.3 scope:** login, plan/subscription shell, usage, billing shell, API keys, enterprise admin entry. See [`../roadmap.md`](../roadmap.md) §3.5.
 
-Control plane notes: [digital-workbench-control-plane.md](digital-workbench-control-plane.md)
+macOS Tauri v0.1 (sidecar) shipped. Local V3 control-plane APIs remain for loopback dev only.
 
 **Session index (2026-05-24):** SQLite is the session/conversation SSOT (`sessions.task_id` unique); stack trace is read from `output.log` on demand. Project scan no longer bulk-imports logs into sessions.
 

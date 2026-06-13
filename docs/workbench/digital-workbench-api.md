@@ -10,16 +10,24 @@ All write/control endpoints are out of scope for the first implementation slice 
 
 ## Authentication
 
+**0.3 product direction:** the Workbench web UI is an **account console** (login, plan, usage, billing, API, enterprise settings). It is **not** the primary surface for operating Agent runs in 0.3 — execution stays in CLI / local runtime.
+
 V1 local mode:
 
 - Trusted local mode allowed only when bound to `127.0.0.1`.
 - API token is required if binding to any non-loopback address.
+- `/api/auth/login`, `/api/auth/logout`, `/api/auth/me` support session UI (see `LoginPage`).
+
+0.3 targets (planned):
+
+- Cookie session for UI on non-loopback hosts.
+- Bearer token for API; API key CRUD in admin UI.
+- Subscription/entitlement records (mock OK before payment integration).
 
 Future enterprise mode:
 
-- Cookie session for UI.
-- Bearer token for API.
-- OIDC / SSO optional.
+- OIDC / SSO optional (design in 0.3-E; full IdP later).
+- RBAC per [`digital-workbench-permissions.md`](digital-workbench-permissions.md).
 
 ## Endpoints
 

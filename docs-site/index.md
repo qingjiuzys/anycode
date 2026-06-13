@@ -4,7 +4,7 @@ layout: home
 hero:
   name: anyCode
   text: Code Anything, Build Everything.
-  tagline: Your AI pair in the terminal, plus a local Workbench for projects and schedules
+  tagline: Terminal-first BYOK agent with local Workbench, personal WeChat bridge, and macOS-native STT/OCR
   actions:
     - theme: brand
       text: Quick start
@@ -16,18 +16,18 @@ hero:
 features:
   - icon:
       src: /icons/install.svg
-    title: Up and running fast
-    details: Setup wizard picks a model so you can chat in the terminal right away.
+    title: BYOK model catalog
+    details: 30+ providers (GLM, DeepSeek, Anthropic, Bedrock, Copilot, Ollama, custom). Maintainer-validated on GLM and DeepSeek; others are config-supported.
   - icon:
       src: /icons/terminal.svg
-    title: Local Workbench
-    details: A web dashboard for projects, sessions, assets, and reports—no log diving.
+    title: Personal WeChat bridge
+    details: Scan QR to bind iLink. Send tasks from your phone, approve tools in chat, and receive files back—no Node gateway.
   - icon:
       src: /icons/progressive.svg
-    title: Scheduled jobs
-    details: Plain-language schedules, retry on failure, clear run history.
+    title: Local Workbench & automations
+    details: Web dashboard for projects, sessions, and REST API integration. Natural-language cron with run history and guardrails.
   - icon:
       src: /icons/memory.svg
-    title: macOS desktop app
-    details: Native window for the Workbench with the assistant bundled in.
+    title: macOS desktop native media
+    details: anyCode.app bundles the Workbench plus Apple Speech STT and Apple Vision OCR—best on macOS today.
 ---

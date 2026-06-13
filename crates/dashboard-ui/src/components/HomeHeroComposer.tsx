@@ -17,17 +17,23 @@ export function HomeHeroComposer({
   blockedCount = 0,
   pendingCount = 0,
   budgetExceededCount = 0,
+  prompt: promptProp,
+  onPromptChange,
 }: {
   sseStatus: Sse;
   projectOptions: { id: string; name: string }[];
   blockedCount?: number;
   pendingCount?: number;
   budgetExceededCount?: number;
+  prompt?: string;
+  onPromptChange?: (value: string) => void;
 }) {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [prompt, setPrompt] = useState("");
+  const [internalPrompt, setInternalPrompt] = useState("");
+  const prompt = promptProp ?? internalPrompt;
+  const setPrompt = onPromptChange ?? setInternalPrompt;
   const [projectId, setProjectId] = useState("");
   const [browserHintDismissed, setBrowserHintDismissed] = useState(false);
 
@@ -135,7 +141,7 @@ export function HomeHeroComposer({
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <VoiceInputButton
               disabled={start.isPending}
-              onTranscribed={(text) => setPrompt((prev) => mergeVoiceTranscript(prev, text))}
+              onTranscribed={(text) => setPrompt(mergeVoiceTranscript(prompt, text))}
             />
             <button
               type="button"

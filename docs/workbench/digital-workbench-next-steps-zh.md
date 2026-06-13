@@ -1,6 +1,6 @@
 # Digital Workbench — 下一步规划
 
-**当前位置：** V1 MVP + V2 + **V3 Week 1–10** 已完成。下一步建议先做 **[Production Harness Hardening](../planning/production-harness-hardening.md)**：在进入 Connector 写回、SSO/RBAC 或桌面壳之前，补齐执行轨迹、运行时预算、轨迹评估、工具/MCP 治理、声明式 workflow 校验与记忆治理。
+**当前位置：** V1 MVP + V2 + **V3 Week 1–10** 已完成（本地控制面）。下一步 **0.3** 主线：**网页账号控制台** — 登录、套餐/订阅、用量、账单、API 管理、企业能力入口。Agent **执行仍在 CLI / 本地 runtime**；**0.3 不做网页端操作 Agent**。详见 [`roadmap.md`](../roadmap.md) §3.5。
 
 ## 已有能力
 
@@ -10,15 +10,15 @@
 | 录制 | run / goal / workflow / repl / cron → SQLite + SSE |
 | 信任 | 门禁阻断交付；无门禁且已完成 → verified |
 | UI | 12+ 页面、中英文、懒加载、release 内嵌 UI |
+| 认证（本地） | `/login`、`/api/auth/*`、loopback `local_trusted` |
 | 观测 | 全局/项目/会话 Token、CSV 导出、时间线、就绪度 |
 | 告警 | blocked 超阈值 → `blocked_threshold_exceeded` |
 | Connector | GitHub + Linear open issues 只读 |
 | Gate Runner | UI 预设 → shell → gates 表 + **SSE 流式日志** |
-| 控制面 | 会话取消（DB + live IPC）、**UI 触发 run/goal**、gate required |
-| 安全收件箱 | **交互式 Web 审批**（首页 + 运行中会话详情）+ 历史日志 |
+| 控制面（本地） | 会话取消、UI 触发 run/goal、Web 工具审批、Conversations 工作流 |
 | Goal | 引擎真实 cargo/flutter 校验；`[gate]` 日志入库 |
 | 安装 | `./scripts/install-with-dashboard.sh` |
-| 测试 | 59 项 Rust dashboard + 28 项 Playwright e2e |
+| 测试 | 69+ 项 Rust dashboard + 28 项 Playwright e2e |
 
 **自检命令：**
 
@@ -34,55 +34,63 @@ anycode dashboard --open
 
 | 文档 | 用途 |
 |------|------|
-| [`archive/workbench/digital-workbench-closure-report.md`](../archive/workbench/digital-workbench-closure-report.md) | Control-plane closure summary |
+| [`../roadmap.md`](../roadmap.md) | **0.3 SSOT** — 网页控制台 A–E 包 |
 | [`digital-workbench-STATUS.md`](digital-workbench-STATUS.md) | 一页状态 |
-| [`digital-workbench-control-plane.md`](digital-workbench-control-plane.md) | 控制面行为说明 |
+| [`digital-workbench-api.md`](digital-workbench-api.md) | API 合约（auth 模式） |
+| [`digital-workbench-permissions.md`](digital-workbench-permissions.md) | 角色与企业模式 |
+| [`production-harness-hardening.md`](../planning/production-harness-hardening.md) | **0.4** Harness 加固（非 0.3） |
 | [`digital-workbench-deploy-production.md`](digital-workbench-deploy-production.md) | 生产部署 |
-| [`digital-workbench-api.md`](digital-workbench-api.md) | API 合约 |
-| [`production-harness-hardening.md`](../planning/production-harness-hardening.md) | Tier 1.5 生产级 Harness 加固路线 |
 
 ---
 
-## Tier 1.5 — Production Harness Hardening
+## 0.3 — 网页账号控制台
 
-该阶段位于 V3 控制面之后、Tier 2/3 企业化能力之前。目标是在不引入第二套执行引擎的前提下，让 `AgentRuntime` 继续作为唯一编排权威，并把 Digital Workbench 从“可观测控制面”升级成“可治理 Agent Harness”。
+产品壳参考 SaaS 后台：**套餐管理、用量管理、账单与发票、API 管理、账号设置、企业/组织**。订阅/账单可先用 **mock 数据**，0.3 不绑真实支付。
 
 | 优先级 | 项 | 工作量 | 结果 |
 |--------|----|--------|------|
-| P0 | **Execution trace SSOT** | L | 结构化 task/turn/LLM/tool/gate/budget 事件，支撑 replay、eval、audit 与 provenance |
-| P0 | **Runtime budget** | L | token/cost/duration 预算在运行中 warning / degrade / hard-stop |
-| P0 | **Trajectory eval** | M | CI 能抓重复工具、禁用工具、gate 失败、预算违规，即使最终文本看似成功 |
-| P1 | **Tool governance metadata** | M | Tool catalog 记录风险等级、类别、审批策略、Agent 可见性与审计级别 |
-| P1 | **MCP governance** | M | 可选 strict 白名单、per-server 配额与 MCP trace |
-| P1 | **Declarative workflow validation** | M–L | Planner 只产计划；Harness 在执行前校验 agent、tool、gate、budget 与依赖 |
-| P2 | **Memory retention** | M | 热层/向量记忆支持 dry-run prune、retention score 与 evidence provenance |
-| P2 | **Workbench operations UI** | M | Dashboard 解释预算健康、轨迹回放、轨迹评估、工具风险与记忆治理 |
+| P0 | **网页登录与会话** | M | 邮箱/密码或 token 登录；用户菜单；Settings → Auth；loopback 保留 `local_trusted` |
+| P0 | **套餐 / 订阅壳** | M | 套餐展示、订阅状态、升级入口（可 mock） |
+| P0 | **用量管理** | M | 将现有 token/cost 指标包装为用户「用量」页；配额/超限提示 |
+| P1 | **账单与发票壳** | M | 账单列表、下载占位、开票信息（无真实支付） |
+| P1 | **API 管理** | M | API key 创建/撤销/轮换；最近使用与 scope |
+| P1 | **企业管理壳** | L | 组织、成员、角色、审计入口；SSO/OIDC **仅设计占位** |
 
-推荐顺序：先做 trace，再做 runtime budget，再做 trajectory eval。这三项是后续工具治理、MCP 治理、声明式 workflow 和记忆治理的共同基础。
+推荐顺序：**0.3-A → B+C → D → E**（与 [`roadmap.md`](../roadmap.md) §3.5.1 一致）。
 
-## Tier 2 — 控制面（需安全设计）
+### 0.3 明确不做
+
+- **网页端操作 Agent**（以产品能力承诺 Web 触发 run、工具审批、会话 cancel 等）。
+- 远程任务队列、云端 Agent 运行时、OpenClaw Gateway 式 relay。
+- 真实支付网关（Stripe、微信支付等）。
+
+V3 本地控制面能力保留给 **loopback 开发**；不作为 0.3 产品扩展方向。
+
+---
+
+## 0.4 — Production Harness Hardening（延后）
+
+执行轨迹、运行时预算、轨迹 eval、工具/MCP 治理 — 见 [`production-harness-hardening.md`](../planning/production-harness-hardening.md)、[`closure-plan-2026-06.md`](../planning/closure-plan-2026-06.md)。Epic 映射见 [`roadmap.md`](../roadmap.md) §4。
+
+---
+
+## 更晚（0.3 之后）
 
 | 项 | 工作量 | 说明 |
 |----|--------|------|
-| Connector OAuth / 写入 | L | GitHub/Linear PR、issue 创建 |
-
-## Tier 3 — 多用户 / 外部系统
-
-| 项 | 工作量 | 说明 |
-|----|--------|------|
-| SSO / OIDC | L | 非 loopback 多用户前置 |
-| RBAC | L | 落实 permissions 文档角色 |
-| Connector OAuth/写入 | L | GitHub/Linear 写回 |
+| Connector OAuth / 写入 | L | GitHub/Linear 写回 |
+| 完整 SSO / OIDC | L | 超出 0.3 设计占位 |
+| RBAC 强制 enforcement | L | 落实 permissions 文档 |
 | Browser gate | M–L | 无头视觉验收 |
-| Tauri 桌面 | L | 包装 embedded UI |
+| 真实计费集成 | L | 订阅壳完成后再做 |
 
 ---
 
 ## 规划前先答四问
 
-1. 下一用户是谁？（个人 / 小团队 / CI 只读集成）  
-2. 核心指标？（成本 / 信任门禁 / 吞吐）  
-3. Connector 是否够用？（GitHub/Linear 只读 vs 写回/Slack）  
-4. 是否要从 Web **控制** Agent？（仅观测 vs 受控操作）  
+1. **0.3 侧栏 IA？** 套餐 · 用量 · 账单 · API · 账号 · 企业（参考 CODEBUDDY 式后台）。  
+2. **权益模型？** Free / Pro / Team；按 token 配额还是按席位。  
+3. **远程 bind 认证？** 仅 API token vs 邮箱密码 + session cookie。  
+4. **网页是否操作 Agent？** 0.3 默认 **否** — CLI 仍是执行面。  
 
-答完后从 Tier 2 表拆 issue 即可。
+答完后从 [`roadmap.md`](../roadmap.md) §3.5 拆 issue。

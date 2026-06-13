@@ -23,6 +23,40 @@ Runtime LLM behavior comes from `~/.anycode/config.json` (and per-agent override
 
 Run **`anycode model`** to pick a provider interactively; the menu follows the same catalog.
 
+## Validation scope
+
+anyCode ships a broad provider catalog, but **maintainer day-to-day validation** focuses on:
+
+| Tier | Providers | What it means |
+|------|-----------|---------------|
+| **Maintainer-validated** | **z.ai / GLM** (default, e.g. `glm-5`), **DeepSeek** (OpenAI-compatible, including tool-schema normalization) | Primary chat, tool calls, and streaming paths are exercised regularly during development. |
+| **Automated in CI** | Mock OpenAI-compatible server only | Agent loop E2E (`cli_e2e_mock_llm`) covers orchestration without calling live vendor APIs. |
+| **Catalog-supported** | Anthropic, Bedrock, Copilot, OpenRouter, Ollama, `custom`, and other catalog entries | Configurable via `config.json`; model compatibility varies by endpoint—verify after you add credentials. |
+
+**How to self-test** after configuring a provider:
+
+1. Run **`anycode status`** — check resolved `provider / model` and routes.
+2. Open **Workbench → Settings → Model & routing** and use **Test** (`POST /api/settings/models/{id}/test`).
+3. Run a short chat: `anycode run --agent general-purpose "Reply with OK only"`.
+
+Default config uses **`provider: z.ai`** and **`model: glm-5`**. DeepSeek has a built-in model catalog (`deepseek-v4-pro`, `deepseek-v4-flash`, legacy `deepseek-chat` / `deepseek-reasoner`) and a quick-auth preset in `anycode setup`.
+
+## DeepSeek (OpenAI-compatible)
+
+Set `provider` to `deepseek` (aliases such as `deep-seek` normalize automatically). Provide `api_key` and a model id from the built-in catalog or your endpoint docs. The stack uses the shared OpenAI Chat Completions client with DeepSeek-specific tool-schema normalization.
+
+Example:
+
+```json
+{
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "api_key": "YOUR_KEY"
+}
+```
+
+Use **`anycode model`** or Workbench Settings to pick a preset; then run the self-test steps above.
+
 ## `config.json` fields (summary)
 
 - **`provider`**: A known catalog id (see `PROVIDER_CATALOG` above), plus aliases such as `z.ai` / `bigmodel` / `zai`, `anthropic` / `claude`, or kebab-case OpenClaw-style ids.

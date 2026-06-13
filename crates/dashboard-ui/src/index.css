@@ -104,6 +104,11 @@
     --bg-elevated: #121214;
     --glass-bg: rgba(255, 255, 255, 0.04);
     --glass-bg-strong: rgba(255, 255, 255, 0.08);
+    --glass-modal-bg: rgba(22, 22, 24, 0.94);
+    --glass-modal-muted: #a1a1a6;
+    --glass-modal-input-bg: rgba(255, 255, 255, 0.08);
+    --glass-modal-input-border: rgba(255, 255, 255, 0.14);
+    --glass-modal-placeholder: rgba(255, 255, 255, 0.42);
     --on-surface: #f5f5f7;
     --on-surface-variant: #8e8e93;
     --border: rgba(255, 255, 255, 0.08);
@@ -118,6 +123,11 @@
     --bg-elevated: #ffffff;
     --glass-bg: rgba(255, 255, 255, 0.8);
     --glass-bg-strong: rgba(255, 255, 255, 0.92);
+    --glass-modal-bg: rgba(255, 255, 255, 0.96);
+    --glass-modal-muted: #48484a;
+    --glass-modal-input-bg: rgba(0, 0, 0, 0.04);
+    --glass-modal-input-border: rgba(0, 0, 0, 0.12);
+    --glass-modal-placeholder: rgba(0, 0, 0, 0.38);
     --on-surface: #1d1d1f;
     --on-surface-variant: #6e6e73;
     --border: rgba(0, 0, 0, 0.08);
@@ -957,7 +967,20 @@
 
   .dw-home-hero {
     position: relative;
-    max-width: none;
+    max-width: 42rem;
+    margin-inline: auto;
+    min-height: calc(100dvh - var(--dw-topbar-height, 3rem) - 2.5rem);
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 1.5rem 0 2rem;
+  }
+
+  .dw-home-hero__intro {
+    @apply flex flex-col items-center gap-2 text-center w-full;
+  }
+
+  .dw-home-hero__subtitle {
+    @apply text-sm text-secondary m-0 max-w-md leading-relaxed;
   }
 
   .dw-home-hero > :not(.hero-glow) {
@@ -1059,7 +1082,7 @@
   }
 
   .dw-suggestion-card {
-    @apply flex items-start gap-3 rounded-xl px-4 py-3 text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply flex flex-col items-start gap-1 rounded-xl px-4 py-3 text-left cursor-pointer border-0 disabled:opacity-50 disabled:cursor-not-allowed;
     background: var(--glass-bg, var(--color-surface-container-lowest));
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
@@ -1277,6 +1300,61 @@ html.dark .session-flow .react-flow__node:hover {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--border);
+}
+
+/* Modal / dialog: higher opacity so labels and inputs stay readable in light + dark */
+.glass-modal {
+  background: var(--glass-modal-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-strong, var(--border));
+  box-shadow: var(--shadow-float);
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.glass-modal :where(.text-secondary, .text-on-surface-variant, .text-outline) {
+  color: var(--glass-modal-muted);
+}
+
+.glass-modal :where(h1, h2, h3, .text-on-surface) {
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.glass-modal .dw-input,
+.glass-modal select.dw-input,
+.glass-modal textarea.dw-input {
+  background: var(--glass-modal-input-bg);
+  border-color: var(--glass-modal-input-border);
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.glass-modal .dw-input::placeholder,
+.glass-modal textarea.dw-input::placeholder {
+  color: var(--glass-modal-placeholder);
+}
+
+.glass-modal .dw-input:focus,
+.glass-modal textarea.dw-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  outline: none;
+}
+
+.glass-modal .dw-btn-ghost {
+  color: var(--glass-modal-muted);
+}
+
+.glass-modal .dw-btn-ghost:hover {
+  color: var(--on-surface, var(--color-on-surface));
+  background: var(--glass-bg-strong);
+}
+
+.glass-modal label {
+  color: var(--on-surface, var(--color-on-surface));
+}
+
+.glass-modal label span {
+  color: var(--glass-modal-muted);
 }
 
 .glass-card {
