@@ -34,6 +34,28 @@ pub struct ChatMessage {
     pub timestamp: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DeliverableSource {
+    Inbound,
+    Outbound,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDeliverable {
+    pub path: String,
+    pub file_name: String,
+    pub extension: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    pub source: DeliverableSource,
+    pub sent: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub timestamp: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WcSession {
@@ -52,8 +74,16 @@ pub struct WcSession {
     pub state: SessionState,
     #[serde(default)]
     pub chat_history: Vec<ChatMessage>,
+    #[serde(default)]
+    pub deliverables: Vec<SessionDeliverable>,
+    #[serde(default = "default_max_deliverables")]
+    pub max_deliverables_length: usize,
     #[serde(default = "default_max_hist")]
     pub max_history_length: usize,
+}
+
+fn default_max_deliverables() -> usize {
+    20
 }
 
 fn default_max_hist() -> usize {
@@ -65,6 +95,7 @@ impl WcSession {
         Self {
             working_directory: crate::workspace::canonical_root_string(),
             max_history_length: 100,
+            max_deliverables_length: 20,
             ..Default::default()
         }
     }
@@ -209,6 +240,9 @@ pub fn load_session(data_root: &Path, account_id: &str) -> Result<WcSession> {
     if s.max_history_length == 0 {
         s.max_history_length = 100;
     }
+    if s.max_deliverables_length == 0 {
+        s.max_deliverables_length = 20;
+    }
     Ok(s)
 }
 
@@ -220,6 +254,10 @@ pub fn save_session(data_root: &Path, account_id: &str, session: &WcSession) -> 
     let max = s.max_history_length.max(1);
     if s.chat_history.len() > max {
         s.chat_history = s.chat_history[s.chat_history.len() - max..].to_vec();
+    }
+    let max_deliv = s.max_deliverables_length.max(1);
+    if s.deliverables.len() > max_deliv {
+        s.deliverables = s.deliverables[s.deliverables.len() - max_deliv..].to_vec();
     }
     let raw = serde_json::to_string_pretty(&s)? + "\n";
     fs::write(&p, raw)?;
@@ -268,5 +306,129 @@ pub fn add_chat_message(session: &mut WcSession, role: &str, content: &str) {
     let max = session.max_history_length.max(1);
     if session.chat_history.len() > max {
         session.chat_history = session.chat_history[session.chat_history.len() - max..].to_vec();
+    }
+}
+
+pub fn record_session_deliverable(
+    session: &mut WcSession,
+    path: &std::path::Path,
+    source: DeliverableSource,
+    sent: bool,
+    mime_type: Option<String>,
+    description: Option<String>,
+) {
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file")
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let canonical = std::fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .display()
+        .to_string();
+    session.deliverables.retain(|d| d.path != canonical);
+    session.deliverables.push(SessionDeliverable {
+        path: canonical,
+        file_name,
+        extension,
+        mime_type,
+        source,
+        sent,
+        description,
+        timestamp: chrono::Utc::now().timestamp_millis(),
+    });
+    let max = session.max_deliverables_length.max(1);
+    if session.deliverables.len() > max {
+        session.deliverables = session.deliverables[session.deliverables.len() - max..].to_vec();
+    }
+}
+
+pub fn deliverables_context_text(session: &WcSession, limit: Option<usize>) -> String {
+    let slice: &[SessionDeliverable] = match limit {
+        Some(n) if n > 0 => {
+            let start = session.deliverables.len().saturating_sub(n);
+            &session.deliverables[start..]
+        }
+        _ => &session.deliverables,
+    };
+    if slice.is_empty() {
+        return String::new();
+    }
+    let mut lines = Vec::new();
+    for (idx, item) in slice.iter().enumerate() {
+        let source = match item.source {
+            DeliverableSource::Inbound => tr("wx-deliverable-inbound"),
+            DeliverableSource::Outbound => tr("wx-deliverable-outbound"),
+        };
+        let sent = if item.sent {
+            tr("wx-deliverable-sent")
+        } else {
+            tr("wx-deliverable-unsent")
+        };
+        let mut a = FluentArgs::new();
+        a.set("idx", (idx + 1) as i64);
+        a.set("name", item.file_name.clone());
+        a.set("ext", item.extension.clone());
+        a.set("path", item.path.clone());
+        a.set("source", source);
+        a.set("sent", sent);
+        lines.push(tr_args("wx-deliverable-line", &a));
+    }
+    lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_session_without_deliverables_defaults_empty() {
+        let raw = r#"{
+  "workingDirectory": "/tmp",
+  "chatHistory": []
+}"#;
+        let s: WcSession = serde_json::from_str(raw).unwrap();
+        assert!(s.deliverables.is_empty());
+        assert_eq!(s.max_deliverables_length, 20);
+    }
+
+    #[test]
+    fn record_deliverable_trims_to_max() {
+        let mut session = WcSession {
+            max_deliverables_length: 2,
+            ..WcSession::with_default_cwd()
+        };
+        record_session_deliverable(
+            &mut session,
+            std::path::Path::new("/tmp/a.xlsx"),
+            DeliverableSource::Outbound,
+            true,
+            None,
+            None,
+        );
+        record_session_deliverable(
+            &mut session,
+            std::path::Path::new("/tmp/b.xlsx"),
+            DeliverableSource::Outbound,
+            true,
+            None,
+            None,
+        );
+        record_session_deliverable(
+            &mut session,
+            std::path::Path::new("/tmp/c.xlsx"),
+            DeliverableSource::Outbound,
+            true,
+            None,
+            None,
+        );
+        assert_eq!(session.deliverables.len(), 2);
+        assert_eq!(session.deliverables[0].file_name, "b.xlsx");
+        assert_eq!(session.deliverables[1].file_name, "c.xlsx");
     }
 }

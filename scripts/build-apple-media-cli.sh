@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="$ROOT/apps/anycode-desktop/native/anycode-apple-media"
 OUT="$ROOT/apps/anycode-desktop/resources/bin/anycode-apple-media"
+INSTALL_DIR="${HOME}/.anycode/bin"
+INSTALL_OUT="${INSTALL_DIR}/anycode-apple-media"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "skip: anycode-apple-media requires macOS" >&2
@@ -18,3 +20,8 @@ BIN="$PKG/.build/release/anycode-apple-media"
 cp "$BIN" "$OUT"
 chmod +x "$OUT"
 echo "Built $OUT"
+
+mkdir -p "$INSTALL_DIR"
+cp "$BIN" "$INSTALL_OUT"
+chmod +x "$INSTALL_OUT"
+echo "Installed $INSTALL_OUT (for CLI / WeChat bridge)"

@@ -1,6 +1,7 @@
 //! Text-to-speech via OpenAI-compatible HTTP or on-device Piper.
 
 use crate::local_media_catalog::is_builtin_local_provider;
+use crate::media::apple_media::{is_apple_tts_provider, synthesize_apple_tts};
 use crate::media::http::{bearer_headers, http_client, openai_base, resolve_tts_voice};
 use crate::media::tts_local::synthesize_local;
 use crate::media::MediaProfile;
@@ -22,6 +23,21 @@ impl TtsClient {
     }
 
     pub async fn synthesize(&self, text: &str) -> Result<TtsResult, CoreError> {
+        if is_apple_tts_provider(&self.profile.provider) {
+            let voice = resolve_tts_voice(&self.profile);
+            let locale = self
+                .profile
+                .extra_headers
+                .as_ref()
+                .and_then(|h| h.get("locale"))
+                .map(|s| s.as_str())
+                .unwrap_or("zh-CN");
+            let audio_bytes = synthesize_apple_tts(text, Some(&voice), locale).await?;
+            return Ok(TtsResult {
+                audio_bytes,
+                content_type: "audio/wav".to_string(),
+            });
+        }
         if is_builtin_local_provider(&self.profile.provider) {
             let voice = resolve_tts_voice(&self.profile);
             let audio_bytes = synthesize_local(&voice, text).await?;

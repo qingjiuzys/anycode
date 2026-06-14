@@ -27,6 +27,11 @@ export function useTheme() {
     applyTheme(theme);
   }, [theme]);
 
+  const pick = (next: Theme) => {
+    setTheme(next);
+    setThemeState(next);
+  };
+
   const toggle = () => {
     setThemeState((prev) => {
       const next = prev === "dark" ? "light" : "dark";
@@ -35,5 +40,5 @@ export function useTheme() {
     });
   };
 
-  return { theme, setTheme: setThemeState, toggle };
+  return { theme, setTheme: pick, toggle };
 }

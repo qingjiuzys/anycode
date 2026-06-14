@@ -127,7 +127,7 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
     LocalMediaPreset {
         id: "apple-speech-macos",
         label: "Apple Speech (macOS native)",
-        description: "On-device speech recognition via Apple Speech framework. No model download; macOS desktop app only.",
+        description: "On-device speech recognition via Apple Speech framework. No model download; requires macOS helper.",
         capabilities: &[ModelCapability::Stt],
         mode: LocalMode::PlatformNative,
         provider: "apple_speech",
@@ -138,7 +138,23 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         docs_url: Some("https://developer.apple.com/documentation/speech"),
         model_download_hint: None,
         required_feature: None,
-        desktop_only: true,
+        desktop_only: false,
+    },
+    LocalMediaPreset {
+        id: "apple-tts-macos",
+        label: "Apple Speech (macOS TTS)",
+        description: "On-device text-to-speech via AVSpeechSynthesizer. No model download; requires macOS helper.",
+        capabilities: &[ModelCapability::Tts],
+        mode: LocalMode::PlatformNative,
+        provider: "apple_tts",
+        model: "on-device",
+        base_url: None,
+        api_key: Some("local"),
+        voice: Some("zh-CN"),
+        docs_url: Some("https://developer.apple.com/documentation/avfaudio/avspeechsynthesizer"),
+        model_download_hint: None,
+        required_feature: None,
+        desktop_only: false,
     },
     LocalMediaPreset {
         id: "local-whisper-tiny",
@@ -217,6 +233,7 @@ pub fn local_media_provider_allows_placeholder_key(provider: &str) -> bool {
             | "local_whisper"
             | "local_piper"
             | "apple_speech"
+            | "apple_tts"
             | "ollama"
             | "whisper_cpp"
             | "piper"
@@ -337,5 +354,12 @@ mod tests {
         let m = preset_to_configured_model(p);
         assert_eq!(m.provider, "local_fastembed");
         assert!(m.capabilities.contains(&ModelCapability::Embedding));
+    }
+
+    #[test]
+    fn apple_tts_preset_exists() {
+        let p = preset_by_id("apple-tts-macos").expect("preset");
+        assert_eq!(p.provider, "apple_tts");
+        assert!(p.capabilities.contains(&ModelCapability::Tts));
     }
 }

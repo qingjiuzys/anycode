@@ -163,6 +163,7 @@ fn repl_task(agent: &str, prompt: &str, working_dir: &str, task_id: Uuid) -> Tas
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
         },
         created_at: chrono::Utc::now(),
     }

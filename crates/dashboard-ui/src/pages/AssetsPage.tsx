@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { api } from "@/api/client";
+import type { AssetItem } from "@/api/types/artifacts";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -10,9 +11,20 @@ import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 
 type TrustFilter = "all" | "unverified" | "blocked";
+type AssetKindFilter =
+  | ""
+  | "all"
+  | "deliverable"
+  | "media"
+  | "report"
+  | "workflow"
+  | "skill";
+type SourceFilter = "" | "agent_created" | "workspace_scan" | "report_archive" | "skill_scan" | "workflow_scan";
+type ReuseFilter = "" | "candidate" | "reusable" | "archived";
 
 export function AssetsPage() {
   const t = useT();
+  const queryClient = useQueryClient();
   const { trust: trustSearch } = useSearch({ from: "/_shell/assets" });
   const projects = useQuery({
     queryKey: ["projects"],
@@ -20,7 +32,9 @@ export function AssetsPage() {
   });
   const list = projects.data?.projects ?? [];
   const [projectId, setProjectId] = useState<string>("");
-  const [kind, setKind] = useState<string>("");
+  const [assetKind, setAssetKind] = useState<AssetKindFilter>("");
+  const [sourceType, setSourceType] = useState<SourceFilter>("");
+  const [reuseState, setReuseState] = useState<ReuseFilter>("");
   const [trustFilter, setTrustFilter] = useState<TrustFilter>(
     trustSearch ?? "all",
   );
@@ -29,28 +43,72 @@ export function AssetsPage() {
     if (trustSearch) setTrustFilter(trustSearch);
   }, [trustSearch]);
 
-  // Default view ("") shows deliverables only: report artifacts are excluded
-  // server-side; "all" shows everything including reports.
-  const artifacts = useQuery({
-    queryKey: ["artifacts", projectId, kind, trustFilter],
+  const assets = useQuery({
+    queryKey: [
+      "assets",
+      projectId,
+      assetKind,
+      sourceType,
+      reuseState,
+      trustFilter,
+    ],
     queryFn: () =>
-      api.artifacts({
+      api.assets({
         projectId: projectId || undefined,
-        kind: kind && kind !== "all" ? kind : undefined,
-        excludeKind: kind === "" ? "report" : undefined,
+        assetKind: assetKind && assetKind !== "all" ? assetKind : assetKind === "all" ? "all" : "deliverable",
+        sourceType: sourceType || undefined,
+        reuseState: reuseState || undefined,
         unverifiedOnly: trustFilter === "unverified",
         blockedSessionOnly: trustFilter === "blocked",
-        finalOnly: kind === "",
-        limit: 100,
+        finalOnly: assetKind === "",
+        includeSkills: assetKind === "" || assetKind === "all" || assetKind === "skill",
+        limit: 200,
       }),
   });
 
-  const rows = artifacts.data?.artifacts ?? [];
+  const reindex = useMutation({
+    mutationFn: async () => {
+      if (!projectId) return;
+      await api.scanProjectWorkflows(projectId);
+      await api.indexProjectAssets(projectId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+  });
+
+  const rows = assets.data?.assets ?? [];
 
   const trustFilters = [
     { id: "all" as const, label: t("assets.filterAll") },
     { id: "unverified" as const, label: t("assets.filterUnverified") },
     { id: "blocked" as const, label: t("assets.filterBlocked") },
+  ];
+
+  const kindOptions: { value: AssetKindFilter; label: string }[] = [
+    { value: "", label: t("assets.deliverables") },
+    { value: "all", label: t("assets.allTypes") },
+    { value: "deliverable", label: t("assets.kinds.deliverable") },
+    { value: "media", label: t("assets.kinds.media") },
+    { value: "report", label: t("assets.kinds.report") },
+    { value: "workflow", label: t("assets.kinds.workflow") },
+    { value: "skill", label: t("assets.kinds.skill") },
+  ];
+
+  const sourceOptions: { value: SourceFilter; label: string }[] = [
+    { value: "", label: t("assets.allSources") },
+    { value: "agent_created", label: t("assets.sources.agentCreated") },
+    { value: "workspace_scan", label: t("assets.sources.workspaceScan") },
+    { value: "report_archive", label: t("assets.sources.reportArchive") },
+    { value: "skill_scan", label: t("assets.sources.skillScan") },
+    { value: "workflow_scan", label: t("assets.sources.workflowScan") },
+  ];
+
+  const reuseOptions: { value: ReuseFilter; label: string }[] = [
+    { value: "", label: t("assets.allReuseStates") },
+    { value: "candidate", label: t("assets.reuseStates.candidate") },
+    { value: "reusable", label: t("assets.reuseStates.reusable") },
+    { value: "archived", label: t("assets.reuseStates.archived") },
   ];
 
   return (
@@ -63,16 +121,29 @@ export function AssetsPage() {
           { label: t("assets.title") },
         ]}
         actions={
-          rows.length > 0 ? (
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              onClick={() => exportArtifacts(rows, t)}
-            >
-              <Icon name="download" size={16} />
-              {t("assets.export")}
-            </button>
-          ) : undefined
+          <>
+            {projectId && (
+              <button
+                type="button"
+                className="dw-btn-secondary"
+                disabled={reindex.isPending}
+                onClick={() => reindex.mutate()}
+              >
+                <Icon name="sync" size={16} />
+                {t("assets.reindexProject")}
+              </button>
+            )}
+            {rows.length > 0 && (
+              <button
+                type="button"
+                className="dw-btn-secondary"
+                onClick={() => exportAssets(rows, t)}
+              >
+                <Icon name="download" size={16} />
+                {t("assets.export")}
+              </button>
+            )}
+          </>
         }
       />
 
@@ -89,12 +160,38 @@ export function AssetsPage() {
             </option>
           ))}
         </select>
-        <select className="dw-input" value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">{t("assets.deliverables")}</option>
-          <option value="all">{t("assets.allTypes")}</option>
-          <option value="file">{t("assets.kinds.file")}</option>
-          <option value="notebook">{t("assets.kinds.notebook")}</option>
-          <option value="report">{t("assets.kinds.report")}</option>
+        <select
+          className="dw-input"
+          value={assetKind}
+          onChange={(e) => setAssetKind(e.target.value as AssetKindFilter)}
+        >
+          {kindOptions.map((o) => (
+            <option key={o.value || "default"} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="dw-input"
+          value={sourceType}
+          onChange={(e) => setSourceType(e.target.value as SourceFilter)}
+        >
+          {sourceOptions.map((o) => (
+            <option key={o.value || "all-sources"} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="dw-input"
+          value={reuseState}
+          onChange={(e) => setReuseState(e.target.value as ReuseFilter)}
+        >
+          {reuseOptions.map((o) => (
+            <option key={o.value || "all-reuse"} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -111,7 +208,7 @@ export function AssetsPage() {
         ))}
       </div>
 
-      {rows.length === 0 && !artifacts.isLoading && (
+      {rows.length === 0 && !assets.isLoading && (
         <EmptyState
           title={t("assets.emptyTitle")}
           description={t("assets.emptyDesc")}
@@ -126,11 +223,12 @@ export function AssetsPage() {
               <thead>
                 <tr>
                   <th>{t("assets.project")}</th>
-                  <th>{t("common.path")}</th>
+                  <th>{t("assets.name")}</th>
                   <th>{t("assets.type")}</th>
+                  <th>{t("assets.source")}</th>
+                  <th>{t("assets.reuseState")}</th>
                   <th>{t("audit.session")}</th>
                   <th>{t("conversations.trust")}</th>
-                  <th>{t("assets.gate")}</th>
                   <th>{t("assets.updated")}</th>
                 </tr>
               </thead>
@@ -139,25 +237,15 @@ export function AssetsPage() {
                   <tr key={a.id}>
                     <td>{a.project_name ?? "—"}</td>
                     <td className="text-secondary">
-                      {a.kind === "report" ? (
-                        <Link
-                          to="/reports"
-                          search={{ artifact_id: a.id }}
-                          className="font-code text-xs no-underline hover:underline"
-                        >
-                          {a.path}
-                        </Link>
-                      ) : (
-                        <Link
-                          to="/assets/$artifactId"
-                          params={{ artifactId: a.id }}
-                          className="font-code text-xs no-underline hover:underline"
-                        >
-                          {a.path}
-                        </Link>
-                      )}
+                      <AssetLink asset={a} />
                     </td>
-                    <td>{a.kind}</td>
+                    <td>{t(`assets.kinds.${a.asset_kind}`)}</td>
+                    <td className="text-xs text-secondary">
+                      {t(`assets.sources.${a.source_type}`)}
+                    </td>
+                    <td>
+                      <StatusBadge status={a.reuse_state} />
+                    </td>
                     <td>
                       {a.session_id ? (
                         <Link
@@ -177,7 +265,6 @@ export function AssetsPage() {
                     <td>
                       <StatusBadge status={a.trust_level} />
                     </td>
-                    <td className="text-secondary text-xs">{a.verified_by_gate_name ?? "—"}</td>
                     <td className="text-secondary text-xs">{a.updated_at ?? "—"}</td>
                   </tr>
                 ))}
@@ -190,24 +277,59 @@ export function AssetsPage() {
   );
 }
 
-function exportArtifacts(
-  rows: import("@/api/types").ArtifactRecord[],
-  t: (k: string) => string,
-) {
+function AssetLink({ asset }: { asset: AssetItem }) {
+  const t = useT();
+  if (asset.asset_kind === "report") {
+    return (
+      <Link
+        to="/reports"
+        search={{ artifact_id: asset.backend_id }}
+        className="font-code text-xs no-underline hover:underline"
+      >
+        {asset.title}
+      </Link>
+    );
+  }
+  if (asset.backend_type === "skill") {
+    return (
+      <Link
+        to="/assets/$artifactId"
+        params={{ artifactId: asset.id }}
+        className="font-code text-xs no-underline hover:underline"
+      >
+        {asset.title}
+      </Link>
+    );
+  }
+  return (
+    <Link
+      to="/assets/$artifactId"
+      params={{ artifactId: asset.id }}
+      className="font-code text-xs no-underline hover:underline"
+      title={asset.path ?? asset.subtitle}
+    >
+      {asset.title || asset.path || t("assets.unnamed")}
+    </Link>
+  );
+}
+
+function exportAssets(rows: AssetItem[], t: (k: string) => string) {
   const header = [
     t("assets.project"),
-    t("common.path"),
+    t("assets.name"),
     t("assets.type"),
+    t("assets.source"),
+    t("assets.reuseState"),
     t("conversations.trust"),
-    t("assets.gate"),
     t("assets.updated"),
   ];
   const data = rows.map((a) => [
     a.project_name ?? "",
-    a.path,
-    a.kind,
+    a.title,
+    a.asset_kind,
+    a.source_type,
+    a.reuse_state,
     a.trust_level,
-    a.verified_by_gate_name ?? "",
     a.updated_at ?? "",
   ]);
   downloadCsv(`assets-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...data]);

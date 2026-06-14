@@ -234,6 +234,7 @@ pub(crate) async fn run_interactive(
         &config.llm.model,
         tool_deny_names,
         tool_deny_prefixes,
+        crate::app_config::resolve_agent_loop_limits(&config.runtime),
     )
     .await?;
 

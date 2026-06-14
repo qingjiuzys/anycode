@@ -134,7 +134,50 @@ fn artifact_kind_for_path(path: &Path) -> &'static str {
         .map(|s| s.to_lowercase())
     {
         Some(ext) if ext == "ipynb" => "notebook",
-        Some(ext) if matches!(ext.as_str(), "md" | "txt" | "pdf") => "report",
+        Some(ext) if ext == "yml" || ext == "yaml" => {
+            if path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .is_some_and(|n| n.starts_with("workflow"))
+            {
+                "workflow"
+            } else {
+                "file"
+            }
+        }
+        Some(ext)
+            if matches!(
+                ext.as_str(),
+                "png"
+                    | "jpg"
+                    | "jpeg"
+                    | "gif"
+                    | "webp"
+                    | "svg"
+                    | "bmp"
+                    | "ico"
+                    | "mp4"
+                    | "mov"
+                    | "avi"
+                    | "webm"
+                    | "mkv"
+                    | "mp3"
+                    | "wav"
+                    | "ogg"
+                    | "flac"
+                    | "aac"
+                    | "m4a"
+            ) =>
+        {
+            "media"
+        }
+        Some(ext) if ext == "pdf" => "media",
+        Some(ext)
+            if matches!(ext.as_str(), "md" | "txt")
+                && path.to_string_lossy().contains("report") =>
+        {
+            "report"
+        }
         _ => "file",
     }
 }

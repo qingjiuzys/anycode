@@ -10,7 +10,8 @@ use crate::term::session_persist::{
 };
 use anycode_agent::AgentRuntime;
 use anycode_core::{
-    AgentType, DiskTaskOutput, Message, MessageContent, MessageRole, TaskBudget, TurnOutput,
+    AgentLoopLimits, AgentType, DiskTaskOutput, Message, MessageContent, MessageRole, TaskBudget,
+    TurnOutput,
 };
 use anycode_dashboard::RunSessionKind;
 use fluent_bundle::FluentArgs;
@@ -31,6 +32,7 @@ pub(crate) struct ReplLineSession {
     pub turn_coop_cancel: Arc<AtomicBool>,
     pub tool_deny_names: Vec<String>,
     pub tool_deny_prefixes: Vec<String>,
+    pub loop_limits: AgentLoopLimits,
     /// Active Digital Workbench recorder for the current stream/line turn (if any).
     pub dashboard_recorder: Option<DashboardRecorderHandle>,
     pub dashboard_task_id: Option<Uuid>,
@@ -46,6 +48,7 @@ impl ReplLineSession {
         model: &str,
         tool_deny_names: Vec<String>,
         tool_deny_prefixes: Vec<String>,
+        loop_limits: AgentLoopLimits,
     ) -> anyhow::Result<Self> {
         let working_dir_str = std::fs::canonicalize(working_dir)
             .unwrap_or_else(|_| working_dir.to_path_buf())
@@ -78,6 +81,7 @@ impl ReplLineSession {
             turn_coop_cancel,
             tool_deny_names,
             tool_deny_prefixes,
+            loop_limits,
             dashboard_recorder: None,
             dashboard_task_id: None,
             dashboard_session_kind: RunSessionKind::Repl,
@@ -173,6 +177,7 @@ pub(crate) async fn run_line_repl_turn(
         &session.tool_deny_names,
         &session.tool_deny_prefixes,
         repl_budget_from_env(),
+        session.loop_limits,
     );
     let exec_res = if let Some(ref rec) = session.dashboard_recorder {
         crate::dashboard_record::run_with_dashboard_tail_arc(
@@ -292,6 +297,7 @@ pub(crate) async fn append_user_spawn_turn(
     let coop = session.turn_coop_cancel.clone();
     let deny_names = session.tool_deny_names.clone();
     let deny_prefixes = session.tool_deny_prefixes.clone();
+    let loop_limits = session.loop_limits;
     let handle = tokio::spawn(async move {
         rt.execute_turn_from_messages(
             task_id,
@@ -302,6 +308,7 @@ pub(crate) async fn append_user_spawn_turn(
             &deny_names,
             &deny_prefixes,
             repl_budget_from_env(),
+            loop_limits,
         )
         .await
         .map_err(anyhow::Error::from)

@@ -5,7 +5,6 @@ use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::Aes128;
 use anyhow::Result;
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use md5;
 use rand::RngCore;
 use serde_json::{json, Value};
@@ -17,7 +16,8 @@ pub const UPLOAD_MEDIA_FILE: i64 = 3;
 
 pub struct UploadedCdnMedia {
     pub encrypt_query_param: String,
-    pub aes_key_b64: String,
+    /// Raw 16-byte AES key (outbound message encoding differs by media kind).
+    pub aes_key: [u8; 16],
     /// Plaintext file size in bytes.
     pub raw_size: usize,
     /// AES-128-ECB padded ciphertext size in bytes.
@@ -106,7 +106,7 @@ pub async fn upload_bytes_to_cdn_with_media_type(
 
     Ok(UploadedCdnMedia {
         encrypt_query_param: download_param,
-        aes_key_b64: B64.encode(aeskey),
+        aes_key: aeskey,
         raw_size: rawsize,
         ciphertext_size: filesize,
         rawfilemd5,

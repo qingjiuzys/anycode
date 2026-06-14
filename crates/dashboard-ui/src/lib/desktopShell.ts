@@ -1,8 +1,14 @@
 export interface AppleMediaCapabilities {
   stt: boolean;
   ocr: boolean;
+  tts: boolean;
+  notify: boolean;
+  keychain: boolean;
+  pasteboard: boolean;
   platform: string;
   helper_path?: string | null;
+  speech_authorized?: boolean | null;
+  microphone_authorized?: boolean | null;
 }
 
 let tauriAvailable: boolean | null = null;
@@ -99,6 +105,10 @@ export async function appleOcrImage(
 
 export function isAppleSpeechProvider(provider?: string | null): boolean {
   return provider?.trim().toLowerCase() === "apple_speech";
+}
+
+export function isAppleTtsProvider(provider?: string | null): boolean {
+  return provider?.trim().toLowerCase() === "apple_tts";
 }
 
 /** Reset cached desktop detection (tests). */

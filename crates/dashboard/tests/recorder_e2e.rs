@@ -1,6 +1,6 @@
 //! CLI recorder → SQLite → events integration (no live HTTP).
 
-use anycode_core::{AgentType, DiskTaskOutput, Task, TaskBudget, TaskContext};
+use anycode_core::{AgentLoopLimits, AgentType, DiskTaskOutput, Task, TaskBudget, TaskContext};
 use anycode_dashboard::{DashboardDb, DashboardRecorder, RunSessionKind};
 use tempfile::tempdir;
 use uuid::Uuid;
@@ -34,6 +34,7 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -160,6 +161,7 @@ async fn recorder_begin_attaches_precreated_session_and_preserves_title() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };

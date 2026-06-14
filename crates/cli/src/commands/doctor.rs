@@ -338,6 +338,121 @@ fn tool_rows() -> Vec<CheckRow> {
     rows
 }
 
+fn tail_log(path: &Path, max_lines: usize) -> String {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return String::new();
+    };
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() <= max_lines {
+        text
+    } else {
+        lines[lines.len() - max_lines..].join("\n")
+    }
+}
+
+fn wechat_history_rows() -> Vec<CheckRow> {
+    let mut rows = Vec::new();
+    rows.push(CheckRow {
+        name: "wechat_history.note".into(),
+        status: "info".into(),
+        detail:
+            "Local DB history uses SQLCipher keys from memory scan; iLink QR bot bind is unrelated"
+                .into(),
+    });
+    let wechat_running = std::process::Command::new("pgrep")
+        .arg("-x")
+        .arg("WeChat")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    rows.push(CheckRow {
+        name: "wechat_history.wechat_running".into(),
+        status: if wechat_running { "ok" } else { "warn" }.into(),
+        detail: if wechat_running {
+            "WeChat process running (required for key extraction)".into()
+        } else {
+            "WeChat not running; open and log in before setup".into()
+        },
+    });
+    if let Some(p) = home_path(".anycode/wechat-history/wechat_keys.json") {
+        rows.push(CheckRow {
+            name: "wechat_history.keys".into(),
+            status: exists_status(&p).into(),
+            detail: p.display().to_string(),
+        });
+    }
+    if let Some(p) = home_path(".anycode/wechat-history/extract-keys.log") {
+        let tail = tail_log(&p, 3);
+        rows.push(CheckRow {
+            name: "wechat_history.extract_log".into(),
+            status: if p.exists() { "ok" } else { "missing" }.into(),
+            detail: if tail.is_empty() {
+                p.display().to_string()
+            } else {
+                format!("{} — {}", p.display(), tail.replace('\n', " | "))
+            },
+        });
+    }
+    if let Some((_, cfg)) = load_config_json_for_doctor() {
+        let wh = cfg.get("wechatHistory").and_then(|v| v.as_object());
+        let backend = wh
+            .and_then(|o| o.get("backend"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("unset");
+        let data_dir = wh
+            .and_then(|o| o.get("dataDir"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        rows.push(CheckRow {
+            name: "wechat_history.backend".into(),
+            status: if backend == "sqlcipher_key_map" {
+                "ok"
+            } else {
+                "warn"
+            }
+            .into(),
+            detail: format!("backend={backend} dataDir={data_dir}"),
+        });
+    }
+    let sqlcipher_ok = ["sqlcipher", "/opt/homebrew/bin/sqlcipher"]
+        .iter()
+        .any(|b| Path::new(b).exists() || which_sqlcipher(b));
+    rows.push(CheckRow {
+        name: "wechat_history.sqlcipher".into(),
+        status: if sqlcipher_ok { "ok" } else { "missing" }.into(),
+        detail: "brew install sqlcipher".into(),
+    });
+    let sip = std::process::Command::new("csrutil")
+        .arg("status")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    let sip_disabled = sip.to_ascii_lowercase().contains("disabled");
+    rows.push(CheckRow {
+        name: "wechat_history.sip".into(),
+        status: if sip_disabled { "ok" } else { "warn" }.into(),
+        detail: if sip_disabled {
+            "SIP disabled (OK for one-time key scan)".into()
+        } else {
+            "SIP enabled; memory scan may fail until temporarily disabled".into()
+        },
+    });
+    rows
+}
+
+fn which_sqlcipher(name: &str) -> bool {
+    std::process::Command::new("sh")
+        .args(["-lc", &format!("command -v {name}")])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+pub(crate) fn print_wechat_history(json: bool) -> anyhow::Result<()> {
+    print_rows(&wechat_history_rows(), json)
+}
+
 pub(crate) fn print_tools(json: bool) -> anyhow::Result<()> {
     print_rows(&tool_rows(), json)
 }

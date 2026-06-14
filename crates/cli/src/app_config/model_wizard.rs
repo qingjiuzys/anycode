@@ -122,6 +122,10 @@ pub(crate) fn save_merged_config(
             .as_ref()
             .map(|c| c.notifications.clone())
             .unwrap_or_default(),
+        wechat_history: existing
+            .as_ref()
+            .map(|c| c.wechat_history.clone())
+            .unwrap_or_default(),
         models: existing
             .as_ref()
             .map(|c| c.models.clone())

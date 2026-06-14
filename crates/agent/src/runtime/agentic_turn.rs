@@ -4,7 +4,6 @@ use super::agentic_loop::{nested_coop_cancelled, opt_coop_cancelled, task_cancel
 use super::artifacts::extract_artifacts;
 use super::budget::{tick_budget, tool_blocked_under_degrade, RuntimeBudgetState};
 use super::evidence;
-use super::limits::MAX_TOOL_CALLS_TOTAL;
 use super::logging::RunLogger;
 use super::tool_result_injection;
 use super::AgentRuntime;
@@ -21,6 +20,7 @@ pub(super) struct TurnToolCtx<'a> {
     pub working_directory: &'a str,
     pub session_label: &'a str,
     pub turn: usize,
+    pub loop_limits: AgentLoopLimits,
 }
 
 /// Mutable counters/state updated while dispatching tool calls in a turn.
@@ -119,12 +119,12 @@ impl AgentRuntime {
                 return Ok(TurnToolBatchOutcome::BudgetExceeded);
             }
             state.total_tool_calls += 1;
-            if state.total_tool_calls > MAX_TOOL_CALLS_TOTAL {
+            if state.total_tool_calls > ctx.loop_limits.max_tool_calls {
                 logger.line(
                     ctx.task_id,
                     &format!(
                         "[task_end] status=failed reason=max_tool_calls({})",
-                        MAX_TOOL_CALLS_TOTAL
+                        ctx.loop_limits.max_tool_calls
                     ),
                 );
                 return Ok(TurnToolBatchOutcome::MaxToolCalls);

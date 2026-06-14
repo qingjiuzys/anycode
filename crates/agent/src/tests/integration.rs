@@ -101,6 +101,7 @@ async fn test_agent_runtime_tool_loop_injects_tool_result_message() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -232,6 +233,7 @@ async fn execute_task_cooperative_cancel_before_first_llm() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -337,6 +339,7 @@ async fn execute_task_cooperative_cancel_after_tool() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -436,6 +439,7 @@ async fn execute_task_in_flight_llm_cooperative_cancel() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -521,6 +525,7 @@ async fn execute_turn_from_messages_in_flight_stream_cooperative_cancel() {
             &[],
             &[],
             TaskBudget::default(),
+            AgentLoopLimits::default(),
         ),
     )
     .await
@@ -615,6 +620,7 @@ async fn execute_turn_from_messages_in_flight_chat_cooperative_cancel() {
             &[],
             &[],
             TaskBudget::default(),
+            AgentLoopLimits::default(),
         ),
     )
     .await
@@ -715,6 +721,7 @@ async fn test_execute_turn_from_messages_returns_final_text_and_injects_tool_res
             &[],
             &[],
             TaskBudget::default(),
+            AgentLoopLimits::default(),
         )
         .await
         .unwrap();
@@ -838,6 +845,7 @@ async fn test_execute_turn_summary_receipt_appends_assistant_to_messages() {
             &[],
             &[],
             TaskBudget::default(),
+            AgentLoopLimits::default(),
         )
         .await
         .unwrap();
@@ -988,6 +996,7 @@ async fn test_security_denied_bash_skips_execute_and_logs_tool_denied() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -1149,6 +1158,7 @@ async fn test_security_denied_filewrite_silent_approval_skips_execute() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -1283,6 +1293,7 @@ async fn test_tool_result_truncation_is_logged() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -1412,6 +1423,7 @@ async fn test_filewrite_artifact_is_returned() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -1589,6 +1601,7 @@ async fn execute_task_pipeline_hooks_ingest_tool_and_turn_fragments() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };
@@ -1667,6 +1680,7 @@ async fn execute_turn_streaming_sets_non_zero_max_input_tokens() {
             &[],
             &[],
             TaskBudget::default(),
+            AgentLoopLimits::default(),
         )
         .await
         .unwrap();
@@ -1737,6 +1751,7 @@ async fn execute_turn_streaming_prefers_usage_event_input_tokens() {
             &[],
             &[],
             TaskBudget::default(),
+            AgentLoopLimits::default(),
         )
         .await
         .unwrap();
@@ -1817,6 +1832,7 @@ async fn execute_task_success_triggers_memory_autosave_when_enabled() {
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
             budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits::default(),
         },
         created_at: chrono::Utc::now(),
     };

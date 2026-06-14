@@ -91,6 +91,8 @@ pub(crate) struct Config {
     pub(crate) mcp: McpRuntime,
     /// 会话外向通知（OpenClaw 类网关 / 自定义脚本）。
     pub(crate) notifications: anycode_core::SessionNotificationSettings,
+    /// 本机微信聊天记录只读查询（`config.json` 的 `wechatHistory`）。
+    pub(crate) wechat_history: WechatHistoryRuntime,
 }
 
 /// 运行时 `terminal` 段（与 [`TerminalConfigFile`] 对应）。
@@ -177,10 +179,21 @@ pub(crate) struct RuntimeSettings {
     /// Additive tool-name prefix deny list merged into every task.
     pub(crate) tool_deny_prefixes: Vec<String>,
     pub(crate) model_fallback: Option<anycode_llm::ModelFallbackConfig>,
+    /// Max LLM round-trips per task; unset uses [`anycode_core::DEFAULT_MAX_AGENT_TURNS`].
+    pub(crate) max_agent_turns: Option<usize>,
+    /// Cumulative tool calls per task; unset uses [`anycode_core::DEFAULT_MAX_TOOL_CALLS`].
+    pub(crate) max_tool_calls: Option<usize>,
     /// 当前工作目录在 `~/.anycode/workspace/projects/index.json` 中匹配到的项目标签（仅内存叠加，不写回全局配置）。
     pub(crate) workspace_project_label: Option<String>,
     /// 同上：项目级通道 profile 提示（如 `web` / `wechat`）。
     pub(crate) workspace_channel_profile: Option<String>,
+}
+
+/// Resolve agentic loop caps from `runtime` config with optional env overrides.
+pub(crate) fn resolve_agent_loop_limits(
+    runtime: &RuntimeSettings,
+) -> anycode_core::AgentLoopLimits {
+    anycode_core::resolve_agent_loop_limits(runtime.max_agent_turns, runtime.max_tool_calls)
 }
 
 /// 运行时 `session` 段（与 `SessionConfigFile` 对应）。
@@ -747,6 +760,12 @@ pub(crate) struct RuntimeSettingsFile {
     /// Primary chat model fallback when provider errors match `on` trigger.
     #[serde(default)]
     pub(crate) model_fallback: Option<anycode_llm::ModelFallbackConfig>,
+    /// Max LLM round-trips per task (`runtime.max_agent_turns`).
+    #[serde(default)]
+    pub(crate) max_agent_turns: Option<usize>,
+    /// Cumulative tool calls per task (`runtime.max_tool_calls`).
+    #[serde(default)]
+    pub(crate) max_tool_calls: Option<usize>,
 }
 
 impl Default for RuntimeSettingsFile {
@@ -759,6 +778,8 @@ impl Default for RuntimeSettingsFile {
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             model_fallback: None,
+            max_agent_turns: None,
+            max_tool_calls: None,
         }
     }
 }
@@ -871,6 +892,74 @@ impl From<AgentsConfigFile> for AgentsConfig {
         Self {
             profiles: f.profiles,
             defaults: f.defaults,
+        }
+    }
+}
+
+fn default_wechat_history_timezone() -> String {
+    "Asia/Shanghai".to_string()
+}
+
+fn default_wechat_history_max_rows() -> usize {
+    500
+}
+
+fn default_wechat_history_http_endpoint() -> String {
+    "http://127.0.0.1:5030".to_string()
+}
+
+/// `config.json` 的 `wechatHistory` 段（serde）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WechatHistoryConfigFile {
+    #[serde(default)]
+    pub(crate) enabled: bool,
+    /// `sqlcipher_key_map` (default) | `sqlite_plain` | `chatlog_http` | `auto`
+    #[serde(default)]
+    pub(crate) backend: Option<String>,
+    #[serde(default)]
+    pub(crate) data_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub(crate) key_map_path: Option<PathBuf>,
+    #[serde(default = "default_wechat_history_http_endpoint")]
+    pub(crate) http_endpoint: String,
+    #[serde(default = "default_wechat_history_timezone")]
+    pub(crate) default_timezone: String,
+    #[serde(default = "default_wechat_history_max_rows")]
+    pub(crate) max_rows_per_query: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct WechatHistoryRuntime {
+    pub(crate) config: anycode_wechat_history::WechatHistoryConfig,
+}
+
+impl Default for WechatHistoryRuntime {
+    fn default() -> Self {
+        Self {
+            config: anycode_wechat_history::WechatHistoryConfig::default(),
+        }
+    }
+}
+
+impl From<WechatHistoryConfigFile> for WechatHistoryRuntime {
+    fn from(f: WechatHistoryConfigFile) -> Self {
+        use anycode_wechat_history::WechatHistoryBackendKind;
+        let backend = f
+            .backend
+            .as_deref()
+            .and_then(WechatHistoryBackendKind::parse)
+            .unwrap_or_default();
+        Self {
+            config: anycode_wechat_history::WechatHistoryConfig {
+                enabled: f.enabled,
+                backend,
+                data_dir: f.data_dir,
+                key_map_path: f.key_map_path,
+                http_endpoint: f.http_endpoint,
+                default_timezone: f.default_timezone,
+                max_rows_per_query: f.max_rows_per_query.max(1),
+            },
         }
     }
 }

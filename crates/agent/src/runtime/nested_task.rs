@@ -46,6 +46,7 @@ impl SubAgentExecutor for AgentRuntime {
                 tool_deny_prefixes: invoke.tool_deny_prefixes.clone(),
                 user_vision_images: vec![],
                 budget: nested_budget_from_env(),
+                loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
             },
             created_at: chrono::Utc::now(),
         };

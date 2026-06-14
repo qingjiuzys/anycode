@@ -1,4 +1,5 @@
 import { agentsClient } from "./agents";
+import { assetsClient } from "./assets";
 import { coreClient } from "./core";
 import { governanceClient } from "./governance";
 import { projectsClient } from "./projects";
@@ -14,12 +15,14 @@ export type {
   ProjectsListOpts,
   SessionListOpts,
 } from "./shared";
+export type { AssetListOpts } from "./assets";
 
 export const api = {
   ...coreClient,
   ...agentsClient,
   ...projectsClient,
   ...sessionsClient,
+  ...assetsClient,
   ...settingsClient,
   ...mediaClient,
   ...governanceClient,

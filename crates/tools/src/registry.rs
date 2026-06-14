@@ -36,6 +36,7 @@ use crate::services::ToolRegistryDeps;
 use crate::todo_write::TodoWriteTool;
 use crate::web_fetch::WebFetchTool;
 use crate::web_search::WebSearchTool;
+use crate::wechat_history_tool::QueryWeChatHistoryTool;
 use crate::wechat_tools::SendWeChatMessageTool;
 use anycode_core::prelude::*;
 use std::collections::HashMap;
@@ -95,6 +96,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(ConfigTool::new(s.clone()));
     ins!(SendUserMessageTool::new());
     ins!(SendWeChatMessageTool::new(s.clone()));
+    ins!(QueryWeChatHistoryTool::new(s.clone()));
     ins!(BriefTool::new());
     ins!(AskUserQuestionTool::new(s.clone()));
     ins!(ReplTool::new());

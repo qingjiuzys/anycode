@@ -1,5 +1,125 @@
 use super::*;
 
+pub async fn list_assets(
+    State(state): State<AppState>,
+    Query(q): Query<AssetsQuery>,
+) -> impl IntoResponse {
+    match crate::assets::list_unified_assets(
+        &state.db,
+        q.project_id.as_deref(),
+        q.session_id.as_deref(),
+        q.asset_kind.as_deref(),
+        q.source_type.as_deref(),
+        q.reuse_state.as_deref(),
+        q.trust_level.as_deref(),
+        q.unverified_only,
+        q.blocked_session_only,
+        q.final_only,
+        q.include_skills,
+        q.limit,
+    )
+    .await
+    {
+        Ok(assets) => Json(json!({ "assets": assets })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_asset_detail(
+    State(state): State<AppState>,
+    Path(asset_id): Path<String>,
+) -> impl IntoResponse {
+    match crate::assets::get_unified_asset_detail(&state.db, &asset_id).await {
+        Ok(Some(detail)) => Json(json!({ "asset": detail })).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "asset not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn mark_asset_reusable(
+    State(state): State<AppState>,
+    Path(asset_id): Path<String>,
+    Json(body): Json<crate::schema::AssetActionRequest>,
+) -> impl IntoResponse {
+    match crate::assets::mark_asset_reusable(&state.db, &asset_id, &body).await {
+        Ok(result) => Json(json!(result)).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn archive_asset(
+    State(state): State<AppState>,
+    Path(asset_id): Path<String>,
+    Json(body): Json<crate::schema::AssetActionRequest>,
+) -> impl IntoResponse {
+    match crate::assets::archive_asset(&state.db, &asset_id, &body).await {
+        Ok(result) => Json(json!(result)).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn promote_skill_draft(
+    State(state): State<AppState>,
+    Path(asset_id): Path<String>,
+) -> impl IntoResponse {
+    match crate::assets::promote_skill_draft(&state.db, &asset_id).await {
+        Ok(result) => Json(json!(result)).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn promote_workflow_draft(
+    State(state): State<AppState>,
+    Path(asset_id): Path<String>,
+) -> impl IntoResponse {
+    match crate::assets::promote_workflow_draft(&state.db, &asset_id).await {
+        Ok(result) => Json(json!(result)).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn scan_project_workflows(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+) -> impl IntoResponse {
+    match crate::assets::scan_project_workflows(&state.db, &project_id).await {
+        Ok(result) => Json(json!({ "ok": true, "result": result })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn list_artifacts(
     State(state): State<AppState>,
     Query(q): Query<ArtifactsQuery>,
@@ -109,11 +229,15 @@ pub async fn reindex_project(
             let skills = crate::skills_scan::sync_skills_to_db(&state.db, &paths)
                 .await
                 .unwrap_or(0);
+            let workflows = crate::assets::scan_project_workflows(&state.db, &project_id)
+                .await
+                .map(|r| r.registered)
+                .unwrap_or(0);
             let _ = crate::audit::record_audit(
                 &state.db,
                 crate::audit::AuditEventInput::low(
                     "project_reindex_requested",
-                    json!({ "skills_synced": skills }),
+                    json!({ "skills_synced": skills, "workflows_synced": workflows }),
                 )
                 .with_project(&project_id),
             )
@@ -122,6 +246,7 @@ pub async fn reindex_project(
                 "ok": true,
                 "project_id": project_id,
                 "skills_synced": skills,
+                "workflows_synced": workflows,
             }))
             .into_response()
         }
@@ -142,6 +267,7 @@ pub async fn index_project_assets(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
 ) -> impl IntoResponse {
+    let _ = crate::assets::scan_project_workflows(&state.db, &project_id).await;
     match crate::asset_index::index_project_assets(&state.db, &project_id).await {
         Ok(result) => Json(json!({ "ok": true, "result": result })).into_response(),
         Err(e) => (

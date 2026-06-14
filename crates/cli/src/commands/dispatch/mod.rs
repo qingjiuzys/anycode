@@ -103,6 +103,7 @@ pub(crate) async fn run_cli() -> anyhow::Result<()> {
             | Commands::Workflow { .. }
             | Commands::Model { .. }
             | Commands::Mcp { .. }
+            | Commands::Wechat { .. }
             | Commands::Dashboard { .. }),
         ) => {
             ops::dispatch(cmd, args.config.clone(), args.debug, ignore_approval).await?;

@@ -3,10 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { TopbarSearch } from "@/components/TopbarSearch";
 import { TopbarNewMenu } from "@/components/TopbarNewMenu";
 import { SidebarWorkspaceCard } from "@/components/SidebarWorkspaceCard";
+import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { Icon } from "@/components/Icon";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { SkinPickerCompact } from "@/components/SkinPicker";
 import { UserMenu, LanguageSwitcher } from "@/components/UserMenu";
 import { NotificationsDropdown } from "@/components/NotificationsDropdown";
 import { useAuth } from "@/auth/context";
@@ -108,6 +107,7 @@ export function Layout() {
         </nav>
 
         <div className="dw-sidebar-footer">
+          <AppearanceMenu />
           <ExternalNavLink href={docsHomeUrl(locale)} className="dw-nav-link">
             <Icon name="description" size={18} />
             <span className="flex-1 min-w-0 truncate">{t("nav.docs")}</span>
@@ -140,12 +140,6 @@ export function Layout() {
             )}
             <div className="dw-topbar-hit">
               <LanguageSwitcher />
-            </div>
-            <div className="dw-topbar-hit">
-              <SkinPickerCompact />
-            </div>
-            <div className="dw-topbar-hit">
-              <ThemeToggle />
             </div>
             <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
             <div className="dw-topbar-hit">

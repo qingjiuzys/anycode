@@ -57,8 +57,10 @@ pub use security_policy::SecurityPolicy;
 pub use session_notification::SessionNotificationSettings;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 pub use task::{
-    Artifact, NestedTaskInvoke, NestedTaskRun, Task, TaskBudget, TaskContext, TaskResult,
-    TurnOutput, TurnTokenUsage, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+    resolve_agent_loop_limits, AgentLoopLimits, Artifact, NestedTaskInvoke, NestedTaskRun, Task,
+    TaskBudget, TaskContext, TaskResult, TurnOutput, TurnTokenUsage, DEFAULT_MAX_AGENT_TURNS,
+    DEFAULT_MAX_TOOL_CALLS, MAX_AGENT_TURNS_CLAMP, MAX_TOOL_CALLS_CLAMP,
+    NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
 pub use task_gate_log::{
     append_gate_log, decode_log_text, encode_log_text, format_assistant_response_log_line,
@@ -92,20 +94,21 @@ pub mod prelude {
     pub use super::anyhow_error_is_cooperative_cancel;
     pub use super::CoreError;
     pub use super::{
-        attach_vision_images, vision_images_from_metadata, Agent, AgentType, ChannelHandler,
-        ChannelMessage, ChannelType, DiskTaskOutput, EmbeddingProvider, ExecutionTraceEvent,
-        FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient, LLMProvider, LLMResponse,
-        Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope, MemoryStore, MemoryType,
-        Message, MessageContent, MessageRole, ModelConfig, ModelRouteProfile, NestedTaskInvoke,
-        NestedTaskRun, PermissionMode, PlanValidationIssue, PlanValidationResult,
-        PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef, SecretResolver,
-        SecurityPolicy, SessionNotificationSettings, SlashCommand, SlashCommandScope, StreamEvent,
-        SubAgentExecutor, Task, TaskBudget, TaskContext, TaskId, TaskResult, Tool, ToolCall,
-        ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage,
-        VectorMemoryBackend, VisionImage, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
-        WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY, ANYCODE_CONTEXT_USER_METADATA_KEY,
-        ANYCODE_TOOL_CALLS_METADATA_KEY, ANYCODE_VISION_IMAGES_METADATA_KEY,
-        BUILTIN_SLASH_COMMANDS, EXECUTION_TRACE_SCHEMA_VERSION,
-        NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+        attach_vision_images, vision_images_from_metadata, Agent, AgentLoopLimits, AgentType,
+        ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput, EmbeddingProvider,
+        ExecutionTraceEvent, FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient,
+        LLMProvider, LLMResponse, Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope,
+        MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
+        ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PlanValidationIssue,
+        PlanValidationResult, PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef,
+        SecretResolver, SecurityPolicy, SessionNotificationSettings, SlashCommand,
+        SlashCommandScope, StreamEvent, SubAgentExecutor, Task, TaskBudget, TaskContext, TaskId,
+        TaskResult, Tool, ToolCall, ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput,
+        TurnTokenUsage, Usage, VectorMemoryBackend, VisionImage, WorkflowDefinition,
+        WorkflowHandoff, WorkflowRetry, WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
+        ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
+        ANYCODE_VISION_IMAGES_METADATA_KEY, BUILTIN_SLASH_COMMANDS, DEFAULT_MAX_AGENT_TURNS,
+        DEFAULT_MAX_TOOL_CALLS, EXECUTION_TRACE_SCHEMA_VERSION, MAX_AGENT_TURNS_CLAMP,
+        MAX_TOOL_CALLS_CLAMP, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
     };
 }

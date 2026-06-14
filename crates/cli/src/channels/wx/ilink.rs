@@ -289,10 +289,31 @@ pub fn build_outbound_text(
     msg
 }
 
-fn build_cdn_media_json(encrypt_query_param: &str, aes_key_b64: &str) -> Value {
+/// openclaw-weixin `CDNMedia.aes_key` encodings:
+/// - image: base64(raw 16 bytes)
+/// - file / video: base64(utf8(hex string of 16 bytes))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutboundCdnKeyEncoding {
+    Image,
+    FileOrVideo,
+}
+
+pub fn outbound_cdn_aes_key_b64(raw_key: &[u8; 16], encoding: OutboundCdnKeyEncoding) -> String {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    match encoding {
+        OutboundCdnKeyEncoding::Image => B64.encode(raw_key),
+        OutboundCdnKeyEncoding::FileOrVideo => B64.encode(hex::encode(raw_key).as_bytes()),
+    }
+}
+
+fn build_cdn_media_json(
+    encrypt_query_param: &str,
+    aes_key: &[u8; 16],
+    encoding: OutboundCdnKeyEncoding,
+) -> Value {
     serde_json::json!({
         "encrypt_query_param": encrypt_query_param,
-        "aes_key": aes_key_b64,
+        "aes_key": outbound_cdn_aes_key_b64(aes_key, encoding),
         "encrypt_type": 1,
     })
 }
@@ -303,9 +324,8 @@ pub fn build_outbound_file(
     context_token: &str,
     file_name: &str,
     encrypt_query_param: &str,
-    aes_key_b64: &str,
+    aes_key: &[u8; 16],
     plaintext_len: u64,
-    md5_hex: &str,
     client_id: &str,
 ) -> Value {
     serde_json::json!({
@@ -320,8 +340,11 @@ pub fn build_outbound_file(
             "file_item": {
                 "file_name": file_name,
                 "len": plaintext_len.to_string(),
-                "md5": md5_hex,
-                "media": build_cdn_media_json(encrypt_query_param, aes_key_b64),
+                "media": build_cdn_media_json(
+                    encrypt_query_param,
+                    aes_key,
+                    OutboundCdnKeyEncoding::FileOrVideo,
+                ),
             }
         }]
     })
@@ -332,7 +355,7 @@ pub fn build_outbound_image(
     to_user_id: &str,
     context_token: &str,
     encrypt_query_param: &str,
-    aes_key_b64: &str,
+    aes_key: &[u8; 16],
     mid_size: u64,
     client_id: &str,
 ) -> Value {
@@ -347,7 +370,11 @@ pub fn build_outbound_image(
             "type": 2,
             "image_item": {
                 "mid_size": mid_size,
-                "media": build_cdn_media_json(encrypt_query_param, aes_key_b64),
+                "media": build_cdn_media_json(
+                    encrypt_query_param,
+                    aes_key,
+                    OutboundCdnKeyEncoding::Image,
+                ),
             }
         }]
     })
@@ -358,7 +385,7 @@ pub fn build_outbound_video(
     to_user_id: &str,
     context_token: &str,
     encrypt_query_param: &str,
-    aes_key_b64: &str,
+    aes_key: &[u8; 16],
     video_size: u64,
     client_id: &str,
 ) -> Value {
@@ -373,7 +400,11 @@ pub fn build_outbound_video(
             "type": 5,
             "video_item": {
                 "video_size": video_size,
-                "media": build_cdn_media_json(encrypt_query_param, aes_key_b64),
+                "media": build_cdn_media_json(
+                    encrypt_query_param,
+                    aes_key,
+                    OutboundCdnKeyEncoding::FileOrVideo,
+                ),
             }
         }]
     })
@@ -545,9 +576,8 @@ impl WxSender {
             context_token,
             file_name,
             &media.encrypt_query_param,
-            &media.aes_key_b64,
+            &media.aes_key,
             media.raw_size as u64,
-            &media.rawfilemd5,
             &client_id,
         );
         self.send_message_with_retry(msg, "send_file_message").await
@@ -565,7 +595,7 @@ impl WxSender {
             to_user_id,
             context_token,
             &media.encrypt_query_param,
-            &media.aes_key_b64,
+            &media.aes_key,
             media.ciphertext_size as u64,
             &client_id,
         );
@@ -585,7 +615,7 @@ impl WxSender {
             to_user_id,
             context_token,
             &media.encrypt_query_param,
-            &media.aes_key_b64,
+            &media.aes_key,
             media.ciphertext_size as u64,
             &client_id,
         );
@@ -651,38 +681,63 @@ mod send_retry_tests {
 
     #[test]
     fn outbound_file_includes_len_and_encrypt_type() {
+        let key = [0xABu8; 16];
         let msg = build_outbound_file(
             "bot",
             "user",
             "ctx",
             "report.pdf",
             "enc_param",
-            "aes_b64",
+            &key,
             1234,
-            "abcd1234",
             "cid",
         );
         let item = &msg["item_list"][0];
         assert_eq!(item["type"], 4);
         assert_eq!(item["file_item"]["len"], "1234");
-        assert_eq!(item["file_item"]["md5"], "abcd1234");
+        assert!(item["file_item"].get("md5").is_none());
         assert_eq!(item["file_item"]["media"]["encrypt_type"], 1);
+        let aes_key = item["file_item"]["media"]["aes_key"]
+            .as_str()
+            .expect("aes_key");
+        assert_eq!(
+            aes_key,
+            outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::FileOrVideo)
+        );
+    }
+
+    #[test]
+    fn outbound_file_aes_key_differs_from_image_encoding() {
+        let key = [0x11u8; 16];
+        let image = outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::Image);
+        let file = outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::FileOrVideo);
+        assert_ne!(image, file);
     }
 
     #[test]
     fn outbound_image_includes_mid_size() {
-        let msg = build_outbound_image("bot", "user", "ctx", "enc", "aes", 32, "cid");
+        let key = [0x22u8; 16];
+        let msg = build_outbound_image("bot", "user", "ctx", "enc", &key, 32, "cid");
         let item = &msg["item_list"][0];
         assert_eq!(item["type"], 2);
         assert_eq!(item["image_item"]["mid_size"], 32);
         assert_eq!(item["image_item"]["media"]["encrypt_type"], 1);
+        assert_eq!(
+            item["image_item"]["media"]["aes_key"].as_str().unwrap(),
+            outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::Image)
+        );
     }
 
     #[test]
     fn outbound_video_includes_video_size() {
-        let msg = build_outbound_video("bot", "user", "ctx", "enc", "aes", 64, "cid");
+        let key = [0x33u8; 16];
+        let msg = build_outbound_video("bot", "user", "ctx", "enc", &key, 64, "cid");
         let item = &msg["item_list"][0];
         assert_eq!(item["type"], 5);
         assert_eq!(item["video_item"]["video_size"], 64);
+        assert_eq!(
+            item["video_item"]["media"]["aes_key"].as_str().unwrap(),
+            outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::FileOrVideo)
+        );
     }
 }

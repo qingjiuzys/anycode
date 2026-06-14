@@ -7,6 +7,20 @@ export interface MediaStatus {
   stt_provider?: string | null;
   stt_model?: string | null;
   stt_builtin?: boolean;
+  apple_media?: AppleMediaCapabilities | null;
+}
+
+export interface AppleMediaCapabilities {
+  stt: boolean;
+  ocr: boolean;
+  tts: boolean;
+  notify: boolean;
+  keychain: boolean;
+  pasteboard: boolean;
+  platform: string;
+  helper_path?: string | null;
+  speech_authorized?: boolean | null;
+  microphone_authorized?: boolean | null;
 }
 
 export interface TranscribeResult {

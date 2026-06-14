@@ -157,6 +157,13 @@ impl ApprovalCallback for WorkbenchApprovalCallback {
                 tool = %tool,
                 "tool approval pending — respond in dashboard Security inbox"
             );
+            #[cfg(target_os = "macos")]
+            {
+                let tool_name = tool.to_string();
+                let _ = std::thread::spawn(move || {
+                    let _ = crate::apple_media::notify_approval_pending(&tool_name);
+                });
+            }
         }
 
         if let Some(id) = web_id.clone() {

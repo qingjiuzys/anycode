@@ -223,6 +223,8 @@ pub struct ToolServices {
     parent_task_tool_deny: Mutex<Option<(Vec<String>, Vec<String>)>>,
     /// Injected at bootstrap; avoids per-execute disk reads in media tools.
     media_registry: Mutex<Option<Arc<anycode_llm::media::MediaClientRegistry>>>,
+    /// Local WeChat chat history query settings (`wechatHistory` in config.json).
+    wechat_history_config: Mutex<anycode_wechat_history::WechatHistoryConfig>,
 }
 
 impl Default for ToolServices {
@@ -259,6 +261,9 @@ impl Default for ToolServices {
             active_agent_type: Mutex::new(None),
             parent_task_tool_deny: Mutex::new(None),
             media_registry: Mutex::new(None),
+            wechat_history_config: Mutex::new(
+                anycode_wechat_history::WechatHistoryConfig::default(),
+            ),
         }
     }
 }
@@ -394,6 +399,20 @@ impl ToolServices {
 
     pub fn set_media_registry(&self, reg: Arc<anycode_llm::media::MediaClientRegistry>) {
         *self.media_registry.lock().expect("media_registry") = Some(reg);
+    }
+
+    pub fn set_wechat_history_config(&self, config: anycode_wechat_history::WechatHistoryConfig) {
+        *self
+            .wechat_history_config
+            .lock()
+            .expect("wechat_history_config") = config;
+    }
+
+    pub fn wechat_history_config(&self) -> anycode_wechat_history::WechatHistoryConfig {
+        self.wechat_history_config
+            .lock()
+            .expect("wechat_history_config")
+            .clone()
     }
 
     pub fn media_registry(&self) -> Result<anycode_llm::media::MediaClientRegistry, String> {

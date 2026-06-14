@@ -117,6 +117,7 @@ mod model;
 mod project;
 mod skills;
 mod statusline;
+mod wechat;
 mod workflow;
 mod workspace;
 
@@ -132,6 +133,7 @@ pub(crate) use model::*;
 pub(crate) use project::*;
 pub(crate) use skills::*;
 pub(crate) use statusline::*;
+pub(crate) use wechat::*;
 pub(crate) use workflow::*;
 pub(crate) use workspace::*;
 
@@ -288,6 +290,12 @@ pub(crate) enum Commands {
     Channel {
         #[command(subcommand)]
         sub: ChannelCommands,
+    },
+
+    /// 💬  Local WeChat chat history (encrypted DB; not iLink bot)
+    Wechat {
+        #[command(subcommand)]
+        sub: WechatCommands,
     },
 
     /// 🤖  Models and credentials (interactive when no nested subcommand; aligned with openclaw-style flow)

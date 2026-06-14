@@ -152,6 +152,30 @@ export const settingsClient = {
       "/api/settings/browser-connector",
       { enabled },
     ),
+  agentLimits: () =>
+    get<{
+      max_agent_turns: number;
+      max_tool_calls: number;
+      configured_max_agent_turns?: number | null;
+      configured_max_tool_calls?: number | null;
+      defaults: { max_agent_turns: number; max_tool_calls: number };
+      limits: {
+        max_agent_turns_min: number;
+        max_agent_turns_max: number;
+        max_tool_calls_min: number;
+        max_tool_calls_max: number;
+      };
+      config_path: string;
+      restart_hint?: string;
+    }>("/api/settings/agent-limits"),
+  setAgentLimits: (body: { max_agent_turns: number; max_tool_calls: number }) =>
+    put<{
+      ok: boolean;
+      max_agent_turns: number;
+      max_tool_calls: number;
+      config_path?: string;
+      restart_hint?: string;
+    }>("/api/settings/agent-limits", body),
   mcpServers: () =>
     get<{ servers: Record<string, unknown>[] }>("/api/settings/mcp-servers"),
   setMcpServers: (servers: unknown[]) =>

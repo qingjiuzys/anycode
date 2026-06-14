@@ -93,6 +93,9 @@ pub(super) async fn dispatch(
                 cli_args::DoctorCommands::Tools { json } => {
                     commands::doctor::print_tools(json)?;
                 }
+                cli_args::DoctorCommands::WechatHistory { json } => {
+                    commands::doctor::print_wechat_history(json)?;
+                }
                 cli_args::DoctorCommands::Errors { json } => {
                     commands::cli_error::print_taxonomy(json)?;
                 }
@@ -221,6 +224,16 @@ pub(super) async fn dispatch(
         Commands::Dashboard { sub, run } => {
             commands::dashboard::run_dashboard_command(sub, run).await?;
         }
+        Commands::Wechat { sub } => match sub {
+            cli_args::WechatCommands::History { sub } => match sub {
+                cli_args::WechatHistoryCommands::Setup { json } => {
+                    commands::wechat_history::run_setup_flow(json)?;
+                }
+                cli_args::WechatHistoryCommands::Status { json } => {
+                    commands::wechat_history::run_status(json)?;
+                }
+            },
+        },
         _ => unreachable!(),
     }
     Ok(())

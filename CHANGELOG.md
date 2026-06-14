@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- **macOS native media layer**: shared `anycode-apple-media` crate + Swift helper ops for STT, OCR, TTS (`AVSpeechSynthesizer`), audio convert (`AVFoundation` + `afconvert` fallback), UserNotifications, Keychain, and rich pasteboard. CLI, WeChat bridge, `SttClient`/`TtsClient`, and Dashboard settings now share the same helper path (`~/.anycode/bin/anycode-apple-media`).
+- **Agent loop limits**: configure `runtime.max_agent_turns` (default 8) and `runtime.max_tool_calls` (default 32) in `~/.anycode/config.json`, Workbench **Settings → Agents**, or env `ANYCODE_MAX_AGENT_TURNS` / `ANYCODE_MAX_TOOL_CALLS`.
+
 ### Changed
 
 - **Release packaging**: GitHub Release on tag ships **macOS `.dmg` only**; standalone Linux/Windows CLI tarballs/zips are no longer attached automatically (`release-binaries.yml` is manual `workflow_dispatch` only). Non-macOS installs: `cargo install` or build from source.

@@ -115,6 +115,25 @@ pub fn router(state: AppState) -> Router {
             get(handlers::list_project_skills),
         )
         .route("/artifacts", get(handlers::list_artifacts))
+        .route("/assets", get(handlers::list_assets))
+        .route("/assets/{asset_id}", get(handlers::get_asset_detail))
+        .route(
+            "/assets/{asset_id}/mark-reusable",
+            post(handlers::mark_asset_reusable),
+        )
+        .route("/assets/{asset_id}/archive", post(handlers::archive_asset))
+        .route(
+            "/assets/{asset_id}/promote-skill-draft",
+            post(handlers::promote_skill_draft),
+        )
+        .route(
+            "/assets/{asset_id}/promote-workflow-draft",
+            post(handlers::promote_workflow_draft),
+        )
+        .route(
+            "/projects/{project_id}/scan-workflows",
+            post(handlers::scan_project_workflows),
+        )
         .route(
             "/artifacts/{artifact_id}",
             get(handlers::get_artifact_detail),
@@ -435,6 +454,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/settings/browser-connector",
             get(handlers::get_browser_connector).put(handlers::put_browser_connector),
+        )
+        .route(
+            "/settings/agent-limits",
+            get(handlers::get_agent_limits).put(handlers::put_agent_limits),
         )
         .route(
             "/settings/mcp-servers",

@@ -1,5 +1,6 @@
 //! Multimodal model clients (STT/TTS/image/video/embedding).
 
+pub mod apple_media;
 mod embedding;
 mod http;
 mod image;

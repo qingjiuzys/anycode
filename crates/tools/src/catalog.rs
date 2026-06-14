@@ -48,6 +48,7 @@ pub const TOOL_POWERSHELL: &str = "PowerShell";
 pub const TOOL_CONFIG: &str = "Config";
 pub const TOOL_SEND_USER_MESSAGE: &str = "SendUserMessage";
 pub const TOOL_SEND_WECHAT_MESSAGE: &str = "SendWeChatMessage";
+pub const TOOL_QUERY_WECHAT_HISTORY: &str = "QueryWeChatHistory";
 pub const TOOL_BRIEF: &str = "Brief";
 pub const TOOL_ASK_USER_QUESTION: &str = "AskUserQuestion";
 pub const TOOL_REPL: &str = "REPL";
@@ -312,6 +313,7 @@ mod workspace_assistant_tools_tests {
             TOOL_CONFIG,
             TOOL_SEND_USER_MESSAGE,
             TOOL_SEND_WECHAT_MESSAGE,
+            TOOL_QUERY_WECHAT_HISTORY,
             TOOL_BRIEF,
             TOOL_ASK_USER_QUESTION,
             TOOL_REPL,
@@ -411,6 +413,10 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         (
             TOOL_SEND_WECHAT_MESSAGE,
             "Send text to bound WeChat chat via iLink bridge",
+        ),
+        (
+            TOOL_QUERY_WECHAT_HISTORY,
+            "Query local WeChat chat history for a calendar day (read-only)",
         ),
         (TOOL_BRIEF, "Alias of SendUserMessage"),
     ]

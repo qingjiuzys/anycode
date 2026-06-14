@@ -64,6 +64,31 @@ pub struct ArtifactsQuery {
 }
 
 #[derive(Deserialize)]
+pub struct AssetsQuery {
+    pub project_id: Option<String>,
+    pub session_id: Option<String>,
+    /// deliverable | media | report | workflow | skill | all
+    pub asset_kind: Option<String>,
+    pub source_type: Option<String>,
+    pub reuse_state: Option<String>,
+    pub trust_level: Option<String>,
+    #[serde(default)]
+    pub unverified_only: bool,
+    #[serde(default)]
+    pub blocked_session_only: bool,
+    #[serde(default)]
+    pub final_only: bool,
+    #[serde(default = "default_true")]
+    pub include_skills: bool,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Deserialize)]
 pub struct SearchQuery {
     pub q: String,
     #[serde(default = "default_limit")]
@@ -83,6 +108,7 @@ pub struct SessionsQuery {
     pub budget_exceeded: Option<bool>,
 }
 
+mod agent_limits;
 mod agents;
 mod assets;
 mod auth;
@@ -108,6 +134,7 @@ mod settings;
 mod setup;
 mod system;
 
+pub use agent_limits::*;
 pub use agents::*;
 pub use assets::*;
 pub use auth::*;

@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+anycode-apple-media = { path = "../apple-media" }
 anycode-core = { path = "../core" }
 anycode-memory = { path = "../memory", optional = true }
 tokio = { workspace = true }

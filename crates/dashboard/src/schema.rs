@@ -721,6 +721,77 @@ pub struct ArtifactDetail {
     pub report_markdown: Option<String>,
 }
 
+/// Unified asset center item (aggregates artifacts, skills, workflows).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetItem {
+    /// Stable id for API/UI: artifact id or `skill_{skill_id}`.
+    pub id: String,
+    pub title: String,
+    pub subtitle: String,
+    /// Product kind: deliverable | media | report | workflow | skill
+    pub asset_kind: String,
+    /// Underlying storage: artifact | skill
+    pub backend_type: String,
+    pub backend_id: String,
+    pub project_id: Option<String>,
+    pub project_name: Option<String>,
+    pub session_id: Option<String>,
+    pub trust_level: String,
+    /// Provenance: agent_created | user_added | workspace_scan | report_archive | skill_scan | workflow_scan
+    pub source_type: String,
+    /// Lifecycle: candidate | reusable | archived
+    pub reuse_state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verified_by_gate_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_trusted_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetDetail {
+    pub asset: AssetItem,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact: Option<ArtifactDetail>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill: Option<SkillDetailRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub promotion_draft_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AssetActionRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetActionResult {
+    pub ok: bool,
+    pub asset: AssetItem,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowScanResult {
+    pub registered: usize,
+    pub paths: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillProjectLink {
     pub project_id: String,

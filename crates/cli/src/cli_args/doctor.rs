@@ -35,6 +35,12 @@ pub(crate) enum DoctorCommands {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
+    /// Diagnose local WeChat encrypted DB history readiness
+    WechatHistory {
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// Print structured CLI error taxonomy reference
     Errors {
         /// JSON output

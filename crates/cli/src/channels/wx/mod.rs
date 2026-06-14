@@ -10,6 +10,8 @@ pub(crate) mod cron_notify;
 mod deliverable;
 mod fields;
 pub(crate) mod ilink;
+#[cfg(target_os = "macos")]
+mod image_ocr;
 pub(crate) mod outbound;
 pub(crate) mod outbound_queue;
 mod permission;

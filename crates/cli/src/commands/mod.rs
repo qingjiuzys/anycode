@@ -13,5 +13,6 @@ pub(crate) mod memory_retention;
 pub(crate) mod project;
 pub(crate) mod status;
 pub(crate) mod statusline;
+pub(crate) mod wechat_history;
 pub(crate) mod workflow;
 pub(crate) mod workspace;

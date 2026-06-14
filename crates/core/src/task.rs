@@ -14,6 +14,66 @@ use crate::agent_type::AgentType;
 /// `execute_task` 协作式取消：与 [`TaskContext::nested_cancel`] 对应；**`TaskStop`** 对后台嵌套任务会置位。
 pub const NESTED_TASK_COOPERATIVE_CANCEL_ERROR: &str = "cancelled";
 
+/// Default max LLM round-trips per task (`execute_task` / `execute_turn_from_messages`).
+pub const DEFAULT_MAX_AGENT_TURNS: usize = 8;
+/// Default cumulative tool invocations per task before hard stop.
+pub const DEFAULT_MAX_TOOL_CALLS: usize = 32;
+/// Upper clamp for configured `max_agent_turns`.
+pub const MAX_AGENT_TURNS_CLAMP: usize = 64;
+/// Upper clamp for configured `max_tool_calls`.
+pub const MAX_TOOL_CALLS_CLAMP: usize = 256;
+
+/// Agentic loop caps resolved from config / env and carried on [`TaskContext`].
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentLoopLimits {
+    pub max_agent_turns: usize,
+    pub max_tool_calls: usize,
+}
+
+impl Default for AgentLoopLimits {
+    fn default() -> Self {
+        Self {
+            max_agent_turns: DEFAULT_MAX_AGENT_TURNS,
+            max_tool_calls: DEFAULT_MAX_TOOL_CALLS,
+        }
+    }
+}
+
+impl AgentLoopLimits {
+    #[must_use]
+    pub fn clamped(max_agent_turns: usize, max_tool_calls: usize) -> Self {
+        let max_agent_turns = max_agent_turns.clamp(1, MAX_AGENT_TURNS_CLAMP);
+        let max_tool_calls = max_tool_calls.clamp(max_agent_turns, MAX_TOOL_CALLS_CLAMP);
+        Self {
+            max_agent_turns,
+            max_tool_calls,
+        }
+    }
+}
+
+/// Resolve loop caps from optional config values with env overrides (`ANYCODE_MAX_*`).
+#[must_use]
+pub fn resolve_agent_loop_limits(
+    config_max_agent_turns: Option<usize>,
+    config_max_tool_calls: Option<usize>,
+) -> AgentLoopLimits {
+    let mut max_agent_turns = config_max_agent_turns.unwrap_or(DEFAULT_MAX_AGENT_TURNS);
+    let mut max_tool_calls = config_max_tool_calls.unwrap_or(DEFAULT_MAX_TOOL_CALLS);
+
+    if let Ok(v) = std::env::var("ANYCODE_MAX_AGENT_TURNS") {
+        if let Ok(n) = v.trim().parse::<usize>() {
+            max_agent_turns = n;
+        }
+    }
+    if let Ok(v) = std::env::var("ANYCODE_MAX_TOOL_CALLS") {
+        if let Ok(n) = v.trim().parse::<usize>() {
+            max_tool_calls = n;
+        }
+    }
+
+    AgentLoopLimits::clamped(max_agent_turns, max_tool_calls)
+}
+
 /// 任务
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
@@ -63,6 +123,9 @@ pub struct TaskContext {
     /// Optional runtime budget enforced by the harness during task execution.
     #[serde(default, skip_serializing_if = "TaskBudget::is_empty")]
     pub budget: TaskBudget,
+    /// Max LLM turns and cumulative tool calls for this task.
+    #[serde(default)]
+    pub loop_limits: AgentLoopLimits,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -201,4 +264,30 @@ pub struct TurnOutput {
     pub final_text: String,
     pub artifacts: Vec<Artifact>,
     pub usage: TurnTokenUsage,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_limits_match_constants() {
+        let d = AgentLoopLimits::default();
+        assert_eq!(d.max_agent_turns, DEFAULT_MAX_AGENT_TURNS);
+        assert_eq!(d.max_tool_calls, DEFAULT_MAX_TOOL_CALLS);
+    }
+
+    #[test]
+    fn clamped_enforces_tool_floor() {
+        let l = AgentLoopLimits::clamped(8, 4);
+        assert_eq!(l.max_tool_calls, 8);
+    }
+
+    #[test]
+    fn resolve_prefers_env_over_config() {
+        std::env::set_var("ANYCODE_MAX_TOOL_CALLS", "48");
+        let l = resolve_agent_loop_limits(Some(8), Some(32));
+        std::env::remove_var("ANYCODE_MAX_TOOL_CALLS");
+        assert_eq!(l.max_tool_calls, 48);
+    }
 }

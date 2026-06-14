@@ -1,6 +1,7 @@
 //! Speech-to-text via OpenAI-compatible HTTP or on-device whisper.cpp.
 
 use crate::local_media_catalog::is_builtin_local_provider;
+use crate::media::apple_media::{is_apple_speech_provider, transcribe_apple_speech};
 use crate::media::http::{bearer_headers, http_client, openai_base};
 use crate::media::stt_local::{transcribe_pcm, wav_bytes_to_pcm16k};
 use crate::media::MediaProfile;
@@ -26,6 +27,17 @@ impl SttClient {
         audio_bytes: &[u8],
         filename: &str,
     ) -> Result<SttResult, CoreError> {
+        if is_apple_speech_provider(&self.profile.provider) {
+            let locale = self
+                .profile
+                .extra_headers
+                .as_ref()
+                .and_then(|h| h.get("locale"))
+                .map(|s| s.as_str())
+                .unwrap_or("zh-CN");
+            let text = transcribe_apple_speech(audio_bytes, filename, locale).await?;
+            return Ok(SttResult { text });
+        }
         if is_builtin_local_provider(&self.profile.provider) {
             let pcm = wav_bytes_to_pcm16k(audio_bytes)?;
             let text = transcribe_pcm(&self.profile.model, &pcm).await?;
@@ -95,5 +107,15 @@ mod tests {
             endpoint_overrides: None,
         });
         assert!(client.transcribe(b"abc", "a.wav").await.is_err());
+    }
+
+    #[test]
+    fn apple_speech_provider_detected() {
+        assert!(crate::media::apple_media::is_apple_speech_provider(
+            "apple_speech"
+        ));
+        assert!(!crate::media::apple_media::is_apple_speech_provider(
+            "whisper_cpp"
+        ));
     }
 }

@@ -60,6 +60,7 @@ mod platform_tools;
 mod todo_write;
 mod web_fetch;
 mod web_search;
+mod wechat_history_tool;
 mod wechat_outbound_host;
 mod wechat_tools;
 
@@ -119,6 +120,7 @@ pub use skills::{
     truncate_skill_output, vet_skill_by_id, vet_skill_dir, SkillCatalog, SkillInstallResult,
     SkillMeta, SkillVetReport, SkillsGovernance, MAX_SKILL_OUTPUT_BYTES,
 };
+pub use wechat_history_tool::QueryWeChatHistoryTool;
 pub use wechat_outbound_host::{
     WeChatMediaDelivery, WeChatMediaSendResult, WeChatOutboundHost, WeChatOutboundHostArc,
     WeChatOutboundHostError, WeChatSendResult,

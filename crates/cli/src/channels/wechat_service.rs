@@ -201,6 +201,12 @@ fn macos_env_plist_block(spec: &WechatServiceSpec) -> String {
         std::env::var("PATH")
             .unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin".into()),
     ));
+    if let Some(helper) = crate::apple_media::resolve_apple_media_helper() {
+        pairs.push((
+            "ANYCODE_APPLE_MEDIA_HELPER".into(),
+            helper.display().to_string(),
+        ));
+    }
     if let Some(ref d) = spec.data_dir {
         if let Some(s) = d.to_str() {
             pairs.push(("WCC_DATA_DIR".into(), s.to_string()));

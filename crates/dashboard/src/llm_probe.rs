@@ -151,8 +151,11 @@ async fn probe_stt(registry: &ResolvedModelRegistry) -> Result<String, String> {
         .as_ref()
         .ok_or_else(|| "models.speech.stt not configured".to_string())?;
     if prof.profile.provider.eq_ignore_ascii_case("apple_speech") {
+        if anycode_llm::media::apple_media::apple_media_available() {
+            return Ok("apple_speech helper available — voice input ready on macOS".into());
+        }
         return Ok(
-            "apple_speech configured — use voice input in anyCode.app (macOS desktop)".into(),
+            "apple_speech configured — install anycode-apple-media helper (scripts/build-apple-media-cli.sh)".into(),
         );
     }
     if is_builtin_local_provider(&prof.profile.provider) && !cfg!(feature = "stt-local") {

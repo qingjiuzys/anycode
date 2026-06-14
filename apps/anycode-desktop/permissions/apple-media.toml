@@ -1,8 +1,11 @@
 [[permission]]
 identifier = "apple-media-default"
-description = "Apple native STT and OCR via anycode-apple-media helper"
+description = "Apple native STT, OCR, TTS, notifications, Keychain, and pasteboard"
 commands.allow = [
   "apple_media_capabilities",
   "apple_media_transcribe",
   "apple_media_ocr_image",
+  "apple_media_synthesize",
+  "apple_media_read_pasteboard",
+  "apple_media_notify",
 ]

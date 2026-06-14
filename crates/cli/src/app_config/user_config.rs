@@ -112,6 +112,9 @@ pub(crate) struct AnyCodeConfig {
     /// Declarative agent profiles (extends builtin agents).
     #[serde(default)]
     pub(crate) agents: super::schema::AgentsConfigFile,
+    /// 本机微信聊天记录只读查询。
+    #[serde(default, rename = "wechatHistory")]
+    pub(crate) wechat_history: super::schema::WechatHistoryConfigFile,
 }
 
 /// `config.json` 的 `terminal` 段。
@@ -333,6 +336,7 @@ pub(crate) fn default_anycode_config() -> AnyCodeConfig {
         mcp: McpConfigFile::default(),
         notifications: Default::default(),
         models: Default::default(),
+        wechat_history: super::schema::WechatHistoryConfigFile::default(),
     }
 }
 

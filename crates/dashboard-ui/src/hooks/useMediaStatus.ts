@@ -13,5 +13,6 @@ export function useMediaStatus() {
     sttAvailable: query.data?.stt_configured === true,
     sttBuiltin: query.data?.stt_builtin === true,
     sttProvider: query.data?.stt_provider ?? null,
+    appleMedia: query.data?.apple_media ?? null,
   };
 }

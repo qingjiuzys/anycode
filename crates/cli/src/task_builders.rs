@@ -1,6 +1,6 @@
 //! Centralized `Task` / `TaskContext` construction for CLI entrypoints.
 
-use crate::app_config::Config;
+use crate::app_config::{resolve_agent_loop_limits, Config};
 use crate::channel_task::{im_channel_cron_scheduling_hint, ChannelTaskInput};
 use crate::tasks::RunTaskOptions;
 use crate::tool_policy::{
@@ -38,6 +38,9 @@ pub(crate) fn build_headless_task(
         Some(cfg) => resolve_task_tool_filters(cfg, surface, options),
         None => resolve_headless_task_tool_filters(options),
     };
+    let loop_limits = config
+        .map(|c| resolve_agent_loop_limits(&c.runtime))
+        .unwrap_or_else(|| anycode_core::resolve_agent_loop_limits(None, None));
     let session_id = options.session_id.unwrap_or_else(Uuid::new_v4);
     Task {
         id: Uuid::new_v4(),
@@ -59,6 +62,7 @@ pub(crate) fn build_headless_task(
             tool_deny_prefixes,
             budget: options.budget,
             user_vision_images: vec![],
+            loop_limits,
         },
         created_at: chrono::Utc::now(),
     }
@@ -66,6 +70,7 @@ pub(crate) fn build_headless_task(
 
 pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Task {
     let (tool_deny_names, tool_deny_prefixes) = channel_task_tool_filters(config);
+    let loop_limits = resolve_agent_loop_limits(&config.runtime);
     Task {
         id: Uuid::new_v4(),
         agent_type: AgentType::new(input.agent_type),
@@ -96,6 +101,7 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Ta
             tool_deny_prefixes,
             budget: TaskBudget::default(),
             user_vision_images: input.user_vision_images,
+            loop_limits,
         },
         created_at: chrono::Utc::now(),
     }
@@ -124,6 +130,7 @@ pub(crate) fn build_wechat_task(params: WechatTaskParams) -> Task {
             tool_deny_prefixes: params.tool_deny_prefixes,
             budget: TaskBudget::default(),
             user_vision_images: params.user_vision_images,
+            loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
         },
         created_at: chrono::Utc::now(),
     }
@@ -157,6 +164,7 @@ pub(crate) fn build_minimal_task(
             tool_deny_prefixes: vec![],
             budget: TaskBudget::default(),
             user_vision_images: vec![],
+            loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
         },
         created_at: chrono::Utc::now(),
     }

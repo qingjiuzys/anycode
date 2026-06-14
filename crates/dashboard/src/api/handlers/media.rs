@@ -3,7 +3,7 @@
 use super::*;
 use anycode_llm::{
     is_builtin_local_provider,
-    media::{MediaClientRegistry, SttClient},
+    media::{apple_media, MediaClientRegistry, SttClient},
 };
 use axum::extract::Multipart;
 
@@ -21,12 +21,14 @@ pub async fn get_media_status() -> impl IntoResponse {
         }
     };
     let reg = MediaClientRegistry::from_config(&cfg);
+    let apple_caps = apple_media::query_capabilities(apple_media::NO_EXTRA_PATHS);
     match reg.stt.as_ref() {
         Some(stt) => Json(json!({
             "stt_configured": true,
             "stt_provider": stt.profile.provider,
             "stt_model": stt.profile.model,
             "stt_builtin": is_builtin_local_provider(&stt.profile.provider),
+            "apple_media": apple_caps,
         }))
         .into_response(),
         None => Json(json!({
@@ -34,6 +36,7 @@ pub async fn get_media_status() -> impl IntoResponse {
             "stt_provider": null,
             "stt_model": null,
             "stt_builtin": false,
+            "apple_media": apple_caps,
         }))
         .into_response(),
     }
@@ -119,12 +122,14 @@ pub async fn transcribe_audio(mut multipart: Multipart) -> impl IntoResponse {
         }
     };
 
-    if stt.profile.provider.eq_ignore_ascii_case("apple_speech") {
+    if stt.profile.provider.eq_ignore_ascii_case("apple_speech")
+        && !apple_media::apple_media_available()
+    {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({
                 "ok": false,
-                "error": "Apple Speech STT runs in the macOS desktop app — open anyCode.app and use the microphone button there"
+                "error": "Apple Speech STT requires macOS with anycode-apple-media helper installed"
             })),
         )
             .into_response();

@@ -9,7 +9,6 @@ use super::agentic_turn::{
     TurnToolState,
 };
 use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
-use super::limits::{MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL};
 use super::memory_hooks;
 use super::provider_errors::{
     core_error_is_context_overflow, error_indicates_context_overflow,
@@ -47,6 +46,7 @@ impl AgentRuntime {
         tool_deny_names: &[String],
         tool_deny_prefixes: &[String],
         budget: TaskBudget,
+        loop_limits: AgentLoopLimits,
     ) -> Result<TurnOutput, CoreError> {
         let logger = self.logger();
         logger.ensure_initialized(task_id);
@@ -85,11 +85,11 @@ impl AgentRuntime {
         let mut last_model_turn: usize = 1;
         let mut budget_state = RuntimeBudgetState::new(budget);
 
-        for turn in 1..=MAX_AGENT_TURNS {
+        for turn in 1..=loop_limits.max_agent_turns {
             last_model_turn = turn;
             logger.line(
                 task_id,
-                &format!("[turn_start] turn={}/{}", turn, MAX_AGENT_TURNS),
+                &format!("[turn_start] turn={}/{}", turn, loop_limits.max_agent_turns),
             );
             if opt_coop_cancelled(&coop_cancel) {
                 logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
@@ -425,6 +425,7 @@ impl AgentRuntime {
                 working_directory,
                 session_label: &session_label,
                 turn,
+                loop_limits,
             };
             let mut tool_state = TurnToolState {
                 total_tool_calls,
@@ -516,6 +517,7 @@ impl AgentRuntime {
                 tool_deny_prefixes: vec![],
                 user_vision_images: vec![],
                 budget: TaskBudget::default(),
+                loop_limits,
             },
             created_at: chrono::Utc::now(),
         };
@@ -524,8 +526,8 @@ impl AgentRuntime {
             &summary_model,
             &summary_task,
             total_tool_calls,
-            MAX_AGENT_TURNS,
-            MAX_TOOL_CALLS_TOTAL,
+            loop_limits.max_agent_turns,
+            loop_limits.max_tool_calls,
             &artifacts_brief,
             &output_tail,
         )

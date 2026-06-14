@@ -1,10 +1,9 @@
 //! Model capability taxonomy (chat vs media modalities).
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// What a configured model profile is used for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ModelCapability {
     Chat,
     /// Multimodal chat input (vision); may share transport with chat.
@@ -16,6 +15,41 @@ pub enum ModelCapability {
     VideoGen,
     /// Reserved for rerank APIs.
     Rerank,
+}
+
+impl Serialize for ModelCapability {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ModelCapability {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::parse(&s).ok_or_else(|| {
+            serde::de::Error::unknown_variant(
+                &s,
+                &[
+                    "chat",
+                    "vision",
+                    "embedding",
+                    "stt",
+                    "tts",
+                    "image",
+                    "image_gen",
+                    "video",
+                    "video_gen",
+                    "rerank",
+                ],
+            )
+        })
+    }
 }
 
 impl ModelCapability {
@@ -70,6 +104,26 @@ mod tests {
         assert_eq!(
             ModelCapability::parse("image_gen"),
             Some(ModelCapability::ImageGen)
+        );
+        assert_eq!(
+            ModelCapability::parse("image"),
+            Some(ModelCapability::ImageGen)
+        );
+    }
+
+    #[test]
+    fn deserializes_legacy_image_capability() {
+        let cap: ModelCapability = serde_json::from_value(serde_json::json!("image")).unwrap();
+        assert_eq!(cap, ModelCapability::ImageGen);
+        let cap: ModelCapability = serde_json::from_value(serde_json::json!("video")).unwrap();
+        assert_eq!(cap, ModelCapability::VideoGen);
+    }
+
+    #[test]
+    fn serializes_image_as_legacy_label() {
+        assert_eq!(
+            serde_json::to_string(&ModelCapability::ImageGen).unwrap(),
+            "\"image\""
         );
     }
 }

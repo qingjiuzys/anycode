@@ -109,6 +109,28 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         }
     }
 
+    let mut wechat_history: WechatHistoryRuntime = cfg.wechat_history.clone().into();
+    if let Some(ref p) = wechat_history.config.data_dir {
+        if !p.as_os_str().is_empty() {
+            let full = if p.is_absolute() {
+                p.clone()
+            } else {
+                base_dir.join(p)
+            };
+            wechat_history.config.data_dir = std::fs::canonicalize(&full).ok().or(Some(full));
+        }
+    }
+    if let Some(ref p) = wechat_history.config.key_map_path {
+        if !p.as_os_str().is_empty() {
+            let full = if p.is_absolute() {
+                p.clone()
+            } else {
+                base_dir.join(p)
+            };
+            wechat_history.config.key_map_path = std::fs::canonicalize(&full).ok().or(Some(full));
+        }
+    }
+
     Ok(Config {
         llm: LLMConfig {
             provider: cfg.provider,
@@ -175,6 +197,8 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
             tool_deny_names: cfg.runtime.tool_deny_names.clone(),
             tool_deny_prefixes: cfg.runtime.tool_deny_prefixes.clone(),
             model_fallback: cfg.runtime.model_fallback.clone(),
+            max_agent_turns: cfg.runtime.max_agent_turns,
+            max_tool_calls: cfg.runtime.max_tool_calls,
             workspace_project_label: None,
             workspace_channel_profile: None,
         },
@@ -201,6 +225,7 @@ pub(crate) async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<
         lsp: lsp_runtime,
         mcp: cfg.mcp.clone().into(),
         notifications: cfg.notifications,
+        wechat_history,
     })
 }
 

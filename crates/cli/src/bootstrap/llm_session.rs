@@ -274,6 +274,8 @@ mod tests {
                 tool_deny_names: vec![],
                 tool_deny_prefixes: vec![],
                 model_fallback: None,
+                max_agent_turns: None,
+                max_tool_calls: None,
                 workspace_project_label: None,
                 workspace_channel_profile: None,
             },
@@ -291,6 +293,7 @@ mod tests {
             lsp: LspRuntime::default(),
             mcp: McpRuntime::default(),
             notifications: anycode_core::SessionNotificationSettings::default(),
+            wechat_history: Default::default(),
         }
     }
 

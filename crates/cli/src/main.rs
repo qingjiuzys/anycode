@@ -30,6 +30,9 @@ mod vision_prompt;
 mod workbench;
 mod workspace;
 
+#[cfg(target_os = "macos")]
+mod apple_media;
+
 pub(crate) use workbench::{dashboard_record, workbench_approval};
 
 #[tokio::main]

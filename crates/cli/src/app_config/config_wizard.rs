@@ -282,6 +282,10 @@ pub(crate) async fn run_config_wizard_inner(offer_wechat_after: bool) -> anyhow:
             .as_ref()
             .map(|c| c.notifications.clone())
             .unwrap_or_default(),
+        wechat_history: existing
+            .as_ref()
+            .map(|c| c.wechat_history.clone())
+            .unwrap_or_default(),
         models: existing
             .as_ref()
             .map(|c| c.models.clone())

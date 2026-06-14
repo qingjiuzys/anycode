@@ -1,5 +1,6 @@
 pub mod api;
 pub mod asset_index;
+pub mod assets;
 pub mod audit;
 pub mod auth_session;
 pub mod bootstrap;

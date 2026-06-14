@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/apple-media",
+    "crates/wechat-history",
     "crates/core",
     "crates/agent",
     "crates/tools",

@@ -1,5 +1,6 @@
 use crate::app_config::Config;
 use anycode_core::prelude::*;
+use anycode_locale::AppLocale;
 
 /// Cron + scheduler semantics shared by WeChat, Telegram, Discord channel agents.
 pub(crate) fn channel_ask_user_question_hint(channel_name: &str) -> &'static str {
@@ -11,16 +12,31 @@ pub(crate) fn channel_ask_user_question_hint(channel_name: &str) -> &'static str
     }
 }
 
-pub(crate) fn im_channel_cron_scheduling_hint() -> &'static str {
-    "## Cron / scheduled tasks\n\
-     - Tools: `CronCreate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
-     - Jobs only fire when a scheduler holds `~/.anycode/tasks/scheduler.lock`: run **`anycode scheduler`**, or rely on this long-running bridge (WeChat/Telegram/Discord each tries to embed the same built-in scheduler; **only one** ticks per machine).\n\
-     - **`CronCreate` default `schedule_timezone`: `local`** — `schedule` uses **this machine's local wall clock** (e.g. 12:15 in China = hour 12 in the expression); it is converted to UTC for storage. Do **not** subtract 8 hours yourself. Use **`utc`** only if the expression is already UTC. For a fixed region use **IANA** (e.g. `Asia/Shanghai`) when the machine timezone differs from the user's.\n\
-     - Scheduler append-only log: `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error` per fire).\n\
-     - `CronCreate` returns `next_fire_utc` / `next_fire_local` when the schedule parses—use them to confirm the first run time.\n\
-     - After a cron fires from the WeChat bridge, the result is sent to the **last chat** on this bridge (not only stdout).\n\
-     - `CronCreate` registers the schedule; do not imply a job ran if the user only saved it.\n\
-     - 中文：登记定时任务用 `CronCreate`（默认按**本地时间**理解 `schedule`，无需自己减 8 小时）；到点需调度器在跑（微信桥内嵌即可）。触发后会向**最近一次对话的微信**推送结果。"
+pub(crate) fn im_channel_cron_scheduling_hint() -> String {
+    im_channel_cron_scheduling_hint_for(anycode_locale::resolve_locale())
+}
+
+pub(crate) fn im_channel_cron_scheduling_hint_for(locale: AppLocale) -> String {
+    match locale {
+        AppLocale::ZhHans => "## 定时任务\n\
+             - 工具：`CronCreate`、`CronDelete`、`CronList`。任务保存在 `~/.anycode/tasks/orchestration.json`。\n\
+             - 只有持有 `~/.anycode/tasks/scheduler.lock` 的调度器才会触发：运行 **`anycode scheduler`**，或依赖长期运行的频道桥（微信/Telegram/Discord 内嵌同一调度器；**每台机器仅一个**在 tick）。\n\
+             - **`CronCreate` 默认 `schedule_timezone`: `local`** — `schedule` 按**本机本地墙钟**理解（例如中国 12:15 = 表达式 hour 12）；存储时会转为 UTC。**不要**自己减 8 小时。仅当表达式已是 UTC 时用 **`utc`**。若机器时区与用户不一致，用 **IANA**（如 `Asia/Shanghai`）。\n\
+             - 调度日志：`~/.anycode/logs/cron-runs.jsonl`（每次触发 `started` / `ok` / `error`）。\n\
+             - `CronCreate` 解析成功会返回 `next_fire_utc` / `next_fire_local`，用于确认首次运行时间。\n\
+             - 微信桥内 cron 触发后，结果会发到**最近一次对话**（不只 stdout）。\n\
+             - `CronCreate` 只是登记；用户仅保存任务时不要暗示已经执行过。"
+            .to_string(),
+        AppLocale::En => "## Cron / scheduled tasks\n\
+             - Tools: `CronCreate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
+             - Jobs only fire when a scheduler holds `~/.anycode/tasks/scheduler.lock`: run **`anycode scheduler`**, or rely on this long-running bridge (WeChat/Telegram/Discord each tries to embed the same built-in scheduler; **only one** ticks per machine).\n\
+             - **`CronCreate` default `schedule_timezone`: `local`** — `schedule` uses **this machine's local wall clock** (e.g. 12:15 in China = hour 12 in the expression); it is converted to UTC for storage. Do **not** subtract 8 hours yourself. Use **`utc`** only if the expression is already UTC. For a fixed region use **IANA** (e.g. `Asia/Shanghai`) when the machine timezone differs from the user's.\n\
+             - Scheduler append-only log: `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error` per fire).\n\
+             - `CronCreate` returns `next_fire_utc` / `next_fire_local` when the schedule parses—use them to confirm the first run time.\n\
+             - After a cron fires from the WeChat bridge, the result is sent to the **last chat** on this bridge (not only stdout).\n\
+             - `CronCreate` registers the schedule; do not imply a job ran if the user only saved it."
+            .to_string(),
+    }
 }
 
 pub(crate) struct ChannelTaskInput {
@@ -107,6 +123,8 @@ mod tests {
                 tool_deny_names: vec![],
                 tool_deny_prefixes: vec![],
                 model_fallback: None,
+                max_agent_turns: None,
+                max_tool_calls: None,
                 workspace_project_label: None,
                 workspace_channel_profile: None,
             },
@@ -120,6 +138,7 @@ mod tests {
             lsp: Default::default(),
             mcp: Default::default(),
             notifications: Default::default(),
+            wechat_history: Default::default(),
         }
     }
 

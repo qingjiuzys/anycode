@@ -98,6 +98,8 @@ async fn archive_one(
         "source_counts": doc.source_counts,
         "highlights": doc.highlights,
         "markdown": markdown,
+        "source_type": "report_archive",
+        "reuse_state": "reusable",
     });
     if let Some(h) = html {
         meta["html"] = serde_json::Value::String(h.to_string());

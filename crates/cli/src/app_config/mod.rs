@@ -125,6 +125,32 @@ mod serde_config_tests {
     }
 
     #[test]
+    fn deserializes_runtime_agent_limits() {
+        let j = r#"{
+            "provider":"z.ai",
+            "plan":"coding",
+            "api_key":"k",
+            "base_url":null,
+            "model":"glm-5",
+            "temperature":0.7,
+            "max_tokens":8192,
+            "runtime": {
+                "max_agent_turns": 12,
+                "max_tool_calls": 64
+            }
+        }"#;
+        let c: AnyCodeConfig = serde_json::from_str(j).unwrap();
+        assert_eq!(c.runtime.max_agent_turns, Some(12));
+        assert_eq!(c.runtime.max_tool_calls, Some(64));
+        let limits = anycode_core::resolve_agent_loop_limits(
+            c.runtime.max_agent_turns,
+            c.runtime.max_tool_calls,
+        );
+        assert_eq!(limits.max_agent_turns, 12);
+        assert_eq!(limits.max_tool_calls, 64);
+    }
+
+    #[test]
     fn deserializes_notifications_block() {
         let j = r#"{
             "provider":"z.ai",

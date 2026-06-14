@@ -6,7 +6,6 @@ use super::agentic_turn::{
     TurnToolState,
 };
 use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
-use super::limits::{MAX_AGENT_TURNS, MAX_TOOL_CALLS_TOTAL};
 use super::nested_worktree::NestedWorktreeGuard;
 use super::receipt::ReceiptGenerator;
 use super::task_summary::{last_assistant_plain_text, llm_summary_receipt};
@@ -125,12 +124,13 @@ impl AgentRuntime {
         let mut artifacts: Vec<Artifact> = vec![];
         let mut last_model_turn: usize = 1;
         let mut budget_state = RuntimeBudgetState::new(task.context.budget);
+        let loop_limits = task.context.loop_limits;
 
-        for turn in 1..=MAX_AGENT_TURNS {
+        for turn in 1..=loop_limits.max_agent_turns {
             last_model_turn = turn;
             logger.line(
                 task.id,
-                &format!("[turn_start] turn={}/{}", turn, MAX_AGENT_TURNS),
+                &format!("[turn_start] turn={}/{}", turn, loop_limits.max_agent_turns),
             );
             if nested_coop_cancelled(&task.context) {
                 logger.line(task.id, "[task_end] status=cancelled reason=cooperative");
@@ -280,6 +280,7 @@ impl AgentRuntime {
                 working_directory: task.context.working_directory.as_str(),
                 session_label: &session_label,
                 turn,
+                loop_limits,
             };
             let mut tool_state = TurnToolState {
                 total_tool_calls,
@@ -309,7 +310,7 @@ impl AgentRuntime {
                 TurnToolBatchOutcome::MaxToolCalls => {
                     return Ok(TaskResult::Failure {
                         error: "达到最大工具调用次数，已停止".to_string(),
-                        details: Some(format!("max_tool_calls={}", MAX_TOOL_CALLS_TOTAL)),
+                        details: Some(format!("max_tool_calls={}", loop_limits.max_tool_calls)),
                     });
                 }
                 TurnToolBatchOutcome::BudgetExceeded => {
@@ -356,8 +357,8 @@ impl AgentRuntime {
             &summary_model,
             &task,
             total_tool_calls,
-            MAX_AGENT_TURNS,
-            MAX_TOOL_CALLS_TOTAL,
+            loop_limits.max_agent_turns,
+            loop_limits.max_tool_calls,
             &artifacts_brief,
             &output_tail,
         )

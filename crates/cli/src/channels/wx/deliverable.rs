@@ -2,6 +2,7 @@
 
 use super::ilink::WxSender;
 use super::send_media::{resolve_media_path, send_weixin_media_file};
+use super::store::SessionDeliverable;
 use anycode_core::Artifact;
 use anycode_tools::WeChatMediaDelivery;
 use anyhow::Result;
@@ -11,6 +12,91 @@ use std::path::{Path, PathBuf};
 const INLINE_FILE_MAX_BYTES: u64 = 24_000;
 pub const CDN_FILE_MAX_BYTES: u64 = 10 * 1024 * 1024;
 const CHUNK_MAX: usize = 2048;
+
+const EXCEL_EXTS: &[&str] = &["xls", "xlsx", "xlsm", "csv"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResendFileKind {
+    Any,
+    Excel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResendIntent {
+    pub kind: ResendFileKind,
+}
+
+const RESEND_KEYWORDS: &[&str] = &[
+    "继续发",
+    "再发",
+    "重发",
+    "发一下",
+    "发上来",
+    "刚才那个",
+    "上一份",
+    "上一个",
+    "刚才的",
+    "resend",
+    "send again",
+    "send it again",
+];
+
+const EXCEL_KEYWORDS: &[&str] = &["excel", "xlsx", "xls", "表格", "电子表格", "spreadsheet"];
+
+pub fn detect_resend_request(text: &str) -> Option<ResendIntent> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lower = trimmed.to_lowercase();
+    if !RESEND_KEYWORDS.iter().any(|k| lower.contains(k)) {
+        return None;
+    }
+    let kind = if EXCEL_KEYWORDS.iter().any(|k| lower.contains(k)) {
+        ResendFileKind::Excel
+    } else {
+        ResendFileKind::Any
+    };
+    Some(ResendIntent { kind })
+}
+
+pub fn match_deliverable_for_resend(
+    deliverables: &[SessionDeliverable],
+    intent: ResendIntent,
+) -> Option<PathBuf> {
+    for item in deliverables.iter().rev() {
+        if !extension_matches_resend(&item.extension, intent.kind) {
+            continue;
+        }
+        let path = PathBuf::from(&item.path);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn extension_matches_resend(ext: &str, kind: ResendFileKind) -> bool {
+    match kind {
+        ResendFileKind::Any => is_deliverable_extension(ext),
+        ResendFileKind::Excel => EXCEL_EXTS.contains(&ext.to_ascii_lowercase().as_str()),
+    }
+}
+
+pub fn assistant_history_with_paths(reply: &str, paths: &[PathBuf]) -> String {
+    if paths.is_empty() {
+        return reply.to_string();
+    }
+    let hints: Vec<String> = paths
+        .iter()
+        .map(|p| format!("📎 {}", p.display()))
+        .collect();
+    if reply.trim().is_empty() {
+        hints.join("\n")
+    } else {
+        format!("{reply}\n\n{}", hints.join("\n"))
+    }
+}
 
 const DELIVERABLE_EXTS: &[&str] = &[
     "md", "txt", "markdown", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "tar",
@@ -237,6 +323,54 @@ mod tests {
         let got = collect_outbound_media_paths(&[artifact], "", Some(dir.as_path()));
         assert_eq!(got.len(), 1);
         assert_eq!(got[0], file.canonicalize().unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_resend_excel_request() {
+        let intent = detect_resend_request("继续发一下，excel").expect("intent");
+        assert_eq!(intent.kind, ResendFileKind::Excel);
+    }
+
+    #[test]
+    fn match_latest_excel_deliverable() {
+        use super::super::store::{DeliverableSource, SessionDeliverable};
+        let deliverables = vec![
+            SessionDeliverable {
+                path: "/tmp/old.xlsx".into(),
+                file_name: "old.xlsx".into(),
+                extension: "xlsx".into(),
+                mime_type: None,
+                source: DeliverableSource::Outbound,
+                sent: true,
+                description: None,
+                timestamp: 1,
+            },
+            SessionDeliverable {
+                path: "/tmp/new.xlsx".into(),
+                file_name: "new.xlsx".into(),
+                extension: "xlsx".into(),
+                mime_type: None,
+                source: DeliverableSource::Outbound,
+                sent: true,
+                description: None,
+                timestamp: 2,
+            },
+        ];
+        let dir = std::env::temp_dir().join(format!("anycode-wx-resend-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("new.xlsx");
+        std::fs::write(&file, b"xlsx").unwrap();
+        let mut items = deliverables;
+        items[1].path = file.display().to_string();
+        let got = match_deliverable_for_resend(
+            &items,
+            ResendIntent {
+                kind: ResendFileKind::Excel,
+            },
+        )
+        .unwrap();
+        assert_eq!(got, file);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

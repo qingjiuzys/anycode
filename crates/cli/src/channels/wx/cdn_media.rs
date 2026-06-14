@@ -530,6 +530,113 @@ fn guess_mime_file_item(item: &Value) -> &'static str {
     }
 }
 
+/// Download inbound media bytes (plaintext after decrypt).
+pub async fn download_cdn_item_bytes(
+    client: &reqwest::Client,
+    item: &Value,
+) -> Option<(String, Vec<u8>)> {
+    let t = item_type(item);
+    if t == 2 {
+        let (mime, b64) = download_image_from_item(client, item).await?;
+        let bytes = B64.decode(b64.as_bytes()).ok()?;
+        return Some((mime, bytes));
+    }
+    if !matches!(t, 3..=5) {
+        return None;
+    }
+    let (enc, key, full) = extract_cdn_keys_for_any_item(item)?;
+    if enc.is_empty() && full.is_none() {
+        return None;
+    }
+    let bytes = download_and_decrypt(client, &enc, &key, full.as_deref())
+        .await
+        .ok()?;
+    let mime = match t {
+        3 => "application/octet-stream".to_string(),
+        4 => guess_mime_file_item(item).to_string(),
+        5 => "video/mp4".to_string(),
+        _ => "application/octet-stream".to_string(),
+    };
+    Some((mime, bytes))
+}
+
+pub fn inbound_file_name_from_item(item: &Value) -> String {
+    item.get("file_item")
+        .or_else(|| item.get("fileItem"))
+        .and_then(|f| f.get("file_name").or_else(|| f.get("fileName")))
+        .and_then(|x| x.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("file.bin")
+        .to_string()
+}
+
+fn ext_for_mime(mime: &str) -> &'static str {
+    match mime {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "application/pdf" => "pdf",
+        "text/plain" => "txt",
+        "application/json" => "json",
+        "application/zip" => "zip",
+        "video/mp4" => "mp4",
+        _ => "bin",
+    }
+}
+
+/// Persist decrypted inbound media under `{data_root}/wx-inbound/` for agent tools.
+pub fn save_inbound_wx_media(
+    data_root: &std::path::Path,
+    item: &Value,
+    mime: &str,
+    bytes: &[u8],
+) -> anyhow::Result<std::path::PathBuf> {
+    let t = item_type(item);
+    let dir = data_root.join("wx-inbound");
+    std::fs::create_dir_all(&dir)?;
+    let stem = match t {
+        4 => {
+            let name = inbound_file_name_from_item(item);
+            let safe: String = name
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
+                .collect();
+            if safe.contains('.') {
+                safe
+            } else {
+                format!("{safe}.{}", ext_for_mime(mime))
+            }
+        }
+        2 => format!(
+            "image-{}-{}.{}",
+            chrono::Utc::now().timestamp_millis(),
+            std::process::id(),
+            ext_for_mime(mime)
+        ),
+        5 => format!(
+            "video-{}-{}.mp4",
+            chrono::Utc::now().timestamp_millis(),
+            std::process::id()
+        ),
+        _ => format!(
+            "media-{}-{}.{}",
+            chrono::Utc::now().timestamp_millis(),
+            std::process::id(),
+            ext_for_mime(mime)
+        ),
+    };
+    let path = dir.join(stem);
+    std::fs::write(&path, bytes)?;
+    Ok(path)
+}
+
 /// 对 IMAGE 走既有逻辑；对 VIDEO/FILE/VOICE 走标准 `media` 解密，返回 (mime, base64 字符串体)。
 pub async fn download_cdn_item_to_b64(
     client: &reqwest::Client,

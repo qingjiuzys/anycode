@@ -141,6 +141,9 @@ fn main() {
             apple_media::apple_media_capabilities,
             apple_media::apple_media_transcribe,
             apple_media::apple_media_ocr_image,
+            apple_media::apple_media_synthesize,
+            apple_media::apple_media_read_pasteboard,
+            apple_media::apple_media_notify,
         ])
         .manage(SidecarState(Mutex::new(Vec::new())))
         .setup(|app| {

@@ -25,6 +25,7 @@ tools-lsp = []
 
 [dependencies]
 anycode-core = { path = "../core" }
+anycode-wechat-history = { path = "../wechat-history" }
 anycode-memory = { path = "../memory", optional = true }
 sled = { workspace = true, optional = true }
 anycode-llm = { path = "../llm" }

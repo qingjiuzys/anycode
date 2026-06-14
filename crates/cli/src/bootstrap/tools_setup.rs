@@ -209,6 +209,7 @@ pub(crate) async fn build_tools_setup(
         workspace_root: config.lsp.workspace_root.clone(),
         read_timeout: std::time::Duration::from_millis(config.lsp.read_timeout_ms),
     });
+    tool_services.set_wechat_history_config(config.wechat_history.config.clone());
 
     let tools = build_registry_with_services(config.security.sandbox_mode, tool_services.clone());
     validate_default_registry(&tools)?;

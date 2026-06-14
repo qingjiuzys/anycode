@@ -47,18 +47,39 @@ impl DashboardDb {
         .bind(path)
         .fetch_optional(&self.pool)
         .await?;
-        let version = existing_meta
+        let mut meta = existing_meta
             .as_deref()
             .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-            .and_then(|v| v.get("version").and_then(|n| n.as_u64()))
+            .unwrap_or_else(|| serde_json::json!({}));
+        let version = meta
+            .get("version")
+            .and_then(|n| n.as_u64())
             .map(|n| n + 1)
             .unwrap_or(1);
-        let metadata_json = serde_json::json!({
-            "version": version,
-            "is_final": is_final,
-            "updated_session_id": session_id,
-        })
-        .to_string();
+        if !meta
+            .get("source_type")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.is_empty())
+        {
+            meta["source_type"] = serde_json::Value::String(if is_final {
+                "agent_created".into()
+            } else {
+                "workspace_scan".into()
+            });
+        }
+        meta["version"] = serde_json::Value::from(version);
+        meta["is_final"] = serde_json::Value::Bool(is_final);
+        if let Some(sid) = session_id.as_ref() {
+            meta["updated_session_id"] = serde_json::Value::String(sid.to_string());
+        }
+        if !meta
+            .get("reuse_state")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.is_empty())
+        {
+            meta["reuse_state"] = serde_json::Value::String("candidate".into());
+        }
+        let metadata_json = meta.to_string();
         let is_final_i: i64 = if is_final { 1 } else { 0 };
         sqlx::query(
             r#"
@@ -80,6 +101,49 @@ impl DashboardDb {
         .bind(title)
         .bind(&metadata_json)
         .bind(is_final_i)
+        .execute(&self.pool)
+        .await?;
+        Ok(id)
+    }
+
+    pub async fn upsert_workflow_artifact(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        path: &str,
+        title: &str,
+        steps_count: usize,
+    ) -> Result<String> {
+        let id = format!("art_{}_{}", project_id, path.replace('/', "_"));
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id.to_string())
+        };
+        let metadata_json = serde_json::json!({
+            "source_type": "workflow_scan",
+            "reuse_state": "reusable",
+            "steps_count": steps_count,
+            "version": 1,
+            "is_final": true,
+        })
+        .to_string();
+        sqlx::query(
+            r#"
+            INSERT INTO artifacts (id, project_id, session_id, path, kind, title, trust_level, metadata_json, is_final, updated_at)
+            VALUES (?, ?, ?, ?, 'workflow', ?, 'trusted', ?, 1, datetime('now'))
+            ON CONFLICT(project_id, path) DO UPDATE SET
+              title = excluded.title,
+              metadata_json = excluded.metadata_json,
+              updated_at = datetime('now')
+            "#,
+        )
+        .bind(&id)
+        .bind(project_id)
+        .bind(session_id)
+        .bind(path)
+        .bind(title)
+        .bind(&metadata_json)
         .execute(&self.pool)
         .await?;
         Ok(id)

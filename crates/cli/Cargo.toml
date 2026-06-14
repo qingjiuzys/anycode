@@ -24,6 +24,8 @@ mcp-oauth = ["anycode-tools/tools-mcp-oauth"]
 tools-lsp = ["anycode-tools/tools-lsp"]
 
 [dependencies]
+anycode-apple-media = { path = "../apple-media" }
+anycode-wechat-history = { path = "../wechat-history" }
 anycode-locale = { path = "../locale" }
 anycode-core = { path = "../core" }
 anycode-agent = { path = "../agent" }
