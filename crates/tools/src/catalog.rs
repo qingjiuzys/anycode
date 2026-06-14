@@ -52,6 +52,10 @@ pub const TOOL_QUERY_WECHAT_HISTORY: &str = "QueryWeChatHistory";
 pub const TOOL_BRIEF: &str = "Brief";
 pub const TOOL_ASK_USER_QUESTION: &str = "AskUserQuestion";
 pub const TOOL_REPL: &str = "REPL";
+pub const TOOL_SPEECH_TO_TEXT: &str = "SpeechToText";
+pub const TOOL_TEXT_TO_SPEECH: &str = "TextToSpeech";
+pub const TOOL_GENERATE_IMAGE: &str = "GenerateImage";
+pub const TOOL_GENERATE_VIDEO: &str = "GenerateVideo";
 
 /// general-purpose Agent 暴露的完整工具 id（与 `build_registry` 插入集合一致）。
 pub use anycode_core::{ToolCatalogEntry, DEFAULT_TOOL_IDS, SECURITY_SENSITIVE_TOOL_IDS};
@@ -219,6 +223,8 @@ pub fn workspace_assistant_tool_names(include_skill: bool) -> Vec<ToolName> {
         TOOL_SEND_USER_MESSAGE.to_string(),
         TOOL_BRIEF.to_string(),
         TOOL_ASK_USER_QUESTION.to_string(),
+        TOOL_GENERATE_IMAGE.to_string(),
+        TOOL_GENERATE_VIDEO.to_string(),
     ];
     if include_skill {
         out.push(TOOL_SKILL.to_string());
@@ -317,6 +323,10 @@ mod workspace_assistant_tools_tests {
             TOOL_BRIEF,
             TOOL_ASK_USER_QUESTION,
             TOOL_REPL,
+            TOOL_SPEECH_TO_TEXT,
+            TOOL_TEXT_TO_SPEECH,
+            TOOL_GENERATE_IMAGE,
+            TOOL_GENERATE_VIDEO,
         ];
         let mut core = DEFAULT_TOOL_IDS.to_vec();
         local.sort_unstable();
@@ -419,6 +429,16 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
             "Query local WeChat chat history for a calendar day (read-only)",
         ),
         (TOOL_BRIEF, "Alias of SendUserMessage"),
+        (
+            TOOL_GENERATE_IMAGE,
+            "Generate an image from a text prompt using models.image",
+        ),
+        (
+            TOOL_GENERATE_VIDEO,
+            "Generate a video from a text prompt using models.video",
+        ),
+        (TOOL_SPEECH_TO_TEXT, "Transcribe audio to text using models.speech.stt"),
+        (TOOL_TEXT_TO_SPEECH, "Synthesize speech from text using models.speech.tts"),
     ]
     .into_iter()
 }
@@ -437,6 +457,20 @@ pub fn sidebar_tool_lines() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn general_purpose_includes_media_tools() {
+        let tools = general_purpose_tool_names();
+        assert!(tools.iter().any(|t| t == "GenerateVideo"));
+        assert!(tools.iter().any(|t| t == "GenerateImage"));
+    }
+
+    #[test]
+    fn workspace_assistant_includes_video_tools() {
+        let tools = workspace_assistant_tool_names(false);
+        assert!(tools.iter().any(|t| t == "GenerateVideo"));
+        assert!(tools.iter().any(|t| t == "GenerateImage"));
+    }
 
     #[test]
     fn cron_allowlist_profile_denies_unlisted_tools() {

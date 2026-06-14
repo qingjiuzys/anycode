@@ -47,6 +47,10 @@ pub const TOOL_BRIEF: &str = "Brief";
 pub const TOOL_ASK_USER_QUESTION: &str = "AskUserQuestion";
 pub const TOOL_REPL: &str = "REPL";
 pub const TOOL_KNOWLEDGE_SEARCH: &str = "KnowledgeSearch";
+pub const TOOL_SPEECH_TO_TEXT: &str = "SpeechToText";
+pub const TOOL_TEXT_TO_SPEECH: &str = "TextToSpeech";
+pub const TOOL_GENERATE_IMAGE: &str = "GenerateImage";
+pub const TOOL_GENERATE_VIDEO: &str = "GenerateVideo";
 
 /// general-purpose Agent 暴露的完整工具 id（与 `build_registry` 插入集合一致）。
 pub const DEFAULT_TOOL_IDS: &[&str] = &[
@@ -97,6 +101,10 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_ASK_USER_QUESTION,
     TOOL_REPL,
     TOOL_KNOWLEDGE_SEARCH,
+    TOOL_SPEECH_TO_TEXT,
+    TOOL_TEXT_TO_SPEECH,
+    TOOL_GENERATE_IMAGE,
+    TOOL_GENERATE_VIDEO,
 ];
 
 /// 需在 CLI `bootstrap` 中套用 `SecurityPolicy::sensitive_mutation()` 的工具 id（与 `FileWrite` / `Bash` 的专用策略并列）。
@@ -438,6 +446,38 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         TOOL_KNOWLEDGE_SEARCH,
         "read",
         "low",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_SPEECH_TO_TEXT,
+        "media",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_TEXT_TO_SPEECH,
+        "media",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_GENERATE_IMAGE,
+        "media",
+        "medium",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_GENERATE_VIDEO,
+        "media",
+        "medium",
         ALL_AGENTS,
         false,
         "standard",

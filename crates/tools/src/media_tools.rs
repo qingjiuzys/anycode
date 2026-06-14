@@ -190,7 +190,7 @@ impl Tool for GenerateVideoTool {
     }
 
     fn description(&self) -> &str {
-        "Generate a video from a text prompt using models.video (requires base_url)"
+        "Generate a video from a text prompt using models.video (Agnes or other configured provider)"
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -216,8 +216,22 @@ impl Tool for GenerateVideoTool {
             .ok_or_else(|| CoreError::ConfigError("models.video not configured".into()))?;
         let client = VideoGenClient::new(prof.profile.clone());
         let out = client.generate(prompt).await?;
+        let hint = out
+            .url
+            .as_ref()
+            .map(|url| format!("Video ready. Share this URL with the user: {url}"))
+            .or_else(|| {
+                out.job_id.as_ref().map(|id| {
+                    format!("Video job submitted (job_id={id}). Poll may still be in progress.")
+                })
+            });
         Ok(ToolOutput {
-            result: json!({ "url": out.url, "job_id": out.job_id, "raw": out.raw }),
+            result: json!({
+                "url": out.url,
+                "job_id": out.job_id,
+                "hint": hint,
+                "raw": out.raw
+            }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })

@@ -250,9 +250,16 @@ async fn probe_video(registry: &ResolvedModelRegistry) -> Result<String, String>
         .video
         .as_ref()
         .ok_or_else(|| "models.video not configured".to_string())?;
-    if prof.profile.base_url.is_none() {
+    let has_endpoint = prof.profile.base_url.is_some()
+        || prof
+            .profile
+            .endpoint_overrides
+            .as_ref()
+            .and_then(|ov| ov.submit.as_ref())
+            .is_some_and(|s| !s.trim().is_empty());
+    if !has_endpoint {
         return Ok(format!(
-            "video configured (needs base_url to probe): model={}",
+            "video configured (needs endpoint_overrides.submit or base_url to probe): model={}",
             prof.profile.model
         ));
     }

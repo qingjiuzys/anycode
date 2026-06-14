@@ -247,6 +247,7 @@ pub fn submit_response(approval_id: &str, decision: &str) -> Result<()> {
     };
     let path = response_dir().join(format!("{approval_id}.json"));
     std::fs::write(&path, serde_json::to_string_pretty(&body)?)?;
+    clear_pending(approval_id);
     invalidate_pending_summary_cache();
     Ok(())
 }
@@ -331,6 +332,7 @@ mod tests {
         let id = register_pending("sess_1", "Bash", "{ \"command\": \"rm -rf /\" }").unwrap();
         assert_eq!(list_pending(10).len(), 1);
         submit_response(&id, "deny").unwrap();
+        assert!(list_pending(10).is_empty(), "pending cleared on submit");
         assert!(poll_response(&id).as_deref() == Some("deny"));
         assert!(list_pending(10).is_empty());
     }

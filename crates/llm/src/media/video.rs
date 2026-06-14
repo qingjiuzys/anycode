@@ -58,17 +58,53 @@ impl VideoGenClient {
     }
 
     fn extract_video_url(v: &serde_json::Value) -> Option<String> {
+        let try_str = |s: &str| {
+            if s.starts_with("http://") || s.starts_with("https://") {
+                Some(s.to_string())
+            } else {
+                None
+            }
+        };
         for key in ["video_url", "url", "remixed_from_video_id"] {
-            if let Some(u) = v.get(key).and_then(|x| x.as_str()) {
-                if u.starts_with("http://") || u.starts_with("https://") {
-                    return Some(u.to_string());
+            if let Some(u) = v.get(key).and_then(|x| x.as_str()).and_then(try_str) {
+                return Some(u);
+            }
+        }
+        for pointer in [
+            "/data/0/url",
+            "/data/0/video_url",
+            "/data/url",
+            "/data/video_url",
+            "/result/video_url",
+            "/result/url",
+        ] {
+            if let Some(u) = v
+                .pointer(pointer)
+                .and_then(|x| x.as_str())
+                .and_then(try_str)
+            {
+                return Some(u);
+            }
+        }
+        None
+    }
+
+    fn extract_job_id(v: &serde_json::Value) -> Option<String> {
+        for key in ["id", "task_id", "job_id"] {
+            if let Some(s) = v.get(key).and_then(|x| x.as_str()) {
+                if !s.trim().is_empty() {
+                    return Some(s.to_string());
                 }
             }
         }
-        v.pointer("/data/0/url")
-            .and_then(|u| u.as_str())
-            .filter(|s| s.starts_with("http"))
-            .map(str::to_string)
+        for pointer in ["/data/id", "/data/task_id", "/result/id"] {
+            if let Some(s) = v.pointer(pointer).and_then(|x| x.as_str()) {
+                if !s.trim().is_empty() {
+                    return Some(s.to_string());
+                }
+            }
+        }
+        None
     }
 
     fn task_status(v: &serde_json::Value) -> Option<&str> {
@@ -158,7 +194,7 @@ impl VideoGenClient {
         let v: serde_json::Value =
             serde_json::from_str(&text).map_err(|e| CoreError::LLMError(e.to_string()))?;
         let direct_url = Self::extract_video_url(&v);
-        let job_id = v.get("id").and_then(|u| u.as_str()).map(str::to_string);
+        let job_id = Self::extract_job_id(&v);
         if direct_url.is_some() {
             return Ok(VideoGenResult {
                 url: direct_url,
@@ -214,6 +250,27 @@ mod tests {
         assert_eq!(
             VideoGenClient::extract_video_url(&v).as_deref(),
             Some("https://example.com/out.mp4")
+        );
+    }
+
+    #[test]
+    fn extract_video_url_nested_agnes_shape() {
+        let v = serde_json::json!({
+            "status": "completed",
+            "data": { "video_url": "https://example.com/agnes.mp4" }
+        });
+        assert_eq!(
+            VideoGenClient::extract_video_url(&v).as_deref(),
+            Some("https://example.com/agnes.mp4")
+        );
+    }
+
+    #[test]
+    fn extract_job_id_from_task_id_field() {
+        let v = serde_json::json!({ "task_id": "task_abc", "status": "processing" });
+        assert_eq!(
+            VideoGenClient::extract_job_id(&v).as_deref(),
+            Some("task_abc")
         );
     }
 

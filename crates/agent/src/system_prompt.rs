@@ -137,6 +137,7 @@ pub(crate) fn default_stack_sections(
         parts.push(lang);
     }
     parts.push("# User clarification\n\nWhen requirements are ambiguous, multiple valid approaches exist, or confidence is low, **call `AskUserQuestion` before executing** — present concise options (single- or multi-select) rather than guessing.".to_string());
+    parts.push("# Media generation\n\nWhen the user asks to generate an image or video, call `GenerateImage` or `GenerateVideo` if those tools appear in your tool list. Do not suggest FFmpeg, MoviePy, or manual shell workflows unless the tool is unavailable or returns a configuration error.".to_string());
     parts.push("# Plan progress\n\nFor multi-step work, emit plan checkpoints as log lines `[plan_step] id=<slug> title=<label> status=running|done|failed` so the dashboard timeline can track checklist progress.".to_string());
     if let Some(sk) = skills_section {
         let t = sk.trim();
@@ -403,6 +404,15 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("Follow these rules."));
+    }
+
+    #[test]
+    fn media_generation_guidance_in_default_stack() {
+        let cfg = RuntimePromptConfig::default();
+        let agent = stub(vec!["GenerateVideo".into()]);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
+        assert!(out.contains("GenerateVideo"));
+        assert!(out.contains("Media generation"));
     }
 
     #[test]

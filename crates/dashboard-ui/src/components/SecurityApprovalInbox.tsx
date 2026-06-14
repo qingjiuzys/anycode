@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
-import type { ApprovalDecision } from "@/api/types";
+import type { ApprovalDecision, PendingApprovalsResponse } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
@@ -18,8 +18,10 @@ type Props = {
 export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Props) {
   const t = useT();
   const queryClient = useQueryClient();
+  const pendingQueryKey = ["security-approvals-pending", sessionId ?? ""] as const;
+
   const inbox = useQuery({
-    queryKey: ["security-approvals-pending", sessionId ?? ""],
+    queryKey: pendingQueryKey,
     queryFn: () => api.pendingApprovals({ limit: 10, sessionId }),
     staleTime: 5_000,
     refetchInterval: sessionId ? 8_000 : 12_000,
@@ -34,7 +36,23 @@ export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Pro
       approvalId: string;
       decision: ApprovalDecision;
     }) => api.respondToApproval(approvalId, decision),
-    onSuccess: () => {
+    onMutate: async ({ approvalId }) => {
+      await queryClient.cancelQueries({ queryKey: pendingQueryKey });
+      const previous = queryClient.getQueryData<PendingApprovalsResponse>(pendingQueryKey);
+      if (previous) {
+        queryClient.setQueryData<PendingApprovalsResponse>(pendingQueryKey, {
+          ...previous,
+          pending: previous.pending.filter((row) => row.approval_id !== approvalId),
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(pendingQueryKey, context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["security-approvals-pending"] });
       queryClient.invalidateQueries({ queryKey: ["security-approvals-summary"] });
       queryClient.invalidateQueries({ queryKey: ["security-activity"] });

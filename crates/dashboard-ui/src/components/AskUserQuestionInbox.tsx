@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/api/client";
+import type { PendingQuestionsResponse } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 
@@ -11,11 +12,12 @@ type Props = {
 export function AskUserQuestionInbox({ sessionId }: Props) {
   const t = useT();
   const queryClient = useQueryClient();
+  const queryKey = ["pending-questions", sessionId] as const;
   const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
 
   const inbox = useQuery({
-    queryKey: ["pending-questions", sessionId],
+    queryKey,
     queryFn: () => api.pendingQuestions({ limit: 5, sessionId }),
     staleTime: 3_000,
     refetchInterval: 10_000,
@@ -32,8 +34,24 @@ export function AskUserQuestionInbox({ sessionId }: Props) {
       selected_labels: string[];
       other_text?: string;
     }) => api.respondToQuestion(questionId, { selected_labels, other_text }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pending-questions", sessionId] });
+    onMutate: async ({ questionId }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<PendingQuestionsResponse>(queryKey);
+      if (previous) {
+        queryClient.setQueryData<PendingQuestionsResponse>(queryKey, {
+          ...previous,
+          pending: previous.pending.filter((row) => row.question_id !== questionId),
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 

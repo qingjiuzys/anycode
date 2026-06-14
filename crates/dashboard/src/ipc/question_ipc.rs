@@ -151,6 +151,7 @@ pub fn submit_response(
     };
     let path = response_dir().join(format!("{question_id}.json"));
     std::fs::write(&path, serde_json::to_string_pretty(&body)?)?;
+    clear_pending(question_id);
     Ok(())
 }
 
@@ -229,6 +230,7 @@ mod tests {
         let id = register_pending("sess_1", "Pick one?", "Choice", &opts, false).unwrap();
         assert_eq!(list_pending(10).len(), 1);
         submit_response(&id, &["A".into()], None).unwrap();
+        assert!(list_pending(10).is_empty(), "pending cleared on submit");
         let resp = poll_response(&id).unwrap();
         assert_eq!(resp.selected_labels, vec!["A"]);
         assert!(list_pending(10).is_empty());
