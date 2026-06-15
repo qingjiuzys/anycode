@@ -29,6 +29,7 @@ const UI_ASSET_CACHE: &str = "no-cache, must-revalidate";
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
         .route("/health", get(handlers::health))
+        .route("/cloud/session", get(handlers::get_cloud_session))
         .route("/auth/me", get(handlers::get_auth_me))
         .route("/auth/login", post(handlers::post_auth_login))
         .route("/auth/logout", post(handlers::post_auth_logout))
@@ -225,6 +226,42 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/projects/{project_id}/knowledge/stats",
             get(handlers::get_project_knowledge_stats),
+        )
+        .route(
+            "/projects/{project_id}/fs/list",
+            get(handlers::list_project_fs),
+        )
+        .route(
+            "/projects/{project_id}/fs/read",
+            get(handlers::read_project_fs),
+        )
+        .route(
+            "/projects/{project_id}/fs/stat",
+            get(handlers::stat_project_fs),
+        )
+        .route(
+            "/projects/{project_id}/terminal/ws",
+            get(handlers::project_terminal_ws),
+        )
+        .route(
+            "/workbench/browser/sessions",
+            post(handlers::create_browser_session),
+        )
+        .route(
+            "/workbench/browser/sessions/{session_id}/navigate",
+            post(handlers::navigate_browser_session),
+        )
+        .route(
+            "/workbench/browser/sessions/{session_id}/state",
+            get(handlers::browser_session_state),
+        )
+        .route(
+            "/workbench/browser/sessions/{session_id}/screenshot",
+            get(handlers::browser_session_screenshot),
+        )
+        .route(
+            "/workbench/browser/sessions/{session_id}",
+            delete(handlers::delete_browser_session),
         )
         .route("/skills/suggestions", get(handlers::get_skill_suggestions))
         .route(

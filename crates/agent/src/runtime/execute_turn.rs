@@ -102,6 +102,10 @@ impl AgentRuntime {
                 logger.line(task_id, "[task_end] status=failed reason=budget_exceeded");
                 return Err(CoreError::LLMError("budget_exceeded".into()));
             }
+            {
+                let mut g = messages.lock().await;
+                self.sync_plan_tree_context(&mut g);
+            }
             logger.line(
                 task_id,
                 &format!(

@@ -285,7 +285,7 @@ pub(crate) fn security_wants_interactive_approval_callback(config: &Config) -> b
         && (config.security.require_approval || !config.security.always_ask_rules.is_empty())
 }
 
-/// 微信桥进程无终端，无法完成工具交互审批；强制关闭 `require_approval`（不写回配置文件）。
+/// 微信桥默认不弹出普通敏感工具审批；显式 `alwaysAsk` 审批由微信会话回调处理。
 pub(crate) fn apply_wechat_bridge_no_tool_approval(config: &mut Config) {
     if config.security.require_approval {
         info!("{}", tr("log-wechat-bridge-no-approval"));

@@ -1,5 +1,6 @@
 //! `config.json` 文件系统监听 + debounce，驱动微信桥 LLM 运行时热更新。
 
+use super::approval::{wechat_approval_callback, WechatApprovalGate};
 use crate::app_config::{
     apply_wechat_bridge_no_tool_approval, load_config_for_session, resolve_config_path,
 };
@@ -26,6 +27,7 @@ pub(crate) struct ConfigReloadHandle {
     pub ignore_approval: bool,
     pub last_config_mtime: Arc<StdMutex<Option<SystemTime>>>,
     pub ask_user_question_host: Option<anycode_tools::AskUserQuestionHostArc>,
+    pub approval_gate: Option<WechatApprovalGate>,
     pub tool_policy: Arc<StdMutex<ToolPolicyConfigSnapshot>>,
 }
 
@@ -73,7 +75,10 @@ pub(crate) async fn reload_runtime_if_config_changed(handle: &ConfigReloadHandle
     };
     let new_rt = match initialize_runtime(
         &cfg,
-        None,
+        handle
+            .approval_gate
+            .as_ref()
+            .and_then(|gate| wechat_approval_callback(gate, handle.ignore_approval)),
         handle.ask_user_question_host.clone(),
         crate::bootstrap::MemoryAttachMode::Exclusive,
         project_enabled,

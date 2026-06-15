@@ -56,8 +56,10 @@ mod media_tools;
 mod mode_tools;
 mod notebook_edit;
 mod orchestration;
+mod plan_write;
 mod platform_tools;
 mod todo_write;
+mod tool_input_coerce;
 mod web_fetch;
 mod web_search;
 mod wechat_history_tool;
@@ -71,9 +73,9 @@ pub use ask_user_question_host::{
 pub use catalog::{
     build_default_registry, build_registry_with_services, cron_tool_profile_filters,
     explore_plan_tool_names, explore_plan_tool_names_with_skill, general_purpose_tool_names,
-    iter_cli_tool_help, sidebar_tool_lines, tool_catalog, tool_catalog_entry,
-    validate_default_registry, workspace_assistant_tool_names, ToolCatalogEntry, DEFAULT_TOOL_IDS,
-    EXPLORE_PLAN_TOOL_IDS,
+    iter_cli_tool_help, plan_tool_names_with_skill, sidebar_tool_lines, tool_catalog,
+    tool_catalog_entry, validate_default_registry, workspace_assistant_tool_names,
+    ToolCatalogEntry, DEFAULT_TOOL_IDS, EXPLORE_PLAN_TOOL_IDS,
 };
 pub use claude_rules::CompiledClaudePermissionRules;
 pub use cron_schedule::{
@@ -120,6 +122,7 @@ pub use skills::{
     truncate_skill_output, vet_skill_by_id, vet_skill_dir, SkillCatalog, SkillInstallResult,
     SkillMeta, SkillVetReport, SkillsGovernance, MAX_SKILL_OUTPUT_BYTES,
 };
+pub use tool_input_coerce::coerce_tool_input;
 pub use wechat_history_tool::QueryWeChatHistoryTool;
 pub use wechat_outbound_host::{
     WeChatMediaDelivery, WeChatMediaSendResult, WeChatOutboundHost, WeChatOutboundHostArc,

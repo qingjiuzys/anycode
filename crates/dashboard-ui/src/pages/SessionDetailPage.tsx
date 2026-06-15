@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ConversationThread } from "@/components/ConversationThread";
+import { ConversationWorkbenchSidebar } from "@/components/workbench/ConversationWorkbenchSidebar";
 import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { EventTimeline } from "@/components/EventTimeline";
 import { GateStatusBar } from "@/components/GateStatusBar";
@@ -32,6 +33,9 @@ export function SessionDetailPage() {
   const [eventFilter, setEventFilter] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string | null>(null);
   const [eventSearch, setEventSearch] = useState("");
+  const [selectedTool, setSelectedTool] = useState<import("@/api/types").TranscriptBlock | null>(
+    null,
+  );
   const sseLive = useSessionEventStream(sessionId, "detail");
   const queryClient = useQueryClient();
   const ackBlock = useMutation({
@@ -232,8 +236,24 @@ export function SessionDetailPage() {
       )}
 
       {tab === "chat" && sessionForThread && (
-        <div className="border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest min-h-[min(720px,calc(100vh-14rem))] flex flex-col">
-          <ConversationThread session={sessionForThread} showHeader={false} />
+        <div className="border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest min-h-[min(720px,calc(100vh-14rem))] flex min-h-0">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+            <ConversationThread
+              session={sessionForThread}
+              showHeader={false}
+              sseLive={sseLive}
+              selectedToolId={selectedTool?.id ?? null}
+              onSelectTool={setSelectedTool}
+            />
+          </div>
+          <ConversationWorkbenchSidebar
+            projectId={sessionForThread.project_id}
+            sessionId={sessionId}
+            live={sseLive}
+            isRunning={s?.status === "running"}
+            selectedTool={selectedTool}
+            onSelectTool={setSelectedTool}
+          />
         </div>
       )}
 

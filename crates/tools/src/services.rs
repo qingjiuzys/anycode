@@ -4,7 +4,8 @@ use crate::ask_user_question_host::AskUserQuestionHostArc;
 use crate::skills::{SkillCatalog, SkillsGovernance};
 use crate::wechat_outbound_host::WeChatOutboundHostArc;
 use anycode_core::{
-    CoreError, NestedTaskRun, SubAgentExecutor, TaskResult, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+    plan_tree_all_completed, CoreError, NestedTaskRun, PlanTree, SubAgentExecutor, TaskResult,
+    NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -161,6 +162,8 @@ struct OrchestrationSnapshotV1 {
     #[serde(default)]
     todos: Vec<TodoItem>,
     #[serde(default)]
+    plan_tree: PlanTree,
+    #[serde(default)]
     tasks: HashMap<String, TaskRecord>,
     #[serde(default)]
     teams: HashMap<String, TeamRecord>,
@@ -187,6 +190,7 @@ pub struct ToolServices {
     pub web_search_endpoint: Option<String>,
     orchestration_path: Option<PathBuf>,
     todos: Mutex<Vec<TodoItem>>,
+    plan_tree: Mutex<PlanTree>,
     tasks: Mutex<HashMap<String, TaskRecord>>,
     teams: Mutex<HashMap<String, TeamRecord>>,
     crons: Mutex<Vec<CronJob>>,
@@ -239,6 +243,7 @@ impl Default for ToolServices {
             web_search_endpoint: std::env::var("ANYCODE_WEB_SEARCH_URL").ok(),
             orchestration_path: None,
             todos: Mutex::new(vec![]),
+            plan_tree: Mutex::new(PlanTree::default()),
             tasks: Mutex::new(HashMap::new()),
             teams: Mutex::new(HashMap::new()),
             crons: Mutex::new(vec![]),
@@ -655,6 +660,7 @@ impl ToolServices {
 
     fn apply_snapshot(&self, snap: OrchestrationSnapshotV1) {
         *self.todos.lock().expect("todos mutex") = snap.todos;
+        *self.plan_tree.lock().expect("plan_tree mutex") = snap.plan_tree;
         *self.tasks.lock().expect("tasks mutex") = snap.tasks;
         *self.teams.lock().expect("teams mutex") = snap.teams;
         *self.crons.lock().expect("crons mutex") = snap.crons;
@@ -669,6 +675,7 @@ impl ToolServices {
         OrchestrationSnapshotV1 {
             version: 1,
             todos: self.todos.lock().expect("todos mutex").clone(),
+            plan_tree: self.plan_tree.lock().expect("plan_tree mutex").clone(),
             tasks: self.tasks.lock().expect("tasks mutex").clone(),
             teams: self.teams.lock().expect("teams mutex").clone(),
             crons: self.crons.lock().expect("crons mutex").clone(),
@@ -710,6 +717,24 @@ impl ToolServices {
         let old = std::mem::take(&mut *guard);
         let all_done = new.iter().all(|t| t.status == "completed");
         *guard = if all_done { vec![] } else { new.clone() };
+        let cur = guard.clone();
+        drop(guard);
+        self.try_persist();
+        (old, cur)
+    }
+
+    pub fn plan_tree(&self) -> PlanTree {
+        self.plan_tree.lock().expect("plan_tree mutex").clone()
+    }
+
+    pub fn replace_plan_tree(&self, new: PlanTree) -> (PlanTree, PlanTree) {
+        let mut guard = self.plan_tree.lock().expect("plan_tree mutex");
+        let old = std::mem::take(&mut *guard);
+        *guard = if plan_tree_all_completed(&new) {
+            PlanTree::default()
+        } else {
+            new.clone()
+        };
         let cur = guard.clone();
         drop(guard);
         self.try_persist();
@@ -1014,6 +1039,7 @@ pub fn append_cron_job_to_orchestration_file(
 #[cfg(test)]
 mod orchestration_persist_tests {
     use super::*;
+    use anycode_core::{plan_tree_is_empty, PlanNode, PlanStatus};
     use std::fs;
 
     #[test]
@@ -1084,5 +1110,37 @@ mod orchestration_persist_tests {
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].id, "j1");
         assert_eq!(jobs[0].command, "ping");
+    }
+
+    #[test]
+    fn load_or_new_roundtrip_plan_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        {
+            let s = ToolServices::load_or_new(path.clone()).unwrap();
+            s.replace_plan_tree(PlanTree {
+                roots: vec![PlanNode {
+                    id: "root".into(),
+                    title: "Plan".into(),
+                    status: PlanStatus::Pending,
+                    children: vec![],
+                    detail: None,
+                    kind: None,
+                }],
+            });
+        }
+        let s2 = ToolServices::load_or_new(path).unwrap();
+        let tree = s2.plan_tree();
+        assert_eq!(tree.roots.len(), 1);
+        assert_eq!(tree.roots[0].title, "Plan");
+    }
+
+    #[test]
+    fn load_or_new_legacy_snapshot_without_plan_tree_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        fs::write(&path, r#"{"version":1,"todos":[]}"#).unwrap();
+        let s = ToolServices::load_or_new(path).unwrap();
+        assert!(plan_tree_is_empty(&s.plan_tree()));
     }
 }

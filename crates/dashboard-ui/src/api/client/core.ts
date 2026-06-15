@@ -90,4 +90,10 @@ export const coreClient = {
     }>("/api/skills/market"),
   agentStats: (limit = 30) =>
     get<{ agents: AgentUsageStat[] }>(`/api/agents/stats?limit=${limit}`),
+  cloudSession: () =>
+    get<{
+      linked: boolean;
+      access_token?: string | null;
+      portal_url?: string | null;
+    }>("/api/cloud/session"),
 };

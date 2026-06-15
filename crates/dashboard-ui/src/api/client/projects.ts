@@ -16,7 +16,6 @@ import type {
   SessionSummary,
   SkillRecord,
   TokenUsageDetail,
-  TokenUsageStats,
 } from "../types";
 import { del, get, patch, post, put } from "../http";
 import type { EventListOpts, ProjectsListOpts } from "./shared";
@@ -99,7 +98,7 @@ export const projectsClient = {
   gates: (projectId: string) =>
     get<{ gates: GateRecord[] }>(`/api/projects/${projectId}/gates`),
   projectUsage: (projectId: string, days = 7) =>
-    get<{ usage: TokenUsageStats; by_model: TokenUsageDetail["by_model"] }>(
+    get<TokenUsageDetail>(
       `/api/projects/${encodeURIComponent(projectId)}/usage?days=${days}`,
     ),
   gatePresets: (projectId: string) =>

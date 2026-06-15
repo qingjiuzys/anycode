@@ -53,6 +53,21 @@ impl WechatApprovalGate {
     }
 }
 
+pub(crate) fn should_register_wechat_approval(ignore_approval: bool) -> bool {
+    !ignore_approval
+}
+
+pub(crate) fn wechat_approval_callback(
+    gate: &WechatApprovalGate,
+    ignore_approval: bool,
+) -> Option<Box<dyn ApprovalCallback>> {
+    if should_register_wechat_approval(ignore_approval) {
+        Some(Box::new(gate.clone()))
+    } else {
+        None
+    }
+}
+
 #[async_trait]
 impl ApprovalCallback for WechatApprovalGate {
     async fn request_approval(
@@ -97,5 +112,16 @@ impl ApprovalCallback for WechatApprovalGate {
         }
 
         Ok(ok)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skips_wechat_approval_only_when_ignore_approval_is_set() {
+        assert!(should_register_wechat_approval(false));
+        assert!(!should_register_wechat_approval(true));
     }
 }

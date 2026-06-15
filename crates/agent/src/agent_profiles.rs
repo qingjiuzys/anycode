@@ -2,7 +2,8 @@
 
 use anycode_core::RuntimeMode;
 use anycode_tools::{
-    explore_plan_tool_names_with_skill, general_purpose_tool_names, workspace_assistant_tool_names,
+    explore_plan_tool_names_with_skill, general_purpose_tool_names, plan_tool_names_with_skill,
+    workspace_assistant_tool_names,
 };
 use std::collections::HashSet;
 
@@ -141,7 +142,8 @@ pub struct ResolvedAgentProfile {
 pub fn base_tools_for_extends(extends: &str, include_skill_on_explore_plan: bool) -> Vec<String> {
     match extends.trim() {
         "general-purpose" => general_purpose_tool_names(),
-        "explore" | "plan" => explore_plan_tool_names_with_skill(include_skill_on_explore_plan),
+        "explore" => explore_plan_tool_names_with_skill(include_skill_on_explore_plan),
+        "plan" => plan_tool_names_with_skill(include_skill_on_explore_plan),
         "workspace-assistant" => workspace_assistant_tool_names(include_skill_on_explore_plan),
         "goal" => general_purpose_tool_names(),
         other if is_builtin_extends(other) => general_purpose_tool_names(),

@@ -13,6 +13,7 @@ pub const TOOL_GREP: &str = "Grep";
 pub const TOOL_EDIT: &str = "Edit";
 pub const TOOL_NOTEBOOK_EDIT: &str = "NotebookEdit";
 pub const TOOL_TODO_WRITE: &str = "TodoWrite";
+pub const TOOL_PLAN_WRITE: &str = "PlanWrite";
 pub const TOOL_WEB_FETCH: &str = "WebFetch";
 pub const TOOL_WEB_SEARCH: &str = "WebSearch";
 pub const TOOL_KNOWLEDGE_SEARCH: &str = "KnowledgeSearch";
@@ -72,6 +73,7 @@ pub const CRON_READ_ONLY_DENIED_TOOL_IDS: &[&str] = &[
     TOOL_EDIT,
     TOOL_NOTEBOOK_EDIT,
     TOOL_TODO_WRITE,
+    TOOL_PLAN_WRITE,
     TOOL_POWERSHELL,
     TOOL_AGENT,
     TOOL_LEGACY_TASK_AGENT,
@@ -207,6 +209,15 @@ pub fn explore_plan_tool_names_with_skill(include_skill: bool) -> Vec<ToolName> 
     v
 }
 
+/// Plan agent tools: explore/read/bash plus hierarchical `PlanWrite`.
+pub fn plan_tool_names_with_skill(include_skill: bool) -> Vec<ToolName> {
+    let mut v = explore_plan_tool_names_with_skill(include_skill);
+    v.push(TOOL_PLAN_WRITE.to_string());
+    v.sort();
+    v.dedup();
+    v
+}
+
 pub fn workspace_assistant_tool_names(include_skill: bool) -> Vec<ToolName> {
     let mut out = vec![
         TOOL_FILE_READ.to_string(),
@@ -285,6 +296,7 @@ mod workspace_assistant_tools_tests {
             TOOL_KNOWLEDGE_SEARCH,
             TOOL_NOTEBOOK_EDIT,
             TOOL_TODO_WRITE,
+            TOOL_PLAN_WRITE,
             TOOL_WEB_FETCH,
             TOOL_WEB_SEARCH,
             TOOL_MCP,
@@ -390,6 +402,7 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         ),
         (TOOL_NOTEBOOK_EDIT, "Edit Jupyter .ipynb cells"),
         (TOOL_TODO_WRITE, "Session todo checklist"),
+        (TOOL_PLAN_WRITE, "Hierarchical session plan tree"),
         (TOOL_WEB_FETCH, "HTTP(S) fetch with size limit"),
         (TOOL_WEB_SEARCH, "Web search (DDG or custom endpoint)"),
         (
@@ -535,6 +548,15 @@ mod tests {
             n,
             "SECURITY_SENSITIVE_TOOL_IDS must not repeat entries"
         );
+    }
+
+    #[test]
+    fn plan_tools_include_plan_write() {
+        let names = plan_tool_names_with_skill(false);
+        assert!(names.iter().any(|n| n == "PlanWrite"));
+        assert!(names.iter().any(|n| n == "FileRead"));
+        let explore = explore_plan_tool_names_with_skill(false);
+        assert!(!explore.iter().any(|n| n == "PlanWrite"));
     }
 
     #[test]

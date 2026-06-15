@@ -64,6 +64,11 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
         &anycode_core::format_assistant_response_log_line(1, "Done — added section."),
     )
     .unwrap();
+    disk.append_line(
+        task_id,
+        "[llm_response_end] turn=1 elapsed_ms=500 input_tokens=1200 output_tokens=300",
+    )
+    .unwrap();
     disk.append_line(task_id, "[task_end] status=completed")
         .unwrap();
 
@@ -80,6 +85,17 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
             .any(|e| e.event_type == "assistant_response" && e.body.contains("added section")),
         "expected assistant_response from log ingest"
     );
+    assert!(
+        events.iter().any(|e| e.event_type == "llm_usage"),
+        "expected llm_usage index event from llm_response_end"
+    );
+
+    let usage = anycode_dashboard::metrics::global_token_usage_detail(&db, 7)
+        .await
+        .unwrap();
+    assert_eq!(usage.usage.llm_calls, 1);
+    assert_eq!(usage.usage.input_tokens, 1200);
+    assert_eq!(usage.usage.output_tokens, 300);
 
     let session = db.get_session(rec.session_id()).await.unwrap().unwrap();
     assert_eq!(session.status, "completed");

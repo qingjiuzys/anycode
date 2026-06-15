@@ -4,6 +4,7 @@ export interface HealthResponse {
   db_path: string;
   mode: string;
   account_api_url?: string | null;
+  account_portal_url?: string | null;
 }
 
 export interface OverviewStats {

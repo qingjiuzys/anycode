@@ -16,6 +16,8 @@ pub struct HealthResponse {
     pub mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_api_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_portal_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1077,9 +1079,33 @@ pub struct ModelUsageRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectUsageRow {
+    pub project_id: String,
+    pub project_name: String,
+    pub root_path: String,
+    pub llm_calls: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub estimated_cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenTimelinePoint {
+    pub date: String,
+    pub llm_calls: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub estimated_cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenUsageDetail {
     pub usage: TokenUsageStats,
     pub by_model: Vec<ModelUsageRow>,
+    pub by_project: Vec<ProjectUsageRow>,
+    pub by_day: Vec<TokenTimelinePoint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

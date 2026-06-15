@@ -1,7 +1,9 @@
 //! 内置 Agent 实现（general-purpose / explore / plan）。
 
 use anycode_core::prelude::*;
-use anycode_tools::{explore_plan_tool_names_with_skill, general_purpose_tool_names};
+use anycode_tools::{
+    explore_plan_tool_names_with_skill, general_purpose_tool_names, plan_tool_names_with_skill,
+};
 use async_trait::async_trait;
 
 /// Placeholder result when `Agent::execute` is invoked outside `AgentRuntime` orchestration.
@@ -112,7 +114,7 @@ impl Agent for PlanAgent {
     }
 
     fn tools(&self) -> Vec<ToolName> {
-        explore_plan_tool_names_with_skill(self.include_skill)
+        plan_tool_names_with_skill(self.include_skill)
     }
 
     async fn execute(&mut self, _task: Task) -> Result<TaskResult, CoreError> {

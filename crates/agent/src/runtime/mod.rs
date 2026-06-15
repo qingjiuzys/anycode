@@ -16,6 +16,7 @@ mod logging;
 mod memory_hooks;
 mod nested_task;
 mod nested_worktree;
+mod plan_tree_context;
 mod provider_errors;
 mod receipt;
 mod session;

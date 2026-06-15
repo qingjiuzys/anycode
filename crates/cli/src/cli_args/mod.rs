@@ -106,6 +106,7 @@ pub(crate) struct Args {
 }
 
 mod audit;
+mod auth;
 mod channel;
 mod cron;
 mod dashboard;
@@ -122,6 +123,7 @@ mod workflow;
 mod workspace;
 
 pub(crate) use audit::*;
+pub(crate) use auth::*;
 pub(crate) use channel::*;
 pub(crate) use cron::*;
 pub(crate) use dashboard::*;
@@ -319,6 +321,12 @@ pub(crate) enum Commands {
     Mcp {
         #[command(subcommand)]
         sub: McpCommands,
+    },
+
+    /// ☁️  Cloud account login and device link
+    Auth {
+        #[command(subcommand)]
+        sub: AuthCommands,
     },
 
     /// 📊  Local Digital Workbench (project dashboard API + Web UI)

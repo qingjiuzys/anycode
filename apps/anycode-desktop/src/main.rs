@@ -214,6 +214,22 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while running anycode desktop")
         .run(|app, event| {
+            if let RunEvent::Opened { urls } = &event {
+                let program = resolve_anycode_program(app);
+                for url in urls {
+                    if url.scheme() == "anycode" {
+                        if let Some(code) = url
+                            .query_pairs()
+                            .find(|(k, _)| k == "code")
+                            .map(|(_, v)| v.into_owned())
+                        {
+                            let _ = Command::new(&program)
+                                .args(["auth", "link", "--code", &code])
+                                .spawn();
+                        }
+                    }
+                }
+            }
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
                 if let Some(state) = app.try_state::<SidecarState>() {
                     stop_sidecars(&*state);

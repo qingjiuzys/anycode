@@ -27,7 +27,7 @@ anycode-llm = { path = "../llm" }
 anycode-setup = { path = "../setup" }
 anycode-tools = { path = "../tools" }
 async-stream = "0.3"
-axum = { version = "0.8", features = ["json", "macros", "multipart"] }
+axum = { version = "0.8", features = ["json", "macros", "multipart", "ws"] }
 chrono = { workspace = true, features = ["serde"] }
 futures = "0.3"
 serde = { workspace = true, features = ["derive"] }
@@ -46,6 +46,8 @@ walkdir = { workspace = true }
 pdf-extract = "0.7"
 reqwest = { workspace = true, features = ["json"] }
 rust-embed = { version = "8.9", optional = true }
+portable-pty = "0.8"
+ignore = { workspace = true }
 
 [dev-dependencies]
 anycode-setup = { path = "../setup" }

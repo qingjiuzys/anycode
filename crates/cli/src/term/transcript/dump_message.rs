@@ -2,7 +2,7 @@
 
 use anycode_core::{
     strip_llm_reasoning_for_display, Message, MessageContent, MessageRole, ToolCall,
-    ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
+    ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY, PLAN_TREE_CONTEXT_PREFIX,
 };
 use ratatui::text::{Line, Span};
 
@@ -153,6 +153,7 @@ fn is_hidden_context_user_message(msg: &Message, text: &str) -> bool {
         || t.starts_with("## Goal Mode")
         || t.starts_with("## Model Routing")
         || t.starts_with("## Relevant Memories")
+        || t.starts_with(PLAN_TREE_CONTEXT_PREFIX)
 }
 
 pub(crate) fn message_to_entries(msg: &Message) -> Vec<TranscriptEntry> {

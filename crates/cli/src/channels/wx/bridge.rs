@@ -1,6 +1,6 @@
 //! Polling loop, message state machine, and embedded `AgentRuntime`.
 
-use super::approval::{ActiveChat, WechatApprovalGate};
+use super::approval::{wechat_approval_callback, ActiveChat, WechatApprovalGate};
 use super::bridge_lock::BridgeLockGuard;
 use super::cdn_media::{
     download_cdn_item_bytes, extract_user_text_and_image_item, first_plain_text_from_items,
@@ -115,13 +115,12 @@ pub async fn run_wechat_daemon(
         broker.clone(),
     );
 
-    // 通道模式与 Telegram/Discord 一致：工具走自动策略（无终端交互审批）。
-    // `WechatApprovalGate` 仍用于会话路由与其它微信侧逻辑。
+    // 微信桥的交互审批必须回到当前微信会话，不能退回本机 Workbench / CLI。
     let project_enabled = crate::workbench::project_skills::load_project_enabled_skills(&cwd).await;
     let runtime = Arc::new(RwLock::new(
         initialize_runtime(
             app_config,
-            None,
+            wechat_approval_callback(&gate, ignore_approval),
             Some(ask_host.clone()),
             crate::bootstrap::MemoryAttachMode::Exclusive,
             project_enabled,
@@ -143,6 +142,7 @@ pub async fn run_wechat_daemon(
         ignore_approval,
         last_config_mtime: Arc::clone(&last_config_mtime),
         ask_user_question_host: Some(ask_host),
+        approval_gate: Some(gate.clone()),
         tool_policy: Arc::new(StdMutex::new(ToolPolicyConfigSnapshot::from(app_config))),
     };
     if let Ok(p) = resolve_config_path(config_file.clone()) {

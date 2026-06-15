@@ -221,6 +221,28 @@ pub(super) async fn dispatch(
                 }
             }
         },
+        Commands::Auth { sub } => match sub {
+            cli_args::AuthCommands::Login => {
+                commands::cloud_auth::run_auth_login().await?;
+            }
+            cli_args::AuthCommands::Link { code } => {
+                commands::cloud_auth::run_auth_link(&code).await?;
+            }
+            cli_args::AuthCommands::Status => {
+                if let Some(s) = commands::cloud_auth::read_cloud_session() {
+                    println!("linked: {}", s.user_email.as_deref().unwrap_or("(unknown)"));
+                } else {
+                    println!("not linked — run `anycode auth login`");
+                }
+            }
+            cli_args::AuthCommands::Logout => {
+                let path = commands::cloud_auth::cloud_session_path();
+                if path.is_file() {
+                    std::fs::remove_file(&path)?;
+                }
+                println!("cloud session cleared");
+            }
+        },
         Commands::Dashboard { sub, run } => {
             commands::dashboard::run_dashboard_command(sub, run).await?;
         }

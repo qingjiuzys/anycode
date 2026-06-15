@@ -146,6 +146,7 @@ impl AgentRuntime {
                     details: Some("budget_exceeded".to_string()),
                 });
             }
+            self.sync_plan_tree_context(&mut messages);
             logger.line(
                 task.id,
                 &format!(

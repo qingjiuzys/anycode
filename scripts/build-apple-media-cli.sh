@@ -13,7 +13,22 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 0
 fi
 
+apple_media_needs_rebuild() {
+  [[ "${ANYCODE_APPLE_MEDIA_FORCE:-}" == "1" ]] && return 0
+  [[ ! -f "$OUT" ]] && return 0
+  local out_mtime newest_src
+  out_mtime="$(stat -f '%m' "$OUT")"
+  newest_src="$(find "$PKG" \( -name '*.swift' -o -name Package.swift \) -exec stat -f '%m' {} \; 2>/dev/null | sort -n | tail -1)"
+  [[ -z "$newest_src" || "$newest_src" -gt "$out_mtime" ]]
+}
+
 mkdir -p "$(dirname "$OUT")"
+
+if ! apple_media_needs_rebuild; then
+  echo "anycode-apple-media cache hit, skip swift build (set ANYCODE_APPLE_MEDIA_FORCE=1 to refresh)"
+  exit 0
+fi
+
 cd "$PKG"
 swift build -c release --product anycode-apple-media
 BIN="$PKG/.build/release/anycode-apple-media"

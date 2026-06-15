@@ -29,6 +29,7 @@ use crate::orchestration::{
     CronCreateTool, CronDeleteTool, CronListTool, RemoteTriggerTool, TaskCreateTool, TaskGetTool,
     TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool, TeamCreateTool, TeamDeleteTool,
 };
+use crate::plan_write::PlanWriteTool;
 use crate::platform_tools::{
     AskUserQuestionTool, BriefTool, ConfigTool, PowerShellTool, ReplTool, SendUserMessageTool,
 };
@@ -62,6 +63,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(EditTool::new(sm));
     ins!(NotebookEditTool::new(sm));
     ins!(TodoWriteTool::new(s.clone()));
+    ins!(PlanWriteTool::new(s.clone()));
     ins!(WebFetchTool::new(s.clone()));
     ins!(WebSearchTool::new(s.clone()));
     ins!(McpTool::new(s.clone()));

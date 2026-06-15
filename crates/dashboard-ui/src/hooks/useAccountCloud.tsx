@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import {
   accountCloud,
   getAccountToken,
   resolveAccountApiBase,
+  resolvePortalUrl,
   setAccountToken,
 } from "@/api/client/accountCloud";
 import type { CloudAuthUser, CloudOrgMember } from "@/api/types/accountCloud";
@@ -13,12 +14,12 @@ import { bundleToEntitlements } from "@/lib/planCatalog";
 
 type AccountCloudContextValue = {
   baseUrl: string | null;
+  portalUrl: string | null;
   configured: boolean;
   authenticated: boolean;
   user: CloudAuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string) => Promise<void>;
+  openPortalLogin: (path?: string) => void;
   logout: () => Promise<void>;
   entitlements: ServiceEntitlements | null;
   members: CloudOrgMember[];
@@ -51,7 +52,21 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
     [health.data?.account_api_url],
   );
 
+  const portalUrl = useMemo(
+    () => resolvePortalUrl(health.data ?? null),
+    [health.data],
+  );
+
   const configured = Boolean(baseUrl);
+
+  useEffect(() => {
+    void api.cloudSession().then((s) => {
+      if (s.linked && s.access_token) {
+        setAccountToken(s.access_token);
+        setTokenVersion((v) => v + 1);
+      }
+    });
+  }, []);
 
   const me = useQuery({
     queryKey: ["account-cloud-me", baseUrl, tokenVersion],
@@ -113,42 +128,6 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
     void qc.invalidateQueries({ queryKey: ["account-cloud-api-keys"] });
   }, [qc]);
 
-  const loginMut = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      if (!baseUrl) throw new Error("account service not configured");
-      return accountCloud.login(baseUrl, { email, password });
-    },
-    onSuccess: (data) => {
-      setAccountToken(data.token);
-      setTokenVersion((v) => v + 1);
-      refresh();
-    },
-  });
-
-  const registerMut = useMutation({
-    mutationFn: async ({
-      email,
-      password,
-      displayName,
-    }: {
-      email: string;
-      password: string;
-      displayName: string;
-    }) => {
-      if (!baseUrl) throw new Error("account service not configured");
-      return accountCloud.register(baseUrl, {
-        email,
-        password,
-        display_name: displayName,
-      });
-    },
-    onSuccess: (data) => {
-      setAccountToken(data.token);
-      setTokenVersion((v) => v + 1);
-      refresh();
-    },
-  });
-
   const logoutMut = useMutation({
     mutationFn: async () => {
       if (baseUrl && getAccountToken()) {
@@ -186,20 +165,25 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
     onSuccess: refresh,
   });
 
+  const openPortalLogin = useCallback(
+    (path = "/login") => {
+      const base = portalUrl ?? baseUrl;
+      if (!base) return;
+      window.open(`${base.replace(/\/$/, "")}${path}`, "_blank", "noopener,noreferrer");
+    },
+    [portalUrl, baseUrl],
+  );
+
   const value: AccountCloudContextValue = {
     baseUrl,
+    portalUrl,
     configured,
     authenticated: Boolean(me.data?.authenticated),
     user: me.data?.user ?? null,
     loading:
       health.isLoading ||
       (configured && Boolean(getAccountToken()) && (me.isLoading || bundle.isLoading)),
-    login: async (email, password) => {
-      await loginMut.mutateAsync({ email, password });
-    },
-    register: async (email, password, displayName) => {
-      await registerMut.mutateAsync({ email, password, displayName });
-    },
+    openPortalLogin,
     logout: async () => {
       await logoutMut.mutateAsync();
     },

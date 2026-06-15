@@ -577,9 +577,13 @@ pub async fn get_session_usage(
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
     match crate::metrics::session_token_usage_detail(&state.db, &session_id).await {
-        Ok(detail) => {
-            Json(json!({ "usage": detail.usage, "by_model": detail.by_model })).into_response()
-        }
+        Ok(detail) => Json(json!({
+            "usage": detail.usage,
+            "by_model": detail.by_model,
+            "by_project": detail.by_project,
+            "by_day": detail.by_day,
+        }))
+        .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),

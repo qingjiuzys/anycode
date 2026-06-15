@@ -113,3 +113,13 @@ export function resolveAccountApiBase(healthUrl?: string | null): string | null 
   if (fromHealth) return fromHealth.replace(/\/$/, "");
   return null;
 }
+
+export function resolvePortalUrl(
+  health?: { account_portal_url?: string | null; account_api_url?: string | null } | null,
+): string | null {
+  const fromEnv = import.meta.env.VITE_ACCOUNT_PORTAL_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  const fromHealth = health?.account_portal_url?.trim() || health?.account_api_url?.trim();
+  if (fromHealth) return fromHealth.replace(/\/$/, "");
+  return null;
+}

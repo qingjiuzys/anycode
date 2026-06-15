@@ -69,19 +69,46 @@ Output (macOS):
 
 | Artifact | Path |
 |----------|------|
-| `.app` | `apps/anycode-desktop/target/release/bundle/macos/anyCode.app` |
-| `.dmg` | `apps/anycode-desktop/target/release/bundle/dmg/anyCode_<version>_aarch64.dmg` |
+| `.app` | `target/release/bundle/macos/anyCode.app` |
+| `.dmg` | `target/release/bundle/dmg/anyCode_<version>_aarch64.dmg` |
 
-The release bundle includes **Playwright MCP + Chromium** under `resources/browser/` (no manual `npx playwright install`). Enable in Workbench → **Settings → Notifications → Browser connector**, then start a new conversation.
+Tauri shares the repo-root `target/` directory (`apps/anycode-desktop/.cargo/config.toml`) so desktop and CLI builds reuse the same Cargo cache.
 
 ### Build-time downloads vs bundled app
 
-| Command | Browser MCP / Chromium | Notes |
-|---------|------------------------|-------|
-| `cargo build --release -p anycode` | **No** | CLI binary only; may run `npm ci` for dashboard-ui if `dist/` is missing |
-| `./scripts/build-desktop-release.sh` | **Yes** (first time or lockfile change) | Stages into `resources/browser/` then Tauri bundles it into `.app` / `.dmg` |
+| Command | Browser MCP / Chromium | dashboard-ui `npm ci` | Notes |
+|---------|------------------------|----------------------|-------|
+| `cargo build --release -p anycode` | **No** | Only if `dist/` missing | CLI binary only |
+| `./scripts/build-desktop-release.sh` | **Yes** (first time or lockfile change) | **Yes** (first time or lockfile change) | Stages into `resources/browser/` then Tauri bundles it into `.app` / `.dmg` |
 
-End users who install the DMG **do not** download Playwright at runtime. Developers re-running the desktop release script reuse `resources/browser/` when `browser-mcp/package-lock.json` and platform are unchanged (`prepare-browser-mcp.sh` cache hit). Force a full refresh with `ANYCODE_BROWSER_MCP_FORCE=1`.
+End users who install the DMG **do not** download Playwright at runtime.
+
+**Repeat local desktop builds** reuse caches when lockfiles and platform are unchanged:
+
+| Cache | Location | Force refresh |
+|-------|----------|---------------|
+| dashboard-ui npm | `crates/dashboard-ui/.npm-fingerprint` | `ANYCODE_DASHBOARD_UI_FORCE=1` |
+| browser MCP + Chromium | `resources/browser/.bundle-fingerprint` | `ANYCODE_BROWSER_MCP_FORCE=1` |
+| desktop icons | `icons/.icon-fingerprint` | `ANYCODE_DESKTOP_ICON_FORCE=1` |
+| apple-media Swift | mtime vs `resources/bin/anycode-apple-media` | `ANYCODE_APPLE_MEDIA_FORCE=1` |
+| staged resources | `resources/.stage-fingerprint` | `ANYCODE_DESKTOP_STAGE_FORCE=1` |
+| dashboard-ui vite | `crates/dashboard-ui/.dist-fingerprint` | `ANYCODE_DASHBOARD_UI_FORCE=1` |
+
+**Faster local iterative DMG** (same bundle contents, desktop shell compiles without LTO):
+
+```bash
+ANYCODE_DESKTOP_LOCAL_RELEASE=1 ./scripts/build-desktop-release.sh
+```
+
+Use plain `./scripts/build-desktop-release.sh` (profile `release` + LTO) for shipping builds.
+
+`build-desktop-release.sh` prints per-step timings and total seconds. Typical repeat build (no lockfile changes): no `npm ci`, no Playwright download; mostly incremental Rust/Swift + DMG packaging.
+
+Install `cargo-tauri` once to avoid in-script `cargo install`:
+
+```bash
+cargo install tauri-cli --version "^2" --locked
+```
 
 If dashboard-ui is already built, skip the UI npm step during Rust release builds with `ANYCODE_SKIP_DASHBOARD_UI_BUILD=1` (see `crates/dashboard/build.rs`).
 
@@ -112,7 +139,7 @@ If the macOS desktop job fails but you need a DMG on the Release page:
 
 ```bash
 ./scripts/build-desktop-release.sh
-gh release upload v0.2.x apps/anycode-desktop/target/release/bundle/dmg/*.dmg --clobber
+gh release upload v0.2.x target/release/bundle/dmg/*.dmg --clobber
 ```
 
 Ad-hoc DMG: first open may require **System Settings → Privacy & Security** or right-click **Open**. For distribution without Gatekeeper prompts, configure all Apple secrets above for signed + notarized builds.

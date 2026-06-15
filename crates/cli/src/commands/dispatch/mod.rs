@@ -103,6 +103,7 @@ pub(crate) async fn run_cli() -> anyhow::Result<()> {
             | Commands::Workflow { .. }
             | Commands::Model { .. }
             | Commands::Mcp { .. }
+            | Commands::Auth { .. }
             | Commands::Wechat { .. }
             | Commands::Dashboard { .. }),
         ) => {

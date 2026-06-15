@@ -358,9 +358,13 @@ pub async fn get_project_usage(
     Query(q): Query<TimelineQuery>,
 ) -> impl IntoResponse {
     match crate::metrics::project_token_usage_detail(&state.db, &project_id, q.days).await {
-        Ok(detail) => {
-            Json(json!({ "usage": detail.usage, "by_model": detail.by_model })).into_response()
-        }
+        Ok(detail) => Json(json!({
+            "usage": detail.usage,
+            "by_model": detail.by_model,
+            "by_project": detail.by_project,
+            "by_day": detail.by_day,
+        }))
+        .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),

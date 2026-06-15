@@ -334,6 +334,8 @@ async fn fixture_api_smoke() {
     assert!(usage["usage"]["total_tokens"].is_number());
     assert!(usage["usage"]["estimated_cost_usd"].is_number());
     assert!(usage["by_model"].is_array());
+    assert!(usage["by_project"].is_array());
+    assert!(usage["by_day"].is_array());
 
     let saved_hours = get_json(app.clone(), "/api/metrics/kpi/saved-hours?days=7").await;
     assert!(saved_hours["kpi"]["estimated_saved_hours"].is_number());

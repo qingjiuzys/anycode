@@ -26,3 +26,11 @@ panic = "abort"
 codegen-units = 1
 lto = true
 opt-level = "s"
+
+# Local iterative DMG builds: same bundle contents, faster link (no LTO).
+# Use: ANYCODE_DESKTOP_LOCAL_RELEASE=1 ./scripts/build-desktop-release.sh
+[profile.release-local]
+inherits = "release"
+lto = false
+codegen-units = 16
+opt-level = 3

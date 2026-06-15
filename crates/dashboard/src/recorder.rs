@@ -4,6 +4,7 @@ use crate::db::DashboardDb;
 use crate::log_parser::{parse_line, task_end_status};
 use crate::notify;
 use crate::observability::event_tier::is_index_event_type;
+use crate::observability::llm_usage::{self, EVENT_TYPE as LLM_USAGE_EVENT};
 use crate::schema::{CreateSessionRequest, InsertEventRequest, ProjectEvent, UpsertProjectRequest};
 use crate::server::default_db_path;
 use anycode_core::{DiskTaskOutput, GoalProgress, Task, TaskId};
@@ -308,6 +309,10 @@ impl DashboardRecorder {
             if is_gate {
                 continue;
             }
+            if parsed.event_type == "llm_response_end" {
+                self.maybe_record_llm_usage(&parsed, &mut dedup).await;
+                continue;
+            }
             if !is_index_event_type(&parsed.event_type) {
                 continue;
             }
@@ -334,6 +339,47 @@ impl DashboardRecorder {
 
     fn notify_sse(evt: ProjectEvent) {
         notify::spawn_publish_event(evt);
+    }
+
+    async fn maybe_record_llm_usage(
+        &self,
+        parsed: &crate::log_parser::ParsedLine,
+        dedup: &mut HashSet<String>,
+    ) {
+        let Some(payload) = llm_usage::usage_payload_from_parsed(parsed) else {
+            return;
+        };
+        let turn = payload.get("turn").and_then(|v| v.as_str()).unwrap_or("0");
+        let key = llm_usage::usage_dedup_key(turn);
+        if !dedup.insert(key) {
+            return;
+        }
+        let input = payload
+            .get("input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let output = payload
+            .get("output_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let title = format!("LLM usage ({input} in / {output} out tokens)");
+        if let Ok(evt) = self
+            .db
+            .insert_event(InsertEventRequest {
+                project_id: self.project_id.clone(),
+                session_id: Some(self.session_id.clone()),
+                task_id: Some(self.task_id.clone()),
+                agent_id: None,
+                event_type: LLM_USAGE_EVENT.into(),
+                severity: Some("info".into()),
+                title,
+                body: None,
+                payload: Some(payload),
+            })
+            .await
+        {
+            Self::notify_sse(evt);
+        }
     }
 
     async fn maybe_record_artifact(&self, _parsed: &crate::log_parser::ParsedLine) {

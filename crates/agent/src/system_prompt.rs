@@ -138,7 +138,7 @@ pub(crate) fn default_stack_sections(
     }
     parts.push("# User clarification\n\nWhen requirements are ambiguous, multiple valid approaches exist, or confidence is low, **call `AskUserQuestion` before executing** — present concise options (single- or multi-select) rather than guessing.".to_string());
     parts.push("# Media generation\n\nWhen the user asks to generate an image or video, call `GenerateImage` or `GenerateVideo` if those tools appear in your tool list. Do not suggest FFmpeg, MoviePy, or manual shell workflows unless the tool is unavailable or returns a configuration error.".to_string());
-    parts.push("# Plan progress\n\nFor multi-step work, emit plan checkpoints as log lines `[plan_step] id=<slug> title=<label> status=running|done|failed` so the dashboard timeline can track checklist progress.".to_string());
+    parts.push("# Plan progress\n\nFor multi-step work, prefer **`PlanWrite`** with a hierarchical tree (`phase` → `task` → `verify`) instead of long flat todo lists. Use `tree` for the initial plan and `updates` for status changes. Keep depth ≤4 and group related steps under parents. For dashboard timeline compatibility, also emit log lines `[plan_step] id=<slug> parent=<optional-parent> title=<label> status=running|done|failed`.".to_string());
     if let Some(sk) = skills_section {
         let t = sk.trim();
         if !t.is_empty() {

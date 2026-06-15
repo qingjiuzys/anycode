@@ -371,6 +371,14 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         placeholder_only: false,
     },
     ProviderCatalogEntry {
+        id: "anycode_cloud",
+        label: "anyCode Cloud",
+        hint: Some("Hosted models via model gateway; run `anycode auth login`"),
+        transport: LlmTransport::OpenAiChatCompletions,
+        suggested_openai_base: Some("http://127.0.0.1:43210/v1/chat/completions"),
+        placeholder_only: false,
+    },
+    ProviderCatalogEntry {
         id: "vllm",
         label: "vLLM",
         hint: Some("本地 OpenAI 兼容"),
@@ -451,6 +459,7 @@ pub fn normalize_provider_id(raw: &str) -> String {
         "cloudflare_ai" => "cloudflare_ai_gateway".to_string(),
         "vercel_ai" => "vercel_ai_gateway".to_string(),
         "custom_api" | "custom_openai" => "custom".to_string(),
+        "anycode-cloud" | "anycode_cloud_api" => "anycode_cloud".to_string(),
         _ => s,
     }
 }

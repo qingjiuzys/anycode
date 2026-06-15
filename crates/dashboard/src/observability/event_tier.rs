@@ -19,6 +19,7 @@ pub fn is_index_event_type(event_type: &str) -> bool {
             | "workflow_step"
             | "plan_step"
             | "session_error"
+            | "llm_usage"
     )
 }
 
@@ -36,8 +37,10 @@ pub fn is_trace_event_type(event_type: &str) -> bool {
             | "tool_call_end"
     ) || event_type.starts_with("tool_call")
         || event_type.starts_with("turn_")
-        || event_type.starts_with("llm_")
+        || (event_type.starts_with("llm_") && event_type != LLM_USAGE_EVENT)
 }
+
+const LLM_USAGE_EVENT: &str = "llm_usage";
 
 #[cfg(test)]
 mod tests {
@@ -58,11 +61,14 @@ mod tests {
         for ty in [
             "turn_start",
             "llm_request_start",
+            "llm_response_end",
             "tool_call_end",
             "tool_call_input",
         ] {
             assert!(is_trace_event_type(ty));
             assert!(!is_index_event_type(ty));
         }
+        assert!(is_index_event_type("llm_usage"));
+        assert!(!is_trace_event_type("llm_usage"));
     }
 }

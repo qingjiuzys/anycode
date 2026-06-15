@@ -79,8 +79,20 @@ fetch_node_tarball() {
 echo "==> prepare browser MCP bundle"
 
 if cache_hit; then
-  echo "browser MCP cache hit, skip (set ANYCODE_BROWSER_MCP_FORCE=1 to refresh)"
+  echo "browser MCP cache hit, skip download (set ANYCODE_BROWSER_MCP_FORCE=1 to refresh)"
   exit 0
+fi
+
+if [[ "${ANYCODE_BROWSER_MCP_FORCE:-}" == "1" ]]; then
+  echo "browser MCP cache miss: ANYCODE_BROWSER_MCP_FORCE=1"
+elif ! browser_bundle_complete; then
+  echo "browser MCP cache miss: staged bundle incomplete (first build or resources/browser removed)"
+elif [[ ! -f "$FINGERPRINT" ]]; then
+  echo "browser MCP cache miss: missing $FINGERPRINT"
+else
+  echo "browser MCP cache miss: lockfile, node version, or platform changed"
+  echo "  expected: $(expected_fingerprint)"
+  echo "  stored:   $(cat "$FINGERPRINT")"
 fi
 
 rm -rf "$STAGE"

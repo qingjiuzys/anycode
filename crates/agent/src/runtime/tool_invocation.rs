@@ -92,7 +92,7 @@ impl AgentRuntime {
 
         let input = ToolInput {
             name: tool_call.name.clone(),
-            input: tool_call.input.clone(),
+            input: anycode_tools::coerce_tool_input(&tool_call.name, tool_call.input.clone()),
             working_directory: if working_directory.is_empty() {
                 None
             } else {
@@ -143,6 +143,15 @@ impl AgentRuntime {
             Err(CoreError::PermissionDenied(reason)) => {
                 self.tool_invocation_deny(task_id, working_directory, tool_call, "result", &reason)
             }
+            Err(e @ CoreError::SerializationError(_)) => Ok(ToolOutput {
+                result: serde_json::json!({
+                    "error": e.to_string(),
+                    "tool": tool_call.name,
+                    "hint": "Malformed tool arguments; fix JSON shape and retry."
+                }),
+                error: Some(e.to_string()),
+                duration_ms: 0,
+            }),
             Err(e) => Err(e),
         }
     }

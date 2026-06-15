@@ -12,7 +12,6 @@ import type {
   ExecutionLogResponse,
   SessionWithProject,
   TokenUsageDetail,
-  TokenUsageStats,
 } from "../types";
 import { get, post } from "../http";
 import { buildArtifactQuery, type ArtifactListOpts, type EventListOpts, type SessionListOpts } from "./shared";
@@ -55,7 +54,7 @@ export const sessionsClient = {
       { enabled },
     ),
   sessionUsage: (sessionId: string) =>
-    get<{ usage: TokenUsageStats; by_model: TokenUsageDetail["by_model"] }>(
+    get<TokenUsageDetail>(
       `/api/sessions/${encodeURIComponent(sessionId)}/usage`,
     ),
   sessionEvents: (sessionId: string, opts?: EventListOpts) => {

@@ -45,9 +45,31 @@ export interface ModelUsageRow {
   estimated_cost_usd: number;
 }
 
+export interface ProjectUsageRow {
+  project_id: string;
+  project_name: string;
+  root_path: string;
+  llm_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface TokenTimelinePoint {
+  date: string;
+  llm_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
 export interface TokenUsageDetail {
   usage: TokenUsageStats;
   by_model: ModelUsageRow[];
+  by_project: ProjectUsageRow[];
+  by_day: TokenTimelinePoint[];
 }
 
 export interface SavedHoursKpi {

@@ -9,7 +9,6 @@ import type {
   SavedHoursKpi,
   SecurityActivitySummary,
   TokenUsageDetail,
-  TokenUsageStats,
 } from "../types";
 import { API_BASE, get, post } from "../http";
 
@@ -17,9 +16,7 @@ export const governanceClient = {
   timelineMetrics: (days = 7) =>
     get<{ timeline: GlobalTimelineMetrics }>(`/api/metrics/timeline?days=${days}`),
   usageMetrics: (days = 7) =>
-    get<{ usage: TokenUsageStats; by_model: TokenUsageDetail["by_model"] }>(
-      `/api/metrics/usage?days=${days}`,
-    ),
+    get<TokenUsageDetail>(`/api/metrics/usage?days=${days}`),
   savedHoursKpi: (days = 7) =>
     get<{ kpi: SavedHoursKpi }>(`/api/metrics/kpi/saved-hours?days=${days}`),
   securityActivity: (opts?: { limit?: number; projectId?: string }) => {

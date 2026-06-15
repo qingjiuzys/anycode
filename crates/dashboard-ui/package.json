@@ -11,17 +11,21 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.2.0",
-    "@tauri-apps/plugin-shell": "^2.2.0",
     "@tanstack/react-query": "^5.66.9",
     "@tanstack/react-router": "^1.105.0",
     "@tanstack/react-virtual": "^3.14.2",
+    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/plugin-shell": "^2.2.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.2",
     "highlight.js": "^11.11.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^2.1.9",
     "reactflow": "^11.11.4",
     "remark-gfm": "^4.0.1"
   },

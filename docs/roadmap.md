@@ -83,9 +83,20 @@
 - **网页端操作 Agent**：Web 触发 run/goal、工具审批收件箱、会话 cancel 等本地控制面能力**不**作为 0.3 产品承诺；继续 CLI + 本地 Workbench 观测。
 - 远程队列执行、云端 Agent 控制台、OpenClaw Gateway/Codex 式托管。
 - HTTP `anycode daemon`（[ADR 003](adr/003-http-daemon-deprecated.md)）。
-- 真实支付网关集成（Stripe/微信 pay 等）；0.3 仅 UI + 本地 entitlement 模型。
 
-### 3.5.3 原 harness 对标项（→ 0.4 / §4）
+### 3.5.3 云端产品纠偏（0.3+，[ADR 011](adr/011-cloud-account-platform.md)）
+
+| 包 | 主题 | 完成定义（简） |
+|----|------|----------------|
+| **0.3-F** | **Cloud Portal** | 独立 Web 站点（`account-portal`），由 `anycode-account` serve；`/` 可访问 |
+| **0.3-G** | **Device link** | 云端登录 → `anycode://` 跳转本地 App；`anycode auth login\|link` |
+| **0.3-H** | **Stripe 订阅** | Checkout + webhook；Portal 账单页 |
+| **0.3-I** | **Model gateway** | `anycode-model-gateway` 托管推理 + 计量；Portal 模型市场 |
+| **0.3-J** | **混合模型客户端** | `anycode-cloud` provider；Settings 分区 BYOK / Cloud |
+
+本地 `/login` 保留 loopback 开发；**C 端主路径**为云端 Portal + 设备关联。
+
+### 3.5.4 原 harness 对标项（→ 0.4 / §4）
 
 下列曾误标为 0.3 的项已移回 **§4 Epic A–G**（技术 hardening / **0.4**）：Eval/Release Gate、Tool Governance、MCP Doctor、Cron Ops、Terminal UX、Channel Reliability。见 [`planning/production-harness-hardening.md`](planning/production-harness-hardening.md)、[`planning/closure-plan-2026-06.md`](planning/closure-plan-2026-06.md)。
 

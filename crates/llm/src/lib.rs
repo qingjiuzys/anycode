@@ -10,6 +10,7 @@ use thiserror::Error;
 pub mod capability_catalog;
 mod catalog_service;
 mod chat_model_ref;
+mod cloud_session;
 pub mod config_file;
 pub mod config_models;
 pub mod copilot_token;
@@ -41,6 +42,7 @@ pub use chat_model_ref::{
     build_qualified_chat_model_value, resolve_chat_model_ref, zai_model_catalog_entries,
     ChatModelResolution, ChatModelResolutionReason, ChatModelResolutionSource, ModelCatalogEntry,
 };
+pub use cloud_session::{cloud_session_path, default_gateway_chat_url, read_cloud_access_token};
 pub use config_file::{
     default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,
     read_config_value, read_model_fallback, read_models_config, string_field,
@@ -109,11 +111,26 @@ pub fn build_zai_openai_stack_client(
     cfg: &ProviderConfig,
 ) -> Result<providers::zai::ZaiClient, CoreError> {
     let norm = normalize_provider_id(&cfg.provider);
+    let mut effective = cfg.clone();
+    if norm == "anycode_cloud" {
+        if effective.api_key.trim().is_empty() {
+            effective.api_key = cloud_session::read_cloud_access_token().ok_or_else(|| {
+                CoreError::LLMError(
+                    "anyCode Cloud：请运行 `anycode auth login` 并完成设备关联".to_string(),
+                )
+            })?;
+        }
+        if effective.base_url.is_none() {
+            effective.base_url = Some(cloud_session::default_gateway_chat_url());
+        }
+    }
     match transport_for_provider_id(&norm) {
         LlmTransport::OpenAiChatCompletions => {
-            let mut client =
-                providers::zai::ZaiClient::new(cfg.api_key.clone(), Some(cfg.model.clone()));
-            if let Some(ref u) = cfg.base_url {
+            let mut client = providers::zai::ZaiClient::new(
+                effective.api_key.clone(),
+                Some(effective.model.clone()),
+            );
+            if let Some(ref u) = effective.base_url {
                 client = client.with_base_url(u.clone());
             } else if norm != "z.ai" {
                 return Err(CoreError::LLMError(format!(
@@ -121,7 +138,7 @@ pub fn build_zai_openai_stack_client(
                     cfg.provider
                 )));
             }
-            if cfg.zai_tool_choice_first_turn {
+            if effective.zai_tool_choice_first_turn {
                 client = client.with_tool_choice_first_turn(true);
             }
             Ok(client)

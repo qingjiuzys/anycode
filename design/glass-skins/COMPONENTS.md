@@ -44,7 +44,12 @@ Three columns inside `.dw-main`:
 |-------|-------|------|
 | `.conv-sidebar` | 240px | Session list |
 | `.conv-thread` | flex 1 | Messages |
-| `.conv-artifacts` | 280px | Artifacts panel |
+| `.conv-workbench-rail` | 48px | Workbench activity icons (Files / Browser / Terminal / Artifacts / Trace) |
+| `.conv-workbench-panel` | 240–480px | Expandable workbench panel (default collapsed) |
+| `.conv-file-tree` | — | Lazy file tree rows |
+| `.conv-browser-viewport` | — | Browser screenshot preview |
+
+Legacy `.conv-artifacts` (280px inspector) is replaced by the workbench panel.
 
 ### Bubbles
 - `.bubble-user` — right aligned, `background: var(--solid-bubble)`

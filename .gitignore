@@ -28,4 +28,18 @@ scripts/.venv-icon/
 
 # Cloud account service (deployed separately; not versioned in this repo)
 crates/account-service/
+crates/account-portal/
+crates/model-gateway/
 deploy/account-service/
+.dockerignore
+docs/adr/011-cloud-account-platform.md
+docs/adr/012-wechat-pay-prepaid-billing.md
+docs/adr/013-cloud-pass-5h-pricing.md
+
+# Local / generated scratch
+sample_data.xlsx
+taskflow_app/
+docs/reports/
+apps/anycode-desktop/.cargo/
+apps/anycode-desktop/icons/.icon-fingerprint
+apps/anycode-desktop/resources/.stage-fingerprint

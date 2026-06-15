@@ -48,6 +48,7 @@ const icons: Record<string, ReactNode> = {
       <path d="M8.5 10h7M8.5 13h4" />
     </>
   ),
+  check: <path d="m5 12.5 3.5 3.5L19 5.5" />,
   check_circle: (
     <>
       <circle cx="12" cy="12" r="8" />
@@ -236,6 +237,12 @@ const icons: Record<string, ReactNode> = {
       <path d="M7 4h10l3 3H4zM9 12h6" />
     </>
   ),
+  language: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M4 12h16M12 4a12 12 0 0 1 3 8 12 12 0 0 1-3 8 12 12 0 0 1-3-8 12 12 0 0 1 3-8z" />
+    </>
+  ),
   inventory_2: (
     <>
       <path d="M4 7h16v13H4z" />
@@ -267,6 +274,16 @@ const icons: Record<string, ReactNode> = {
     <>
       <path d="M14 3h7v7" />
       <path d="M10 14 21 3M21 10v11H3V3h11" />
+    </>
+  ),
+  palette: (
+    <>
+      <circle cx="12" cy="6" r="1.5" />
+      <circle cx="7" cy="9" r="1.5" />
+      <circle cx="17" cy="9" r="1.5" />
+      <circle cx="8" cy="15" r="1.5" />
+      <circle cx="16" cy="15" r="1.5" />
+      <path d="M12 20c-4 0-7-3-7-7 0-2.5 1.2-4.7 3-6.2" />
     </>
   ),
   pause: (
@@ -402,6 +419,12 @@ const icons: Record<string, ReactNode> = {
     <>
       <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6z" />
       <path d="m9 12 2 2 4-5" />
+    </>
+  ),
+  view_sidebar: (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M9 5v14" />
     </>
   ),
   visibility: (

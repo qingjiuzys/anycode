@@ -128,13 +128,28 @@ Tauri 启动逻辑：`apps/anycode-desktop/src/main.rs`。
 
 ### 构建时下载 vs 最终安装包
 
-| 命令 | 浏览器 MCP / Chromium | 说明 |
-|------|----------------------|------|
-| `cargo build --release -p anycode` | **否** | 仅 CLI；若 `dist/` 缺失可能在 release 下触发 dashboard-ui 的 `npm ci` |
-| `./scripts/build-desktop-release.sh` | **是**（首次或 lockfile 变更） | 写入 `resources/browser/` 后打进 DMG/App |
+| 命令 | 浏览器 MCP / Chromium | dashboard-ui `npm ci` | 说明 |
+|------|----------------------|----------------------|------|
+| `cargo build --release -p anycode` | **否** | 仅当 `dist/` 缺失时 | 仅 CLI |
+| `./scripts/build-desktop-release.sh` | **是**（首次或 lockfile 变更） | **是**（首次或 lockfile 变更） | 写入 `resources/browser/` 后打进 DMG/App |
 
-**用户**安装 DMG 后无需再执行 `npx playwright install`。**开发者**重复桌面打包时，`prepare-browser-mcp.sh` 在 lockfile 与平台未变时会命中本地缓存（`resources/browser/.bundle-fingerprint`）；强制全量刷新：`ANYCODE_BROWSER_MCP_FORCE=1`。
+产物路径（与 CLI 共用根目录 `target/`）：`target/release/bundle/dmg/`、`target/release/bundle/macos/`。
+
+**用户**安装 DMG 后无需再执行 `npx playwright install`。
+
+**开发者重复打包**时的本地缓存（lockfile / 平台未变则跳过下载）：
+
+| 缓存 | 位置 | 强制刷新 |
+|------|------|----------|
+| dashboard-ui npm | `crates/dashboard-ui/.npm-fingerprint` | `ANYCODE_DASHBOARD_UI_FORCE=1` |
+| browser MCP + Chromium | `resources/browser/.bundle-fingerprint` | `ANYCODE_BROWSER_MCP_FORCE=1` |
+| 桌面图标 | `icons/.icon-fingerprint` | `ANYCODE_DESKTOP_ICON_FORCE=1` |
+| apple-media Swift | 源文件 mtime vs 已构建二进制 | `ANYCODE_APPLE_MEDIA_FORCE=1` |
+
+`build-desktop-release.sh` 会打印每步耗时。若**每次**仍看到 `npm ci` 或 `playwright install`，检查是否设置了 `*_FORCE=1`、是否改了 lockfile、或是否删除了 `resources/browser/`。
 
 dashboard-ui 已构建时可设 `ANYCODE_SKIP_DASHBOARD_UI_BUILD=1` 跳过 UI 的 npm build（`crates/dashboard/build.rs`）。
+
+建议本地一次性安装 Tauri CLI，避免脚本内 `cargo install tauri-cli`：`cargo install tauri-cli --version "^2" --locked`。
 
 Whisper / FastEmbed / Piper 等模型**不在 build 阶段打包**，首次使用时下载到 `~/.anycode` 或 `~/.cache`。

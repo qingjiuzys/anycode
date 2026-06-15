@@ -8,6 +8,7 @@ pub const TOOL_GREP: &str = "Grep";
 pub const TOOL_EDIT: &str = "Edit";
 pub const TOOL_NOTEBOOK_EDIT: &str = "NotebookEdit";
 pub const TOOL_TODO_WRITE: &str = "TodoWrite";
+pub const TOOL_PLAN_WRITE: &str = "PlanWrite";
 pub const TOOL_WEB_FETCH: &str = "WebFetch";
 pub const TOOL_WEB_SEARCH: &str = "WebSearch";
 pub const TOOL_MCP: &str = "mcp";
@@ -62,6 +63,7 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_EDIT,
     TOOL_NOTEBOOK_EDIT,
     TOOL_TODO_WRITE,
+    TOOL_PLAN_WRITE,
     TOOL_WEB_FETCH,
     TOOL_WEB_SEARCH,
     TOOL_MCP,
@@ -187,6 +189,7 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         "full",
     ),
     tool_entry(TOOL_TODO_WRITE, "ui", "low", ALL_AGENTS, false, "standard"),
+    tool_entry(TOOL_PLAN_WRITE, "ui", "low", ALL_AGENTS, false, "standard"),
     tool_entry(
         TOOL_WEB_FETCH,
         "network",

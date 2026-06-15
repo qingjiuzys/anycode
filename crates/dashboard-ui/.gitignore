@@ -1,5 +1,7 @@
 node_modules
 dist
+.npm-fingerprint
+.dist-fingerprint
 *.local
 test-results/
 playwright-report/

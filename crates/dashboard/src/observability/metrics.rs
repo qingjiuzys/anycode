@@ -1,9 +1,23 @@
 //! Project metrics and delivery readiness aggregates.
 
 use crate::db::DashboardDb;
+use crate::observability::llm_usage::EVENT_TYPE as LLM_USAGE_EVENT;
 use crate::observability::project_trust::{readiness_from_inputs, readiness_score};
 use crate::schema::{DeliveryReadiness, ProjectMetrics, ProjectReadinessItem};
 use anyhow::Result;
+
+const LEGACY_USAGE_EVENT: &str = "llm_response_end";
+
+fn usage_event_filter_sql() -> String {
+    format!("e.event_type IN ('{LLM_USAGE_EVENT}', '{LEGACY_USAGE_EVENT}')")
+}
+
+fn mock_model_filter_sql() -> &'static str {
+    r#"
+          AND LOWER(TRIM(COALESCE(s.model, ''))) != 'mock'
+          AND LOWER(TRIM(COALESCE(s.model, ''))) NOT LIKE 'mock/%'
+    "#
+}
 
 pub async fn global_readiness(db: &DashboardDb) -> Result<DeliveryReadiness> {
     let overview = db.overview_stats().await?;
@@ -267,6 +281,8 @@ async fn usage_detail(
     use crate::schema::{TokenUsageDetail, TokenUsageStats};
     let days = days.clamp(1, 90);
     let by_model = usage_by_model(db, days, project_id).await?;
+    let by_project = usage_by_project(db, days, project_id).await?;
+    let by_day = usage_by_day(db, days, project_id).await?;
     let llm_calls: i64 = by_model.iter().map(|r| r.llm_calls).sum();
     let input_tokens: i64 = by_model.iter().map(|r| r.input_tokens).sum();
     let output_tokens: i64 = by_model.iter().map(|r| r.output_tokens).sum();
@@ -282,6 +298,8 @@ async fn usage_detail(
             generated_at: chrono::Utc::now().to_rfc3339(),
         },
         by_model,
+        by_project,
+        by_day,
     })
 }
 
@@ -294,7 +312,9 @@ async fn usage_by_model(
     use sqlx::Row;
     let days = days.clamp(1, 90);
     let span = format!("-{days} days");
-    let mut sql = String::from(
+    let event_filter = usage_event_filter_sql();
+    let mock_filter = mock_model_filter_sql();
+    let mut sql = format!(
         r#"
         SELECT
           COALESCE(NULLIF(TRIM(s.model), ''), 'unknown') AS model,
@@ -303,10 +323,9 @@ async fn usage_by_model(
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
         FROM project_events e
         LEFT JOIN sessions s ON s.id = e.session_id
-        WHERE e.event_type = 'llm_response_end'
+        WHERE {event_filter}
           AND datetime(e.occurred_at) >= datetime('now', ?)
-          AND LOWER(TRIM(COALESCE(s.model, ''))) != 'mock'
-          AND LOWER(TRIM(COALESCE(s.model, ''))) NOT LIKE 'mock/%'
+          {mock_filter}
         "#,
     );
     if project_id.filter(|s| !s.is_empty()).is_some() {
@@ -332,6 +351,114 @@ async fn usage_by_model(
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
                 estimated_cost_usd: estimate_model_cost_usd(&model, input_tokens, output_tokens),
+            }
+        })
+        .collect())
+}
+
+async fn usage_by_project(
+    db: &DashboardDb,
+    days: u32,
+    project_id: Option<&str>,
+) -> Result<Vec<crate::schema::ProjectUsageRow>> {
+    use crate::schema::ProjectUsageRow;
+    use sqlx::Row;
+    let days = days.clamp(1, 90);
+    let span = format!("-{days} days");
+    let event_filter = usage_event_filter_sql();
+    let mock_filter = mock_model_filter_sql();
+    let mut sql = format!(
+        r#"
+        SELECT
+          e.project_id,
+          COALESCE(p.name, e.project_id) AS project_name,
+          COALESCE(p.root_path, '') AS root_path,
+          COUNT(*) AS llm_calls,
+          COALESCE(SUM(CAST(json_extract(e.payload_json, '$.input_tokens') AS INTEGER)), 0) AS input_tokens,
+          COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
+        FROM project_events e
+        LEFT JOIN projects p ON p.id = e.project_id
+        LEFT JOIN sessions s ON s.id = e.session_id
+        WHERE {event_filter}
+          AND datetime(e.occurred_at) >= datetime('now', ?)
+          {mock_filter}
+        "#,
+    );
+    if project_id.filter(|s| !s.is_empty()).is_some() {
+        sql.push_str(" AND e.project_id = ?");
+    }
+    sql.push_str(" GROUP BY e.project_id ORDER BY input_tokens + output_tokens DESC LIMIT 50");
+    let mut q = sqlx::query(&sql).bind(&span);
+    if let Some(pid) = project_id.filter(|s| !s.is_empty()) {
+        q = q.bind(pid);
+    }
+    let rows = q.fetch_all(db.pool()).await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let input_tokens: i64 = r.get("input_tokens");
+            let output_tokens: i64 = r.get("output_tokens");
+            let model = "unknown";
+            ProjectUsageRow {
+                project_id: r.get("project_id"),
+                project_name: r.get("project_name"),
+                root_path: r.get("root_path"),
+                llm_calls: r.get("llm_calls"),
+                input_tokens,
+                output_tokens,
+                total_tokens: input_tokens + output_tokens,
+                estimated_cost_usd: estimate_model_cost_usd(model, input_tokens, output_tokens),
+            }
+        })
+        .collect())
+}
+
+async fn usage_by_day(
+    db: &DashboardDb,
+    days: u32,
+    project_id: Option<&str>,
+) -> Result<Vec<crate::schema::TokenTimelinePoint>> {
+    use crate::schema::TokenTimelinePoint;
+    use sqlx::Row;
+    let days = days.clamp(1, 90);
+    let span = format!("-{days} days");
+    let event_filter = usage_event_filter_sql();
+    let mock_filter = mock_model_filter_sql();
+    let mut sql = format!(
+        r#"
+        SELECT
+          date(e.occurred_at) AS d,
+          COUNT(*) AS llm_calls,
+          COALESCE(SUM(CAST(json_extract(e.payload_json, '$.input_tokens') AS INTEGER)), 0) AS input_tokens,
+          COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
+        FROM project_events e
+        LEFT JOIN sessions s ON s.id = e.session_id
+        WHERE {event_filter}
+          AND datetime(e.occurred_at) >= datetime('now', ?)
+          {mock_filter}
+        "#,
+    );
+    if project_id.filter(|s| !s.is_empty()).is_some() {
+        sql.push_str(" AND e.project_id = ?");
+    }
+    sql.push_str(" GROUP BY date(e.occurred_at) ORDER BY d ASC");
+    let mut q = sqlx::query(&sql).bind(&span);
+    if let Some(pid) = project_id.filter(|s| !s.is_empty()) {
+        q = q.bind(pid);
+    }
+    let rows = q.fetch_all(db.pool()).await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let input_tokens: i64 = r.get("input_tokens");
+            let output_tokens: i64 = r.get("output_tokens");
+            TokenTimelinePoint {
+                date: r.get("d"),
+                llm_calls: r.get("llm_calls"),
+                input_tokens,
+                output_tokens,
+                total_tokens: input_tokens + output_tokens,
+                estimated_cost_usd: estimate_model_cost_usd("unknown", input_tokens, output_tokens),
             }
         })
         .collect())
@@ -481,6 +608,7 @@ pub async fn session_token_usage_detail(
 ) -> Result<crate::schema::TokenUsageDetail> {
     use crate::schema::{TokenUsageDetail, TokenUsageStats};
     let by_model = usage_by_model_session(db, session_id).await?;
+    let by_day = usage_by_day_session(db, session_id).await?;
     let llm_calls: i64 = by_model.iter().map(|r| r.llm_calls).sum();
     let input_tokens: i64 = by_model.iter().map(|r| r.input_tokens).sum();
     let output_tokens: i64 = by_model.iter().map(|r| r.output_tokens).sum();
@@ -496,6 +624,8 @@ pub async fn session_token_usage_detail(
             generated_at: chrono::Utc::now().to_rfc3339(),
         },
         by_model,
+        by_project: Vec::new(),
+        by_day,
     })
 }
 
@@ -505,7 +635,9 @@ async fn usage_by_model_session(
 ) -> Result<Vec<crate::schema::ModelUsageRow>> {
     use crate::schema::ModelUsageRow;
     use sqlx::Row;
-    let rows = sqlx::query(
+    let event_filter = usage_event_filter_sql();
+    let mock_filter = mock_model_filter_sql();
+    let sql = format!(
         r#"
         SELECT
           COALESCE(NULLIF(TRIM(s.model), ''), 'unknown') AS model,
@@ -514,16 +646,16 @@ async fn usage_by_model_session(
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
         FROM project_events e
         LEFT JOIN sessions s ON s.id = e.session_id
-        WHERE e.event_type = 'llm_response_end'
+        WHERE {event_filter}
           AND e.session_id = ?
-          AND LOWER(TRIM(COALESCE(s.model, ''))) != 'mock'
-          AND LOWER(TRIM(COALESCE(s.model, ''))) NOT LIKE 'mock/%'
+          {mock_filter}
         GROUP BY model ORDER BY input_tokens + output_tokens DESC LIMIT 20
         "#,
-    )
-    .bind(session_id)
-    .fetch_all(db.pool())
-    .await?;
+    );
+    let rows = sqlx::query(&sql)
+        .bind(session_id)
+        .fetch_all(db.pool())
+        .await?;
     Ok(rows
         .into_iter()
         .map(|r| {
@@ -538,6 +670,50 @@ async fn usage_by_model_session(
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
                 estimated_cost_usd: estimate_model_cost_usd(&model, input_tokens, output_tokens),
+            }
+        })
+        .collect())
+}
+
+async fn usage_by_day_session(
+    db: &DashboardDb,
+    session_id: &str,
+) -> Result<Vec<crate::schema::TokenTimelinePoint>> {
+    use crate::schema::TokenTimelinePoint;
+    use sqlx::Row;
+    let event_filter = usage_event_filter_sql();
+    let mock_filter = mock_model_filter_sql();
+    let sql = format!(
+        r#"
+        SELECT
+          date(e.occurred_at) AS d,
+          COUNT(*) AS llm_calls,
+          COALESCE(SUM(CAST(json_extract(e.payload_json, '$.input_tokens') AS INTEGER)), 0) AS input_tokens,
+          COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
+        FROM project_events e
+        LEFT JOIN sessions s ON s.id = e.session_id
+        WHERE {event_filter}
+          AND e.session_id = ?
+          {mock_filter}
+        GROUP BY date(e.occurred_at) ORDER BY d ASC
+        "#,
+    );
+    let rows = sqlx::query(&sql)
+        .bind(session_id)
+        .fetch_all(db.pool())
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let input_tokens: i64 = r.get("input_tokens");
+            let output_tokens: i64 = r.get("output_tokens");
+            TokenTimelinePoint {
+                date: r.get("d"),
+                llm_calls: r.get("llm_calls"),
+                input_tokens,
+                output_tokens,
+                total_tokens: input_tokens + output_tokens,
+                estimated_cost_usd: estimate_model_cost_usd("unknown", input_tokens, output_tokens),
             }
         })
         .collect())
@@ -572,7 +748,7 @@ pub async fn usage_export_csv(
         ));
         return Ok(out);
     }
-    let rows = sqlx::query(
+    let rows = sqlx::query(&format!(
         r#"
         SELECT
           e.project_id,
@@ -582,12 +758,13 @@ pub async fn usage_export_csv(
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
         FROM project_events e
         LEFT JOIN projects p ON p.id = e.project_id
-        WHERE e.event_type = 'llm_response_end'
+        WHERE {}
           AND datetime(e.occurred_at) >= datetime('now', ?)
         GROUP BY e.project_id
         ORDER BY input_tokens + output_tokens DESC
         "#,
-    )
+        usage_event_filter_sql()
+    ))
     .bind(span)
     .fetch_all(db.pool())
     .await?;

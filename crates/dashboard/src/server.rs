@@ -149,6 +149,16 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             Err(e) => tracing::warn!(error = %e, "project trust score backfill failed"),
         }
     });
+    let db_usage = state.db.clone();
+    let tasks_root_usage = state.tasks_root.clone();
+    tokio::spawn(async move {
+        match crate::observability::usage_backfill::backfill_llm_usage(&db_usage, &tasks_root_usage)
+            .await
+        {
+            Ok(n) => tracing::debug!(count = n, "llm usage events backfilled"),
+            Err(e) => tracing::warn!(error = %e, "llm usage backfill failed"),
+        }
+    });
     let app = api::router(state.clone());
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()

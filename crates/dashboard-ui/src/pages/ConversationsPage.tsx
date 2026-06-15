@@ -5,7 +5,7 @@ import {
   ConversationSessionList,
   ConversationThread,
 } from "@/components/ConversationThread";
-import { ConversationInspectorPanel } from "@/components/ConversationInspectorPanel";
+import { ConversationWorkbenchSidebar } from "@/components/workbench/ConversationWorkbenchSidebar";
 import { ConversationComposer } from "@/components/ConversationComposer";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
@@ -35,7 +35,7 @@ export function ConversationsPage() {
 
   const [projectId, setProjectId] = useState(search.project ?? "");
   const [showStartForm, setShowStartForm] = useState(Boolean(search.agent));
-  const [artifactsDrawerOpen, setArtifactsDrawerOpen] = useState(false);
+  const [workbenchDrawerOpen, setWorkbenchDrawerOpen] = useState(false);
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [selectedTool, setSelectedTool] = useState<import("@/api/types").TranscriptBlock | null>(
@@ -379,10 +379,10 @@ export function ConversationsPage() {
             <button
               type="button"
               className="dw-btn-secondary text-xs"
-              onClick={() => setArtifactsDrawerOpen(true)}
+              onClick={() => setWorkbenchDrawerOpen(true)}
             >
-              <Icon name="inventory_2" size={16} />
-              {t("conversations.artifactsPanel")}
+              <Icon name="view_sidebar" size={16} />
+              {t("workbench.title")}
             </button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0">
@@ -417,11 +417,11 @@ export function ConversationsPage() {
               </div>
             )}
             <div
-              className={`flex flex-col min-h-0 border-outline-variant ${
-                listCollapsed ? "lg:col-span-9 lg:border-r" : "lg:col-span-6 lg:border-r"
+              className={`flex min-h-0 border-outline-variant ${
+                listCollapsed ? "lg:col-span-9" : "lg:col-span-9"
               }`}
             >
-              <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 flex flex-col min-w-0">
                 <ConversationThread
                   session={selected}
                   onFollowUpStarted={selectSession}
@@ -431,7 +431,7 @@ export function ConversationsPage() {
                   onSelectTool={(tool) => {
                     setSelectedTool(tool);
                     if (window.matchMedia("(max-width: 1023px)").matches) {
-                      setArtifactsDrawerOpen(true);
+                      setWorkbenchDrawerOpen(true);
                     }
                   }}
                   toolbarStart={
@@ -448,15 +448,16 @@ export function ConversationsPage() {
                   }
                 />
               </div>
-            </div>
-            <div className="hidden lg:flex lg:col-span-3 flex-col min-h-0">
-              <ConversationInspectorPanel
-                sessionId={displaySessionId}
-                live={sseLive}
-                isRunning={selected?.status === "running"}
-                selectedTool={selectedTool}
-                onSelectTool={setSelectedTool}
-              />
+              <div className="hidden lg:flex shrink-0 min-h-0">
+                <ConversationWorkbenchSidebar
+                  projectId={selected?.project_id}
+                  sessionId={displaySessionId}
+                  live={sseLive}
+                  isRunning={selected?.status === "running"}
+                  selectedTool={selectedTool}
+                  onSelectTool={setSelectedTool}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -501,27 +502,29 @@ export function ConversationsPage() {
         </>
       )}
 
-      {artifactsDrawerOpen && (
+      {workbenchDrawerOpen && (
         <>
           <button
             type="button"
             className="fixed inset-0 z-40 bg-black/30 lg:hidden"
             aria-label={t("common.back")}
-            onClick={() => setArtifactsDrawerOpen(false)}
+            onClick={() => setWorkbenchDrawerOpen(false)}
           />
-          <div className="fixed inset-y-0 right-0 z-50 w-[min(100%,20rem)] lg:hidden shadow-xl">
-            <ConversationInspectorPanel
+          <div className="fixed inset-y-0 right-0 z-50 w-[min(100%,22rem)] lg:hidden shadow-xl flex">
+            <ConversationWorkbenchSidebar
+              projectId={selected?.project_id}
               sessionId={displaySessionId}
               live={sseLive}
               isRunning={selected?.status === "running"}
               selectedTool={selectedTool}
               onSelectTool={setSelectedTool}
-              className="h-full border-l border-outline-variant"
+              forceExpanded
+              className="h-full border-l border-outline-variant bg-surface-container-lowest"
             />
             <button
               type="button"
-              className="absolute top-2 right-2 dw-btn-ghost p-1.5"
-              onClick={() => setArtifactsDrawerOpen(false)}
+              className="absolute top-2 right-14 dw-btn-ghost p-1.5 z-10"
+              onClick={() => setWorkbenchDrawerOpen(false)}
             >
               <Icon name="close" size={18} />
             </button>

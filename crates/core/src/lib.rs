@@ -16,6 +16,7 @@ mod memory_model;
 mod memory_pipeline;
 mod message;
 mod model_profile;
+mod plan_tree;
 mod query_source;
 mod reasoning;
 mod runtime_profile;
@@ -53,6 +54,12 @@ pub use memory_pipeline::{
 };
 pub use message::{Message, MessageContent, MessageRole};
 pub use model_profile::ModelRouteProfile;
+pub use plan_tree::{
+    apply_plan_patches, format_plan_tree_summary, format_plan_tree_terminal,
+    plan_tree_all_completed, plan_tree_is_empty, rollup_plan_statuses, validate_plan_tree,
+    PlanLimits, PlanNode, PlanNodeKind, PlanPatch, PlanStatus, PlanTree, PlanValidationError,
+    PLAN_TREE_CONTEXT_PREFIX, PLAN_TREE_MAX_DEPTH, PLAN_TREE_MAX_NODES,
+};
 pub use query_source::QuerySource;
 pub use reasoning::{strip_llm_reasoning_for_display, strip_llm_reasoning_xml_blocks};
 pub use runtime_profile::{RuntimeMode, RuntimeProfile};
@@ -103,7 +110,8 @@ pub mod prelude {
         ExecutionTraceEvent, FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient,
         LLMProvider, LLMResponse, Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope,
         MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
-        ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PlanValidationIssue,
+        ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PlanLimits, PlanNode,
+        PlanNodeKind, PlanPatch, PlanStatus, PlanTree, PlanValidationError, PlanValidationIssue,
         PlanValidationResult, PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef,
         SecretResolver, SecurityPolicy, SessionNotificationSettings, SlashCommand,
         SlashCommandScope, StreamEvent, SubAgentExecutor, Task, TaskBudget, TaskContext, TaskId,
@@ -113,6 +121,7 @@ pub mod prelude {
         ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
         ANYCODE_VISION_IMAGES_METADATA_KEY, BUILTIN_SLASH_COMMANDS, DEFAULT_MAX_AGENT_TURNS,
         DEFAULT_MAX_TOOL_CALLS, EXECUTION_TRACE_SCHEMA_VERSION, MAX_AGENT_TURNS_CLAMP,
-        MAX_TOOL_CALLS_CLAMP, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+        MAX_TOOL_CALLS_CLAMP, NESTED_TASK_COOPERATIVE_CANCEL_ERROR, PLAN_TREE_CONTEXT_PREFIX,
+        PLAN_TREE_MAX_DEPTH, PLAN_TREE_MAX_NODES,
     };
 }

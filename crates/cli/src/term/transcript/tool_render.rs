@@ -11,6 +11,7 @@ use serde_json::{Map, Value};
 use std::borrow::Cow;
 
 use anycode_core::strip_llm_reasoning_for_display;
+use anycode_core::{format_plan_tree_terminal, PlanTree};
 
 use super::types::WorkspaceLiveLayout;
 use crate::term::styles::*;
@@ -226,6 +227,21 @@ fn prefix_block_lines(
     lines
 }
 
+fn layout_plan_write_body(body: &str, w: usize) -> Option<Vec<Line<'static>>> {
+    let v = parse_tool_result_json(body)?;
+    let new_tree = v.get("newTree")?;
+    let tree: PlanTree = serde_json::from_value(new_tree.clone()).ok()?;
+    if tree.roots.is_empty() {
+        return None;
+    }
+    Some(
+        format_plan_tree_terminal(&tree, w)
+            .into_iter()
+            .map(|line| Line::from(Span::styled(line, style_dim())))
+            .collect(),
+    )
+}
+
 /// 工具结果正文（不含 ⏷/⎿ 标题行），供 ToolResult 与 ToolTurn 共用。
 fn layout_tool_body_content(
     tool_name: Option<&str>,
@@ -254,6 +270,13 @@ fn layout_tool_body_content(
             )));
         } else {
             block.push(Line::from(Span::styled("   (error)", style_error())));
+        }
+    }
+
+    if tool_name == Some("PlanWrite") {
+        if let Some(lines) = layout_plan_write_body(rest, w) {
+            block.extend(lines);
+            return block;
         }
     }
 
@@ -377,6 +400,22 @@ fn tool_invocation_one_liner(name: &str, args: &str, max_chars: usize) -> String
             .and_then(|x| x.as_str())
             .map(|p| p.to_string())
             .unwrap_or_else(|| args.chars().take(120).collect::<String>()),
+        "PlanWrite" => {
+            if let Some(tree) = v.get("tree").and_then(|x| x.as_array()) {
+                format!("plan {} roots", tree.len())
+            } else if let Some(updates) = v.get("updates").and_then(|x| x.as_array()) {
+                format!("{} updates", updates.len())
+            } else {
+                "plan".to_string()
+            }
+        }
+        "TodoWrite" => {
+            if let Some(todos) = v.get("todos").and_then(|x| x.as_array()) {
+                format!("{} todos", todos.len())
+            } else {
+                "todos".to_string()
+            }
+        }
         _ => match &v {
             Value::Array(a) if a.is_empty() => "…".to_string(),
             Value::Object(o) if o.is_empty() => "…".to_string(),
@@ -454,6 +493,7 @@ pub(crate) fn layout_tool_turn_block(
     is_active: bool,
     live: WorkspaceLiveLayout,
 ) -> Vec<Line<'static>> {
+    let expanded = expanded || name == "PlanWrite";
     let shell_tool = matches!(name, "Bash" | "PowerShell");
     let mut summary = tool_invocation_one_liner(name, args, w.saturating_sub(8).max(24));
     if is_active && !expanded {
@@ -605,6 +645,24 @@ mod tool_render_tests {
             WorkspaceLiveLayout::default()
         )
         .is_empty());
+    }
+
+    #[test]
+    fn layout_plan_write_renders_tree_body() {
+        let body = r#"{"newTree":{"roots":[{"id":"root","title":"Ship feature","status":"pending","children":[{"id":"step-1","title":"Design","status":"pending","children":[]}]}]}}"#;
+        let lines = layout_tool_body_content(
+            Some("PlanWrite"),
+            body,
+            false,
+            80,
+            WorkspaceLiveLayout::default(),
+        );
+        let joined: String = lines
+            .iter()
+            .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
+            .collect();
+        assert!(joined.contains("Ship feature"));
+        assert!(joined.contains("Design"));
     }
 
     #[test]

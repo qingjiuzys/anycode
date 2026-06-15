@@ -7,6 +7,7 @@ import { sessionsClient } from "./sessions";
 import { mediaClient } from "./media";
 import { settingsClient } from "./settings";
 import { setupClient } from "./setup";
+import { workbenchClient } from "./workbench";
 
 export type {
   ArtifactListOpts,
@@ -27,4 +28,5 @@ export const api = {
   ...mediaClient,
   ...governanceClient,
   ...setupClient,
+  ...workbenchClient,
 };
