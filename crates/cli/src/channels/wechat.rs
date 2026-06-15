@@ -70,3 +70,43 @@ pub async fn send_test_message(
     }
     Ok(())
 }
+
+#[derive(Serialize)]
+struct WechatSendMediaTestOutput {
+    ok: bool,
+    channel: &'static str,
+    path: String,
+    file_name: String,
+    bytes: u64,
+    delivery: anycode_tools::WeChatMediaDelivery,
+    data_dir: String,
+    target_refreshed: bool,
+}
+
+pub async fn send_test_media(
+    data_dir: Option<std::path::PathBuf>,
+    path: String,
+    caption: Option<String>,
+    json: bool,
+) -> anyhow::Result<()> {
+    let sent = super::wx::outbound::send_wechat_media(data_dir, &path, caption.as_deref()).await?;
+    let out = WechatSendMediaTestOutput {
+        ok: sent.ok,
+        channel: "wechat",
+        path: sent.path,
+        file_name: sent.file_name,
+        bytes: sent.bytes,
+        delivery: sent.delivery,
+        data_dir: sent.data_dir,
+        target_refreshed: sent.target_refreshed,
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    } else {
+        println!(
+            "wechat media sent: {} ({} bytes, delivery={:?})",
+            out.file_name, out.bytes, out.delivery
+        );
+    }
+    Ok(())
+}

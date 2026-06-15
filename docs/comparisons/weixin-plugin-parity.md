@@ -29,8 +29,8 @@
 | P2 | 入站媒体 IMAGE>VIDEO>FILE>VOICE | `cdn_media::select_inbound_media_item` | **Done**（2026-05-20）：`select_video_before_file` 单测锁定 VIDEO>FILE |
 | P2 | CDN 拉取 URL 白名单 | `cdn_get_url_trusted` | **Done**（2026-05-20）：仅 `*.weixin.qq.com` / `*.wechat.com` 等 |
 | P2 | 多账号 / `normalizeAccountId` 迁移 | 单账号 LaunchAgent 为主 | 文档化多 profile 非目标，除非用户要 parity |
-| P1 | 出站媒体：`sendWeixinMediaFile`（image/video/file CDN） | `send_media.rs` + `WxSender::send_*_message` | **Done**（2026-06-12）：MIME 路由、`file_item.len`/`encrypt_type`、artifacts 触发 |
-| P1 | 出站触发：`ReplyPayload.mediaUrl` / session attachments | `collect_outbound_media_paths`（artifacts + 输出路径） | **Done**（2026-06-12） |
+| P1 | 出站媒体：`sendWeixinMediaFile`（image/video/file CDN） | `send_media.rs` + `WxSender::send_*_message` | **Done**（2026-06-15）：`base_info` + `iLink-App-*` 头、`getUploadUrl` ret 校验、CDN 错误传播 |
+| P1 | 出站触发：`ReplyPayload.mediaUrl` / session attachments | `resolve_outbound_media_paths`（本地路径 + http(s) URL 下载） | **Done**（2026-06-15） |
 | P1 | 工具出站媒体：`SendWeChatMessage` + `path`/`file` | `send_wechat_media` + `send_deliverable_path` | **Done**（2026-06-13）：文本/文件/说明文本，复用 bridge CDN 路由 |
 | P3 | 插件 SDK 根别名桥 | N/A（非插件） | 仅当改共享协议时参考 |
 
@@ -44,3 +44,11 @@
 
 - [openclaw-sync-brief-2026-05.md](../comparisons/openclaw-sync-brief-2026-05.md)
 - [wx-streaming-bridge.md](wx-streaming-bridge.md)
+
+## G1 出站 CDN 结论（2026-06-15）
+
+**根因（推断）**：anyCode iLink 请求缺少 OpenClaw 2.4.3 统一的 `base_info`（`channel_version` / `bot_agent`）与 `iLink-App-Id` / `iLink-App-ClientVersion` 头；文本 `sendmessage` 可能仍成功，但 `getUploadUrl` + CDN 预签名对 wire 字段更严格，导致小体积 mp4（如 870KB）也回退为路径提示。
+
+**已补齐**：[`ilink.rs`](../crates/cli/src/channels/wx/ilink.rs) wire parity；[`cdn_upload.rs`](../crates/cli/src/channels/wx/cdn_upload.rs) `getUploadUrl` ret 校验；[`deliverable.rs`](../crates/cli/src/channels/wx/deliverable.rs) 区分「过大」与「CDN 失败」文案 + 远程 URL 下载。
+
+**待实机确认**：微信内收到视频消息（非路径回退）；见 [closure-plan-2026-06.md](../planning/closure-plan-2026-06.md) §4.1。

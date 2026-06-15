@@ -1,14 +1,16 @@
 //! Polling loop, message state machine, and embedded `AgentRuntime`.
 
 use super::approval::{ActiveChat, WechatApprovalGate};
+use super::bridge_lock::BridgeLockGuard;
 use super::cdn_media::{
     download_cdn_item_bytes, extract_user_text_and_image_item, first_plain_text_from_items,
     has_voice_item_without_stt, save_inbound_wx_media,
 };
 use super::commands::{route_command, CmdCtx, CmdOut};
+use super::cron_notify::touch_outbound_context;
 use super::deliverable::{
-    assistant_history_with_paths, collect_outbound_media_paths, detect_resend_request,
-    match_deliverable_for_resend, send_deliverable_path, send_outbound_media_paths,
+    assistant_history_with_paths, detect_resend_request, match_deliverable_for_resend,
+    resolve_outbound_media_paths, send_deliverable_path, send_outbound_media_paths,
     with_deliverable_hint,
 };
 use super::fields::{
@@ -185,6 +187,8 @@ pub async fn run_wechat_daemon(
     });
     crate::scheduler::spawn_embedded_scheduler(sched_cfg, cwd_sched, sched_runtime, delivery, 30);
 
+    let _bridge_lock = BridgeLockGuard::acquire(&data_root).context("wechat bridge lock")?;
+
     run_monitor(st).await
 }
 
@@ -309,6 +313,10 @@ async fn run_monitor(st: BridgeState) -> Result<()> {
                 }
             }
 
+            if !ctx_tok.trim().is_empty() {
+                let _ = touch_outbound_context(&st.data_root, &from, &ctx_tok);
+            }
+
             let st2 = BridgeState {
                 data_root: st.data_root.clone(),
                 account: AccountData {
@@ -348,13 +356,7 @@ async fn handle_message(
     context_token: String,
     items: Vec<serde_json::Value>,
 ) -> Result<()> {
-    let _ = super::cron_notify::save_cron_notify_target(
-        &st.data_root,
-        &super::cron_notify::CronNotifyTarget {
-            from_user_id: from_user_id.clone(),
-            context_token: context_token.clone(),
-        },
-    );
+    let _ = touch_outbound_context(&st.data_root, &from_user_id, &context_token);
     let (body, media_item) = extract_user_text_and_image_item(&items);
     let cmd = first_plain_text_from_items(&items);
 
@@ -799,7 +801,7 @@ async fn run_agent_pipeline_with_media_note(
             Ok(TaskResult::Success { output, artifacts }) => {
                 let cleaned = sanitize_wechat_reply_output(&output);
                 outbound_media_paths =
-                    collect_outbound_media_paths(&artifacts, &output, Some(&cwd_for_media));
+                    resolve_outbound_media_paths(&artifacts, &output, Some(&cwd_for_media)).await;
                 for path in &outbound_media_paths {
                     record_session_deliverable(
                         &mut session,
@@ -833,7 +835,7 @@ async fn run_agent_pipeline_with_media_note(
                 let combined = format!("{success}\n{remaining}");
                 let t = sanitize_wechat_reply_output(&combined);
                 outbound_media_paths =
-                    collect_outbound_media_paths(&[], &combined, Some(&cwd_for_media));
+                    resolve_outbound_media_paths(&[], &combined, Some(&cwd_for_media)).await;
                 for path in &outbound_media_paths {
                     record_session_deliverable(
                         &mut session,

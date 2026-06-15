@@ -5,9 +5,12 @@ use super::send_media::{resolve_media_path, send_weixin_media_file};
 use super::store::SessionDeliverable;
 use anycode_core::Artifact;
 use anycode_tools::WeChatMediaDelivery;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+const REMOTE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(60);
 
 const INLINE_FILE_MAX_BYTES: u64 = 24_000;
 pub const CDN_FILE_MAX_BYTES: u64 = 10 * 1024 * 1024;
@@ -128,6 +131,10 @@ pub fn extract_deliverable_paths(text: &str) -> Vec<String> {
         if t.is_empty() {
             continue;
         }
+        if is_deliverable_remote_url(t) {
+            out.push(t.to_string());
+            continue;
+        }
         let ext = Path::new(t)
             .extension()
             .and_then(|e| e.to_str())
@@ -137,6 +144,109 @@ pub fn extract_deliverable_paths(text: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// http(s) URLs with a deliverable media extension in the path.
+pub fn is_deliverable_remote_url(token: &str) -> bool {
+    let t = trim_path_token(token);
+    if !(t.starts_with("http://") || t.starts_with("https://")) {
+        return false;
+    }
+    let path = t.split('?').next().unwrap_or(t);
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    is_deliverable_extension(ext)
+}
+
+pub fn extract_deliverable_urls(text: &str) -> Vec<String> {
+    extract_deliverable_paths(text)
+        .into_iter()
+        .filter(|t| is_deliverable_remote_url(t))
+        .collect()
+}
+
+fn extension_from_content_type_or_url(content_type: Option<&str>, url: &str) -> String {
+    if let Some(ct) = content_type {
+        let ct = ct
+            .split(';')
+            .next()
+            .unwrap_or(ct)
+            .trim()
+            .to_ascii_lowercase();
+        let ext = match ct.as_str() {
+            "video/mp4" => "mp4",
+            "video/quicktime" => "mov",
+            "video/webm" => "webm",
+            "image/png" => "png",
+            "image/jpeg" | "image/jpg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            "application/pdf" => "pdf",
+            _ => "",
+        };
+        if !ext.is_empty() {
+            return ext.to_string();
+        }
+    }
+    url.split('?')
+        .next()
+        .and_then(|base| Path::new(base).extension())
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| is_deliverable_extension(e))
+        .unwrap_or_else(|| "bin".to_string())
+}
+
+fn weixin_outbound_temp_dir() -> Result<PathBuf> {
+    let dir = dirs::home_dir()
+        .context("home dir")?
+        .join(".anycode/tmp/weixin-outbound");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+async fn download_remote_media_to_temp(url: &str) -> Result<PathBuf> {
+    let trimmed = url.trim();
+    if !is_deliverable_remote_url(trimmed) {
+        anyhow::bail!("unsupported remote media URL");
+    }
+    let client = reqwest::Client::builder()
+        .user_agent(anycode_core::user_agent("anycode-wx"))
+        .timeout(REMOTE_DOWNLOAD_TIMEOUT)
+        .build()?;
+    let resp = client
+        .get(trimmed)
+        .send()
+        .await
+        .with_context(|| format!("GET {trimmed}"))?;
+    if !resp.status().is_success() {
+        anyhow::bail!("remote media download HTTP {}", resp.status());
+    }
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let bytes = resp.bytes().await?;
+    if bytes.len() as u64 > CDN_FILE_MAX_BYTES {
+        anyhow::bail!(
+            "remote media too large ({} bytes, max {CDN_FILE_MAX_BYTES})",
+            bytes.len()
+        );
+    }
+    let ext = extension_from_content_type_or_url(content_type.as_deref(), trimmed);
+    let dir = weixin_outbound_temp_dir()?;
+    let name = format!(
+        "weixin-remote-{}-{}.{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_millis(),
+        ext
+    );
+    let path = dir.join(name);
+    std::fs::write(&path, &bytes)?;
+    Ok(path)
 }
 
 /// First deliverable path in text (backward compatible).
@@ -177,6 +287,29 @@ pub fn collect_outbound_media_paths(
         }
     }
 
+    paths
+}
+
+/// Local paths plus downloaded remote http(s) media URLs.
+pub async fn resolve_outbound_media_paths(
+    artifacts: &[Artifact],
+    output: &str,
+    cwd: Option<&Path>,
+) -> Vec<PathBuf> {
+    let mut paths = collect_outbound_media_paths(artifacts, output, cwd);
+    let mut seen = paths.iter().cloned().collect::<HashSet<_>>();
+    for url in extract_deliverable_urls(output) {
+        match download_remote_media_to_temp(&url).await {
+            Ok(path) => {
+                if seen.insert(path.clone()) {
+                    paths.push(path);
+                }
+            }
+            Err(e) => {
+                tracing::warn!(url = %url, error = %e, "wx remote media download failed");
+            }
+        }
+    }
     paths
 }
 
@@ -233,6 +366,7 @@ pub async fn send_deliverable_path(
 
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
     let meta = std::fs::metadata(path)?;
+    let size_kb = meta.len() / 1024;
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -258,18 +392,31 @@ pub async fn send_deliverable_path(
             }
             Err(e) => {
                 tracing::warn!(error = %e, path = %path.display(), "CDN media send failed");
+                let reason = compact_cdn_error(&e);
+                let note = format!(
+                    "📎 {name} ({size_kb} KB)\nCDN 上传失败：{reason}\n路径：{}\n（请在本机打开）",
+                    path.display()
+                );
+                sender.send_text(to_user_id, context_token, &note).await?;
+                return Ok(WeChatMediaDelivery::PathNote);
             }
         }
     }
 
-    let size_kb = meta.len() / 1024;
     let note = format!(
-        "📎 {name} ({size_kb} KB)\n路径：{}\n（文件过大或 CDN 上传失败时请在本机打开）",
+        "📎 {name} ({size_kb} KB)\n文件超过微信 CDN 上限（{CDN_MB} MB）\n路径：{}\n（请在本机打开）",
         path.display()
     );
     sender.send_text(to_user_id, context_token, &note).await?;
     Ok(WeChatMediaDelivery::PathNote)
 }
+
+fn compact_cdn_error(err: &anyhow::Error) -> String {
+    let s = err.to_string();
+    s.chars().take(200).collect()
+}
+
+const CDN_MB: u64 = CDN_FILE_MAX_BYTES / (1024 * 1024);
 
 fn split_message(text: &str, max_chars: usize) -> Vec<String> {
     let mut out = Vec::new();
@@ -305,6 +452,25 @@ mod tests {
         assert_eq!(paths.len(), 2);
         assert!(paths.iter().any(|p| p.ends_with("a.png")));
         assert!(paths.iter().any(|p| p.ends_with("b.pdf")));
+    }
+
+    #[test]
+    fn extract_remote_video_url() {
+        let url = "https://cdn.example.com/videos/clip.mp4?sig=abc";
+        assert!(is_deliverable_remote_url(url));
+        let paths = extract_deliverable_urls(&format!("ready at {url}"));
+        assert_eq!(paths, vec![url]);
+    }
+
+    #[test]
+    fn extension_from_url_path() {
+        assert_eq!(
+            extension_from_content_type_or_url(
+                None,
+                "https://cdn.example.com/a/b/clip.mp4?token=1"
+            ),
+            "mp4"
+        );
     }
 
     #[test]

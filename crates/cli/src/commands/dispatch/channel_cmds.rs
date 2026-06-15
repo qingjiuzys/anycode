@@ -39,6 +39,14 @@ pub(super) async fn handle(
         } => {
             channels::wechat::send_test_message(data_dir, message, json).await?;
         }
+        ChannelCommands::WechatSendMediaTest {
+            path,
+            caption,
+            data_dir,
+            json,
+        } => {
+            channels::wechat::send_test_media(data_dir, path, caption, json).await?;
+        }
         ChannelCommands::Telegram {
             bot_token,
             chat_id,

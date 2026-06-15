@@ -13,6 +13,33 @@ const SESSION_EXPIRED: i64 = -14;
 const RATE_LIMIT_RET: i64 = -2;
 pub(crate) const CDN_BASE: &str = "https://novac2c.cdn.weixin.qq.com/c2c";
 
+/// openclaw-weixin `package.json` `ilink_appid`.
+const ILINK_APP_ID: &str = "bot";
+const BOT_AGENT: &str = "anyCode";
+
+/// Encode semver as `0x00MMNNPP` (openclaw-weixin `buildClientVersion`).
+pub fn build_ilink_client_version(version: &str) -> u32 {
+    let parts: Vec<u32> = version.split('.').map(|p| p.parse().unwrap_or(0)).collect();
+    let major = parts.first().copied().unwrap_or(0) & 0xff;
+    let minor = parts.get(1).copied().unwrap_or(0) & 0xff;
+    let patch = parts.get(2).copied().unwrap_or(0) & 0xff;
+    (major << 16) | (minor << 8) | patch
+}
+
+pub fn build_base_info_json() -> Value {
+    serde_json::json!({
+        "channel_version": env!("CARGO_PKG_VERSION"),
+        "bot_agent": BOT_AGENT,
+    })
+}
+
+pub fn with_base_info(mut body: Value) -> Value {
+    if let Some(obj) = body.as_object_mut() {
+        obj.insert("base_info".into(), build_base_info_json());
+    }
+    body
+}
+
 fn generate_uin_b64() -> String {
     let mut b = [0u8; 4];
     rand::thread_rng().fill_bytes(&mut b);
@@ -26,6 +53,9 @@ fn sanitize_base_url(base: &str) -> String {
     }
     if let Ok(u) = url::Url::parse(base) {
         let host = u.host_str().unwrap_or("");
+        if host == "127.0.0.1" || host == "localhost" {
+            return base.to_string();
+        }
         let ok = host == "weixin.qq.com"
             || host == "wechat.com"
             || host.ends_with(".weixin.qq.com")
@@ -41,6 +71,7 @@ pub struct WeChatApi {
     token: String,
     base_url: String,
     uin: String,
+    route_tag: Option<String>,
     client: reqwest::Client,
 }
 
@@ -54,6 +85,7 @@ impl WeChatApi {
             token,
             base_url: sanitize_base_url(&base_url),
             uin: generate_uin_b64(),
+            route_tag: None,
             client: reqwest::Client::builder()
                 .user_agent(anycode_core::user_agent("anycode-wx"))
                 .build()
@@ -61,7 +93,13 @@ impl WeChatApi {
         }
     }
 
+    pub fn with_route_tag(mut self, route_tag: Option<String>) -> Self {
+        self.route_tag = route_tag.filter(|s| !s.trim().is_empty());
+        self
+    }
+
     fn headers(&self) -> reqwest::header::HeaderMap {
+        let client_version = build_ilink_client_version(env!("CARGO_PKG_VERSION")).to_string();
         let mut h = reqwest::header::HeaderMap::new();
         h.insert(
             reqwest::header::CONTENT_TYPE,
@@ -73,11 +111,19 @@ impl WeChatApi {
         );
         h.insert("AuthorizationType", "ilink_bot_token".parse().unwrap());
         h.insert("X-WECHAT-UIN", self.uin.parse().unwrap());
+        h.insert("iLink-App-Id", ILINK_APP_ID.parse().unwrap());
+        h.insert("iLink-App-ClientVersion", client_version.parse().unwrap());
+        if let Some(tag) = self.route_tag.as_deref() {
+            if let Ok(v) = tag.parse() {
+                h.insert("SKRouteTag", v);
+            }
+        }
         h
     }
 
     async fn post_json(&self, path: &str, body: Value, timeout_ms: u64) -> Result<Value> {
         let url = format!("{}/{}", self.base_url, path.trim_start_matches('/'));
+        let body = with_base_info(body);
         let res = self
             .client
             .post(&url)
@@ -108,7 +154,11 @@ impl WeChatApi {
     }
 
     pub async fn get_upload_url(&self, body: Value) -> Result<Value> {
-        self.post_json("ilink/bot/getuploadurl", body, 30_000).await
+        let resp = self
+            .post_json("ilink/bot/getuploadurl", body, 30_000)
+            .await?;
+        ensure_api_response_ok(&resp, "getUploadUrl")?;
+        Ok(resp)
     }
 
     pub async fn send_message(&self, msg: Value) -> Result<()> {
@@ -182,6 +232,20 @@ fn is_stale_session_ret(ret: Option<i64>, errcode: Option<i64>, errmsg: &str) ->
 fn is_rate_limited_ret(ret: Option<i64>, errcode: Option<i64>, errmsg: &str) -> bool {
     (ret == Some(RATE_LIMIT_RET) || errcode == Some(RATE_LIMIT_RET))
         && !is_stale_session_ret(ret, errcode, errmsg)
+}
+
+pub fn api_response_ok(v: &Value) -> bool {
+    send_response_ok(v)
+}
+
+pub fn ensure_api_response_ok(v: &Value, label: &str) -> Result<()> {
+    if send_response_ok(v) {
+        return Ok(());
+    }
+    let ret = i64_snake_camel(v, "ret", "ret");
+    let errcode = i64_snake_camel(v, "errcode", "errCode");
+    let errmsg = response_errmsg(v);
+    anyhow::bail!("{label} failed: ret={ret:?} errcode={errcode:?} errmsg={errmsg}");
 }
 
 fn send_response_ok(v: &Value) -> bool {
@@ -289,9 +353,7 @@ pub fn build_outbound_text(
     msg
 }
 
-/// openclaw-weixin `CDNMedia.aes_key` encodings:
-/// - image: base64(raw 16 bytes)
-/// - file / video: base64(utf8(hex string of 16 bytes))
+/// openclaw-weixin outbound `CDNMedia.aes_key`: base64(utf8(hex string of 16 bytes)) for all media kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutboundCdnKeyEncoding {
     Image,
@@ -300,10 +362,8 @@ pub enum OutboundCdnKeyEncoding {
 
 pub fn outbound_cdn_aes_key_b64(raw_key: &[u8; 16], encoding: OutboundCdnKeyEncoding) -> String {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    match encoding {
-        OutboundCdnKeyEncoding::Image => B64.encode(raw_key),
-        OutboundCdnKeyEncoding::FileOrVideo => B64.encode(hex::encode(raw_key).as_bytes()),
-    }
+    let _ = encoding;
+    B64.encode(hex::encode(raw_key).as_bytes())
 }
 
 fn build_cdn_media_json(
@@ -446,26 +506,49 @@ impl WxSender {
         )
     }
 
-    async fn send_message_with_retry(&self, msg: Value, label: &str) -> Result<()> {
+    async fn send_message_with_retry(&self, mut msg: Value, label: &str) -> Result<()> {
         let mut delay_ms: u64 = 2_000;
-        for attempt in 0..=3 {
-            match self.api.send_message(msg.clone()).await {
-                Ok(()) => return Ok(()),
-                Err(e) if attempt < 3 => {
-                    tracing::warn!(
-                        attempt = attempt + 1,
-                        delay_ms,
-                        error = %e,
-                        label,
-                        "wx send_message transient failure, retrying"
-                    );
-                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-                    delay_ms = (delay_ms * 2).min(30_000);
+        let mut tried_tokenless = false;
+        loop {
+            let mut last_err = None;
+            for attempt in 0..=3 {
+                match self.api.send_message(msg.clone()).await {
+                    Ok(()) => return Ok(()),
+                    Err(e) if is_stale_wechat_session(&e) && !tried_tokenless => {
+                        tried_tokenless = true;
+                        if let Some(obj) = msg.as_object_mut() {
+                            obj.remove("context_token");
+                        }
+                        tracing::warn!(
+                            label,
+                            "wx context_token stale, retrying without context_token"
+                        );
+                        break;
+                    }
+                    Err(e) if is_stale_wechat_session(&e) => return Err(e),
+                    Err(e) if attempt < 3 => {
+                        tracing::warn!(
+                            attempt = attempt + 1,
+                            delay_ms,
+                            error = %e,
+                            label,
+                            "wx send_message transient failure, retrying"
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        delay_ms = (delay_ms * 2).min(30_000);
+                        last_err = Some(e);
+                    }
+                    Err(e) => return Err(e),
                 }
-                Err(e) => return Err(e),
             }
+            if tried_tokenless && last_err.is_none() {
+                continue;
+            }
+            if let Some(e) = last_err {
+                return Err(e);
+            }
+            anyhow::bail!("wx {label} send exhausted retries");
         }
-        anyhow::bail!("wx {label} send exhausted retries")
     }
 
     pub async fn send_text(&self, to_user_id: &str, context_token: &str, text: &str) -> Result<()> {
@@ -707,11 +790,11 @@ mod send_retry_tests {
     }
 
     #[test]
-    fn outbound_file_aes_key_differs_from_image_encoding() {
+    fn outbound_file_and_image_share_openclaw_aes_key_encoding() {
         let key = [0x11u8; 16];
         let image = outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::Image);
         let file = outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::FileOrVideo);
-        assert_ne!(image, file);
+        assert_eq!(image, file);
     }
 
     #[test]
@@ -739,5 +822,43 @@ mod send_retry_tests {
             item["video_item"]["media"]["aes_key"].as_str().unwrap(),
             outbound_cdn_aes_key_b64(&key, OutboundCdnKeyEncoding::FileOrVideo)
         );
+    }
+
+    #[test]
+    fn build_ilink_client_version_matches_openclaw_rule() {
+        assert_eq!(build_ilink_client_version("2.4.3"), 0x00020403);
+        assert_eq!(build_ilink_client_version("0.2.3"), 0x00000203);
+    }
+
+    #[test]
+    fn with_base_info_injects_channel_version_and_bot_agent() {
+        let body = with_base_info(json!({ "filekey": "abc" }));
+        let info = body.get("base_info").expect("base_info");
+        assert_eq!(info["bot_agent"], "anyCode");
+        assert!(info["channel_version"].as_str().is_some());
+    }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    use serde_json::json;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn post_json_sends_ilink_app_headers() {
+        let server = MockServer::start().await;
+        let client_version = build_ilink_client_version(env!("CARGO_PKG_VERSION")).to_string();
+        Mock::given(method("POST"))
+            .and(path("/ilink/bot/getupdates"))
+            .and(header("iLink-App-Id", "bot"))
+            .and(header("iLink-App-ClientVersion", client_version.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "ret": 0 })))
+            .mount(&server)
+            .await;
+
+        let api = WeChatApi::new("tok".into(), server.uri());
+        api.get_updates(None).await.expect("getupdates");
     }
 }

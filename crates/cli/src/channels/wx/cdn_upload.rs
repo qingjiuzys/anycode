@@ -14,6 +14,7 @@ pub const UPLOAD_MEDIA_IMAGE: i64 = 1;
 pub const UPLOAD_MEDIA_VIDEO: i64 = 2;
 pub const UPLOAD_MEDIA_FILE: i64 = 3;
 
+#[derive(Debug)]
 pub struct UploadedCdnMedia {
     pub encrypt_query_param: String,
     /// Raw 16-byte AES key (outbound message encoding differs by media kind).
@@ -159,22 +160,19 @@ async fn upload_buffer_with_retries(
                         .and_then(|v| v.to_str().ok())
                         .unwrap_or("server error")
                         .to_string();
-                    last_err = Some(anyhow::anyhow!("CDN upload server error: {msg}"));
+                    last_err = Some(anyhow::anyhow!("CDN upload HTTP {status}: {msg}"));
                     continue;
                 }
                 let param = r
                     .headers()
                     .get("x-encrypted-param")
                     .and_then(|v| v.to_str().ok())
-                    .map(str::to_string)
-                    .or_else(|| {
-                        // Some gateways return JSON body instead of header.
-                        None
-                    });
+                    .map(str::to_string);
+                let body_text = r.text().await.unwrap_or_default();
                 if let Some(p) = param.filter(|s| !s.is_empty()) {
                     return Ok(p);
                 }
-                if let Ok(body) = r.json::<Value>().await {
+                if let Ok(body) = serde_json::from_str::<Value>(&body_text) {
                     for key in [
                         "encrypt_query_param",
                         "encrypted_query_param",
@@ -187,8 +185,9 @@ async fn upload_buffer_with_retries(
                         }
                     }
                 }
+                let body_hint = body_text.chars().take(120).collect::<String>();
                 last_err = Some(anyhow::anyhow!(
-                    "CDN upload response missing x-encrypted-param"
+                    "CDN upload response missing x-encrypted-param (body={body_hint})"
                 ));
             }
             Err(e) => {
@@ -225,5 +224,63 @@ mod tests {
         assert_eq!(UPLOAD_MEDIA_IMAGE, 1);
         assert_eq!(UPLOAD_MEDIA_VIDEO, 2);
         assert_eq!(UPLOAD_MEDIA_FILE, 3);
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::channels::wx::ilink::WeChatApi;
+    use serde_json::json;
+    use wiremock::matchers::{body_string_contains, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn get_upload_url_includes_base_info_and_rejects_api_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ilink/bot/getuploadurl"))
+            .and(body_string_contains("base_info"))
+            .and(body_string_contains("anyCode"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "ret": -1,
+                "errmsg": "bad token"
+            })))
+            .mount(&server)
+            .await;
+
+        let api = WeChatApi::new("tok".into(), server.uri());
+        let err = upload_bytes_to_cdn_with_media_type(
+            &api,
+            b"video-bytes",
+            "user@im.wechat",
+            UPLOAD_MEDIA_VIDEO,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("getUploadUrl failed"));
+    }
+
+    #[tokio::test]
+    async fn get_upload_url_succeeds_when_ret_zero() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ilink/bot/getuploadurl"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "ret": 0,
+                "upload_param": "test-upload-param"
+            })))
+            .mount(&server)
+            .await;
+
+        let api = WeChatApi::new("tok".into(), server.uri());
+        let resp = api
+            .get_upload_url(json!({
+                "filekey": "abc",
+                "media_type": UPLOAD_MEDIA_VIDEO,
+            }))
+            .await
+            .expect("ok");
+        assert_eq!(resp["upload_param"], "test-upload-param");
     }
 }

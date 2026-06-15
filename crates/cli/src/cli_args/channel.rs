@@ -36,6 +36,22 @@ pub(crate) enum ChannelCommands {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
+    /// Send a local file (image / video / xlsx / pdf / …) via CDN to the last WeChat target
+    #[command(hide = true)]
+    WechatSendMediaTest {
+        /// Local file path to send
+        #[arg(long)]
+        path: String,
+        /// Optional caption sent before the media item
+        #[arg(long)]
+        caption: Option<String>,
+        /// Data directory (default ~/.anycode/wechat)
+        #[arg(long, env = "WCC_DATA_DIR")]
+        data_dir: Option<PathBuf>,
+        /// JSON output
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
     /// Telegram bridge (Bot Token + polling)
     Telegram {
         /// Telegram bot token (fallback: TELEGRAM_BOT_TOKEN)

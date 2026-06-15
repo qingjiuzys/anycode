@@ -90,6 +90,7 @@ syntect = "5.2"
 
 [dev-dependencies]
 tempfile = "3.10"
+wiremock = "0.6"
 # 阶段 2 备选：`examples/reedline_spike.rs` 评估单行 readline 与 IME；未链入默认 REPL。
 reedline = "0.32"
 

@@ -2,6 +2,7 @@
 
 mod approval;
 mod bridge;
+mod bridge_lock;
 mod cdn_media;
 mod cdn_upload;
 mod commands;

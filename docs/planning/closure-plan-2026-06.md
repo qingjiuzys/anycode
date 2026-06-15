@@ -134,8 +134,10 @@ cargo test -p anycode-dashboard --test fixture_api
 
 - [ ] iLink 登录态有效（`anycode channel status` 绿）
 - [ ] 小文件（&lt;1MB `.md`）CDN upload + `file_item` 收到
+- [ ] 出站视频（如 `mountain_lake.mp4` ~870KB）CDN 直发，非路径回退（需 `base_info` + `iLink-App-*` 头，2026-06-15 已补齐代码）
 - [ ] 接近 10MB 边界文件行为（成功或明确错误码）
-- [ ] 失败时 fallback 文本含本地路径（`deliverable.rs`）
+- [ ] CDN 失败时 fallback 文本含具体原因 + 本地路径（`deliverable.rs`）
+- [ ] 输出中的 `https://...mp4` 远程 URL 自动下载后 CDN 发送
 - [ ] cron 交付物路径与交互式 run 一致
 - [ ] 结果写入 comparison 文档「G1 结论」段
 
