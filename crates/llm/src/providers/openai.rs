@@ -3,9 +3,13 @@
 //! 请求/响应 JSON 与 [`super::zai::ZaiClient`] 所用 OpenAI 兼容形态一致；非流式解析复用 `ZaiResponse` + [`super::zai::convert_response`]。
 
 use super::zai::{
-    is_retryable_status, llm_response_from_openai_compatible_str, messages_to_openai_json,
-    openai_tools_from_schemas, retry_delay_ms,
+    llm_response_from_openai_compatible_str, messages_to_openai_json, openai_tools_from_schemas,
 };
+use crate::http_retry::{
+    evaluate_http_retry, evaluate_network_retry, retry_after_header_ms, retry_exhausted_error,
+    sleep_retry_delay,
+};
+use crate::retry_strategy::ProviderRetryConfig;
 use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use crate::LLMError;
 use anycode_core::prelude::*;
@@ -162,10 +166,15 @@ async fn send_chat_with_retries(
     url: &str,
     auth_key: &str,
     body: &OpenAiChatRequestBody,
+    source: QuerySource,
+    model: &str,
+    observer: Option<&dyn LlmRetryObserver>,
 ) -> Result<reqwest::Response, CoreError> {
-    let max_retries: u32 = DEFAULT_MAX_RETRIES;
+    let provider_cfg = ProviderRetryConfig::openai();
+    let max_retries = provider_cfg.base_config.max_retries;
     let mut last_err: Option<String> = None;
     let mut response: Option<reqwest::Response> = None;
+    let mut consecutive_overload = 0u32;
     for attempt in 1..=max_retries + 1 {
         let send_res = client
             .post(url)
@@ -182,13 +191,7 @@ async fn send_chat_with_retries(
                     break;
                 }
 
-                let retry_after_ms = resp
-                    .headers()
-                    .get("retry-after")
-                    .and_then(|h| h.to_str().ok())
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .map(|secs| secs.saturating_mul(1000));
-
+                let retry_after_ms = retry_after_header_ms(resp.headers());
                 let error_text = resp.text().await.unwrap_or_default();
                 let mut snippet = error_text.clone();
                 const MAX_ERR: usize = 2000;
@@ -207,9 +210,18 @@ async fn send_chat_with_retries(
                     }
                 ));
 
-                if attempt <= max_retries && is_retryable_status(status) {
-                    let delay = retry_after_ms.unwrap_or_else(|| retry_delay_ms(attempt));
-                    tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+                let out = evaluate_http_retry(
+                    &provider_cfg,
+                    source,
+                    status,
+                    &error_text,
+                    attempt,
+                    consecutive_overload,
+                    retry_after_ms,
+                );
+                consecutive_overload = out.consecutive_overload;
+                if out.should_retry && attempt <= max_retries {
+                    sleep_retry_delay(out.delay, attempt, model, source, observer).await;
                     continue;
                 }
                 break;
@@ -223,23 +235,9 @@ async fn send_chat_with_retries(
                     );
                 }
                 last_err = Some(msg);
-                if attempt <= max_retries {
-                    let delay = retry_delay_ms(attempt);
-                    warn!(
-                        "Retrying in {} seconds… (attempt {}/{}){}",
-                        delay / 1000,
-                        attempt,
-                        max_retries,
-                        if std::env::var("API_TIMEOUT_MS").is_ok() {
-                            format!(
-                                " · API_TIMEOUT_MS={}ms, try increasing it",
-                                configured_api_timeout_ms()
-                            )
-                        } else {
-                            String::new()
-                        }
-                    );
-                    tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+                let out = evaluate_network_retry(&provider_cfg, source, attempt);
+                if out.should_retry && attempt <= max_retries {
+                    sleep_retry_delay(out.delay, attempt, model, source, observer).await;
                     continue;
                 }
                 break;
@@ -248,10 +246,10 @@ async fn send_chat_with_retries(
     }
 
     response.ok_or_else(|| {
-        CoreError::LLMError(format!(
-            "OpenAI request failed after retries: {}",
-            last_err.unwrap_or_else(|| "unknown error".to_string())
-        ))
+        retry_exhausted_error(
+            "OpenAI",
+            &last_err.unwrap_or_else(|| "unknown error".to_string()),
+        )
     })
 }
 
@@ -335,7 +333,16 @@ impl LLMClient for OpenAIClient {
             .filter(|s| !s.is_empty())
             .unwrap_or(self.api_key.as_str());
 
-        let response = send_chat_with_retries(&self.client, &base_url, auth_key, &body).await?;
+        let response = send_chat_with_retries(
+            &self.client,
+            &base_url,
+            auth_key,
+            &body,
+            config.query_source,
+            &model,
+            config.retry_observer.as_deref(),
+        )
+        .await?;
 
         let status = response.status();
         if !status.is_success() {

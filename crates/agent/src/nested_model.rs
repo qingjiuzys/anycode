@@ -49,6 +49,7 @@ mod tests {
             temperature: None,
             max_tokens: None,
             api_key: None,
+            ..Default::default()
         };
         let o = resolve_nested_model_hint(&base, "sonnet");
         assert_eq!(o.model, "claude-sonnet-4-5-20250929");
@@ -63,6 +64,7 @@ mod tests {
             temperature: None,
             max_tokens: None,
             api_key: None,
+            ..Default::default()
         };
         let o = resolve_nested_model_hint(&base, "haiku");
         assert_eq!(o.model, "anthropic/claude-haiku-4-5-20251001");

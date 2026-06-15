@@ -22,7 +22,39 @@ V1 local mode:
 
 - Cookie session for UI on non-loopback hosts.
 - Bearer token for API; API key CRUD in admin UI.
-- Subscription/entitlement records (mock OK before payment integration).
+- Subscription/entitlement records via **Account Cloud API** (PostgreSQL; mock billing OK before payment integration).
+
+## Account Cloud API (v0.3)
+
+Separate deployable service (`anycode-account`) with PostgreSQL. The Workbench UI **Service** pages (`/account`) read plans, billing, and entitlements from this API — not from browser localStorage.
+
+Configure Workbench:
+
+```bash
+export ANYCODE_ACCOUNT_API_URL=http://127.0.0.1:43200
+anycode dashboard --open
+```
+
+Deploy: see [`deploy/account-service/README.md`](../../deploy/account-service/README.md).
+
+Base URL example:
+
+```text
+http://127.0.0.1:43200
+```
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET | `/health` | no | Service health |
+| POST | `/api/v1/auth/register` | no | Create user + org |
+| POST | `/api/v1/auth/login` | no | Returns bearer token |
+| GET | `/api/v1/auth/me` | Bearer | Current user |
+| GET | `/api/v1/account/bundle` | Bearer | Subscription + entitlements + invoices |
+| POST | `/api/v1/account/subscription/upgrade` | Bearer | Mock plan upgrade |
+| PATCH | `/api/v1/account/billing/contact` | Bearer | Billing contact |
+| GET/POST/DELETE | `/api/v1/account/api-keys` | Bearer | Cloud API keys |
+
+**Local Workbench** (`/api/*` on dashboard port) remains the source for project/session token usage metrics (BYOK observability).
 
 Future enterprise mode:
 
@@ -44,9 +76,12 @@ Response:
   "ok": true,
   "version": "0.2.0",
   "db_path": "~/.anycode/projects.db",
-  "mode": "local"
+  "mode": "local",
+  "account_api_url": "http://127.0.0.1:43200"
 }
 ```
+
+`account_api_url` is set when the Workbench host exports `ANYCODE_ACCOUNT_API_URL`.
 
 ### Projects
 

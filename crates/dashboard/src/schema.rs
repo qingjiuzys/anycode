@@ -14,6 +14,8 @@ pub struct HealthResponse {
     pub version: String,
     pub db_path: String,
     pub mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_api_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

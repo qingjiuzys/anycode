@@ -10,11 +10,13 @@ mod execution_trace;
 mod feature_flags;
 mod goal;
 mod ids;
+mod llm_retry_observer;
 mod llm_types;
 mod memory_model;
 mod memory_pipeline;
 mod message;
 mod model_profile;
+mod query_source;
 mod reasoning;
 mod runtime_profile;
 mod secret_ref;
@@ -39,6 +41,7 @@ pub use ids::{
     AgentId, SessionId, TaskId, ToolName, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
     ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
+pub use llm_retry_observer::LlmRetryObserver;
 pub use llm_types::{
     LLMProvider, LLMResponse, ModelConfig, PermissionMode, StreamEvent, ToolCall, ToolInput,
     ToolOutput, ToolSchema, Usage,
@@ -50,6 +53,7 @@ pub use memory_pipeline::{
 };
 pub use message::{Message, MessageContent, MessageRole};
 pub use model_profile::ModelRouteProfile;
+pub use query_source::QuerySource;
 pub use reasoning::{strip_llm_reasoning_for_display, strip_llm_reasoning_xml_blocks};
 pub use runtime_profile::{RuntimeMode, RuntimeProfile};
 pub use secret_ref::{SecretRef, SecretResolver};

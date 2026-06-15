@@ -103,6 +103,7 @@ async fn probe_chat(registry: &ResolvedModelRegistry) -> Result<String, String> 
                 temperature: pc.temperature,
                 max_tokens: pc.max_tokens,
                 api_key: Some(pc.api_key),
+                ..Default::default()
             },
         )
         .await

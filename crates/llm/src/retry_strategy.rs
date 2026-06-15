@@ -2,6 +2,7 @@
 //!
 //! 支持指数退避、错误分类、Retry-After 头等
 
+use anycode_core::QuerySource;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -118,15 +119,45 @@ impl RetryStrategy {
 
     /// 判断是否应该重试
     pub fn should_retry(&self, category: ErrorCategory, attempt: u32) -> bool {
+        self.should_retry_for_source(QuerySource::MainTurn, category, attempt)
+    }
+
+    /// Source-aware retry: background LLM work must not amplify 429/529 cascades.
+    pub fn should_retry_for_source(
+        &self,
+        source: QuerySource,
+        category: ErrorCategory,
+        attempt: u32,
+    ) -> bool {
+        if category == ErrorCategory::RateLimit && !source.is_foreground() {
+            return false;
+        }
         match category {
             ErrorCategory::RateLimit => attempt <= self.config.max_retries,
             ErrorCategory::ServerError => attempt <= self.config.max_retries,
             ErrorCategory::NetworkError => attempt <= self.config.max_retries,
-            ErrorCategory::AuthenticationFailed => false, // 认证失败不重试
-            ErrorCategory::ClientError => false,          // 客户端错误不重试
+            ErrorCategory::AuthenticationFailed => false,
+            ErrorCategory::ClientError => false,
             ErrorCategory::Unknown => attempt <= self.config.max_retries,
         }
     }
+
+    /// Split long retry waits into heartbeat-sized chunks (30s default).
+    #[must_use]
+    pub fn retry_sleep_chunks(total: Duration, chunk_ms: u64) -> Vec<Duration> {
+        let chunk = Duration::from_millis(chunk_ms.max(1_000));
+        let mut remaining = total;
+        let mut out = Vec::new();
+        while remaining > Duration::ZERO {
+            let step = remaining.min(chunk);
+            out.push(step);
+            remaining = remaining.saturating_sub(step);
+        }
+        out
+    }
+
+    pub const RETRY_HEARTBEAT_MS: u64 = 30_000;
+    pub const MAX_CONSECUTIVE_OVERLOAD_BEFORE_FALLBACK: u32 = 3;
 
     /// 计算重试延迟
     pub fn compute_delay(&self, attempt: u32, retry_after_ms: Option<u64>) -> Duration {
@@ -405,6 +436,33 @@ mod tests {
         let zai = ProviderRetryConfig::zai();
         assert_eq!(zai.provider_id, "z.ai");
         assert_eq!(zai.base_config.max_retries, 10);
+    }
+
+    #[test]
+    fn background_sources_skip_rate_limit_retry() {
+        let strategy = RetryStrategy::default();
+        assert!(!strategy.should_retry_for_source(QuerySource::Title, ErrorCategory::RateLimit, 1));
+        assert!(!strategy.should_retry_for_source(
+            QuerySource::Background,
+            ErrorCategory::RateLimit,
+            1
+        ));
+        assert!(strategy.should_retry_for_source(
+            QuerySource::MainTurn,
+            ErrorCategory::RateLimit,
+            1
+        ));
+    }
+
+    #[test]
+    fn retry_sleep_chunks_cover_total_delay() {
+        use std::time::Duration;
+        let chunks = RetryStrategy::retry_sleep_chunks(
+            Duration::from_secs(65),
+            RetryStrategy::RETRY_HEARTBEAT_MS,
+        );
+        let total: Duration = chunks.iter().copied().sum();
+        assert_eq!(total, Duration::from_secs(65));
     }
 
     #[test]

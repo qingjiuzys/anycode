@@ -18,7 +18,8 @@ import {
   useContentCollapse,
 } from "@/components/ui/CollapsiblePanel";
 import { formatRelativeTime } from "@/utils/formatTime";
-import { formatLiveToolLabel, formatTranscriptBlockTitle } from "@/lib/eventFormat";
+import { formatTranscriptBlockTitle } from "@/lib/eventFormat";
+import { groupTurnReplies } from "@/lib/transcriptGrouping";
 import {
   SESSION_QUERY_GC_MS,
   transcriptQueryOptions,
@@ -35,6 +36,8 @@ interface Props {
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
   /** Shown while transcript loads (from session list). */
   promptPreview?: string | null;
+  selectedToolId?: string | null;
+  onSelectTool?: (tool: TranscriptBlock) => void;
 }
 
 type ConversationTurn = {
@@ -43,11 +46,8 @@ type ConversationTurn = {
   replies: TranscriptBlock[];
 };
 
-type ReplyItem =
-  | { kind: "block"; block: TranscriptBlock }
-  | { kind: "tool_group"; id: string; tools: TranscriptBlock[] };
-
 const VIRTUAL_TURN_THRESHOLD = 30;
+const COMPACT_TURN_ESTIMATE_PX = 140;
 
 export function ConversationTranscript({
   sessionId,
@@ -55,11 +55,14 @@ export function ConversationTranscript({
   sseLive = false,
   scrollContainerRef,
   promptPreview,
+  selectedToolId,
+  onSelectTool,
 }: Props) {
   const t = useT();
   const bottomRef = useRef<HTMLDivElement>(null);
   const localScrollRef = useRef<HTMLDivElement>(null);
   const prevTurnCountRef = useRef(0);
+  const userNearBottomRef = useRef(true);
 
   const running = Boolean(isRunning);
   const pollWhileRunning = running && !sseLive;
@@ -108,14 +111,27 @@ export function ConversationTranscript({
   const virtualizer = useVirtualizer({
     count: turns.length,
     getScrollElement: () => virtualParentRef.current,
-    estimateSize: () => 220,
+    estimateSize: () => COMPACT_TURN_ESTIMATE_PX,
     overscan: 4,
   });
 
   useEffect(() => {
+    const container = scrollContainerRef?.current ?? localScrollRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+      userNearBottomRef.current = distance < 120;
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => container.removeEventListener("scroll", onScroll);
+  }, [scrollContainerRef, sessionId]);
+
+  useEffect(() => {
     const grew = turns.length > prevTurnCountRef.current;
     prevTurnCountRef.current = turns.length;
-    if (!grew) return;
+    if (!grew && !isRunning) return;
+    if (isRunning && !userNearBottomRef.current && !grew) return;
 
     const behavior: ScrollBehavior = isRunning ? "auto" : "smooth";
     if (useVirtual) {
@@ -167,14 +183,10 @@ export function ConversationTranscript({
 
   const tail = (
     <>
-      {lastTurnPending && (
+      {lastTurnPending && !activeTool && (
         <div className="flex w-full justify-start">
-          <div className="max-w-[min(100%,42rem)] w-full">
-            {activeTool ? (
-              <LiveToolCard toolName={activeTool} />
-            ) : (
-              <TypingIndicator />
-            )}
+          <div className="max-w-[min(100%,48rem)] w-full">
+            <TypingIndicator />
           </div>
         </div>
       )}
@@ -234,6 +246,8 @@ export function ConversationTranscript({
                 turn={turn}
                 isLast={item.index === turns.length - 1}
                 isRunning={Boolean(isRunning)}
+                selectedToolId={selectedToolId}
+                onSelectTool={onSelectTool}
               />
             </div>
           );
@@ -247,13 +261,15 @@ export function ConversationTranscript({
   return (
     <>
       {fetchingBar}
-      <div className="flex flex-col gap-8">
+      <div className={`flex flex-col ${isRunning ? "gap-4" : "gap-5"}`}>
       {turns.map((turn, index) => (
         <ConversationTurnView
           key={turn.id}
           turn={turn}
           isLast={index === turns.length - 1}
           isRunning={Boolean(isRunning)}
+          selectedToolId={selectedToolId}
+          onSelectTool={onSelectTool}
         />
       ))}
       {tail}
@@ -266,15 +282,20 @@ function ConversationTurnView({
   turn,
   isLast,
   isRunning,
+  selectedToolId,
+  onSelectTool,
 }: {
   turn: ConversationTurn;
   isLast: boolean;
   isRunning: boolean;
+  selectedToolId?: string | null;
+  onSelectTool?: (tool: TranscriptBlock) => void;
 }) {
-  const replyItems = useMemo(() => groupToolBlocks(turn.replies), [turn.replies]);
+  const replyItems = useMemo(() => groupTurnReplies(turn.replies), [turn.replies]);
+  const hasToolGroup = replyItems.some((item) => item.kind === "tool_group");
 
   return (
-    <article className="flex flex-col gap-3 pb-8">
+    <article className={`flex flex-col gap-2.5 ${isRunning && isLast ? "pb-4" : "pb-5"}`}>
       <MessageRow align="right">
         <UserBubble block={turn.user} />
       </MessageRow>
@@ -283,9 +304,13 @@ function ConversationTurnView({
         if (item.kind === "tool_group") {
           return (
             <MessageRow key={item.id} align="left">
-              {/* Running groups render as a compact single-line card; completed
-                  groups stay collapsed by default and can be expanded. */}
-              <TranscriptToolBlock tools={item.tools} />
+              <TranscriptToolBlock
+                tools={item.tools}
+                processMessageCount={item.processMessageCount}
+                compact
+                selectedToolId={selectedToolId}
+                onSelectTool={onSelectTool}
+              />
             </MessageRow>
           );
         }
@@ -303,7 +328,7 @@ function ConversationTurnView({
         );
       })}
 
-      {isLast && isRunning && turn.replies.length > 0 && (
+      {isLast && isRunning && turn.replies.length > 0 && !hasToolGroup && (
         <MessageRow align="left">
           <TypingIndicator compact />
         </MessageRow>
@@ -323,7 +348,7 @@ function MessageRow({
     <div
       className={`flex w-full ${align === "right" ? "justify-end" : "justify-start"}`}
     >
-      <div className="max-w-[min(100%,42rem)] w-fit min-w-0">{children}</div>
+      <div className="max-w-[min(100%,48rem)] w-fit min-w-0">{children}</div>
     </div>
   );
 }
@@ -593,19 +618,6 @@ function TypingIndicator({ compact }: { compact?: boolean }) {
   );
 }
 
-function LiveToolCard({ toolName }: { toolName: string }) {
-  const t = useT();
-  return (
-    <div className="rounded-2xl rounded-bl-md border border-primary/25 bg-primary-container/20 px-4 py-3 text-sm">
-      <div className="flex items-center gap-2 text-primary font-medium">
-        <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse" />
-        <Icon name="build" size={16} />
-        <span>{formatLiveToolLabel(toolName, t)}</span>
-      </div>
-    </div>
-  );
-}
-
 function ExecutionLogLink({ sessionId }: { sessionId: string }) {
   const t = useT();
   return (
@@ -649,30 +661,6 @@ function isReplyBlock(blockType: string): boolean {
     "tool_result",
     "system_notice",
   ].includes(blockType);
-}
-
-function groupToolBlocks(blocks: TranscriptBlock[]): ReplyItem[] {
-  const out: ReplyItem[] = [];
-  let toolBatch: TranscriptBlock[] = [];
-  const flushTools = () => {
-    if (toolBatch.length === 0) return;
-    out.push({
-      kind: "tool_group",
-      id: `tools:${toolBatch[0]?.id ?? "batch"}`,
-      tools: toolBatch,
-    });
-    toolBatch = [];
-  };
-  for (const block of blocks) {
-    if (block.block_type === "tool_call" || block.block_type === "tool_result") {
-      toolBatch.push(block);
-      continue;
-    }
-    flushTools();
-    out.push({ kind: "block", block });
-  }
-  flushTools();
-  return out;
 }
 
 function findActiveTool(

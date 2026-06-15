@@ -25,3 +25,7 @@ test/target/**/out/*
 .cursor/debug-*.log
 scripts/.venv-icon/
 .venv-ppt/
+
+# Cloud account service (deployed separately; not versioned in this repo)
+crates/account-service/
+deploy/account-service/

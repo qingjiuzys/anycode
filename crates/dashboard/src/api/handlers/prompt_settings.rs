@@ -98,6 +98,7 @@ pub async fn get_prompt_preview(Query(q): Query<PromptPreviewQuery>) -> impl Int
         temperature: None,
         max_tokens: None,
         api_key: None,
+        ..Default::default()
     };
     let agent: Box<dyn Agent> = match agent_id {
         "explore" => Box::new(ExploreAgent::new(model_config.clone(), true)),

@@ -9,12 +9,14 @@ use super::agentic_turn::{
     TurnToolState,
 };
 use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
+use super::llm_retry::model_config_with_retry_observer;
 use super::memory_hooks;
 use super::provider_errors::{
     core_error_is_context_overflow, error_indicates_context_overflow,
     provider_error_from_streamed_assistant_text,
 };
 use super::receipt::ReceiptGenerator;
+use super::session_activity::{ActivityReason, SessionActivityGuard};
 use super::task_summary::llm_summary_receipt;
 use super::tool_surface;
 use super::AgentRuntime;
@@ -78,6 +80,7 @@ impl AgentRuntime {
 
         // 2) agentic loop：保持与 execute_task 的语义一致
         let model_config = self.model_for_task(agent_type).clone();
+        let llm_config = model_config_with_retry_observer(&model_config, logger.clone(), task_id);
         let mut total_tool_calls: usize = 0;
         let mut artifacts: Vec<Artifact> = vec![];
         let mut last_assistant_text = String::new();
@@ -114,6 +117,8 @@ impl AgentRuntime {
 
             let mut overflow_retried_this_turn = false;
             let llm_t0 = std::time::Instant::now();
+            let _llm_activity =
+                SessionActivityGuard::start(logger.clone(), task_id, ActivityReason::ApiCall);
             let (response, llm_streamed) = 'llm_attempt: loop {
                 let messages_snapshot = {
                     let g = messages.lock().await;
@@ -141,7 +146,7 @@ impl AgentRuntime {
                 let stream_open = self.llm_client.chat_stream(
                     messages_snapshot.clone(),
                     tool_schemas.clone(),
-                    &model_config,
+                    &llm_config,
                 );
                 let stream_open = tokio::select! {
                     biased;
@@ -230,7 +235,7 @@ impl AgentRuntime {
                     let chat_fut = self.chat_with_failover(
                         messages_snapshot.clone(),
                         tool_schemas.clone(),
-                        &model_config,
+                        &llm_config,
                         task_id,
                         &logger,
                     );
@@ -306,7 +311,7 @@ impl AgentRuntime {
                             .try_failover_on_provider_body_error(
                                 messages_snapshot.clone(),
                                 tool_schemas.clone(),
-                                &model_config,
+                                &llm_config,
                                 task_id,
                                 &logger,
                                 &err,
@@ -473,6 +478,7 @@ impl AgentRuntime {
             memory_hooks::last_user_plain_text_for_autosave(&g)
         };
         if !last_assistant_text.trim().is_empty() {
+            logger.session_state(task_id, "idle");
             logger.line(task_id, "[task_end] status=completed");
             logger.line(
                 task_id,
@@ -533,6 +539,7 @@ impl AgentRuntime {
         )
         .await;
 
+        logger.session_state(task_id, "idle");
         logger.line(task_id, "[task_end] status=completed");
         logger.assistant_response(task_id, last_model_turn, &summary_text);
         logger.line(task_id, "== summary ==");

@@ -73,6 +73,26 @@ export function UserMenu() {
             </p>
           </div>
           <Link
+            to="/account"
+            search={{ section: "plan" }}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm no-underline hover:bg-surface-container text-on-surface"
+            onClick={() => setOpen(false)}
+            role="menuitem"
+          >
+            <Icon name="corporate_fare" size={18} />
+            {t("service.menu.plans")}
+          </Link>
+          <Link
+            to="/account"
+            search={{ section: "usage" }}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm no-underline hover:bg-surface-container text-on-surface"
+            onClick={() => setOpen(false)}
+            role="menuitem"
+          >
+            <Icon name="analytics" size={18} />
+            {t("service.menu.usage")}
+          </Link>
+          <Link
             to="/settings"
             className="flex items-center gap-2 px-4 py-2.5 text-sm no-underline hover:bg-surface-container text-on-surface"
             onClick={() => setOpen(false)}

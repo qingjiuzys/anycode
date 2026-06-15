@@ -280,6 +280,18 @@ pub(crate) async fn append_user_spawn_turn(
         g.push(user_msg);
         g.len()
     };
+    if let Ok(mut chain) = crate::term::session_event_chain::SessionEventChain::open(
+        session.session_file_id,
+        &crate::term::session_persist::sessions_dir(),
+    ) {
+        let evt = crate::term::session_event_chain::new_chain_event(
+            crate::term::session_event_chain::SessionChainEventKind::UserMessage,
+            None,
+            None,
+            serde_json::json!({ "text": prompt }),
+        );
+        let _ = chain.append(evt).and_then(|_| chain.flush());
+    }
     session.turn_coop_cancel.store(false, Ordering::Release);
     let task_id = Uuid::new_v4();
     session.dashboard_task_id = Some(task_id);

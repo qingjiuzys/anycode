@@ -259,6 +259,21 @@ pub(crate) fn save_session(snap: &SessionSnapshot) -> anyhow::Result<()> {
     if let Err(e) = write_last_session_pointer(snap.id) {
         tracing::warn!(target: "anycode_cli", "last-session pointer: {e:#}");
     }
+    if let Ok(mut chain) = super::session_event_chain::SessionEventChain::open(snap.id, &dir) {
+        let evt = super::session_event_chain::new_chain_event(
+            super::session_event_chain::SessionChainEventKind::SnapshotBoundary,
+            None,
+            None,
+            serde_json::json!({
+                "message_count": snap.messages.len(),
+                "agent": snap.agent,
+                "model": snap.model,
+            }),
+        );
+        if let Err(e) = chain.append(evt).and_then(|_| chain.flush()) {
+            tracing::warn!(target: "anycode_cli", "session event chain: {e:#}");
+        }
+    }
     Ok(())
 }
 
@@ -270,6 +285,18 @@ pub(crate) fn load_session(id: Uuid) -> anyhow::Result<Option<SessionSnapshot>> 
     let s = std::fs::read_to_string(&p).with_context(|| format!("read {}", p.display()))?;
     let snap: SessionSnapshot =
         serde_json::from_str(&s).with_context(|| format!("parse {}", p.display()))?;
+    let chain_path = super::session_event_chain::chain_path_for_session(id, &sessions_dir());
+    if let Ok(tail) = super::session_event_chain::replay_chain_tail(&chain_path) {
+        let recovery = super::session_event_chain::synthesize_recovery_events(&tail);
+        if !recovery.is_empty() {
+            tracing::info!(
+                target: "anycode_cli",
+                session_id = %id,
+                count = recovery.len(),
+                "session recovery synthesized unclosed tool results"
+            );
+        }
+    }
     Ok(Some(snap))
 }
 

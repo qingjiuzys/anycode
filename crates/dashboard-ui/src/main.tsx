@@ -8,6 +8,7 @@ import { applySkin, getSkin } from "./hooks/useSkin";
 import { getTheme, setTheme } from "./hooks/useTheme";
 import { I18nProvider } from "./i18n/context";
 import { AuthProvider } from "./auth/context";
+import { AccountCloudProvider } from "./hooks/useAccountCloud";
 import { SseProvider } from "./context/SseContext";
 import "./index.css";
 
@@ -30,9 +31,11 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
         <AuthProvider>
-          <SseProvider>
-            <RouterProvider router={router} />
-          </SseProvider>
+          <AccountCloudProvider>
+            <SseProvider>
+              <RouterProvider router={router} />
+            </SseProvider>
+          </AccountCloudProvider>
         </AuthProvider>
       </I18nProvider>
     </QueryClientProvider>

@@ -6,8 +6,10 @@ use super::agentic_turn::{
     TurnToolState,
 };
 use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
+use super::llm_retry::model_config_with_retry_observer;
 use super::nested_worktree::NestedWorktreeGuard;
 use super::receipt::ReceiptGenerator;
+use super::session_activity::{ActivityReason, SessionActivityGuard};
 use super::task_summary::{last_assistant_plain_text, llm_summary_receipt};
 use super::tool_surface;
 use super::{AgentRuntime, ParentToolSurfaceGuard};
@@ -120,6 +122,7 @@ impl AgentRuntime {
         if let Some(ref hint) = task.context.nested_model_override {
             model_config = crate::nested_model::resolve_nested_model_hint(&model_config, hint);
         }
+        let llm_config = model_config_with_retry_observer(&model_config, logger.clone(), task.id);
         let mut total_tool_calls: usize = 0;
         let mut artifacts: Vec<Artifact> = vec![];
         let mut last_model_turn: usize = 1;
@@ -156,6 +159,8 @@ impl AgentRuntime {
                 ),
             );
 
+            let _llm_activity =
+                SessionActivityGuard::start(logger.clone(), task.id, ActivityReason::ApiCall);
             let t0 = std::time::Instant::now();
             let response_result = match task.context.nested_cancel.clone() {
                 Some(flag) => {
@@ -172,7 +177,7 @@ impl AgentRuntime {
                         res = self.chat_with_failover(
                             messages.clone(),
                             tool_schemas.clone(),
-                            &model_config,
+                            &llm_config,
                             task.id,
                             &logger,
                         ) => res,
@@ -182,7 +187,7 @@ impl AgentRuntime {
                     self.chat_with_failover(
                         messages.clone(),
                         tool_schemas.clone(),
-                        &model_config,
+                        &llm_config,
                         task.id,
                         &logger,
                     )

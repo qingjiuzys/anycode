@@ -15,6 +15,7 @@ pub mod config_models;
 pub mod copilot_token;
 mod deepseek_catalog;
 mod google_catalog;
+mod http_retry;
 mod local_media_catalog;
 pub mod media;
 mod model_cache;

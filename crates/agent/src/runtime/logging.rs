@@ -51,6 +51,59 @@ impl RunLogger {
         self.line(task_id, &line);
     }
 
+    pub(crate) fn session_keepalive(&self, task_id: TaskId, reason: &str, refcount: u32) {
+        self.line(
+            task_id,
+            &format!("[session_keepalive] reason={reason} refcount={refcount}"),
+        );
+    }
+
+    pub(crate) fn session_state(&self, task_id: TaskId, state: &str) {
+        self.line(task_id, &format!("[session_state_changed] state={state}"));
+    }
+
+    pub(crate) fn api_retry(
+        &self,
+        task_id: TaskId,
+        attempt: u32,
+        delay_ms: u64,
+        model: &str,
+        source: &str,
+    ) {
+        self.line(
+            task_id,
+            &format!(
+                "[api_retry] attempt={attempt} delay_ms={delay_ms} model={model} source={source}"
+            ),
+        );
+    }
+
+    pub(crate) fn turn_error(&self, task_id: TaskId, turn: usize, tool_name: &str, error: &str) {
+        self.line(
+            task_id,
+            &format!(
+                "[turn_error] turn={turn} tool={tool_name} error={}",
+                error.replace('\n', " ")
+            ),
+        );
+    }
+
+    pub(crate) fn tool_synthetic_result(
+        &self,
+        task_id: TaskId,
+        turn: usize,
+        idx: usize,
+        tool_name: &str,
+        reason: &str,
+    ) {
+        self.line(
+            task_id,
+            &format!(
+                "[tool_synthetic_result] turn={turn} idx={idx} name={tool_name} reason={reason}"
+            ),
+        );
+    }
+
     pub(crate) fn tail(&self, task_id: TaskId, max_bytes: usize) -> String {
         if let Some(out) = &self.disk {
             out.tail(task_id, max_bytes).unwrap_or_default()

@@ -67,6 +67,7 @@ pub(crate) fn build_model_routing_parts(
         temperature: Some(config.llm.temperature),
         max_tokens: Some(config.llm.max_tokens),
         api_key: None,
+        ..Default::default()
     };
 
     let mut model_overrides: HashMap<AgentType, ModelConfig> = HashMap::new();

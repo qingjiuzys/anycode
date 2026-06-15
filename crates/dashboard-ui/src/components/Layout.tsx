@@ -25,6 +25,7 @@ const NAV = [
   { to: "/assets", key: "nav.assets", icon: "inventory_2", countKey: "artifacts" as const },
   { to: "/reports", key: "nav.reports", icon: "bar_chart", countKey: null },
   { to: "/audit", key: "nav.audit", icon: "verified_user", countKey: null },
+  { to: "/account", key: "nav.account", icon: "corporate_fare", countKey: null },
   { to: "/agents", key: "nav.agents", icon: "robot_2", countKey: "skills" as const },
   { to: "/settings", key: "nav.settings", icon: "settings", countKey: null },
 ] as const;

@@ -169,7 +169,7 @@ function deriveTraceSteps(events: TraceEvent[], isRunning?: boolean): ProgressSt
     } else if (evt.event_type === "turn_end") {
       const idx = steps.map((s) => s.id).lastIndexOf(`turn-${turn}`);
       if (idx >= 0) steps[idx].status = evt.severity === "error" ? "failed" : "done";
-    } else if (evt.event_type === "tool_call_start" || evt.event_type === "tool_call_input") {
+    } else if (evt.event_type === "tool_call_start") {
       toolIdx += 1;
       const tool =
         (evt.payload?.name as string | undefined) ??

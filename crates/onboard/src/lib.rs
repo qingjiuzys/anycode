@@ -278,6 +278,7 @@ impl OnboardingWizard {
             temperature: provider_cfg.temperature,
             max_tokens: provider_cfg.max_tokens,
             api_key: None,
+            ..Default::default()
         };
 
         let result: Result<TestResult> = match llm

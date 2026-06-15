@@ -2,12 +2,18 @@ import { useEffect, useRef, useState } from "react";
 
 export type SseStatus = "connecting" | "live" | "reconnecting" | "offline";
 
+export type ProjectEventSsePayload = {
+  projectId?: string;
+  eventType?: string;
+  sessionId?: string;
+};
+
 /**
  * EventSource with automatic reconnect and connection status for the workbench UI.
  */
 export function useEventSource(
   url: string | null,
-  onProjectEvent?: (projectId?: string) => void,
+  onProjectEvent?: (payload: ProjectEventSsePayload) => void,
 ): SseStatus {
   const [status, setStatus] = useState<SseStatus>(url ? "connecting" : "offline");
   const onEventRef = useRef(onProjectEvent);
@@ -50,15 +56,21 @@ export function useEventSource(
         if (!cancelled) {
           setStatus("live");
           let projectId: string | undefined;
+          let eventType: string | undefined;
+          let sessionId: string | undefined;
           try {
             const data = JSON.parse((raw as MessageEvent).data) as {
               project_id?: string;
+              event_type?: string;
+              session_id?: string | null;
             };
             projectId = data.project_id;
+            eventType = data.event_type;
+            sessionId = data.session_id ?? undefined;
           } catch {
             /* ignore malformed SSE payload */
           }
-          onEventRef.current?.(projectId);
+          onEventRef.current?.({ projectId, eventType, sessionId });
         }
       };
       es.addEventListener("project_event", handler);

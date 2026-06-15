@@ -29,9 +29,9 @@ export function useGlobalEventStream(enabled = true): SseStatus {
   }, [queryClient]);
 
   const onEvent = useCallback(
-    (projectId?: string) => {
-      if (projectId) {
-        pendingProjectIds.current.add(projectId);
+    (payload: { projectId?: string }) => {
+      if (payload.projectId) {
+        pendingProjectIds.current.add(payload.projectId);
       }
       if (!timer.current) {
         timer.current = setTimeout(flushInvalidations, INVALIDATION_DEBOUNCE_MS);

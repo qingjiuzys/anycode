@@ -3,6 +3,7 @@ export interface HealthResponse {
   version: string;
   db_path: string;
   mode: string;
+  account_api_url?: string | null;
 }
 
 export interface OverviewStats {

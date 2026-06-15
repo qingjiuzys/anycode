@@ -1,11 +1,15 @@
 use super::*;
 
 pub async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
+    let account_api_url = std::env::var("ANYCODE_ACCOUNT_API_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
     Json(HealthResponse {
         ok: true,
         version: state.version.clone(),
         db_path: state.db.path().display().to_string(),
         mode: "local".into(),
+        account_api_url,
     })
 }
 

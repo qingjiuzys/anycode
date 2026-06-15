@@ -5,7 +5,7 @@ import {
   ConversationSessionList,
   ConversationThread,
 } from "@/components/ConversationThread";
-import { ConversationArtifactsPanel } from "@/components/ConversationArtifactsPanel";
+import { ConversationInspectorPanel } from "@/components/ConversationInspectorPanel";
 import { ConversationComposer } from "@/components/ConversationComposer";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
@@ -38,6 +38,9 @@ export function ConversationsPage() {
   const [artifactsDrawerOpen, setArtifactsDrawerOpen] = useState(false);
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<import("@/api/types").TranscriptBlock | null>(
+    null,
+  );
   /** Instant list highlight while router search catches up. */
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const globalSseLive = useSseStatus() === "live";
@@ -95,6 +98,7 @@ export function ConversationsPage() {
       } else {
         setPendingSessionId(null);
       }
+      setSelectedTool(null);
       queueMicrotask(() => {
         navigateSearch({
           ...effectiveSearch,
@@ -423,6 +427,13 @@ export function ConversationsPage() {
                   onFollowUpStarted={selectSession}
                   showHeader={false}
                   sseLive={sseLive}
+                  selectedToolId={selectedTool?.id ?? null}
+                  onSelectTool={(tool) => {
+                    setSelectedTool(tool);
+                    if (window.matchMedia("(max-width: 1023px)").matches) {
+                      setArtifactsDrawerOpen(true);
+                    }
+                  }}
                   toolbarStart={
                     listCollapsed ? (
                       <button
@@ -439,10 +450,12 @@ export function ConversationsPage() {
               </div>
             </div>
             <div className="hidden lg:flex lg:col-span-3 flex-col min-h-0">
-              <ConversationArtifactsPanel
+              <ConversationInspectorPanel
                 sessionId={displaySessionId}
                 live={sseLive}
                 isRunning={selected?.status === "running"}
+                selectedTool={selectedTool}
+                onSelectTool={setSelectedTool}
               />
             </div>
           </div>
@@ -497,10 +510,12 @@ export function ConversationsPage() {
             onClick={() => setArtifactsDrawerOpen(false)}
           />
           <div className="fixed inset-y-0 right-0 z-50 w-[min(100%,20rem)] lg:hidden shadow-xl">
-            <ConversationArtifactsPanel
+            <ConversationInspectorPanel
               sessionId={displaySessionId}
               live={sseLive}
               isRunning={selected?.status === "running"}
+              selectedTool={selectedTool}
+              onSelectTool={setSelectedTool}
               className="h-full border-l border-outline-variant"
             />
             <button

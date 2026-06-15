@@ -11,6 +11,8 @@ use serde_json::json;
 use std::collections::HashSet;
 
 const SCHEMA_VERSION: u32 = 1;
+/// Main-thread preview length for tool results; full output lives in execution log / inspector.
+const TOOL_RESULT_PREVIEW_CHARS: usize = 600;
 
 const LIFECYCLE_TYPES: &[&str] = &[
     "task_start",
@@ -391,16 +393,15 @@ fn index_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
 
 fn trace_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
     match event.event_type.as_str() {
-        "tool_call_start" | "tool_call_input" => Some(TranscriptBlock {
+        // Input JSON is surfaced in execution log / inspector, not as a main-thread step.
+        "tool_call_input" => None,
+        "tool_call_start" => Some(TranscriptBlock {
             id: event.id.clone(),
             block_type: "tool_call".into(),
             at: event.occurred_at.clone(),
             title: tool_title(event),
             body: tool_body(event),
-            meta: json!({
-                "tool_name": tool_title(event),
-                "phase": "start",
-            }),
+            meta: tool_trace_meta(event, "start"),
             collapsible: true,
             default_collapsed: true,
             event_id: Some(event.id.clone()),
@@ -410,14 +411,58 @@ fn trace_event_to_block(event: &ProjectEvent) -> Option<TranscriptBlock> {
             block_type: "tool_result".into(),
             at: event.occurred_at.clone(),
             title: tool_title(event),
-            body: truncate(&tool_body(event), 4000),
-            meta: json!({ "phase": "end" }),
+            body: truncate(&tool_body(event), TOOL_RESULT_PREVIEW_CHARS),
+            meta: tool_trace_meta(event, "end"),
             collapsible: true,
             default_collapsed: true,
             event_id: Some(event.id.clone()),
         }),
         _ => None,
     }
+}
+
+fn tool_trace_meta(event: &ProjectEvent, phase: &str) -> serde_json::Value {
+    let turn = payload_str(event, "turn");
+    let idx = payload_str(event, "idx");
+    let tool_key = match (&turn, &idx) {
+        (Some(t), Some(i)) if !t.is_empty() && !i.is_empty() => format!("{t}:{i}"),
+        _ => event.id.clone(),
+    };
+    let mut meta = json!({
+        "tool_name": tool_title(event),
+        "phase": phase,
+        "tool_key": tool_key,
+    });
+    if let Some(t) = turn {
+        meta["turn"] = json!(t);
+    }
+    if let Some(i) = idx {
+        meta["idx"] = json!(i);
+    }
+    if let Some(ms) = payload_str(event, "elapsed_ms") {
+        meta["duration_ms"] = json!(ms);
+    }
+    if let Some(err) = payload_str(event, "error") {
+        if !err.is_empty() && err != "<none>" {
+            meta["error"] = json!(err);
+        }
+    }
+    for key in ["command", "path", "query"] {
+        if let Some(v) = payload_str(event, key) {
+            meta[key] = json!(v);
+        }
+    }
+    meta
+}
+
+fn payload_str(event: &ProjectEvent, key: &str) -> Option<String> {
+    event
+        .payload
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 fn tool_title(event: &ProjectEvent) -> String {
@@ -893,7 +938,7 @@ mod tests {
         assert_eq!(humanize_error_text("real failure"), "real failure");
     }
     use crate::schema::{
-        CreateSessionRequest, InsertEventRequest, SessionDetail, UpsertProjectRequest,
+        CreateSessionRequest, InsertEventRequest, ProjectEvent, SessionDetail, UpsertProjectRequest,
     };
     use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
@@ -1192,6 +1237,63 @@ mod tests {
             missing, 1,
             "first user turn should get a missing-reply placeholder"
         );
+    }
+
+    #[test]
+    fn trace_event_skips_tool_call_input_block() {
+        let input = ProjectEvent {
+            id: "evt-input".into(),
+            project_id: "p".into(),
+            session_id: Some("s".into()),
+            task_id: None,
+            agent_id: None,
+            event_type: "tool_call_input".into(),
+            severity: "info".into(),
+            title: "Bash input".into(),
+            body: r#"{"command":"ls"}"#.into(),
+            payload: json!({ "turn": "1", "idx": "1", "name": "Bash" }),
+            occurred_at: "2026-01-01T00:00:01Z".into(),
+        };
+        assert!(trace_event_to_block(&input).is_none());
+
+        let start = ProjectEvent {
+            id: "evt-start".into(),
+            project_id: "p".into(),
+            session_id: Some("s".into()),
+            task_id: None,
+            agent_id: None,
+            event_type: "tool_call_start".into(),
+            severity: "info".into(),
+            title: "Bash started".into(),
+            body: String::new(),
+            payload: json!({ "turn": "1", "idx": "1", "name": "Bash", "command": "ls" }),
+            occurred_at: "2026-01-01T00:00:02Z".into(),
+        };
+        let block = trace_event_to_block(&start).expect("start block");
+        assert_eq!(block.block_type, "tool_call");
+        assert_eq!(block.meta["tool_key"], "1:1");
+        assert_eq!(block.meta["phase"], "start");
+    }
+
+    #[test]
+    fn trace_event_end_truncates_long_body() {
+        let long = "x".repeat(900);
+        let end = ProjectEvent {
+            id: "evt-end".into(),
+            project_id: "p".into(),
+            session_id: Some("s".into()),
+            task_id: None,
+            agent_id: None,
+            event_type: "tool_call_end".into(),
+            severity: "info".into(),
+            title: "Bash finished".into(),
+            body: long.clone(),
+            payload: json!({ "turn": "1", "idx": "1", "name": "Bash", "elapsed_ms": "12", "error": "<none>" }),
+            occurred_at: "2026-01-01T00:00:03Z".into(),
+        };
+        let block = trace_event_to_block(&end).expect("end block");
+        assert!(block.body.chars().count() <= TOOL_RESULT_PREVIEW_CHARS + 1);
+        assert_eq!(block.meta["duration_ms"], "12");
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -67,6 +67,7 @@ pub async fn try_llm_bodies(snap: &ReportSnapshot, output_format: &str) -> Resul
                 temperature: Some(0.2),
                 max_tokens: Some(8192),
                 api_key: Some(pc.api_key.clone()),
+                ..Default::default()
             },
         ),
     )

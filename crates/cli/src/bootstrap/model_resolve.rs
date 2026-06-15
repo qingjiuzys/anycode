@@ -37,5 +37,6 @@ pub(crate) fn resolve_model_profile(config: &Config, profile: &ModelProfile) -> 
         temperature: resolved_temperature,
         max_tokens: resolved_max_tokens,
         api_key,
+        ..Default::default()
     }
 }

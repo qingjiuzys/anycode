@@ -16,6 +16,7 @@ async fn test_general_purpose_agent() {
         temperature: Some(0.7),
         max_tokens: Some(4096),
         api_key: None,
+        ..Default::default()
     };
 
     let agent = GeneralPurposeAgent::new(config);

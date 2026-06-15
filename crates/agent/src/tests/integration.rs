@@ -60,6 +60,7 @@ async fn test_agent_runtime_tool_loop_injects_tool_result_message() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -191,6 +192,7 @@ async fn execute_task_cooperative_cancel_before_first_llm() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -298,6 +300,7 @@ async fn execute_task_cooperative_cancel_after_tool() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -391,6 +394,7 @@ async fn execute_task_in_flight_llm_cooperative_cancel() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -477,6 +481,7 @@ async fn execute_turn_from_messages_in_flight_stream_cooperative_cancel() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -572,6 +577,7 @@ async fn execute_turn_from_messages_in_flight_chat_cooperative_cancel() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -681,6 +687,7 @@ async fn test_execute_turn_from_messages_returns_final_text_and_injects_tool_res
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -805,6 +812,7 @@ async fn test_execute_turn_summary_receipt_appends_assistant_to_messages() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -955,6 +963,7 @@ async fn test_security_denied_bash_skips_execute_and_logs_tool_denied() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1117,6 +1126,7 @@ async fn test_security_denied_filewrite_silent_approval_skips_execute() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1252,6 +1262,7 @@ async fn test_tool_result_truncation_is_logged() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1382,6 +1393,7 @@ async fn test_filewrite_artifact_is_returned() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1555,6 +1567,7 @@ async fn execute_task_pipeline_hooks_ingest_tool_and_turn_fragments() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1642,6 +1655,7 @@ async fn execute_turn_streaming_sets_non_zero_max_input_tokens() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1716,6 +1730,7 @@ async fn execute_turn_streaming_prefers_usage_event_input_tokens() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,
@@ -1791,6 +1806,7 @@ async fn execute_task_success_triggers_memory_autosave_when_enabled() {
                 temperature: None,
                 max_tokens: None,
                 api_key: None,
+                ..Default::default()
             },
             model_overrides: HashMap::new(),
             failover_policy: None,

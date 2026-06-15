@@ -3,7 +3,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ids::ToolName;
+use crate::llm_retry_observer::LlmRetryObserver;
 use crate::message::Message;
+use crate::query_source::QuerySource;
+use std::sync::Arc;
 
 /// LLM 提供商
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -26,6 +29,27 @@ pub struct ModelConfig {
     /// 按路由覆盖时使用；`None` 表示使用对应 LLM 客户端构造时的默认密钥。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    /// Retry/backoff tier for this request (defaults to foreground main turn).
+    #[serde(default)]
+    pub query_source: QuerySource,
+    /// Per-request retry observer (runtime only; not serialized).
+    #[serde(default, skip_serializing, skip_deserializing)]
+    pub retry_observer: Option<Arc<dyn LlmRetryObserver>>,
+}
+
+impl Default for ModelConfig {
+    fn default() -> Self {
+        Self {
+            provider: LLMProvider::Anthropic,
+            model: String::new(),
+            base_url: None,
+            temperature: None,
+            max_tokens: None,
+            api_key: None,
+            query_source: QuerySource::default(),
+            retry_observer: None,
+        }
+    }
 }
 
 /// 权限模式（交互审批之上的一层快捷策略）

@@ -190,6 +190,34 @@ impl ExecutionTraceEvent {
                 "",
                 payload,
             )),
+            "session_keepalive" => Some(Self::new(
+                tag,
+                "info",
+                "Session keepalive".to_string(),
+                "",
+                payload,
+            )),
+            "session_state_changed" => Some(Self::new(
+                tag,
+                "info",
+                format!("Session state: {}", field("state")),
+                "",
+                payload,
+            )),
+            "api_retry" => Some(Self::new(
+                tag,
+                "warn",
+                format!("API retry attempt {}", field("attempt")),
+                "",
+                payload,
+            )),
+            "turn_error" | "tool_synthetic_result" => Some(Self::new(
+                tag,
+                "warn",
+                tag.replace('_', " "),
+                kv.trim(),
+                payload,
+            )),
             _ => None,
         }
     }

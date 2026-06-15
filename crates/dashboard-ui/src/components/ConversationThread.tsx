@@ -142,12 +142,16 @@ export function ConversationThread({
   showHeader = true,
   sseLive = false,
   toolbarStart,
+  selectedToolId,
+  onSelectTool,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
   showHeader?: boolean;
   sseLive?: boolean;
   toolbarStart?: ReactNode;
+  selectedToolId?: string | null;
+  onSelectTool?: (tool: import("@/api/types").TranscriptBlock) => void;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -250,13 +254,15 @@ export function ConversationThread({
       )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
-        <div className="px-4 py-6 max-w-3xl mx-auto w-full">
+        <div className="px-3 py-4 max-w-4xl mx-auto w-full">
           <ConversationTranscript
             sessionId={session.id}
             isRunning={running}
             sseLive={sseLive}
             scrollContainerRef={scrollRef}
             promptPreview={session.prompt_preview}
+            selectedToolId={selectedToolId}
+            onSelectTool={onSelectTool}
           />
         </div>
       </div>

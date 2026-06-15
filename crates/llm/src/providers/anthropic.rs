@@ -1,4 +1,9 @@
 use super::anthropic_stream::AnthropicSseStreamState;
+use crate::http_retry::{
+    evaluate_http_retry, evaluate_network_retry, retry_after_header_ms, retry_exhausted_error,
+    sleep_retry_delay,
+};
+use crate::retry_strategy::ProviderRetryConfig;
 use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
@@ -65,10 +70,16 @@ impl LLMClient for AnthropicClient {
             .filter(|s| !s.is_empty())
             .unwrap_or(self.api_key.as_str());
         const MAX_RETRIES: u32 = 8;
+        let provider_cfg = ProviderRetryConfig::anthropic();
+        let source = config.query_source;
+        let model = config.model.clone();
+        let observer = config.retry_observer.as_deref();
         let mut attempt: u32 = 0;
+        let mut consecutive_overload = 0u32;
+        let mut last_err = String::new();
         loop {
             attempt += 1;
-            let response = self
+            let response = match self
                 .client
                 .post(&base_url)
                 .header("x-api-key", auth_key)
@@ -76,7 +87,18 @@ impl LLMClient for AnthropicClient {
                 .json(&request)
                 .send()
                 .await
-                .map_err(|e| CoreError::LLMError(e.to_string()))?;
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_err = e.to_string();
+                    let out = evaluate_network_retry(&provider_cfg, source, attempt);
+                    if out.should_retry && attempt <= MAX_RETRIES {
+                        sleep_retry_delay(out.delay, attempt, &model, source, observer).await;
+                        continue;
+                    }
+                    return Err(retry_exhausted_error("Anthropic", &last_err));
+                }
+            };
 
             let status = response.status();
             if status.is_success() {
@@ -87,23 +109,24 @@ impl LLMClient for AnthropicClient {
                 return Ok(convert_response(anthropic_response));
             }
 
-            let retry_after_ms = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.parse::<u64>().ok())
-                .map(|s| s.saturating_mul(1000));
-
+            let retry_after_ms = retry_after_header_ms(response.headers());
             let error_text = response.text().await.unwrap_or_default();
-            if attempt <= MAX_RETRIES && super::zai::is_retryable_status(status) {
-                let delay = retry_after_ms.unwrap_or_else(|| super::zai::retry_delay_ms(attempt));
-                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+            last_err = format!("API error: {status} - {error_text}");
+            let out = evaluate_http_retry(
+                &provider_cfg,
+                source,
+                status,
+                &error_text,
+                attempt,
+                consecutive_overload,
+                retry_after_ms,
+            );
+            consecutive_overload = out.consecutive_overload;
+            if out.should_retry && attempt <= MAX_RETRIES {
+                sleep_retry_delay(out.delay, attempt, &model, source, observer).await;
                 continue;
             }
-            return Err(CoreError::LLMError(format!(
-                "API error: {} - {}",
-                status, error_text
-            )));
+            return Err(CoreError::LLMError(last_err));
         }
     }
 

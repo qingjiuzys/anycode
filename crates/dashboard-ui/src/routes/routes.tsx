@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { Layout } from "@/components/Layout";
 import type { SettingsSection } from "@/components/settings/SettingsNav";
+import type { ServiceSection } from "@/components/service/ServiceNav";
 import { api } from "@/api/client";
 import {
   conversationSearchParams,
@@ -30,6 +31,7 @@ import {
   ReportsPage,
   SessionDetailPage,
   SettingsPage,
+  ServicePage,
   SetupWizardPage,
   SkillDetailPage,
 } from "@/routes/lazyPages";
@@ -298,6 +300,26 @@ export const auditRoute = createRoute({
   ),
 });
 
+export const accountRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/account",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { section?: ServiceSection } => {
+    const section = search.section;
+    const valid = ["plan", "usage", "billing", "api", "enterprise"] as const;
+    if (typeof section === "string" && (valid as readonly string[]).includes(section)) {
+      return { section: section as ServiceSection };
+    }
+    return {};
+  },
+  component: () => (
+    <Page>
+      <ServicePage />
+    </Page>
+  ),
+});
+
 export const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/settings",
@@ -348,6 +370,7 @@ export const routeTree = rootRoute.addChildren([
     skillDetailRoute,
     reportsRoute,
     auditRoute,
+    accountRoute,
     settingsRoute,
   ]),
 ]);
