@@ -134,9 +134,51 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
     let _ = w.set_focus();
 }
 
+fn handle_anycode_deep_link(app: &tauri::AppHandle, url: &Url) {
+    if url.scheme() != "anycode" {
+        return;
+    }
+    let Some(code) = url
+        .query_pairs()
+        .find(|(k, _)| k == "code")
+        .map(|(_, v)| v.into_owned())
+    else {
+        return;
+    };
+    let program = resolve_anycode_program(app);
+    let _ = Command::new(&program)
+        .args(["auth", "link", "--code", &code])
+        .spawn();
+}
+
+fn register_deep_link_handlers(app: &tauri::AppHandle) {
+    use tauri_plugin_deep_link::DeepLinkExt;
+
+    #[cfg(any(windows, target_os = "linux"))]
+    {
+        if let Err(e) = app.deep_link().register_all() {
+            eprintln!("anycode-desktop: deep link register_all failed: {e}");
+        }
+    }
+
+    let handle = app.clone();
+    app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+            handle_anycode_deep_link(&handle, &url);
+        }
+    });
+
+    if let Ok(Some(urls)) = app.deep_link().get_current() {
+        for url in urls {
+            handle_anycode_deep_link(app, &url);
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             apple_media::apple_media_capabilities,
             apple_media::apple_media_transcribe,
@@ -147,6 +189,8 @@ fn main() {
         ])
         .manage(SidecarState(Mutex::new(Vec::new())))
         .setup(|app| {
+            register_deep_link_handlers(app.handle());
+
             let program = resolve_anycode_program(app.handle());
             eprintln!(
                 "anycode-desktop: using anycode binary {}",
@@ -215,19 +259,8 @@ fn main() {
         .expect("error while running anycode desktop")
         .run(|app, event| {
             if let RunEvent::Opened { urls } = &event {
-                let program = resolve_anycode_program(app);
                 for url in urls {
-                    if url.scheme() == "anycode" {
-                        if let Some(code) = url
-                            .query_pairs()
-                            .find(|(k, _)| k == "code")
-                            .map(|(_, v)| v.into_owned())
-                        {
-                            let _ = Command::new(&program)
-                                .args(["auth", "link", "--code", &code])
-                                .spawn();
-                        }
-                    }
+                    handle_anycode_deep_link(app, url);
                 }
             }
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {

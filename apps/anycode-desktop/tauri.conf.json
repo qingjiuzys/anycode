@@ -53,5 +53,11 @@
       "signingIdentity": "-"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["anycode"]
+      }
+    }
+  }
 }
