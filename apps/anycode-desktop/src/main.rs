@@ -105,20 +105,45 @@ fn stop_sidecars(state: &SidecarState) {
     }
 }
 
-fn dashboard_ready() -> bool {
-    std::net::TcpStream::connect("127.0.0.1:43180").is_ok()
+fn dashboard_http_ready() -> bool {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    let Ok(mut stream) = TcpStream::connect("127.0.0.1:43180") else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+    if stream
+        .write_all(b"GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:43180\r\nConnection: close\r\n\r\n")
+        .is_err()
+    {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    let Ok(n) = stream.read(&mut buf) else {
+        return false;
+    };
+    let resp = String::from_utf8_lossy(&buf[..n]);
+    resp.contains("200") && resp.contains("\"ok\":true")
 }
 
-fn wait_for_dashboard_port(timeout_secs: u64) -> bool {
+fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
     while Instant::now() < deadline {
-        if dashboard_ready() {
+        if dashboard_http_ready() {
             return true;
         }
         std::thread::sleep(Duration::from_millis(400));
     }
-    eprintln!("anycode-desktop: dashboard port 43180 not ready after {timeout_secs}s");
+    eprintln!("anycode-desktop: dashboard not HTTP-ready after {timeout_secs}s");
     false
+}
+
+fn navigate_workbench(w: &tauri::WebviewWindow) -> bool {
+    Url::parse(DASHBOARD_URL)
+        .ok()
+        .and_then(|url| w.navigate(url).ok())
+        .is_some()
 }
 
 fn show_workbench(app: &tauri::AppHandle, ready: bool) {
@@ -126,9 +151,13 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
         return;
     };
     if ready {
-        if let Ok(url) = Url::parse(DASHBOARD_URL) {
-            let _ = w.navigate(url);
+        if !navigate_workbench(&w) {
+            let _ = w.eval("window.location.replace('http://127.0.0.1:43180/');");
         }
+    } else {
+        let _ = w.eval(
+            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 16px">本地 dashboard 服务未在 43180 端口就绪。</p><p style="color:#71717a;font-size:13px;margin:0">可在终端运行：<code>anycode dashboard --open</code></p></div></div>';"#,
+        );
     }
     let _ = w.show();
     let _ = w.set_focus();
@@ -200,11 +229,14 @@ fn main() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let mut children = Vec::new();
-                let dashboard_ok = if let Some(c) =
-                    spawn_sidecar("anycode dashboard", &program, &["dashboard"], &handle)
-                {
+                let dashboard_ok = if let Some(c) = spawn_sidecar(
+                    "anycode dashboard",
+                    &program,
+                    &["dashboard", "--host", "127.0.0.1", "--port", "43180"],
+                    &handle,
+                ) {
                     children.push(c);
-                    wait_for_dashboard_port(60)
+                    wait_for_dashboard_ready(90)
                 } else {
                     false
                 };
@@ -238,7 +270,7 @@ fn main() {
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => show_workbench(app, dashboard_ready()),
+                    "open" => show_workbench(app, dashboard_http_ready()),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -249,7 +281,7 @@ fn main() {
                         ..
                     } = event
                     {
-                        show_workbench(tray.app_handle(), dashboard_ready());
+                        show_workbench(tray.app_handle(), dashboard_http_ready());
                     }
                 })
                 .build(app)?;
