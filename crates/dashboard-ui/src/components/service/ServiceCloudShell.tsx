@@ -6,7 +6,7 @@ import { useT } from "@/i18n/context";
 
 export function ServiceCloudShell({ children }: { children: ReactNode }) {
   const t = useT();
-  const { configured, authenticated, loading, user, logout, openPortalLogin } = useAccountCloud();
+  const { configured, authenticated, loading } = useAccountCloud();
 
   if (!configured) {
     return <ServiceNotConfigured />;
@@ -20,23 +20,5 @@ export function ServiceCloudShell({ children }: { children: ReactNode }) {
     return <ServiceCloudLogin />;
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-secondary">
-          {t("service.cloud.signedInAs")}{" "}
-          <span className="text-on-surface font-medium">{user?.email}</span>
-        </span>
-        <div className="flex gap-2">
-          <button type="button" className="dw-btn-ghost text-sm" onClick={() => openPortalLogin("/plans")}>
-            {t("service.cloud.manageInPortal")}
-          </button>
-          <button type="button" className="dw-btn-ghost text-sm" onClick={() => void logout()}>
-            {t("service.cloud.signOutCloud")}
-          </button>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }

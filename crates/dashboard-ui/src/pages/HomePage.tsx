@@ -7,8 +7,9 @@ import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { usePendingApprovalCounts } from "@/components/SecurityApprovalInbox";
 import { useSseStatus } from "@/context/SseContext";
 import { useT } from "@/i18n/context";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
-export function HomePage() {
+export function HomePage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const sseStatus = useSseStatus();
   const [newProjectOpen, setNewProjectOpen] = useState(false);

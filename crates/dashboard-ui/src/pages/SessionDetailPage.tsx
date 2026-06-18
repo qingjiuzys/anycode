@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useParams, useNavigate, useSearch } from "@tanstack/react-router";
 import { api } from "@/api/client";
-import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
-import { ConversationThread } from "@/components/ConversationThread";
-import { ConversationWorkbenchSidebar } from "@/components/workbench/ConversationWorkbenchSidebar";
 import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { EventTimeline } from "@/components/EventTimeline";
 import { GateStatusBar } from "@/components/GateStatusBar";
@@ -21,21 +18,21 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useSessionEventStream } from "@/hooks/useSessionEventStream";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch, sessionDetailSearch } from "@/lib/sessionLinks";
 
 const SEVERITIES = ["info", "warn", "error"] as const;
 const TOOL_CALL_FILTER = "tool_call_end";
-type SessionTab = "chat" | "debug" | "audit";
+type SessionTab = "debug" | "audit";
 
 export function SessionDetailPage() {
   const t = useT();
+  const navigate = useNavigate();
   const { sessionId } = useParams({ from: "/_shell/sessions/$sessionId" });
-  const [tab, setTab] = useState<SessionTab>("chat");
+  const { tab: tabSearch } = useSearch({ from: "/_shell/sessions/$sessionId" });
+  const tab: SessionTab = tabSearch === "audit" ? "audit" : "debug";
   const [eventFilter, setEventFilter] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string | null>(null);
   const [eventSearch, setEventSearch] = useState("");
-  const [selectedTool, setSelectedTool] = useState<import("@/api/types").TranscriptBlock | null>(
-    null,
-  );
   const sseLive = useSessionEventStream(sessionId, "detail");
   const queryClient = useQueryClient();
   const ackBlock = useMutation({
@@ -115,7 +112,14 @@ export function SessionDetailPage() {
     (s?.status === "failed" ? s?.summary?.trim() : "") ||
     null;
 
-  const sessionForThread = s ? toSessionWithProject(s) : null;
+  const setTab = (next: SessionTab) => {
+    void navigate({
+      to: "/sessions/$sessionId",
+      params: { sessionId },
+      search: sessionDetailSearch(next),
+      replace: true,
+    });
+  };
 
   return (
     <>
@@ -183,7 +187,7 @@ export function SessionDetailPage() {
       />
 
       <div className="flex flex-wrap gap-2 mb-4">
-        {(["chat", "debug", "audit"] as const).map((id) => (
+        {(["debug", "audit"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -195,7 +199,7 @@ export function SessionDetailPage() {
         ))}
         <Link
           to="/conversations"
-          search={{ session: sessionId, project: s?.project_id }}
+          search={sessionChatSearch(sessionId, s?.project_id)}
           className="dw-btn-ghost text-xs no-underline ml-auto"
         >
           {t("session.openInConversations")}
@@ -232,28 +236,6 @@ export function SessionDetailPage() {
                 : t("session.acknowledgeBlock")}
             </button>
           )}
-        </div>
-      )}
-
-      {tab === "chat" && sessionForThread && (
-        <div className="border border-outline-variant rounded-lg overflow-hidden bg-surface-container-lowest min-h-[min(720px,calc(100vh-14rem))] flex min-h-0">
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-            <ConversationThread
-              session={sessionForThread}
-              showHeader={false}
-              sseLive={sseLive}
-              selectedToolId={selectedTool?.id ?? null}
-              onSelectTool={setSelectedTool}
-            />
-          </div>
-          <ConversationWorkbenchSidebar
-            projectId={sessionForThread.project_id}
-            sessionId={sessionId}
-            live={sseLive}
-            isRunning={s?.status === "running"}
-            selectedTool={selectedTool}
-            onSelectTool={setSelectedTool}
-          />
         </div>
       )}
 
@@ -498,26 +480,6 @@ export function SessionDetailPage() {
       )}
     </>
   );
-}
-
-function toSessionWithProject(s: SessionDetail): SessionWithProject {
-  return {
-    id: s.id,
-    project_id: s.project_id,
-    project_name: s.project_name,
-    kind: s.kind,
-    task_id: s.task_id,
-    title: s.title,
-    prompt_preview: s.prompt_preview,
-    status: s.status,
-    trusted_status: s.trusted_status,
-    agent_type: s.agent_type,
-    model: s.model,
-    started_at: s.started_at,
-    ended_at: s.ended_at,
-    block_reason: s.block_reason,
-    block_kind: s.block_kind,
-  };
 }
 
 function parseMeta(raw?: string): {

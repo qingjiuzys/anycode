@@ -47,6 +47,27 @@ pub(super) async fn apply_quick_auth_choice(
     existing: &Option<AnyCodeConfig>,
     choice: AuthChoice,
 ) -> anyhow::Result<()> {
+    if choice.device_auth {
+        println!("已选择：{} ({})", choice.label, choice.id);
+        println!("请运行 `anycode auth login` 并在浏览器完成设备关联。");
+        if crate::commands::cloud_auth::read_cloud_session().is_none() {
+            crate::commands::cloud_auth::run_auth_login().await?;
+        }
+        save_merged_config(
+            config_file,
+            existing,
+            choice.provider,
+            choice.plan,
+            choice.default_model,
+            "",
+            None,
+        )?;
+        let mut sa = FluentArgs::new();
+        sa.set("path", path.display().to_string());
+        println!("✅ {}", tr_args("wizard-saved", &sa));
+        return Ok(());
+    }
+
     let existing_key = existing
         .as_ref()
         .filter(|c| normalize_provider_id(&c.provider) == normalize_provider_id(choice.provider))
@@ -353,6 +374,32 @@ pub(super) async fn run_global_provider_flow(
             return Ok(GlobalProviderFlowResult::Finished);
         }
 
+        if id == "anycode_cloud" {
+            println!("anyCode Cloud 使用设备登录，无需 API Key。");
+            if crate::commands::cloud_auth::read_cloud_session().is_none() {
+                crate::commands::cloud_auth::run_auth_login().await?;
+            }
+            let model = existing
+                .as_ref()
+                .filter(|c| normalize_provider_id(&c.provider) == "anycode_cloud")
+                .map(|c| c.model.clone())
+                .filter(|m| !m.trim().is_empty())
+                .unwrap_or_else(|| "agnes-chat".to_string());
+            save_merged_config(
+                config_file.clone(),
+                &existing,
+                "anycode_cloud",
+                "cloud",
+                &model,
+                "",
+                None,
+            )?;
+            let mut sa = FluentArgs::new();
+            sa.set("path", path.display().to_string());
+            println!("✅ {}", tr_args("wizard-saved", &sa));
+            return Ok(GlobalProviderFlowResult::Finished);
+        }
+
         if transport_for_provider_id(&id) == LlmTransport::GithubCopilot {
             let model: String = if is_tty {
                 Input::with_theme(&ColorfulTheme::default())
@@ -442,6 +489,7 @@ pub(super) async fn run_global_provider_flow(
 
 pub(super) fn provider_default_model(provider: &str) -> &'static str {
     match provider {
+        "anycode_cloud" => "agnes-chat",
         "deepseek" => "deepseek-v4-pro",
         "anthropic" => "claude-sonnet-4-20250514",
         "google" => "gemini-2.5-pro",

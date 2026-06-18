@@ -39,6 +39,42 @@ pub async fn list_cron_runs(
     }
 }
 
+pub async fn delete_cron_job(
+    axum::extract::Path(job_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let job_id = job_id.trim();
+    if job_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "job id is required" })),
+        )
+            .into_response();
+    }
+    let path = match cron_ledger::orchestration_path() {
+        Some(p) => p,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "could not resolve orchestration path" })),
+            )
+                .into_response();
+        }
+    };
+    match anycode_tools::remove_cron_job_from_orchestration_file(&path, job_id) {
+        Ok(true) => Json(json!({ "ok": true, "job_id": job_id })).into_response(),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "cron job not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn list_cron_jobs(State(_state): State<AppState>) -> impl IntoResponse {
     match cron_ledger::read_cron_jobs(None) {
         Ok(jobs) => {
@@ -110,7 +146,8 @@ pub async fn retry_cron_job(
         )
             .into_response();
     };
-    let project_id = match resolve_cron_retry_project(&state, body.project_id.as_deref()).await {
+    let preferred_project = body.project_id.as_deref().or(job.project_id.as_deref());
+    let project_id = match resolve_cron_retry_project(&state, preferred_project).await {
         Ok(id) => id,
         Err(e) => {
             return (

@@ -1,16 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
-export function ArtifactDetailPage() {
+export function ArtifactDetailPage({ embedded, artifactId: embeddedArtifactId }: EmbeddedPageProps = {}) {
+  if (embedded) {
+    if (!embeddedArtifactId) return <ArtifactDetailMissing />;
+    return <ArtifactDetailInner artifactId={embeddedArtifactId} />;
+  }
+  return <ArtifactDetailRouted />;
+}
+
+function ArtifactDetailRouted() {
+  const { artifactId } = useParams({ from: "/_shell/assets/$artifactId" });
+  return <ArtifactDetailInner artifactId={artifactId} />;
+}
+
+function ArtifactDetailMissing() {
+  const t = useT();
+  return <div className="dw-alert-error">{t("artifactDetail.notFound")}</div>;
+}
+
+function ArtifactDetailInner({ artifactId }: { artifactId: string }) {
   const t = useT();
   const queryClient = useQueryClient();
-  const { artifactId } = useParams({ from: "/_shell/assets/$artifactId" });
   const detail = useQuery({
     queryKey: ["asset", artifactId],
     queryFn: () => api.assetDetail(artifactId),
@@ -147,12 +167,12 @@ export function ArtifactDetailPage() {
                 <dt className="text-secondary font-medium m-0">{t("assets.project")}</dt>
                 <dd className="m-0">
                   {asset.project_id && (
-                    <Link
+                    <ControlCenterLink
                       to="/projects/$projectId"
                       params={{ projectId: asset.project_id }}
                     >
                       {asset.project_name}
-                    </Link>
+                    </ControlCenterLink>
                   )}
                 </dd>
               </>
@@ -162,8 +182,8 @@ export function ArtifactDetailPage() {
                 <dt className="text-secondary font-medium m-0">{t("audit.session")}</dt>
                 <dd className="m-0">
                   <Link
-                    to="/sessions/$sessionId"
-                    params={{ sessionId: asset.session_id }}
+                    to="/conversations"
+                    search={sessionChatSearch(asset.session_id, asset.project_id ?? undefined)}
                     className="font-code text-xs"
                   >
                     {asset.session_id}

@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { useMemo, useState } from "react";
 import type { SkillRecord } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
@@ -264,7 +264,7 @@ function SkillRow({
 
   return (
     <li>
-      <Link to="/agents/$skillId" params={{ skillId: skill.id }} className="dw-agents-skill-row">
+      <ControlCenterLink to="/agents/$skillId" params={{ skillId: skill.id }} className="dw-agents-skill-row">
         <span className="dw-agents-skill-row__icon">
           <Icon name="extension" size={18} />
         </span>
@@ -283,7 +283,7 @@ function SkillRow({
           </span>
           <Icon name="chevron_right" size={18} className="text-outline" />
         </span>
-      </Link>
+      </ControlCenterLink>
     </li>
   );
 }

@@ -65,6 +65,10 @@ pub async fn poll_device_link(device_code: &str) -> Result<CloudSession> {
             continue;
         }
         let v: serde_json::Value = resp.error_for_status()?.json().await?;
+        let gw = v["gateway_url"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(gateway_url);
         let session = CloudSession {
             access_token: v["access_token"]
                 .as_str()
@@ -75,7 +79,7 @@ pub async fn poll_device_link(device_code: &str) -> Result<CloudSession> {
                 .context("missing refresh_token")?
                 .to_string(),
             user_email: v["user"]["email"].as_str().map(|s| s.to_string()),
-            gateway_url: Some(gateway_url()),
+            gateway_url: Some(gw),
         };
         write_cloud_session(&session)?;
         return Ok(session);

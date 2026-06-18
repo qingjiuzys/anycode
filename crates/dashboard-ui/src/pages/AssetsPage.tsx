@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { api } from "@/api/client";
 import type { AssetItem } from "@/api/types/artifacts";
 import { EmptyState } from "@/components/EmptyState";
@@ -9,6 +10,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { downloadCsv } from "@/utils/exportCsv";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 type TrustFilter = "all" | "unverified" | "blocked";
 type AssetKindFilter =
@@ -22,10 +25,30 @@ type AssetKindFilter =
 type SourceFilter = "" | "agent_created" | "workspace_scan" | "report_archive" | "skill_scan" | "workflow_scan";
 type ReuseFilter = "" | "candidate" | "reusable" | "archived";
 
-export function AssetsPage() {
+export function AssetsPage({ embedded, initialSearch }: EmbeddedPageProps = {}) {
+  if (embedded) {
+    const trust = initialSearch?.trust;
+    return (
+      <AssetsPageInner
+        trustSearch={trust === "unverified" || trust === "blocked" ? trust : undefined}
+      />
+    );
+  }
+  return <AssetsPageRouted />;
+}
+
+function AssetsPageRouted() {
+  const { trust: trustSearch } = useSearch({ from: "/_shell/assets" });
+  return <AssetsPageInner trustSearch={trustSearch} />;
+}
+
+function AssetsPageInner({
+  trustSearch,
+}: {
+  trustSearch?: "unverified" | "blocked";
+}) {
   const t = useT();
   const queryClient = useQueryClient();
-  const { trust: trustSearch } = useSearch({ from: "/_shell/assets" });
   const projects = useQuery({
     queryKey: ["projects"],
     queryFn: () => api.projects({ limit: 500 }),
@@ -249,8 +272,8 @@ export function AssetsPage() {
                     <td>
                       {a.session_id ? (
                         <Link
-                          to="/sessions/$sessionId"
-                          params={{ sessionId: a.session_id }}
+                          to="/conversations"
+                          search={sessionChatSearch(a.session_id, projectId || undefined)}
                           className="inline-flex items-center gap-1 no-underline hover:underline"
                         >
                           {t("assets.view")}
@@ -281,35 +304,35 @@ function AssetLink({ asset }: { asset: AssetItem }) {
   const t = useT();
   if (asset.asset_kind === "report") {
     return (
-      <Link
+      <ControlCenterLink
         to="/reports"
         search={{ artifact_id: asset.backend_id }}
         className="font-code text-xs no-underline hover:underline"
       >
         {asset.title}
-      </Link>
+      </ControlCenterLink>
     );
   }
   if (asset.backend_type === "skill") {
     return (
-      <Link
+      <ControlCenterLink
         to="/assets/$artifactId"
         params={{ artifactId: asset.id }}
         className="font-code text-xs no-underline hover:underline"
       >
         {asset.title}
-      </Link>
+      </ControlCenterLink>
     );
   }
   return (
-    <Link
+    <ControlCenterLink
       to="/assets/$artifactId"
       params={{ artifactId: asset.id }}
       className="font-code text-xs no-underline hover:underline"
       title={asset.path ?? asset.subtitle}
     >
       {asset.title || asset.path || t("assets.unnamed")}
-    </Link>
+    </ControlCenterLink>
   );
 }
 

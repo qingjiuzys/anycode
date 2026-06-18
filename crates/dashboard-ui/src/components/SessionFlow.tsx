@@ -11,6 +11,7 @@ import "reactflow/dist/style.css";
 import type { SessionSummary } from "@/api/types";
 import { formatSessionDisplayTitle, formatSessionFlowStatusLine, isImportedSessionTitle } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 interface Props {
   sessions: SessionSummary[];
@@ -76,7 +77,10 @@ export function SessionFlow({ sessions, limit = 8, hideImported = false, preview
       if (preview || node.id === "start") {
         return;
       }
-      void navigate({ to: "/sessions/$sessionId", params: { sessionId: node.id } });
+      void navigate({
+        to: "/conversations",
+        search: sessionChatSearch(node.id),
+      });
     },
     [navigate, preview],
   );

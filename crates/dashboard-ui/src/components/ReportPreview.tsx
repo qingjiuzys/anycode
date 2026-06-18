@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { useClipboard } from "@/hooks/useClipboard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 interface Props {
   report: ReportDocument | null;
@@ -196,8 +197,11 @@ export function ReportPreview({ report, loading }: Props) {
                         <tr key={row.session_id}>
                           <td>
                             <Link
-                              to="/sessions/$sessionId"
-                              params={{ sessionId: row.session_id }}
+                              to="/conversations"
+                              search={sessionChatSearch(
+                                row.session_id,
+                                report.project_id ?? undefined,
+                              )}
                               className="font-medium no-underline hover:underline"
                             >
                               {row.title}
@@ -243,8 +247,11 @@ export function ReportPreview({ report, loading }: Props) {
                     </span>
                     {g.session_id && (
                       <Link
-                        to="/sessions/$sessionId"
-                        params={{ sessionId: g.session_id }}
+                        to="/conversations"
+                        search={sessionChatSearch(
+                          g.session_id,
+                          report.project_id ?? undefined,
+                        )}
                         className="text-xs text-primary no-underline shrink-0"
                       >
                         {t("reports.viewSession")}

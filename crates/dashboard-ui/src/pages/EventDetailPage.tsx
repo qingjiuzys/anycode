@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 export function EventDetailPage() {
   const t = useT();
@@ -54,8 +55,8 @@ export function EventDetailPage() {
           <>
             <Icon name="chevron_right" size={14} className="text-outline" />
             <Link
-              to="/sessions/$sessionId"
-              params={{ sessionId: e.session_id }}
+              to="/conversations"
+              search={sessionChatSearch(e.session_id, e.project_id)}
               className="no-underline hover:underline"
             >
               {t("audit.session")}
@@ -96,8 +97,8 @@ export function EventDetailPage() {
               <dd className="m-0">
                 {e.session_id ? (
                   <Link
-                    to="/sessions/$sessionId"
-                    params={{ sessionId: e.session_id }}
+                    to="/conversations"
+                    search={sessionChatSearch(e.session_id, e.project_id)}
                     className="font-code text-xs"
                   >
                     {e.session_id}

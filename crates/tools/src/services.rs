@@ -1036,6 +1036,24 @@ pub fn append_cron_job_to_orchestration_file(
     Ok(job)
 }
 
+/// Remove a cron job from `~/.anycode/tasks/orchestration.json` (or `path`) by id.
+pub fn remove_cron_job_from_orchestration_file(path: &Path, id: &str) -> anyhow::Result<bool> {
+    if !path.is_file() {
+        return Ok(false);
+    }
+    let text = fs::read_to_string(path)?;
+    let mut snap = serde_json::from_str::<OrchestrationSnapshotV1>(&text)
+        .map_err(|e| anyhow::anyhow!("invalid orchestration JSON: {e}"))?;
+    let len = snap.crons.len();
+    snap.crons.retain(|c| c.id != id);
+    let removed = snap.crons.len() < len;
+    if removed {
+        let text = serde_json::to_string_pretty(&snap)?;
+        fs::write(path, text)?;
+    }
+    Ok(removed)
+}
+
 #[cfg(test)]
 mod orchestration_persist_tests {
     use super::*;
@@ -1110,6 +1128,24 @@ mod orchestration_persist_tests {
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].id, "j1");
         assert_eq!(jobs[0].command, "ping");
+    }
+
+    #[test]
+    fn remove_cron_job_from_orchestration_file_removes_by_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        fs::write(
+            &path,
+            r#"{"version":1,"crons":[{"id":"j1","schedule":"0 0 12 * * *","command":"ping"},{"id":"j2","schedule":"0 0 8 * * *","command":"pong"}]}"#,
+        )
+        .unwrap();
+        let removed = super::remove_cron_job_from_orchestration_file(&path, "j1").unwrap();
+        assert!(removed);
+        let jobs = super::read_cron_jobs_from_orchestration_file(&path).unwrap();
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].id, "j2");
+        let missing = super::remove_cron_job_from_orchestration_file(&path, "missing").unwrap();
+        assert!(!missing);
     }
 
     #[test]

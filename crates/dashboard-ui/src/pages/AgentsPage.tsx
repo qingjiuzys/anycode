@@ -15,6 +15,7 @@ import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { builtinAgentMeta } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 function isMockModel(model: string | null | undefined): boolean {
   const m = (model ?? "").trim().toLowerCase();
@@ -72,7 +73,7 @@ function formatShortTime(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function AgentsPage() {
+export function AgentsPage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const queryClient = useQueryClient();
   const stats = useQuery({

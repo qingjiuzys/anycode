@@ -202,6 +202,7 @@ pub fn router(state: AppState) -> Router {
             "/cron/jobs",
             get(handlers::list_cron_jobs).post(handlers::create_cron_job),
         )
+        .route("/cron/jobs/{job_id}", delete(handlers::delete_cron_job))
         .route("/cron/parse-schedule", post(handlers::parse_cron_schedule))
         .route("/cron/retry", post(handlers::retry_cron_job))
         .route("/cron/templates", get(handlers::list_automation_templates))

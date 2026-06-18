@@ -29,9 +29,11 @@ import { useSseStatus } from "@/context/SseContext";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
 import { useT } from "@/i18n/context";
 import { translateBootstrapStep } from "@/i18n/bootstrapTranslate";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
-export function OverviewPage() {
+export function OverviewPage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const sseStatus = useSseStatus();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -269,7 +271,10 @@ export function OverviewPage() {
                   <tr key={s.id}>
                     <td>{s.project_name}</td>
                     <td>
-                      <Link to="/sessions/$sessionId" params={{ sessionId: s.id }}>
+                      <Link
+                        to="/conversations"
+                        search={sessionChatSearch(s.id, s.project_id)}
+                      >
                         {s.title}
                         <PendingApprovalBadge sessionId={s.id} count={pendingCounts.get(s.id)} />
                       </Link>

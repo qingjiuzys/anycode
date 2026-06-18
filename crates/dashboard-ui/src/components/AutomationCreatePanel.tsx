@@ -261,10 +261,12 @@ export function AutomationCreateDialog({
   open,
   onClose,
   defaultProjectId,
+  onCreated,
 }: {
   open: boolean;
   onClose: () => void;
   defaultProjectId?: string;
+  onCreated?: () => void;
 }) {
   const t = useT();
   if (!open) return null;
@@ -284,7 +286,13 @@ export function AutomationCreateDialog({
             <Icon name="close" size={20} />
           </button>
         </div>
-        <AutomationCreateForm defaultProjectId={defaultProjectId} onCreated={onClose} />
+        <AutomationCreateForm
+          defaultProjectId={defaultProjectId}
+          onCreated={() => {
+            onCreated?.();
+            onClose();
+          }}
+        />
       </div>
     </ModalOverlay>
   );

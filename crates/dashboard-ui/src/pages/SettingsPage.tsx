@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { SettingsNav, type SettingsSection } from "@/components/settings/SettingsNav";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useT } from "@/i18n/context";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
 import { SettingsAuthSection } from "@/pages/settings/SettingsAuthSection";
 import { SettingsChannelsSection } from "@/pages/settings/SettingsChannelsSection";
@@ -34,22 +35,50 @@ function parseSettingsSection(raw: unknown): SettingsSection {
   if (typeof raw === "string" && VALID_SECTIONS.has(raw as SettingsSection)) {
     return raw as SettingsSection;
   }
-  return "auth";
+  return "prefs";
 }
 
-export function SettingsPage() {
+export function SettingsPage({ embedded, initialSearch }: EmbeddedPageProps = {}) {
+  if (embedded) {
+    return (
+      <SettingsPageInner
+        initialSection={parseSettingsSection(initialSearch?.section)}
+        syncUrl={false}
+      />
+    );
+  }
+  return <SettingsPageRouted />;
+}
+
+function SettingsPageRouted() {
+  const { section: sectionSearch } = useSearch({ from: "/_shell/settings" });
+  return <SettingsPageInner initialSection={sectionSearch} syncUrl />;
+}
+
+function SettingsPageInner({
+  initialSection,
+  syncUrl = true,
+}: {
+  initialSection?: SettingsSection;
+  syncUrl?: boolean;
+}) {
   const t = useT();
   const navigate = useNavigate();
-  const { section: sectionSearch } = useSearch({ from: "/_shell/settings" });
-  const [section, setSection] = useState<SettingsSection>(() => parseSettingsSection(sectionSearch));
+  const [section, setSection] = useState<SettingsSection>(() =>
+    parseSettingsSection(initialSection),
+  );
 
   useEffect(() => {
-    setSection(parseSettingsSection(sectionSearch));
-  }, [sectionSearch]);
+    if (initialSection !== undefined) {
+      setSection(parseSettingsSection(initialSection));
+    }
+  }, [initialSection]);
 
   const onSectionChange = (next: SettingsSection) => {
     setSection(next);
-    navigate({ to: "/settings", search: { section: next }, replace: true });
+    if (syncUrl) {
+      navigate({ to: "/settings", search: { section: next }, replace: true });
+    }
   };
 
   return (

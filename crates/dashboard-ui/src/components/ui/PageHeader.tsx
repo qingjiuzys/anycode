@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { Icon } from "@/components/Icon";
 
 export type BreadcrumbItem = { label: string; to?: string };
@@ -28,9 +28,9 @@ export function PageHeader({
             <span key={`${item.label}-${i}`} className="inline-flex items-center gap-1">
               {i > 0 && <Icon name="chevron_right" size={14} className="text-outline" />}
               {item.to ? (
-                <Link to={item.to} className="no-underline hover:underline">
+                <ControlCenterLink to={item.to} className="no-underline hover:underline">
                   {item.label}
-                </Link>
+                </ControlCenterLink>
               ) : (
                 <span className="text-on-surface-variant">{item.label}</span>
               )}

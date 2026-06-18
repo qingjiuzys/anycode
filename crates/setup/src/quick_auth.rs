@@ -11,10 +11,22 @@ pub struct QuickAuthChoice {
     pub default_model: &'static str,
     pub base_url: &'static str,
     pub key_envs: &'static [&'static str],
+    /// Device-link auth (no API key prompt).
+    pub device_auth: bool,
 }
 
 /// Single source of truth for quick-auth presets (CLI + Dashboard).
 pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
+    QuickAuthChoice {
+        id: "anycode-cloud",
+        label: "anyCode Cloud (Agnes hosted)",
+        provider: "anycode_cloud",
+        plan: "cloud",
+        default_model: "agnes-chat",
+        base_url: "",
+        key_envs: &[],
+        device_auth: true,
+    },
     QuickAuthChoice {
         id: "zai-coding",
         label: "z.ai Coding Plan — Global (api.z.ai)",
@@ -23,6 +35,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "glm-5",
         base_url: "https://api.z.ai/api/coding/paas/v4/chat/completions",
         key_envs: &["ZAI_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "zai-coding-cn",
@@ -32,6 +45,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "glm-5",
         base_url: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
         key_envs: &["ZAI_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "zai-general",
@@ -41,6 +55,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "glm-5",
         base_url: "https://api.z.ai/api/paas/v4/chat/completions",
         key_envs: &["ZAI_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "deepseek-api-key",
@@ -50,6 +65,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "deepseek-v4-pro",
         base_url: "https://api.deepseek.com/chat/completions",
         key_envs: &["DEEPSEEK_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "gemini-api-key",
@@ -59,6 +75,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "gemini-2.5-pro",
         base_url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         key_envs: &["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "qwen-api-key",
@@ -68,6 +85,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "qwen3-coder-plus",
         base_url: "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
         key_envs: &["QWEN_API_KEY", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "qwen-api-key-cn",
@@ -77,6 +95,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "qwen3-coder-plus",
         base_url: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
         key_envs: &["QWEN_API_KEY", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "anthropic-api-key",
@@ -86,6 +105,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "claude-sonnet-4-20250514",
         base_url: "https://api.anthropic.com/v1/messages",
         key_envs: &["ANTHROPIC_API_KEY"],
+        device_auth: false,
     },
     QuickAuthChoice {
         id: "openai-api-key",
@@ -95,6 +115,7 @@ pub const QUICK_AUTH_CHOICES: &[QuickAuthChoice] = &[
         default_model: "gpt-4.1",
         base_url: "https://api.openai.com/v1/chat/completions",
         key_envs: &["OPENAI_API_KEY"],
+        device_auth: false,
     },
 ];
 
@@ -110,6 +131,7 @@ pub fn quick_auth_presets() -> Value {
                 "default_model": c.default_model,
                 "base_url": c.base_url,
                 "key_envs": c.key_envs,
+                "device_auth": c.device_auth,
             })
         })
         .collect();

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { downloadCsv } from "@/utils/exportCsv";
 import { useT } from "@/i18n/context";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 const RISKS = ["", "low", "medium", "high", "critical"] as const;
 
@@ -46,7 +47,7 @@ function exportAudit(
   ]);
 }
 
-export function AuditPage() {
+export function AuditPage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const [projectId, setProjectId] = useState("");
   const [action, setAction] = useState("");

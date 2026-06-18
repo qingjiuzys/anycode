@@ -5,6 +5,7 @@ import type { TranscriptBlock } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { ToolDetailPanel } from "@/components/TranscriptToolBlock";
 import { useT } from "@/i18n/context";
+import { sessionDetailSearch } from "@/lib/sessionLinks";
 
 type Props = {
   sessionId: string;
@@ -83,6 +84,7 @@ export function TracePanel({
         <Link
           to="/sessions/$sessionId"
           params={{ sessionId }}
+          search={sessionDetailSearch("debug")}
           className="text-xs text-secondary no-underline hover:text-primary inline-flex items-center gap-1"
         >
           <Icon name="timeline" size={14} />

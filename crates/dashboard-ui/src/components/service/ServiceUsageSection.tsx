@@ -34,13 +34,22 @@ export function ServiceUsageSection() {
     entitlements.quota.tokenUsed,
     entitlements.quota.tokenLimit,
   );
+  const exhausted =
+    entitlements.quota.tokenLimit > 0 &&
+    entitlements.quota.tokenUsed >= entitlements.quota.tokenLimit;
 
   return (
     <div className="space-y-6">
+      {exhausted && (
+        <div className="dw-alert-error text-sm" role="alert">
+          {t("service.usage.periodExhausted").replace("{end}", entitlements.billingPeriod.end)}
+        </div>
+      )}
+
       <SectionCard title={t("service.usage.quotaOverview")}>
         <div className="space-y-4">
           <QuotaProgressBar
-            label={t("service.usage.tokenQuota")}
+            label={t("service.usage.periodTokenQuota")}
             used={entitlements.quota.tokenUsed}
             limit={entitlements.quota.tokenLimit}
             unit={t("service.usage.tokens")}
@@ -50,6 +59,8 @@ export function ServiceUsageSection() {
               "{days}",
               String(entitlements.billingPeriod.daysRemaining),
             )}
+            <span className="mx-1.5">·</span>
+            {entitlements.billingPeriod.start} — {entitlements.billingPeriod.end}
           </p>
         </div>
       </SectionCard>

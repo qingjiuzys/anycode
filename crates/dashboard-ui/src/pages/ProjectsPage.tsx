@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { InlineRename } from "@/components/InlineRename";
@@ -9,6 +9,7 @@ import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge, TrustBar } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 type StatusFilter = "all" | "active" | "archived" | "error";
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -19,7 +20,7 @@ function rootPathSuffix(rootPath: string): string {
   return segments.slice(-2).join("/");
 }
 
-export function ProjectsPage() {
+export function ProjectsPage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -245,7 +246,7 @@ export function ProjectsPage() {
                         disabled={rename.isPending}
                         onSave={(name) => rename.mutate({ id: p.id, name })}
                       >
-                        <Link
+                        <ControlCenterLink
                           to="/projects/$projectId"
                           params={{ projectId: p.id }}
                           className="flex items-center gap-2 font-medium no-underline hover:underline"
@@ -259,7 +260,7 @@ export function ProjectsPage() {
                               · {rootPathSuffix(p.root_path)}
                             </span>
                           )}
-                        </Link>
+                        </ControlCenterLink>
                       </InlineRename>
                     </td>
                     <td>

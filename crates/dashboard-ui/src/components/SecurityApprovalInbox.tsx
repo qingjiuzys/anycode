@@ -5,6 +5,7 @@ import type { ApprovalDecision, PendingApprovalsResponse } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 type Props = {
   sessionId?: string;
@@ -114,8 +115,8 @@ export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Pro
               </div>
               {!sessionId && (
                 <Link
-                  to="/sessions/$sessionId"
-                  params={{ sessionId: row.session_id }}
+                  to="/conversations"
+                  search={sessionChatSearch(row.session_id)}
                   className="text-xs text-primary hover:underline"
                 >
                   {row.session_id}

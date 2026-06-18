@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { isDevMockEnabled } from "@/lib/isDevMockEnabled";
 import { useT } from "@/i18n/context";
 
 export function UpgradePromptCard() {
@@ -22,6 +23,7 @@ export function UpgradePromptCard() {
 
 export function ServiceMockBanner() {
   const t = useT();
+  if (!isDevMockEnabled()) return null;
   return (
     <div className="dw-alert-warn text-sm" role="status">
       {t("service.mockBanner")}

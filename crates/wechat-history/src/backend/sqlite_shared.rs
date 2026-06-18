@@ -182,7 +182,7 @@ pub fn chatlog_message_from_value(v: &serde_json::Value) -> Option<WechatChatMes
         .or_else(|| obj.get("Sender"))
         .or_else(|| obj.get("Des"))
         .and_then(|x| x.as_str())
-        .map(str::to_string);
+        .map(String::from);
     let msg_type = obj
         .get("type")
         .or_else(|| obj.get("Type"))
@@ -191,7 +191,7 @@ pub fn chatlog_message_from_value(v: &serde_json::Value) -> Option<WechatChatMes
         .unwrap_or_else(|| "text".to_string());
     let id = obj.get("id").or_else(|| obj.get("MsgSvrID")).and_then(|x| {
         x.as_str()
-            .map(str::to_string)
+            .map(String::from)
             .or_else(|| x.as_i64().map(|n| n.to_string()))
     });
 
@@ -203,8 +203,8 @@ pub fn chatlog_message_from_value(v: &serde_json::Value) -> Option<WechatChatMes
             .get("talkerName")
             .or_else(|| obj.get("TalkerName"))
             .and_then(|x| x.as_str())
-            .map(str::to_string)
-            .or_else(|| Some(conversation_id)),
+            .map(String::from)
+            .or(Some(conversation_id)),
         sender: sender.clone(),
         sender_id: sender,
         direction,
@@ -214,7 +214,7 @@ pub fn chatlog_message_from_value(v: &serde_json::Value) -> Option<WechatChatMes
             .get("path")
             .or_else(|| obj.get("filePath"))
             .and_then(|x| x.as_str())
-            .map(str::to_string),
+            .map(String::from),
         attachments: Vec::new(),
     })
 }
@@ -245,12 +245,12 @@ pub fn message_from_sqlcipher_json(v: &serde_json::Value) -> Option<WechatChatMe
         .to_string();
     let is_sender = obj
         .get("IsSender")
-        .and_then(|x| x.as_i64().or_else(|| x.as_bool().map(|b| i64::from(b))))
+        .and_then(|x| x.as_i64().map(|b| b as i64))
         .unwrap_or(0);
-    let des = obj.get("Des").and_then(|x| x.as_str()).map(str::to_string);
+    let des = obj.get("Des").and_then(|x| x.as_str()).map(String::from);
     let id = obj.get("MsgSvrID").and_then(|x| {
         x.as_str()
-            .map(str::to_string)
+            .map(String::from)
             .or_else(|| x.as_i64().map(|n| n.to_string()))
     });
     let timestamp_ms = normalize_timestamp_ms(create_time);
@@ -302,11 +302,11 @@ pub fn message_from_wc4_sqlcipher_json(
     let real_sender_id = obj.get("real_sender_id").and_then(|x| {
         x.as_i64()
             .map(|n| n.to_string())
-            .or_else(|| x.as_str().map(str::to_string))
+            .or_else(|| x.as_str().map(String::from))
     });
     let id = obj.get("local_id").and_then(|x| {
         x.as_str()
-            .map(str::to_string)
+            .map(String::from)
             .or_else(|| x.as_i64().map(|n| n.to_string()))
     });
     let payload = extract_payload(message_content, compress_content);

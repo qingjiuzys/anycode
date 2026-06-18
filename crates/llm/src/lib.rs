@@ -42,7 +42,11 @@ pub use chat_model_ref::{
     build_qualified_chat_model_value, resolve_chat_model_ref, zai_model_catalog_entries,
     ChatModelResolution, ChatModelResolutionReason, ChatModelResolutionSource, ModelCatalogEntry,
 };
-pub use cloud_session::{cloud_session_path, default_gateway_chat_url, read_cloud_access_token};
+pub use cloud_session::{
+    account_api_url, cloud_session_path, default_gateway_chat_url, read_cloud_access_token,
+    read_cloud_session, refresh_cloud_access_token, resolve_gateway_host, write_cloud_session,
+    CloudSessionFile,
+};
 pub use config_file::{
     default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,
     read_config_value, read_model_fallback, read_models_config, string_field,

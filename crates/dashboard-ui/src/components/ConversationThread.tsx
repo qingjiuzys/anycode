@@ -11,6 +11,7 @@ import { Icon } from "@/components/Icon";
 import { SessionStatusBadges } from "@/components/ui/StatusBadge";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
+import { sessionDetailSearch } from "@/lib/sessionLinks";
 
 interface Props {
   sessions: SessionWithProject[];
@@ -216,6 +217,7 @@ export function ConversationThread({
                       <Link
                         to="/sessions/$sessionId"
                         params={{ sessionId: session.id }}
+                        search={sessionDetailSearch("debug")}
                         className="inline-flex items-center gap-1 mt-2 text-primary no-underline hover:underline"
                         onClick={() => setMetaOpen(false)}
                       >

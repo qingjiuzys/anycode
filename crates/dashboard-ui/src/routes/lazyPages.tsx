@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, type ComponentType, type ReactNode } from "react";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 const CHUNK_RELOAD_KEY = "anycode-dashboard-chunk-reload";
 
@@ -17,8 +18,8 @@ function reloadForFreshChunks() {
   window.location.replace(url.toString());
 }
 
-function lazyWithChunkReload<T extends { default: ComponentType<unknown> }>(
-  importer: () => Promise<T>,
+function lazyWithChunkReload(
+  importer: () => Promise<{ default: ComponentType<EmbeddedPageProps> }>,
 ) {
   return lazy(async () => {
     try {

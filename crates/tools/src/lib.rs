@@ -114,8 +114,9 @@ pub use runtime_tool_policy::{
     ToolExecutionSurface, ToolPolicyProfiles,
 };
 pub use services::{
-    append_cron_job_to_orchestration_file, read_cron_jobs_from_orchestration_file, CronJob,
-    CronJobCreateOptions, LspConnectionConfig, ToolRegistryDeps, ToolServices,
+    append_cron_job_to_orchestration_file, read_cron_jobs_from_orchestration_file,
+    remove_cron_job_from_orchestration_file, CronJob, CronJobCreateOptions, LspConnectionConfig,
+    ToolRegistryDeps, ToolServices,
 };
 pub use skills::{
     default_skill_roots, install_skill, install_starter_skills, resolve_skills_starter_dir,

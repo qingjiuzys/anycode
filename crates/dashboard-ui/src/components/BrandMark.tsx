@@ -6,11 +6,13 @@ export function BrandMark({
   size = "md",
   showTitle = false,
   linked = false,
+  homeTo = "/" as "/" | "/conversations",
   variant = "sidebar",
 }: {
   size?: "sm" | "md";
   showTitle?: boolean;
   linked?: boolean;
+  homeTo?: "/" | "/conversations";
   variant?: "sidebar" | "login";
 }) {
   const t = useT();
@@ -27,7 +29,7 @@ export function BrandMark({
 
   if (linked) {
     return (
-      <Link to="/" className="dw-brand-mark__link no-underline">
+      <Link to={homeTo} className="dw-brand-mark__link no-underline">
         {content}
       </Link>
     );

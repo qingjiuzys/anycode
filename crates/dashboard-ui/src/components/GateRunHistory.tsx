@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 const MAX_VISIBLE = 4;
 
@@ -43,8 +44,8 @@ export function GateRunHistory({ projectId }: { projectId: string }) {
               )}
               {ev.session_id && (
                 <Link
-                  to="/sessions/$sessionId"
-                  params={{ sessionId: ev.session_id }}
+                  to="/conversations"
+                  search={sessionChatSearch(ev.session_id, projectId)}
                   className="text-primary no-underline hover:underline ml-auto"
                 >
                   {t("projectDetail.viewSession")}

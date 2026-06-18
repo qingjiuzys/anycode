@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const NAV = [
+const PAGES = [
   { path: "/", name: /home/i },
   { path: "/overview", name: /overview/i },
   { path: "/projects", name: /projects/i },
@@ -14,16 +14,26 @@ const NAV = [
 ];
 
 test.describe("UI shell navigation", () => {
-  for (const item of NAV) {
-    test(`nav ${item.path}`, async ({ page }) => {
+  for (const item of PAGES) {
+    test(`page ${item.path} loads main`, async ({ page }) => {
       await page.goto(item.path);
       await expect(page.getByRole("main")).toBeVisible();
-      await expect(page.getByRole("navigation")).toBeVisible();
     });
   }
 
+  test("conversations shows session sidebar on desktop", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/conversations");
+    await expect(page.locator(".dw-session-sidebar")).toBeVisible();
+  });
+
+  test("control center fab visible on conversations", async ({ page }) => {
+    await page.goto("/conversations");
+    await expect(page.locator(".dw-control-fab")).toBeVisible();
+  });
+
   test("topbar new menu opens", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/projects");
     const newBtn = page.getByRole("button", { name: /new/i });
     if (await newBtn.isVisible()) {
       await newBtn.click();
@@ -78,12 +88,10 @@ test.describe("Page primary actions", () => {
 test.describe("Project detail smoke", () => {
   test("project detail from fixture", async ({ page, request }) => {
     const res = await request.get("/api/projects");
-    const body = await res.json();
-    const projects = body.projects ?? [];
-    if (projects.length === 0) {
-      test.skip(true, "no projects in fixture DB");
-    }
-    await page.goto(`/projects/${projects[0].id}`);
-    await expect(page.locator("main")).toBeVisible();
+    const body = (await res.json()) as { projects: Array<{ id: string }> };
+    const project = body.projects[0];
+    test.skip(!project, "no projects");
+    await page.goto(`/projects/${project!.id}`);
+    await expect(page.getByRole("main")).toBeVisible();
   });
 });

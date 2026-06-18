@@ -1,42 +1,48 @@
 import { Icon } from "@/components/Icon";
-import type { PlanCatalogEntry, PlanTier } from "@/api/types/service";
+import type { BillingCycle, PlanCatalogEntry, PlanTier } from "@/api/types/service";
 import { useT } from "@/i18n/context";
 
 export function PlanTierCard({
   catalog,
   current,
   highlighted,
+  billingCycle,
   onSelect,
 }: {
   catalog: PlanCatalogEntry;
   current: PlanTier;
   highlighted?: boolean;
+  billingCycle: BillingCycle;
   onSelect: (tier: PlanTier) => void;
 }) {
   const t = useT();
   const isCurrent = catalog.tier === current;
+  const priceUsd =
+    billingCycle === "yearly" ? catalog.yearlyPriceUsd : catalog.monthlyPriceUsd;
   const price =
-    catalog.monthlyPriceUsd === 0
+    priceUsd === 0
       ? t("service.plan.freePrice")
-      : t("service.plan.pricePerMonth").replace("{price}", String(catalog.monthlyPriceUsd));
+      : billingCycle === "yearly"
+        ? t("service.plan.pricePerYear").replace("{price}", String(priceUsd))
+        : t("service.plan.pricePerMonth").replace("{price}", String(priceUsd));
 
   return (
     <div
-      className={`dw-section-card flex flex-col h-full ${
-        highlighted ? "ring-2 ring-primary/40 shadow-md" : ""
-      } ${isCurrent ? "border-primary/30" : ""}`}
+      className={`console-plan-card glass-card flex flex-col h-full ${
+        highlighted ? "console-plan-card--featured" : ""
+      } ${isCurrent ? "console-plan-card--current" : ""}`}
     >
       <div className="p-4 flex flex-col flex-1 gap-4">
         <div>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="text-lg font-semibold m-0">{t(`service.plan.tiers.${catalog.tier}`)}</h3>
             {highlighted && (
-              <span className="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+              <span className="console-plan-badge console-plan-badge--featured">
                 {t("service.plan.recommended")}
               </span>
             )}
             {isCurrent && (
-              <span className="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full bg-success/15 text-success">
+              <span className="console-plan-badge console-plan-badge--current">
                 {t("service.plan.current")}
               </span>
             )}
@@ -58,7 +64,13 @@ export function PlanTierCard({
 
         <button
           type="button"
-          className={isCurrent ? "dw-btn-secondary w-full" : highlighted ? "dw-btn-primary w-full" : "dw-btn-secondary w-full"}
+          className={
+            isCurrent
+              ? "dw-btn-secondary w-full"
+              : highlighted
+                ? "dw-btn-primary w-full"
+                : "dw-btn-secondary w-full"
+          }
           disabled={isCurrent}
           onClick={() => onSelect(catalog.tier)}
         >

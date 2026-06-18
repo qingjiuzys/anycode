@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 /** Security activity log: denied tools and logged approval-pending events from output.log. */
 export function SecurityActivityPanel({
@@ -90,8 +91,8 @@ export function SecurityActivityPanel({
                 <td className="text-xs">
                   {e.session_id ? (
                     <Link
-                      to="/sessions/$sessionId"
-                      params={{ sessionId: e.session_id }}
+                      to="/conversations"
+                      search={sessionChatSearch(e.session_id, e.project_id ?? undefined)}
                       className="text-primary hover:underline"
                     >
                       {e.project_name}

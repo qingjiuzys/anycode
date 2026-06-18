@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { EmptyState } from "@/components/EmptyState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { QuotaProgressBar } from "@/components/service/QuotaProgressBar";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { useT } from "@/i18n/context";
 
@@ -10,7 +12,31 @@ export function ServiceEnterpriseSection() {
   const t = useT();
   const { entitlements } = useAccountCloud();
   if (!entitlements) return null;
+
   const org = entitlements.organization;
+  const isTeam = entitlements.plan === "team";
+
+  if (!isTeam) {
+    return (
+      <div className="space-y-6">
+        <EmptyState
+          icon="person"
+          title={t("service.enterprise.teamRequiredTitle")}
+          description={t("service.enterprise.teamRequiredBody")}
+          actions={
+            <Link to="/account" search={{ section: "plan" }} className="dw-btn-primary no-underline text-sm">
+              {t("service.enterprise.viewTeamPlan")}
+            </Link>
+          }
+        />
+        <SectionCard title={t("service.enterprise.capabilities.teamBilling.title")}>
+          <p className="text-sm text-secondary m-0">
+            {t("service.enterprise.capabilities.teamBilling.desc")}
+          </p>
+        </SectionCard>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -30,11 +56,16 @@ export function ServiceEnterpriseSection() {
             />
           </dd>
         </dl>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/account" search={{ section: "plan" }} className="dw-btn-primary no-underline text-sm">
-            {t("service.enterprise.requestTrial")}
-          </Link>
-          <a href="mailto:sales@anycode.dev" className="dw-btn-secondary no-underline text-sm">
+        <QuotaProgressBar
+          label={t("service.plan.seats")}
+          used={entitlements.quota.seatUsed}
+          limit={entitlements.quota.seatLimit}
+        />
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button type="button" className="dw-btn-secondary text-sm" disabled title={t("common.comingSoon")}>
+            {t("service.enterprise.inviteMember")}
+          </button>
+          <a href="mailto:sales@anycode.dev" className="dw-btn-ghost no-underline text-sm">
             {t("service.enterprise.contactSales")}
           </a>
         </div>
@@ -45,11 +76,11 @@ export function ServiceEnterpriseSection() {
           <table className="dw-table">
             <thead>
               <tr>
-                <th>{t("common.name")}</th>
-                <th>{t("auth.email")}</th>
-                <th>{t("auth.role")}</th>
-                <th>{t("common.status")}</th>
-                <th>{t("service.enterprise.lastActive")}</th>
+                <th scope="col">{t("common.name")}</th>
+                <th scope="col">{t("auth.email")}</th>
+                <th scope="col">{t("auth.role")}</th>
+                <th scope="col">{t("common.status")}</th>
+                <th scope="col">{t("service.enterprise.lastActive")}</th>
               </tr>
             </thead>
             <tbody>

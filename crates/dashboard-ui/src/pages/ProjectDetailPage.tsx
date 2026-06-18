@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { api } from "@/api/client";
 import { EventTimeline } from "@/components/EventTimeline";
 import { DataHealthPanel } from "@/components/DataHealthPanel";
@@ -20,17 +21,36 @@ import { useProjectEventStream } from "@/hooks/useProjectEventStream";
 import { useProjectViewPrefs } from "@/hooks/useProjectViewPrefs";
 import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import { useLocale, useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 import { skillDisplayDescription } from "@/lib/skillCatalog";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 const SEVERITIES = ["info", "warn", "error"] as const;
 const TOOL_CALL_FILTER = "tool_call_end";
 const DEFAULT_EVENT_LIMIT = 10;
 const DEFAULT_SESSION_LIMIT = 8;
 
-export function ProjectDetailPage() {
+export function ProjectDetailPage({ embedded, projectId: embeddedProjectId }: EmbeddedPageProps = {}) {
+  if (embedded) {
+    if (!embeddedProjectId) return <ProjectDetailMissing />;
+    return <ProjectDetailInner projectId={embeddedProjectId} />;
+  }
+  return <ProjectDetailRouted />;
+}
+
+function ProjectDetailRouted() {
+  const { projectId } = useParams({ from: "/_shell/projects/$projectId" });
+  return <ProjectDetailInner projectId={projectId} />;
+}
+
+function ProjectDetailMissing() {
+  const t = useT();
+  return <div className="dw-alert-error">{t("projects.empty")}</div>;
+}
+
+function ProjectDetailInner({ projectId }: { projectId: string }) {
   const t = useT();
   const locale = useLocale();
-  const { projectId } = useParams({ from: "/_shell/projects/$projectId" });
   const queryClient = useQueryClient();
   const { prefs } = useProjectViewPrefs(projectId);
   const [configOpen, setConfigOpen] = useState(false);
@@ -344,8 +364,8 @@ export function ProjectDetailPage() {
                   <tr key={s.id}>
                     <td>
                       <Link
-                        to="/sessions/$sessionId"
-                        params={{ sessionId: s.id }}
+                        to="/conversations"
+                        search={sessionChatSearch(s.id, projectId)}
                         className="font-medium no-underline hover:underline"
                       >
                         {s.title}
@@ -453,8 +473,8 @@ export function ProjectDetailPage() {
                     <>
                       {" "}
                       <Link
-                        to="/sessions/$sessionId"
-                        params={{ sessionId: f.session_id }}
+                        to="/conversations"
+                        search={sessionChatSearch(f.session_id, projectId)}
                         className="text-secondary"
                       >
                         {t("projectDetail.sessionLink")}
@@ -528,13 +548,13 @@ export function ProjectDetailPage() {
                   {visibleSkills.map((sk) => (
                     <tr key={sk.id}>
                       <td>
-                        <Link
+                        <ControlCenterLink
                           to="/agents/$skillId"
                           params={{ skillId: sk.id }}
                           className="font-medium no-underline hover:underline"
                         >
                           {sk.name}
-                        </Link>
+                        </ControlCenterLink>
                         {skillDisplayDescription(sk, locale) && (
                           <div className="text-xs text-secondary mt-0.5 line-clamp-1">
                             {skillDisplayDescription(sk, locale)}

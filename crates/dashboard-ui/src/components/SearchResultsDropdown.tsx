@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { SearchResults } from "@/api/types";
 import { useT } from "@/i18n/context";
 import { localizeLogTitle } from "@/lib/eventFormat";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 
 export function SearchResultsDropdown({
   data,
@@ -34,8 +35,8 @@ export function SearchResultsDropdown({
       {(data.sessions ?? []).map((s) => (
         <Link
           key={s.id}
-          to="/sessions/$sessionId"
-          params={{ sessionId: s.id }}
+          to="/conversations"
+          search={sessionChatSearch(s.id)}
           className={`block px-3 py-2 text-sm hover:bg-surface-container no-underline ${className}`}
         >
           <span className="text-secondary text-xs">{t("nav.conversations")}</span> {s.title}

@@ -11,21 +11,51 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import type { ArtifactRecord, ReportDocument } from "@/api/types";
 import { useI18n, useT } from "@/i18n/context";
 
+import type { EmbeddedPageProps } from "@/lib/pageProps";
+import { sessionChatSearch } from "@/lib/sessionLinks";
+
 type Scope = "project" | "session";
 
-export function ReportsPage() {
+export function ReportsPage({ embedded, initialSearch }: EmbeddedPageProps = {}) {
+  if (embedded) {
+    return (
+      <ReportsPageInner
+        initialProjectId={initialSearch?.project_id}
+        initialSessionId={initialSearch?.session_id}
+        initialArtifactId={initialSearch?.artifact_id}
+      />
+    );
+  }
+  return <ReportsPageRouted />;
+}
+
+function ReportsPageRouted() {
+  const search = useSearch({ from: "/_shell/reports" });
+  return (
+    <ReportsPageInner
+      initialProjectId={search.project_id}
+      initialSessionId={search.session_id}
+      initialArtifactId={search.artifact_id}
+    />
+  );
+}
+
+function ReportsPageInner({
+  initialProjectId,
+  initialSessionId,
+  initialArtifactId,
+}: {
+  initialProjectId?: string;
+  initialSessionId?: string;
+  initialArtifactId?: string;
+} = {}) {
   const { locale } = useI18n();
   const t = useT();
-  const search = useSearch({ from: "/_shell/reports" });
-  const [scope, setScope] = useState<Scope>(
-    search.session_id ? "session" : "project",
-  );
-  const [projectId, setProjectId] = useState(search.project_id ?? "");
-  const [sessionId, setSessionId] = useState(search.session_id ?? "");
+  const [scope, setScope] = useState<Scope>(initialSessionId ? "session" : "project");
+  const [projectId, setProjectId] = useState(initialProjectId ?? "");
+  const [sessionId, setSessionId] = useState(initialSessionId ?? "");
   const [report, setReport] = useState<ReportDocument | null>(null);
-  const [libraryPreviewId, setLibraryPreviewId] = useState(
-    search.artifact_id ?? "",
-  );
+  const [libraryPreviewId, setLibraryPreviewId] = useState(initialArtifactId ?? "");
 
   const projects = useQuery({ queryKey: ["projects"], queryFn: () => api.projects({ limit: 500 }) });
   const sessions = useQuery({
@@ -66,10 +96,10 @@ export function ReportsPage() {
   });
 
   useEffect(() => {
-    if (search.project_id && search.session_id) {
+    if (initialProjectId && initialSessionId) {
       setScope("session");
     }
-  }, [search.project_id, search.session_id]);
+  }, [initialProjectId, initialSessionId]);
 
   const projectList = projects.data?.projects ?? [];
   const sessionList = sessions.data?.sessions ?? [];
@@ -241,8 +271,8 @@ export function ReportsPage() {
                           <td>
                             {a.session_id ? (
                               <Link
-                                to="/sessions/$sessionId"
-                                params={{ sessionId: a.session_id }}
+                                to="/conversations"
+                                search={sessionChatSearch(a.session_id, projectId || undefined)}
                                 className="no-underline hover:underline"
                               >
                                 {t("assets.view")}

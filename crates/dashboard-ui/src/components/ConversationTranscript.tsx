@@ -20,6 +20,7 @@ import {
 import { formatRelativeTime } from "@/utils/formatTime";
 import { formatTranscriptBlockTitle } from "@/lib/eventFormat";
 import { groupTurnReplies } from "@/lib/transcriptGrouping";
+import { sessionDetailSearch } from "@/lib/sessionLinks";
 import {
   SESSION_QUERY_GC_MS,
   transcriptQueryOptions,
@@ -625,6 +626,7 @@ function ExecutionLogLink({ sessionId }: { sessionId: string }) {
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId }}
+        search={sessionDetailSearch("debug")}
         className="text-xs text-secondary no-underline inline-flex items-center gap-1 hover:text-primary"
       >
         <Icon name="timeline" size={14} />

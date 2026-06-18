@@ -15,6 +15,10 @@ import {
   parseConversationSearch,
 } from "@/lib/conversationsSearch";
 import {
+  controlCenterRedirectTarget,
+  shouldOpenControlCenterForLocation,
+} from "@/lib/controlCenterPaths";
+import {
   AgentsPage,
   ArtifactDetailPage,
   AssetsPage,
@@ -65,6 +69,12 @@ export const shellRoute = createRoute({
     const me = await api.authMe();
     if (!me.authenticated) {
       throw redirect({ to: "/login" });
+    }
+    if (shouldOpenControlCenterForLocation(location.pathname, location.searchStr ?? "")) {
+      throw redirect({
+        ...controlCenterRedirectTarget(location.pathname, location.searchStr ?? ""),
+        replace: true,
+      });
     }
   },
 });
@@ -156,6 +166,7 @@ export const conversationsRoute = createRoute({
     session?: string;
     agent?: string;
     filter?: string;
+    cc?: string;
   } => {
     const project =
       typeof search.project === "string" && search.project.trim()
@@ -169,7 +180,9 @@ export const conversationsRoute = createRoute({
       typeof search.agent === "string" && search.agent.trim()
         ? search.agent.trim()
         : undefined;
-    const base = { project, session, agent };
+    const cc =
+      typeof search.cc === "string" && search.cc.trim() ? search.cc.trim() : undefined;
+    const base = { project, session, agent, cc };
 
     const f = typeof search.filter === "string" ? search.filter.trim() : "";
     if (f) return { ...base, filter: f };
@@ -193,6 +206,29 @@ export const conversationsRoute = createRoute({
 export const sessionDetailRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/sessions/$sessionId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "debug" | "audit" } => {
+    const tab = search.tab;
+    if (tab === "debug" || tab === "audit") return { tab };
+    return {};
+  },
+  beforeLoad: async ({ params, search }) => {
+    if (search.tab === "debug" || search.tab === "audit") return;
+    try {
+      const data = await api.session(params.sessionId);
+      throw redirect({
+        to: "/conversations",
+        search: conversationSearchParams({
+          session: params.sessionId,
+          project: data.session.project_id,
+        }),
+        replace: true,
+      });
+    } catch (e) {
+      if (e && typeof e === "object" && "to" in e) throw e;
+    }
+  },
   component: () => (
     <Page>
       <SessionDetailPage />
@@ -307,7 +343,7 @@ export const accountRoute = createRoute({
     search: Record<string, unknown>,
   ): { section?: ServiceSection } => {
     const section = search.section;
-    const valid = ["plan", "usage", "billing", "api", "enterprise"] as const;
+    const valid = ["overview", "plan", "usage", "billing", "api", "enterprise"] as const;
     if (typeof section === "string" && (valid as readonly string[]).includes(section)) {
       return { section: section as ServiceSection };
     }

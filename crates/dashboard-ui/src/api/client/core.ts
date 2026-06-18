@@ -11,7 +11,7 @@ import type {
   SessionWithProject,
   ToolGovernanceResponse,
 } from "../types";
-import { get, post } from "../http";
+import { get, post, del } from "../http";
 import type { AuthUser } from "./shared";
 
 export const coreClient = {
@@ -47,6 +47,8 @@ export const coreClient = {
     ),
   cronJobs: () =>
     get<{ jobs: CronJobRecord[]; orchestration_path?: string }>("/api/cron/jobs"),
+  deleteCronJob: (jobId: string) =>
+    del<{ ok: boolean; job_id: string }>(`/api/cron/jobs/${encodeURIComponent(jobId)}`),
   retryCronJob: (body: { job_id: string; project_id?: string }) =>
     post<{ ok: boolean; job_id: string; trigger: unknown }>("/api/cron/retry", body),
   skillSuggestions: () =>

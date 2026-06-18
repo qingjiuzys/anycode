@@ -1,17 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useLocale, useT } from "@/i18n/context";
+import { sessionChatSearch } from "@/lib/sessionLinks";
 import { normalizeSkillCategory, skillDisplayDescription } from "@/lib/skillCatalog";
+import type { EmbeddedPageProps } from "@/lib/pageProps";
 
-export function SkillDetailPage() {
+export function SkillDetailPage({ embedded, skillId: embeddedSkillId }: EmbeddedPageProps = {}) {
+  if (embedded) {
+    if (!embeddedSkillId) return <SkillDetailMissing />;
+    return <SkillDetailInner skillId={embeddedSkillId} />;
+  }
+  return <SkillDetailRouted />;
+}
+
+function SkillDetailRouted() {
+  const { skillId } = useParams({ from: "/_shell/agents/$skillId" });
+  return <SkillDetailInner skillId={skillId} />;
+}
+
+function SkillDetailMissing() {
+  const t = useT();
+  return <div className="dw-alert-error">{t("skillDetail.notFound")}</div>;
+}
+
+function SkillDetailInner({ skillId }: { skillId: string }) {
   const t = useT();
   const locale = useLocale();
   const qc = useQueryClient();
-  const { skillId } = useParams({ from: "/_shell/agents/$skillId" });
   const skill = useQuery({
     queryKey: ["skill", skillId],
     queryFn: () => api.skillDetail(skillId),
@@ -105,8 +125,8 @@ export function SkillDetailPage() {
                 <span className="text-secondary">{r.started_at}</span>
                 {r.session_id && (
                   <Link
-                    to="/sessions/$sessionId"
-                    params={{ sessionId: r.session_id }}
+                    to="/conversations"
+                    search={sessionChatSearch(r.session_id)}
                     className="text-xs no-underline hover:underline"
                   >
                     {t("audit.session")}
@@ -135,13 +155,13 @@ export function SkillDetailPage() {
                 {s.projects.map((p) => (
                   <tr key={p.project_id}>
                     <td>
-                      <Link
+                      <ControlCenterLink
                         to="/projects/$projectId"
                         params={{ projectId: p.project_id }}
                         className="font-medium no-underline hover:underline"
                       >
                         {p.project_name}
-                      </Link>
+                      </ControlCenterLink>
                     </td>
                     <td>
                       <StatusBadge status={p.enabled ? "ok" : "cancelled"} />
