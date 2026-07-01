@@ -48,6 +48,7 @@
     --dw-topbar-height: 3rem;
     --dw-panel-top: 3.25rem;
     --sidebar-width: 240px;
+    --session-sidebar-collapsed-width: 64px;
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
@@ -260,6 +261,10 @@
     margin-left: var(--spacing-session-sidebar);
   }
 
+  .dw-main-wrap--sessions-collapsed {
+    margin-left: var(--session-sidebar-collapsed-width);
+  }
+
   .dw-shell--sessions {
     @apply flex h-full min-h-0 overflow-hidden;
   }
@@ -271,9 +276,65 @@
     background: var(--glass-bg, var(--color-surface));
   }
 
+  .dw-session-sidebar--collapsed {
+    width: var(--session-sidebar-collapsed-width);
+    @apply items-center gap-2 px-2;
+  }
+
+  .dw-session-sidebar__drag {
+    display: none;
+  }
+
+  .dw-session-sidebar__brand {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .dw-sidebar-icon-button {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent bg-transparent text-secondary cursor-pointer transition-colors hover:bg-surface-container hover:text-on-surface;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-sidebar-icon-button.active {
+    @apply bg-surface-container-high text-primary;
+  }
+
+  .dw-sidebar-collapsed-spacer {
+    @apply flex-1 min-h-0;
+  }
+
+  .dw-session-primary-links {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .dw-session-primary-link {
+    @apply flex items-center justify-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 py-2 text-xs font-medium text-on-surface hover:bg-surface-container;
+  }
+
+  .dw-session-sidebar-footer {
+    @apply mt-auto shrink-0 space-y-1 border-t border-outline-variant px-2 pt-3;
+  }
+
   html.dw-tauri .dw-session-sidebar {
     padding-top: 2.5rem;
     padding-bottom: 1rem;
+  }
+
+  html.dw-tauri .dw-session-sidebar__drag {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2.5rem;
+    -webkit-app-region: drag;
+  }
+
+  html.dw-tauri .dw-session-sidebar button,
+  html.dw-tauri .dw-session-sidebar a,
+  html.dw-tauri .dw-session-sidebar input,
+  html.dw-tauri .dw-session-sidebar select,
+  html.dw-tauri .dw-session-sidebar [role="button"] {
+    -webkit-app-region: no-drag;
   }
 
   .dw-main--sessions {
@@ -408,6 +469,14 @@
     height: auto;
     min-height: 2.75rem;
     padding: 0.375rem 1rem 0.375rem 5.75rem;
+    -webkit-app-region: drag;
+  }
+
+  html.dw-tauri .dw-topbar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
     -webkit-app-region: drag;
   }
 
@@ -1140,11 +1209,72 @@
   }
 
   .dw-hero-composer__project-select {
-    @apply flex items-center gap-1.5 min-w-0 text-sm text-on-surface;
+    @apply min-w-0;
   }
 
   .dw-hero-composer__select {
     @apply min-w-0 max-w-[10rem] truncate appearance-none bg-transparent border-0 text-sm text-secondary pr-1 cursor-pointer outline-none disabled:cursor-not-allowed;
+  }
+
+  .project-picker {
+    @apply relative min-w-0;
+  }
+
+  .project-picker__button {
+    @apply flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm text-on-surface cursor-pointer hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .project-picker__button-text {
+    @apply min-w-0 max-w-[13rem] truncate text-left text-secondary;
+  }
+
+  .project-picker__popover {
+    @apply absolute left-0 bottom-[calc(100%+8px)] z-[220] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-xl;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-session-sidebar .project-picker__popover {
+    @apply bottom-auto top-[calc(100%+8px)] w-[calc(var(--spacing-session-sidebar)-1rem)];
+  }
+
+  .project-picker__search {
+    @apply flex items-center gap-2 border-b border-outline-variant px-3 py-2.5;
+  }
+
+  .project-picker__search input {
+    @apply min-w-0 flex-1 border-0 bg-transparent text-sm text-on-surface outline-none placeholder:text-outline;
+  }
+
+  .project-picker__section-label {
+    @apply px-3 pt-3 pb-1 text-xs font-semibold text-secondary;
+  }
+
+  .project-picker__list {
+    @apply max-h-72 overflow-y-auto overscroll-contain pb-2;
+  }
+
+  .project-picker__item {
+    @apply flex w-full items-center gap-3 border-0 bg-transparent px-3 py-2 text-left text-on-surface cursor-pointer hover:bg-surface-container;
+  }
+
+  .project-picker__item.active {
+    @apply bg-surface-container-low text-primary;
+  }
+
+  .project-picker__item-main {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+
+  .project-picker__item-title {
+    @apply truncate text-sm font-medium;
+  }
+
+  .project-picker__item-path {
+    @apply truncate text-xs text-secondary;
+  }
+
+  .project-picker__empty {
+    @apply px-3 py-6 text-center text-sm text-secondary;
   }
 
   .dw-hero-composer__submit {

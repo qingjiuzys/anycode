@@ -32,6 +32,13 @@ export const zh = {
     mode: "模式",
     version: "版本",
   },
+  projectPicker: {
+    title: "选择项目",
+    placeholder: "搜索或选择项目…",
+    recents: "最近",
+    empty: "没有匹配的项目",
+    unknownProject: "未知项目",
+  },
   controlCenter: {
     title: "控制中心",
     open: "打开控制中心",

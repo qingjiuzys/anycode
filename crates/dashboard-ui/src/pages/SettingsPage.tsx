@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Icon } from "@/components/Icon";
 import { SettingsNav, type SettingsSection } from "@/components/settings/SettingsNav";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useT } from "@/i18n/context";
@@ -86,10 +87,19 @@ function SettingsPageInner({
       <PageHeader
         title={t("settings.title")}
         subtitle={t("settings.subtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("settings.title") },
-        ]}
+        breadcrumbs={[{ label: t("settings.title") }]}
+        actions={
+          <>
+            <button type="button" className="dw-btn-secondary" onClick={() => window.history.back()}>
+              <Icon name="chevron_left" size={16} />
+              {t("common.back")}
+            </button>
+            <Link to="/projects" className="dw-btn-secondary no-underline">
+              <Icon name="folder" size={16} />
+              {t("nav.projects")}
+            </Link>
+          </>
+        }
       />
 
       <SettingsOverviewBanner />

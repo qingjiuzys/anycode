@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { TopbarSearch } from "@/components/TopbarSearch";
@@ -81,11 +82,20 @@ function Topbar({ compact = false }: { compact?: boolean }) {
 }
 
 function SessionFirstShell() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
     <ConversationShellProvider>
-      <div className="dw-shell dw-shell--sessions">
-        <SessionSidebar />
-        <div className="dw-main-wrap dw-main-wrap--sessions">
+      <div
+        className={`dw-shell dw-shell--sessions${sidebarCollapsed ? " dw-shell--sessions-collapsed" : ""}`}
+      >
+        <SessionSidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+        <div
+          className={`dw-main-wrap dw-main-wrap--sessions${sidebarCollapsed ? " dw-main-wrap--sessions-collapsed" : ""}`}
+        >
           <Topbar compact />
           <main className="dw-main dw-main--sessions">
             <Outlet />
