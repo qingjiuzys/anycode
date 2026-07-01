@@ -5,7 +5,7 @@ import { SkinPickerCompact } from "@/components/SkinPicker";
 import { ThemeModeSwitch } from "@/components/ThemeModeSwitch";
 import { useT } from "@/i18n/context";
 
-export function AppearanceMenu() {
+export function AppearanceMenu({ compact = false }: { compact?: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -24,14 +24,19 @@ export function AppearanceMenu() {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className={`dw-nav-link w-full ${open ? "active" : ""}`}
+        className={compact ? `dw-sidebar-icon-button ${open ? "active" : ""}` : `dw-nav-link w-full ${open ? "active" : ""}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
+        title={compact ? t("layout.appearance") : undefined}
       >
         <Icon name="palette" size={18} />
-        <span className="flex-1 min-w-0 truncate text-left">{t("layout.appearance")}</span>
-        <Icon name={open ? "expand_less" : "expand_more"} size={16} className="text-secondary" />
+        {!compact && (
+          <>
+            <span className="flex-1 min-w-0 truncate text-left">{t("layout.appearance")}</span>
+            <Icon name={open ? "expand_less" : "expand_more"} size={16} className="text-secondary" />
+          </>
+        )}
       </button>
 
       {open && (

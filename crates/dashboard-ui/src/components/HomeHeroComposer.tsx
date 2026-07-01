@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { buildConversationsHref, conversationSearchParams } from "@/lib/conversationsSearch";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
+import { ProjectPicker, type ProjectPickerOption } from "@/components/ProjectPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { useT } from "@/i18n/context";
 
@@ -21,7 +22,7 @@ export function HomeHeroComposer({
   onPromptChange,
 }: {
   sseStatus: Sse;
-  projectOptions: { id: string; name: string }[];
+  projectOptions: ProjectPickerOption[];
   blockedCount?: number;
   pendingCount?: number;
   budgetExceededCount?: number;
@@ -117,27 +118,13 @@ export function HomeHeroComposer({
           }}
         />
         <div className="dw-hero-composer__toolbar">
-          <label className="dw-hero-composer__project-select">
-            <Icon name="folder" size={16} className="text-secondary shrink-0" />
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={projectOptions.length === 0}
-              className="dw-hero-composer__select"
-              aria-label={t("home.hero.projectLabel")}
-            >
-              {projectOptions.length === 0 ? (
-                <option value="">{t("home.hero.noProject")}</option>
-              ) : (
-                projectOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))
-              )}
-            </select>
-            <Icon name="expand_more" size={14} className="text-secondary shrink-0 pointer-events-none" />
-          </label>
+          <ProjectPicker
+            value={projectId}
+            options={projectOptions}
+            onChange={setProjectId}
+            disabled={projectOptions.length === 0}
+            className="dw-hero-composer__project-select"
+          />
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <VoiceInputButton
               disabled={start.isPending}

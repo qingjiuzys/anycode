@@ -49,7 +49,11 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
         </div>
         <HomeHeroComposer
           sseStatus={sseStatus}
-          projectOptions={list.map((p) => ({ id: p.id, name: p.name }))}
+          projectOptions={list.map((p) => ({
+            id: p.id,
+            name: p.name,
+            root_path: p.root_path,
+          }))}
           blockedCount={ov?.sessions_blocked ?? 0}
           pendingCount={pendingTotal}
           budgetExceededCount={ov?.sessions_budget_exceeded ?? 0}

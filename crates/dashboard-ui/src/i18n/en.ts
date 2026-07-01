@@ -32,6 +32,13 @@ export const en = {
     mode: "Mode",
     version: "Version",
   },
+  projectPicker: {
+    title: "Select project",
+    placeholder: "Search or choose a project…",
+    recents: "Recents",
+    empty: "No matching projects",
+    unknownProject: "Unknown project",
+  },
   controlCenter: {
     title: "Control center",
     open: "Open control center",

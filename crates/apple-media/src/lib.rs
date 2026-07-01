@@ -8,7 +8,9 @@
 //! - **Media registry** (`crates/llm/src/media/`): `apple_speech` / `apple_tts` providers route here on macOS.
 
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
+use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,6 +28,7 @@ pub struct AppleMediaCapabilities {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg(target_os = "macos")]
 struct HelperResponse {
     ok: bool,
     text: Option<String>,
@@ -133,7 +136,6 @@ fn write_temp_file(prefix: &str, ext: &str, bytes: &[u8]) -> Result<PathBuf, Str
     Ok(path)
 }
 
-#[cfg(target_os = "macos")]
 pub fn mime_to_ext(mime: &str) -> &str {
     let m = mime.to_ascii_lowercase();
     if m.contains("png") {
