@@ -1,18 +1,18 @@
 # anyCode
 
-面向终端、**自托管 BYOK** 的 AI 助手：在命令行提问与执行任务，也可把同一套 runtime 桥接到**个人微信**、Telegram 或 Discord，或通过本地 **Digital Workbench** 管理项目、会话与定时任务。
+**自托管 BYOK** AI 助手，配套本地 **Digital Workbench**：在浏览器或 **anyCode.app**（macOS）中对话与执行任务，通过 **`anycode-daemon`** 桥接到**个人微信**、Telegram 或 Discord，并管理项目、会话与定时任务。
 
 **语言:** [English README](README.md)
 
 - 在线文档: [https://qingjiuzys.github.io/anycode/](https://qingjiuzys.github.io/anycode/)
-- 可执行命令: `anycode`
+- 无头二进制: `anycode-daemon`
 - 许可: [MIT](LICENSE)
 
 ## 与其他工具的不同之处
 
 - **单一 Rust runtime** — 一个 `AgentRuntime` 编排 LLM + 工具（Bash、Edit、Grep、MCP、LSP、Skills、Cron、Knowledge 等）。Agent 在本机执行，不是云端托管 Gateway。
-- **个人微信桥** — iLink 扫码绑定；手机下发任务、微信内审批敏感工具、回传文件/图片。见 [微信与 setup](docs-site/zh/guide/wechat.md)。
-- **本地 Digital Workbench** — `anycode dashboard --open` 查看项目、会话、资产、自动化、安全审批，并提供 REST API 供二次集成。见 [工作台导览](docs-site/zh/guide/workbench.md)。
+- **个人微信桥** — iLink 扫码绑定；手机下发任务、微信内审批敏感工具、回传文件/图片。见 [微信与配置](docs-site/zh/guide/wechat.md)。
+- **本地 Digital Workbench** — 内嵌于 **anyCode.app** 或开发构建的 `http://127.0.0.1:43180`，管理项目、会话、资产、自动化、安全审批，并提供 REST API。见 [工作台导览](docs-site/zh/guide/workbench.md)。
 - **自动化** — 自然语言 cron、运行历史、项目 guardrails，可选微信通知。见 [定时任务](docs-site/zh/guide/cli-scheduler.md)。
 - **BYOK 模型目录** — 与 OpenClaw 对齐的 30+ provider（z.ai/GLM、DeepSeek、Anthropic、Bedrock、Copilot、OpenRouter、Ollama、自定义端点等）。见 [模型与端点](docs-site/zh/guide/models.md)。
 - **企业二次开发更友好** — 本地 Workbench REST API、API Token、项目策略、eval/门禁 harness、权限模式文档化。SSO/RBAC 在路线图中，尚未生产就绪。
@@ -27,85 +27,56 @@ anyCode 集成了多家 LLM，但**维护者日常验证**主要集中在：
 
 **CI** 使用**本地 Mock OpenAI 兼容服务**覆盖 agent loop，**不调用**真实厂商 API。
 
-目录中其余 provider 均为**可配置支持**。配置凭据后，请用 `anycode status`、工作台模型探测或一次短对话自测。详见 [模型与端点](docs-site/zh/guide/models.md)。
+目录中其余 provider 均为**可配置支持**。配置凭据后，请用工作台模型探测或一次短对话自测。详见 [模型与端点](docs-site/zh/guide/models.md)。
 
 ## 3 步上手
 
-1. 安装 anyCode
-2. 运行 `anycode setup` 完成模型与 channel 配置
-3. 运行一次任务验证
+1. 安装 **anyCode.app**（macOS）或 **`anycode-daemon`**（Linux/Windows 无头）
+2. 打开 Workbench **`/setup`** 配置模型与可选通道
+3. 在工作台发送一条测试消息
 
-**macOS（推荐）：** 从 [Releases](https://github.com/qingjiuzys/anycode/releases) 下载 **`anyCode_<version>_aarch64.dmg`**，打开后将 **anyCode** 拖入「应用程序」。桌面应用**已内置 CLI**（sidecar），自动打开工作台 — macOS 不再单独发布 CLI tar.gz。
+**macOS（推荐）：** 从 [Releases](https://github.com/qingjiuzys/anycode/releases) 下载 **`anyCode_<version>_aarch64.dmg`**，拖入「应用程序」。桌面应用自动嵌入工作台。
 
-**Linux：**
+**Linux / Windows（无头）：**
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
-
-**Windows PowerShell：**
 
 ```powershell
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
 
-**macOS 无 GUI / 开发者：** 若只需 PATH 上的独立 CLI，仍可用 `install.sh`：
+然后在启动桌面应用或开发版内嵌 dashboard 后访问 `http://127.0.0.1:43180/setup`。
 
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 \
-  "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
-```
+**验证：** 在会话中发送「请只回复：OK」。
 
-安装后验证:
-
-```bash
-anycode --help
-anycode setup
-anycode run --agent general-purpose "请只回复：OK"
-```
-
-如果提示 `command not found`，先看安装文档中的 PATH 说明。
-
-**打开工作台（可选）：**
-
-```bash
-anycode dashboard --open
-```
-
-**macOS 桌面应用：** macOS 主交付物为 `.dmg`，内置 CLI、工作台、Apple Speech STT 与 Apple Vision OCR。从 App 内调用 CLI：
-
-```bash
-/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
-```
-
-## 文档入口
+## 文档
 
 - [快速开始](docs-site/zh/guide/getting-started.md)
 - [安装](docs-site/zh/guide/install.md)
+- [桌面应用](docs-site/zh/guide/desktop.md)
+- [无头守护进程](docs-site/zh/guide/daemon.md)
 - [模型与端点](docs-site/zh/guide/models.md)
 - [工作台导览](docs-site/zh/guide/workbench.md)
-- [微信与 setup](docs-site/zh/guide/wechat.md)
+- [微信与配置](docs-site/zh/guide/wechat.md)
 - [定时任务](docs-site/zh/guide/cli-scheduler.md)
 - [排错](docs-site/zh/guide/troubleshooting.md)
-- [文档地图](docs-site/zh/guide/docs-directory.md)
 
-**English (repo Markdown):** [Getting started](docs-site/guide/getting-started.md) · [Install](docs-site/guide/install.md) · [Models](docs-site/guide/models.md) · [Workbench](docs-site/guide/workbench.md) · [WeChat](docs-site/guide/wechat.md) · [Troubleshooting](docs-site/guide/troubleshooting.md) · [Docs directory](docs-site/guide/docs-directory.md)
+## 开发者
 
-## 给开发者
-
-**实现技术栈：** Rust workspace（`cargo`）；异步运行时 **Tokio**；终端 UI **ratatui** + **crossterm**；Markdown **pulldown-cmark**；国际化 **Fluent**（`fluent-bundle`）；代码高亮 **syntect**。逻辑拆在 `anycode-core`、`anycode-agent`、`anycode-llm`、`anycode-tools`（MCP/LSP）等 crate。
-
-TTY 下 **`anycode repl` 流式界面**默认 **备用屏全屏**（与 `terminal_guard::stream_repl_use_alternate_screen` 一致）；若需旧版主缓冲 Inline + 宿主 scrollback，可设 **`ANYCODE_TERM_REPL_INLINE_LEGACY=1`**。维护者说明见仓库内 [`docs/ops/stream-repl-layout.md`](docs/ops/stream-repl-layout.md)。
+**技术栈：** Rust workspace（`cargo`）；异步运行时 **Tokio**；Markdown **pulldown-cmark**；i18n **Fluent**。Runtime 分布在 `anycode-core`、`anycode-agent`、`anycode-llm`、`anycode-channel-bridge`、`anycode-tools` 等 crate。
 
 ```bash
 cargo fmt
 cargo clippy
 cargo test --workspace
-cargo build --release -p anycode
+cargo build --release -p anycode-channel-bridge
+cargo build --release -p anycode-desktop
 ```
 
-文档本地预览:
+本地预览文档站：
 
 ```bash
 cd docs-site && npm install && npm run dev

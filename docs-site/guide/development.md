@@ -19,7 +19,7 @@ cargo build --release
 ## Install to PATH (optional)
 
 ```bash
-cargo install --path crates/cli --force
+cargo install --path crates/bootstrap --force
 anycode --help
 ```
 
@@ -35,7 +35,7 @@ cargo clippy
 
 1. **`crates/core/src/traits.rs`** — `Tool`, `LLMClient`, `MemoryStore`, and other ports.
 2. **`crates/agent/src/runtime/`** — `AgentRuntime` and the tool/LLM loop (`session.rs`); orchestration authority is **not** `Agent::execute` (see `docs/adr/000-runtime-orchestration.md` in the repo).
-3. **`crates/cli/src/bootstrap/runtime.rs`** — builds the shared runtime for CLI/TUI/channel bridges (`initialize_runtime`).
+3. **`crates/bootstrap/src/bootstrap/runtime.rs`** — builds the shared runtime for CLI/TUI/channel bridges (`initialize_runtime`).
 4. **[Contributing extensions](./contributing-extensions)** — checklists for registry, catalog, and providers.
 
 ## Changing the default tool surface

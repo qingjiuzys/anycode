@@ -1,3 +1,4 @@
+pub mod chat_events;
 pub mod event_tier;
 pub mod execution_log;
 pub mod ingest;

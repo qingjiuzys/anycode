@@ -6,7 +6,7 @@
 
 | 领域 | 说明 |
 |------|------|
-| CLI | `anycode dashboard`（doctor / status / token / db backup） |
+| CLI | `anyCode Workbench`（doctor / status / token / db backup） |
 | 录制 | run / goal / workflow / repl / cron → SQLite + SSE |
 | 信任 | 门禁阻断交付；无门禁且已完成 → verified |
 | UI | 12+ 页面、中英文、懒加载、release 内嵌 UI |
@@ -24,10 +24,10 @@
 
 ```bash
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
-cargo test -p anycode-dashboard
+cargo test -p anycode-channel-bridge-dashboard
 cd crates/dashboard-ui && npm test && npm run test:e2e
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
-anycode dashboard --open
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-channel-bridge --features embedded-ui
+anyCode Workbench --open
 ```
 
 ## 文档索引

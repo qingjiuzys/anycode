@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-const DEFAULT_GATEWAY_HOST: &str = "http://127.0.0.1:43210";
-const DEFAULT_ACCOUNT_API: &str = "http://127.0.0.1:43200";
+/// Hosted cloud console (login, billing, models). Override via `ANYCODE_ACCOUNT_PORTAL_URL`.
+pub const DEFAULT_CLOUD_PORTAL: &str = "https://anycode.work";
+/// Account API base (same deployable as portal in production). Override via `ANYCODE_ACCOUNT_API_URL`.
+pub const DEFAULT_ACCOUNT_API: &str = "https://anycode.work";
+/// Model gateway host without path. Override via `ANYCODE_MODEL_GATEWAY_URL` or device-link `gateway_url`.
+pub const DEFAULT_GATEWAY_HOST: &str = "https://anycode.work";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CloudSessionFile {
@@ -58,11 +62,20 @@ pub fn default_gateway_chat_url() -> String {
     format!("{}/v1/chat/completions", resolve_gateway_host())
 }
 
+pub fn cloud_portal_url() -> String {
+    std::env::var("ANYCODE_ACCOUNT_PORTAL_URL")
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| DEFAULT_CLOUD_PORTAL.to_string())
+}
+
 pub fn account_api_url() -> String {
     std::env::var("ANYCODE_ACCOUNT_API_URL")
-        .unwrap_or_else(|_| DEFAULT_ACCOUNT_API.to_string())
-        .trim_end_matches('/')
-        .to_string()
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| DEFAULT_ACCOUNT_API.to_string())
 }
 
 /// Refresh cloud access token using stored refresh token; updates session file on success.
@@ -136,11 +149,22 @@ mod tests {
 
     #[test]
     fn default_gateway_chat_url_appends_path() {
+        let prev = std::env::var("ANYCODE_MODEL_GATEWAY_URL").ok();
         std::env::set_var("ANYCODE_MODEL_GATEWAY_URL", "https://gw.test");
         assert_eq!(
             default_gateway_chat_url(),
             "https://gw.test/v1/chat/completions"
         );
-        std::env::remove_var("ANYCODE_MODEL_GATEWAY_URL");
+        match prev {
+            Some(v) => std::env::set_var("ANYCODE_MODEL_GATEWAY_URL", v),
+            None => std::env::remove_var("ANYCODE_MODEL_GATEWAY_URL"),
+        }
+    }
+
+    #[test]
+    fn production_defaults_point_at_anycode_work() {
+        assert_eq!(DEFAULT_CLOUD_PORTAL, "https://anycode.work");
+        assert_eq!(DEFAULT_ACCOUNT_API, "https://anycode.work");
+        assert_eq!(DEFAULT_GATEWAY_HOST, "https://anycode.work");
     }
 }

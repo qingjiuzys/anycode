@@ -1,6 +1,6 @@
 import type { GateExecuteResult } from "@/api/types";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+import { apiUrl } from "./http";
 
 export type GateStreamEvent =
   | { type: "line"; line: string }
@@ -15,11 +15,12 @@ export async function streamGateExecute(
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(
-    `${API_BASE}/api/projects/${encodeURIComponent(projectId)}/gates/execute/stream`,
+    apiUrl(`/api/projects/${encodeURIComponent(projectId)}/gates/execute/stream`),
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
       body: JSON.stringify(body),
+      credentials: "include",
       signal,
     },
   );

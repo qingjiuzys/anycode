@@ -5,7 +5,7 @@ diagnostics across WeChat, Telegram, and Discord.
 
 ## Diagnostics
 
-- `anycode channel status [wechat|telegram|discord|all]`
+- `anycode-daemon status [wechat|telegram|discord|all]`
 - `anycode doctor channel [wechat|telegram|discord|all]`
 
 The status output checks credential files, WeChat data directories, cron notify

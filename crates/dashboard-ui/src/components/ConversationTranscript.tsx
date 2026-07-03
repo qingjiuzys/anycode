@@ -11,7 +11,7 @@ import {
   TranscriptCommandBlock,
 } from "@/components/TranscriptCommandBlock";
 import { TranscriptMarkdown } from "@/components/TranscriptMarkdown";
-import { TranscriptToolBlock } from "@/components/TranscriptToolBlock";
+import { ToolTraceCluster } from "@/components/chat/ToolTraceCluster";
 import {
   CollapsiblePanel,
   previewLines,
@@ -28,12 +28,17 @@ import {
 } from "@/lib/sessionQuery";
 import { sanitizeAssistantDisplay } from "@/lib/assistantText";
 import { humanizeTranscriptError } from "@/lib/transcriptError";
+import { mergeTranscriptBlocks, hasLiveStreamActivity } from "@/lib/liveTranscript";
+import { findActiveToolInReplies } from "@/lib/transcriptGrouping";
+import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { useLocale, useT } from "@/i18n/context";
 
 interface Props {
   sessionId: string | null;
   isRunning?: boolean;
   sseLive?: boolean;
+  liveBlocks?: TranscriptBlock[];
+  chatStreamLive?: boolean;
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
   /** Shown while transcript loads (from session list). */
   promptPreview?: string | null;
@@ -54,6 +59,8 @@ export function ConversationTranscript({
   sessionId,
   isRunning,
   sseLive = false,
+  liveBlocks = [],
+  chatStreamLive = false,
   scrollContainerRef,
   promptPreview,
   selectedToolId,
@@ -66,7 +73,9 @@ export function ConversationTranscript({
   const userNearBottomRef = useRef(true);
 
   const running = Boolean(isRunning);
-  const pollWhileRunning = running && !sseLive;
+  const streamLive = sseLive || chatStreamLive;
+  const pollWhileRunning = running && !streamLive;
+  const lightPollWhileRunning = running && streamLive;
 
   const transcript = useQuery({
     ...transcriptQueryOptions(sessionId!, running),
@@ -83,25 +92,31 @@ export function ConversationTranscript({
     staleTime: running ? 3_000 : transcriptStaleTime(false),
     gcTime: SESSION_QUERY_GC_MS,
     placeholderData: (prev) => prev,
-    refetchInterval: pollWhileRunning ? 4_000 : false,
+    refetchInterval: pollWhileRunning ? 4_000 : lightPollWhileRunning ? 12_000 : false,
     refetchIntervalInBackground: false,
   });
 
-  const blocks = transcript.data?.transcript.blocks ?? [];
+  const blocks = useMemo(() => {
+    const snapshot = transcript.data?.transcript.blocks ?? [];
+    return mergeTranscriptBlocks(snapshot, liveBlocks);
+  }, [liveBlocks, transcript.data?.transcript.blocks]);
   const lifecycleCount = transcript.data?.transcript.lifecycle?.length ?? 0;
   const turns = useMemo(() => blocksToTurns(blocks), [blocks]);
-  const activeTool = useMemo(
+  const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+  const activeToolFromReplies = useMemo(
+    () => (lastTurn ? findActiveToolInReplies(lastTurn.replies) : null),
+    [lastTurn],
+  );
+  const activeToolFromLog = useMemo(
     () => findActiveTool(liveLog.data?.execution_log.lines ?? []),
     [liveLog.data?.execution_log.lines],
   );
-  const lastTurnPending =
-    isRunning &&
-    turns.length > 0 &&
-    turns[turns.length - 1].replies.length === 0;
+  const activeTool = activeToolFromReplies ?? activeToolFromLog;
+  const streamHasActivity = hasLiveStreamActivity(liveBlocks);
 
   const stalledSeconds = useStalledSeconds(
     Boolean(isRunning),
-    `${blocks.length}:${liveLog.data?.execution_log.lines.length ?? 0}:${activeTool ?? ""}`,
+    `${blocks.length}:${liveLog.data?.execution_log.lines.length ?? 0}:${activeTool ?? ""}:${streamHasActivity}`,
   );
   const lastUserPrompt =
     turns.length > 0 ? turns[turns.length - 1].user.body : null;
@@ -184,13 +199,6 @@ export function ConversationTranscript({
 
   const tail = (
     <>
-      {lastTurnPending && !activeTool && (
-        <div className="flex w-full justify-start">
-          <div className="max-w-[min(100%,48rem)] w-full">
-            <TypingIndicator />
-          </div>
-        </div>
-      )}
       {isRunning && stalledSeconds >= STALL_WARN_SECONDS && (
         <div className="flex w-full justify-start">
           <div className="max-w-[min(100%,42rem)] w-full">
@@ -247,6 +255,8 @@ export function ConversationTranscript({
                 turn={turn}
                 isLast={item.index === turns.length - 1}
                 isRunning={Boolean(isRunning)}
+                streamHasActivity={streamHasActivity}
+                sessionId={sessionId}
                 selectedToolId={selectedToolId}
                 onSelectTool={onSelectTool}
               />
@@ -269,6 +279,8 @@ export function ConversationTranscript({
           turn={turn}
           isLast={index === turns.length - 1}
           isRunning={Boolean(isRunning)}
+          streamHasActivity={streamHasActivity}
+          sessionId={sessionId}
           selectedToolId={selectedToolId}
           onSelectTool={onSelectTool}
         />
@@ -283,17 +295,37 @@ function ConversationTurnView({
   turn,
   isLast,
   isRunning,
+  streamHasActivity,
+  sessionId,
   selectedToolId,
   onSelectTool,
 }: {
   turn: ConversationTurn;
   isLast: boolean;
   isRunning: boolean;
+  streamHasActivity?: boolean;
+  sessionId: string;
   selectedToolId?: string | null;
   onSelectTool?: (tool: TranscriptBlock) => void;
 }) {
+  const t = useT();
   const replyItems = useMemo(() => groupTurnReplies(turn.replies), [turn.replies]);
-  const hasToolGroup = replyItems.some((item) => item.kind === "tool_group");
+  const hasToolCluster = replyItems.some((item) => item.kind === "tool_cluster");
+  const hasRunningTool = findActiveToolInReplies(turn.replies) !== null;
+  const hasAssistantText = replyItems.some(
+    (item) =>
+      item.kind === "block" &&
+      item.block.block_type === "assistant_message" &&
+      item.block.body.trim().length > 0,
+  );
+  const showTurnWaiting =
+    isLast &&
+    isRunning &&
+    !streamHasActivity &&
+    !hasAssistantText &&
+    (!hasRunningTool || hasToolCluster);
+  const showThinkingOnly =
+    isLast && isRunning && streamHasActivity && !hasAssistantText && !hasRunningTool;
 
   return (
     <article className={`flex flex-col gap-2.5 ${isRunning && isLast ? "pb-4" : "pb-5"}`}>
@@ -302,13 +334,14 @@ function ConversationTurnView({
       </MessageRow>
 
       {replyItems.map((item) => {
-        if (item.kind === "tool_group") {
+        if (item.kind === "tool_cluster") {
           return (
             <MessageRow key={item.id} align="left">
-              <TranscriptToolBlock
-                tools={item.tools}
+              <ToolTraceCluster
+                steps={item.steps}
                 processMessageCount={item.processMessageCount}
-                compact
+                processSnippets={item.processSnippets}
+                isRunning={isRunning && isLast}
                 selectedToolId={selectedToolId}
                 onSelectTool={onSelectTool}
               />
@@ -329,7 +362,24 @@ function ConversationTurnView({
         );
       })}
 
-      {isLast && isRunning && turn.replies.length > 0 && !hasToolGroup && (
+      {isLast && isRunning && (
+        <MessageRow align="left">
+          <SecurityApprovalInbox sessionId={sessionId} hideWhenEmpty inline />
+        </MessageRow>
+      )}
+
+      {showThinkingOnly && (
+        <MessageRow align="left">
+          <div className="chat-trace-line chat-trace-line-thinking">
+            <div className="chat-trace-line-toggle">
+              <Icon name="progress_activity" size={14} />
+              <span>{t("conversations.thinkingWaiting")}</span>
+            </div>
+          </div>
+        </MessageRow>
+      )}
+
+      {showTurnWaiting && (
         <MessageRow align="left">
           <TypingIndicator compact />
         </MessageRow>
@@ -395,12 +445,18 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
   }
 
   const isError = role === "error" || looksLikeError(block.body);
-  const { shouldCollapse, lines } = useContentCollapse(displayBody);
+  const isLive = Boolean(block.meta?.live);
+  const collapseStats = useContentCollapse(displayBody);
+  const shouldCollapse = isLive
+    ? false
+    : collapseStats.lines > 20 || collapseStats.chars > 1200;
+  const lines = collapseStats.lines;
   const usePanel =
-    shouldCollapse ||
-    block.collapsible ||
-    block.default_collapsed ||
-    block.block_type === "system_notice";
+    !isLive &&
+    (shouldCollapse ||
+      block.collapsible ||
+      block.default_collapsed ||
+      block.block_type === "system_notice");
   const defaultOpen =
     isError ||
     (block.default_collapsed === true
@@ -441,6 +497,7 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
         headerActions={headerActions}
       >
         <TranscriptMarkdown text={displayBody} />
+        {isLive && <span className="chat-stream-cursor" aria-hidden />}
         <time className="block mt-2 text-[11px] text-secondary">
           {formatRelativeTime(block.at)}
         </time>
@@ -453,7 +510,9 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
       className={`rounded-2xl px-4 py-3 text-sm group relative ${
         isError
           ? "rounded-bl-md bg-error-container/80 text-on-error-container border border-error/25"
-          : "bubble-assistant glass-panel rounded-2xl rounded-bl-md px-4 py-3 text-sm group relative text-on-surface"
+          : isLive
+            ? "bubble-assistant bubble-assistant-live glass-panel rounded-2xl rounded-bl-md px-4 py-3 text-sm group relative text-on-surface"
+            : "bubble-assistant glass-panel rounded-2xl rounded-bl-md px-4 py-3 text-sm group relative text-on-surface"
       }`}
     >
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
@@ -467,7 +526,10 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
       {isError ? (
         <ErrorMessageBody text={block.body} />
       ) : (
-        <TranscriptMarkdown text={displayBody} />
+        <>
+          <TranscriptMarkdown text={displayBody} />
+          {isLive && <span className="chat-stream-cursor" aria-hidden />}
+        </>
       )}
       <time className="block mt-2 text-[11px] text-secondary">
         {formatRelativeTime(block.at)}

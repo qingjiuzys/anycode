@@ -39,7 +39,7 @@ Recommended defaults:
 One-time bypass example:
 
 ```bash
-anycode run --ignore-approval --agent general-purpose "..."
+Use Workbench **Settings → Security** to adjust approval mode for embedded chat and UI triggers.
 ```
 
 Expected output: one task run skips approval prompts in current process only.
@@ -145,8 +145,8 @@ When this file exists in your project, the content will be automatically include
 Persist channel bot tokens (written under `~/.anycode/channels/`, not logged):
 
 ```bash
-anycode channel telegram-set-token --token "$TELEGRAM_BOT_TOKEN" --chat-id "123456"
-anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "9876543210"
+anycode-daemon telegram-bridge-set-token --token "$TELEGRAM_BOT_TOKEN" --chat-id "123456"
+anycode-daemon discord-bridge-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "9876543210"
 ```
 
 ## MCP deny rules

@@ -24,7 +24,7 @@ serde_json = { workspace = true }
 reqwest = { workspace = true }
 urlencoding = "2.1"
 qrcode = { version = "0.14", features = ["svg"] }
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "time"] }
 
 [dev-dependencies]
 tempfile = "3"

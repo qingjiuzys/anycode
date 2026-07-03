@@ -105,6 +105,15 @@ if [[ ! -f dist/index.html ]]; then
   exit 1
 fi
 
+# Tauri offline bundle: absolute /assets/* breaks file/custom protocol — force relative URLs.
+if [[ "$(uname -s)" == "Darwin" ]] || [[ "${ANYCODE_DESKTOP_RELATIVE_ASSETS:-}" == "1" ]]; then
+  perl -pi -e '
+    s|src="/assets/|src="./assets/|g;
+    s|href="/assets/|href="./assets/|g;
+    s|href="/favicon|href="./favicon|g;
+  ' dist/index.html
+fi
+
 echo "Dashboard UI built: $UI/dist"
 if command -v shasum >/dev/null 2>&1; then
   echo "dist hash: $(shasum -a 256 dist/index.html | cut -d' ' -f1)"

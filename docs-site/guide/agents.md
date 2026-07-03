@@ -56,7 +56,7 @@ Add declarative agents under `agents.profiles`:
 }
 ```
 
-CLI: `anycode run --agent reviewer`
+Use the Workbench composer with agent type **reviewer** (or select from the agent picker).
 
 ## Model routing
 

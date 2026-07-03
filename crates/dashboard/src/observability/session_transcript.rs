@@ -442,6 +442,11 @@ fn tool_trace_meta(event: &ProjectEvent, phase: &str) -> serde_json::Value {
     if let Some(ms) = payload_str(event, "elapsed_ms") {
         meta["duration_ms"] = json!(ms);
     }
+    if let Some(preview) = payload_str(event, "output_preview") {
+        if !preview.is_empty() {
+            meta["output_preview"] = json!(preview);
+        }
+    }
     if let Some(err) = payload_str(event, "error") {
         if !err.is_empty() && err != "<none>" {
             meta["error"] = json!(err);
@@ -478,6 +483,11 @@ fn tool_body(event: &ProjectEvent) -> String {
     let body = pick_body(event);
     if !body.is_empty() && body != event.title {
         return body;
+    }
+    if let Some(preview) = payload_str(event, "output_preview") {
+        if !preview.is_empty() {
+            return preview;
+        }
     }
     let mut parts = Vec::new();
     for key in ["command", "path", "query", "duration_ms", "error"] {

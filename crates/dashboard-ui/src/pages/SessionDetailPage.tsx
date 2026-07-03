@@ -33,7 +33,7 @@ export function SessionDetailPage() {
   const [eventFilter, setEventFilter] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string | null>(null);
   const [eventSearch, setEventSearch] = useState("");
-  const sseLive = useSessionEventStream(sessionId, "detail");
+  const sseLive = useSessionEventStream(sessionId, "detail").connected;
   const queryClient = useQueryClient();
   const ackBlock = useMutation({
     mutationFn: () => api.acknowledgeSessionBlock(sessionId),

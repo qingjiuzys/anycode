@@ -55,10 +55,10 @@
 
 1. **WorkBuddy 矩阵**：七域无 **Partial** 行；仅剩 **Skip** / **Later** / **Done**（见 comparison 文档同步）。
 2. **微信 G1**：完成 [§4.1 联调清单](#41-微信-cdn-联调清单) 或 ADR 记录「iLink 限制下的降级策略」。
-3. **Harness P0（G2–G4）**：`production-harness-hardening.md` M1–M3 验收标准逐条可演示；`anycode eval run --mock` + `scripts/eval/run.py --with-mock` CI 绿。
+3. **Harness P0（G2–G4）**：`production-harness-hardening.md` M1–M3 验收标准逐条可演示；`cargo test --workspace` + ``cargo test --workspace`` CI 绿。
 4. **Harness P1（G5–G7）**：M4–M6 最小实现 + 单元/集成测试；无新 public trait（ADR 000）。
 5. **记忆 G8**：`memory prune --dry-run` 与 Dashboard retention 面板结果一致；audit 有 `memory_retention_apply`。
-6. **发布**：`cargo build --release -p anycode`；comparison + CHANGELOG 更新；doctor `all` 无新增红色项。
+6. **发布**：`cargo build --release -p anycode-desktop-channel-bridge`；comparison + CHANGELOG 更新；doctor `all` 无新增红色项。
 
 **不在此轮 Exit 内：** SSO、Connector 写回、多机 RemoteTrigger、140+ 专家、SkillHub 运营。
 
@@ -95,9 +95,9 @@ flowchart LR
 **Wave 1 完成检查：**
 
 ```bash
-cargo test -p anycode --test eval_mock
-python3 scripts/eval/run.py --with-mock
-cargo test -p anycode-dashboard --test fixture_api
+cargo test -p anycode-channel-bridge --test eval_mock
+`cargo test --workspace`
+cargo test -p anycode-channel-bridge-dashboard --test fixture_api
 ```
 
 ### Wave 2 — Harness P1 治理（≈2 周）
@@ -124,7 +124,7 @@ cargo test -p anycode-dashboard --test fixture_api
 | 更新 [workbuddy-comparison-2026-06.md](../comparisons/workbuddy-comparison-2026-06.md) | 收口状态、G1/G9 结论 |
 | 更新 [roadmap.md](../roadmap.md) §2 最近已交付 | 收口摘要 + 链到本文 |
 | CHANGELOG | 用户可见特性与 breaking（若有） |
-| Release | `cargo build --release -p anycode`；tag 可选 |
+| Release | `cargo build --release -p anycode-desktop-channel-bridge`；tag 可选 |
 
 ---
 
@@ -132,7 +132,7 @@ cargo test -p anycode-dashboard --test fixture_api
 
 ### 4.1 微信 CDN 联调清单
 
-- [ ] iLink 登录态有效（`anycode channel status` 绿）
+- [ ] iLink 登录态有效（`anycode-daemon status` 绿）
 - [ ] 小文件（&lt;1MB `.md`）CDN upload + `file_item` 收到
 - [ ] 出站视频（如 `mountain_lake.mp4` ~870KB）CDN 直发，非路径回退（需 `base_info` + `iLink-App-*` 头，2026-06-15 已补齐代码）
 - [ ] 接近 10MB 边界文件行为（成功或明确错误码）
@@ -157,8 +157,8 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cargo check -p anycode-tools --features knowledge-embeddings
-python3 scripts/eval/run.py --with-mock
-cargo build --release -p anycode
+`cargo test --workspace`
+cargo build --release -p anycode-desktop-channel-bridge
 ```
 
 ---

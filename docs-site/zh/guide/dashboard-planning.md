@@ -15,7 +15,7 @@ description: V1–V3 完成状态与 0.3 网页控制台路线图。
 
 | 层级 | 内容 |
 |------|------|
-| CLI | `anycode dashboard`、doctor、status、token、db backup |
+| CLI | anyCode desktop or Workbench at http://127.0.0.1:43180、doctor、status、token、db backup |
 | 数据 | run/goal/workflow/repl/cron → SQLite |
 | 信任 | 门禁阻断；无门禁且已完成 → verified |
 | UI | React/Vite、中英文、SSE、12+ 页面、release 内嵌 UI |
@@ -28,8 +28,8 @@ description: V1–V3 完成状态与 0.3 网页控制台路线图。
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
 cargo test -p anycode-dashboard
 cd crates/dashboard-ui && npm test && npm run test:e2e
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
-anycode dashboard --open
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-desktop --features embedded-ui
+anyCode desktop app or http://127.0.0.1:43180
 ```
 
 ## 仓库文档（维护者）

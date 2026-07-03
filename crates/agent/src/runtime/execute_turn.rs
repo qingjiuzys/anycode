@@ -9,6 +9,7 @@ use super::agentic_turn::{
     TurnToolState,
 };
 use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
+use super::live_trace_emit;
 use super::llm_retry::model_config_with_retry_observer;
 use super::memory_hooks;
 use super::provider_errors::{
@@ -26,6 +27,7 @@ use anycode_core::Artifact;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -49,6 +51,7 @@ impl AgentRuntime {
         tool_deny_prefixes: &[String],
         budget: TaskBudget,
         loop_limits: AgentLoopLimits,
+        live_trace_tx: Option<UnboundedSender<LiveTraceEvent>>,
     ) -> Result<TurnOutput, CoreError> {
         let logger = self.logger();
         logger.ensure_initialized(task_id);
@@ -68,11 +71,13 @@ impl AgentRuntime {
 
         let tools = self.tools.read().await;
         let raw = tool_surface::resolve_agent_tool_names(agent_type.as_str(), agent_tools, &tools);
+        let merged_denies =
+            anycode_tools::merge_agent_type_tool_denies(agent_type.as_str(), tool_deny_names);
         let names = tool_surface::prepare_tool_names_for_llm(
             raw,
             &self.tool_name_deny,
             &self.claude_gating,
-            tool_deny_names,
+            &merged_denies,
             tool_deny_prefixes,
         );
         let tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
@@ -94,7 +99,9 @@ impl AgentRuntime {
                 task_id,
                 &format!("[turn_start] turn={}/{}", turn, loop_limits.max_agent_turns),
             );
+            live_trace_emit::emit_turn_start(&live_trace_tx, turn);
             if opt_coop_cancelled(&coop_cancel) {
+                live_trace_emit::emit_turn_done(&live_trace_tx, "cancelled");
                 logger.line(task_id, "[task_end] status=cancelled reason=cooperative");
                 return Err(CoreError::CooperativeCancel);
             }
@@ -118,6 +125,7 @@ impl AgentRuntime {
                         .unwrap_or_else(|| "<default>".to_string())
                 ),
             );
+            live_trace_emit::emit_llm_request_start(&live_trace_tx, turn);
 
             let mut overflow_retried_this_turn = false;
             let llm_t0 = std::time::Instant::now();
@@ -184,6 +192,11 @@ impl AgentRuntime {
                                         StreamEvent::Delta(d) => {
                                             if !d.is_empty() {
                                                 received_any = true;
+                                                live_trace_emit::emit_assistant_delta(
+                                                    &live_trace_tx,
+                                                    turn,
+                                                    &d,
+                                                );
                                                 let mut g = messages.lock().await;
                                                 if let Some(last) = g.last_mut() {
                                                     if last.id == assistant_id {
@@ -392,6 +405,7 @@ impl AgentRuntime {
             if !text.trim().is_empty() {
                 last_assistant_text = text.clone();
                 if response.tool_calls.is_empty() {
+                    live_trace_emit::emit_assistant_done(&live_trace_tx, turn, &text);
                     logger.assistant_response(task_id, turn, &text);
                 }
             }
@@ -435,6 +449,7 @@ impl AgentRuntime {
                 session_label: &session_label,
                 turn,
                 loop_limits,
+                live_trace_tx: live_trace_tx.clone(),
             };
             let mut tool_state = TurnToolState {
                 total_tool_calls,
@@ -483,6 +498,7 @@ impl AgentRuntime {
         };
         if !last_assistant_text.trim().is_empty() {
             logger.session_state(task_id, "idle");
+            live_trace_emit::emit_turn_done(&live_trace_tx, "completed");
             logger.line(task_id, "[task_end] status=completed");
             logger.line(
                 task_id,
@@ -523,6 +539,7 @@ impl AgentRuntime {
                 nested_worktree_repo_root: None,
                 nested_cancel: None,
                 channel_progress_tx: None,
+                live_trace_tx: None,
                 tool_deny_names: vec![],
                 tool_deny_prefixes: vec![],
                 user_vision_images: vec![],
@@ -544,6 +561,8 @@ impl AgentRuntime {
         .await;
 
         logger.session_state(task_id, "idle");
+        live_trace_emit::emit_assistant_done(&live_trace_tx, last_model_turn, &summary_text);
+        live_trace_emit::emit_turn_done(&live_trace_tx, "completed");
         logger.line(task_id, "[task_end] status=completed");
         logger.assistant_response(task_id, last_model_turn, &summary_text);
         logger.line(task_id, "== summary ==");

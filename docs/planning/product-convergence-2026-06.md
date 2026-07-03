@@ -11,11 +11,11 @@
 | 面 | 入口 | 模块 |
 |----|------|------|
 | 默认交互 | `anycode`（无子命令） | `tasks_repl` — TTY stream REPL；非 TTY 行式 stdio |
-| 单次任务 | `anycode run` / `--goal` / `--workflow` | `AgentRuntime::execute_task` |
-| 自动化 | `anycode scheduler`、`CronCreate` 工具 | `orchestration.json`、`cron-runs.jsonl` |
+| 单次任务 | `Workbench task` / `--goal` / `--workflow` | `AgentRuntime::execute_task` |
+| 自动化 | `anycode-daemon scheduler`、`CronCreate` 工具 | `orchestration.json`、`cron-runs.jsonl` |
 | 配置/诊断 | `setup`、`config`、`model`、`doctor`、`eval` | `app_config/`、`commands/` |
-| IM 通道 | `anycode channel {wechat,telegram,discord,status}` | `channels/` |
-| Workbench | `anycode dashboard` | `crates/dashboard` + `dashboard-ui` |
+| IM 通道 | `anycode-daemon {wechat,telegram,discord,status}` | `channels/` |
+| Workbench | `anyCode Workbench` | `crates/dashboard` + `dashboard-ui` |
 | Desktop | `apps/anycode-desktop`（macOS `.dmg`） | sidecar spawn dashboard，不直接调 runtime |
 | 编排权威 | 唯一多轮路径 | `AgentRuntime::execute_task` / `execute_turn_from_messages`（ADR 000） |
 
@@ -124,11 +124,11 @@ cargo fmt --all -- --check
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
 cargo clippy --workspace --all-targets
 cargo test --workspace
-cargo test -p anycode-tools --features tools-lsp
-cargo test -p anycode-tools --features tools-mcp
+cargo test -p anycode-channel-bridge-tools --features tools-lsp
+cargo test -p anycode-channel-bridge-tools --features tools-mcp
 cargo check -p anycode-tools --features knowledge-embeddings
 cd crates/dashboard-ui && npm test && npm run build
-cargo build --release -p anycode
+cargo build --release -p anycode-desktop-channel-bridge
 ```
 
 ---

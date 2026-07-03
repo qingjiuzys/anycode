@@ -10,146 +10,74 @@
 
 ## 核心结论
 
-1. **单一二进制**：`anycode` 既是 CLI（TTY / REPL / run / channel），也是 Dashboard HTTP 服务（`anycode dashboard`）。
-2. **Agent 执行只在 CLI 子进程**：Dashboard 与 Desktop 不内嵌 `AgentRuntime`；UI 触发任务时 spawn `anycode run`。
-3. **Desktop 是壳**：Tauri 进程 spawn `anycode dashboard` sidecar + WebView，所有能力仍来自 CLI 二进制。
+1. **三个入口**：**anyCode.app**（内嵌 dashboard）、**`anycode-daemon`**（通道 + scheduler）、以及开发时直接跑 dashboard/desktop crate。
+2. **Agent 执行内嵌**：Desktop 与 dashboard HTTP 服务在同一进程内通过 **`anycode-bootstrap::initialize_runtime`** 构造 `AgentRuntime`；**不再** embedded AgentRuntime 子进程。
+3. **配置统一**：`~/.anycode/config.json`（`anycode-config`）；首次配置走 Workbench **`/setup`**。
 
 ## 进程拓扑
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  Tauri Desktop（apps/anycode-desktop）                           │
-│    spawn → anycode dashboard  (:43180)                           │
+│  anyCode Desktop（apps/anycode-desktop）                         │
+│    进程内启动 anycode-dashboard HTTP (:43180)                    │
 │    WebView → http://127.0.0.1:43180/                           │
-│    可选 spawn → anycode channel wechat --run-as-bridge          │
+│    可选：用户自行运行 anycode-daemon wechat-bridge 等            │
 └────────────────────────────┬────────────────────────────────────┘
                              │
 ┌────────────────────────────▼────────────────────────────────────┐
-│  anycode dashboard（Axum HTTP，crates/dashboard）                │
+│  anycode-dashboard（Axum，crates/dashboard）                     │
 │    SQLite: ~/.anycode/projects.db                               │
-│    静态 UI: dashboard-ui/dist 或 embedded-ui feature            │
-│    POST trigger → spawn anycode run -C <root> ...               │
-│    审批/取消: approval_ipc / cancel_ipc 文件 IPC                 │
+│    静态 UI: dashboard-ui/dist / embedded-ui                     │
+│    Web 聊天 / UI trigger → 内嵌 AgentRuntime（bootstrap）        │
+│    审批/取消: dashboard-ipc 文件 IPC                           │
 └────────────────────────────┬────────────────────────────────────┘
-                             │ spawn
+                             │ in-process
 ┌────────────────────────────▼────────────────────────────────────┐
-│  anycode run / REPL / channel（同一二进制）                      │
-│    initialize_runtime → AgentRuntime                            │
-│    tail output.log → DashboardRecorder → projects.db            │
+│  anycode-bootstrap → AgentRuntime → tools / LLM / memory        │
+│    录制: DashboardRecorder → projects.db                        │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  anycode-daemon（crates/channel-bridge 二进制）                  │
+│    scheduler | wechat-bridge | telegram-bridge | discord-bridge │
+│    同样 initialize_runtime；与 Desktop 共享 config.json          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 入口与模式
+## 入口对照
 
-| 模式 | 启动方式 | Agent 路径 | Dashboard 联动 |
-|------|----------|------------|----------------|
-| Stream TTY（默认） | 无子命令 + TTY | `execute_turn_from_messages` | `DashboardRecorder` + Web 审批 IPC |
-| `anycode repl` | 显式子命令 | 同上 | 同上 |
-| `anycode run` | 子命令 / UI 触发 | `execute_task` | `ANYCODE_DASHBOARD_RECORD=1` 时录制 |
-| Channel（微信等） | `anycode channel …` | `execute_task` | 可选读 project skills |
-| `anycode dashboard` | 子命令 / Desktop sidecar | **不跑 AgentRuntime** | 自身即 HTTP 服务 |
+| 场景 | 入口 | AgentRuntime |
+|------|------|----------------|
+| macOS 日常使用 | anyCode.app | 内嵌（dashboard 库） |
+| Workbench 对话 | HTTP `/api/...` chat / trigger | 内嵌 |
+| 微信/Telegram/Discord | `anycode-daemon *-bridge` | 桥进程内 |
+| Cron / 自动化 | `anycode-daemon scheduler` 或 Desktop 内嵌 | 调度循环内 |
+| 开发调试 | `cargo tauri dev` / dashboard e2e server | 内嵌 |
 
-入口分发见 `crates/cli/src/commands/dispatch/mod.rs`；组合根见 `crates/cli/src/bootstrap/runtime.rs::initialize_runtime`。
+## UI 触发任务（简化）
 
-## 数据流（一次 UI 触发的任务）
+1. 用户在 Workbench 点击触发或发送消息  
+2. `web_chat` / `task_trigger` 调用内嵌 runtime（`execute_task` / `execute_turn_from_messages`）  
+3. 流式事件经 SSE 推送到前端；可选写入 `projects.db`
 
-```text
-1. 用户在 Dashboard 输入 prompt
-2. task_trigger  spawn: anycode run -C <project_root> --prompt "…"
-3. CLI initialize_runtime → AgentRuntime::execute_task
-4. 执行过程写 ~/.anycode/tasks/<id>/output.log（结构化 trace 行）
-5. DashboardRecorder tail output.log → INSERT project_events / sessions
-6. SSE 推送 → dashboard-ui 刷新 EventTimeline / ConversationTranscript
-7. 敏感工具需审批 → Web UI respond → approval_ipc → CLI WorkbenchApprovalCallback
-8. 用户取消 → cancel_ipc → CooperativeCancel（ADR 010）
-```
+## 审批路径
 
-关键文件：
+- **Workbench**：Settings → Security；进行中审批走 Web inbox + `dashboard-ipc`  
+- **通道**：微信/Telegram/Discord 桥内 headless 或交互审批回调  
 
-- 触发：`crates/dashboard/src/control/task_trigger.rs`
-- 录制：`crates/dashboard/src/recorder.rs`
-- 日志解析：`crates/dashboard/src/observability/log_parser.rs`
-- 对话转录：`crates/dashboard/src/observability/session_transcript.rs`
+## 已移除
 
-## 组合根组装（initialize_runtime）
+- 终端 `anycode` 二进制（REPL/TUI/`run`/`setup`/`dashboard` 子命令）  
+- HTTP `anycode daemon`（POST `/v1/tasks`）— 见 ADR 003  
+- Dashboard spawn CLI 子进程执行 Agent  
 
-| 步骤 | 模块 | 产物 |
-|------|------|------|
-| LLM | `build_llm_stack` | `Arc<dyn LLMClient>` |
-| 记忆 | `build_memory_layer` | MemoryStore + 可选 MemoryPipeline |
-| 安全 | `build_security_setup` | SecurityLayer、MCP defer gate |
-| 工具 | `build_tools_setup` | 工具注册表、Skill catalog、MCP 连接 |
-| Prompt | `prompt_runtime` | 工作区 / skills / project allowlist |
-| 运行时 | `AgentRuntime::new` | 唯一多轮编排门面 |
+## 代码锚点
 
-编排权威仅在 `crates/agent/src/runtime/`（ADR 000）。
-
-## Project（工作台项目）
-
-**Project = 磁盘工作区 + SQLite 元数据**（`~/.anycode/projects.db`）。
-
-| 阶段 | 说明 | 关键路径 |
-|------|------|----------|
-| 创建 | UI `POST /api/projects` 或 `anycode project init` | `handlers/projects.rs`、`project_templates/` |
-| 配置 | 知识库路径、Skills 白名单、Gate 预设 | `ProjectKnowledgeConfigPanel`、`gate_runner.rs` |
-| 执行 | trigger → `anycode run` / goal | `task_trigger.rs` |
-| 验证 | Gate Runner 在 project_root 跑 shell | `control/gate_runner.rs` |
-| 观测 | sessions、events、reports | `recorder.rs`、`session_transcript.rs` |
-
-## MCP 与 Skill
-
-| 机制 | 配置入口 | 运行时 |
-|------|----------|--------|
-| **MCP** | `config.json` → `mcp.servers`；环境变量 `ANYCODE_MCP_SERVERS` 按 slug 覆盖 | `bootstrap/mcp_env.rs` → `tools_setup.rs` 长连接 |
-| **MCP（UI）** | 设置 → 通知与连接器 → MCP 服务器（JSON 编辑） | `GET/PUT /api/settings/mcp-servers` |
-| **内置浏览器** | `mcp.browser.enabled` + 桌面包 `ANYCODE_BROWSER_MCP_ROOT` | Playwright MCP（stdio，slug=`browser`） |
-| **Skill** | `~/.anycode/skills`、项目 `skills/`；`config.json` → `skills.*` | `SkillCatalog` + `Skill` 工具 |
-
-## 配置与共享状态
-
-| 路径 | 用途 |
+| 区域 | 路径 |
 |------|------|
-| `~/.anycode/config.json` | 全局配置（LLM、memory、skills、mcp、agents…） |
-| `<workspace>/.anycode/config.json` | 工作区 overlay |
-| `~/.anycode/projects.db` | Dashboard 项目 / 会话 / 事件 |
-| `~/.anycode/tasks/<id>/output.log` | 任务执行 trace |
-| `~/.anycode/sessions/` | REPL/TUI 会话快照 |
-
-## Desktop 打包
-
-`scripts/build-desktop-release.sh` 产出 macOS DMG；sidecar 内嵌：
-
-- `anycode` 二进制
-- `dashboard-ui/dist`（或 `embedded-ui`）
-- `project-templates/`
-- `resources/browser/`（Playwright MCP + Chromium，由 `prepare-browser-mcp.sh` 生成）
-
-Tauri 启动逻辑：`apps/anycode-desktop/src/main.rs`。
-
-### 构建时下载 vs 最终安装包
-
-| 命令 | 浏览器 MCP / Chromium | dashboard-ui `npm ci` | 说明 |
-|------|----------------------|----------------------|------|
-| `cargo build --release -p anycode` | **否** | 仅当 `dist/` 缺失时 | 仅 CLI |
-| `./scripts/build-desktop-release.sh` | **是**（首次或 lockfile 变更） | **是**（首次或 lockfile 变更） | 写入 `resources/browser/` 后打进 DMG/App |
-
-产物路径（与 CLI 共用根目录 `target/`）：`target/release/bundle/dmg/`、`target/release/bundle/macos/`。
-
-**用户**安装 DMG 后无需再执行 `npx playwright install`。
-
-**开发者重复打包**时的本地缓存（lockfile / 平台未变则跳过下载）：
-
-| 缓存 | 位置 | 强制刷新 |
-|------|------|----------|
-| dashboard-ui npm | `crates/dashboard-ui/.npm-fingerprint` | `ANYCODE_DASHBOARD_UI_FORCE=1` |
-| browser MCP + Chromium | `resources/browser/.bundle-fingerprint` | `ANYCODE_BROWSER_MCP_FORCE=1` |
-| 桌面图标 | `icons/.icon-fingerprint` | `ANYCODE_DESKTOP_ICON_FORCE=1` |
-| apple-media Swift | 源文件 mtime vs 已构建二进制 | `ANYCODE_APPLE_MEDIA_FORCE=1` |
-
-`build-desktop-release.sh` 会打印每步耗时。若**每次**仍看到 `npm ci` 或 `playwright install`，检查是否设置了 `*_FORCE=1`、是否改了 lockfile、或是否删除了 `resources/browser/`。
-
-dashboard-ui 已构建时可设 `ANYCODE_SKIP_DASHBOARD_UI_BUILD=1` 跳过 UI 的 npm build（`crates/dashboard/build.rs`）。
-
-建议本地一次性安装 Tauri CLI，避免脚本内 `cargo install tauri-cli`：`cargo install tauri-cli --version "^2" --locked`。
-
-Whisper / FastEmbed / Piper 等模型**不在 build 阶段打包**，首次使用时下载到 `~/.anycode` 或 `~/.cache`。
+| Desktop 内嵌 dashboard | `apps/anycode-desktop/src/dashboard_backend.rs` |
+| Runtime 组装 | `crates/bootstrap/src/runtime.rs` |
+| Web 聊天 | `crates/dashboard/src/control/web_chat.rs` |
+| UI trigger | `crates/dashboard/src/control/`（embedded path） |
+| Daemon 入口 | `crates/channel-bridge/src/bin/anycode_daemon.rs` |
+| 通道桥 | `crates/channel-bridge/src/channels/` |

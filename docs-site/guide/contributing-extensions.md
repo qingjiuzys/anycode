@@ -26,11 +26,11 @@ This page lists **where to change code** for common extensions. For layering rul
 ## New channel (WeChat / web / …)
 
 1. Implement `ChannelHandler` from `anycode-core` in `crates/channels`.
-2. The main CLI path may not depend on `channels` yet; integrate at the composition root (`crates/cli`) when adding a user-facing entrypoint.
+2. Integrate at the composition root (`crates/bootstrap`) when adding a user-facing entrypoint.
 
 ## Memory backends and pipeline
 
-- **File / hybrid / noop**: configured via CLI `bootstrap` → `build_memory_layer` (`crates/cli/src/bootstrap/mod.rs`).
+- **File / hybrid / noop**: configured via `anycode-bootstrap` → `build_memory_layer` (`crates/bootstrap/src/memory_setup.rs`).
 - **Pipeline** (vector + optional embedding): types in `crates/core/src/memory_pipeline.rs`, implementation `crates/memory`. See [`docs/adr/001-memory-pipeline-and-store.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/adr/001-memory-pipeline-and-store.md).
 
 ## Quick navigation
@@ -39,5 +39,5 @@ This page lists **where to change code** for common extensions. For layering rul
 |------|-------------------|
 | Tool registry | `crates/tools/src/registry.rs` |
 | Tool catalog / sensitive IDs | `crates/tools/src/catalog.rs` |
-| Runtime assembly | `crates/cli/src/bootstrap/runtime.rs` |
+| Runtime assembly | `crates/bootstrap/src/runtime.rs` |
 | Agent loop | `crates/agent/src/runtime/session.rs`, `mod.rs` |

@@ -1,5 +1,5 @@
-# 手动构建并上传 Linux/Windows CLI（tag 不再自动发布；macOS 用户请用 desktop-release 的 .dmg）。
-# Unix: anycode-<asset-target>.tar.gz；Windows: anycode-<target>.zip
+# 手动构建并上传 Linux/Windows anycode-daemon（tag 不再自动发布；macOS 用户请用 desktop-release 的 .dmg）。
+# Unix: anycode-daemon-<asset-target>.tar.gz；Windows: anycode-daemon-<target>.zip
 name: Release binaries
 
 on:
@@ -49,7 +49,7 @@ jobs:
       - name: cargo build
         env:
           ANYCODE_BUILD_DASHBOARD_UI: "1"
-        run: cargo build -p anycode --release --features embedded-ui,knowledge-embeddings --target ${{ matrix.target }}
+        run: cargo build -p anycode-channel-bridge --release --features knowledge-embeddings --target ${{ matrix.target }}
 
       - name: Package tarball (unix)
         if: runner.os != 'Windows'
@@ -57,8 +57,8 @@ jobs:
         run: |
           ASSET_TARGET="${{ matrix.target }}"
           ASSET_TARGET="${ASSET_TARGET/-unknown-/-}"
-          ASSET="anycode-${ASSET_TARGET}.tar.gz"
-          tar -C "target/${{ matrix.target }}/release" -czvf "$ASSET" anycode
+          ASSET="anycode-daemon-${ASSET_TARGET}.tar.gz"
+          tar -C "target/${{ matrix.target }}/release" -czvf "$ASSET" anycode-daemon
           echo "path=$ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Package zip (windows)
@@ -66,8 +66,8 @@ jobs:
         id: pack_windows
         shell: pwsh
         run: |
-          $asset = "anycode-${{ matrix.target }}.zip"
-          Compress-Archive -Path "target/${{ matrix.target }}/release/anycode.exe" -DestinationPath $asset -Force
+          $asset = "anycode-daemon-${{ matrix.target }}.zip"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/anycode-daemon.exe" -DestinationPath $asset -Force
           "path=$asset" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Upload to GitHub Release

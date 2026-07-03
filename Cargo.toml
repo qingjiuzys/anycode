@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/apple-media",
+    "crates/browser",
     "crates/wechat-history",
     "crates/core",
     "crates/agent",
@@ -9,11 +10,14 @@ members = [
     "crates/security",
     "crates/channels",
     "crates/memory",
-    "crates/onboard",
     "crates/locale",
     "crates/dashboard",
     "crates/setup",
-    "crates/cli",
+    "crates/config",
+    "crates/channel-bridge",
+    "crates/bootstrap",
+    "crates/dashboard-ipc",
+    "crates/relay-gateway",
 ]
 resolver = "2"
 
@@ -36,10 +40,6 @@ serde_json = "1.0"
 # Database
 sled = "0.34"
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
-
-# CLI
-ratatui = "0.24"
-crossterm = "0.27"
 
 # HTTP/WebSocket
 reqwest = { version = "0.11", features = ["json", "stream"] }

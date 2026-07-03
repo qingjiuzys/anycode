@@ -10,10 +10,16 @@ export default defineConfig({
     {
       name: "html-build-stamp",
       transformIndexHtml(html) {
-        return html.replace(
-          "<head>",
-          `<head>\n    <meta name="anycode-ui-build" content="${new Date().toISOString()}" />`,
-        );
+        const stamp = `<meta name="anycode-ui-build" content="${new Date().toISOString()}" />`;
+        const apiBootstrap = `<script>
+  (function () {
+    try {
+      var base = sessionStorage.getItem("anycode_api_base");
+      if (base) window.__ANYCODE_API_BASE__ = base;
+    } catch (e) {}
+  })();
+</script>`;
+        return html.replace("<head>", `<head>\n    ${stamp}\n    ${apiBootstrap}`);
       },
     },
   ],
@@ -26,7 +32,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:43180",
+        target: `http://127.0.0.1:${process.env.ANYCODE_DASHBOARD_DEV_PORT ?? "43180"}`,
         changeOrigin: true,
       },
     },
@@ -34,6 +40,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    base: "./",
     rollupOptions: {
       output: {
         manualChunks(id) {

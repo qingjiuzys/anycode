@@ -1,40 +1,22 @@
 ---
-title: Discovery & test-security
-description: list-agents, list-tools, and test-security for local policy debugging.
-summary: Introspection commands and SecurityLayer check_tool_call helper.
-read_when:
-  - You need to list agents or tools from the CLI.
-  - You debug why a tool call was denied.
+title: Discovery & test-security (removed)
+description: list-agents, list-tools, and test-security CLI commands were removed with the terminal CLI.
 ---
 
-# Discovery & test-security
+# Discovery & test-security (removed)
 
-## List agents and tools
+These CLI introspection commands are **no longer shipped**:
 
-```bash
-anycode list-agents
-anycode list-tools
-```
+- `anycode list-agents` / `anycode list-tools`
+- `anycode test-security`
+- `anycode doctor` / `anycode status`
 
-When **Agent** or **Task** appears in the tool list, those invoke nested sub-agents. JSON inputs and behavior aligned with Claude Code’s **`Agent`** tool (**`cwd`**, **`model`**, **`isolation`**, **`run_in_background`**, etc.) are documented under **P5** in the [Roadmap](./roadmap).
+**Use instead:**
 
-## `test-security`
+- **Workbench → Settings → Governance / Doctor** — local health checks and next steps
+- **Agents & Skills** page — installed skills and agents catalog in the UI
+- **`cargo test --workspace`** — policy and tool registry tests for maintainers
 
-Runs **`SecurityLayer::check_tool_call`** for a given tool name and JSON input:
+See [Troubleshooting](./troubleshooting) for common setup issues.
 
-```bash
-anycode test-security --tool Bash --input '{"command":"ls"}'
-```
-
-Exact subcommand spelling is shown in **`anycode --help`**.
-
-## `LSP` tool
-
-With **`--features tools-lsp`**, the **`LSP`** tool forwards JSON-RPC over a stdio subprocess. Configure **`lsp`** in `config.json` (see [Config & security](./config-security) — **LSP**) or set **`ANYCODE_LSP_COMMAND`**.
-
-## Related
-
-- [Roadmap](./roadmap) — **P5**: **Agent** / **Task** vs Claude field parity  
-- [Agent skills](./skills) — **`anycode skills`**, **`SKILL.md`** discovery  
-- [Config & security](./config-security) — deny rules and **`permission_mode`**  
-- [Architecture](./architecture) — **SecurityLayer** wiring  
+简体中文：[发现与 test-security（已移除）](/zh/guide/cli-diagnostics).

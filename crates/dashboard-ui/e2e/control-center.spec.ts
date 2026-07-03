@@ -12,10 +12,10 @@ test.describe("control center", () => {
     await expect(fab).toBeVisible();
   });
 
-  test("back button closes overlay", async ({ page }) => {
+  test("close button closes overlay", async ({ page }) => {
     await page.goto("/conversations");
     await page.locator(".dw-control-fab").click();
-    await page.getByRole("button", { name: /back|返回/i }).click();
+    await page.getByRole("button", { name: /close|关闭/i }).click();
     await expect(page.locator(".dw-control-center")).toHaveCount(0);
   });
 

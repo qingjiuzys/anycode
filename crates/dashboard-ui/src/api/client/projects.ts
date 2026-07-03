@@ -125,6 +125,7 @@ export const projectsClient = {
       vision_images?: { mime_type: string; data_base64: string }[];
       text_files?: { filename: string; content: string }[];
       lang?: string;
+      recycle_session?: boolean;
     },
   ) =>
     post<{ session: SessionDetail; chat: WebChatResult }>(

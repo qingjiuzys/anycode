@@ -10,10 +10,10 @@ git clone --depth 1 https://github.com/srothgan/claude-code-rust.git /tmp/claude
 
 | anyCode | claude-code-rust（典型路径） |
 |---------|-------------------------------|
-| [crates/cli/src/repl/stream_viewport.rs](../../crates/cli/src/repl/stream_viewport.rs) | `src/ui/chat.rs` — 折行、滚动条几何、平滑滚动 |
-| [crates/cli/src/repl/dock_render.rs](../../crates/cli/src/repl/dock_render.rs) | `src/ui/` 下 prompt / status 组合（结构不同，需自行搜 `Paragraph`、`HUD`） |
-| [crates/cli/src/repl/stream_ratatui.rs](../../crates/cli/src/repl/stream_ratatui.rs) | 全应用 `App` + 单事件循环；anyCode 为 **当前线程 UI 轴心** + **从属 `current_thread` Tokio**（见 [`stream_app.rs`](../../crates/cli/src/repl/stream_app.rs) / `stream_repl_tokio_worker`） |
-| [crates/cli/src/repl/exec_parity.rs](../../crates/cli/src/repl/exec_parity.rs) | 回合生命周期在 `App` / bridge 内统一；可搜 `SpinnerState`、`AppStatus` |
+| [crates/bootstrap/src/repl/stream_viewport.rs](../../crates/bootstrap/src/repl/stream_viewport.rs) | `src/ui/chat.rs` — 折行、滚动条几何、平滑滚动 |
+| [crates/bootstrap/src/repl/dock_render.rs](../../crates/bootstrap/src/repl/dock_render.rs) | `src/ui/` 下 prompt / status 组合（结构不同，需自行搜 `Paragraph`、`HUD`） |
+| [crates/bootstrap/src/repl/stream_ratatui.rs](../../crates/bootstrap/src/repl/stream_ratatui.rs) | 全应用 `App` + 单事件循环；anyCode 为 **当前线程 UI 轴心** + **从属 `current_thread` Tokio**（见 [`stream_app.rs`](../../crates/bootstrap/src/repl/stream_app.rs) / `stream_repl_tokio_worker`） |
+| [crates/bootstrap/src/repl/exec_parity.rs](../../crates/bootstrap/src/repl/exec_parity.rs) | 回合生命周期在 `App` / bridge 内统一；可搜 `SpinnerState`、`AppStatus` |
 
 ## 行为差异（速览）
 
@@ -25,4 +25,4 @@ git clone --depth 1 https://github.com/srothgan/claude-code-rust.git /tmp/claude
 
 ## 维护建议
 
-对齐 HUD/执行态时，优先对照其 **`AppStatus` / `SpinnerState`** 与 anyCode 的 **`ReplLineState::executing_since`**（[`line_state.rs`](../../crates/cli/src/repl/line_state.rs)）+ **[`sync_repl_dock_status`](../../crates/cli/src/tasks/tasks_repl.rs)** + **[`dock_render`](../../crates/cli/src/repl/dock_render.rs)**（Prompt HUD 与耗时秒数）；长文滚动对齐 `chat.rs` 中 scrollbar 与 `SCROLLBAR_*` 常量与 [stream_viewport.rs](../../crates/cli/src/repl/stream_viewport.rs) 中 `SCROLL_EASE` 等命名。
+对齐 HUD/执行态时，优先对照其 **`AppStatus` / `SpinnerState`** 与 anyCode 的 **`ReplLineState::executing_since`**（[`line_state.rs`](../../crates/bootstrap/src/repl/line_state.rs)）+ **[`sync_repl_dock_status`](../../crates/bootstrap/src/tasks/tasks_repl.rs)** + **[`dock_render`](../../crates/bootstrap/src/repl/dock_render.rs)**（Prompt HUD 与耗时秒数）；长文滚动对齐 `chat.rs` 中 scrollbar 与 `SCROLLBAR_*` 常量与 [stream_viewport.rs](../../crates/bootstrap/src/repl/stream_viewport.rs) 中 `SCROLL_EASE` 等命名。

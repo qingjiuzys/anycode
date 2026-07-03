@@ -52,6 +52,15 @@ pub const TOOL_SPEECH_TO_TEXT: &str = "SpeechToText";
 pub const TOOL_TEXT_TO_SPEECH: &str = "TextToSpeech";
 pub const TOOL_GENERATE_IMAGE: &str = "GenerateImage";
 pub const TOOL_GENERATE_VIDEO: &str = "GenerateVideo";
+pub const TOOL_BROWSER_TABS: &str = "BrowserTabs";
+pub const TOOL_BROWSER_NAVIGATE: &str = "BrowserNavigate";
+pub const TOOL_BROWSER_SNAPSHOT: &str = "BrowserSnapshot";
+pub const TOOL_BROWSER_CLICK: &str = "BrowserClick";
+pub const TOOL_BROWSER_TYPE: &str = "BrowserType";
+pub const TOOL_BROWSER_PRESS_KEY: &str = "BrowserPressKey";
+pub const TOOL_BROWSER_SCROLL: &str = "BrowserScroll";
+pub const TOOL_BROWSER_SCREENSHOT: &str = "BrowserScreenshot";
+pub const TOOL_BROWSER_CDP: &str = "BrowserCdp";
 
 /// general-purpose Agent 暴露的完整工具 id（与 `build_registry` 插入集合一致）。
 pub const DEFAULT_TOOL_IDS: &[&str] = &[
@@ -107,6 +116,15 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_TEXT_TO_SPEECH,
     TOOL_GENERATE_IMAGE,
     TOOL_GENERATE_VIDEO,
+    TOOL_BROWSER_TABS,
+    TOOL_BROWSER_NAVIGATE,
+    TOOL_BROWSER_SNAPSHOT,
+    TOOL_BROWSER_CLICK,
+    TOOL_BROWSER_TYPE,
+    TOOL_BROWSER_PRESS_KEY,
+    TOOL_BROWSER_SCROLL,
+    TOOL_BROWSER_SCREENSHOT,
+    TOOL_BROWSER_CDP,
 ];
 
 /// 需在 CLI `bootstrap` 中套用 `SecurityPolicy::sensitive_mutation()` 的工具 id（与 `FileWrite` / `Bash` 的专用策略并列）。
@@ -139,6 +157,13 @@ pub const SECURITY_SENSITIVE_TOOL_IDS: &[&str] = &[
     TOOL_REPL,
     TOOL_SEND_WECHAT_MESSAGE,
     TOOL_QUERY_WECHAT_HISTORY,
+    TOOL_BROWSER_NAVIGATE,
+    TOOL_BROWSER_CLICK,
+    TOOL_BROWSER_TYPE,
+    TOOL_BROWSER_PRESS_KEY,
+    TOOL_BROWSER_SCROLL,
+    TOOL_BROWSER_CDP,
+    TOOL_BROWSER_SCREENSHOT,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -484,6 +509,78 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         ALL_AGENTS,
         false,
         "standard",
+    ),
+    tool_entry(
+        TOOL_BROWSER_TABS,
+        "browser",
+        "low",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_BROWSER_NAVIGATE,
+        "browser",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_BROWSER_SNAPSHOT,
+        "browser",
+        "low",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_BROWSER_CLICK,
+        "browser",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_BROWSER_TYPE,
+        "browser",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_BROWSER_PRESS_KEY,
+        "browser",
+        "medium",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_BROWSER_SCROLL,
+        "browser",
+        "medium",
+        ALL_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(
+        TOOL_BROWSER_SCREENSHOT,
+        "browser",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_BROWSER_CDP,
+        "browser",
+        "high",
+        ALL_AGENTS,
+        true,
+        "full",
     ),
 ];
 

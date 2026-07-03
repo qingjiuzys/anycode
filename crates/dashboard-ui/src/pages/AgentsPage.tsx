@@ -10,12 +10,15 @@ import { EmptyState } from "@/components/EmptyState";
 import { InstalledSkillsPanel } from "@/components/InstalledSkillsPanel";
 import { SkillMarketPanel } from "@/components/SkillMarketPanel";
 import { SkillSuggestionsPanel } from "@/components/SkillSuggestionsPanel";
+import { SkillsImportPanel } from "@/components/SkillsImportPanel";
 import { AgentEditorDrawer } from "@/components/settings/AgentEditorDrawer";
 import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { builtinAgentMeta } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
+
+type SkillsTab = "installed" | "catalog" | "import";
 
 function isMockModel(model: string | null | undefined): boolean {
   const m = (model ?? "").trim().toLowerCase();
@@ -76,6 +79,8 @@ function formatShortTime(iso: string | null): string {
 export function AgentsPage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<SkillsTab>("installed");
+  const [statsOpen, setStatsOpen] = useState(false);
   const stats = useQuery({
     queryKey: ["agent-stats"],
     queryFn: () => api.agentStats(30),
@@ -121,6 +126,17 @@ export function AgentsPage(_props: EmbeddedPageProps = {}) {
   const activeAgentTypes = agentRows.filter((r) => r.sessions_count > 0).length;
   const maxSessions = Math.max(1, ...agentRows.map((r) => r.sessions_count));
 
+  const statsSummary = t("agents.statsSectionSummary")
+    .replace("{skills}", skills.isLoading ? "…" : String(skillList.length))
+    .replace("{agents}", String(activeAgentTypes))
+    .replace("{sessions}", String(totalSessions));
+
+  const tabs: { id: SkillsTab; label: string }[] = [
+    { id: "installed", label: t("agents.tabs.installed") },
+    { id: "catalog", label: t("agents.tabs.catalog") },
+    { id: "import", label: t("agents.tabs.import") },
+  ];
+
   return (
     <>
       <PageHeader
@@ -148,62 +164,127 @@ export function AgentsPage(_props: EmbeddedPageProps = {}) {
               <Icon name="route" size={16} />
               {t("agents.routingLink")}
             </Link>
-            <Link to="/settings" search={{ section: "skills" }} className="dw-agents-quick-nav__item">
-              <Icon name="extension" size={16} />
-              {t("agents.skillsLink")}
-            </Link>
           </nav>
         }
       />
 
       <div className="dw-agents-page">
-        <div className="dw-agents-kpi-strip">
-          <KpiChip
-            icon="extension"
-            label={t("agents.skills")}
-            value={skills.isLoading ? "…" : String(skillList.length)}
-          />
-          <KpiChip
-            icon="smart_toy"
-            label={t("agents.summaryActiveAgents")}
-            value={String(activeAgentTypes)}
-          />
-          <KpiChip
-            icon="forum"
-            label={t("agents.summarySessions")}
-            value={String(totalSessions)}
-            highlight
-          />
-          <KpiChip
-            icon="folder"
-            label={t("agents.summaryPaths")}
-            value={skills.isLoading ? "…" : String(skills.data?.scan_roots ?? 0)}
-            hint={t("agents.summaryPathsHint")}
-          />
-        </div>
+        <SkillSuggestionsPanel />
 
-        <div className="dw-agents-workbench">
-          <main className="dw-agents-main-stack" aria-label={t("agents.skills")}>
-            <SkillSuggestionsPanel />
-            <InstalledSkillsPanel
-              skills={skillList}
-              loading={skills.isLoading}
-              rescanPending={rescan.isPending}
-              onRescan={() => rescan.mutate()}
-              rescanSuccess={rescan.isSuccess ? rescan.data.skills_synced : undefined}
-              missingStarterCount={missingStarter.length}
-              onInstallStarter={() => installStarter.mutate()}
-              installStarterPending={installStarter.isPending}
-            />
-            <SkillMarketPanel />
-          </main>
+        <section className="dw-agents-skills-shell" aria-label={t("agents.skills")}>
+          <div className="dw-agents-tabs" role="tablist" aria-label={t("agents.skills")}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`agents-tab-${tab.id}`}
+                aria-selected={activeTab === tab.id}
+                aria-controls={`agents-panel-${tab.id}`}
+                className={`dw-agents-tabs__tab ${activeTab === tab.id ? "dw-agents-tabs__tab--active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          <aside className="dw-agents-side-stack" aria-label={t("agents.builtinCards")}>
-            <section className="dw-agents-panel" aria-labelledby="agents-builtin-heading">
-              <header className="dw-agents-panel__head">
-                <h2 id="agents-builtin-heading" className="dw-agents-panel__title">
-                  {t("agents.builtinCards")}
-                </h2>
+          <div className="dw-agents-tab-content">
+            {activeTab === "installed" && (
+              <div
+                role="tabpanel"
+                id="agents-panel-installed"
+                aria-labelledby="agents-tab-installed"
+                className="dw-agents-tab-panel-wrap"
+              >
+                <InstalledSkillsPanel
+                  embedded
+                  skills={skillList}
+                  loading={skills.isLoading}
+                  rescanPending={rescan.isPending}
+                  onRescan={() => rescan.mutate()}
+                  rescanSuccess={rescan.isSuccess ? rescan.data.skills_synced : undefined}
+                  missingStarterCount={missingStarter.length}
+                  onInstallStarter={() => installStarter.mutate()}
+                  installStarterPending={installStarter.isPending}
+                />
+              </div>
+            )}
+            {activeTab === "catalog" && (
+              <div
+                role="tabpanel"
+                id="agents-panel-catalog"
+                aria-labelledby="agents-tab-catalog"
+                className="dw-agents-tab-panel-wrap"
+              >
+                <p className="text-xs text-secondary m-0 mb-3">{t("agents.skillMarketHint")}</p>
+                <SkillMarketPanel embedded />
+              </div>
+            )}
+            {activeTab === "import" && (
+              <div
+                role="tabpanel"
+                id="agents-panel-import"
+                aria-labelledby="agents-tab-import"
+                className="dw-agents-tab-panel-wrap"
+              >
+                <SkillsImportPanel />
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="dw-agents-panel dw-agents-stats-collapse">
+          <button
+            type="button"
+            className="dw-agents-stats-collapse__trigger"
+            aria-expanded={statsOpen}
+            onClick={() => setStatsOpen((open) => !open)}
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <Icon
+                name="expand_more"
+                size={20}
+                className={`shrink-0 text-outline transition-transform ${statsOpen ? "rotate-180" : ""}`}
+              />
+              <span className="dw-agents-panel__title normal-case tracking-normal text-sm">
+                {t("agents.statsSection")}
+              </span>
+            </span>
+            {!statsOpen && (
+              <span className="text-xs text-secondary tabular-nums truncate">{statsSummary}</span>
+            )}
+          </button>
+
+          {statsOpen && (
+            <div className="dw-agents-stats-collapse__body">
+              <div className="dw-agents-kpi-strip px-4 pt-3 pb-1">
+                <KpiChip
+                  icon="extension"
+                  label={t("agents.skills")}
+                  value={skills.isLoading ? "…" : String(skillList.length)}
+                />
+                <KpiChip
+                  icon="smart_toy"
+                  label={t("agents.summaryActiveAgents")}
+                  value={String(activeAgentTypes)}
+                />
+                <KpiChip
+                  icon="forum"
+                  label={t("agents.summarySessions")}
+                  value={String(totalSessions)}
+                  highlight
+                />
+                <KpiChip
+                  icon="folder"
+                  label={t("agents.summaryPaths")}
+                  value={skills.isLoading ? "…" : String(skills.data?.scan_roots ?? 0)}
+                  hint={t("agents.summaryPathsHint")}
+                />
+              </div>
+
+              <header className="dw-agents-panel__head dw-agents-panel__head--sub">
+                <h3 className="dw-agents-panel__title">{t("agents.builtinCards")}</h3>
               </header>
               <div className="dw-agents-panel__body dw-agents-panel__body--flush-x">
                 <AgentRoleCards agents={rawAgents} onSelectAgent={setAgentDrawer} />
@@ -245,13 +326,9 @@ export function AgentsPage(_props: EmbeddedPageProps = {}) {
                   </ul>
                 )}
               </div>
-            </section>
 
-            <section className="dw-agents-panel" aria-labelledby="agents-custom-heading">
-              <header className="dw-agents-panel__head">
-                <h2 id="agents-custom-heading" className="dw-agents-panel__title">
-                  {t("agents.customAgents")}
-                </h2>
+              <header className="dw-agents-panel__head dw-agents-panel__head--sub">
+                <h3 className="dw-agents-panel__title">{t("agents.customAgents")}</h3>
                 <button
                   type="button"
                   className="dw-btn-secondary text-sm shrink-0"
@@ -278,9 +355,9 @@ export function AgentsPage(_props: EmbeddedPageProps = {}) {
                   </ul>
                 )}
               </div>
-            </section>
-          </aside>
-        </div>
+            </div>
+          )}
+        </section>
       </div>
 
       <AgentUsageDrawer

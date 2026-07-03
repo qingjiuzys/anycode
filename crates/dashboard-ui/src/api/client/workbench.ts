@@ -5,7 +5,7 @@ import type {
   FsEntry,
   FsReadResult,
 } from "../types/workbench";
-import { del, get, post } from "../http";
+import { del, get, post, apiWebSocketUrl } from "../http";
 
 export const workbenchClient = {
   listProjectFs: (projectId: string, path = "") =>
@@ -18,9 +18,10 @@ export const workbenchClient = {
       `/api/projects/${encodeURIComponent(projectId)}/fs/read?path=${encodeURIComponent(path)}&max_bytes=${maxBytes}`,
     ),
 
-  createBrowserSession: (projectId: string) =>
+  createBrowserSession: (projectId: string, conversationId?: string | null) =>
     post<{ session: BrowserSessionInfo }>("/api/workbench/browser/sessions", {
       project_id: projectId,
+      conversation_id: conversationId ?? undefined,
     }),
 
   navigateBrowser: (sessionId: string, url: string) =>
@@ -44,12 +45,17 @@ export const workbenchClient = {
       `/api/workbench/browser/sessions/${encodeURIComponent(sessionId)}`,
     ),
 
-  terminalWsUrl: (projectId: string) => {
-    const base = import.meta.env.VITE_API_BASE ?? "";
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = base
-      ? new URL(base, window.location.origin).host
-      : window.location.host;
-    return `${proto}//${host}/api/projects/${encodeURIComponent(projectId)}/terminal/ws`;
-  },
+  browserLock: (sessionId: string, lock: "user" | "agent" | "idle") =>
+    post<{ lock: string }>(
+      `/api/workbench/browser/sessions/${encodeURIComponent(sessionId)}/lock`,
+      { lock },
+    ),
+
+  browserStreamUrl: (sessionId: string) =>
+    apiWebSocketUrl(
+      `/api/workbench/browser/sessions/${encodeURIComponent(sessionId)}/stream`,
+    ),
+
+  terminalWsUrl: (projectId: string) =>
+    apiWebSocketUrl(`/api/projects/${encodeURIComponent(projectId)}/terminal/ws`),
 };

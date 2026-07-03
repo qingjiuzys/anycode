@@ -11,15 +11,15 @@ description: Install, Workbench, terminal, and scheduled jobs—quick fixes.
 Add the install directory to PATH or open a new terminal. From source, use the full path to `target/release/anycode`.
 
 **`setup` failed?**  
-Usually network or API keys. Verify provider credentials and run `anycode setup` again.
+Usually network or API keys. Verify provider credentials and run `Workbench /setup` again.
 
 ## Workbench
 
 **Can’t open `http://127.0.0.1:43180`?**  
-Run `anycode dashboard` first; check for port conflicts. Change port in Settings if needed.
+Run anyCode desktop or Workbench at http://127.0.0.1:43180 first; check for port conflicts. Change port in Settings if needed.
 
 **Empty project list?**  
-The Workbench lists workspaces that have already run tasks. Run `anycode` or `anycode run` in a project folder, then refresh.
+The Workbench lists workspaces that have already run tasks. Start a conversation from a project in the Workbench, then refresh.
 
 **Wrong language?**  
 Switch **中文 / English** in the top bar. Sidebar doc/help links follow the UI locale.
@@ -49,7 +49,7 @@ Use **Retry now**; open the session for details; clarify the task text.
 Use the latest DMG; if the icon is cached, run `killall Dock`.
 
 **Blank window?**  
-Wait a few seconds for the sidecar; or run `anycode dashboard` manually, then reopen the app.
+Wait a few seconds for the sidecar; or run anyCode desktop or Workbench at http://127.0.0.1:43180 manually, then reopen the app.
 
 ---
 

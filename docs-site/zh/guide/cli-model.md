@@ -1,28 +1,18 @@
 ---
-title: 模型子命令
-description: anycode model list、status、set 与交互式编辑。
-summary: z.ai 静态目录与其它提供商在 config 中直配的区别。
-read_when:
-  - 要在终端里改默认模型或路由相关模型。
+title: 模型命令（已移除）
+description: anycode model 子命令已移除；请在工作台配置模型。
 ---
 
-# 模型子命令
+# 模型命令（已移除）
 
-```bash
-./target/release/anycode model list --plain
-./target/release/anycode model status
-./target/release/anycode model set glm-5
-```
+**`anycode model`** CLI（`list`、`status`、`set`、交互编辑）**已不再提供**。
 
-**`model list`** 当前主要为 **z.ai** 静态目录；使用 **Anthropic** 时在 **`config.json`** 中直接设置 **`provider`** 与 **`model`**。
+**请改用：**
 
-无子命令的 **`anycode model`** 可交互编辑全局默认值与 **`routing.agents`**（以当前版本行为为准）。
+- **Workbench `/setup`** — 首次配置模型与 API Key
+- **设置 → 模型** — 修改默认模型、路由与探测
+- **直接编辑** — `~/.anycode/config.json`
 
-均遵守 **`-c/--config`**。
+详见 [模型与端点](./models)。
 
-## 相关
-
-- [模型与端点](./models)  
-- [路由](./routing)  
-
-English: [Model commands](/guide/cli-model).
+English: [Model commands (removed)](/guide/cli-model).

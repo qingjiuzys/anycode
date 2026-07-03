@@ -79,7 +79,7 @@ export function MemoryRetentionPanel() {
       </div>
       {msg && <p className="text-sm text-secondary mt-2 m-0">{msg}</p>}
       <p className="text-xs text-secondary mt-3 m-0">
-        CLI: <code className="font-code">anycode memory prune --dry-run</code>
+        Use Settings → Memory to prune stale entries, or run a dry-run from the API.
       </p>
     </SectionCard>
   );

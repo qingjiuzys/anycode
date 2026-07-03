@@ -54,6 +54,7 @@ describe("controlCenterPaths", () => {
 
   it("decides deep-link sync targets", () => {
     expect(shouldOpenControlCenterForLocation("/settings", "")).toBe(true);
+    expect(shouldOpenControlCenterForLocation("/", "")).toBe(false);
     expect(shouldOpenControlCenterForLocation("/conversations", "")).toBe(false);
     expect(shouldOpenControlCenterForLocation("/sessions/s1", "?tab=debug")).toBe(
       false,

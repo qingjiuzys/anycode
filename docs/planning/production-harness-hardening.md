@@ -29,11 +29,11 @@ The goal is to turn anycode from a locally observable agent CLI into a productio
 |-----------|---------|---------------|
 | M0 — Roadmap | Add this Tier 1.5 roadmap and keep English/Chinese planning docs aligned. | `docs/workbench/digital-workbench-next-steps*.md` |
 | M1 — Execution trace | Emit structured trace events for tasks, turns, LLM calls, tool calls, gates, budgets, and task end states. | `crates/core`, `crates/agent/src/runtime`, `crates/dashboard` |
-| M2 — Runtime budget | Enforce task-level token/cost/duration budgets with warning, degradation, and hard-stop states. | `crates/agent/src/runtime`, `crates/cli`, `crates/dashboard` |
-| M3 — Trajectory eval | Extend mock eval to assert tool paths, repeated calls, forbidden tools, gates, and budget outcomes. | `crates/cli/src/commands/eval_mock.rs`, `scripts/eval` |
+| M2 — Runtime budget | Enforce task-level token/cost/duration budgets with warning, degradation, and hard-stop states. | `crates/agent/src/runtime`, `crates/bootstrap`, `crates/dashboard` |
+| M3 — Trajectory eval | Extend mock eval to assert tool paths, repeated calls, forbidden tools, gates, and budget outcomes. | `crates/bootstrap/src/commands/eval_mock.rs` |
 | M4 — Tool governance | Promote the tool catalog from id lists to metadata with risk, approval, category, and agent visibility. | `crates/tools/src/catalog.rs`, `crates/tools/src/registry.rs` |
-| M5 — MCP governance | Add optional per-server quotas, strict whitelists, and MCP trace events. | `crates/tools`, `crates/cli`, `crates/dashboard` |
-| M6 — Declarative plan | Validate workflow/plan metadata before execution; planners output plans, the harness decides execution. | `crates/core`, `crates/cli/src/tasks_workflow.rs` |
+| M5 — MCP governance | Add optional per-server quotas, strict whitelists, and MCP trace events. | `crates/tools`, `crates/bootstrap`, `crates/dashboard` |
+| M6 — Declarative plan | Validate workflow/plan metadata before execution; planners output plans, the harness decides execution. | `crates/core`, `crates/bootstrap/src/tasks_workflow.rs` |
 | M7 — Memory retention | Add retention dry-run/prune and evidence provenance for hot/vector memory. | `crates/core/src/memory_*`, `crates/memory` |
 | M8 — Workbench operations | Surface budget, trace, eval verdicts, tool/MCP risk, and memory retention in the UI. | `crates/dashboard-ui` |
 
@@ -49,7 +49,7 @@ After those land, implement tool governance and MCP governance, then declarative
 
 ## Acceptance criteria
 
-- `anycode run`, `goal`, `workflow`, `repl`, and cron sessions can emit a structured execution trace without breaking existing `output.log` ingestion.
+- `Workbench task`, `goal`, `workflow`, `repl`, and cron sessions can emit a structured execution trace without breaking existing `output.log` ingestion.
 - Budget strict mode can stop execution before another tool call after the hard limit is exceeded.
 - Eval can fail a mock run based on trajectory violations even when the final text is otherwise successful.
 - Tool metadata tests fail when a default tool is missing governance metadata.
@@ -66,9 +66,9 @@ Run the normal workspace checks plus the dashboard and eval suites:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
-python3 scripts/eval/run.py --with-mock
+`cargo test --workspace`
 cd crates/dashboard-ui && npm test && npm run test:e2e
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
-cargo build --release -p anycode
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-channel-bridge --features embedded-ui
+cargo build --release -p anycode-desktop-channel-bridge
 ```

@@ -1,3 +1,5 @@
+import { isReportsNavHidden } from "@/lib/featureFlags";
+
 /** Global feature navigation (formerly permanent left sidebar). */
 
 export type FeatureCountKey = "projects" | "sessions" | "artifacts" | "skills";
@@ -63,6 +65,21 @@ export const FEATURE_NAV: FeatureNavItem[] = [
   { id: "settings", to: "/settings", key: "nav.settings", icon: "settings", group: "config" },
 ];
 
+export function featureNavItems(): FeatureNavItem[] {
+  return FEATURE_NAV;
+}
+
+export function isFeatureNavItemVisible(item: FeatureNavItem): boolean {
+  if (item.id === "reports" && isReportsNavHidden()) {
+    return false;
+  }
+  return true;
+}
+
+export function visibleFeatureNav(): FeatureNavItem[] {
+  return featureNavItems().filter(isFeatureNavItemVisible);
+}
+
 export function navCount(
   key: FeatureCountKey | null | undefined,
   ov?: {
@@ -89,8 +106,9 @@ export function navCount(
 
 export function featureNavByPath(path: string): FeatureNavItem | undefined {
   const pathname = path.split("?")[0] ?? path;
-  if (pathname === "/") return FEATURE_NAV.find((item) => item.to === "/");
-  return FEATURE_NAV.find(
+  const items = featureNavItems();
+  if (pathname === "/") return items.find((item) => item.to === "/");
+  return items.find(
     (item) => item.to !== "/" && (pathname === item.to || pathname.startsWith(`${item.to}/`)),
   );
 }

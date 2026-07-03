@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { WebChatResult } from "@/api/client/projects";
 import type { SessionDetail, SessionWithProject } from "@/api/types";
 import { Icon } from "@/components/Icon";
+import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { appendOcrToMessage, ImageOcrButton } from "@/components/ImageOcrButton";
 import { isPrimaryAgentId } from "@/lib/agentCatalog";
@@ -19,6 +20,8 @@ type FollowUpProps = {
   mode: "follow-up";
   session: SessionWithProject;
   onSent?: (sessionId: string) => void;
+  hideWaitingIndicator?: boolean;
+  onStreamingStart?: (sessionId: string) => void;
 };
 
 type StartProps = {
@@ -28,6 +31,8 @@ type StartProps = {
   compact?: boolean;
   onSuccess?: (result: ConversationStartSuccess) => void;
   onCancel?: () => void;
+  hideWaitingIndicator?: boolean;
+  onStreamingStart?: (sessionId: string) => void;
 };
 
 type Props = FollowUpProps | StartProps;
@@ -230,7 +235,9 @@ export function ConversationComposer(props: Props) {
       attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setAttachedImages([]);
       setAttachedTextFiles([]);
+      props.mode === "follow-up" && props.onStreamingStart?.(session!.id);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects", "picker"] });
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["session", session!.id] });
       void queryClient.invalidateQueries({ queryKey: ["session-transcript", session!.id] });
@@ -262,7 +269,9 @@ export function ConversationComposer(props: Props) {
       attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setAttachedImages([]);
       setAttachedTextFiles([]);
+      props.mode === "start" && props.onStreamingStart?.(data.session.id);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects", "picker"] });
       void queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["session", data.session.id] });
       void queryClient.invalidateQueries({
@@ -273,6 +282,12 @@ export function ConversationComposer(props: Props) {
   });
 
   const running = session?.status === "running";
+  const hideWaiting =
+    props.mode === "follow-up"
+      ? Boolean(props.hideWaitingIndicator)
+      : props.mode === "start"
+        ? Boolean(props.hideWaitingIndicator)
+        : false;
   const pending = isStart ? startSession.isPending : sendFollowUp.isPending;
   const canSend =
     (message.trim().length > 0 ||
@@ -352,12 +367,6 @@ export function ConversationComposer(props: Props) {
     submitMessage();
   }
 
-  const modelLabel =
-    session?.model?.trim() ||
-    agent.trim() ||
-    session?.agent_type?.trim() ||
-    t("conversations.agentDefault");
-
   const error = isStart ? startSession.error : sendFollowUp.error;
 
   function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -411,14 +420,14 @@ export function ConversationComposer(props: Props) {
       )}
 
       <div className="dw-composer-input-wrap relative">
-        {running && (
+        {running && !hideWaiting && (
           <p className="text-xs text-secondary m-0 mb-2 flex items-center gap-2">
             <span className="inline-flex gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:120ms]" />
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:240ms]" />
             </span>
-            {t("conversations.waitingForModel")}
+            {t("conversations.thinkingWaiting")}
           </p>
         )}
         {(showMentionMenu || (showSlashMenu && slashOpen)) && (
@@ -597,6 +606,8 @@ export function ConversationComposer(props: Props) {
             )}
           </select>
 
+          <ModelPicker disabled={running || pending} compact />
+
           {skillOptions.length > 0 && (
             <div className="relative">
               <button
@@ -675,14 +686,6 @@ export function ConversationComposer(props: Props) {
           />
 
           {session && <AutoApproveToggle sessionId={session.id} />}
-
-          <span
-            className="text-[11px] text-secondary truncate max-w-[12rem]"
-            title={modelLabel}
-          >
-            <Icon name="smart_toy" size={14} className="inline align-middle mr-1" />
-            {modelLabel}
-          </span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

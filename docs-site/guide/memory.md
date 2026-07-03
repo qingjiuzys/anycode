@@ -8,7 +8,7 @@ read_when:
 
 # Memory notes
 
-## `anycode setup` (TTY)
+## `Workbench /setup` (TTY)
 
 After model credentials, setup offers:
 

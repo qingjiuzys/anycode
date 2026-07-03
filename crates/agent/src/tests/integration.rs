@@ -98,6 +98,7 @@ async fn test_agent_runtime_tool_loop_injects_tool_result_message() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -231,6 +232,7 @@ async fn execute_task_cooperative_cancel_before_first_llm() {
             nested_worktree_repo_root: None,
             nested_cancel: Some(coop),
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -338,6 +340,7 @@ async fn execute_task_cooperative_cancel_after_tool() {
             nested_worktree_repo_root: None,
             nested_cancel: Some(coop),
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -439,6 +442,7 @@ async fn execute_task_in_flight_llm_cooperative_cancel() {
             nested_worktree_repo_root: None,
             nested_cancel: Some(coop),
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -531,6 +535,7 @@ async fn execute_turn_from_messages_in_flight_stream_cooperative_cancel() {
             &[],
             TaskBudget::default(),
             AgentLoopLimits::default(),
+            None,
         ),
     )
     .await
@@ -627,6 +632,7 @@ async fn execute_turn_from_messages_in_flight_chat_cooperative_cancel() {
             &[],
             TaskBudget::default(),
             AgentLoopLimits::default(),
+            None,
         ),
     )
     .await
@@ -729,6 +735,7 @@ async fn test_execute_turn_from_messages_returns_final_text_and_injects_tool_res
             &[],
             TaskBudget::default(),
             AgentLoopLimits::default(),
+            None,
         )
         .await
         .unwrap();
@@ -854,6 +861,7 @@ async fn test_execute_turn_summary_receipt_appends_assistant_to_messages() {
             &[],
             TaskBudget::default(),
             AgentLoopLimits::default(),
+            None,
         )
         .await
         .unwrap();
@@ -1001,6 +1009,7 @@ async fn test_security_denied_bash_skips_execute_and_logs_tool_denied() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -1164,6 +1173,7 @@ async fn test_security_denied_filewrite_silent_approval_skips_execute() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -1300,6 +1310,7 @@ async fn test_tool_result_truncation_is_logged() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -1431,6 +1442,7 @@ async fn test_filewrite_artifact_is_returned() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -1610,6 +1622,7 @@ async fn execute_task_pipeline_hooks_ingest_tool_and_turn_fragments() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],
@@ -1695,6 +1708,7 @@ async fn execute_turn_streaming_sets_non_zero_max_input_tokens() {
             &[],
             TaskBudget::default(),
             AgentLoopLimits::default(),
+            None,
         )
         .await
         .unwrap();
@@ -1767,6 +1781,7 @@ async fn execute_turn_streaming_prefers_usage_event_input_tokens() {
             &[],
             TaskBudget::default(),
             AgentLoopLimits::default(),
+            None,
         )
         .await
         .unwrap();
@@ -1844,6 +1859,7 @@ async fn execute_task_success_triggers_memory_autosave_when_enabled() {
             nested_worktree_repo_root: None,
             nested_cancel: None,
             channel_progress_tx: None,
+            live_trace_tx: None,
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             user_vision_images: vec![],

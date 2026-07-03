@@ -20,10 +20,11 @@ const guideSidebarEn = [
     items: [{ text: 'Workbench tour', link: '/guide/workbench' }]
   },
   {
-    text: 'Terminal',
+    text: 'Desktop & headless',
     collapsed: false,
     items: [
-      { text: 'Using anyCode in the terminal', link: '/guide/cli' },
+      { text: 'Desktop app (macOS)', link: '/guide/desktop' },
+      { text: 'Headless daemon', link: '/guide/daemon' },
       { text: 'Scheduled reminders', link: '/guide/cli-scheduler' },
       { text: 'Common issues', link: '/guide/troubleshooting' }
     ]
@@ -35,10 +36,11 @@ const guideSidebarEn = [
       { text: 'WeChat & setup', link: '/guide/wechat' },
       { text: 'Telegram', link: '/guide/telegram' },
       { text: 'Discord', link: '/guide/discord' },
-      { text: 'Run, REPL & TUI', link: '/guide/cli-sessions' },
+      { text: 'Run, REPL & TUI (removed)', link: '/guide/cli-sessions' },
       { text: 'Models', link: '/guide/models' },
       { text: 'Config & security', link: '/guide/config-security' },
       { text: 'Agents & Skills', link: '/guide/agents' },
+      { text: 'Official skills catalog', link: '/guide/skills/' },
       { text: 'Memory', link: '/guide/memory' },
       { text: 'Notifications', link: '/guide/notifications' },
       { text: 'Architecture', link: '/guide/architecture' },
@@ -64,10 +66,11 @@ const guideSidebarZh = [
     items: [{ text: '工作台导览', link: '/zh/guide/workbench' }]
   },
   {
-    text: '终端助手',
+    text: '桌面与无头服务',
     collapsed: false,
     items: [
-      { text: '终端里怎么用', link: '/zh/guide/cli' },
+      { text: '桌面应用（macOS）', link: '/zh/guide/desktop' },
+      { text: '无头守护进程', link: '/zh/guide/daemon' },
       { text: '定时提醒', link: '/zh/guide/cli-scheduler' },
       { text: '常见问题', link: '/zh/guide/troubleshooting' }
     ]
@@ -79,10 +82,11 @@ const guideSidebarZh = [
       { text: '微信与配置', link: '/zh/guide/wechat' },
       { text: 'Telegram', link: '/zh/guide/telegram' },
       { text: 'Discord', link: '/zh/guide/discord' },
-      { text: 'run / REPL / 全屏界面', link: '/zh/guide/cli-sessions' },
+      { text: 'run / REPL / 全屏界面（已移除）', link: '/zh/guide/cli-sessions' },
       { text: '模型与端点', link: '/zh/guide/models' },
       { text: '配置与安全', link: '/zh/guide/config-security' },
       { text: 'Agent 与 Skills', link: '/zh/guide/agents' },
+      { text: '官方 Skills 目录', link: '/zh/guide/skills/' },
       { text: '记忆', link: '/zh/guide/memory' },
       { text: '会话通知', link: '/zh/guide/notifications' },
       { text: '架构说明', link: '/zh/guide/architecture' },
@@ -95,7 +99,7 @@ const guideSidebarZh = [
 export default defineConfig({
   base,
   title: 'anyCode',
-  description: 'Terminal AI agent for developers',
+  description: 'Self-hosted BYOK AI assistant with Digital Workbench',
   lastUpdated: true,
   cleanUrls: true,
   // zh/guide links point at repo `crates/` and `docs/` (outside docs-site); VitePress cannot resolve them.
@@ -109,7 +113,7 @@ export default defineConfig({
       label: 'English',
       lang: 'en-US',
       title: 'anyCode',
-      description: 'Terminal AI agent for developers',
+      description: 'Self-hosted BYOK AI assistant with Digital Workbench',
       themeConfig: {
         logo: '/anycode-logo.png',
         nav: [

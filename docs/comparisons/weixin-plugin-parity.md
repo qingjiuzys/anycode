@@ -1,13 +1,13 @@
 # 微信：OpenClaw 插件 vs anyCode Rust 桥
 
-对照上游 **`@tencent-weixin/openclaw-weixin@2.4.3`**（OpenClaw catalog，见 OpenClaw CHANGELOG 2026.5.14/5.17）与 anyCode 原生桥 [`crates/cli/src/wx/`](../crates/cli/src/wx/)。
+对照上游 **`@tencent-weixin/openclaw-weixin@2.4.3`**（OpenClaw catalog，见 OpenClaw CHANGELOG 2026.5.14/5.17）与 anyCode 原生桥 [`crates/bootstrap/src/wx/`](../crates/bootstrap/src/wx/)。
 
 ## 架构差异
 
 | 项 | OpenClaw | anyCode |
 |----|----------|---------|
-| 运行时 | Node Gateway + npm 插件 | Rust `anycode channel wechat` / LaunchAgent |
-| 调度 | Gateway 内嵌 cron / 多通道出站 | 内嵌 [`scheduler.rs`](../crates/cli/src/scheduler.rs) + [`cron_notify.rs`](../crates/cli/src/wx/cron_notify.rs) |
+| 运行时 | Node Gateway + npm 插件 | Rust `anycode-daemon wechat-bridge` / LaunchAgent |
+| 调度 | Gateway 内嵌 cron / 多通道出站 | 内嵌 [`scheduler.rs`](../crates/bootstrap/src/scheduler.rs) + [`cron_notify.rs`](../crates/bootstrap/src/wx/cron_notify.rs) |
 | 工具进度 | 依通道策略（Telegram draft 等） | **不推送** `🔧/✓` 行（仅最终回复 + 审批 + 定时提醒） |
 
 ## 2.4.3 相对 2.4.1（npm / OpenClaw #81730）
@@ -49,6 +49,6 @@
 
 **根因（推断）**：anyCode iLink 请求缺少 OpenClaw 2.4.3 统一的 `base_info`（`channel_version` / `bot_agent`）与 `iLink-App-Id` / `iLink-App-ClientVersion` 头；文本 `sendmessage` 可能仍成功，但 `getUploadUrl` + CDN 预签名对 wire 字段更严格，导致小体积 mp4（如 870KB）也回退为路径提示。
 
-**已补齐**：[`ilink.rs`](../crates/cli/src/channels/wx/ilink.rs) wire parity；[`cdn_upload.rs`](../crates/cli/src/channels/wx/cdn_upload.rs) `getUploadUrl` ret 校验；[`deliverable.rs`](../crates/cli/src/channels/wx/deliverable.rs) 区分「过大」与「CDN 失败」文案 + 远程 URL 下载。
+**已补齐**：[`ilink.rs`](../crates/bootstrap/src/channels/wx/ilink.rs) wire parity；[`cdn_upload.rs`](../crates/bootstrap/src/channels/wx/cdn_upload.rs) `getUploadUrl` ret 校验；[`deliverable.rs`](../crates/bootstrap/src/channels/wx/deliverable.rs) 区分「过大」与「CDN 失败」文案 + 远程 URL 下载。
 
 **待实机确认**：微信内收到视频消息（非路径回退）；见 [closure-plan-2026-06.md](../planning/closure-plan-2026-06.md) §4.1。

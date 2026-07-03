@@ -10,7 +10,7 @@ import type {
   SecurityActivitySummary,
   TokenUsageDetail,
 } from "../types";
-import { API_BASE, get, post } from "../http";
+import { get, post, apiUrl } from "../http";
 
 export const governanceClient = {
   timelineMetrics: (days = 7) =>
@@ -64,7 +64,7 @@ export const governanceClient = {
   usageExportUrl: (days = 7, projectId?: string) => {
     const q = new URLSearchParams({ days: String(days) });
     if (projectId) q.set("project_id", projectId);
-    return `${API_BASE}/api/metrics/usage/export?${q}`;
+    return apiUrl(`/api/metrics/usage/export?${q}`);
   },
   deliveryReadiness: () =>
     get<{ readiness: DeliveryReadiness }>("/api/metrics/readiness"),

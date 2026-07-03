@@ -8,7 +8,7 @@ read_when:
 
 # 记忆系统说明
 
-## `anycode setup`（交互 TTY）
+## `Workbench /setup`（交互 TTY）
 
 模型鉴权之后会进入记忆步骤：
 

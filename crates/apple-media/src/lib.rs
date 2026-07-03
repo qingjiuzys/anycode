@@ -4,7 +4,7 @@
 //! - **Swift helper** (`apps/anycode-desktop/native/anycode-apple-media/`): Vision, Speech, AVFoundation, etc.
 //! - **This crate**: JSON stdin/stdout IPC, helper resolution, temp files — shared by CLI, `anycode-llm`, dashboard.
 //! - **Tauri** (`apps/anycode-desktop/src/apple_media.rs`): base64 UI boundary + resource-path helper lookup.
-//! - **WeChat** (`crates/cli/src/channels/wx/`): inbound image OCR + voice STT via this crate / `SttClient`.
+//! - **WeChat** (`crates/channel-bridge/src/channels/wx/`): inbound image OCR + voice STT via this crate / `SttClient`.
 //! - **Media registry** (`crates/llm/src/media/`): `apple_speech` / `apple_tts` providers route here on macOS.
 
 use serde::{Deserialize, Serialize};

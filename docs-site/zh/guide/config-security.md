@@ -39,7 +39,7 @@ anycode config
 临时跳过审批示例：
 
 ```bash
-anycode run --ignore-approval --agent general-purpose "..."
+在工作台 **设置 → 安全** 中调整嵌入式对话与 UI 触发的审批模式。
 ```
 
 预期输出：仅本次任务执行跳过审批提示，不会改写配置文件。
@@ -145,8 +145,8 @@ export ANYCODE_MODEL_INSTRUCTIONS_FILE=/绝对或相对路径/说明.md
 通道 Bot Token 持久化（写入 `~/.anycode/channels/`，不回显日志）：
 
 ```bash
-anycode channel telegram-set-token --token "$TELEGRAM_BOT_TOKEN" --chat-id "123456"
-anycode channel discord-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "9876543210"
+anycode-daemon telegram-bridge-set-token --token "$TELEGRAM_BOT_TOKEN" --chat-id "123456"
+anycode-daemon discord-bridge-set-token --token "$DISCORD_BOT_TOKEN" --channel-id "9876543210"
 ```
 
 ## MCP 过滤

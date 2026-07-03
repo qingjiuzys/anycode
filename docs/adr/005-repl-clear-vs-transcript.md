@@ -19,7 +19,7 @@ _To be filled after aligning with target product behavior (e.g. Claude Code)._
 
 ## Consequences
 
-_Depends on decision; may affect [`ReplLineState`](../../crates/cli/src/repl_inline.rs) and `tasks_repl` handlers._
+_Depends on decision; may affect [`ReplLineState`](../../crates/bootstrap/src/repl_inline.rs) and `tasks_repl` handlers._
 
 ## Related
 

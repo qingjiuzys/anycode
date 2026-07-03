@@ -106,20 +106,22 @@ export const accountCloud = {
     accountFetch<{ members: CloudOrgMember[] }>(base, "/api/v1/org/members"),
 };
 
-export function resolveAccountApiBase(healthUrl?: string | null): string | null {
+import { CLOUD_PLATFORM } from "@/lib/cloudPlatform";
+
+export function resolveAccountApiBase(healthUrl?: string | null): string {
   const fromEnv = import.meta.env.VITE_ACCOUNT_API_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, "");
   const fromHealth = healthUrl?.trim();
   if (fromHealth) return fromHealth.replace(/\/$/, "");
-  return null;
+  return CLOUD_PLATFORM.accountApiUrl;
 }
 
 export function resolvePortalUrl(
   health?: { account_portal_url?: string | null; account_api_url?: string | null } | null,
-): string | null {
+): string {
   const fromEnv = import.meta.env.VITE_ACCOUNT_PORTAL_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, "");
   const fromHealth = health?.account_portal_url?.trim() || health?.account_api_url?.trim();
   if (fromHealth) return fromHealth.replace(/\/$/, "");
-  return null;
+  return CLOUD_PLATFORM.portalUrl;
 }

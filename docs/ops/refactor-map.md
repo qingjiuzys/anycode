@@ -8,7 +8,7 @@ Maintainer guide for moving code without changing behavior.
 - `crates/agent`: runtime orchestration (`AgentRuntime` sole authority).
 - `crates/tools`: tool implementations.
 - `crates/dashboard`: Digital Workbench backend.
-- `crates/cli`: binary composition root, dispatch, channels, terminal UX.
+- `crates/bootstrap`: binary composition root, dispatch, channels, terminal UX.
 - `crates/dashboard-ui`: embedded React UI; shared UI in `src/components/ui`.
 - `docs` / `docs-site` / `scripts`: as before.
 
@@ -35,5 +35,5 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cd crates/dashboard-ui && npm run build && npm run test && npm run test:e2e
-cargo build --release -p anycode
+cargo build --release -p anycode-desktop-channel-bridge
 ```

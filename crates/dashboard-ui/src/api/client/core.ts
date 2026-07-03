@@ -97,5 +97,24 @@ export const coreClient = {
       linked: boolean;
       access_token?: string | null;
       portal_url?: string | null;
+      gateway_url?: string | null;
     }>("/api/cloud/session"),
+  cloudLinkStart: () =>
+    post<{
+      device_code: string;
+      user_code?: string | null;
+      verification_uri: string;
+      verification_uri_complete?: string | null;
+      expires_in?: number | null;
+      browser_url: string;
+      redirect_uri: string;
+    }>("/api/cloud/link/start", {}),
+  cloudGatewayTest: () =>
+    post<{
+      ok: boolean;
+      status?: number;
+      gateway?: string;
+      snippet?: string;
+      error?: string;
+    }>("/api/cloud/gateway-test", {}),
 };

@@ -23,6 +23,8 @@ type Props = {
   missingStarterCount?: number;
   onInstallStarter?: () => void;
   installStarterPending?: boolean;
+  /** When true, omits outer panel chrome (for tabbed Agents page). */
+  embedded?: boolean;
 };
 
 export function InstalledSkillsPanel({
@@ -34,6 +36,7 @@ export function InstalledSkillsPanel({
   missingStarterCount = 0,
   onInstallStarter,
   installStarterPending,
+  embedded = false,
 }: Props) {
   const t = useT();
   const locale = useLocale();
@@ -68,159 +71,191 @@ export function InstalledSkillsPanel({
     }
   }
 
-  return (
-    <section className="dw-agents-panel dw-agents-panel--skills" aria-labelledby="agents-skills-heading">
-      <header className="dw-agents-panel__head">
-        <div>
+  const toolbar = (
+    <header className={embedded ? "dw-agents-tab-toolbar" : "dw-agents-panel__head"}>
+      <div>
+        {!embedded && (
           <h2 id="agents-skills-heading" className="dw-agents-panel__title">
             {t("agents.skills")}
           </h2>
-          {!loading && (
-            <p className="dw-agents-panel__sub m-0">
-              {skills.length > 0
-                ? t("agents.skillsSyncedCount").replace("{n}", String(skills.length))
-                : t("agents.skillsSyncedNone")}
-            </p>
-          )}
-        </div>
-        {onRescan && (
-          <button
-            type="button"
-            className="dw-btn-secondary text-sm shrink-0"
-            disabled={rescanPending}
-            onClick={onRescan}
-          >
-            <Icon name="refresh" size={16} />
-            {rescanPending ? t("agents.rescanning") : t("agents.rescan")}
-          </button>
         )}
-      </header>
-
-      {skills.length > 0 && (
-        <div className="px-4 pt-3 pb-2 space-y-2 border-b border-outline-variant/40">
-          <div className="relative">
-            <Icon
-              name="search"
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-outline"
-            />
-            <input
-              type="search"
-              className="dw-input w-full pl-9 text-sm"
-              placeholder={t("agents.skillMarketSearch")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FilterPill
-              active={categoryFilter === "all"}
-              label={t("agents.skillCategory.all")}
-              onClick={() => setCategoryFilter("all")}
-            />
-            {visibleCategories.map((cat) => (
-              <FilterPill
-                key={cat}
-                active={categoryFilter === cat}
-                label={t(`agents.skillCategory.${cat}`)}
-                onClick={() => setCategoryFilter(cat)}
-              />
-            ))}
-            {groups.length > 1 && (
-              <button type="button" className="dw-btn-ghost text-[10px] ml-auto" onClick={toggleAll}>
-                {allExpanded ? t("agents.skillsCollapseAll") : t("agents.skillsExpandAll")}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="dw-agents-panel__body dw-agents-panel__body--list dw-agents-panel__body--scroll">
-        {rescanSuccess !== undefined && (
-          <p className="dw-agents-toast m-0" role="status">
-            <Icon name="check_circle" size={16} className="text-success" />
-            {t("agents.rescanSuccess").replace("{n}", String(rescanSuccess))}
+        {!loading && (
+          <p className={`${embedded ? "text-xs" : "dw-agents-panel__sub"} text-secondary m-0`}>
+            {skills.length > 0
+              ? t("agents.skillsSyncedCount").replace("{n}", String(skills.length))
+              : t("agents.skillsSyncedNone")}
           </p>
         )}
-        {loading ? (
-          <p className="text-sm text-secondary m-0 px-4 py-6">{t("common.loading")}</p>
-        ) : skills.length === 0 ? (
-          <div className="px-4 py-2">
-            <EmptyState
-              title={t("agents.emptySkillsTitle")}
-              description={t("agents.emptySkills")}
-              icon="extension"
-              compact
-              actions={
-                <>
-                  {missingStarterCount > 0 && onInstallStarter && (
-                    <button
-                      type="button"
-                      className="dw-btn-primary text-sm"
-                      disabled={installStarterPending}
-                      onClick={onInstallStarter}
-                    >
-                      <Icon name="download" size={16} />
-                      {installStarterPending ? t("agents.rescanning") : t("agents.installStarterBtn")}
-                    </button>
-                  )}
-                  {onRescan && (
-                    <button
-                      type="button"
-                      className="dw-btn-secondary text-sm"
-                      disabled={rescanPending}
-                      onClick={onRescan}
-                    >
-                      <Icon name="refresh" size={16} />
-                      {t("agents.rescan")}
-                    </button>
-                  )}
-                </>
-              }
-            />
-          </div>
-        ) : filtered.length === 0 ? (
-          <p className="text-sm text-secondary m-0 px-4 py-6">{t("agents.skillMarketEmpty")}</p>
-        ) : (
-          <div>
-            {groups.map((group) => {
-              const isOpen = expanded.has(group.category);
-              return (
-                <div key={group.category}>
-                  <button
-                    type="button"
-                    className={`dw-agents-skill-group__head w-full ${isOpen ? "dw-agents-skill-group__head--open" : ""}`}
-                    onClick={() => toggleCategory(group.category)}
-                    aria-expanded={isOpen}
-                  >
-                    <Icon
-                      name="expand_more"
-                      size={18}
-                      className="dw-agents-skill-group__chevron shrink-0 text-outline"
-                    />
-                    <span>{t(`agents.skillCategory.${group.category}`)}</span>
-                    <span className="font-normal tabular-nums text-outline ml-1">
-                      {group.items.length}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <ul className="dw-agents-skill-list m-0 p-0 list-none">
-                      {group.items.map((skill) => (
-                        <SkillRow
-                          key={skill.id}
-                          skill={skill}
-                          locale={locale}
-                          projectsLabel={t("agents.projectsCount")}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      </div>
+      {onRescan && (
+        <button
+          type="button"
+          className="dw-btn-secondary text-sm shrink-0"
+          disabled={rescanPending}
+          onClick={onRescan}
+        >
+          <Icon name="refresh" size={16} />
+          {rescanPending ? t("agents.rescanning") : t("agents.rescan")}
+        </button>
+      )}
+    </header>
+  );
+
+  const filters = skills.length > 0 && (
+    <div
+      className={
+        embedded
+          ? "pb-2 space-y-2"
+          : "px-4 pt-3 pb-2 space-y-2 border-b border-outline-variant/40"
+      }
+    >
+      <div className="relative">
+        <Icon
+          name="search"
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-outline"
+        />
+        <input
+          type="search"
+          className="dw-input w-full pl-9 text-sm"
+          placeholder={t("agents.skillMarketSearch")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <FilterPill
+          active={categoryFilter === "all"}
+          label={t("agents.skillCategory.all")}
+          onClick={() => setCategoryFilter("all")}
+        />
+        {visibleCategories.map((cat) => (
+          <FilterPill
+            key={cat}
+            active={categoryFilter === cat}
+            label={t(`agents.skillCategory.${cat}`)}
+            onClick={() => setCategoryFilter(cat)}
+          />
+        ))}
+        {groups.length > 1 && (
+          <button type="button" className="dw-btn-ghost text-[10px] ml-auto" onClick={toggleAll}>
+            {allExpanded ? t("agents.skillsCollapseAll") : t("agents.skillsExpandAll")}
+          </button>
         )}
       </div>
+    </div>
+  );
+
+  const scrollBody = (
+    <div
+      className={
+        embedded
+          ? "dw-agents-panel__body--list dw-agents-panel__body--scroll min-h-0"
+          : "dw-agents-panel__body dw-agents-panel__body--list dw-agents-panel__body--scroll"
+      }
+    >
+      {rescanSuccess !== undefined && (
+        <p className="dw-agents-toast m-0" role="status">
+          <Icon name="check_circle" size={16} className="text-success" />
+          {t("agents.rescanSuccess").replace("{n}", String(rescanSuccess))}
+        </p>
+      )}
+      {loading ? (
+        <p className="text-sm text-secondary m-0 px-4 py-6">{t("common.loading")}</p>
+      ) : skills.length === 0 ? (
+        <div className="px-4 py-2">
+          <EmptyState
+            title={t("agents.emptySkillsTitle")}
+            description={t("agents.emptySkills")}
+            icon="extension"
+            compact
+            actions={
+              <>
+                {missingStarterCount > 0 && onInstallStarter && (
+                  <button
+                    type="button"
+                    className="dw-btn-primary text-sm"
+                    disabled={installStarterPending}
+                    onClick={onInstallStarter}
+                  >
+                    <Icon name="download" size={16} />
+                    {installStarterPending ? t("agents.rescanning") : t("agents.installStarterBtn")}
+                  </button>
+                )}
+                {onRescan && (
+                  <button
+                    type="button"
+                    className="dw-btn-secondary text-sm"
+                    disabled={rescanPending}
+                    onClick={onRescan}
+                  >
+                    <Icon name="refresh" size={16} />
+                    {t("agents.rescan")}
+                  </button>
+                )}
+              </>
+            }
+          />
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-secondary m-0 px-4 py-6">{t("agents.skillMarketEmpty")}</p>
+      ) : (
+        <div>
+          {groups.map((group) => {
+            const isOpen = expanded.has(group.category);
+            return (
+              <div key={group.category}>
+                <button
+                  type="button"
+                  className={`dw-agents-skill-group__head w-full ${isOpen ? "dw-agents-skill-group__head--open" : ""}`}
+                  onClick={() => toggleCategory(group.category)}
+                  aria-expanded={isOpen}
+                >
+                  <Icon
+                    name="expand_more"
+                    size={18}
+                    className="dw-agents-skill-group__chevron shrink-0 text-outline"
+                  />
+                  <span>{t(`agents.skillCategory.${group.category}`)}</span>
+                  <span className="font-normal tabular-nums text-outline ml-1">
+                    {group.items.length}
+                  </span>
+                </button>
+                {isOpen && (
+                  <ul className="dw-agents-skill-list m-0 p-0 list-none">
+                    {group.items.map((skill) => (
+                      <SkillRow
+                        key={skill.id}
+                        skill={skill}
+                        locale={locale}
+                        projectsLabel={t("agents.projectsCount")}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="dw-agents-tab-panel dw-agents-tab-panel--skills flex flex-col min-h-0">
+        {toolbar}
+        {filters}
+        {scrollBody}
+      </div>
+    );
+  }
+
+  return (
+    <section className="dw-agents-panel dw-agents-panel--skills" aria-labelledby="agents-skills-heading">
+      {toolbar}
+      {filters}
+      {scrollBody}
     </section>
   );
 }

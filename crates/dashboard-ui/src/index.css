@@ -276,8 +276,42 @@
     padding-bottom: 1rem;
   }
 
+  html.dw-tauri .dw-session-sidebar-footer,
+  html.dw-tauri .dw-session-sidebar-footer button,
+  html.dw-tauri .dw-session-sidebar-footer a {
+    -webkit-app-region: no-drag;
+  }
+
   .dw-main--sessions {
     @apply max-w-none p-0 gap-0 overflow-hidden flex flex-col;
+  }
+
+  .dw-session-sidebar-footer {
+    @apply shrink-0 relative z-[2] mx-2 mt-auto pt-3 flex items-center gap-2 border-t border-outline-variant;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-session-sidebar-footer__profile {
+    @apply flex items-center gap-2 min-w-0 flex-1 py-2 cursor-pointer;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-session-sidebar-footer__avatar {
+    @apply w-9 h-9 rounded-full bg-primary/15 text-primary text-xs font-semibold flex items-center justify-center shrink-0;
+  }
+
+  .dw-session-sidebar-footer__actions {
+    @apply flex items-center gap-0.5 shrink-0;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-session-sidebar-footer__icon-btn {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border-0 bg-transparent text-secondary cursor-pointer hover:bg-surface-container hover:text-on-surface transition-colors;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-session-sidebar-search {
+    @apply pt-1 shrink-0;
   }
 
   .dw-standard-footer {
@@ -1535,6 +1569,135 @@ html[data-skin="mono"] .accent-text {
 
 .bubble-assistant {
   color: var(--on-surface, var(--color-on-surface));
+}
+
+.bubble-assistant-live {
+  border-left: 3px solid var(--accent, var(--color-primary));
+  background: color-mix(in srgb, var(--accent, var(--color-primary)) 6%, transparent);
+}
+
+.chat-stream-cursor {
+  display: inline-block;
+  width: 0.45rem;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--accent, var(--color-primary));
+  animation: chat-stream-cursor-blink 1s steps(2) infinite;
+}
+
+@keyframes chat-stream-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.tool-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: min(100%, 42rem);
+  border: 1px dashed var(--outline-variant, var(--color-outline-variant));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--surface-container-low) 70%, transparent);
+  overflow: hidden;
+}
+
+.tool-strip--running {
+  border-color: color-mix(in srgb, var(--accent, var(--color-primary)) 35%, transparent);
+  background: color-mix(in srgb, var(--accent, var(--color-primary)) 5%, transparent);
+}
+
+.tool-strip--failed {
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+  background: color-mix(in srgb, var(--error) 5%, transparent);
+}
+
+.tool-strip-summary,
+.tool-strip-step-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.tool-strip-summary:hover,
+.tool-strip-step-toggle:hover {
+  background: color-mix(in srgb, var(--surface-container) 50%, transparent);
+}
+
+.tool-strip-summary-meta,
+.tool-strip-step-command,
+.tool-strip-step-duration {
+  color: var(--secondary, var(--color-secondary));
+  font-size: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-strip-step-command {
+  flex: 1;
+}
+
+.tool-strip-step-name {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.tool-strip-step-status {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.tool-strip-step-active .tool-strip-step-toggle {
+  color: var(--accent, var(--color-primary));
+}
+
+.tool-strip-step-failed .tool-strip-step-toggle {
+  color: var(--error);
+}
+
+.tool-strip-step-body,
+.chat-trace-step-body {
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.625rem;
+  border-top: 1px solid color-mix(in srgb, var(--outline-variant) 60%, transparent);
+  font-family: var(--font-code, ui-monospace, monospace);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.tool-strip-steps {
+  border-top: 1px solid color-mix(in srgb, var(--outline-variant) 50%, transparent);
+}
+
+.chat-trace-line-thinking .chat-trace-line-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--secondary);
+}
+
+.chat-trace {
+  max-width: min(100%, 42rem);
 }
 
 .skin-swatch {

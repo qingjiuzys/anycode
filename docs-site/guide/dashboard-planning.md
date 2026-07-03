@@ -15,7 +15,7 @@ Use this page when deciding what to build next. Full detail lives in the repo un
 
 | Layer | Delivered |
 |-------|-------------|
-| CLI | `anycode dashboard`, doctor, status, token, db backup |
+| CLI | anyCode desktop or Workbench at http://127.0.0.1:43180, doctor, status, token, db backup |
 | Data | SQLite recording from run/goal/workflow/repl/cron |
 | Trust | Gates → blocked; gate-less completed → verified |
 | UI | React/Vite, zh/en, SSE, 12+ pages, embedded release UI |
@@ -28,8 +28,8 @@ Use this page when deciding what to build next. Full detail lives in the repo un
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
 cargo test -p anycode-dashboard
 cd crates/dashboard-ui && npm test && npm run test:e2e
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
-anycode dashboard --open
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-desktop --features embedded-ui
+anyCode desktop app or http://127.0.0.1:43180
 ```
 
 ## Repo docs (maintainers)

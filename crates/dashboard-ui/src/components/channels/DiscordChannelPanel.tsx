@@ -11,7 +11,7 @@ import { useT } from "@/i18n/context";
 
 export function DiscordChannelPanel({
   initialChannelId,
-  startCommand = "anycode channel discord",
+  startCommand = "anycode-daemon discord-bridge",
   compact,
 }: {
   initialChannelId?: string | null;

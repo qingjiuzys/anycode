@@ -35,7 +35,7 @@ pub fn llm_doctor_checks() -> Vec<DoctorCheck> {
             format!("config.json found at {}", path.display())
         } else {
             format!(
-                "config.json not found at {} — run `anycode model` or create the file",
+                "config.json not found at {} — complete Workbench /setup or create the file",
                 path.display()
             )
         },
@@ -67,7 +67,7 @@ pub fn llm_doctor_checks() -> Vec<DoctorCheck> {
 }
 
 pub fn is_loopback_host(host: &str) -> bool {
-    host == "127.0.0.1" || host == "localhost" || host == "::1"
+    anycode_dashboard_ipc::host_guard::is_loopback_host(host)
 }
 
 pub fn build_service_status(
@@ -311,10 +311,10 @@ pub fn doctor_next_steps(
         steps.push("Run ./scripts/build-dashboard-ui.sh to build the UI".into());
     }
     if !has_projects {
-        steps.push("Run `anycode run` or `anycode goal` in a project directory".into());
+        steps.push("Chat in a project from the Workbench composer".into());
     }
     if !loopback && active_tokens == 0 {
-        steps.push("Create an API token: `anycode dashboard token create`".into());
+        steps.push("Create an API token in Settings → API tokens".into());
     }
     if report
         .checks
@@ -322,7 +322,7 @@ pub fn doctor_next_steps(
         .any(|c| c.id == "skills_starter_pack" && c.status == "warn")
     {
         steps.push(
-            "Install office starter skills: `anycode skills install-starter` or Agents page button"
+            "Install office starter skills from the Agents page or scripts/install-skills-starter.sh"
                 .into(),
         );
     }
@@ -341,7 +341,7 @@ pub fn doctor_next_steps(
         steps.push("If the dashboard is not already running, free the dashboard port or use `--port` with another value".into());
     }
     if steps.is_empty() && report.status == "ok" {
-        steps.push("Start dashboard: `anycode dashboard --open`".into());
+        steps.push("Launch anyCode (desktop) or open http://127.0.0.1:43180".into());
     }
     if report.status == "ok" {
         steps.push("Digital Workbench status: docs/workbench/digital-workbench-STATUS.md".into());
@@ -361,9 +361,7 @@ pub fn doctor_next_steps(
         .iter()
         .any(|c| c.id == "llm_config_exists" && c.status == "warn")
     {
-        steps.push(
-            "Open Workbench Setup (/setup) or run `anycode setup` to configure your model".into(),
-        );
+        steps.push("Open Workbench Setup (/setup) to configure your model".into());
     }
     if report
         .checks

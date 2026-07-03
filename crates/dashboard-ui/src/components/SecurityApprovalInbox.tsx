@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import type { ApprovalDecision, PendingApprovalsResponse } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
+import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
 import { sessionChatSearch } from "@/lib/sessionLinks";
@@ -13,10 +14,17 @@ type Props = {
   hideWhenEmpty?: boolean;
   /** Shorter title on session detail. */
   compact?: boolean;
+  /** Inline fold inside the chat transcript (last turn). */
+  inline?: boolean;
 };
 
 /** Live pending tool approvals — respond from Web when CLI session is recording. */
-export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Props) {
+export function SecurityApprovalInbox({
+  sessionId,
+  hideWhenEmpty,
+  compact,
+  inline = false,
+}: Props) {
   const t = useT();
   const queryClient = useQueryClient();
   const pendingQueryKey = ["security-approvals-pending", sessionId ?? ""] as const;
@@ -25,7 +33,7 @@ export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Pro
     queryKey: pendingQueryKey,
     queryFn: () => api.pendingApprovals({ limit: 10, sessionId }),
     staleTime: 5_000,
-    refetchInterval: sessionId ? 8_000 : 12_000,
+    refetchInterval: sessionId ? 4_000 : 12_000,
     refetchIntervalInBackground: false,
   });
 
@@ -97,73 +105,122 @@ export function SecurityApprovalInbox({ sessionId, hideWhenEmpty, compact }: Pro
     );
   }
 
+  const hint = sessionId ? t("session.securityInboxHint") : t("home.securityInboxHint");
+  const rowList = (
+    <div className={inline ? "space-y-2" : "space-y-3"}>
+      {rows.map((row) => (
+        <ApprovalRow
+          key={row.approval_id}
+          row={row}
+          inline={inline}
+          sessionId={sessionId}
+          canRespond={canRespond}
+          respondPending={respond.isPending}
+          onRespond={(approvalId, decision) => respond.mutate({ approvalId, decision })}
+          t={t}
+        />
+      ))}
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="chat-trace chat-trace-approval">
+        <div className="chat-trace-toggle-static">
+          <span className="inline-flex items-center gap-1.5 text-warn">
+            <Icon name="policy" size={16} />
+            {title}
+          </span>
+        </div>
+        <p className="text-xs text-secondary m-0 mt-1">{hint}</p>
+        {!canRespond && (
+          <p className="text-xs text-warn m-0 mt-1">{t("home.securityInboxRemoteBlocked")}</p>
+        )}
+        <div className="mt-2">{rowList}</div>
+      </div>
+    );
+  }
+
   return (
     <SectionCard title={title}>
-      <p className="text-xs text-secondary m-0 mb-3">
-        {sessionId ? t("session.securityInboxHint") : t("home.securityInboxHint")}
-      </p>
+      <p className="text-xs text-secondary m-0 mb-3">{hint}</p>
       {!canRespond && (
         <p className="text-xs text-warn m-0 mb-3">{t("home.securityInboxRemoteBlocked")}</p>
       )}
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <div key={row.approval_id} className="dw-card p-3 border border-outline-variant">
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-              <div>
-                <code className="font-code text-sm">{row.tool}</code>
-                <span className="text-xs text-secondary ml-2">{row.created_at}</span>
-              </div>
-              {!sessionId && (
-                <Link
-                  to="/conversations"
-                  search={sessionChatSearch(row.session_id)}
-                  className="text-xs text-primary hover:underline"
-                >
-                  {row.session_id}
-                </Link>
-              )}
-            </div>
-            <pre className="text-xs text-secondary m-0 mb-3 max-h-24 overflow-auto whitespace-pre-wrap font-code bg-surface-container-low p-2 rounded">
-              {row.input_preview}
-            </pre>
-            <div className="flex flex-wrap gap-2">
-              <ActionButton
-                label={t("home.securityAllowOnce")}
-                disabled={!canRespond || respond.isPending}
-                onClick={() =>
-                  respond.mutate({ approvalId: row.approval_id, decision: "allow_once" })
-                }
-              />
-              <ActionButton
-                label={t("home.securityAllowTool")}
-                disabled={!canRespond || respond.isPending}
-                onClick={() =>
-                  respond.mutate({ approvalId: row.approval_id, decision: "allow_tool" })
-                }
-              />
-              <ActionButton
-                label={t("home.securityAllowAllSession")}
-                disabled={!canRespond || respond.isPending}
-                onClick={() =>
-                  respond.mutate({
-                    approvalId: row.approval_id,
-                    decision: "allow_all_session",
-                  })
-                }
-              />
-              <ActionButton
-                label={t("home.securityDeny")}
-                variant="secondary"
-                disabled={!canRespond || respond.isPending}
-                onClick={() =>
-                  respond.mutate({ approvalId: row.approval_id, decision: "deny" })
-                }
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      {rowList}
     </SectionCard>
+  );
+}
+
+type ApprovalRowData = PendingApprovalsResponse["pending"][number];
+
+function ApprovalRow({
+  row,
+  inline,
+  sessionId,
+  canRespond,
+  respondPending,
+  onRespond,
+  t,
+}: {
+  row: ApprovalRowData;
+  inline?: boolean;
+  sessionId?: string;
+  canRespond: boolean;
+  respondPending: boolean;
+  onRespond: (approvalId: string, decision: ApprovalDecision) => void;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <div
+      className={
+        inline
+          ? "rounded-xl border border-warn/30 bg-warn/5 p-3"
+          : "dw-card p-3 border border-outline-variant"
+      }
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+        <div>
+          <code className="font-code text-sm">{row.tool}</code>
+          <span className="text-xs text-secondary ml-2">{row.created_at}</span>
+        </div>
+        {!sessionId && (
+          <Link
+            to="/conversations"
+            search={sessionChatSearch(row.session_id)}
+            className="text-xs text-primary hover:underline"
+          >
+            {row.session_id}
+          </Link>
+        )}
+      </div>
+      <pre className="text-xs text-secondary m-0 mb-3 max-h-24 overflow-auto whitespace-pre-wrap font-code bg-surface-container-low p-2 rounded">
+        {row.input_preview}
+      </pre>
+      <div className="flex flex-wrap gap-2">
+        <ActionButton
+          label={t("home.securityAllowOnce")}
+          disabled={!canRespond || respondPending}
+          onClick={() => onRespond(row.approval_id, "allow_once")}
+        />
+        <ActionButton
+          label={t("home.securityAllowTool")}
+          disabled={!canRespond || respondPending}
+          onClick={() => onRespond(row.approval_id, "allow_tool")}
+        />
+        <ActionButton
+          label={t("home.securityAllowAllSession")}
+          disabled={!canRespond || respondPending}
+          onClick={() => onRespond(row.approval_id, "allow_all_session")}
+        />
+        <ActionButton
+          label={t("home.securityDeny")}
+          variant="secondary"
+          disabled={!canRespond || respondPending}
+          onClick={() => onRespond(row.approval_id, "deny")}
+        />
+      </div>
+    </div>
   );
 }
 

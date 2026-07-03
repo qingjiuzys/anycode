@@ -2,6 +2,7 @@
 
 mod channel_probe;
 mod channels;
+mod cloud_auth;
 mod config;
 mod memory;
 mod quick_auth;
@@ -18,6 +19,12 @@ pub use channels::{
     load_telegram_credentials, save_discord_credentials, save_telegram_credentials,
     ChannelCredentialsStatus, ChannelsSettingsView, DiscordCredentials, DiscordCredentialsView,
     TelegramCredentials, TelegramCredentialsView,
+};
+pub use cloud_auth::{
+    account_api_url, browser_url_for_device_link, cloud_session_path, gateway_url, link_device,
+    poll_device_link, portal_login_url_for_device, portal_url, read_access_token,
+    read_cloud_session, start_device_link, write_cloud_session, CloudSession, DeviceLinkStart,
+    DEVICE_LINK_REDIRECT_URI,
 };
 pub use config::has_usable_model_config;
 pub use memory::{apply_memory_preset, memory_preset_from_label, MemorySetupPreset};

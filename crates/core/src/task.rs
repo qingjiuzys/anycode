@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::agent_type::AgentType;
+use crate::live_trace::LiveTraceEvent;
 
 /// `execute_task` 协作式取消：与 [`TaskContext::nested_cancel`] 对应；**`TaskStop`** 对后台嵌套任务会置位。
 pub const NESTED_TASK_COOPERATIVE_CANCEL_ERROR: &str = "cancelled";
@@ -19,9 +20,9 @@ pub const DEFAULT_MAX_AGENT_TURNS: usize = 8;
 /// Default cumulative tool invocations per task before hard stop.
 pub const DEFAULT_MAX_TOOL_CALLS: usize = 32;
 /// Upper clamp for configured `max_agent_turns`.
-pub const MAX_AGENT_TURNS_CLAMP: usize = 64;
+pub const MAX_AGENT_TURNS_CLAMP: usize = 10_000;
 /// Upper clamp for configured `max_tool_calls`.
-pub const MAX_TOOL_CALLS_CLAMP: usize = 256;
+pub const MAX_TOOL_CALLS_CLAMP: usize = 100_000;
 
 /// Agentic loop caps resolved from config / env and carried on [`TaskContext`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -111,6 +112,9 @@ pub struct TaskContext {
     /// 可选：工具进度短行（如微信桥）；`execute_task` 在工具开始/结束时 **try-send** UTF-8 行。
     #[serde(skip, default)]
     pub channel_progress_tx: Option<UnboundedSender<String>>,
+    /// 可选：结构化 live trace → dashboard SSE（先 emit、后 log）。
+    #[serde(skip, default)]
+    pub live_trace_tx: Option<UnboundedSender<LiveTraceEvent>>,
     /// Per-task extra tool names to hide from the LLM (e.g. cron `read_only` profile).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_deny_names: Vec<String>,

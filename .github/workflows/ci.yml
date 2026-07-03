@@ -43,14 +43,22 @@ jobs:
       - name: cargo test (tools-mcp)
         run: cargo test -p anycode-tools --features tools-mcp
 
+      - name: cargo test (tools-browser)
+        run: cargo test -p anycode-browser && cargo test -p anycode-tools --features tools-browser
+
       - name: cargo check (knowledge-embeddings)
         run: cargo check -p anycode-tools --features knowledge-embeddings
 
-      - name: Build release binary
-        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
+      - name: cargo test (new runtime crates)
+        run: cargo test -p anycode-config -p anycode-bootstrap -p anycode-channel-bridge -p anycode-dashboard-ipc
 
-      - name: Eval harness (mock scenarios)
-        run: ANYCODE_EVAL_BIN=target/release/anycode python3 scripts/eval/run.py --with-mock
+      - name: Build release binaries
+        run: |
+          ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-channel-bridge
+          ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui
+
+      - name: Build anycode-desktop
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release --manifest-path apps/anycode-desktop/Cargo.toml
 
   dashboard-ui:
     runs-on: ubuntu-latest
@@ -79,8 +87,8 @@ jobs:
         working-directory: crates/dashboard-ui
         run: npx playwright install --with-deps chromium
 
-      - name: Build anycode for e2e
-        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
+      - name: Build dashboard for e2e
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui
 
       - name: dashboard-ui e2e
         working-directory: crates/dashboard-ui

@@ -8,7 +8,7 @@ description: 启动本地工作台或 macOS 桌面应用。
 ## 浏览器方式（通用）
 
 ```bash
-anycode dashboard --open
+anyCode desktop app or http://127.0.0.1:43180
 ```
 
 浏览器会打开 `http://127.0.0.1:43180`。若已登录本地账户，可直接使用。

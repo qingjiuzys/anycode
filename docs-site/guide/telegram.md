@@ -26,7 +26,7 @@ After this page, you will know:
 5. Run the bridge command shown in the UI (keep the terminal open):
 
 ```bash
-anycode channel telegram
+anycode-daemon telegram-bridge
 ```
 
 Credentials are stored at `~/.anycode/channels/telegram.json` (token stays local).
@@ -34,9 +34,9 @@ Credentials are stored at `~/.anycode/channels/telegram.json` (token stays local
 ## CLI path
 
 ```bash
-anycode setup --channel telegram
+Workbench /setup --channel telegram
 # or after credentials exist:
-anycode channel telegram
+anycode-daemon telegram-bridge
 ```
 
 ## Create a bot
@@ -63,7 +63,7 @@ For **groups**, you may need BotFather `/setprivacy` → **Disable** so the bot 
 | Verify fails | Token typo; create a new token in BotFather if leaked |
 | Empty chat list | Send `/start` to the bot first, then refresh |
 | Bot silent in group | Disable privacy mode; ensure bot is in the group |
-| Bridge exits | Re-run `anycode channel telegram`; check model config |
+| Bridge exits | Re-run `anycode-daemon telegram-bridge`; check model config |
 
 ## Next
 

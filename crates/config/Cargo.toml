@@ -1,0 +1,29 @@
+[package]
+name = "anycode-config"
+version.workspace = true
+edition.workspace = true
+description = "Shared anyCode configuration schema and load/save (no CLI/TUI)"
+license = "MIT"
+
+[lib]
+name = "anycode_config"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+anycode-agent = { path = "../agent" }
+anycode-core = { path = "../core" }
+anycode-llm = { path = "../llm" }
+anycode-setup = { path = "../setup" }
+anycode-tools = { path = "../tools" }
+anycode-wechat-history = { path = "../wechat-history" }
+chrono = { workspace = true, features = ["serde"] }
+dirs = "5"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+
+[dev-dependencies]
+anycode-core = { path = "../core" }
+tempfile = "3"

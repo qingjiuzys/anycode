@@ -10,13 +10,26 @@ import { I18nProvider } from "./i18n/context";
 import { AuthProvider } from "./auth/context";
 import { AccountCloudProvider } from "./hooks/useAccountCloud";
 import { SseProvider } from "./context/SseContext";
+import { isTauriDesktop } from "./lib/desktopShell";
 import "./index.css";
+
+/** Tauri serves `index.html` at `/index.html`; TanStack Router expects `/`. */
+function normalizeSpaPathname(): void {
+  if (typeof window === "undefined") return;
+  const { pathname, search, hash } = window.location;
+  if (pathname.endsWith("/index.html")) {
+    const base = pathname.slice(0, -"index.html".length) || "/";
+    window.history.replaceState(null, "", `${base}${search}${hash}`);
+  }
+}
+
+normalizeSpaPathname();
 
 initDensity();
 applySkin(getSkin());
 setTheme(getTheme());
 
-if ("__TAURI_INTERNALS__" in window) {
+if (isTauriDesktop()) {
   document.documentElement.classList.add("dw-tauri");
 }
 

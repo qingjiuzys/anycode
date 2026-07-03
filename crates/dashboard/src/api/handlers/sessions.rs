@@ -139,6 +139,7 @@ pub async fn send_session_message(
                 .into_response();
         }
         state.web_chat.evict(&session_id).await;
+        state.chat_runtime.evict(&session_id).await;
     }
     let prompt_for_chat = crate::task_trigger::prompt_with_skills(prompt, body.skills.as_deref());
     if let Some(ref imgs) = body.vision_images {
@@ -150,46 +151,29 @@ pub async fn send_session_message(
                 .into_response();
         }
     }
-    let dashboard_url = super::chat_util::dashboard_loopback_url(&state.host, state.port);
-    match state
-        .web_chat
-        .send(
-            state.db.clone(),
-            &session_id,
-            &root,
-            effective_agent,
-            &dashboard_url,
-            &prompt_for_chat,
-            body.vision_images.as_deref(),
-            body.text_files.as_deref(),
-            body.lang.as_deref(),
-        )
-        .await
+    match crate::control::web_chat_dispatch::dispatch_web_chat_prompt(
+        &state,
+        &session.project_id,
+        &session_id,
+        &root,
+        effective_agent,
+        prompt,
+        &prompt_for_chat,
+        body.vision_images.as_deref(),
+        body.text_files.as_deref(),
+        body.lang.as_deref(),
+        false,
+        "conversation_message",
+    )
+    .await
     {
-        Ok(chat) => {
-            let _ = state
-                .db
-                .insert_event(crate::schema::InsertEventRequest {
-                    project_id: session.project_id.clone(),
-                    session_id: Some(session_id.clone()),
-                    task_id: None,
-                    agent_id: None,
-                    event_type: "user_prompt".into(),
-                    severity: Some("info".into()),
-                    title: "User prompt".into(),
-                    body: Some(prompt.chars().take(8000).collect()),
-                    payload: Some(json!({
-                        "source": "web_chat",
-                        "agent": requested_agent,
-                        "skills": body.skills,
-                    })),
-                })
-                .await;
-            Json(json!({ "ok": true, "session_id": session_id, "chat": chat })).into_response()
+        Ok((session, chat)) => {
+            Json(json!({ "ok": true, "session": session, "session_id": session_id, "chat": chat }))
+                .into_response()
         }
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": e.to_string(), "session_id": session_id })),
+        Err((status, error)) => (
+            status,
+            Json(json!({ "error": error, "session_id": session_id })),
         )
             .into_response(),
     }
@@ -201,6 +185,7 @@ pub async fn cancel_session(
 ) -> impl IntoResponse {
     let live_signal = crate::cancel_ipc::request_cancel(&session_id).unwrap_or(false);
     state.web_chat.evict(&session_id).await;
+    state.chat_runtime.evict(&session_id).await;
     match state.db.cancel_running_session(&session_id).await {
         Ok(true) => {
             if let Ok(Some(sess)) = state.db.get_session(&session_id).await {
@@ -441,7 +426,11 @@ pub async fn session_events_stream(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
 ) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
-    sse_filtered_events(state.events.subscribe(), None, Some(session_id))
+    sse_session_stream(
+        state.events.subscribe(),
+        state.events.subscribe_chat(),
+        session_id,
+    )
 }
 
 pub async fn list_session_gates(

@@ -26,6 +26,7 @@ pub mod model_identity;
 pub mod notifications;
 pub mod notify;
 pub mod observability;
+pub mod plugins;
 pub mod preferences;
 pub mod project_knowledge;
 pub mod project_root;
@@ -50,11 +51,11 @@ pub mod workspace_scan;
 pub use control::{gate_runner, task_trigger};
 pub use governance::{automation_policy, security_events, service_governance, skills_governance};
 pub use ipc::{approval_ipc, cancel_ipc, question_ipc};
-pub use observability::{event_tier, execution_log};
 pub use observability::{
-    ingest, llm_usage, log_parser, metrics, session_replay, session_trace, session_transcript,
-    transcript_cache, usage_backfill,
+    chat_events, ingest, llm_usage, log_parser, metrics, session_replay, session_trace,
+    session_transcript, transcript_cache, usage_backfill,
 };
+pub use observability::{event_tier, execution_log};
 
 #[cfg(test)]
 mod test_util;

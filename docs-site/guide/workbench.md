@@ -19,7 +19,7 @@ The Workbench is anyCode’s **local web dashboard**: see which projects are act
 **Browser:**
 
 ```bash
-anycode dashboard --open
+anyCode desktop app or http://127.0.0.1:43180
 ```
 
 Default URL: `http://127.0.0.1:43180`
@@ -39,7 +39,7 @@ On a project page, configure **knowledge paths** and **reindex**. Desktop releas
 ## MCP & browser
 
 - **Settings → MCP servers:** edit `mcp.servers` in `~/.anycode/config.json` from the UI.
-- **Settings → Notifications → Browser connector:** enable bundled Playwright MCP on Desktop; the home quick compose area also prompts when bundled.
+- **Settings → Notifications → Built-in browser:** enable native CDP Chromium on Desktop (`browser.enabled` in config). Agent `Browser*` tools and the conversation Workbench browser panel share one session. Legacy Playwright MCP (`mcp.browser.enabled`) is deprecated.
 
 ## Sidebar pages
 
@@ -74,7 +74,7 @@ Use the top bar to switch **中文 / English** and light/dark theme. Sidebar **D
 
 | Symptom | Try |
 |---------|-----|
-| Page won’t load | Run `anycode dashboard`; check for port conflicts |
+| Page won’t load | Run anyCode desktop or Workbench at http://127.0.0.1:43180; check for port conflicts |
 | Empty lists | Run a task in a project folder first, then refresh |
 | Jobs never run | Ensure scheduler/desktop app is running; check run history |
 | Stuck at login | On `127.0.0.1`, local user is usually trusted automatically |

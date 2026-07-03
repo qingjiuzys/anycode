@@ -143,12 +143,13 @@ fn parse_tagged(tag: &str, kv: &str) -> Option<ParsedLine> {
             event_type: "tool_call_start".into(),
             severity: "info".into(),
             title: format!("{} started", field(&fields, "name")),
-            body: String::new(),
+            body: field(&fields, "command"),
             payload: fields_to_json(&fields),
         }),
         "tool_call_end" => {
             let err = field(&fields, "error");
             let failed = err != "<none>" && !err.is_empty();
+            let preview = decode_hex_preview(&field(&fields, "output_preview_hex"));
             Some(ParsedLine {
                 event_type: "tool_call_end".into(),
                 severity: if failed { "error" } else { "info" }.into(),
@@ -157,7 +158,7 @@ fn parse_tagged(tag: &str, kv: &str) -> Option<ParsedLine> {
                     field(&fields, "name"),
                     if failed { "failed" } else { "finished" }
                 ),
-                body: if failed { err } else { String::new() },
+                body: if failed { err } else { preview },
                 payload: fields_to_json(&fields),
             })
         }
@@ -359,6 +360,21 @@ fn fields_to_json(fields: &HashMap<String, String>) -> Value {
 
 fn field(fields: &HashMap<String, String>, key: &str) -> String {
     fields.get(key).cloned().unwrap_or_default()
+}
+
+fn decode_hex_preview(hex: &str) -> String {
+    if hex.is_empty() || !hex.len().is_multiple_of(2) {
+        return String::new();
+    }
+    let mut out = Vec::with_capacity(hex.len() / 2);
+    let bytes = hex.as_bytes();
+    for chunk in bytes.chunks(2) {
+        let Ok(byte) = u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or(""), 16) else {
+            return String::new();
+        };
+        out.push(byte);
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]

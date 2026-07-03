@@ -10,7 +10,7 @@ read_when:
 
 本文从架构师视角说明 anyCode 的分层与数据流，以及在 Rust 中的演进方式。
 
-**仓库内**：维护者向中文备忘见 `docs/architecture.md`（不经过本站构建）；**ADR** 在 `docs/adr/`。运行时组装入口为 `crates/cli/src/bootstrap/runtime.rs`（`initialize_runtime` → `AgentRuntime`）。扩展清单见 [扩展与贡献清单](./contributing-extensions)。
+**仓库内**：维护者向中文备忘见 `docs/architecture.md`（不经过本站构建）；**ADR** 在 `docs/adr/`。运行时组装入口为 `crates/bootstrap/src/bootstrap/runtime.rs`（`initialize_runtime` → `AgentRuntime`）。扩展清单见 [扩展与贡献清单](./contributing-extensions)。
 
 ## 设计取舍
 
@@ -32,7 +32,7 @@ flowchart TB
 
 CLI 的 `run`、**交互式终端** 与行式/流式 `repl` 路径 **共用**同一 `AgentRuntime` 构建路径（配置、工具、`SecurityLayer` 一致）。
 
-### CLI 二进制分层（`crates/cli`）
+### CLI 二进制分层（`crates/bootstrap`）
 
 避免单文件 `main.rs` 膨胀：入口只做解析与分发，配置与运行时装配拆分模块。
 

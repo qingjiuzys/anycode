@@ -149,3 +149,41 @@ pub(super) fn sse_filtered_events(
     };
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
 }
+
+/// Session SSE: `project_event` + low-latency `chat_event`.
+pub(super) fn sse_session_stream(
+    mut project_rx: tokio::sync::broadcast::Receiver<crate::schema::ProjectEvent>,
+    mut chat_rx: tokio::sync::broadcast::Receiver<crate::schema::ChatStreamEvent>,
+    session_id: String,
+) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
+    let stream = async_stream::stream! {
+        yield Ok(Event::default().event("connected").data("{}"));
+        loop {
+            tokio::select! {
+                res = project_rx.recv() => {
+                    match res {
+                        Ok(evt) if evt.session_id.as_deref() == Some(session_id.as_str()) => {
+                            let data = serde_json::to_string(&evt).unwrap_or_default();
+                            yield Ok(Event::default().event("project_event").data(data));
+                        }
+                        Ok(_) => {}
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+                res = chat_rx.recv() => {
+                    match res {
+                        Ok(evt) if evt.session_id == session_id => {
+                            let data = serde_json::to_string(&evt).unwrap_or_default();
+                            yield Ok(Event::default().event("chat_event").data(data));
+                        }
+                        Ok(_) => {}
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            }
+        }
+    };
+    Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+}

@@ -30,7 +30,7 @@ for production debugging.
 - Per-cron tool profiles (`default`, `read_only`, `observability`, `allowlist`) enforced at
   task execution via `TaskContext.tool_deny_names` / `tool_deny_prefixes`.
 - Runtime tool policy profiles for headless, CI, and channel surfaces
-  (`crates/tools/src/runtime_tool_policy.rs`, wired from `crates/cli/src/tool_policy.rs`).
+  (`crates/tools/src/runtime_tool_policy.rs`, wired from `crates/bootstrap/src/tool_policy.rs`).
 - Operator-facing audit query CLI: `anycode audit tail`.
 
 ### Runtime tool policy profiles
@@ -42,7 +42,7 @@ config `runtime.tool_policy_profiles.<surface>` → built-in defaults (`ci` →
 
 | Surface | When applied | Default profile (if unset in config) |
 |---------|--------------|--------------------------------------|
-| `headless` | `anycode run`, scheduler (no per-job profile) | none |
+| `headless` | `Workbench task`, scheduler (no per-job profile) | none |
 | `ci` | `CI=true` / `GITHUB_ACTIONS=true` on headless runs | `read_only` |
 | `channel` | WeChat / Telegram / Discord bridges | `observability` |
 

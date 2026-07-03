@@ -477,6 +477,8 @@ mod tests {
             report_generation_mode: "template".into(),
             updated_at: Utc::now().to_rfc3339(),
             setup_completed_at: None,
+            acceptance_gates_default: true,
+            default_acceptance_preset_ids: vec!["cargo_test".into()],
         })
         .unwrap();
 

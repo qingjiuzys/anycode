@@ -1,6 +1,6 @@
 # anyCode Desktop (Tauri)
 
-Desktop shell for Digital Workbench + sidecar services.
+Desktop shell for Digital Workbench (dashboard runs **in-process**, no CLI sidecar).
 
 App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (brand artwork). Release builds run `scripts/prepare-desktop-icon.py` to crop padding and scale the graphic for Dock visibility, then regenerate `icons/` (`.icns`, `.ico`, platform sizes) from [`assets/anycode-logo-app-icon.png`](assets/anycode-logo-app-icon.png) via `cargo tauri icon`. Requires `python3` + `pillow` (`pip install pillow`).
 
@@ -10,51 +10,28 @@ App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (brand art
 - [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
 - `cargo-tauri` CLI (`cargo install tauri-cli --version "^2" --locked`) — `scripts/build-desktop-release.sh` installs it if missing
 - Built dashboard UI: `../../scripts/build-dashboard-ui.sh`
-- `anycode` on PATH (dev) or bundled under `resources/bin/` (release build)
+- Release builds embed the dashboard in-process (no separate `anycode` CLI)
 
 ## Development
-
-Terminal 1 — dashboard API:
-
-```bash
-anycode dashboard
-```
-
-Terminal 2 — desktop shell (opens Workbench at http://127.0.0.1:43180):
 
 ```bash
 cd apps/anycode-desktop
 cargo tauri dev
 ```
 
-Ensure `resources/bin/anycode` exists (copy from `target/release/anycode`) and `icons/icon.icns` is present before first dev build.
+The dev shell starts the in-process Workbench API at `127.0.0.1:43180` (API only). The UI loads from the app bundle, not from that URL in a browser.
 
-## Sidecar
+## Embedded dashboard
 
-On launch, the desktop shell **best-effort spawns** `anycode dashboard` and stops all sidecars on quit.
+On launch, the app starts **anycode-dashboard** in-process at `127.0.0.1:43180` for `/api/*`, SSE, and WebSockets (see `src/dashboard_backend.rs`). The Workbench UI is loaded from bundled `dashboard-ui` assets inside the Tauri webview — **do not** open `http://127.0.0.1:43180/` in Chrome/Safari (that URL is API-only). No `anycode dashboard` subprocess.
 
-- **Release / `./scripts/build-desktop-release.sh`**: uses bundled `resources/bin/anycode` copied from `target/release/anycode`.
-- **Dev (`cargo tauri dev`)**: falls back to `anycode` on `PATH` when the bundled binary is absent.
-
-**Bundled CLI path (release `.app`):**
-
-```bash
-/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
-```
-
-You can symlink that binary to `/usr/local/bin/anycode` if you want terminal access on PATH.
-
-Optional WeChat bridge (same machine):
+Optional WeChat bridge on the same machine uses **`anycode-daemon wechat-bridge`** (not bundled in the app by default):
 
 ```bash
 ANYCODE_DESKTOP_WECHAT=1 cargo tauri dev
-# or for release run:
-ANYCODE_DESKTOP_WECHAT=1 open target/release/bundle/macos/anyCode.app
 ```
 
-Production WeChat is usually handled by LaunchAgent from `anycode channel wechat`.
-
-If the dashboard sidecar fails (e.g. port in use), start it manually: `anycode dashboard`.
+Headless channels/cron on servers: install `anycode-daemon` separately.
 
 ## Release build
 
@@ -72,13 +49,13 @@ Output (macOS):
 | `.app` | `target/release/bundle/macos/anyCode.app` |
 | `.dmg` | `target/release/bundle/dmg/anyCode_<version>_aarch64.dmg` |
 
-Tauri shares the repo-root `target/` directory (`apps/anycode-desktop/.cargo/config.toml`) so desktop and CLI builds reuse the same Cargo cache.
+Tauri shares the repo-root `target/` directory (`apps/anycode-desktop/.cargo/config.toml`).
 
 ### Build-time downloads vs bundled app
 
 | Command | Browser MCP / Chromium | dashboard-ui `npm ci` | Notes |
 |---------|------------------------|----------------------|-------|
-| `cargo build --release -p anycode` | **No** | Only if `dist/` missing | CLI binary only |
+| `cargo build --release -p anycode-desktop` | **No** | Only if `dist/` missing | Desktop app |
 | `./scripts/build-desktop-release.sh` | **Yes** (first time or lockfile change) | **Yes** (first time or lockfile change) | Stages into `resources/browser/` then Tauri bundles it into `.app` / `.dmg` |
 
 End users who install the DMG **do not** download Playwright at runtime.
@@ -118,7 +95,7 @@ Other models (Whisper, FastEmbed, Piper voices) are **not** bundled at build tim
 
 On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the **macOS DMG** and attaches it to the GitHub Release. **Linux/Windows CLI** tarballs are not published on tag; use `cargo install` / build from source, or run [`release-binaries.yml`](../../.github/workflows/release-binaries.yml) manually if needed.
 
-Download: **GitHub → Releases → Assets → `anyCode_*_aarch64.dmg`** (Apple Silicon, CLI bundled inside).
+Download: **GitHub → Releases → Assets → `anyCode_*_aarch64.dmg`** (Apple Silicon).
 
 ## Optional code signing (CI / release)
 
@@ -146,5 +123,5 @@ Ad-hoc DMG: first open may require **System Settings → Privacy & Security** or
 
 ## Notes
 
-- v0.1 wraps embedded dashboard UI; CLI remains the advanced entry.
+- v0.2+ embeds dashboard in-process; use `anycode-daemon` for headless channels on servers.
 - See [docs/comparisons/workbuddy-comparison-2026-06.md](../../docs/comparisons/workbuddy-comparison-2026-06.md) for WorkBuddy parity scope.

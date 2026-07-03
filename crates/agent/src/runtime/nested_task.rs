@@ -42,6 +42,7 @@ impl SubAgentExecutor for AgentRuntime {
                 nested_worktree_path: wt_roots.as_ref().map(|(_, p)| p.clone()),
                 nested_cancel: invoke.cancel.clone(),
                 channel_progress_tx: None,
+                live_trace_tx: None,
                 tool_deny_names: invoke.tool_deny_names.clone(),
                 tool_deny_prefixes: invoke.tool_deny_prefixes.clone(),
                 user_vision_images: vec![],

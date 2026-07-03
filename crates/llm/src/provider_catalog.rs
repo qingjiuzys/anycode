@@ -371,11 +371,19 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         placeholder_only: false,
     },
     ProviderCatalogEntry {
-        id: "anycode_cloud",
-        label: "anyCode Cloud",
-        hint: Some("Hosted models via model gateway; run `anycode auth login`"),
+        id: "local_relay",
+        label: "Local Relay",
+        hint: Some("仅本地开发脚手架 (ANYCODE_RELAY_GATEWAY=1)；产品中转请用 anycode_cloud + 平台 model-gateway"),
         transport: LlmTransport::OpenAiChatCompletions,
         suggested_openai_base: Some("http://127.0.0.1:43210/v1/chat/completions"),
+        placeholder_only: false,
+    },
+    ProviderCatalogEntry {
+        id: "anycode_cloud",
+        label: "anyCode Cloud",
+        hint: Some("托管模型 via anycode.work；运行 `anycode auth login` 完成设备链接"),
+        transport: LlmTransport::OpenAiChatCompletions,
+        suggested_openai_base: Some("https://anycode.work/v1/chat/completions"),
         placeholder_only: false,
     },
     ProviderCatalogEntry {

@@ -153,12 +153,16 @@ pub(crate) fn active_preferences(state: &AppState) -> crate::schema::DashboardPr
         report_generation_mode: crate::schema::default_report_generation_mode_pref(),
         updated_at: state.started_at.clone(),
         setup_completed_at: None,
+        acceptance_gates_default: false,
+        default_acceptance_preset_ids: Vec::new(),
     };
     if let Some(saved) = crate::preferences::load_preferences() {
         prefs.asset_read_strict = saved.asset_read_strict;
         prefs.report_output_format = saved.report_output_format;
         prefs.report_generation_mode = saved.report_generation_mode;
         prefs.setup_completed_at = saved.setup_completed_at.clone();
+        prefs.acceptance_gates_default = saved.acceptance_gates_default;
+        prefs.default_acceptance_preset_ids = saved.default_acceptance_preset_ids.clone();
     }
     prefs
 }
@@ -241,8 +245,16 @@ pub async fn put_dashboard_preferences(
         "template" => "template",
         _ => "llm",
     };
-    let existing_setup_at =
-        crate::preferences::load_preferences().and_then(|p| p.setup_completed_at);
+    let existing = crate::preferences::load_preferences();
+    let existing_setup_at = existing.as_ref().and_then(|p| p.setup_completed_at.clone());
+    let gate_default = existing
+        .as_ref()
+        .map(|p| p.acceptance_gates_default)
+        .unwrap_or(false);
+    let gate_presets = existing
+        .as_ref()
+        .map(|p| p.default_acceptance_preset_ids.clone())
+        .unwrap_or_default();
     let prefs = crate::schema::DashboardPreferences {
         host: host.into(),
         port: body.port,
@@ -252,6 +264,8 @@ pub async fn put_dashboard_preferences(
         report_generation_mode: generation_mode.into(),
         updated_at: chrono::Utc::now().to_rfc3339(),
         setup_completed_at: existing_setup_at,
+        acceptance_gates_default: gate_default,
+        default_acceptance_preset_ids: gate_presets,
     };
 
     match crate::preferences::save_preferences(&prefs) {
@@ -740,6 +754,59 @@ pub async fn post_memory_retention_apply(
         }
         Err(e) => (
             StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GatePreferencesBody {
+    pub acceptance_gates_default: bool,
+    #[serde(default)]
+    pub default_acceptance_preset_ids: Vec<String>,
+}
+
+pub async fn get_gate_preferences(State(state): State<AppState>) -> impl IntoResponse {
+    let prefs = active_preferences(&state);
+    Json(json!({
+        "acceptance_gates_default": prefs.acceptance_gates_default,
+        "default_acceptance_preset_ids": prefs.default_acceptance_preset_ids,
+    }))
+    .into_response()
+}
+
+pub async fn put_gate_preferences(
+    State(state): State<AppState>,
+    Json(body): Json<GatePreferencesBody>,
+) -> impl IntoResponse {
+    let mut prefs =
+        crate::preferences::load_preferences().unwrap_or_else(|| active_preferences(&state));
+    prefs.acceptance_gates_default = body.acceptance_gates_default;
+    prefs.default_acceptance_preset_ids = body.default_acceptance_preset_ids;
+    prefs.updated_at = chrono::Utc::now().to_rfc3339();
+    match crate::preferences::save_preferences(&prefs) {
+        Ok(path) => {
+            let _ = crate::audit::record_audit(
+                &state.db,
+                crate::audit::AuditEventInput::low(
+                    "gate_preferences_saved",
+                    json!({
+                        "acceptance_gates_default": prefs.acceptance_gates_default,
+                        "path": path.display().to_string(),
+                    }),
+                ),
+            )
+            .await;
+            Json(json!({
+                "ok": true,
+                "acceptance_gates_default": prefs.acceptance_gates_default,
+                "default_acceptance_preset_ids": prefs.default_acceptance_preset_ids,
+            }))
+            .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),
         )
             .into_response(),

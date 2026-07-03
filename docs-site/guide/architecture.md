@@ -8,7 +8,7 @@ read_when:
 
 # Architecture
 
-anyCode is a **Rust-first** terminal agent: CLI/TUI share one **runtime assembly** path (`initialize_runtime` in `crates/cli/src/bootstrap/runtime.rs` → `AgentRuntime` with `RuntimeCoreDeps` / `RuntimeMemoryOptions` / `RuntimeToolPolicy`).
+anyCode is a **Rust-first** terminal agent: CLI/TUI share one **runtime assembly** path (`initialize_runtime` in `crates/bootstrap/src/bootstrap/runtime.rs` → `AgentRuntime` with `RuntimeCoreDeps` / `RuntimeMemoryOptions` / `RuntimeToolPolicy`).
 
 **Repository**: Chinese maintainer-oriented notes live in `docs/architecture.md` (not built by this site). **ADRs** (orchestration, memory boundaries) are under `docs/adr/` on GitHub only. See also [Contributing extensions](./contributing-extensions).
 
@@ -24,9 +24,9 @@ flowchart TB
   tools --> sec[SecurityLayer]
 ```
 
-- **CLI (`crates/cli`)**: argument parsing, config, bootstrap, TUI modules, REPL, WeChat bridge wiring.
+- **CLI (`crates/bootstrap`)**: argument parsing, config, bootstrap, TUI modules, REPL, WeChat bridge wiring.
 
-### CLI binary layout (`crates/cli`)
+### CLI binary layout (`crates/bootstrap`)
 
 Keep `main.rs` thin: parse args, dispatch subcommands, delegate to modules.
 

@@ -1,6 +1,6 @@
 # ADR 008: Channel AskUserQuestion — phasing
 
-Status: **Proposed** (2026-04). **Update 2026-04-20:** Slices **(1)** task-local + broker scaffolding and **(2)** **Telegram** inline keyboard MVP are **implemented** (`crates/cli/src/tg_ask.rs`, `tg.rs` poll + `callback_query`).
+Status: **Proposed** (2026-04). **Update 2026-04-20:** Slices **(1)** task-local + broker scaffolding and **(2)** **Telegram** inline keyboard MVP are **implemented** (`crates/bootstrap/src/tg_ask.rs`, `tg.rs` poll + `callback_query`).
 
 ## Context
 
@@ -23,5 +23,5 @@ Status: **Proposed** (2026-04). **Update 2026-04-20:** Slices **(1)** task-local
 
 ## Consequences
 
-- Code may add `pub(crate)` types and channel-specific modules under `crates/cli/src/` without ADR amendment.
+- Code may add `pub(crate)` types and channel-specific modules under `crates/bootstrap/src/` without ADR amendment.
 - Promoting any type to **`pub`** across the workspace boundary requires a new ADR or **Accepted** bump on this document.

@@ -1,13 +1,16 @@
-//! Sandboxed UI-triggered `anycode run` / goal subprocess (loopback-only by default).
+//! Sandboxed UI-triggered project runs (in-process embedded runtime).
 
 use crate::cancel_ipc::dashboard_state_dir;
 use crate::service_governance::is_loopback_host;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use tokio::process::Command;
 use uuid::Uuid;
+
+#[must_use]
+pub fn inprocess_triggers_enabled() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriggerRunRequest {
@@ -155,141 +158,21 @@ pub fn prompt_with_skills(prompt: &str, skills: Option<&[String]>) -> String {
     format!("[Use skills: {}]\n\n{}", ids.join(", "), prompt.trim())
 }
 
-fn find_on_path(name: &str) -> Option<PathBuf> {
-    let paths = std::env::var_os("PATH")?;
-    std::env::split_paths(&paths).find_map(|dir| {
-        let candidate = dir.join(name);
-        candidate.is_file().then_some(candidate)
-    })
-}
-
-fn exe_looks_like_anycode_cli(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n == "anycode" || n.starts_with("anycode-"))
-}
-
-fn release_binary_sibling(exe: &Path) -> Option<PathBuf> {
-    let parent = exe.parent()?;
-    if parent.ends_with("debug") {
-        let candidate = parent.parent()?.join("release").join("anycode");
-        return candidate.is_file().then_some(candidate);
-    }
-    None
-}
-
-/// Default `ANYCODE_BIN` for UI triggers when unset (prefer release sibling in dev trees).
-pub fn init_default_anycode_bin() {
-    if std::env::var_os("ANYCODE_BIN").is_some() {
-        return;
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(release) = release_binary_sibling(&exe) {
-            tracing::info!(
-                path = %release.display(),
-                "ANYCODE_BIN defaulted to release sibling for UI triggers"
-            );
-            std::env::set_var("ANYCODE_BIN", release);
-        }
-    }
-}
-
-/// Resolve the `anycode` CLI for UI-triggered subprocesses.
-///
-/// Prefers `ANYCODE_BIN`, then `current_exe` when it is the real CLI, then `PATH`.
-pub fn resolve_anycode_binary() -> Result<PathBuf> {
-    if let Ok(raw) = std::env::var("ANYCODE_BIN") {
-        let path = PathBuf::from(raw.trim());
-        if path.is_file() {
-            return Ok(path);
-        }
-        bail!("ANYCODE_BIN points to a missing file: {}", path.display());
-    }
-
-    if let Ok(exe) = std::env::current_exe() {
-        if exe_looks_like_anycode_cli(&exe) {
-            return Ok(exe);
-        }
-    }
-
-    if let Some(found) = find_on_path("anycode") {
-        return Ok(found);
-    }
-
-    if let Ok(exe) = std::env::current_exe() {
-        return Ok(exe);
-    }
-
-    bail!("anycode CLI not found; set ANYCODE_BIN or start dashboard via the anycode binary")
-}
-
-pub fn build_argv(project_root: &Path, req: &TriggerRunRequest) -> Result<Vec<String>> {
-    let mut req = req.clone();
-    normalize_trigger_request(&mut req);
-    validate_request(&req)?;
-    let exe = resolve_anycode_binary().context("resolve anycode binary")?;
-    let mut argv = vec![exe.display().to_string(), "run".into()];
-    argv.push("-C".into());
-    argv.push(project_root.display().to_string());
-    if let Some(agent) = req
-        .agent
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        argv.push("--agent".into());
-        argv.push(agent.to_string());
-    }
-    if req.kind == "goal" {
-        if let Some(goal) = req.goal.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            argv.push("--goal".into());
-            argv.push(goal.to_string());
-        }
-    }
-    argv.push(prompt_with_skills(&req.prompt, req.skills.as_deref()));
-    Ok(argv)
-}
-
 fn triggers_dir() -> PathBuf {
     dashboard_state_dir().join("triggers")
 }
 
-fn spawn_attach_watch(
-    db: crate::db::DashboardDb,
-    session_id: String,
-    log_path: PathBuf,
-    mut child: tokio::process::Child,
-) {
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let Ok(Some(sess)) = db.get_session(&session_id).await else {
-            return;
-        };
-        if sess.status != "pending" {
-            return;
-        }
-        if sess
-            .task_id
-            .as_deref()
-            .is_some_and(|task_id| !task_id.trim().is_empty())
-        {
-            return;
-        }
-        let excerpt = crate::db::read_log_excerpt(&log_path);
-        let summary = excerpt.unwrap_or_else(|| {
-            format!(
-                "Task subprocess exited before attaching. See trigger log: {}",
-                log_path.display()
-            )
-        });
-        let _ = db
-            .finish_session(&session_id, "failed", Some(&summary))
-            .await;
-    });
+pub async fn trigger_run(
+    project_id: &str,
+    project_root: &Path,
+    req: TriggerRunRequest,
+    dashboard_session_id: Option<&str>,
+    db: Option<&crate::db::DashboardDb>,
+) -> Result<TriggerRunResult> {
+    trigger_run_inprocess(project_id, project_root, req, dashboard_session_id, db).await
 }
 
-pub async fn trigger_run(
+async fn trigger_run_inprocess(
     project_id: &str,
     project_root: &Path,
     mut req: TriggerRunRequest,
@@ -303,43 +186,29 @@ pub async fn trigger_run(
         bail!("project root is not a directory");
     }
 
-    let argv = build_argv(&root, &req)?;
     let trigger_id = format!("trg_{}", Uuid::new_v4().simple());
     let dir = triggers_dir();
     std::fs::create_dir_all(&dir)?;
     let log_path = dir.join(format!("{trigger_id}.log"));
     let meta_path = dir.join(format!("{trigger_id}.json"));
 
-    let exe = PathBuf::from(&argv[0]);
-    let mut cmd = Command::new(&exe);
-    for arg in argv.iter().skip(1) {
-        cmd.arg(arg);
-    }
-    let log_file = std::fs::File::create(&log_path).context("create trigger log")?;
-    let err_file = log_file.try_clone().context("clone trigger log fd")?;
-    cmd.current_dir(&root)
-        .stdin(Stdio::null())
-        .stdout(Stdio::from(log_file))
-        .stderr(Stdio::from(err_file))
-        .env("ANYCODE_DASHBOARD_RECORD", "1")
-        .env("ANYCODE_MEMORY_ATTACH", "shared");
-    if let Some(session_id) = dashboard_session_id.filter(|s| !s.trim().is_empty()) {
-        cmd.env(crate::ipc::approval_ipc::SESSION_ENV, session_id);
-    }
-
-    let mut child = cmd.spawn().context("spawn anycode run")?;
-    let pid = child.id().unwrap_or(0);
-    if let (Some(db), Some(session_id)) =
-        (db, dashboard_session_id.filter(|s| !s.trim().is_empty()))
-    {
-        spawn_attach_watch(db.clone(), session_id.to_string(), log_path.clone(), child);
-    } else {
-        tokio::spawn(async move {
-            let _ = child.wait().await;
-        });
-    }
-    let command_preview = argv.join(" ");
+    let agent = req
+        .agent
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("general-purpose")
+        .to_string();
+    let prompt = prompt_with_skills(&req.prompt, req.skills.as_deref());
+    let command_preview = format!(
+        "in-process run -C {} --agent {} {}",
+        root.display(),
+        agent,
+        prompt
+    );
     let started_at = chrono::Utc::now().to_rfc3339();
+    let pid = std::process::id();
+
     let result = TriggerRunResult {
         trigger_id: trigger_id.clone(),
         project_id: project_id.to_string(),
@@ -348,7 +217,7 @@ pub async fn trigger_run(
         command_preview: command_preview.clone(),
         log_path: log_path.display().to_string(),
         started_at: started_at.clone(),
-        sandbox_note: "Detached subprocess in project root. Sensitive tools use the Web approval inbox when approval is required; watch Conversations for the new session.".into(),
+        sandbox_note: "In-process AgentRuntime (no CLI subprocess).".into(),
     };
     std::fs::write(
         &meta_path,
@@ -362,6 +231,69 @@ pub async fn trigger_run(
             "started_at": started_at,
         }))?,
     )?;
+
+    let log_path_bg = log_path.clone();
+    let session_id = dashboard_session_id.map(str::to_string);
+    let db = db.cloned();
+    tokio::spawn(async move {
+        let run_result: anyhow::Result<()> = async {
+            if let Some(ref sid) = session_id {
+                std::env::set_var(crate::approval_ipc::SESSION_ENV, sid);
+            }
+            let runtime = crate::control::chat_runtime::bootstrap::build_embedded_runtime(None)
+                .await
+                .context("embedded runtime for trigger")?;
+            let task = anycode_core::Task {
+                id: Uuid::new_v4(),
+                agent_type: anycode_core::AgentType::new(agent),
+                prompt,
+                context: anycode_core::TaskContext {
+                    session_id: Uuid::new_v4(),
+                    working_directory: root.to_string_lossy().to_string(),
+                    environment: Default::default(),
+                    user_id: None,
+                    system_prompt_append: None,
+                    context_injections: vec![],
+                    nested_model_override: None,
+                    nested_worktree_path: None,
+                    nested_worktree_repo_root: None,
+                    nested_cancel: None,
+                    channel_progress_tx: None,
+                    live_trace_tx: None,
+                    tool_deny_names: vec![],
+                    tool_deny_prefixes: vec![],
+                    budget: anycode_core::TaskBudget::default(),
+                    user_vision_images: vec![],
+                    loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
+                },
+                created_at: chrono::Utc::now(),
+            };
+            let outcome = runtime.execute_task(task).await;
+            let summary = match outcome {
+                Ok(anycode_core::TaskResult::Success { output, .. }) => output,
+                Ok(anycode_core::TaskResult::Failure { error, .. }) => error,
+                Ok(anycode_core::TaskResult::Partial { success, .. }) => success,
+                Err(e) => e.to_string(),
+            };
+            let _ = std::fs::write(&log_path_bg, &summary);
+            if let (Some(db), Some(sid)) = (db.as_ref(), session_id.as_deref()) {
+                let _ = db.finish_session(sid, "completed", Some(&summary)).await;
+            }
+            Ok(())
+        }
+        .await;
+        if let Err(e) = run_result {
+            let msg = e.to_string();
+            let _ = std::fs::write(&log_path_bg, &msg);
+            if let (Some(db), Some(sid)) = (db.as_ref(), session_id.as_deref()) {
+                let _ = db.finish_session(sid, "failed", Some(&msg)).await;
+            }
+        }
+        if session_id.is_some() {
+            std::env::remove_var(crate::approval_ipc::SESSION_ENV);
+        }
+    });
+
     Ok(result)
 }
 
@@ -441,28 +373,6 @@ mod tests {
     }
 
     #[test]
-    fn builds_run_argv() {
-        let dir = tempdir().unwrap();
-        let argv = build_argv(
-            dir.path(),
-            &TriggerRunRequest {
-                prompt: "fix tests".into(),
-                kind: "run".into(),
-                goal: None,
-                agent: Some("general".into()),
-                skills: Some(vec!["report-to-csv".into()]),
-            },
-        )
-        .unwrap();
-        assert!(argv.iter().any(|a| a == "run"));
-        assert!(!argv.iter().any(|a| a == "-I"));
-        assert!(argv.iter().any(|a| a == "--agent"));
-        assert!(argv
-            .last()
-            .is_some_and(|a| a.contains("[Use skills: report-to-csv]")));
-    }
-
-    #[test]
     fn triggers_allowed_respects_env() {
         assert!(!triggers_allowed("0.0.0.0"));
         std::env::set_var("ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE", "1");
@@ -482,16 +392,5 @@ mod tests {
         normalize_trigger_request(&mut req);
         validate_request(&req).unwrap();
         assert_eq!(req.goal.as_deref(), Some("ship feature"));
-    }
-
-    #[test]
-    fn resolve_binary_honors_anycode_bin() {
-        let dir = tempdir().unwrap();
-        let fake = dir.path().join("anycode");
-        std::fs::write(&fake, b"").unwrap();
-        std::env::set_var("ANYCODE_BIN", fake.to_str().unwrap());
-        let resolved = resolve_anycode_binary().unwrap();
-        assert_eq!(resolved, fake);
-        std::env::remove_var("ANYCODE_BIN");
     }
 }

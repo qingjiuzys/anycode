@@ -14,18 +14,30 @@ embedding-local = ["anycode-llm/embedding-local"]
 stt-local = ["anycode-llm/stt-local"]
 tts-local = ["anycode-llm/tts-local"]
 media-local = ["embedding-local", "stt-local", "tts-local"]
+tools-browser = ["anycode-tools/tools-browser"]
 
 [lib]
 name = "anycode_dashboard"
 path = "src/lib.rs"
 
+[[bin]]
+name = "anycode-dashboard-serve"
+path = "src/bin/anycode_dashboard_serve.rs"
+
 [dependencies]
 anyhow = { workspace = true }
+anycode-bootstrap = { path = "../bootstrap", features = ["tools-mcp", "embedding-local", "knowledge-embeddings"] }
+anycode-browser = { path = "../browser" }
 anycode-agent = { path = "../agent" }
+anycode-config = { path = "../config" }
 anycode-core = { path = "../core" }
+anycode-dashboard-ipc = { path = "../dashboard-ipc" }
 anycode-llm = { path = "../llm" }
+anycode-relay-gateway = { path = "../relay-gateway" }
 anycode-setup = { path = "../setup" }
 anycode-tools = { path = "../tools" }
+async-trait = { workspace = true }
+regex = "1.10"
 async-stream = "0.3"
 axum = { version = "0.8", features = ["json", "macros", "multipart", "ws"] }
 chrono = { workspace = true, features = ["serde"] }
@@ -33,7 +45,8 @@ futures = "0.3"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sqlx = { workspace = true, features = ["runtime-tokio", "sqlite", "migrate"] }
-tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "signal"] }
+tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "signal", "fs", "process", "io-util", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"] }
@@ -48,6 +61,8 @@ reqwest = { workspace = true, features = ["json"] }
 rust-embed = { version = "8.9", optional = true }
 portable-pty = "0.8"
 ignore = { workspace = true }
+clap = { version = "4.4", features = ["derive"] }
+tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
 anycode-setup = { path = "../setup" }

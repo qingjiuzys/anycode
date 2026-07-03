@@ -249,6 +249,17 @@ mod tests {
     }
 
     #[test]
+    fn prepare_explore_plan_denies_browser_screenshot() {
+        let reg = reg_with(&["FileRead", "BrowserScreenshot", "BrowserSnapshot"]);
+        let names = resolve_agent_tool_names("explore", vec!["FileRead".into()], &reg);
+        let merged = anycode_tools::merge_agent_type_tool_denies("explore", &[]);
+        let gating = AgentClaudeToolGating::default();
+        let out = prepare_tool_names_for_llm(names, &[], &gating, &merged, &[]);
+        assert!(out.contains(&"FileRead".to_string()));
+        assert!(!out.iter().any(|n| n == "BrowserScreenshot"));
+    }
+
+    #[test]
     fn build_schemas_preserves_name_order() {
         let reg = reg_with(&["A", "B"]);
         let names = vec!["B".to_string(), "A".to_string()];

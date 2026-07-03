@@ -26,8 +26,7 @@ docs/
  planning/          ← 计划、验收、Harness（0.4 技术 hardening）
  comparisons/       ← OpenClaw / Claude / WorkBuddy / 微信对标
  ops/               ← Cron、MCP、工具治理、终端、通道运维备忘
- workbench/         ← Digital Workbench 状态、API、0.3 网页控制台规划
- archive/           ← 历史 sprint / 旧 Workbench 里程碑（只读）
+ workbench/         ← Digital Workbench 状态、API、规划
  references/        ← 外部实现对照备忘
  issue-drafts/      ← GitHub issue 草稿
 ```
@@ -36,7 +35,7 @@ docs/
 
 1. **迭代任务只改 [`roadmap.md`](roadmap.md)**（及 `adr/`）；不要在 `docs-site` 重复 now/next/later 列表。
 2. **产品 MVP / 工具矩阵** 仍以 [`docs-site/guide/roadmap.md`](../docs-site/guide/roadmap.md) 为准。
-3. **一次性 sprint 日志、QA 缺陷表、HTML 快照** 已删除；历史 Workbench 里程碑见 [`archive/workbench/`](archive/workbench/)。
+3. **历史 sprint 日志** 已自仓库删除（仅 git 历史保留）；状态见 [`workbench/digital-workbench-STATUS.md`](workbench/digital-workbench-STATUS.md)。
 
 ---
 
@@ -74,8 +73,7 @@ docs/
 | [`ops/cron-observability.md`](ops/cron-observability.md) | `cron-runs.jsonl` |
 | [`ops/cron-production.md`](ops/cron-production.md) | Cron 生产语义 |
 | [`ops/channel-production.md`](ops/channel-production.md) | IM 通道运维 |
-| [`ops/stream-repl-layout.md`](ops/stream-repl-layout.md) | 流式 REPL 布局 |
-| [`ops/term-smoothness-baseline.md`](ops/term-smoothness-baseline.md) | 终端观感基线 |
+| [`ops/term-smoothness-baseline.md`](ops/term-smoothness-baseline.md) | 终端观感基线（历史） |
 | [`ops/terminal-load-model.md`](ops/terminal-load-model.md) | transcript 负载模型 |
 
 ### Digital Workbench
@@ -112,8 +110,6 @@ docs/
 
 ## 已删除 / 归档说明
 
-**已删除**（内容已被 SSOT 覆盖或过期）：`implementation-audit-checklist.md`、`autonomous-8h-*`、`qa-defect-log.md`、`qa-manual-llm-checklist.md`、`customer-feedback-issues-2026-06.html`、`flutter-app-template.md`、`work-run/`、`google-api-test-results-2026-05-29.md`。
-
-**已归档**：`archive/sprints/`（production-convergence、autonomous-8h、旧 product-plan）、`archive/workbench/`（V1/V2 handoff、静态原型 HTML）。
+**已删除**（内容已被 SSOT 覆盖或过期）：`implementation-audit-checklist.md`、`autonomous-8h-*`、`qa-defect-log.md`、`docs/archive/`（历史 sprint 快照，仅 git 历史保留）、`scripts/eval/`。
 
 若外链仍指向旧路径（如 `docs/cron-observability.md`），请改为 `docs/ops/cron-observability.md` 或文档站 URL。

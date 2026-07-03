@@ -26,7 +26,7 @@ read_when:
 5. 在终端运行界面显示的桥接命令（需保持运行）：
 
 ```bash
-anycode channel telegram
+anycode-daemon telegram-bridge
 ```
 
 凭据保存在 `~/.anycode/channels/telegram.json`（Token 仅存本机）。
@@ -34,8 +34,8 @@ anycode channel telegram
 ## 命令行
 
 ```bash
-anycode setup --channel telegram
-anycode channel telegram
+Workbench /setup --channel telegram
+anycode-daemon telegram-bridge
 ```
 
 ## 创建机器人
@@ -59,7 +59,7 @@ anycode channel telegram
 | 验证失败 | 检查 Token；泄露请在 BotFather 重置 |
 | 对话列表为空 | 先给机器人发 `/start`，再刷新 |
 | 群里无响应 | 关闭隐私模式；确认机器人已入群 |
-| 桥接退出 | 重新运行 `anycode channel telegram`；检查模型配置 |
+| 桥接退出 | 重新运行 `anycode-daemon telegram-bridge`；检查模型配置 |
 
 ## 延伸阅读
 

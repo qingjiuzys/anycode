@@ -88,7 +88,13 @@ export function ConversationWorkbenchSidebar({
       case "files":
         return <FilesPanel projectId={projectId!} />;
       case "browser":
-        return <BrowserPanel projectId={projectId!} active={showPanel} />;
+        return (
+          <BrowserPanel
+            projectId={projectId!}
+            conversationSessionId={sessionId}
+            active={showPanel}
+          />
+        );
       case "terminal":
         return <TerminalPanel projectId={projectId!} active={showPanel} />;
       case "artifacts":

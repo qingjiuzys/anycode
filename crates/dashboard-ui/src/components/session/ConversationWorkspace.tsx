@@ -1,4 +1,6 @@
-import { ConversationSessionList, ConversationThread } from "@/components/ConversationThread";
+import { Link } from "@tanstack/react-router";
+import { ConversationThread } from "@/components/ConversationThread";
+import { ProjectGroupedSessionList } from "@/components/session/ProjectGroupedSessionList";
 import { ConversationWorkbenchSidebar } from "@/components/workbench/ConversationWorkbenchSidebar";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
@@ -8,9 +10,6 @@ import { useT } from "@/i18n/context";
 export function ConversationWorkspace() {
   const t = useT();
   const {
-    projectId,
-    showStartForm,
-    setShowStartForm,
     workbenchDrawerOpen,
     setWorkbenchDrawerOpen,
     sessionsDrawerOpen,
@@ -19,6 +18,8 @@ export function ConversationWorkspace() {
     setSelectedTool,
     active,
     rows,
+    sidebarFilteredRows,
+    listSearch,
     displaySessionId,
     selected,
     selectSession,
@@ -27,8 +28,12 @@ export function ConversationWorkspace() {
     sessionsError,
     pendingCountsLoading,
     sseLive,
-    renderStartComposer,
+    liveBlocks,
+    chatStreamLive,
+    markSessionStreaming,
+    projectOptions,
     prefetchSession,
+    startSessionForProject,
   } = useConversationShell();
 
   if (sessionsError) {
@@ -48,40 +53,24 @@ export function ConversationWorkspace() {
     return <p className="text-sm text-secondary p-4">{t("common.loading")}</p>;
   }
 
-  if (!projectId && rows.length === 0 && active === "all") {
-    return (
-      <EmptyState
-        title={t("conversations.selectProjectFirst")}
-        description={t("conversations.selectProjectFirstDesc")}
-        icon="folder_open"
-      />
-    );
-  }
-
-  if (projectId && rows.length === 0 && active === "all") {
+  if (rows.length === 0 && active === "all" && sidebarFilteredRows.length === 0) {
     return (
       <div className="p-6 border border-outline-variant rounded-lg bg-surface-container-lowest m-4">
-        {!showStartForm && (
-          <EmptyState
-            title={t("conversations.emptyTitle")}
-            description={t("conversations.emptyDesc")}
-            icon="forum"
-          />
-        )}
-        {showStartForm ? (
-          renderStartComposer()
-        ) : (
-          <div className="text-center mt-4">
-            <button type="button" className="dw-btn-primary" onClick={() => setShowStartForm(true)}>
-              {t("conversations.newSession")}
-            </button>
-          </div>
-        )}
+        <EmptyState
+          title={t("conversations.emptyTitle")}
+          description={t("conversations.emptyDesc")}
+          icon="forum"
+        />
+        <div className="text-center mt-4">
+          <Link to="/" className="dw-btn-primary no-underline inline-flex">
+            {t("conversations.newSession")}
+          </Link>
+        </div>
       </div>
     );
   }
 
-  if (rows.length === 0 && active !== "all") {
+  if (rows.length === 0 && active !== "all" && !selected) {
     return (
       <EmptyState
         title={
@@ -97,18 +86,12 @@ export function ConversationWorkspace() {
     );
   }
 
-  if (rows.length === 0) {
+  if (!selected && rows.length === 0) {
     return null;
   }
 
   return (
     <>
-      {projectId && showStartForm && (
-        <div className="shrink-0 p-3 border-b border-outline-variant bg-surface-container-low">
-          {renderStartComposer(true)}
-        </div>
-      )}
-
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="lg:hidden flex items-center justify-between gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
           <button
@@ -136,6 +119,9 @@ export function ConversationWorkspace() {
               onFollowUpStarted={selectSession}
               showHeader={false}
               sseLive={sseLive}
+              liveBlocks={liveBlocks}
+              chatStreamLive={chatStreamLive}
+              markSessionStreaming={markSessionStreaming}
               selectedToolId={selectedTool?.id ?? null}
               onSelectTool={(tool) => {
                 setSelectedTool(tool);
@@ -179,8 +165,9 @@ export function ConversationWorkspace() {
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto">
-                <ConversationSessionList
-                  sessions={rows}
+                <ProjectGroupedSessionList
+                  projectOptions={projectOptions}
+                  sessions={sidebarFilteredRows}
                   selectedId={displaySessionId}
                   onSelect={(id) => {
                     selectSession(id);
@@ -188,6 +175,8 @@ export function ConversationWorkspace() {
                   }}
                   pendingCounts={pendingCounts}
                   onPrefetch={prefetchSession}
+                  hideEmptyProjects={listSearch.trim().length > 0}
+                  onNewSession={startSessionForProject}
                 />
               </div>
             </div>

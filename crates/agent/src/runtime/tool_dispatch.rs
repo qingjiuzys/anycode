@@ -276,6 +276,7 @@ impl AgentRuntime {
     ) -> (ToolOutput, u128) {
         tool_result_injection::log_tool_call_input(
             logger,
+            &ctx.live_trace_tx,
             ctx.task_id,
             ctx.turn,
             tool_idx,
@@ -283,6 +284,7 @@ impl AgentRuntime {
         );
         tool_result_injection::log_tool_call_start(
             logger,
+            &ctx.live_trace_tx,
             ctx.task_id,
             ctx.turn,
             tool_idx,
@@ -379,6 +381,7 @@ impl AgentRuntime {
     ) {
         tool_result_injection::log_tool_call_end(
             logger,
+            &ctx.live_trace_tx,
             ctx.task_id,
             ctx.turn,
             tool_idx,
@@ -429,6 +432,7 @@ impl AgentRuntime {
             let output = synthetic_tool_output(reason);
             tool_result_injection::log_tool_call_end(
                 logger,
+                &ctx.live_trace_tx,
                 ctx.task_id,
                 ctx.turn,
                 *tool_idx,

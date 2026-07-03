@@ -4,12 +4,12 @@ set -euo pipefail
 PORT="${1:-43199}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DB="${TMPDIR:-/tmp}/anycode-dashboard-e2e-${PORT}.db"
-BIN="${ROOT}/target/release/anycode"
+BIN="${ROOT}/target/release/anycode-dashboard-serve"
 BASE="http://127.0.0.1:${PORT}"
 
 if [[ ! -x "$BIN" ]]; then
-  echo "release binary missing — building anycode (embedded-ui)…" >&2
-  (cd "$ROOT" && ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui)
+  echo "release binary missing — building anycode-dashboard-serve (embedded-ui)…" >&2
+  (cd "$ROOT" && ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui --bin anycode-dashboard-serve)
 fi
 
 rm -f "$DB" "${DB}-wal" "${DB}-shm"
@@ -34,7 +34,7 @@ seed_fixture() {
   echo "e2e-fixture-ready"
 }
 
-"$BIN" dashboard --host 127.0.0.1 --port "$PORT" --db "$DB" &
+"$BIN" --host 127.0.0.1 --port "$PORT" --db "$DB" &
 PID=$!
 
 for _ in $(seq 1 90); do

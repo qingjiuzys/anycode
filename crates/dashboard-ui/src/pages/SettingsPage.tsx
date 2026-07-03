@@ -8,6 +8,7 @@ import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
 import { SettingsAuthSection } from "@/pages/settings/SettingsAuthSection";
 import { SettingsChannelsSection } from "@/pages/settings/SettingsChannelsSection";
 import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
+import { SettingsGatesSection } from "@/pages/settings/SettingsGatesSection";
 import { SettingsModelSection } from "@/pages/settings/SettingsModelSection";
 import { SettingsNotifySection } from "@/pages/settings/SettingsNotifySection";
 import { SettingsOpsSection } from "@/pages/settings/SettingsOpsSection";
@@ -16,6 +17,7 @@ import { SettingsOverviewBanner } from "@/pages/settings/SettingsOverviewBanner"
 import { SettingsSecuritySection } from "@/pages/settings/SettingsSecuritySection";
 import { SettingsServiceSection } from "@/pages/settings/SettingsServiceSection";
 import { SettingsSkillsSection } from "@/pages/settings/SettingsSkillsSection";
+import { SettingsPluginsSection } from "@/pages/settings/SettingsPluginsSection";
 
 const VALID_SECTIONS = new Set<SettingsSection>([
   "auth",
@@ -28,6 +30,8 @@ const VALID_SECTIONS = new Set<SettingsSection>([
   "security",
   "notify",
   "channels",
+  "gates",
+  "plugins",
   "ops",
 ]);
 
@@ -86,10 +90,7 @@ function SettingsPageInner({
       <PageHeader
         title={t("settings.title")}
         subtitle={t("settings.subtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("settings.title") },
-        ]}
+        breadcrumbs={[{ label: t("settings.title") }]}
       />
 
       <SettingsOverviewBanner />
@@ -108,6 +109,8 @@ function SettingsPageInner({
           {section === "security" && <SettingsSecuritySection />}
           {section === "notify" && <SettingsNotifySection />}
           {section === "channels" && <SettingsChannelsSection />}
+          {section === "gates" && <SettingsGatesSection />}
+          {section === "plugins" && <SettingsPluginsSection />}
           {section === "ops" && <SettingsOpsSection />}
         </div>
       </div>

@@ -229,6 +229,9 @@ pub struct ToolServices {
     media_registry: Mutex<Option<Arc<anycode_llm::media::MediaClientRegistry>>>,
     /// Local WeChat chat history query settings (`wechatHistory` in config.json).
     wechat_history_config: Mutex<anycode_wechat_history::WechatHistoryConfig>,
+    /// Native CDP browser (`tools-browser`).
+    #[cfg(feature = "tools-browser")]
+    browser_service: Mutex<Option<Arc<anycode_browser::BrowserService>>>,
 }
 
 impl Default for ToolServices {
@@ -269,6 +272,8 @@ impl Default for ToolServices {
             wechat_history_config: Mutex::new(
                 anycode_wechat_history::WechatHistoryConfig::default(),
             ),
+            #[cfg(feature = "tools-browser")]
+            browser_service: Mutex::new(None),
         }
     }
 }
@@ -404,6 +409,19 @@ impl ToolServices {
 
     pub fn set_media_registry(&self, reg: Arc<anycode_llm::media::MediaClientRegistry>) {
         *self.media_registry.lock().expect("media_registry") = Some(reg);
+    }
+
+    #[cfg(feature = "tools-browser")]
+    pub fn set_browser_service(&self, svc: Arc<anycode_browser::BrowserService>) {
+        *self.browser_service.lock().expect("browser_service") = Some(svc);
+    }
+
+    #[cfg(feature = "tools-browser")]
+    pub fn browser_service(&self) -> Option<Arc<anycode_browser::BrowserService>> {
+        self.browser_service
+            .lock()
+            .expect("browser_service")
+            .clone()
     }
 
     pub fn set_wechat_history_config(&self, config: anycode_wechat_history::WechatHistoryConfig) {

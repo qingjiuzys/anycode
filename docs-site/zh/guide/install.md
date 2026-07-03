@@ -29,7 +29,9 @@ read_when:
 
 1. 打开 [Releases](https://github.com/qingjiuzys/anycode/releases)，下载 **`anyCode_<version>_aarch64.dmg`**。
 2. 打开 DMG，将 **anyCode** 拖入「应用程序」。
-3. 启动 **anyCode** — 自动拉起内置 CLI sidecar（`anycode dashboard`）并打开工作台。
+3. 启动 **anyCode** — 自动拉起内嵌 dashboard 并打开工作台。
+
+无 GUI 的 Linux 服务器请安装 **`anycode-daemon`**，在浏览器访问 Workbench。
 
 CLI 位于 App 包内（macOS Release 不再单独附 CLI 包）：
 
@@ -48,7 +50,7 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
-预期输出：安装脚本下载二进制并默认执行 `anycode setup`（交互终端上包含记忆 / 向量步骤；见 [记忆系统说明](./memory)）。
+预期输出：安装脚本下载二进制并默认执行 `Workbench /setup`（交互终端上包含记忆 / 向量步骤；见 [记忆系统说明](./memory)）。
 
 ## 一行安装（Windows PowerShell）
 
@@ -67,7 +69,7 @@ bash scripts/install.sh
 
 预期输出：安装脚本按环境变量指定仓库执行。
 
-常用选项：`--version latest` 或 `--version v0.2.2`（固定 release tag）；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `anycode setup`，且在交互终端默认显示下载进度。完整说明：
+常用选项：`--version latest` 或 `--version v0.2.2`（固定 release tag）；`--bin-dir "$HOME/.local/bin"`；`--dry-run`；`--no-setup`（跳过安装后向导）；`--quiet`（减少下载输出）；`--method auto`（允许回退源码安装）。安装成功后默认会执行 `Workbench /setup`，且在交互终端默认显示下载进度。完整说明：
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --help
@@ -108,7 +110,7 @@ Release 页面：<https://github.com/qingjiuzys/anycode/releases>
 
 ```bash
 anycode --help
-anycode setup
+Workbench /setup
 ```
 
 预期输出：`--help` 显示命令列表；`setup` 打开向导。
@@ -135,7 +137,7 @@ cargo build --release
 anycode --help
 ```
 
-下一步：执行 `anycode setup`。
+下一步：执行 `Workbench /setup`。
 
 ## 仅本地克隆
 
@@ -148,7 +150,7 @@ anycode --help
 例如启用 MCP（`tools-mcp`）：
 
 ```bash
-cargo build -p anycode --features tools-mcp
+cargo build -p anycode-desktop-desktop-channel-bridge --features tools-mcp
 ```
 
 预期输出：构建出的二进制包含 MCP 能力。

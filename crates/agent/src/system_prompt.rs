@@ -139,6 +139,17 @@ pub(crate) fn default_stack_sections(
     parts.push("# User clarification\n\nWhen requirements are ambiguous, multiple valid approaches exist, or confidence is low, **call `AskUserQuestion` before executing** — present concise options (single- or multi-select) rather than guessing.".to_string());
     parts.push("# Media generation\n\nWhen the user asks to generate an image or video, call `GenerateImage` or `GenerateVideo` if those tools appear in your tool list. Do not suggest FFmpeg, MoviePy, or manual shell workflows unless the tool is unavailable or returns a configuration error.".to_string());
     parts.push("# Plan progress\n\nFor multi-step work, prefer **`PlanWrite`** with a hierarchical tree (`phase` → `task` → `verify`) instead of long flat todo lists. Use `tree` for the initial plan and `updates` for status changes. Keep depth ≤4 and group related steps under parents. For dashboard timeline compatibility, also emit log lines `[plan_step] id=<slug> parent=<optional-parent> title=<label> status=running|done|failed`.".to_string());
+    if agent.tools().iter().any(|t| t.starts_with("Browser")) {
+        parts.push(
+            "# Built-in browser\n\n\
+When browser tools are available, **use `BrowserSnapshot` as the default way to see the page** (YAML accessibility tree with `ref=eN` handles). \
+Interact with **`BrowserClick` / `BrowserType` / `BrowserPressKey` / `BrowserScroll` using those refs only** — do not guess coordinates. \
+Call **`BrowserNavigate`** to open http/https URLs. \
+**Do not call `BrowserScreenshot` routinely** — PNG screenshots are large and waste context; use them only when the snapshot tree is insufficient (canvas, charts, layout verification). \
+Optional: pass `ref` to `BrowserSnapshot` to snapshot a subtree and save tokens."
+                .to_string(),
+        );
+    }
     if let Some(sk) = skills_section {
         let t = sk.trim();
         if !t.is_empty() {
@@ -169,6 +180,10 @@ pub fn compose_effective_system_prompt(
     cwd: &str,
     task_append: Option<&str>,
 ) -> String {
+    let skip_plugins = config
+        .system_prompt_override
+        .as_deref()
+        .is_some_and(|s| !s.trim().is_empty());
     if let Some(rep) = agent.system_prompt_replaces_default_sections() {
         let t = rep.trim();
         if !t.is_empty() {
@@ -188,16 +203,44 @@ pub fn compose_effective_system_prompt(
                     out.push(overlay.trim().to_string());
                 }
             }
-            return out.join("\n\n");
+            return if skip_plugins {
+                out.join("\n\n")
+            } else {
+                append_plugin_overlays(out.join("\n\n"))
+            };
         }
     }
-    PromptAssembler {
+    let composed = PromptAssembler {
         config,
         agent,
         cwd,
         task_append,
     }
-    .compose()
+    .compose();
+    if skip_plugins {
+        composed
+    } else {
+        append_plugin_overlays(composed)
+    }
+}
+
+fn append_plugin_overlays(mut prompt: String) -> String {
+    for plugin in crate::plugins::load_builtin_plugins()
+        .into_iter()
+        .filter(|p| p.enabled)
+    {
+        if let Some(overlay) = plugin
+            .system_prompt_overlay
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+        {
+            if !prompt.is_empty() {
+                prompt.push_str("\n\n");
+            }
+            prompt.push_str(overlay.trim());
+        }
+    }
+    prompt
 }
 
 #[cfg(test)]

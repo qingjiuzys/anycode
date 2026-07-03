@@ -27,6 +27,13 @@ test.describe("UI shell navigation", () => {
     await expect(page.locator(".dw-session-sidebar")).toBeVisible();
   });
 
+  test("home shows session sidebar on desktop", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await expect(page.locator(".dw-session-sidebar")).toBeVisible();
+    await expect(page.locator(".dw-home-hero")).toBeVisible();
+  });
+
   test("control center fab visible on conversations", async ({ page }) => {
     await page.goto("/conversations");
     await expect(page.locator(".dw-control-fab")).toBeVisible();

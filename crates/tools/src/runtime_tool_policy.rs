@@ -10,7 +10,7 @@ use super::catalog::cron_tool_profile_filters;
 pub enum ToolExecutionSurface {
     /// Stream REPL / interactive TTY session (no automatic profile unless env/config override).
     Interactive,
-    /// Headless single-task runs (`anycode run`, scheduler without per-job profile).
+    /// Headless single-task runs (`Workbench task`, scheduler without per-job profile).
     Headless,
     /// CI / automation hosts (`CI=true`, `GITHUB_ACTIONS=true`, or explicit surface).
     Ci,

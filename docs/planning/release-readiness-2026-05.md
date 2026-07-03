@@ -9,7 +9,7 @@ burst and the production readiness roadmap landing (`b86e583`).
 |-----|-----|--------|
 | CI (rust + docs) — production readiness | [GitHub Actions run 26143655616](https://github.com/qingjiuzys/anycode/actions/runs/26143655616) | **success** on `main` after `b86e583` |
 | CI (rust + docs) — audit / cron allowlist (`c27f2e1`) | [GitHub Actions run 26144013132](https://github.com/qingjiuzys/anycode/actions/runs/26144013132) | **success** on `main` after `c27f2e1` |
-| Eval harness step | `python3 scripts/eval/run.py --with-mock` in CI rust job | **pass** (8/8 scenarios) on both runs |
+| Eval harness step | ``cargo test --workspace`` in CI rust job | **pass** (8/8 scenarios) on both runs |
 
 Local pre-push verification (same commit):
 
@@ -18,8 +18,8 @@ Local pre-push verification (same commit):
 | `cargo fmt --all -- --check` | pass |
 | `cargo clippy --workspace --all-targets` | pass |
 | `cargo test --workspace` | pass |
-| `cargo build --release -p anycode` | pass |
-| `python3 scripts/eval/run.py --with-mock` | pass |
+| `cargo build --release -p anycode-desktop-channel-bridge` | pass |
+| ``cargo test --workspace`` | pass |
 
 ## Required Checks
 
@@ -28,9 +28,9 @@ Local pre-push verification (same commit):
 | Format | `cargo fmt --all -- --check` |
 | Lint | `cargo clippy --workspace --all-targets` |
 | Tests | `cargo test --workspace` |
-| Release binary | `cargo build --release -p anycode` |
+| Release binary | `cargo build --release -p anycode-desktop-channel-bridge` |
 | Docs site | `cd docs-site && npm ci && npm run build` when `docs-site/` changed |
-| Eval smoke | `python3 scripts/eval/run.py --with-mock` |
+| Eval smoke | ``cargo test --workspace`` |
 
 ## Production Gates
 

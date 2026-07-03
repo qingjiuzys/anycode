@@ -8,7 +8,7 @@ description: Start the local Workbench in a browser or the macOS desktop app.
 ## Browser (all platforms)
 
 ```bash
-anycode dashboard --open
+anyCode desktop app or http://127.0.0.1:43180
 ```
 
 Opens `http://127.0.0.1:43180`. If lists are empty, run a task in a project folder first, then refresh.

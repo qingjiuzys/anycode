@@ -86,7 +86,7 @@ async fn skills_starter_check(db: &DashboardDb) -> DoctorCheck {
             id: "skills_starter_pack".into(),
             status: "warn".into(),
             message: format!(
-                "Missing {} starter skill(s): {} — run `anycode skills install-starter` or Dashboard install",
+                "Missing {} starter skill(s): {} — install from Agents page or scripts/install-skills-starter.sh",
                 missing.len(),
                 missing.join(", ")
             ),

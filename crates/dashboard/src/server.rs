@@ -17,6 +17,8 @@ pub struct DashboardConfig {
     pub port: u16,
     pub db_path: PathBuf,
     pub static_dir: Option<PathBuf>,
+    /// When false, only `/api/*` (and WS/SSE) are served — no SPA at `/`.
+    pub serve_ui: bool,
     pub version: String,
 }
 
@@ -27,6 +29,7 @@ impl Default for DashboardConfig {
             port: 43_180,
             db_path: default_db_path(),
             static_dir: None,
+            serve_ui: true,
             version: env!("CARGO_PKG_VERSION").into(),
         }
     }
@@ -42,11 +45,28 @@ pub fn default_db_path() -> PathBuf {
 }
 
 pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Result<()> {
+    let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
+    run_with_shutdown(config, workspace_paths, rx).await
+}
+
+/// Like [`run`], but also stops when `shutdown` is signaled (e.g. Tauri app exit).
+pub async fn run_with_shutdown(
+    config: DashboardConfig,
+    workspace_paths: Vec<String>,
+    shutdown: tokio::sync::oneshot::Receiver<()>,
+) -> Result<()> {
+    run_inner(config, workspace_paths, Some(shutdown)).await
+}
+
+async fn run_inner(
+    config: DashboardConfig,
+    workspace_paths: Vec<String>,
+    shutdown: Option<tokio::sync::oneshot::Receiver<()>>,
+) -> Result<()> {
     let _ = anycode_setup::ensure_layout();
     if let Err(e) = crate::media_defaults::ensure_default_local_stt() {
         tracing::warn!(error = %e, "default local STT bootstrap skipped");
     }
-    crate::control::task_trigger::init_default_anycode_bin();
     let db = DashboardDb::open(&config.db_path)
         .await
         .context("open dashboard database")?;
@@ -100,25 +120,35 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             == Some("1");
         if n == 0 && !allow {
             anyhow::bail!(
-                "non-loopback dashboard requires at least one API token; run: anycode dashboard token create (or set ANYCODE_DASHBOARD_ALLOW_UNAUTH=1 for local dev)"
+                "non-loopback dashboard requires at least one API token; create one in Settings → API tokens (or set ANYCODE_DASHBOARD_ALLOW_UNAUTH=1 for local dev)"
             );
         }
     }
 
-    let static_dir = config
-        .static_dir
-        .or_else(crate::static_ui::discover_ui_dist);
+    let static_dir = if config.serve_ui {
+        config
+            .static_dir
+            .or_else(crate::static_ui::discover_ui_dist)
+    } else {
+        None
+    };
     if static_dir.is_some() {
         info!("serving dashboard UI static files");
+    } else if !config.serve_ui {
+        info!("API-only mode (no Workbench SPA at /)");
     }
     let events = Arc::new(EventBus::new());
+    crate::notify::register_inprocess_bus(Arc::clone(&events));
     let state = AppState {
         db,
         events,
         sessions: SessionStore::default(),
         web_chat: crate::control::web_chat::WebChatHub::default(),
+        web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
+        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new(),
         version: config.version.clone(),
         static_dir,
+        serve_ui: config.serve_ui,
         workspace_paths: workspace_paths.clone(),
         tasks_root: tasks_root.clone(),
         host: config.host.clone(),
@@ -159,6 +189,17 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             Err(e) => tracing::warn!(error = %e, "llm usage backfill failed"),
         }
     });
+    if crate::service_governance::is_loopback_host(&config.host) {
+        let spawn_gateway = std::env::var("ANYCODE_RELAY_GATEWAY").ok().as_deref() == Some("1");
+        if spawn_gateway {
+            let gw_cfg = anycode_relay_gateway::GatewayConfig::default();
+            info!(
+                port = gw_cfg.port,
+                "spawning dev-only local relay gateway (ANYCODE_RELAY_GATEWAY=1)"
+            );
+            let _relay_handle = anycode_relay_gateway::spawn_gateway(gw_cfg);
+        }
+    }
     let app = api::router(state.clone());
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()
@@ -205,9 +246,17 @@ pub async fn run(config: DashboardConfig, workspace_paths: Vec<String>) -> Resul
             #[cfg(not(unix))]
             let terminate = std::future::pending::<()>();
 
-            tokio::select! {
-                _ = ctrl_c => {},
-                _ = terminate => {},
+            if let Some(mut shutdown) = shutdown {
+                tokio::select! {
+                    _ = ctrl_c => {},
+                    _ = terminate => {},
+                    _ = &mut shutdown => {},
+                }
+            } else {
+                tokio::select! {
+                    _ = ctrl_c => {},
+                    _ = terminate => {},
+                }
             }
             crate::local_service::mark_self_stopped(&db_shutdown, &shutdown_host, shutdown_port)
                 .await;
@@ -221,14 +270,27 @@ pub async fn app_for_test(db_path: &Path) -> Result<Router> {
 }
 
 pub async fn app_for_test_with_host(db_path: &Path, host: &str) -> Result<Router> {
+    app_for_test_with_options(db_path, host, true).await
+}
+
+pub async fn app_for_test_api_only(db_path: &Path) -> Result<Router> {
+    app_for_test_with_options(db_path, "127.0.0.1", false).await
+}
+
+async fn app_for_test_with_options(db_path: &Path, host: &str, serve_ui: bool) -> Result<Router> {
     let db = DashboardDb::open(db_path).await?;
+    let events = Arc::new(EventBus::new());
+    crate::notify::register_inprocess_bus(Arc::clone(&events));
     let state = AppState {
         db,
-        events: Arc::new(EventBus::new()),
+        events,
         sessions: SessionStore::default(),
         web_chat: crate::control::web_chat::WebChatHub::default(),
+        web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
+        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new(),
         version: "test".into(),
         static_dir: None,
+        serve_ui,
         workspace_paths: vec![],
         tasks_root: PathBuf::from(".anycode/tasks"),
         host: host.into(),
@@ -237,4 +299,33 @@ pub async fn app_for_test_with_host(db_path: &Path, host: &str) -> Result<Router
         pid: std::process::id(),
     };
     Ok(api::router(state))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn api_only_root_is_not_spa() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test_api_only(&dir.path().join("projects.db"))
+            .await
+            .unwrap();
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(res.status().is_success());
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"], "api_only");
+    }
 }

@@ -10,6 +10,7 @@ mod execution_trace;
 mod feature_flags;
 mod goal;
 mod ids;
+mod live_trace;
 mod llm_retry_observer;
 mod llm_types;
 mod memory_model;
@@ -42,6 +43,7 @@ pub use ids::{
     AgentId, SessionId, TaskId, ToolName, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
     ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
+pub use live_trace::LiveTraceEvent;
 pub use llm_retry_observer::LlmRetryObserver;
 pub use llm_types::{
     LLMProvider, LLMResponse, ModelConfig, PermissionMode, StreamEvent, ToolCall, ToolInput,
@@ -80,7 +82,9 @@ pub use task_gate_log::{
 pub use task_output::DiskTaskOutput;
 pub use tool_catalog::{
     tool_catalog, tool_catalog_entry, ToolCatalogEntry, DEFAULT_TOOL_IDS,
-    SECURITY_SENSITIVE_TOOL_IDS,
+    SECURITY_SENSITIVE_TOOL_IDS, TOOL_BROWSER_CDP, TOOL_BROWSER_CLICK, TOOL_BROWSER_NAVIGATE,
+    TOOL_BROWSER_PRESS_KEY, TOOL_BROWSER_SCREENSHOT, TOOL_BROWSER_SCROLL, TOOL_BROWSER_SNAPSHOT,
+    TOOL_BROWSER_TABS, TOOL_BROWSER_TYPE,
 };
 pub use traits::{Agent, ChannelHandler, LLMClient, MemoryStore, SubAgentExecutor, Tool};
 pub use vision::{
@@ -108,8 +112,8 @@ pub mod prelude {
         attach_vision_images, vision_images_from_metadata, Agent, AgentLoopLimits, AgentType,
         ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput, EmbeddingProvider,
         ExecutionTraceEvent, FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient,
-        LLMProvider, LLMResponse, Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope,
-        MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
+        LLMProvider, LLMResponse, LiveTraceEvent, Memory, MemoryPipeline, MemoryPipelineSettings,
+        MemoryScope, MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
         ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PlanLimits, PlanNode,
         PlanNodeKind, PlanPatch, PlanStatus, PlanTree, PlanValidationError, PlanValidationIssue,
         PlanValidationResult, PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef,

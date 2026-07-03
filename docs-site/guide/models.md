@@ -18,7 +18,7 @@ Runtime LLM behavior comes from `~/.anycode/config.json` (and per-agent override
 - **Naming**: Config `provider` values are **snake_case** (e.g. `cloudflare_ai_gateway`, `vercel_ai_gateway`). OpenClaw **kebab-case** names are accepted and normalized (e.g. `cloudflare-ai-gateway` → `cloudflare_ai_gateway`).
 - **Aliases**: Examples: `claude` → `anthropic`, `zai` / `bigmodel` → `z.ai`, `kimi` → `moonshot`, `github-copilot` → `copilot`, `amazon-bedrock` → `bedrock`, `glm` → `z.ai`.
 - **AWS Bedrock**: Set `provider` to `amazon_bedrock` (alias `bedrock`), choose a model id for your region, and rely on the AWS credential chain (e.g. `AWS_PROFILE`, instance role). The stack uses **Bedrock Converse** (`Converse` / streaming).
-- **GitHub Copilot**: Set `provider` to `github_copilot` (alias `copilot`), pick a Copilot Chat–compatible model id, then run **`anycode model auth copilot`** (device flow) so tokens are stored under `~/.anycode/credentials/`.
+- **GitHub Copilot**: Set `provider` to `github_copilot` (alias `copilot`), pick a Copilot Chat–compatible model id, then complete OAuth in **Workbench Settings → Models** so tokens are stored under `~/.anycode/credentials/`.
 - **Placeholders**: Some catalog entries remain OpenClaw parity only (e.g. media-only APIs). Use **`custom`** with your own OpenAI-compatible `base_url` when the catalog entry is not wired in anyCode.
 
 Run **`anycode model`** to pick a provider interactively; the menu follows the same catalog.
@@ -37,9 +37,9 @@ anyCode ships a broad provider catalog, but **maintainer day-to-day validation**
 
 1. Run **`anycode status`** — check resolved `provider / model` and routes.
 2. Open **Workbench → Settings → Model & routing** and use **Test** (`POST /api/settings/models/{id}/test`).
-3. Run a short chat: `anycode run --agent general-purpose "Reply with OK only"`.
+3. Send a short test message in the Workbench composer (e.g. “Reply with OK only”).
 
-Default config uses **`provider: z.ai`** and **`model: glm-5`**. DeepSeek has a built-in model catalog (`deepseek-v4-pro`, `deepseek-v4-flash`, legacy `deepseek-chat` / `deepseek-reasoner`) and a quick-auth preset in `anycode setup`.
+Default config uses **`provider: z.ai`** and **`model: glm-5`**. DeepSeek has a built-in model catalog (`deepseek-v4-pro`, `deepseek-v4-flash`, legacy `deepseek-chat` / `deepseek-reasoner`) and a quick-auth preset in `Workbench /setup`.
 
 ## DeepSeek (OpenAI-compatible)
 
@@ -87,7 +87,7 @@ Retries with backoff on HTTP **429**, **5xx**, and transport errors. **401/403**
 
 ## OpenAI official API (optional)
 
-With `cargo build -p anycode --features openai`, if global `provider` normalizes to `openai`, the stack may use `OpenAIClient` instead of `ZaiClient` for that profile.
+With `cargo build -p anycode-desktop-desktop-channel-bridge --features openai`, if global `provider` normalizes to `openai`, the stack may use `OpenAIClient` instead of `ZaiClient` for that profile.
 
 ## Dashboard model settings
 
@@ -189,7 +189,7 @@ In **anyCode.app** (Tauri shell on macOS), you can enable **Apple Speech (macOS 
 Enable all optional local backends:
 
 ```bash
-cargo build -p anycode --features media-local
+cargo build -p anycode-desktop-desktop-channel-bridge --features media-local
 ```
 
 When you set **embedding** active to `local_fastembed`, anyCode syncs `memory.pipeline.embedding_provider` to `"local"` so memory recall and tools share the same embedding path.

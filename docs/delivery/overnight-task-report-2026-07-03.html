@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>anyCode 夜间任务报告 · 2026-07-03</title>
+  <style>
+    :root {
+      --bg: #0c0c0e;
+      --card: #161618;
+      --border: #2a2a2e;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --ok: #22c55e;
+      --warn: #eab308;
+      --todo: #71717a;
+      --accent: #6366f1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 32px 20px 80px;
+      max-width: 960px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.15rem; margin-top: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+    h3 { font-size: 1rem; color: var(--muted); margin-top: 1.25rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: 1rem 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card strong { display: block; font-size: 1.5rem; }
+    .card span { color: var(--muted); font-size: 0.85rem; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .todo { color: var(--todo); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; }
+    code { background: #27272a; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+    ul { padding-left: 1.25rem; }
+    li { margin: 0.35rem 0; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-done { background: rgba(34,197,94,.15); color: var(--ok); }
+    .badge-partial { background: rgba(234,179,8,.15); color: var(--warn); }
+    .badge-future { background: rgba(113,113,122,.2); color: var(--todo); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>anyCode 夜间批量任务报告</h1>
+  <p class="meta">生成时间：2026-07-03 · 分支：当前工作区 · 执行者：Cursor Agent</p>
+
+  <div class="grid">
+    <div class="card"><strong class="ok">8/8</strong><span>任务模块已交付或 MVP</span></div>
+    <div class="card"><strong class="ok">78</strong><span>dashboard-ui 单元测试通过</span></div>
+    <div class="card"><strong class="ok">149</strong><span>anycode-dashboard Rust 测试通过</span></div>
+    <div class="card"><strong class="ok">✓</strong><span>anycode-daemon release 构建</span></div>
+  </div>
+
+  <h2>1. 对话体验（对齐 Cursor / Codex）</h2>
+  <p><span class="badge badge-done">已完成</span></p>
+  <ul>
+    <li><strong>分段工具簇</strong>：<code>transcriptGrouping.ts</code> 改为按时间顺序分段折叠，assistant 消息不再被整段工具簇「顶到后面」。</li>
+    <li><strong>Thinking 内容</strong>：<code>ToolTraceCluster</code> 展示 intermediate assistant 摘要列表，而非仅计数。</li>
+    <li><strong>流式光标</strong>：assistant 块 <code>meta.live</code> 时显示闪烁光标（<code>.chat-stream-cursor</code>）。</li>
+    <li><strong>保留</strong>：SSE 双通道（chat_event + project_event）未合并——可作为下一迭代优化项。</li>
+  </ul>
+  <p>验证：<code>npm test src/lib/transcriptGrouping.test.ts</code></p>
+
+  <h2>2. 中英文与审计</h2>
+  <p><span class="badge badge-done">已完成</span></p>
+  <ul>
+    <li><code>StatusBadge</code> 支持风险等级 <code>low/medium/high/critical</code>，修复 medium 显示英文问题。</li>
+    <li>新增 <code>audit.actions.*</code> 约 30 条中英对照；审计页显示可读标签 + 原始 action code。</li>
+    <li>修正中文审计页 mixed 文案（筛选占位符、subtitle、emptyDesc）。</li>
+  </ul>
+
+  <h2>3. Skills 治理与官方目录</h2>
+  <p><span class="badge badge-partial">MVP + 重构</span></p>
+  <ul>
+    <li><strong>Agents 页</strong>：OpenAI 风格三 Tab — Installed / Official catalog / Import；Agent 统计收折到底部。</li>
+    <li><strong>官方目录</strong>：<code>skill_market.rs</code> 增加 5 条 curated official 条目（web-research、code-review 等），badge 区分 Official / anyCode。</li>
+    <li><strong>未做</strong>：外站实时抓取 openclaw/codex 仓库；独立 skill 站点域名部署。</li>
+  </ul>
+
+  <h2>4. 系统 Prompt → 插件</h2>
+  <p><span class="badge badge-partial">脚手架</span></p>
+  <ul>
+    <li>新增 <code>crates/agent/src/plugins/mod.rs</code>：<code>PluginManifest</code>、<code>load_builtin_plugins()</code>。</li>
+    <li><code>system_prompt.rs</code> 追加 enabled plugin overlay 钩子。</li>
+    <li><strong>下一步</strong>：将内置 agent 描述、channel 规则迁入 manifest 文件与 Settings UI。</li>
+  </ul>
+
+  <h2>5. 报告 / 资产 / 门禁</h2>
+  <p><span class="badge badge-partial">评估 + 门禁 MVP</span></p>
+  <table>
+    <thead><tr><th>模块</th><th>企业价值</th><th>处理</th></tr></thead>
+    <tbody>
+      <tr><td>Reports</td><td>合规/交付归档有用；日常个人用户低频</td><td>Settings → Ops 可隐藏 Reports 导航（<code>anycode.features.hideReports</code>）</td></tr>
+      <tr><td>Assets</td><td>产物检索、晋升 skill 有用</td><td>保留；与 Workbench 工件面板联动</td></tr>
+      <tr><td>门禁 Gates</td><td>CI 验收必需</td><td>新增 Settings → Gates：验收默认开关 + 预设列表 + 文档链接</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. API 中转站（Agnes）</h2>
+  <p><span class="badge badge-partial">MVP 脚手架</span></p>
+  <ul>
+    <li>用户端 <code>/relay</code>：模型选择、账号槽位、配置保存。</li>
+    <li>管理端 <code>/relay/admin</code>：多 Agnes 账号槽位 CRUD（localStorage + API 同步）。</li>
+    <li>后端 <code>/api/relay/accounts</code>、<code>/api/relay/config</code> → <code>~/.anycode/relay.json</code>（仅 loopback）。</li>
+    <li>导航：开发模式默认显示；生产需 <code>VITE_RELAY_ENABLED=1</code>。</li>
+    <li><strong>未做</strong>：真实 Agnes 上游转发、用户中台/管理员独立部署、计费。</li>
+  </ul>
+
+  <h2>7. 测试矩阵</h2>
+  <p><span class="badge badge-partial">自动化 + 手册清单</span></p>
+  <h3>已跑自动化</h3>
+  <ul>
+    <li><code>cargo test -p anycode-dashboard --lib</code> — 149 passed</li>
+    <li><code>cd crates/dashboard-ui && npm test</code> — 78 passed</li>
+    <li><code>cargo build --release -p anycode-channel-bridge</code> — OK</li>
+  </ul>
+  <h3>建议手动回归（起床后可跑）</h3>
+  <table>
+    <thead><tr><th>场景</th><th>步骤</th><th>预期</th></tr></thead>
+    <tbody>
+      <tr><td>办公·简单</td><td>Conversations 发「总结附件」+ 上传/引用文件</td><td>SSE 流式回复、工具簇折叠、中文 UI</td></tr>
+      <tr><td>办公·复杂</td><td>多轮 + Bash 读 CSV + 生成 markdown 报告</td><td>工具/assistant 交错顺序正确</td></tr>
+      <tr><td>编码·简单</td><td>项目内 Edit 小函数</td><td>Gate 可手动跑 cargo test preset</td></tr>
+      <tr><td>编码·复杂</td><td>多文件 refactor + 终端面板</td><td>WebSocket 终端、Trace 面板可用</td></tr>
+      <tr><td>浏览器插件</td><td>Workbench Browser 面板 navigate</td><td>截图/stream WS 正常</td></tr>
+      <tr><td>Skills</td><td>/agents → Official → Install 一条</td><td>安装成功、Governance 可见</td></tr>
+      <tr><td>审计</td><td>Settings 改模型 → Audit 页</td><td>动作中文、风险「中」非 medium</td></tr>
+      <tr><td>中转</td><td>/relay/admin 添加账号 → /relay 选择</td><td>relay.json 持久化</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. 桌面纯客户端（前序任务）</h2>
+  <p><span class="badge badge-done">已实现</span> — WebView 加载 bundle UI；43180 仅 API；浏览器打开 <code>/</code> 返回 api_only JSON。</p>
+  <p>需重新打包 <code>ANYCODE_DESKTOP_LOCAL_RELEASE=1 ./scripts/build-desktop-release.sh</code> 后替换 <code>/Applications/anyCode.app</code>。</p>
+
+  <h2>9. 遗留与建议优先级</h2>
+  <ol>
+    <li><strong>P0</strong>：合并 SSE 单连接；ExecutionProgressBar 接入对话区。</li>
+    <li><strong>P1</strong>：插件 manifest 文件化 + Settings 管理；Gate 服务端持久化 acceptance 策略。</li>
+    <li><strong>P1</strong>：Agnes 真实 HTTP 转发与鉴权。</li>
+    <li><strong>P2</strong>：官方 Skill 站点静态站（VitePress 子站）；外站 skill 批量 import 脚本。</li>
+    <li><strong>P2</strong>：Playwright e2e 覆盖 relay + 新 Agents Tab。</li>
+  </ol>
+
+  <h2>10. 关键文件索引</h2>
+  <ul>
+    <li>对话：<code>crates/dashboard-ui/src/lib/transcriptGrouping.ts</code>、<code>components/chat/ToolTraceCluster.tsx</code></li>
+    <li>审计 i18n：<code>crates/dashboard-ui/src/i18n/zh.ts</code> → <code>audit.actions</code></li>
+    <li>Skills：<code>crates/dashboard/src/skill_market.rs</code>、<code>pages/AgentsPage.tsx</code></li>
+    <li>插件：<code>crates/agent/src/plugins/mod.rs</code></li>
+    <li>门禁：<code>pages/settings/SettingsGatesSection.tsx</code></li>
+    <li>中转：<code>crates/dashboard/src/relay/mod.rs</code>、<code>pages/RelayHubPage.tsx</code></li>
+  </ul>
+
+  <p class="meta" style="margin-top:3rem">产物路径：本文件 <code>docs/delivery/overnight-task-report-2026-07-03.html</code> · daemon：<code>target/release/anycode-daemon</code></p>
+</body>
+</html>

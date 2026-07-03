@@ -1,4 +1,4 @@
-import { API_BASE, get } from "../http";
+import { get, apiUrl } from "../http";
 
 const TRANSCRIBE_TIMEOUT_MS = 120_000;
 
@@ -41,10 +41,7 @@ export const mediaClient = {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TRANSCRIBE_TIMEOUT_MS);
     try {
-      const url =
-        API_BASE !== ""
-          ? new URL("/api/media/transcribe", API_BASE.endsWith("/") ? API_BASE : `${API_BASE}/`).href
-          : "/api/media/transcribe";
+      const url = apiUrl("/api/media/transcribe");
       const res = await fetch(url, {
         method: "POST",
         credentials: "include",

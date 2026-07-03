@@ -432,6 +432,82 @@ impl DashboardDb {
         Ok(())
     }
 
+    pub async fn find_recyclable_web_chat_session(
+        &self,
+        project_id: &str,
+        agent_type: Option<&str>,
+    ) -> Result<Option<SessionDetail>> {
+        let agent_filter = agent_type.map(str::trim).filter(|a| !a.is_empty());
+        let mut sql = r#"
+            SELECT id, project_id, kind, task_id, title, prompt_preview, status, trusted_status,
+                   agent_type, model, started_at, ended_at, summary, metadata_json
+            FROM sessions
+            WHERE project_id = ?
+              AND kind = 'repl'
+              AND status NOT IN ('running', 'pending')
+              AND trusted_status != 'blocked'
+              AND (
+                json_extract(metadata_json, '$.web_chat') = 1
+                OR json_extract(metadata_json, '$.source') = 'conversations_start'
+              )
+        "#
+        .to_string();
+        if agent_filter.is_some() {
+            sql.push_str(" AND agent_type = ?");
+        }
+        sql.push_str(" ORDER BY datetime(COALESCE(ended_at, started_at)) DESC, rowid DESC LIMIT 1");
+        let mut q = sqlx::query(&sql).bind(project_id);
+        if let Some(agent) = agent_filter {
+            q = q.bind(agent);
+        }
+        let row = q.fetch_optional(&self.pool).await?;
+        Ok(row.map(|r| SessionDetail {
+            id: r.get("id"),
+            project_id: r.get("project_id"),
+            project_name: String::new(),
+            kind: r.get("kind"),
+            task_id: r.get("task_id"),
+            title: r.get("title"),
+            prompt_preview: r.get("prompt_preview"),
+            status: r.get("status"),
+            trusted_status: r.get("trusted_status"),
+            agent_type: r.get("agent_type"),
+            model: r.get("model"),
+            started_at: r.get("started_at"),
+            ended_at: r.get("ended_at"),
+            summary: r.get("summary"),
+            metadata_json: r.get("metadata_json"),
+            block_reason: None,
+            block_kind: None,
+        }))
+    }
+
+    pub async fn reopen_session_for_chat(
+        &self,
+        session_id: &str,
+        title: Option<&str>,
+        prompt_preview: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE sessions
+            SET status = 'pending',
+                ended_at = NULL,
+                title = COALESCE(?, title),
+                prompt_preview = COALESCE(?, prompt_preview)
+            WHERE id = ?
+              AND status NOT IN ('running', 'pending')
+            "#,
+        )
+        .bind(title)
+        .bind(prompt_preview)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        self.refresh_session_trusted_status(session_id).await?;
+        Ok(())
+    }
+
     pub async fn attach_task_to_session(
         &self,
         session_id: &str,
@@ -883,5 +959,69 @@ mod tests {
         let second = db.create_or_get_session_by_task_id(req).await.unwrap();
         assert_eq!(first.id, second.id);
         assert_eq!(second.title, "first title");
+    }
+
+    #[tokio::test]
+    async fn find_recyclable_web_chat_session_prefers_latest_idle_repl() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("recycle.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/recycle".into(),
+                name: Some("demo".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let older = db
+            .create_planned_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "repl".into(),
+                task_id: None,
+                title: "older".into(),
+                prompt_preview: Some("a".into()),
+                agent_type: Some("general-purpose".into()),
+                model: None,
+                metadata_json: Some(r#"{"web_chat":true}"#.into()),
+            })
+            .await
+            .unwrap();
+        db.finish_session(&older.id, "completed", None)
+            .await
+            .unwrap();
+        let newer = db
+            .create_planned_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "repl".into(),
+                task_id: None,
+                title: "newer".into(),
+                prompt_preview: Some("b".into()),
+                agent_type: Some("general-purpose".into()),
+                model: None,
+                metadata_json: Some(r#"{"source":"conversations_start"}"#.into()),
+            })
+            .await
+            .unwrap();
+        db.finish_session(&newer.id, "completed", None)
+            .await
+            .unwrap();
+
+        let found = db
+            .find_recyclable_web_chat_session(&project.id, Some("general-purpose"))
+            .await
+            .unwrap()
+            .expect("recyclable session");
+        assert_eq!(found.id, newer.id);
+
+        db.reopen_session_for_chat(&found.id, Some("reopened"), Some("preview"))
+            .await
+            .unwrap();
+        let reopened = db.get_session(&found.id).await.unwrap().unwrap();
+        assert_eq!(reopened.status, "pending");
+        assert_eq!(reopened.title, "reopened");
     }
 }

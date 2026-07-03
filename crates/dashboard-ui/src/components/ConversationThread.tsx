@@ -5,8 +5,6 @@ import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ConversationComposer } from "@/components/ConversationComposer";
 import { ConversationTranscript } from "@/components/ConversationTranscript";
 import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
-import { ExecutionProgressBar } from "@/components/ExecutionProgressBar";
-import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { Icon } from "@/components/Icon";
 import { SessionStatusBadges } from "@/components/ui/StatusBadge";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
@@ -142,6 +140,9 @@ export function ConversationThread({
   onFollowUpStarted,
   showHeader = true,
   sseLive = false,
+  liveBlocks = [],
+  chatStreamLive = false,
+  markSessionStreaming,
   toolbarStart,
   selectedToolId,
   onSelectTool,
@@ -150,6 +151,9 @@ export function ConversationThread({
   onFollowUpStarted?: (sessionId: string) => void;
   showHeader?: boolean;
   sseLive?: boolean;
+  liveBlocks?: import("@/api/types").TranscriptBlock[];
+  chatStreamLive?: boolean;
+  markSessionStreaming?: (sessionId: string) => void;
   toolbarStart?: ReactNode;
   selectedToolId?: string | null;
   onSelectTool?: (tool: import("@/api/types").TranscriptBlock) => void;
@@ -167,7 +171,10 @@ export function ConversationThread({
     );
   }
 
-  const running = session.status === "running";
+  const running =
+    session.status === "running" ||
+    (chatStreamLive && liveBlocks.length > 0);
+  const hideComposerWaiting = chatStreamLive || liveBlocks.length > 0;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -237,23 +244,10 @@ export function ConversationThread({
       {toolbarStart ? (
         <div className="hidden lg:flex items-center gap-3 px-3 py-2 border-b border-outline-variant bg-surface-container-low shrink-0">
           <div className="shrink-0">{toolbarStart}</div>
-          <ExecutionProgressBar
-            sessionId={session.id}
-            isRunning={running}
-            sseLive={sseLive}
-            embedded
-          />
         </div>
-      ) : (
-        <ExecutionProgressBar sessionId={session.id} isRunning={running} sseLive={sseLive} />
-      )}
-      <AskUserQuestionInbox sessionId={session.id} />
+      ) : null}
 
-      {running && (
-        <div className="px-4 py-2 border-b border-outline-variant bg-surface-container-lowest shrink-0">
-          <SecurityApprovalInbox sessionId={session.id} hideWhenEmpty compact />
-        </div>
-      )}
+      <AskUserQuestionInbox sessionId={session.id} />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
         <div className="px-3 py-4 max-w-4xl mx-auto w-full">
@@ -261,6 +255,8 @@ export function ConversationThread({
             sessionId={session.id}
             isRunning={running}
             sseLive={sseLive}
+            liveBlocks={liveBlocks}
+            chatStreamLive={chatStreamLive}
             scrollContainerRef={scrollRef}
             promptPreview={session.prompt_preview}
             selectedToolId={selectedToolId}
@@ -274,6 +270,8 @@ export function ConversationThread({
           mode="follow-up"
           session={session}
           onSent={onFollowUpStarted}
+          hideWaitingIndicator={hideComposerWaiting}
+          onStreamingStart={markSessionStreaming}
         />
       </div>
     </div>

@@ -57,6 +57,11 @@ pub const TOOL_SPEECH_TO_TEXT: &str = "SpeechToText";
 pub const TOOL_TEXT_TO_SPEECH: &str = "TextToSpeech";
 pub const TOOL_GENERATE_IMAGE: &str = "GenerateImage";
 pub const TOOL_GENERATE_VIDEO: &str = "GenerateVideo";
+pub use anycode_core::{
+    TOOL_BROWSER_CDP, TOOL_BROWSER_CLICK, TOOL_BROWSER_NAVIGATE, TOOL_BROWSER_PRESS_KEY,
+    TOOL_BROWSER_SCREENSHOT, TOOL_BROWSER_SCROLL, TOOL_BROWSER_SNAPSHOT, TOOL_BROWSER_TABS,
+    TOOL_BROWSER_TYPE,
+};
 
 /// general-purpose Agent 暴露的完整工具 id（与 `build_registry` 插入集合一致）。
 pub use anycode_core::{ToolCatalogEntry, DEFAULT_TOOL_IDS, SECURITY_SENSITIVE_TOOL_IDS};
@@ -65,6 +70,30 @@ pub use anycode_core::{ToolCatalogEntry, DEFAULT_TOOL_IDS, SECURITY_SENSITIVE_TO
 pub use anycode_core::{tool_catalog, tool_catalog_entry};
 
 pub const EXPLORE_PLAN_TOOL_IDS: [&str; 4] = [TOOL_FILE_READ, TOOL_GLOB, TOOL_GREP, TOOL_BASH];
+
+/// Extra tool ids denied for explore/plan agents (browser screenshot is vision-heavy).
+pub const EXPLORE_PLAN_EXTRA_DENY_TOOL_IDS: &[&str] = &[TOOL_BROWSER_SCREENSHOT];
+
+pub fn explore_plan_extra_tool_denies() -> Vec<String> {
+    EXPLORE_PLAN_EXTRA_DENY_TOOL_IDS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+}
+
+/// Merge explore/plan profile denies with per-task deny lists.
+pub fn merge_agent_type_tool_denies(agent_type: &str, extra: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = match agent_type {
+        "explore" | "plan" => explore_plan_extra_tool_denies(),
+        _ => Vec::new(),
+    };
+    for name in extra {
+        if !out.iter().any(|n| n == name) {
+            out.push(name.clone());
+        }
+    }
+    out
+}
 
 /// Tools denied when a cron job uses the `read_only` profile.
 pub const CRON_READ_ONLY_DENIED_TOOL_IDS: &[&str] = &[
@@ -339,6 +368,15 @@ mod workspace_assistant_tools_tests {
             TOOL_TEXT_TO_SPEECH,
             TOOL_GENERATE_IMAGE,
             TOOL_GENERATE_VIDEO,
+            TOOL_BROWSER_TABS,
+            TOOL_BROWSER_NAVIGATE,
+            TOOL_BROWSER_SNAPSHOT,
+            TOOL_BROWSER_CLICK,
+            TOOL_BROWSER_TYPE,
+            TOOL_BROWSER_PRESS_KEY,
+            TOOL_BROWSER_SCROLL,
+            TOOL_BROWSER_SCREENSHOT,
+            TOOL_BROWSER_CDP,
         ];
         let mut core = DEFAULT_TOOL_IDS.to_vec();
         local.sort_unstable();
@@ -385,7 +423,7 @@ pub fn validate_default_registry(tools: &HashMap<ToolName, Box<dyn Tool>>) -> an
     Ok(())
 }
 
-/// `anycode run` / `list_tools` 英文说明（核心工具详述，其余一行）。
+/// `Workbench task` / `list_tools` 英文说明（核心工具详述，其余一行）。
 pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)> {
     [
         (
@@ -428,7 +466,7 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         ),
         (
             TOOL_CRON_CREATE,
-            "Register cron-like job (persisted under ~/.anycode/tasks/orchestration.json; executed by `anycode scheduler` when running)",
+            "Register cron-like job (persisted under ~/.anycode/tasks/orchestration.json; executed by `anycode-daemon scheduler` when running)",
         ),
         (TOOL_ENTER_WORKTREE, "git worktree add + record path"),
         (TOOL_STRUCTURED_OUTPUT, "Structured JSON passthrough"),

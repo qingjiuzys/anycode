@@ -57,7 +57,7 @@ Stream REPL / run / goal set `ANYCODE_DASHBOARD_SESSION_ID` while the dashboard 
 
 ## UI trigger run (`POST /api/projects/{id}/runs/trigger`)
 
-Spawns a **detached** `anycode run -I -C {project_root}` subprocess (goal mode adds `--goal`). Loopback-only unless `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1`. Disable with `ANYCODE_DASHBOARD_TRIGGER_RUN=0`. Logs: `~/.anycode/dashboard/triggers/{trigger_id}.log`. Dashboard recorder picks up the session automatically.
+Spawns a **detached** `Workbench task -I -C {project_root}` subprocess (goal mode adds `--goal`). Loopback-only unless `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1`. Disable with `ANYCODE_DASHBOARD_TRIGGER_RUN=0`. Logs: `~/.anycode/dashboard/triggers/{trigger_id}.log`. Dashboard recorder picks up the session automatically.
 
 ## Security activity (`GET /api/security/activity`)
 

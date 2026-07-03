@@ -11,6 +11,7 @@ mod execute_tool;
 mod execute_turn;
 pub mod failover;
 mod limits;
+mod live_trace_emit;
 mod llm_retry;
 mod logging;
 mod memory_hooks;

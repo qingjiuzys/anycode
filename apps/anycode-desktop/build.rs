@@ -17,6 +17,11 @@ fn main() {
                 eprintln!("cargo:warning=failed to copy dashboard-ui dist into resources/");
             }
         }
+        let loading = manifest.join("loading.html");
+        let dist_loading = src.join("loading.html");
+        if loading.is_file() {
+            let _ = std::fs::copy(&loading, &dist_loading);
+        }
     } else {
         eprintln!(
             "cargo:warning=dashboard-ui dist missing at {}; run ./scripts/build-dashboard-ui.sh",

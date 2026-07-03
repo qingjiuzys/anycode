@@ -23,5 +23,5 @@ Local Digital Workbench backend for anycode.
 
 ```bash
 cargo test -p anycode-dashboard
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui --bin anycode-dashboard-serve
 ```

@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# anyCode installer for Windows PowerShell
+# anyCode installer for Windows PowerShell — installs `anycode-daemon` (headless channels + scheduler).
 #
 # Canonical repo: qingjiuzys/anycode
 # One-liner:
@@ -14,8 +14,7 @@ param(
   [string]$Method = "binary",
   [string]$SourceDir = "",
   [switch]$DryRun,
-  [switch]$Setup,
-  [switch]$NoSetup,
+  [switch]$NoSetupHint,
   [switch]$Quiet
 )
 
@@ -108,8 +107,8 @@ function Ensure-PathContains([string]$dir) {
 function Install-FromBinary([string]$repo, [string]$versionArg, [string]$target) {
   $tag = if ($versionArg -eq "latest") { Resolve-LatestTag $repo } else { Normalize-Version $versionArg }
   $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("anycode-install-" + [Guid]::NewGuid().ToString("N"))
-  $zip = Join-Path $tmp "anycode.zip"
-  $asset = "anycode-$target.zip"
+  $zip = Join-Path $tmp "anycode-daemon.zip"
+  $asset = "anycode-daemon-$target.zip"
   $url = "https://github.com/$repo/releases/download/$tag/$asset"
   Write-Warn "Downloading: $url"
 
@@ -122,9 +121,9 @@ function Install-FromBinary([string]$repo, [string]$versionArg, [string]$target)
   try {
     Invoke-Download $url $zip
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
-    $exePath = Join-Path $tmp "anycode.exe"
-    if (-not (Test-Path $exePath)) { Fail "Archive missing top-level anycode.exe" }
-    $dest = Join-Path $script:BinDir "anycode.exe"
+    $exePath = Join-Path $tmp "anycode-daemon.exe"
+    if (-not (Test-Path $exePath)) { Fail "Archive missing top-level anycode-daemon.exe" }
+    $dest = Join-Path $script:BinDir "anycode-daemon.exe"
     Copy-Item -Force $exePath $dest
     Write-Info "Installed: $dest"
     return $true
@@ -144,29 +143,29 @@ function Install-FromGit([string]$repo) {
   }
   $url = "https://github.com/$repo.git"
   if ($DryRun) {
-    Write-Info "[dry-run] cargo install --locked --git $url anycode --root `"$script:BinDir\..`" --force"
+    Write-Info "[dry-run] cargo install --locked --git $url anycode-channel-bridge --root `"$script:BinDir\..`" --force"
     return
   }
   $root = Split-Path -Parent $script:BinDir
-  cargo install --locked --git $url anycode --root $root --force
-  Write-Info "Installed: $(Join-Path $script:BinDir "anycode.exe")"
+  cargo install --locked --git $url anycode-channel-bridge --root $root --force
+  Write-Info "Installed: $(Join-Path $script:BinDir "anycode-daemon.exe")"
 }
 
 function Install-FromSourceDir([string]$dir) {
-  $cli = Join-Path $dir "crates\cli"
-  if (-not (Test-Path (Join-Path $cli "Cargo.toml"))) {
-    Fail "--SourceDir must point to repo root containing crates/cli (got $dir)"
+  $bridge = Join-Path $dir "crates\channel-bridge"
+  if (-not (Test-Path (Join-Path $bridge "Cargo.toml"))) {
+    Fail "--SourceDir must point to repo root containing crates/channel-bridge (got $dir)"
   }
   if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
     Fail "cargo not found. Install Rust from https://rustup.rs then retry."
   }
   $root = Split-Path -Parent $script:BinDir
   if ($DryRun) {
-    Write-Info "[dry-run] cargo install --locked --path `"$cli`" --root `"$root`" --force"
+    Write-Info "[dry-run] cargo install --locked --path `"$bridge`" --root `"$root`" --force"
     return
   }
-  cargo install --locked --path $cli --root $root --force
-  Write-Info "Installed: $(Join-Path $script:BinDir "anycode.exe")"
+  cargo install --locked --path $bridge --root $root --force
+  Write-Info "Installed: $(Join-Path $script:BinDir "anycode-daemon.exe")"
 }
 
 if ([string]::IsNullOrWhiteSpace($Repo) -and [string]::IsNullOrWhiteSpace($SourceDir)) {
@@ -183,7 +182,7 @@ else {
   switch ($Method) {
     "binary" {
       if (-not (Install-FromBinary $Repo $Version $target)) {
-        Fail "Binary install failed. Check release assets for tag."
+        Fail "Binary install failed. Check release assets for anycode-daemon-$target.zip."
       }
     }
     "source" { Install-FromGit $Repo }
@@ -198,23 +197,12 @@ else {
 
 Ensure-PathContains $BinDir
 
-$runSetup = $true
-if ($NoSetup -or $env:ANYCODE_NO_SETUP -eq "1") {
-  $runSetup = $false
-}
-if ($Setup) {
-  $runSetup = $true
+$printSetupHint = $true
+if ($NoSetupHint -or $env:ANYCODE_NO_SETUP -eq "1") {
+  $printSetupHint = $false
 }
 
-if ($runSetup) {
-  if ($DryRun) {
-    Write-Info "[dry-run] anycode setup"
-  }
-  else {
-    & anycode setup
-  }
+if ($printSetupHint) {
+  Write-Info "Next: open Workbench setup at http://127.0.0.1:43180/setup (install anyCode desktop app or run dashboard separately)"
+  Write-Info "Headless: anycode-daemon scheduler | wechat-bridge | telegram-bridge | discord-bridge"
 }
-else {
-  Write-Info "Next: run anycode setup"
-}
-

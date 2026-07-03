@@ -33,7 +33,7 @@ moka = { workspace = true, features = ["future"] }
 default = ["sled"]
 sled = ["dep:sled"]
 sqlite = ["dep:sqlx"]
-# 本地 ONNX 嵌入（FastEmbed / MiniLM），需 `cargo build -p anycode --features embedding-local`。
+# 本地 ONNX 嵌入（FastEmbed / MiniLM），需 `cargo build -p anycode-desktop --features embedding-local`。
 embedding-local = ["dep:fastembed"]
 # 预留：接入 LanceDB / 远端向量索引时启用，与 `EmbeddingProvider` + `VectorMemoryBackend` 实现联用。
 memory-vector = []

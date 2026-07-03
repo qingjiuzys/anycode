@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { ExternalNavLink } from "@/components/ExternalNavLink";
 import { useI18n } from "@/i18n/context";
 import { docsHomeUrl, helpGuideUrl } from "@/lib/docLinks";
 import { api } from "@/api/client";
+import { FEATURE_FLAGS_EVENT } from "@/lib/featureFlags";
 import {
-  FEATURE_NAV,
   FEATURE_NAV_GROUPS,
+  featureNavItems,
+  isFeatureNavItemVisible,
   navCount,
   type FeatureNavItem,
 } from "@/lib/featureNav";
@@ -15,12 +18,25 @@ type Props = {
   activePath: string;
   onSelect: (item: FeatureNavItem) => void;
   className?: string;
+  /** Hide home — control center uses close / navigate instead. */
+  excludeHome?: boolean;
 };
 
-export function FeatureNav({ activePath, onSelect, className = "" }: Props) {
+export function FeatureNav({ activePath, onSelect, className = "", excludeHome = false }: Props) {
   const { t, locale } = useI18n();
   const overview = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const ov = overview.data?.overview;
+  const [, bumpFlags] = useState(0);
+
+  useEffect(() => {
+    const sync = () => bumpFlags((n) => n + 1);
+    window.addEventListener(FEATURE_FLAGS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(FEATURE_FLAGS_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const isActive = (to: string) =>
     to === "/" ? activePath === "/" : activePath === to || activePath.startsWith(`${to}/`);
@@ -28,7 +44,10 @@ export function FeatureNav({ activePath, onSelect, className = "" }: Props) {
   return (
     <nav className={`dw-feature-nav ${className}`.trim()}>
       {FEATURE_NAV_GROUPS.map((group) => {
-        const items = FEATURE_NAV.filter((item) => item.group === group.id);
+        const items = featureNavItems()
+          .filter((item) => item.group === group.id)
+          .filter(isFeatureNavItemVisible)
+          .filter((item) => !(excludeHome && item.to === "/"));
         if (items.length === 0) return null;
         return (
           <div key={group.id} className="dw-feature-nav-group">

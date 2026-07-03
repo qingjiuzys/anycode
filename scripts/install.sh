@@ -6,7 +6,7 @@
 #   curl -fsSL --proto '=https' --tlsv1.2 \
 #     https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh | bash -s -- --repo qingjiuzys/anycode
 #
-# After you publish releases with asset names: anycode-<asset-target>.tar.gz (binary "anycode" at archive root),
+# After you publish releases with asset names: anycode-daemon-<asset-target>.tar.gz (binary at archive root),
 # where linux asset-target omits "-unknown-" for readability (e.g. x86_64-linux-gnu),
 # the script downloads from https://github.com/qingjiuzys/anycode/releases
 #
@@ -14,7 +14,7 @@
 #   ANYCODE_GITHUB_REPO   default for --repo (e.g. myorg/anycode)
 #   ANYCODE_VERSION       tag or "latest" (default: latest)
 #   ANYCODE_INSTALL_BIN   directory for the binary (default: first writable PATH dir, else $HOME/.local/bin)
-#   ANYCODE_NO_SETUP      if 1, do not run setup wizard after install
+#   ANYCODE_OPEN_SETUP    if 1, print Workbench /setup URL after install (default)
 #   ANYCODE_INSTALL_QUIET if 1, reduce downloader output
 #
 set -euo pipefail
@@ -106,22 +106,21 @@ Usage: install.sh [options]
 
   --repo OWNER/REPO     GitHub repository (default: $ANYCODE_GITHUB_REPO; canonical: qingjiuzys/anycode)
   --version TAG         Release tag: v0.2.0, 0.2.0, or latest (default: latest or $ANYCODE_VERSION)
-  --bin-dir DIR         Install directory for `anycode` (default: $ANYCODE_INSTALL_BIN, else first writable PATH dir, else $HOME/.local/bin)
+  --bin-dir DIR         Install directory for `anycode-daemon` (default: $ANYCODE_INSTALL_BIN, else first writable PATH dir, else $HOME/.local/bin)
   --method MODE         binary | auto | source (default: binary)
                          binary: only install GitHub Release tarball (no cargo fallback)
                          auto: try GitHub Release tarball, then cargo install --git
   --with-dashboard      When using source install, build dashboard-ui and enable embedded-ui
-  --source-dir PATH     Use `cargo install --path PATH/crates/cli` instead of git (for local dev clone)
+  --source-dir PATH     Use `cargo install --path PATH/crates/channel-bridge` (local dev clone)
   --dry-run             Print actions only
-  --setup               After install, run `anycode setup` (interactive; default)
-  --no-setup            Do not run setup wizard after install
+  --no-setup-hint       Do not print Workbench /setup URL after install
   --quiet               Reduce downloader output (for CI/log piping)
   -h, --help            This help
 
 Release asset layout (for --method binary):
-  https://github.com/qingjiuzys/anycode/releases/download/<tag>/anycode-<asset-target>.tar.gz
+  https://github.com/qingjiuzys/anycode/releases/download/<tag>/anycode-daemon-<asset-target>.tar.gz
   linux asset-target omits "-unknown-" (x86_64-linux-gnu / aarch64-linux-gnu)
-  Archive must contain executable `anycode` at the top level.
+  Archive must contain executable `anycode-daemon` at the top level.
 
 Examples:
   ANYCODE_GITHUB_REPO=qingjiuzys/anycode bash install.sh
@@ -139,7 +138,7 @@ METHOD=binary
 SOURCE_DIR=""
 WITH_DASHBOARD=0
 DRY_RUN=0
-RUN_SETUP=1
+PRINT_SETUP_HINT=1
 QUIET=0
 is_truthy "${ANYCODE_INSTALL_QUIET:-0}" && QUIET=1
 
@@ -152,8 +151,7 @@ while [[ $# -gt 0 ]]; do
     --source-dir) SOURCE_DIR="${2:-}"; shift 2 ;;
     --with-dashboard) WITH_DASHBOARD=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
-    --setup) RUN_SETUP=1; shift ;;
-    --no-setup) RUN_SETUP=0; shift ;;
+    --no-setup-hint) PRINT_SETUP_HINT=0; shift ;;
     --quiet) QUIET=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
@@ -219,23 +217,23 @@ install_from_binary() {
     tag="$(normalize_version "$version_arg")"
   fi
   tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/anycode-install.XXXXXX")"
-  tf="${tmpdir}/anycode.tgz"
+  tf="${tmpdir}/anycode-daemon.tgz"
   asset_target="${target/-unknown-/-}"
   compat_target="${target}"
 
-  url="https://github.com/${repo}/releases/download/${tag}/anycode-${asset_target}.tar.gz"
+  url="https://github.com/${repo}/releases/download/${tag}/anycode-daemon-${asset_target}.tar.gz"
   warn "Downloading: $url"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     info "[dry-run] download $url -> $tf"
     if [[ "$asset_target" != "$compat_target" ]]; then
-      info "[dry-run] fallback if missing: https://github.com/${repo}/releases/download/${tag}/anycode-${compat_target}.tar.gz"
+      info "[dry-run] fallback if missing: https://github.com/${repo}/releases/download/${tag}/anycode-daemon-${compat_target}.tar.gz"
     fi
     rm -rf "$tmpdir"
     return 0
   fi
   if ! download "$url" "$tf"; then
     if [[ "$asset_target" != "$compat_target" ]]; then
-      url="https://github.com/${repo}/releases/download/${tag}/anycode-${compat_target}.tar.gz"
+      url="https://github.com/${repo}/releases/download/${tag}/anycode-daemon-${compat_target}.tar.gz"
       warn "Primary asset missing; trying legacy name: $url"
       if ! download "$url" "$tf"; then
         rm -rf "$tmpdir"
@@ -247,12 +245,12 @@ install_from_binary() {
     fi
   fi
   tar -xzf "$tf" -C "$tmpdir"
-  [[ -f "$tmpdir/anycode" ]] || {
+  [[ -f "$tmpdir/anycode-daemon" ]] || {
     rm -rf "$tmpdir"
-    die "Archive missing top-level 'anycode' binary."
+    die "Archive missing top-level 'anycode-daemon' binary."
   }
-  dest="${BIN_DIR}/anycode"
-  run install -m 0755 "$tmpdir/anycode" "$dest"
+  dest="${BIN_DIR}/anycode-daemon"
+  run install -m 0755 "$tmpdir/anycode-daemon" "$dest"
   rm -rf "$tmpdir"
   info "Installed: $dest"
   return 0
@@ -268,7 +266,7 @@ cargo_install_copy() {
       [[ "$r" == "." ]] && r="$HOME/.local"
       info "[dry-run] cargo ${cargo_args[*]} --root $(printf '%q' "$r") --force"
     else
-      info "[dry-run] cargo ${cargo_args[*]} --root <tmp> --force; install to $(printf '%q' "${BIN_DIR}/anycode")"
+      info "[dry-run] cargo ${cargo_args[*]} --root <tmp> --force; install to $(printf '%q' "${BIN_DIR}/anycode-daemon")"
     fi
     return 0
   fi
@@ -277,14 +275,14 @@ cargo_install_copy() {
     root="$(dirname "$BIN_DIR")"
     [[ "$root" == "." ]] && root="$HOME/.local"
     run cargo "${cargo_args[@]}" --root "$root" --force
-    info "Installed: ${BIN_DIR}/anycode"
+    info "Installed: ${BIN_DIR}/anycode-daemon"
   else
     local t
     t="$(mktemp -d "${TMPDIR:-/tmp}/anycode-cargo.XXXXXX")"
     run cargo "${cargo_args[@]}" --root "$t" --force
-    run install -m 0755 "${t}/bin/anycode" "${BIN_DIR}/anycode"
+    run install -m 0755 "${t}/bin/anycode-daemon" "${BIN_DIR}/anycode-daemon"
     rm -rf "$t"
-    info "Installed: ${BIN_DIR}/anycode"
+    info "Installed: ${BIN_DIR}/anycode-daemon"
   fi
 }
 
@@ -293,29 +291,16 @@ install_from_git() {
   local url="https://github.com/${repo}.git"
   warn "Installing from source via cargo (needs Rust toolchain)..."
   command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs then retry."
-  cargo_install_copy install --locked --git "$url" anycode
+  cargo_install_copy install --locked --git "$url" anycode-channel-bridge
 }
 
 install_from_source_dir() {
   local dir="$1"
-  local cli="${dir}/crates/cli"
-  [[ -f "${cli}/Cargo.toml" ]] || die "--source-dir must point to repo root containing crates/cli (got $dir)"
+  local bridge="${dir}/crates/channel-bridge"
+  [[ -f "${bridge}/Cargo.toml" ]] || die "--source-dir must point to repo root containing crates/channel-bridge (got $dir)"
   command -v cargo >/dev/null 2>&1 || die "cargo not found. Install Rust: https://rustup.rs"
-  if [[ "$WITH_DASHBOARD" -eq 1 ]]; then
-    if [[ -x "${dir}/scripts/build-dashboard-ui.sh" ]]; then
-      warn "Building dashboard-ui (embedded-ui)…"
-      run bash "${dir}/scripts/build-dashboard-ui.sh"
-      export ANYCODE_BUILD_DASHBOARD_UI=1
-    else
-      warn "--with-dashboard: build-dashboard-ui.sh not found; skipping UI build"
-    fi
-  fi
-  local -a features=()
-  if [[ "$WITH_DASHBOARD" -eq 1 ]]; then
-    features+=(--features embedded-ui)
-  fi
-  warn "cargo install --path $(printf '%q' "$cli") -> $(printf '%q' "${BIN_DIR}/anycode")"
-  cargo_install_copy install --locked --path "$cli" "${features[@]}"
+  warn "cargo install --path $(printf '%q' "$bridge") -> $(printf '%q' "${BIN_DIR}/anycode-daemon")"
+  cargo_install_copy install --locked --path "$bridge"
 }
 
 main() {
@@ -331,7 +316,7 @@ main() {
   else
     case "$METHOD" in
       binary)
-        install_from_binary "$REPO" "$VERSION_INPUT" "$target" || die "Binary install failed. Check release assets for tag (new: anycode-${target/-unknown-/-}.tar.gz, legacy: anycode-${target}.tar.gz)."
+        install_from_binary "$REPO" "$VERSION_INPUT" "$target" || die "Binary install failed. Check release assets for tag (anycode-daemon-${target/-unknown-/-}.tar.gz)."
         ;;
       source)
         install_from_git "$REPO"
@@ -350,7 +335,7 @@ main() {
   case ":${PATH:-}:" in
     *":${BIN_DIR}:"*) ;;
     *)
-      warn "anycode installed to ${BIN_DIR}, but this directory is not on PATH."
+      warn "anycode-daemon installed to ${BIN_DIR}, but this directory is not on PATH."
       warn "Current shell (one-time): export PATH=\"${BIN_DIR}:\$PATH\""
       case "$(basename "${SHELL:-}")" in
         zsh) warn "Persist for zsh: echo 'export PATH=\"${BIN_DIR}:\$PATH\"' >> ~/.zshrc && source ~/.zshrc" ;;
@@ -360,19 +345,16 @@ main() {
       ;;
   esac
 
-  if [[ "${ANYCODE_NO_SETUP:-0}" == "1" ]]; then
-    RUN_SETUP=0
+  if is_truthy "${ANYCODE_NO_SETUP:-0}"; then
+    PRINT_SETUP_HINT=0
   fi
 
-  if [[ "$RUN_SETUP" -eq 1 ]]; then
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-      info "[dry-run] ${BIN_DIR}/anycode setup"
-    else
-      [[ -x "${BIN_DIR}/anycode" ]] || die "Missing ${BIN_DIR}/anycode"
-      "${BIN_DIR}/anycode" setup
-    fi
-  else
-    info "Next: run  anycode setup  (先配置模型，再选择 channel：wechat/telegram/discord)"
+  if [[ "$PRINT_SETUP_HINT" -eq 1 ]]; then
+    info "Next: open anyCode.app (macOS) or the Workbench in your browser (headless)"
+    info "  macOS: install anyCode.app from Releases — Workbench runs inside the app"
+    info "  headless Workbench: http://127.0.0.1:43180/setup (anycode-dashboard-serve or daemon + browser)"
+    info "  headless: anycode-daemon scheduler   # cron / automations"
+    info "  channels: anycode-daemon wechat-bridge | telegram-bridge | discord-bridge"
   fi
 }
 

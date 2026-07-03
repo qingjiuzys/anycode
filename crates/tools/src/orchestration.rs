@@ -705,7 +705,7 @@ impl Tool for CronCreateTool {
                 "schedule_timezone_applied": tz_note,
                 "next_fire_utc": next_utc_s,
                 "next_fire_local": next_local_s,
-                "hint": "Requires scheduler (embedded in WeChat bridge or `anycode scheduler`). Cron output is pushed to the last WeChat chat when fired from the bridge."
+                "hint": "Requires scheduler (embedded in WeChat bridge or `anycode-daemon scheduler`). Cron output is pushed to the last WeChat chat when fired from the bridge."
             }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,

@@ -36,7 +36,7 @@ function mapSseStatus(status: string): "connecting" | "live" | "reconnecting" | 
   return "offline";
 }
 
-function Topbar({ compact = false }: { compact?: boolean }) {
+function Topbar({ compact = false, hideProfile = false }: { compact?: boolean; hideProfile?: boolean }) {
   const { t, locale } = useI18n();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sseStatus = useSseStatus();
@@ -59,39 +59,52 @@ function Topbar({ compact = false }: { compact?: boolean }) {
         <div className="dw-topbar-hit">
           <LanguageSwitcher />
         </div>
-        <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
-        <div className="dw-topbar-hit">
-          <NotificationsDropdown />
-        </div>
-        <ExternalNavLink
-          href={helpGuideUrl(locale)}
-          className="dw-btn-secondary hidden md:inline-flex no-underline dw-topbar-hit"
-        >
-          {t("nav.help")}
-        </ExternalNavLink>
-        <div className="dw-topbar-hit">
-          <TopbarNewMenu />
-        </div>
-        <div className="dw-topbar-hit">
-          <UserMenu />
-        </div>
+        {!hideProfile ? (
+          <>
+            <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
+            <div className="dw-topbar-hit">
+              <NotificationsDropdown />
+            </div>
+            <ExternalNavLink
+              href={helpGuideUrl(locale)}
+              className="dw-btn-secondary hidden md:inline-flex no-underline dw-topbar-hit"
+            >
+              {t("nav.help")}
+            </ExternalNavLink>
+            <div className="dw-topbar-hit">
+              <TopbarNewMenu />
+            </div>
+            <div className="dw-topbar-hit">
+              <UserMenu />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
+            <div className="dw-topbar-hit">
+              <TopbarNewMenu />
+            </div>
+          </>
+        )}
       </div>
     </header>
   );
 }
 
 function SessionFirstShell() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isHome = pathname === "/";
+
   return (
     <ConversationShellProvider>
       <div className="dw-shell dw-shell--sessions">
         <SessionSidebar />
         <div className="dw-main-wrap dw-main-wrap--sessions">
-          <Topbar compact />
-          <main className="dw-main dw-main--sessions">
+          <Topbar compact hideProfile />
+          <main className={`dw-main dw-main--sessions${isHome ? " dw-main--home" : ""}`}>
             <Outlet />
           </main>
         </div>
-        <ControlCenterButton />
         <ControlCenterOverlay />
       </div>
     </ConversationShellProvider>

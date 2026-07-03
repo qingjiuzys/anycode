@@ -1,13 +1,15 @@
-use crate::schema::ProjectEvent;
+use crate::observability::chat_events::chat_event_from_project_event;
+use crate::schema::{ChatStreamEvent, ProjectEvent};
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
 
-const BROADCAST_CAP: usize = 256;
+const BROADCAST_CAP: usize = 512;
 
-/// Broadcasts project events to SSE subscribers.
+/// Broadcasts project events and chat stream events to SSE subscribers.
 #[derive(Clone)]
 pub struct EventBus {
-    tx: broadcast::Sender<ProjectEvent>,
+    project_tx: broadcast::Sender<ProjectEvent>,
+    chat_tx: broadcast::Sender<ChatStreamEvent>,
     last_event_at: Arc<RwLock<Option<String>>>,
 }
 
@@ -20,9 +22,11 @@ impl Default for EventBus {
 impl EventBus {
     #[must_use]
     pub fn new() -> Self {
-        let (tx, _) = broadcast::channel(BROADCAST_CAP);
+        let (project_tx, _) = broadcast::channel(BROADCAST_CAP);
+        let (chat_tx, _) = broadcast::channel(BROADCAST_CAP);
         Self {
-            tx,
+            project_tx,
+            chat_tx,
             last_event_at: Arc::new(RwLock::new(None)),
         }
     }
@@ -31,15 +35,29 @@ impl EventBus {
         if let Ok(mut last) = self.last_event_at.write() {
             *last = Some(event.occurred_at.clone());
         }
-        let _ = self.tx.send(event);
+        if let Some(chat_evt) = chat_event_from_project_event(&event) {
+            let _ = self.chat_tx.send(chat_evt);
+        }
+        let _ = self.project_tx.send(event);
+    }
+
+    pub fn publish_chat(&self, event: ChatStreamEvent) {
+        if let Ok(mut last) = self.last_event_at.write() {
+            *last = Some(event.at.clone());
+        }
+        let _ = self.chat_tx.send(event);
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<ProjectEvent> {
-        self.tx.subscribe()
+        self.project_tx.subscribe()
+    }
+
+    pub fn subscribe_chat(&self) -> broadcast::Receiver<ChatStreamEvent> {
+        self.chat_tx.subscribe()
     }
 
     pub fn subscriber_count(&self) -> usize {
-        self.tx.receiver_count()
+        self.project_tx.receiver_count()
     }
 
     pub fn last_event_at(&self) -> Option<String> {
@@ -61,5 +79,9 @@ impl EventSink {
 
     pub fn publish(&self, event: ProjectEvent) {
         self.bus.publish(event);
+    }
+
+    pub fn publish_chat(&self, event: ChatStreamEvent) {
+        self.bus.publish_chat(event);
     }
 }

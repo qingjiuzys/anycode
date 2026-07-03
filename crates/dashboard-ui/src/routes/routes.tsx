@@ -107,6 +107,13 @@ export const setupRoute = createRoute({
 export const indexRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/",
+  validateSearch: (search: Record<string, unknown>): { project?: string } => {
+    const project =
+      typeof search.project === "string" && search.project.trim()
+        ? search.project.trim()
+        : undefined;
+    return { project };
+  },
   component: () => (
     <Page>
       <HomePage />
@@ -374,6 +381,7 @@ export const settingsRoute = createRoute({
       "security",
       "notify",
       "channels",
+      "gates",
       "ops",
     ] as const;
     if (typeof section === "string" && (valid as readonly string[]).includes(section)) {

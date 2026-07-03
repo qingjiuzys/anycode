@@ -1,26 +1,18 @@
 ---
-title: Model commands
-description: anycode model list, status, set, and interactive model editor.
-summary: Static z.ai catalog vs free-form ids for other providers; writes config when using set.
-read_when:
-  - You switch default models or routing defaults from the CLI.
+title: Model commands (removed)
+description: The anycode model CLI subcommand was removed; configure models in the Workbench.
 ---
 
-# Model commands
+# Model commands (removed)
 
-```bash
-anycode model list --plain
-anycode model status
-anycode model set <id>
-```
+The **`anycode model`** CLI (`list`, `status`, `set`, interactive editor) is **no longer available**.
 
-**`model list`** is primarily a **z.ai** static catalog. For **Anthropic**, set **`provider`** and **`model`** directly in **`config.json`**.
+**Use instead:**
 
-Interactive **`anycode model`** (no subcommand) edits global defaults and **`routing.agents`** as implemented in your version.
+- **Workbench `/setup`** — first-time model and API key configuration
+- **Settings → Models** — change default model, routing, and probes
+- **Direct edit** — `~/.anycode/config.json` (`llm`, `runtime.model_fallback`)
 
-All of these respect **`-c/--config`**.
+See [Models & endpoints](./models) for provider catalog and validation scope.
 
-## Related
-
-- [Models](./models) — providers and endpoints  
-- [Routing](./routing) — per-agent overrides  
+简体中文：[模型命令（已移除）](/zh/guide/cli-model).

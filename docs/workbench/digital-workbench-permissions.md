@@ -9,7 +9,7 @@
 Allowed only when:
 
 - Host is `127.0.0.1` or `localhost`.
-- User explicitly starts `anycode dashboard`.
+- User explicitly starts `anyCode Workbench`.
 - No remote access token is issued.
 
 Purpose:

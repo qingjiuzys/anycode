@@ -1,12 +1,20 @@
 import type { TranscriptBlock } from "@/api/types";
 
+export type ToolStep = {
+  key: string;
+  call?: TranscriptBlock;
+  result?: TranscriptBlock;
+};
+
 export type TurnReplyItem =
   | { kind: "block"; block: TranscriptBlock }
   | {
-      kind: "tool_group";
+      kind: "tool_cluster";
       id: string;
-      tools: TranscriptBlock[];
+      steps: ToolStep[];
       processMessageCount: number;
+      /** Collapsed intermediate assistant snippets (thinking). */
+      processSnippets: string[];
     };
 
 function isIntermediateAssistantNotice(block: TranscriptBlock): boolean {
@@ -20,56 +28,79 @@ function isToolBlock(block: TranscriptBlock): boolean {
   return block.block_type === "tool_call" || block.block_type === "tool_result";
 }
 
-/** Merge all tool blocks in a user turn into one execution strip; fold intermediate replies into counts. */
-export function groupTurnReplies(replies: TranscriptBlock[]): TurnReplyItem[] {
-  const tools: TranscriptBlock[] = [];
-  let processMessageCount = 0;
-  let firstToolIndex = -1;
+function buildToolSteps(tools: TranscriptBlock[]): ToolStep[] {
+  const byKey = new Map<string, ToolStep>();
+  const order: string[] = [];
 
-  for (let i = 0; i < replies.length; i += 1) {
-    const block = replies[i]!;
+  for (const tool of tools) {
+    const key = toolStepKey(tool) ?? tool.id;
+    if (!byKey.has(key)) {
+      order.push(key);
+      byKey.set(key, { key });
+    }
+    const slot = byKey.get(key)!;
+    if (tool.block_type === "tool_result") {
+      slot.result = tool;
+    } else {
+      slot.call = tool;
+    }
+  }
+
+  return order.map((key) => byKey.get(key)!);
+}
+
+function makeToolCluster(
+  tools: TranscriptBlock[],
+  processMessageCount: number,
+  processSnippets: string[],
+): TurnReplyItem {
+  return {
+    kind: "tool_cluster",
+    id: `tools:${tools[0]?.id ?? `process-${processMessageCount}`}`,
+    steps: buildToolSteps(tools),
+    processMessageCount,
+    processSnippets,
+  };
+}
+
+/**
+ * Group tool blocks into per-segment clusters (Cursor/Codex-style interleaving).
+ * Contiguous tool + thinking runs become one cluster; assistant text stays in order.
+ */
+export function groupTurnReplies(replies: TranscriptBlock[]): TurnReplyItem[] {
+  const out: TurnReplyItem[] = [];
+  let toolBuffer: TranscriptBlock[] = [];
+  let processCount = 0;
+  const processSnippets: string[] = [];
+
+  const flushTools = () => {
+    if (toolBuffer.length === 0 && processCount === 0) {
+      return;
+    }
+    out.push(makeToolCluster(toolBuffer, processCount, [...processSnippets]));
+    toolBuffer = [];
+    processCount = 0;
+    processSnippets.length = 0;
+  };
+
+  for (const block of replies) {
     if (isToolBlock(block)) {
-      if (firstToolIndex < 0) {
-        firstToolIndex = i;
-      }
-      tools.push(block);
+      toolBuffer.push(block);
       continue;
     }
     if (isIntermediateAssistantNotice(block)) {
-      processMessageCount += 1;
-    }
-  }
-
-  if (tools.length === 0 && processMessageCount === 0) {
-    return replies.map((block) => ({ kind: "block" as const, block }));
-  }
-
-  const toolGroup: TurnReplyItem = {
-    kind: "tool_group",
-    id: `tools:${tools[0]?.id ?? `process-${processMessageCount}`}`,
-    tools,
-    processMessageCount,
-  };
-
-  const out: TurnReplyItem[] = [];
-  let groupInserted = false;
-
-  for (let i = 0; i < replies.length; i += 1) {
-    const block = replies[i]!;
-    if (isToolBlock(block) || isIntermediateAssistantNotice(block)) {
-      if (!groupInserted && (firstToolIndex < 0 || i === firstToolIndex)) {
-        out.push(toolGroup);
-        groupInserted = true;
+      processCount += 1;
+      const snippet = block.body?.trim();
+      if (snippet) {
+        processSnippets.push(snippet);
       }
       continue;
     }
+    flushTools();
     out.push({ kind: "block", block });
   }
 
-  if (!groupInserted) {
-    out.unshift(toolGroup);
-  }
-
+  flushTools();
   return out;
 }
 
@@ -107,4 +138,26 @@ export function toolStepKey(tool: TranscriptBlock): string | null {
     return `${turn}:${idx}`;
   }
   return tool.event_id ?? tool.id;
+}
+
+export function toolStepRunning(step: ToolStep): boolean {
+  return Boolean(step.call) && !step.result;
+}
+
+export function toolStepFailed(step: ToolStep): boolean {
+  const primary = step.result ?? step.call;
+  if (!primary) return false;
+  return /failed|error|denied/i.test(`${primary.title} ${primary.body}`);
+}
+
+/** Name of the tool currently running in a turn, if any. */
+export function findActiveToolInReplies(replies: TranscriptBlock[]): string | null {
+  const steps = buildToolSteps(replies.filter(isToolBlock));
+  for (let i = steps.length - 1; i >= 0; i -= 1) {
+    const step = steps[i]!;
+    if (toolStepRunning(step)) {
+      return step.call?.title?.replace(/\s+started$/i, "") ?? step.call?.title ?? null;
+    }
+  }
+  return null;
 }

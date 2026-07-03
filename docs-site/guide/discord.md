@@ -28,7 +28,7 @@ After this page, you will know:
 7. Run (keep terminal open):
 
 ```bash
-anycode channel discord
+anycode-daemon discord-bridge
 ```
 
 Credentials: `~/.anycode/channels/discord.json`.
@@ -36,8 +36,8 @@ Credentials: `~/.anycode/channels/discord.json`.
 ## CLI path
 
 ```bash
-anycode setup --channel discord
-anycode channel discord
+Workbench /setup --channel discord
+anycode-daemon discord-bridge
 ```
 
 ## Privileged intents

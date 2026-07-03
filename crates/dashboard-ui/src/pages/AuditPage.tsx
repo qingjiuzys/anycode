@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { downloadCsv } from "@/utils/exportCsv";
+import { auditActionLabel } from "@/lib/auditActions";
 import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 
@@ -151,10 +152,11 @@ export function AuditPage(_props: EmbeddedPageProps = {}) {
                   <tr key={e.id}>
                     <td className="text-secondary text-xs">{e.created_at}</td>
                     <td>
-                      <code className="font-code">{e.action}</code>
+                      <span className="font-medium text-sm">{auditActionLabel(e.action, t)}</span>
+                      <code className="font-code text-[10px] text-secondary ml-2">{e.action}</code>
                     </td>
                     <td>
-                      <StatusBadge status={e.risk === "low" ? "ok" : e.risk} />
+                      <StatusBadge status={e.risk} />
                     </td>
                     <td className="text-secondary font-code text-xs">{e.project_id ?? "—"}</td>
                     <td className="text-secondary font-code text-xs">{e.session_id ?? "—"}</td>

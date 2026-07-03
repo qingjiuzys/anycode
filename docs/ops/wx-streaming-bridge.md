@@ -2,7 +2,7 @@
 
 ## 编排路径
 
-- **微信 daemon**（`crates/cli/src/wx/bridge.rs`）当前对每条用户消息构建一轮 **`Task`**，调用 **`AgentRuntime::execute_task`**（单任务、多轮工具循环内聚在 runtime 内）。
+- **微信 daemon**（`crates/bootstrap/src/wx/bridge.rs`）当前对每条用户消息构建一轮 **`Task`**，调用 **`AgentRuntime::execute_task`**（单任务、多轮工具循环内聚在 runtime 内）。
 - **流式 REPL / TUI** 等可走 **`execute_turn_from_messages`**，消息列表由调用方维护；微信会话状态里虽有 `chat_history`，但桥接层仍用 **`execute_task`**，与「逐条 Message 追加」的 REPL 模式不等价。
 
 ## 消息分片与速率
@@ -21,6 +21,6 @@
 
 ## 相关文件
 
-- `crates/cli/src/wx/bridge.rs`
+- `crates/bootstrap/src/wx/bridge.rs`
 - `crates/core/src/task.rs`（`nested_cancel`；`channel_progress_tx` 保留供后续可选进度）
 - `crates/agent/src/runtime/mod.rs`（工具边界）

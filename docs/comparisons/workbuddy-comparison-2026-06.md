@@ -22,7 +22,7 @@
 
 | WorkBuddy | anyCode | 决策 |
 |-----------|---------|------|
-| 桌面 GUI 下载即用 | Terminal + `anycode dashboard` | **Port** — Tauri sidecar + tag CI（2026-06） |
+| 桌面 GUI 下载即用 | Terminal + `anyCode Workbench` | **Port** — Tauri sidecar + tag CI（2026-06） |
 | 内置模型 + Credits | BYOK | **Skip** 计费绑定；保留 setup 向导 |
 | 小程序云 relay | 无 | **Skip**（ADR 003） |
 
@@ -75,7 +75,7 @@
 | 手机下发 + 状态追踪 | iLink 桥 | **Done**（2026-06） |
 | 任务生命周期推送 | received / running / done | **Done**（2026-06） |
 | 交付物回传 | 扩展 `cron_notify` / bridge + CDN `file_item` | **Done** v2（2026-06，需 live iLink） |
-| `channel status` | `anycode channel status` | **Done** — doctor 行 + 微信详情 |
+| `channel status` | `anycode-daemon status` | **Done** — doctor 行 + 微信详情 |
 
 ### 8. 安全
 

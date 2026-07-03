@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+import { apiUrl } from "@/api/http";
 
 /**
  * Subscribe to per-project SSE and invalidate queries when CLI/runtime writes events.
- * Requires `anycode dashboard` running; optional `ANYCODE_DASHBOARD_URL` for cross-process notify.
+ * Requires Workbench (desktop or anycode-dashboard-serve) running; optional `ANYCODE_DASHBOARD_URL` for cross-process notify.
  */
 export function useProjectEventStream(projectId: string | undefined) {
   const queryClient = useQueryClient();
@@ -14,7 +13,7 @@ export function useProjectEventStream(projectId: string | undefined) {
     if (!projectId) {
       return;
     }
-    const url = `${API_BASE}/api/projects/${projectId}/events/stream`;
+    const url = apiUrl(`/api/projects/${projectId}/events/stream`);
     const es = new EventSource(url);
     const refresh = () => {
       queryClient.invalidateQueries({ queryKey: ["events", projectId] });

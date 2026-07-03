@@ -1,7 +1,7 @@
 use super::*;
 use crate::workbench::{
-    list_dir, read_file, shared_manager, stat_path, PtySession, TerminalClientMessage,
-    TerminalServerMessage, DEFAULT_MAX_READ_BYTES,
+    list_dir, read_file, shared_manager, stat_path, CreateBrowserSessionBody, PtySession,
+    TerminalClientMessage, TerminalServerMessage, DEFAULT_MAX_READ_BYTES,
 };
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
@@ -166,16 +166,14 @@ async fn handle_terminal_ws(socket: WebSocket, root_path: String) {
     read_task.abort();
 }
 
-#[derive(Deserialize)]
-pub struct CreateBrowserSessionBody {
-    pub project_id: String,
-}
-
 pub async fn create_browser_session(
     Json(body): Json<CreateBrowserSessionBody>,
 ) -> impl IntoResponse {
     let mgr = shared_manager();
-    match mgr.create(&body.project_id) {
+    match mgr
+        .create(&body.project_id, body.conversation_id.as_deref())
+        .await
+    {
         Ok(info) => Json(json!({ "session": info })).into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
@@ -195,7 +193,7 @@ pub async fn navigate_browser_session(
     Json(body): Json<NavigateBrowserBody>,
 ) -> impl IntoResponse {
     let mgr = shared_manager();
-    match mgr.navigate(&session_id, &body.url) {
+    match mgr.navigate(&session_id, &body.url).await {
         Ok(state) => Json(json!({ "state": state })).into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
@@ -207,7 +205,7 @@ pub async fn navigate_browser_session(
 
 pub async fn browser_session_state(Path(session_id): Path<String>) -> impl IntoResponse {
     let mgr = shared_manager();
-    match mgr.state(&session_id) {
+    match mgr.state(&session_id).await {
         Ok(state) => Json(json!({ "state": state })).into_response(),
         Err(e) => (
             StatusCode::NOT_FOUND,
@@ -219,7 +217,7 @@ pub async fn browser_session_state(Path(session_id): Path<String>) -> impl IntoR
 
 pub async fn browser_session_screenshot(Path(session_id): Path<String>) -> impl IntoResponse {
     let mgr = shared_manager();
-    match mgr.screenshot(&session_id) {
+    match mgr.screenshot(&session_id).await {
         Ok(shot) => Json(json!({ "screenshot": shot })).into_response(),
         Err(e) => (
             StatusCode::BAD_REQUEST,
@@ -231,12 +229,86 @@ pub async fn browser_session_screenshot(Path(session_id): Path<String>) -> impl 
 
 pub async fn delete_browser_session(Path(session_id): Path<String>) -> impl IntoResponse {
     let mgr = shared_manager();
-    match mgr.close(&session_id) {
-        Ok(()) => Json(json!({ "ok": true })).into_response(),
+    match mgr.close(&session_id).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (
             StatusCode::NOT_FOUND,
             Json(json!({ "error": e.to_string() })),
         )
             .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct BrowserLockBody {
+    pub lock: String,
+}
+
+pub async fn browser_session_lock(
+    Path(session_id): Path<String>,
+    Json(body): Json<BrowserLockBody>,
+) -> impl IntoResponse {
+    let mgr = shared_manager();
+    let lock = match body.lock.as_str() {
+        "user" => anycode_browser::LockHolder::User,
+        "agent" => anycode_browser::LockHolder::Agent,
+        _ => anycode_browser::LockHolder::Idle,
+    };
+    match mgr.set_lock(&session_id, lock).await {
+        Ok(current) => Json(json!({ "lock": current })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn browser_session_stream(
+    Path(session_id): Path<String>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| browser_stream_socket(socket, session_id))
+}
+
+async fn browser_stream_socket(mut socket: WebSocket, session_id: String) {
+    let mgr = shared_manager();
+    let mut rx = match mgr.subscribe_screencast(&session_id).await {
+        Ok(rx) => rx,
+        Err(e) => {
+            let _ = socket
+                .send(Message::Text(
+                    json!({ "error": e.to_string() }).to_string().into(),
+                ))
+                .await;
+            return;
+        }
+    };
+    loop {
+        tokio::select! {
+            frame = rx.recv() => {
+                match frame {
+                    Ok(f) => {
+                        let payload = json!({
+                            "image_base64": f.image_base64,
+                            "format": "jpeg",
+                            "metadata": f.metadata,
+                        });
+                        if socket.send(Message::Text(payload.to_string().into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    }
+                }
+            }
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
+            }
+        }
     }
 }

@@ -291,7 +291,7 @@ fn append_reproduce_project(md: &mut String, snap: &ReportSnapshot) {
     let root = snap.root_path.as_deref().unwrap_or(".");
     let pid = snap.project_id.as_deref().unwrap_or("");
     md.push_str(&format!(
-        "```bash\ncd \"{}\"\nanycode dashboard --open\n# project_id: {}\n```\n\n",
+        "```bash\ncd \"{}\"\n# Open Workbench: http://127.0.0.1:43180\n# project_id: {}\n```\n\n",
         root, pid
     ));
 }
@@ -300,7 +300,7 @@ fn append_reproduce_session(md: &mut String, snap: &ReportSnapshot) {
     let s = strings(snap.lang);
     md.push_str(&format!("## {}\n\n", s.section_reproduce));
     md.push_str(&format!("{}\n\n", s.reproduce_hint));
-    md.push_str("```bash\nanycode dashboard --open\n");
+    md.push_str("```bash\n# Open Workbench: http://127.0.0.1:43180\n");
     md.push_str(&format!("# session_id: {}\n```\n\n", snap.id));
 }
 

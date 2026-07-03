@@ -32,7 +32,7 @@ Configure Workbench:
 
 ```bash
 export ANYCODE_ACCOUNT_API_URL=http://127.0.0.1:43200
-anycode dashboard --open
+anyCode Workbench --open
 ```
 
 Deploy: see [`deploy/account-service/README.md`](../../deploy/account-service/README.md).
@@ -247,7 +247,7 @@ Trigger body:
 }
 ```
 
-Response: `{ "trigger": TriggerRunResult }` with `pid`, `command_preview`, `log_path`, and `sandbox_note`. Spawns detached `anycode run -C {root}` with dashboard recording enabled; sensitive tools use the Web approval inbox when approval is required. Loopback-only unless `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE=1`.
+Response: `{ "trigger": TriggerRunResult }` with execution metadata and `sandbox_note`. Runs the task **in-process** via embedded `AgentRuntime` with dashboard recording enabled; sensitive tools use the Web approval inbox when approval is required.
 
 ### Start conversation (WebChat REPL)
 
@@ -255,7 +255,7 @@ Response: `{ "trigger": TriggerRunResult }` with `pid`, `command_preview`, `log_
 POST /api/projects/:project_id/conversations/start
 ```
 
-Creates a **pending** session in SQLite, then spawns a long-lived non-TTY `anycode` line REPL (`ANYCODE_DASHBOARD_SESSION_STICKY=1`) bound to the session. Messages are sent on stdin; events are recorded to SQLite via the dashboard recorder.
+Creates a **pending** session in SQLite, then starts an embedded web-chat runtime bound to the session. Messages are handled in-process; events are recorded to SQLite via the dashboard recorder.
 
 Request body:
 
@@ -280,7 +280,7 @@ Use this from the Conversations page. The legacy `POST .../runs/trigger` path re
 POST /api/sessions/:session_id/message
 ```
 
-Send a follow-up prompt to an existing WebChat session (or spawn the REPL on first message for sessions created via `POST /api/sessions`).
+Send a follow-up prompt to an existing WebChat session (embedded runtime).
 
 Request body:
 
@@ -292,7 +292,7 @@ Request body:
 }
 ```
 
-Response: `{ "ok": true, "session_id": "...", "chat": WebChatSendResult }`. Changing `agent` updates the session row and **evicts** the cached REPL (terminates the old process) so the next send respawns with the new `--agent`.
+Response: `{ "ok": true, "session_id": "...", "chat": WebChatSendResult }`. Changing `agent` updates the session row and restarts the embedded chat task with the new agent.
 
 Same loopback / `ANYCODE_DASHBOARD_TRIGGER_RUN_REMOTE` policy as conversation start.
 
@@ -331,6 +331,24 @@ SSE event:
 event: project_event
 data: {"id":"evt_01","event_type":"tool_call_end","title":"Bash finished","severity":"info"}
 ```
+
+### Session live stream (multiplexed)
+
+```http
+GET /api/sessions/:session_id/events/stream
+Accept: text/event-stream
+```
+
+Single SSE connection multiplexes two event types:
+
+| Event | Purpose |
+|-------|---------|
+| `project_event` | Durable index events; drives React Query invalidation |
+| `chat_event` | Low-latency assistant deltas and tool trace (`ChatStreamEvent`) |
+
+`chat_event` payload kinds: `assistant_delta`, `assistant_done`, `tool_start`, `tool_result`, `turn_done`, `session_error`, `user_message`.
+
+The workbench UI opens **one** `EventSource` per running session and handles both event types in `useSessionEventStream`.
 
 ### Gates
 

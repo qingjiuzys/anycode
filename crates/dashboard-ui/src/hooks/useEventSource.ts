@@ -14,10 +14,13 @@ export type ProjectEventSsePayload = {
 export function useEventSource(
   url: string | null,
   onProjectEvent?: (payload: ProjectEventSsePayload) => void,
+  onChatEvent?: (raw: MessageEvent) => void,
 ): SseStatus {
   const [status, setStatus] = useState<SseStatus>(url ? "connecting" : "offline");
   const onEventRef = useRef(onProjectEvent);
   onEventRef.current = onProjectEvent;
+  const onChatRef = useRef(onChatEvent);
+  onChatRef.current = onChatEvent;
 
   useEffect(() => {
     if (!url) {
@@ -74,6 +77,14 @@ export function useEventSource(
         }
       };
       es.addEventListener("project_event", handler);
+      if (onChatRef.current) {
+        es.addEventListener("chat_event", (raw) => {
+          if (!cancelled) {
+            setStatus("live");
+            onChatRef.current?.(raw as MessageEvent);
+          }
+        });
+      }
     };
 
     connect();

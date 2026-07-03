@@ -9,6 +9,7 @@ import { TokenTimelineChart } from "@/components/TokenTimelineChart";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { apiConnectionMessage } from "@/lib/apiConnectionMessage";
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
@@ -30,9 +31,10 @@ export function HomeTokenUsage() {
   }
 
   if (usage.isError) {
+    const msg = apiConnectionMessage(t, "error");
     return (
       <AnalyticsBlock title={t("home.tokenUsage")}>
-        <p className="text-sm text-error m-0">{t("home.apiError")}</p>
+        <p className="text-sm text-error m-0">{msg.text}</p>
       </AnalyticsBlock>
     );
   }

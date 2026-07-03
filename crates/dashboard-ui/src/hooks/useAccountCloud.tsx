@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import {
@@ -11,6 +20,11 @@ import {
 import type { CloudAuthUser, CloudOrgMember } from "@/api/types/accountCloud";
 import type { PlanTier, ServiceEntitlements } from "@/api/types/service";
 import { bundleToEntitlements } from "@/lib/planCatalog";
+import { cloudLoginUrl } from "@/lib/cloudPlatform";
+import { openExternal } from "@/lib/openExternal";
+
+const LINK_POLL_MS = 2_000;
+const LINK_TIMEOUT_MS = 120_000;
 
 type AccountCloudContextValue = {
   baseUrl: string | null;
@@ -19,6 +33,9 @@ type AccountCloudContextValue = {
   authenticated: boolean;
   user: CloudAuthUser | null;
   loading: boolean;
+  linking: boolean;
+  linkError: string | null;
+  linkCloudAccount: () => Promise<void>;
   openPortalLogin: (path?: string) => void;
   logout: () => Promise<void>;
   entitlements: ServiceEntitlements | null;
@@ -37,9 +54,25 @@ type AccountCloudContextValue = {
 
 const AccountCloudContext = createContext<AccountCloudContextValue | null>(null);
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function syncCloudSessionToken(): Promise<boolean> {
+  const session = await api.cloudSession();
+  if (session.linked && session.access_token) {
+    setAccountToken(session.access_token);
+    return true;
+  }
+  return false;
+}
+
 export function AccountCloudProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const [tokenVersion, setTokenVersion] = useState(0);
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const linkAbortRef = useRef<AbortController | null>(null);
 
   const health = useQuery({
     queryKey: ["health"],
@@ -59,14 +92,35 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
 
   const configured = Boolean(baseUrl);
 
+  const applyCloudSession = useCallback(() => {
+    setTokenVersion((v) => v + 1);
+    void qc.invalidateQueries({ queryKey: ["account-cloud-me"] });
+    void qc.invalidateQueries({ queryKey: ["account-cloud-bundle"] });
+    void qc.invalidateQueries({ queryKey: ["account-cloud-members"] });
+    void qc.invalidateQueries({ queryKey: ["account-cloud-api-keys"] });
+    void qc.invalidateQueries({ queryKey: ["models-registry"] });
+    void qc.invalidateQueries({ queryKey: ["llm-config"] });
+  }, [qc]);
+
   useEffect(() => {
-    void api.cloudSession().then((s) => {
-      if (s.linked && s.access_token) {
-        setAccountToken(s.access_token);
-        setTokenVersion((v) => v + 1);
-      }
+    void syncCloudSessionToken().then((linked) => {
+      if (linked) applyCloudSession();
     });
-  }, []);
+  }, [applyCloudSession]);
+
+  useEffect(() => {
+    const onLinked = () => {
+      void syncCloudSessionToken().then((linked) => {
+        if (linked) {
+          setLinking(false);
+          setLinkError(null);
+          applyCloudSession();
+        }
+      });
+    };
+    window.addEventListener("anycode-cloud-linked", onLinked);
+    return () => window.removeEventListener("anycode-cloud-linked", onLinked);
+  }, [applyCloudSession]);
 
   const me = useQuery({
     queryKey: ["account-cloud-me", baseUrl, tokenVersion],
@@ -169,10 +223,48 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
     (path = "/login") => {
       const base = portalUrl ?? baseUrl;
       if (!base) return;
-      window.open(`${base.replace(/\/$/, "")}${path}`, "_blank", "noopener,noreferrer");
+      const url = `${base.replace(/\/$/, "")}${path}`;
+      void openExternal(url);
     },
     [portalUrl, baseUrl],
   );
+
+  const linkCloudAccount = useCallback(async () => {
+    linkAbortRef.current?.abort();
+    const abort = new AbortController();
+    linkAbortRef.current = abort;
+    setLinking(true);
+    setLinkError(null);
+    try {
+      let browserUrl = cloudLoginUrl(portalUrl ?? undefined);
+      try {
+        const start = await api.cloudLinkStart();
+        browserUrl = start.browser_url || start.verification_uri_complete || browserUrl;
+      } catch (err) {
+        console.warn("cloudLinkStart failed, opening portal login", err);
+      }
+      await openExternal(browserUrl);
+      const deadline = Date.now() + LINK_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        if (abort.signal.aborted) return;
+        await sleep(LINK_POLL_MS);
+        if (await syncCloudSessionToken()) {
+          applyCloudSession();
+          return;
+        }
+      }
+      throw new Error("link_timeout");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setLinkError(message === "popup_blocked" ? "popup_blocked" : message);
+      throw err;
+    } finally {
+      if (linkAbortRef.current === abort) {
+        setLinking(false);
+        linkAbortRef.current = null;
+      }
+    }
+  }, [applyCloudSession, portalUrl]);
 
   const value: AccountCloudContextValue = {
     baseUrl,
@@ -183,6 +275,9 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
     loading:
       health.isLoading ||
       (configured && Boolean(getAccountToken()) && (me.isLoading || bundle.isLoading)),
+    linking,
+    linkError,
+    linkCloudAccount,
     openPortalLogin,
     logout: async () => {
       await logoutMut.mutateAsync();

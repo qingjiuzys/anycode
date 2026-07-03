@@ -13,31 +13,25 @@ For users who want anyCode working fast, without building from source.
 
 After this page, you will have:
 
-- `anycode` installed
-- a successful `anycode --help` check
+- **anyCode Desktop** (macOS/Windows) or **anycode-daemon** (Linux headless)
+- Workbench at `http://127.0.0.1:43180/` when the dashboard is running
 - a clear fallback path if install fails
 
 ## Recommended path
 
 | OS | Recommended install |
 |----|---------------------|
-| **macOS** | Download **`anyCode_<version>_aarch64.dmg`** from [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) — bundles CLI + Workbench + native STT/OCR. No separate macOS CLI tarball. |
-| **Linux** | `curl ... install.sh \| bash` |
+| **macOS** | Download **`anyCode_<version>_aarch64.dmg`** from [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) — Workbench + native STT/OCR. |
+| **Linux** | `curl ... install.sh \| bash` (installs `anycode-daemon`) or Desktop `.AppImage` when published |
 | **Windows** | `irm ... install.ps1 \| iex` |
 
 ### macOS desktop app (recommended)
 
 1. Open [Releases](https://github.com/qingjiuzys/anycode/releases) and download **`anyCode_<version>_aarch64.dmg`**.
 2. Open the DMG and drag **anyCode** to Applications.
-3. Launch **anyCode** — it starts the bundled CLI sidecar (`anycode dashboard`) and opens Workbench.
+3. Launch **anyCode** — it starts the embedded dashboard and opens Workbench.
 
-The CLI is **inside the app bundle** (not a separate Release asset on macOS):
-
-```bash
-/Applications/anyCode.app/Contents/Resources/resources/bin/anycode --help
-```
-
-Use `install.sh` on macOS only for headless servers or when you want `anycode` on PATH without the desktop app.
+Linux headless servers run **`anycode-daemon`** (channels + cron) and open Workbench in a browser.
 
 ## One-line installer (Linux)
 
@@ -48,7 +42,7 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.sh" | bash -s -- --repo qingjiuzys/anycode
 ```
 
-Expected output: installer downloads binary and runs `anycode setup` by default (`setup` includes a memory / embedding step on interactive terminals; see [Memory notes](./memory)).
+Expected output: installer downloads binary and runs `Workbench /setup` by default (`setup` includes a memory / embedding step on interactive terminals; see [Memory notes](./memory)).
 
 ## One-line installer (Windows PowerShell)
 
@@ -79,7 +73,7 @@ By default installer:
 
 - installs from prebuilt binary
 - shows download progress in interactive terminal
-- runs `anycode setup` after install
+- runs `Workbench /setup` after install
 
 Useful flags:
 
@@ -130,7 +124,7 @@ Build the macOS desktop locally: `./scripts/build-desktop-release.sh`.
 
 ```bash
 anycode --help
-anycode setup
+Workbench /setup
 ```
 
 Expected output: `--help` shows command list; `setup` opens onboarding flow.
@@ -157,7 +151,7 @@ Install into `PATH` (recommended, avoids `command not found`):
 anycode --help
 ```
 
-Next step: run `anycode setup`.
+Next step: run `Workbench /setup`.
 
 ## Local clone only
 
@@ -170,7 +164,7 @@ Next step: run `anycode setup`.
 Build with extra capabilities:
 
 ```bash
-cargo build -p anycode --features tools-mcp
+cargo build -p anycode-desktop-desktop-channel-bridge --features tools-mcp
 ```
 
 Expected output: binary compiled with MCP capability.

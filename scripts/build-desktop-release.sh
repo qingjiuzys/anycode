@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Build anyCode desktop installer (Tauri) + release CLI.
+# Build anyCode desktop installer (Tauri) + embedded dashboard.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export ROOT
 cd "$ROOT"
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
+  export CMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:-10.15}"
+fi
 
 BUNDLE_DIR="$ROOT/target/release/bundle"
 
@@ -50,16 +55,13 @@ write_desktop_icon_fingerprint() {
 }
 
 expected_stage_fingerprint() {
-  local cli="$ROOT/target/release/anycode"
-  [[ -f "$cli" ]] || cli="$ROOT/target/release/anycode.exe"
-  printf 'cli=%s\nui=%s\n' "$(sha256_file "$cli")" "$(sha256_file "$ROOT/crates/dashboard-ui/dist/index.html")"
+  printf 'ui=%s\n' "$(sha256_file "$ROOT/crates/dashboard-ui/dist/index.html")"
 }
 
 stage_cache_hit() {
   [[ "${ANYCODE_DESKTOP_STAGE_FORCE:-}" == "1" ]] && return 1
   local fp="$ROOT/apps/anycode-desktop/resources/.stage-fingerprint"
-  local staged_cli="$ROOT/apps/anycode-desktop/resources/bin/anycode"
-  [[ -f "$fp" && -f "$staged_cli" ]] || return 1
+  [[ -f "$fp" ]] || return 1
   [[ -f "$ROOT/apps/anycode-desktop/resources/dashboard-ui/index.html" ]] || return 1
   [[ "$(expected_stage_fingerprint)" == "$(cat "$fp")" ]]
 }
@@ -77,27 +79,28 @@ BUILD_START=$SECONDS
 chmod +x "$ROOT/scripts/sync-workspace-version.sh"
 chmod +x "$ROOT/scripts/build-apple-media-cli.sh"
 chmod +x "$ROOT/scripts/prepare-browser-mcp.sh"
+chmod +x "$ROOT/scripts/prepare-chromium.sh"
 chmod +x "$ROOT/scripts/prepare-desktop-icon-env.sh"
 
 step "sync workspace version to dashboard-ui / desktop manifests" \
   "$ROOT/scripts/sync-workspace-version.sh"
 
-step "build dashboard UI (must run before CLI — embedded-ui bakes dist/)" \
+step "build dashboard UI (must run before desktop — embedded-ui bakes dist/)" \
   "$ROOT/scripts/build-dashboard-ui.sh"
 
-CLI_FEATURES="embedded-ui,tools-mcp,knowledge-embeddings"
+DASHBOARD_FEATURES="embedded-ui,tools-browser,knowledge-embeddings"
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  CLI_FEATURES="${CLI_FEATURES},media-local"
+  DASHBOARD_FEATURES="${DASHBOARD_FEATURES},media-local"
 fi
 
 PARALLEL_START=$SECONDS
-echo "==> cargo build anycode + parallel sidecar prep"
-echo "    features: $CLI_FEATURES"
-cargo build --release -p anycode --features "$CLI_FEATURES" &
+echo "==> cargo build dashboard + parallel sidecar prep"
+echo "    features: $DASHBOARD_FEATURES"
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features "$DASHBOARD_FEATURES" &
 CARGO_PID=$!
 "$ROOT/scripts/build-apple-media-cli.sh" &
 APPLE_PID=$!
-"$ROOT/scripts/prepare-browser-mcp.sh" &
+"$ROOT/scripts/prepare-chromium.sh" &
 BROWSER_PID=$!
 CARGO_STATUS=0
 APPLE_STATUS=0
@@ -116,19 +119,10 @@ if stage_cache_hit; then
   echo "    (0s)"
 else
   STAGE_START=$SECONDS
-  echo "==> stage bundled CLI + project templates for Tauri resources"
-  DESKTOP_BIN="$ROOT/apps/anycode-desktop/resources/bin"
-DESKTOP_TPL="$ROOT/apps/anycode-desktop/resources/project-templates"
-mkdir -p "$DESKTOP_BIN"
-if [[ -f "$ROOT/target/release/anycode.exe" ]]; then
-  cp "$ROOT/target/release/anycode.exe" "$DESKTOP_BIN/anycode.exe"
-  chmod +x "$DESKTOP_BIN/anycode.exe"
-else
-  cp "$ROOT/target/release/anycode" "$DESKTOP_BIN/anycode"
-  chmod +x "$DESKTOP_BIN/anycode"
-fi
-rm -rf "$DESKTOP_TPL"
-cp -R "$ROOT/project-templates" "$DESKTOP_TPL"
+  echo "==> stage project templates + dashboard UI for Tauri resources"
+  DESKTOP_TPL="$ROOT/apps/anycode-desktop/resources/project-templates"
+  rm -rf "$DESKTOP_TPL"
+  cp -R "$ROOT/project-templates" "$DESKTOP_TPL"
 DESKTOP_UI="$ROOT/apps/anycode-desktop/resources/dashboard-ui"
 rm -rf "$DESKTOP_UI"
 cp -R "$ROOT/crates/dashboard-ui/dist" "$DESKTOP_UI"

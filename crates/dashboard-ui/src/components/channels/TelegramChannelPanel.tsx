@@ -17,7 +17,7 @@ function formatChatLabel(chat: TelegramChatOption) {
 
 export function TelegramChannelPanel({
   initialChatId,
-  startCommand = "anycode channel telegram",
+  startCommand = "anycode-daemon telegram-bridge",
   compact,
 }: {
   initialChatId?: string | null;

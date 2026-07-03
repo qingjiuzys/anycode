@@ -21,8 +21,8 @@ Check **Registered jobs** and **Recent triggers**; use **Retry now** on failures
 
 Triggers need a local scheduler:
 
-- With the **desktop app**, keep anyCode running.
-- Terminal-only setups need the scheduler started as described in [Install](./install).
+- With the **desktop app**, keep anyCode running (scheduler is embedded).
+- Headless setups: run `anycode-daemon scheduler` — see [Headless daemon](./daemon).
 
 ## Failure notifications (optional)
 

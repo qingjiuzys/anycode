@@ -19,7 +19,7 @@ description: 用侧栏页面管理项目、会话、定时任务与报告——�
 **浏览器：**
 
 ```bash
-anycode dashboard --open
+anyCode desktop app or http://127.0.0.1:43180
 ```
 
 默认地址：`http://127.0.0.1:43180`
@@ -39,7 +39,7 @@ anycode dashboard --open
 ## MCP 与浏览器
 
 - **设置 → MCP 服务器**：图形化编辑 `~/.anycode/config.json` 中的 `mcp.servers`。
-- **设置 → 通知 → Browser 连接器**：Desktop 版可一键启用 bundled Playwright MCP；首页快捷区也会提示启用。
+- **设置 → 通知 → 内置浏览器**：Desktop 版启用原生 CDP Chromium（`browser.enabled`）。Agent 的 `Browser*` 工具与会话侧栏浏览器面板共享同一 session。旧版 Playwright MCP（`mcp.browser.enabled`）已弃用。
 
 ## 侧栏页面一览
 
@@ -74,7 +74,7 @@ anycode dashboard --open
 
 | 现象 | 建议 |
 |------|------|
-| 页面打不开 | 先执行 `anycode dashboard`，看终端是否提示端口占用 |
+| 页面打不开 | 先执行 anyCode desktop or Workbench at http://127.0.0.1:43180，看终端是否提示端口占用 |
 | 列表一直是空的 | 先在终端对某个目录跑一次任务，再回到工作台 |
 | 定时任务不触发 | 确认调度器在运行；在「运行记录」里看最近是否有失败 |
 | 登录页进不去 | 本机 `127.0.0.1` 一般自动以本地用户进入 |

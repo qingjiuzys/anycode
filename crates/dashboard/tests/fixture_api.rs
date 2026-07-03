@@ -968,19 +968,6 @@ async fn artifacts_kind_and_exclude_kind_filters() {
 
 #[tokio::test]
 async fn memory_retention_preview_api() {
-    let bin = std::env::var("CARGO_BIN_EXE_anycode")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(|| {
-            let candidate =
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/anycode");
-            candidate.is_file().then_some(candidate)
-        });
-    let Some(bin) = bin else {
-        eprintln!("skip memory_retention_preview_api: anycode binary not found");
-        return;
-    };
-    std::env::set_var("ANYCODE_BIN", &bin);
     let dir = tempdir().unwrap();
     let db = dir.path().join("mem_retention.db");
     let app = app_for_test(&db).await.unwrap();
@@ -1116,20 +1103,6 @@ async fn security_questions_roundtrip() {
 
 #[tokio::test]
 async fn session_message_with_text_files() {
-    let bin = std::env::var("CARGO_BIN_EXE_anycode")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(|| {
-            let candidate =
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/anycode");
-            candidate.is_file().then_some(candidate)
-        });
-    let Some(bin) = bin else {
-        eprintln!("skip session_message_with_text_files: anycode binary not found");
-        return;
-    };
-    std::env::set_var("ANYCODE_BIN", &bin);
-
     let dir = tempdir().unwrap();
     let state_dir = dir.path().join("dashboard-state");
     std::fs::create_dir_all(&state_dir).unwrap();

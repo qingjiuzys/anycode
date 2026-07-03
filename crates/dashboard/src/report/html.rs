@@ -252,12 +252,14 @@ fn render_body(snap: &ReportSnapshot) -> String {
     ));
     if snap.scope == "project" {
         let root = snap.root_path.as_deref().unwrap_or(".");
+        let pid = snap.project_id.as_deref().unwrap_or("");
         out.push_str(&format!(
-            "<pre>cd \"{}\"\nanycode dashboard --open</pre>\n",
-            escape_html(root)
+            "<pre>cd \"{}\"\nOpen Workbench at http://127.0.0.1:43180\n# project_id: {}</pre>\n",
+            escape_html(root),
+            escape_html(pid)
         ));
     } else {
-        out.push_str("<pre>anycode dashboard --open</pre>\n");
+        out.push_str("<pre>Open Workbench at http://127.0.0.1:43180</pre>\n");
     }
     out
 }

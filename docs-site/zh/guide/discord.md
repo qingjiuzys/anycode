@@ -28,7 +28,7 @@ read_when:
 7. 运行（保持终端开启）：
 
 ```bash
-anycode channel discord
+anycode-daemon discord-bridge
 ```
 
 凭据：`~/.anycode/channels/discord.json`。
@@ -36,8 +36,8 @@ anycode channel discord
 ## 命令行
 
 ```bash
-anycode setup --channel discord
-anycode channel discord
+Workbench /setup --channel discord
+anycode-daemon discord-bridge
 ```
 
 ## 特权 Intent

@@ -82,7 +82,7 @@ anyCode 是跑在你自己电脑上的 AI 助手——终端里对话、改代�
 
 ### 第 7 页 · 本地工作台一览
 
-打开：`anycode dashboard --open` → `http://127.0.0.1:43180`
+打开：`anyCode Workbench --open` → `http://127.0.0.1:43180`
 
 | 页面 | 你能做什么 |
 |------|------------|
@@ -122,7 +122,7 @@ macOS 桌面 App 打开即带工作台。
 
 - 自带 Key，按量付费给厂商，**不经过 anyCode 中转**
 - 30+ 厂商目录：GLM、DeepSeek、Anthropic、Bedrock、Copilot、OpenRouter、Ollama…
-- `anycode setup` / `anycode model` 向导配置
+- `Workbench /setup` / `anycode model` 向导配置
 - 工作台「探测」按钮验证连通性
 - 不同 Agent 可用不同模型（自动路由）
 - 国内友好：默认智谱 GLM，DeepSeek 有专门适配
@@ -143,8 +143,8 @@ macOS 桌面 App 打开即带工作台。
 ### 第 12 页 · 3 步上手
 
 1. **安装** — macOS 推荐 `.dmg`；Linux/Windows 用 install 脚本
-2. **配置** — 运行 `anycode setup`（选模型 + 可选微信）
-3. **验证** — `anycode run "请只回复：OK"` 或 `anycode dashboard --open`
+2. **配置** — 运行 `Workbench /setup`（选模型 + 可选微信）
+3. **验证** — `Workbench task "请只回复：OK"` 或 `anyCode Workbench --open`
 
 **文档**：https://qingjiuzys.github.io/anycode/  
 **开源**：https://github.com/qingjiuzys/anycode （MIT）
@@ -196,8 +196,8 @@ macOS 桌面 App 打开即带工作台。
 ## 附录 A · 完整功能清单
 
 ### 1. 终端 AI 协作
-- 全屏对话（默认）或 `anycode repl` 一行一行输入
-- `anycode run "任务"` 一条命令跑完
+- 全屏对话（默认）或 `removed REPL` 一行一行输入
+- `Workbench task "任务"` 一条命令跑完
 - 读/写/编辑文件、Glob/Grep、Bash/PowerShell
 - 图片输入（Vision 模型）
 
@@ -235,7 +235,7 @@ macOS 桌面 App 打开即带工作台。
 - anyCode.app：STT、OCR、TTS、通知、Keychain、剪贴板
 
 ### 11. 配置与 onboarding
-- `anycode setup` / `model` / `config`；ANYCODE_LANG=zh/en
+- `Workbench /setup` / `model` / `config`；ANYCODE_LANG=zh/en
 
 ---
 

@@ -38,7 +38,9 @@ export function isControlCenterPath(pathname: string): boolean {
 }
 
 export function shouldOpenControlCenterForLocation(pathname: string, _search = ""): boolean {
-  if (pathname === "/conversations" || pathname.startsWith("/conversations/")) return false;
+  if (pathname === "/" || pathname === "/conversations" || pathname.startsWith("/conversations/")) {
+    return false;
+  }
   if (pathname === "/login" || pathname === "/setup") return false;
   if (pathname.startsWith("/events/")) return false;
   if (pathname.startsWith("/sessions/")) return false;

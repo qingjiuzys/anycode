@@ -108,6 +108,11 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(GenerateVideoTool::new(s.clone()));
     ins!(KnowledgeSearchTool::new(s.clone()));
 
+    #[cfg(feature = "tools-browser")]
+    crate::browser_tools::register_browser_tools(&mut tools, s.clone());
+    #[cfg(not(feature = "tools-browser"))]
+    crate::browser_stub_tools::register_browser_stub_tools(&mut tools, s.clone());
+
     #[cfg(feature = "tools-mcp")]
     {
         use crate::mcp_normalization::normalize_name_for_mcp;

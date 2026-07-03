@@ -13,3 +13,8 @@ export function helpGuideUrl(locale: Locale): string {
     ? `${DOCS_ORIGIN}/zh/guide/cli`
     : `${DOCS_ORIGIN}/guide/cli`;
 }
+
+/** Project verification gates & guardrails (Workbench tour). */
+export function projectGatesDocsUrl(locale: Locale): string {
+  return locale === "zh" ? `${DOCS_ORIGIN}/zh/guide/workbench` : `${DOCS_ORIGIN}/guide/workbench`;
+}

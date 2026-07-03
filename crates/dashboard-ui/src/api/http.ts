@@ -1,4 +1,30 @@
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+declare global {
+  interface Window {
+    __ANYCODE_API_BASE__?: string;
+  }
+}
+
+/** Loopback API origin when UI is loaded outside the dashboard HTTP server (e.g. Tauri asset). */
+export function resolveApiBase(): string {
+  if (typeof window !== "undefined") {
+    if (window.__ANYCODE_API_BASE__) {
+      return window.__ANYCODE_API_BASE__.replace(/\/$/, "");
+    }
+    try {
+      const stored = sessionStorage.getItem("anycode_api_base");
+      if (stored) return stored.replace(/\/$/, "");
+    } catch {
+      /* private mode / disabled storage */
+    }
+    if ("__TAURI_INTERNALS__" in window) {
+      return "http://127.0.0.1:43180";
+    }
+  }
+  const fromEnv = import.meta.env.VITE_API_BASE ?? "";
+  return fromEnv.replace(/\/$/, "");
+}
+
+export const API_BASE = resolveApiBase();
 
 const fetchOpts: RequestInit = { credentials: "include" };
 const READ_TIMEOUT_MS = 15_000;
@@ -106,4 +132,23 @@ export async function del<T>(path: string): Promise<T> {
     throw new Error(`${res.status} ${path}: ${text}`);
   }
   return readJsonBody<T>(res, path);
+}
+
+/** Build an absolute API URL (SSE, WebSocket, downloads). */
+export function apiUrl(path: string): string {
+  if (API_BASE !== "") {
+    return new URL(path, `${API_BASE}/`).href;
+  }
+  return path;
+}
+
+/** WebSocket URL for a path under `/api/`. */
+export function apiWebSocketUrl(path: string): string {
+  if (API_BASE !== "") {
+    const http = new URL(API_BASE);
+    const wsProto = http.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProto}//${http.host}${path.startsWith("/") ? path : `/${path}`}`;
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}${path.startsWith("/") ? path : `/${path}`}`;
 }

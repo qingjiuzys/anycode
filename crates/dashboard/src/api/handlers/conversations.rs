@@ -1,12 +1,5 @@
 use super::*;
 
-fn truncate_field(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        return s.to_string();
-    }
-    s.chars().take(max).collect()
-}
-
 pub async fn start_project_conversation(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
@@ -89,6 +82,79 @@ pub async fn start_project_conversation(
         }
     };
 
+    if body.recycle_session {
+        if let Ok(Some(recycled)) = state
+            .db
+            .find_recyclable_web_chat_session(&project_id, agent_type.as_deref())
+            .await
+        {
+            let session_id = recycled.id.clone();
+            if let Err(e) = state
+                .db
+                .reopen_session_for_chat(
+                    &session_id,
+                    Some(title.as_str()),
+                    Some(prompt_preview.as_str()),
+                )
+                .await
+            {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": e.to_string() })),
+                )
+                    .into_response();
+            }
+            let session_agent = recycled.agent_type.trim();
+            if agent_type.as_deref().is_some() && agent_type.as_deref() != Some(session_agent) {
+                if let Err(e) = state
+                    .db
+                    .update_session_agent(&session_id, agent_type.as_deref())
+                    .await
+                {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "error": e.to_string() })),
+                    )
+                        .into_response();
+                }
+                state.web_chat.evict(&session_id).await;
+                state.chat_runtime.evict(&session_id).await;
+            }
+            match crate::control::web_chat_dispatch::dispatch_web_chat_prompt(
+                &state,
+                &project_id,
+                &session_id,
+                &root,
+                agent_type.as_deref(),
+                prompt,
+                &prompt_for_chat,
+                body.vision_images.as_deref(),
+                body.text_files.as_deref(),
+                body.lang.as_deref(),
+                true,
+                "conversation_recycled",
+            )
+            .await
+            {
+                Ok((session, chat)) => {
+                    return Json(json!({
+                        "session": session,
+                        "chat": chat,
+                        "recycled": true,
+                    }))
+                    .into_response();
+                }
+                Err((status, error)) => {
+                    return (
+                        status,
+                        Json(json!({ "error": error, "session_id": session_id })),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
+
     let kind = "repl";
     let session = match state
         .db
@@ -110,92 +176,40 @@ pub async fn start_project_conversation(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": e.to_string() })),
             )
-                .into_response()
+                .into_response();
         }
     };
 
-    let _ = state
-        .db
-        .insert_event(InsertEventRequest {
-            project_id: project_id.clone(),
-            session_id: Some(session.id.clone()),
-            task_id: None,
-            agent_id: None,
-            event_type: "user_prompt".into(),
-            severity: Some("info".into()),
-            title: "User prompt".into(),
-            body: Some(truncate_field(prompt, 8000)),
-            payload: None,
-        })
-        .await;
-
-    if let Some(ref imgs) = body.vision_images {
-        if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string() })),
-            )
-                .into_response();
-        }
-    }
-    let dashboard_url = super::chat_util::dashboard_loopback_url(&state.host, state.port);
-    match state
-        .web_chat
-        .send(
-            state.db.clone(),
-            &session.id,
-            &root,
-            agent_type.as_deref(),
-            &dashboard_url,
-            &prompt_for_chat,
-            body.vision_images.as_deref(),
-            body.text_files.as_deref(),
-            body.lang.as_deref(),
-        )
-        .await
+    match crate::control::web_chat_dispatch::dispatch_web_chat_prompt(
+        &state,
+        &project_id,
+        &session.id,
+        &root,
+        agent_type.as_deref(),
+        prompt,
+        &prompt_for_chat,
+        body.vision_images.as_deref(),
+        body.text_files.as_deref(),
+        body.lang.as_deref(),
+        false,
+        "conversation_started",
+    )
+    .await
     {
-        Ok(chat) => {
-            let _ = state
-                .db
-                .merge_session_metadata(
-                    &session.id,
-                    &json!({
-                        "web_chat": true,
-                        "web_chat_log_path": chat.log_path,
-                        "web_chat_pid": chat.pid,
-                    }),
-                )
-                .await;
-            let _ = crate::audit::record_audit(
-                &state.db,
-                crate::audit::AuditEventInput {
-                    project_id: Some(project_id.clone()),
-                    session_id: Some(session.id.clone()),
-                    action: "conversation_started".into(),
-                    risk: "medium".into(),
-                    detail: json!({
-                        "web_chat": true,
-                        "pid": chat.pid,
-                    }),
-                },
-            )
-            .await;
-            Json(json!({ "session": session, "chat": chat })).into_response()
+        Ok((session, chat)) => {
+            Json(json!({ "session": session, "chat": chat, "recycled": false })).into_response()
         }
-        Err(e) => {
-            let _ = state
-                .db
-                .finish_session(
-                    &session.id,
-                    "failed",
-                    Some(&format!("Failed to start task: {e}")),
-                )
-                .await;
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "error": e.to_string(), "session_id": session.id })),
-            )
-                .into_response()
-        }
+        Err((status, error)) => (
+            status,
+            Json(json!({ "error": error, "session_id": session.id })),
+        )
+            .into_response(),
     }
+}
+
+fn truncate_field(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    s.chars().take(max).collect()
 }

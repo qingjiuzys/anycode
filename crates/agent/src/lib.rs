@@ -9,6 +9,7 @@ mod declarative_agent;
 mod goal_engine;
 mod model_instructions;
 mod nested_model;
+pub mod plugins;
 mod prompt_assembler;
 mod runtime;
 mod system_prompt;
@@ -30,6 +31,7 @@ pub use model_instructions::{
     discover_model_instructions, ModelInstructionsConfig, ModelInstructionsFile,
     DEFAULT_MODEL_INSTRUCTIONS_FILENAME, MODEL_INSTRUCTIONS_FILENAMES,
 };
+pub use plugins::{load_builtin_plugins, load_plugins, set_plugin_enabled, PluginManifest};
 pub use prompt_assembler::{render_system_prompt_segments, PromptAssembler, SystemPromptSegment};
 pub use runtime::{
     failover::{error_triggers_failover, FailoverPolicy},

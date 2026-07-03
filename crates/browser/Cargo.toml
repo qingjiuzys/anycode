@@ -1,0 +1,27 @@
+[package]
+name = "anycode-browser"
+version.workspace = true
+edition.workspace = true
+description = "Native Chromium CDP browser service for anycode agents and workbench"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = "0.22"
+chromiumoxide = { version = "0.7", default-features = false, features = ["tokio-runtime"] }
+futures = "0.3"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "time"] }
+tracing = { workspace = true }
+url = "2.5"
+uuid = { workspace = true, features = ["v4"] }
+walkdir = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

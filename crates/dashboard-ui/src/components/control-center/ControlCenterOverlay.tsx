@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/Icon";
 import { FeatureNav } from "@/components/feature-nav/FeatureNav";
 import { useControlCenter } from "@/context/ControlCenterContext";
@@ -65,13 +66,19 @@ function ControlCenterContent({ path }: { path: string }) {
 
 export function ControlCenterOverlay() {
   const t = useT();
+  const navigate = useNavigate();
   const { open, activePath, closeControlCenter, setActivePath } = useControlCenter();
 
   const onSelect = useCallback(
     (item: FeatureNavItem) => {
+      if (item.to === "/") {
+        closeControlCenter();
+        void navigate({ to: "/" });
+        return;
+      }
       setActivePath(item.to);
     },
-    [setActivePath],
+    [closeControlCenter, navigate, setActivePath],
   );
 
   useEffect(() => {
@@ -98,10 +105,10 @@ export function ControlCenterOverlay() {
           className="dw-control-center-back"
           onClick={closeControlCenter}
         >
-          <Icon name="chevron_left" size={18} />
-          {t("common.back")}
+          <Icon name="close" size={18} />
+          {t("controlCenter.close")}
         </button>
-        <FeatureNav activePath={activePath} onSelect={onSelect} />
+        <FeatureNav activePath={activePath} onSelect={onSelect} excludeHome />
       </aside>
       <div className="dw-control-center-main">
         <Suspense

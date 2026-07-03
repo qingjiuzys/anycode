@@ -9,7 +9,7 @@ read_when:
 
 # Roadmap
 
-This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-stubs**, and **MCP post-MVP** notes into one bilingual information architecture. **Source of truth for code** remains `crates/tools/src/catalog.rs`, `crates/tools/src/agent_tools.rs` (**Agent** / **Task**), `crates/cli/src/bootstrap/mod.rs`, and `crates/agent/src/agents.rs`.
+This page merges the former Chinese-only **MVP**, **tools-parity**, **roadmap-stubs**, and **MCP post-MVP** notes into one bilingual information architecture. **Source of truth for code** remains `crates/tools/src/catalog.rs`, `crates/tools/src/agent_tools.rs` (**Agent** / **Task**), `crates/bootstrap/src/bootstrap/mod.rs`, and `crates/agent/src/agents.rs`.
 
 **Maintainer execution backlog** (now / next / later, decisions): repository **[`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md)** — edit that file instead of duplicating task lists here.
 
@@ -56,7 +56,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 ## Tools parity (P0–P8)
 
 **Registry:** `crates/tools/src/catalog.rs` — `TOOL_*`, **`DEFAULT_TOOL_IDS`**, **`build_registry_with_services`**, **`validate_default_registry`**.  
-**Bootstrap:** `crates/cli/src/bootstrap/mod.rs` — **`Arc<ToolServices>`** + registry build; **`SecurityLayer::set_tool_policy`** for sensitive tools.  
+**Bootstrap:** `crates/bootstrap/src/bootstrap/mod.rs` — **`Arc<ToolServices>`** + registry build; **`SecurityLayer::set_tool_policy`** for sensitive tools.  
 **Agent subsets:** `crates/agent/src/agents.rs` — **`general-purpose`** = full **`DEFAULT_TOOL_IDS`**; **`explore`** / **`plan`** = **`EXPLORE_PLAN_TOOL_IDS`** (still FileRead / Glob / Grep / Bash oriented).
 
 **Naming (examples)**
@@ -109,7 +109,7 @@ After each scenario, inspect **`~/.anycode/tasks/<task_id>/output.log`**:
 
 **OpenAI official client**
 
-- **`cargo build -p anycode --features openai`** — when **`provider`** is exactly **`openai`**, Chat Completions may use **`OpenAIClient`**; gateways often still use **`ZaiClient`**.
+- **`cargo build -p anycode-desktop-desktop-channel-bridge --features openai`** — when **`provider`** is exactly **`openai`**, Chat Completions may use **`OpenAIClient`**; gateways often still use **`ZaiClient`**.
 
 ## Recently shipped (reference)
 

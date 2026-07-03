@@ -9,7 +9,7 @@ read_when:
 
 # 路线图
 
-本文合并原 **MVP 范围**、**MVP 验收**、**工具与阶段（tools-parity）**、**待实现清单（roadmap-stubs）**、**MCP 后续（mcp-postmvp）** 的要点。**代码事实来源**仍以 `crates/tools/src/catalog.rs`、`crates/tools/src/agent_tools.rs`（**Agent** / **Task**）、`crates/cli/src/bootstrap/mod.rs`、`crates/agent/src/agents.rs` 为准。
+本文合并原 **MVP 范围**、**MVP 验收**、**工具与阶段（tools-parity）**、**待实现清单（roadmap-stubs）**、**MCP 后续（mcp-postmvp）** 的要点。**代码事实来源**仍以 `crates/tools/src/catalog.rs`、`crates/tools/src/agent_tools.rs`（**Agent** / **Task**）、`crates/bootstrap/src/bootstrap/mod.rs`、`crates/agent/src/agents.rs` 为准。
 
 **维护者执行层 backlog**（now / next / later、决策）：仓库 **[`docs/roadmap.md`](https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md)** — 迭代任务请只改该文件，勿在本页重复清单。
 
@@ -55,7 +55,7 @@ read_when:
 **单一事实来源**
 
 - 注册与常量：[`crates/tools/src/catalog.rs`](../../../crates/tools/src/catalog.rs)  
-- 装配：[`crates/cli/src/bootstrap/mod.rs`](../../../crates/cli/src/bootstrap/mod.rs)  
+- 装配：[`crates/bootstrap/src/bootstrap/mod.rs`](../../../crates/bootstrap/src/bootstrap/mod.rs)  
 - Agent 子集：[`crates/agent/src/agents.rs`](../../../crates/agent/src/agents.rs)  
 
 **命名对照（节选）**

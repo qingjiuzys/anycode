@@ -18,6 +18,7 @@ export interface FsReadResult {
 export interface BrowserState {
   url: string;
   title: string;
+  lock?: "idle" | "agent" | "user";
 }
 
 export interface BrowserScreenshot {
@@ -28,6 +29,7 @@ export interface BrowserScreenshot {
 export interface BrowserSessionInfo {
   session_id: string;
   project_id: string;
+  conversation_id?: string | null;
 }
 
 export type WorkbenchTab = "files" | "browser" | "terminal" | "artifacts" | "trace";

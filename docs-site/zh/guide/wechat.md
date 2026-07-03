@@ -19,9 +19,9 @@ read_when:
 
 ## 我该用哪个命令？
 
-- 第一次配置 -> `anycode setup`
-- 只绑定/重绑微信 -> `anycode channel wechat`
-- 想用 Telegram/Discord -> `anycode setup --channel telegram|discord`
+- 第一次配置 -> `Workbench /setup`
+- 只绑定/重绑微信 -> `anycode-daemon wechat-bridge`
+- 想用 Telegram/Discord -> `Workbench /setup --channel telegram|discord`
 
 ## `setup`
 
@@ -32,8 +32,8 @@ read_when:
 3. 选择 channel（`wechat` / `telegram` / `discord`）
 
 ```bash
-anycode setup
-anycode setup --channel wechat
+Workbench /setup
+Workbench /setup --channel wechat
 ```
 
 预期输出：进入 setup 流程并进入模型+channel 配置。
@@ -46,7 +46,7 @@ anycode setup --channel wechat
 - 更换了机器/账号，需要重绑
 
 ```bash
-anycode channel wechat
+anycode-daemon wechat-bridge
 ```
 
 预期输出：启动微信扫码绑定流程。

@@ -14,20 +14,28 @@ const STATUS_KEYS = [
   "failed",
   "blocked",
   "cancelled",
+  "low",
+  "medium",
+  "high",
+  "critical",
 ] as const;
 
 const STATUS_STYLE: Record<string, { bg: string; dot: string; text: string }> = {
   ok: { bg: "bg-success/10", dot: "bg-success", text: "text-success" },
+  low: { bg: "bg-success/10", dot: "bg-success", text: "text-success" },
   running: { bg: "bg-primary/10", dot: "bg-primary-container", text: "text-primary" },
   passed: { bg: "bg-success/10", dot: "bg-success", text: "text-success" },
   verified: { bg: "bg-success/10", dot: "bg-success", text: "text-success" },
   completed: { bg: "bg-success/10", dot: "bg-success", text: "text-success" },
   warn: { bg: "bg-warn/10", dot: "bg-warn", text: "text-warn" },
   warning: { bg: "bg-warn/10", dot: "bg-warn", text: "text-warn" },
+  medium: { bg: "bg-warn/10", dot: "bg-warn", text: "text-warn" },
   unverified: { bg: "bg-surface-variant", dot: "bg-outline", text: "text-on-surface-variant" },
   pending: { bg: "bg-surface-variant", dot: "bg-outline", text: "text-on-surface-variant" },
   error: { bg: "bg-error/10", dot: "bg-error", text: "text-error" },
   failed: { bg: "bg-error/10", dot: "bg-error", text: "text-error" },
+  high: { bg: "bg-error/10", dot: "bg-error", text: "text-error" },
+  critical: { bg: "bg-error/10", dot: "bg-error", text: "text-error" },
   blocked: { bg: "bg-error/10", dot: "bg-error", text: "text-error" },
   cancelled: { bg: "bg-surface-variant", dot: "bg-outline", text: "text-secondary" },
 };

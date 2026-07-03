@@ -2,6 +2,7 @@
 
 use super::artifacts::truncate_text;
 use super::limits::{TOOL_INPUT_LOG_MAX_BYTES, TOOL_RESULT_MAX_BYTES};
+use super::live_trace_emit;
 use super::logging::RunLogger;
 use super::tool_output_sanitize;
 use anycode_core::prelude::*;
@@ -69,14 +70,21 @@ pub(super) fn prepare_tool_result_message(
 
 pub(super) fn log_tool_call_input(
     logger: &RunLogger,
+    live_trace_tx: &Option<tokio::sync::mpsc::UnboundedSender<LiveTraceEvent>>,
     task_id: TaskId,
     turn: usize,
     tool_idx: usize,
     tool_call: &ToolCall,
-) {
+) -> String {
     let tool_input_json =
         serde_json::to_string(&tool_call.input).unwrap_or_else(|_| "<unserializable>".to_string());
     let (tool_input_json, truncated) = truncate_text(tool_input_json, TOOL_INPUT_LOG_MAX_BYTES);
+    let preview = if truncated {
+        format!("{tool_input_json}…")
+    } else {
+        tool_input_json.clone()
+    };
+    live_trace_emit::emit_tool_call_start(live_trace_tx, turn, tool_idx, tool_call, &preview);
     logger.line(
         task_id,
         &format!(
@@ -85,10 +93,12 @@ pub(super) fn log_tool_call_input(
         ),
     );
     logger.line(task_id, &tool_input_json);
+    preview
 }
 
 pub(super) fn log_tool_call_start(
     logger: &RunLogger,
+    live_trace_tx: &Option<tokio::sync::mpsc::UnboundedSender<LiveTraceEvent>>,
     task_id: TaskId,
     turn: usize,
     tool_idx: usize,
@@ -97,14 +107,38 @@ pub(super) fn log_tool_call_start(
     logger.line(
         task_id,
         &format!(
-            "[tool_call_start] turn={} idx={} name={}",
-            turn, tool_idx, tool_call.name
+            "[tool_call_start] turn={} idx={} name={} command={}",
+            turn,
+            tool_idx,
+            tool_call.name,
+            shell_escape_kv(&preview_from_call(tool_call))
         ),
     );
+    let _ = live_trace_tx;
+}
+
+fn preview_from_call(tool_call: &ToolCall) -> String {
+    let json = serde_json::to_string(&tool_call.input).unwrap_or_default();
+    let (preview, _) = truncate_text(json, 120);
+    preview
+}
+
+fn shell_escape_kv(value: &str) -> String {
+    if value.is_empty() {
+        return "<none>".to_string();
+    }
+    if value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c))
+    {
+        return value.to_string();
+    }
+    value.replace(' ', "_")
 }
 
 pub(super) fn log_tool_call_end(
     logger: &RunLogger,
+    live_trace_tx: &Option<tokio::sync::mpsc::UnboundedSender<LiveTraceEvent>>,
     task_id: TaskId,
     turn: usize,
     tool_idx: usize,
@@ -112,10 +146,20 @@ pub(super) fn log_tool_call_end(
     tool_result: &ToolOutput,
     elapsed_ms: u128,
 ) {
+    live_trace_emit::emit_tool_call_end(
+        live_trace_tx,
+        turn,
+        tool_idx,
+        tool_call,
+        elapsed_ms,
+        tool_result,
+    );
+    let preview = live_trace_emit::tool_output_preview_for_log(tool_result);
+    let preview_hex: String = preview.bytes().map(|b| format!("{b:02x}")).collect();
     logger.line(
         task_id,
         &format!(
-            "[tool_call_end] turn={} idx={} name={} elapsed_ms={} error={}",
+            "[tool_call_end] turn={} idx={} name={} elapsed_ms={} error={} output_preview_hex={}",
             turn,
             tool_idx,
             tool_call.name,
@@ -123,7 +167,8 @@ pub(super) fn log_tool_call_end(
             tool_result
                 .error
                 .clone()
-                .unwrap_or_else(|| "<none>".to_string())
+                .unwrap_or_else(|| "<none>".to_string()),
+            preview_hex
         ),
     );
 }

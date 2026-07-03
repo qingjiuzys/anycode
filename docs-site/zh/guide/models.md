@@ -21,7 +21,7 @@ read_when:
 - **命名**：配置文件里 `provider` 为 **snake_case**（如 `cloudflare_ai_gateway`）。OpenClaw 文档里的 **kebab-case** 会自动规范化（如 `cloudflare-ai-gateway` → `cloudflare_ai_gateway`）。
 - **别名示例**：`claude` → `anthropic`；`zai` / `bigmodel` → `z.ai`；`kimi` → `moonshot`；`github-copilot` → `copilot`；`amazon-bedrock` → `bedrock`；`glm` → `z.ai`。
 - **AWS Bedrock**：`provider` 设为 `amazon_bedrock`（别名 `bedrock`），填写区域下可用模型 id，凭证走 AWS 链（如 `AWS_PROFILE`、实例角色）。运行时使用 **Bedrock Converse**（含流式）。
-- **GitHub Copilot**：`provider` 设为 `github_copilot`（别名 `copilot`），选择兼容 Copilot Chat 的模型 id，并执行 **`anycode model auth copilot`**（设备码登录），令牌写入 `~/.anycode/credentials/`。
+- **GitHub Copilot**：`provider` 设为 `github_copilot`（别名 `copilot`），选择兼容 Copilot Chat 的模型 id，并在 **工作台设置 → 模型** 完成 OAuth，令牌写入 `~/.anycode/credentials/`。
 - **占位项**：部分目录项仅为与 OpenClaw 一致（例如部分媒体类 API），若 anyCode 未接线，可改用 **`custom`** + 自建 OpenAI 兼容 `base_url`。
 
 完整厂商列表请用 **`anycode model`** 交互菜单，或直接查阅源码中的 `PROVIDER_CATALOG`。
@@ -40,9 +40,9 @@ anyCode 提供较广的 provider 目录，但**维护者日常验证**主要集�
 
 1. 运行 **`anycode status`** — 核对解析到的 `provider / model` 与路由。
 2. 打开 **工作台 → 设置 → 模型与路由**，使用 **探测**（`POST /api/settings/models/{id}/test`）。
-3. 执行短对话：`anycode run --agent general-purpose "请只回复：OK"`。
+3. 在工作台发送短消息验证（例如「请只回复：OK」）。
 
-默认配置为 **`provider: z.ai`**、**`model: glm-5`**。DeepSeek 有内置模型目录（`deepseek-v4-pro`、`deepseek-v4-flash`、旧版 `deepseek-chat` / `deepseek-reasoner`）及 `anycode setup` 快速认证预设。
+默认配置为 **`provider: z.ai`**、**`model: glm-5`**。DeepSeek 有内置模型目录（`deepseek-v4-pro`、`deepseek-v4-flash`、旧版 `deepseek-chat` / `deepseek-reasoner`）及 `Workbench /setup` 快速认证预设。
 
 ## DeepSeek（OpenAI 兼容）
 
@@ -95,7 +95,7 @@ anyCode 提供较广的 provider 目录，但**维护者日常验证**主要集�
 - **库**：`anycode-llm` 在启用 Cargo feature `**openai`** 时编译 `OpenAIClient`（实现见 `[crates/llm/src/providers/openai.rs](../../../crates/llm/src/providers/openai.rs)`），默认 URL 为 `https://api.openai.com/v1/chat/completions`；请求/响应与 z.ai 所用 OpenAI Chat Completions 形态一致；`ModelConfig.model` 为空时默认 `gpt-4o-mini`。
 - **与 Zai 栈的区别**：配置里 OpenAI **兼容** 网关（z.ai、OpenRouter 等）仍走现有 `ZaiClient` + `build_zai_openai_stack_client`；`OpenAIClient` 面向官方端点或需独立 HTTP 语义时的集成。
 - **环境变量**：`ANYCODE_OPENAI_TOOL_CHOICE` 可为 `auto` / `required` / `none`（有工具时），与 z.ai 的 `ANYCODE_ZAI_TOOL_CHOICE` 分离。
-- **主 CLI**：`cargo build -p anycode --features openai` 启用；`build_multi_llm_stack` 在全局 `provider` 规范 id 为 `**openai`** 时用 `OpenAIClient`，其它 OpenAI **兼容** 厂商仍用 `ZaiClient`（与上表一致）。
+- **主 CLI**：`cargo build -p anycode-desktop-desktop-channel-bridge --features openai` 启用；`build_multi_llm_stack` 在全局 `provider` 规范 id 为 `**openai`** 时用 `OpenAIClient`，其它 OpenAI **兼容** 厂商仍用 `ZaiClient`（与上表一致）。
 
 ## 重试策略
 
@@ -130,7 +130,7 @@ anyCode 对以下情况做指数退避重试：
 启用全部可选本地后端：
 
 ```bash
-cargo build -p anycode --features media-local
+cargo build -p anycode-desktop-desktop-channel-bridge --features media-local
 ```
 
 **Vision** 无独立路由：图片作为 chat 消息附件发送，需选用带 **`vision`** 能力的 chat 模型（或启用 Ollama LLaVA 预设）。

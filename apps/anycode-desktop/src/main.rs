@@ -1,106 +1,26 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod apple_media;
+mod dashboard_backend;
 
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use dashboard_backend::{apply_dashboard_env, DashboardServerState, start_in_process};
+
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{
     menu::{Menu, MenuItem},
-    path::BaseDirectory,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, RunEvent, Url,
 };
 
-const DASHBOARD_URL: &str = "http://127.0.0.1:43180/";
+const DASHBOARD_API_BASE: &str = "http://127.0.0.1:43180";
 
-struct SidecarState(Mutex<Vec<Child>>);
+struct BridgeState(Mutex<Vec<tauri::async_runtime::JoinHandle<()>>>);
 
-fn resolve_resource_path(app: &tauri::AppHandle, candidates: &[&str]) -> Option<PathBuf> {
-    for rel in candidates {
-        if let Ok(p) = app.path().resolve(rel, BaseDirectory::Resource) {
-            if p.is_file() || p.is_dir() {
-                return Some(p);
-            }
-        }
-    }
-    None
-}
-
-fn resolve_anycode_program(app: &tauri::AppHandle) -> PathBuf {
-    resolve_resource_path(
-        app,
-        &[
-            "resources/bin/anycode",
-            "bin/anycode",
-            "_up_/resources/bin/anycode",
-        ],
-    )
-    .unwrap_or_else(|| PathBuf::from("anycode"))
-}
-
-fn spawn_sidecar(label: &str, program: &Path, args: &[&str], app: &tauri::AppHandle) -> Option<Child> {
-    let mut cmd = Command::new(program);
-    cmd.args(args);
-    if let Some(tpl) = resolve_resource_path(
-        app,
-        &[
-            "resources/project-templates",
-            "project-templates",
-            "_up_/resources/project-templates",
-        ],
-    ) {
-        cmd.env("ANYCODE_PROJECT_TEMPLATES", tpl);
-    }
-    if let Some(ui) = resolve_resource_path(
-        app,
-        &[
-            "resources/dashboard-ui",
-            "dashboard-ui",
-            "_up_/resources/dashboard-ui",
-        ],
-    ) {
-        if ui.join("index.html").is_file() {
-            cmd.env("ANYCODE_DASHBOARD_STATIC", ui);
-        }
-    }
-    if let Some(browser) = resolve_resource_path(
-        app,
-        &[
-            "resources/browser",
-            "browser",
-            "_up_/resources/browser",
-        ],
-    ) {
-        if browser.join("run.sh").is_file() {
-            cmd.env("ANYCODE_BROWSER_MCP_ROOT", browser);
-        }
-    }
-    match cmd.spawn() {
-        Ok(child) => {
-            eprintln!(
-                "anycode-desktop: started {label} (pid {}, bin {})",
-                child.id(),
-                program.display()
-            );
-            Some(child)
-        }
-        Err(e) => {
-            eprintln!(
-                "anycode-desktop: could not start {label} via {}: {e}",
-                program.display()
-            );
-            None
-        }
-    }
-}
-
-fn stop_sidecars(state: &SidecarState) {
+fn stop_bridges(state: &BridgeState) {
     if let Ok(mut guard) = state.0.lock() {
-        for mut child in guard.drain(..) {
-            let _ = child.kill();
-            let _ = child.wait();
+        for handle in guard.drain(..) {
+            handle.abort();
         }
     }
 }
@@ -140,10 +60,48 @@ fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
 }
 
 fn navigate_workbench(w: &tauri::WebviewWindow) -> bool {
-    Url::parse(DASHBOARD_URL)
-        .ok()
-        .and_then(|url| w.navigate(url).ok())
-        .is_some()
+    w.eval(&format!("window.location.replace('{DASHBOARD_API_BASE}/');"))
+        .is_ok()
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return Err("empty url".into());
+    }
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("unsupported url scheme".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = url;
+        Err("open_external_url unsupported on this platform".into())
+    }
 }
 
 fn show_workbench(app: &tauri::AppHandle, ready: bool) {
@@ -152,11 +110,11 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
     };
     if ready {
         if !navigate_workbench(&w) {
-            let _ = w.eval("window.location.replace('http://127.0.0.1:43180/');");
+            let _ = w.eval(&format!("window.location.replace('{DASHBOARD_API_BASE}/');"));
         }
     } else {
         let _ = w.eval(
-            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 16px">本地 dashboard 服务未在 43180 端口就绪。</p><p style="color:#71717a;font-size:13px;margin:0">可在终端运行：<code>anycode dashboard --open</code></p></div></div>';"#,
+            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 16px">本地 Workbench 服务未就绪。</p><p style="color:#71717a;font-size:13px;margin:0">请重启 anyCode Desktop 或检查端口占用。</p></div></div>';"#,
         );
     }
     let _ = w.show();
@@ -174,10 +132,28 @@ fn handle_anycode_deep_link(app: &tauri::AppHandle, url: &Url) {
     else {
         return;
     };
-    let program = resolve_anycode_program(app);
-    let _ = Command::new(&program)
-        .args(["auth", "link", "--code", &code])
-        .spawn();
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        match anycode_setup::link_device(&code).await {
+            Ok(session) => {
+                eprintln!(
+                    "anycode-desktop: cloud account linked: {}",
+                    session.user_email.as_deref().unwrap_or("(unknown)")
+                );
+                let app_for_ui = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Some(w) = app_for_ui.get_webview_window("main") {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                        let _ = w.eval(
+                            "window.dispatchEvent(new CustomEvent('anycode-cloud-linked'));",
+                        );
+                    }
+                });
+            }
+            Err(e) => eprintln!("anycode-desktop: auth link failed: {e:#}"),
+        }
+    });
 }
 
 fn register_deep_link_handlers(app: &tauri::AppHandle) {
@@ -209,6 +185,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
+            open_external_url,
             apple_media::apple_media_capabilities,
             apple_media::apple_media_transcribe,
             apple_media::apple_media_ocr_image,
@@ -216,46 +193,33 @@ fn main() {
             apple_media::apple_media_read_pasteboard,
             apple_media::apple_media_notify,
         ])
-        .manage(SidecarState(Mutex::new(Vec::new())))
+        .manage(DashboardServerState::new())
+        .manage(BridgeState(Mutex::new(Vec::new())))
         .setup(|app| {
             register_deep_link_handlers(app.handle());
 
-            let program = resolve_anycode_program(app.handle());
-            eprintln!(
-                "anycode-desktop: using anycode binary {}",
-                program.display()
-            );
+            apply_dashboard_env(app.handle());
+            start_in_process(app.handle().clone());
 
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                let mut children = Vec::new();
-                let dashboard_ok = if let Some(c) = spawn_sidecar(
-                    "anycode dashboard",
-                    &program,
-                    &["dashboard", "--host", "127.0.0.1", "--port", "43180"],
-                    &handle,
-                ) {
-                    children.push(c);
-                    wait_for_dashboard_ready(90)
-                } else {
-                    false
-                };
+                let mut handles = Vec::new();
+                let dashboard_ok = wait_for_dashboard_ready(90);
                 if std::env::var("ANYCODE_DESKTOP_WECHAT")
                     .ok()
                     .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "yes"))
                 {
-                    if let Some(c) = spawn_sidecar(
-                        "WeChat bridge",
-                        &program,
-                        &["channel", "wechat", "--run-as-bridge"],
-                        &handle,
-                    ) {
-                        children.push(c);
-                    }
+                    let join = tauri::async_runtime::spawn(async {
+                        if let Err(e) = anycode_channel_bridge::run_wechat_bridge().await {
+                            eprintln!("anycode-desktop: WeChat bridge exited: {e:#}");
+                        }
+                    });
+                    handles.push(join);
+                    eprintln!("anycode-desktop: started in-process WeChat bridge");
                 }
-                if let Some(state) = handle.try_state::<SidecarState>() {
+                if let Some(state) = handle.try_state::<BridgeState>() {
                     if let Ok(mut guard) = state.0.lock() {
-                        *guard = children;
+                        *guard = handles;
                     }
                 }
                 let show_handle = handle.clone();
@@ -296,8 +260,11 @@ fn main() {
                 }
             }
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
-                if let Some(state) = app.try_state::<SidecarState>() {
-                    stop_sidecars(&*state);
+                if let Some(state) = app.try_state::<DashboardServerState>() {
+                    state.stop();
+                }
+                if let Some(state) = app.try_state::<BridgeState>() {
+                    stop_bridges(&*state);
                 }
             }
         });

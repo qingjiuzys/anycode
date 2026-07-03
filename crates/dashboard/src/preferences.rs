@@ -37,7 +37,7 @@ pub fn save_preferences(prefs: &DashboardPreferences) -> Result<PathBuf> {
 
 pub fn restart_command(host: &str, port: u16, db_path: &Path) -> String {
     format!(
-        "anycode dashboard --host {host} --port {port} --db {}",
+        "Restart desktop app or embedded dashboard (host {host}, port {port}, db {})",
         shell_quote(db_path.display().to_string())
     )
 }

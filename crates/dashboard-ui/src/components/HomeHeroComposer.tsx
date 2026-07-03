@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { buildConversationsHref, conversationSearchParams } from "@/lib/conversationsSearch";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
+import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { useT } from "@/i18n/context";
 
@@ -14,6 +15,7 @@ const DISMISS_BROWSER_KEY = "anycode-home-browser-hint-dismiss";
 export function HomeHeroComposer({
   sseStatus,
   projectOptions,
+  initialProjectId,
   blockedCount = 0,
   pendingCount = 0,
   budgetExceededCount = 0,
@@ -22,6 +24,7 @@ export function HomeHeroComposer({
 }: {
   sseStatus: Sse;
   projectOptions: { id: string; name: string }[];
+  initialProjectId?: string;
   blockedCount?: number;
   pendingCount?: number;
   budgetExceededCount?: number;
@@ -55,10 +58,18 @@ export function HomeHeroComposer({
   }, []);
 
   useEffect(() => {
-    if (!projectId && projectOptions.length > 0) {
-      setProjectId(projectOptions[0].id);
+    if (
+      initialProjectId &&
+      projectOptions.some((p) => p.id === initialProjectId) &&
+      projectId !== initialProjectId
+    ) {
+      setProjectId(initialProjectId);
+      return;
     }
-  }, [projectId, projectOptions]);
+    if (!projectId && projectOptions.length > 0) {
+      setProjectId(projectOptions[0]!.id);
+    }
+  }, [initialProjectId, projectId, projectOptions]);
 
   const start = useMutation({
     mutationFn: () =>
@@ -138,6 +149,7 @@ export function HomeHeroComposer({
             </select>
             <Icon name="expand_more" size={14} className="text-secondary shrink-0 pointer-events-none" />
           </label>
+          <ModelPicker disabled={start.isPending} />
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <VoiceInputButton
               disabled={start.isPending}

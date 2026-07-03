@@ -19,34 +19,27 @@ After this page, you will know:
 
 ## Which command should I use?
 
-- First time setup -> `anycode setup`
-- Bind/re-bind WeChat only -> `anycode channel wechat`
-- Configure Telegram/Discord instead -> `anycode setup --channel telegram|discord`
+- First-time model setup → Workbench **`/setup`** or **Settings**
+- Bind/re-bind WeChat only → `anycode-daemon wechat-bridge`
+- Configure Telegram/Discord → Workbench **Settings → Channels**, then `anycode-daemon telegram-bridge` or `discord-bridge`
 
-## `setup`
+## Workbench setup
 
-`setup` is the recommended first command:
+Complete model and provider configuration in the Workbench wizard:
 
-1. Checks workspace folders
-2. Configures model/provider when needed
-3. Lets you choose channel (`wechat` / `telegram` / `discord`)
+1. Open `http://127.0.0.1:43180/setup` (desktop app or embedded dashboard)
+2. Configure model/provider when needed
+3. Optional: note channel preferences (bridges read `~/.anycode/config.json`)
 
-```bash
-anycode setup
-anycode setup --channel wechat
-```
-
-Expected output: setup guides you into model config then channel flow.
-
-## `channel wechat`
+## `wechat-bridge`
 
 Run this when:
 
-- you skipped WeChat in setup
+- you skipped WeChat during setup
 - you changed machine/account and need to bind again
 
 ```bash
-anycode channel wechat
+anycode-daemon wechat-bridge
 ```
 
 Expected output: QR binding flow starts.
@@ -74,7 +67,7 @@ Example: ask the agent to “create report.pdf and send it to me”. Include the
 
 - WeChat data directory is usually `~/.anycode/wechat`
 - Workspace fallback directory is `~/.anycode/workspace`
-- Advanced flags and env (`--debug`, `-c/--config`, `WCC_DATA_DIR`) follow CLI defaults
+- Advanced flags and env (`--debug`, `-c/--config`, `WCC_DATA_DIR`) follow `anycode-daemon` defaults
 
 ## Next
 

@@ -19,7 +19,7 @@ cargo build --release
 ## 安装到 PATH（可选）
 
 ```bash
-cargo install --path crates/cli --force
+cargo install --path crates/bootstrap --force
 anycode --help
 ```
 
@@ -35,7 +35,7 @@ cargo clippy
 
 1. **`crates/core/src/traits.rs`** — `Tool`、`LLMClient`、`MemoryStore` 等端口。
 2. **`crates/agent/src/runtime/`** — `AgentRuntime` 与工具/LLM 循环（`session.rs`）；编排权威**不是** `Agent::execute`（见仓库 `docs/adr/000-runtime-orchestration.md`）。
-3. **`crates/cli/src/bootstrap/runtime.rs`** — CLI/TUI/通道桥共用的 `initialize_runtime` 组装。
+3. **`crates/bootstrap/src/bootstrap/runtime.rs`** — CLI/TUI/通道桥共用的 `initialize_runtime` 组装。
 4. **[扩展与贡献清单](contributing-extensions)** — registry、catalog、提供商等 checklist。
 
 ## 修改默认工具集（门禁）

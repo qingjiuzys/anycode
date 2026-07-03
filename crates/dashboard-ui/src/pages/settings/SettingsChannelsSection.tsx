@@ -59,7 +59,7 @@ export function SettingsChannelsSection() {
           )}
           <TelegramChannelPanel
             initialChatId={ch?.telegram.chat_id}
-            startCommand={ch?.telegram_start_command ?? "anycode channel telegram"}
+            startCommand={ch?.telegram_start_command ?? "anycode-daemon telegram-bridge"}
           />
         </div>
       )}
@@ -73,7 +73,7 @@ export function SettingsChannelsSection() {
           )}
           <DiscordChannelPanel
             initialChannelId={ch?.discord.channel_id}
-            startCommand={ch?.discord_start_command ?? "anycode channel discord"}
+            startCommand={ch?.discord_start_command ?? "anycode-daemon discord-bridge"}
           />
         </div>
       )}

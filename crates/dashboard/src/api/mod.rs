@@ -30,6 +30,11 @@ pub fn router(state: AppState) -> Router {
     let api = Router::new()
         .route("/health", get(handlers::health))
         .route("/cloud/session", get(handlers::get_cloud_session))
+        .route("/cloud/link/start", post(handlers::post_cloud_link_start))
+        .route(
+            "/cloud/gateway-test",
+            post(handlers::post_cloud_gateway_test),
+        )
         .route("/auth/me", get(handlers::get_auth_me))
         .route("/auth/login", post(handlers::post_auth_login))
         .route("/auth/logout", post(handlers::post_auth_logout))
@@ -261,6 +266,14 @@ pub fn router(state: AppState) -> Router {
             get(handlers::browser_session_screenshot),
         )
         .route(
+            "/workbench/browser/sessions/{session_id}/stream",
+            get(handlers::browser_session_stream),
+        )
+        .route(
+            "/workbench/browser/sessions/{session_id}/lock",
+            post(handlers::browser_session_lock),
+        )
+        .route(
             "/workbench/browser/sessions/{session_id}",
             delete(handlers::delete_browser_session),
         )
@@ -457,6 +470,10 @@ pub fn router(state: AppState) -> Router {
             "/settings/preferences",
             get(handlers::get_dashboard_preferences).put(handlers::put_dashboard_preferences),
         )
+        .route(
+            "/settings/gate-prefs",
+            get(handlers::get_gate_preferences).put(handlers::put_gate_preferences),
+        )
         .route("/settings/database", get(handlers::database_settings))
         .route("/settings/db-operations", get(handlers::get_db_operations))
         .route(
@@ -530,6 +547,11 @@ pub fn router(state: AppState) -> Router {
             get(handlers::get_connector_linear_issues),
         )
         .route("/audit/events", get(handlers::list_audit_events))
+        .route("/plugins", get(handlers::list_plugins))
+        .route(
+            "/plugins/{plugin_id}",
+            axum::routing::put(handlers::put_plugin_enabled),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
@@ -538,7 +560,17 @@ pub fn router(state: AppState) -> Router {
 
     let mut app = Router::new().nest("/api", api);
 
-    if let Some(dir) = &state.static_dir {
+    if !state.serve_ui {
+        app = app.route(
+            "/",
+            get(|| async {
+                Json(json!({
+                    "error": "api_only",
+                    "hint": "Open anyCode.app for the Workbench UI"
+                }))
+            }),
+        );
+    } else if let Some(dir) = &state.static_dir {
         let index = dir.join("index.html");
         if index.is_file() {
             let assets = dir.join("assets");

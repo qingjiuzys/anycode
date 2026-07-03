@@ -18,6 +18,10 @@ pub struct HealthResponse {
     pub account_api_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_portal_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_gateway_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ops_portal_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,6 +232,28 @@ pub struct ProjectEvent {
     pub occurred_at: String,
 }
 
+/// Low-latency chat stream payload for session SSE (`chat_event`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatStreamEvent {
+    pub session_id: String,
+    pub project_id: String,
+    /// `assistant_delta` | `assistant_done` | `tool_start` | `tool_result` | `turn_done` | `session_error` | `user_message`
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block: Option<TranscriptBlock>,
+    #[serde(default)]
+    pub payload: Value,
+    pub at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabelCount {
     pub label: String,
@@ -375,6 +401,14 @@ pub struct StartConversationRequest {
     /// UI language hint (`zh` / `en`) — propagated to the agent reply language.
     #[serde(default)]
     pub lang: Option<String>,
+    /// When true (default), reuse an idle web-chat REPL in the same project so harness
+    /// shared memory and transcript context carry forward.
+    #[serde(default = "default_recycle_session")]
+    pub recycle_session: bool,
+}
+
+fn default_recycle_session() -> bool {
+    true
 }
 
 fn default_start_kind() -> String {
@@ -1038,6 +1072,10 @@ pub struct DashboardPreferences {
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub setup_completed_at: Option<String>,
+    #[serde(default)]
+    pub acceptance_gates_default: bool,
+    #[serde(default)]
+    pub default_acceptance_preset_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

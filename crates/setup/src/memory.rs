@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use serde_json::{json, Value};
 
-/// Memory strategy presets shared by CLI `anycode setup` and Dashboard setup wizard.
+/// Memory strategy presets shared by CLI `Workbench /setup` and Dashboard setup wizard.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MemorySetupPreset {
     Noop,

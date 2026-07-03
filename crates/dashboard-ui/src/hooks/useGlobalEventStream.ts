@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEventSource, type SseStatus } from "@/hooks/useEventSource";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+import { getActiveSessionForGlobalSse } from "@/lib/activeSessionSse";
+import { apiUrl } from "@/api/http";
 const INVALIDATION_DEBOUNCE_MS = 5_000;
 
 /** Global SSE + query invalidation; returns connection status for the sidebar badge. */
@@ -29,7 +29,11 @@ export function useGlobalEventStream(enabled = true): SseStatus {
   }, [queryClient]);
 
   const onEvent = useCallback(
-    (payload: { projectId?: string }) => {
+    (payload: { projectId?: string; sessionId?: string }) => {
+      const skipSession = getActiveSessionForGlobalSse();
+      if (skipSession && payload.sessionId === skipSession) {
+        return;
+      }
       if (payload.projectId) {
         pendingProjectIds.current.add(payload.projectId);
       }
@@ -50,7 +54,7 @@ export function useGlobalEventStream(enabled = true): SseStatus {
   );
 
   return useEventSource(
-    enabled ? `${API_BASE}/api/events/stream` : null,
+    enabled ? apiUrl("/api/events/stream") : null,
     onEvent,
   );
 }

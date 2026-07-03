@@ -6,9 +6,9 @@
 ## Pre-flight
 
 - [ ] Build release with embedded UI:  
-  `ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui`
-- [ ] Run full CI-equivalent checks: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets`, `cargo test --workspace`, dashboard-ui `npm test`, `npm run test:e2e`, and `python3 scripts/eval/run.py --with-mock`
-- [ ] Confirm `anycode dashboard doctor` reports healthy DB + UI static path
+  `ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-channel-bridge --features embedded-ui`
+- [ ] Run full CI-equivalent checks: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets`, `cargo test --workspace`, dashboard-ui `npm test`, `npm run test:e2e`, and ``cargo test --workspace``
+- [ ] Confirm `anyCode Workbench doctor` reports healthy DB + UI static path
 
 ## Runtime configuration
 
@@ -49,7 +49,7 @@ User=anycode
 Environment=ANYCODE_DASHBOARD_DB=/var/lib/anycode/projects.db
 Environment=ANYCODE_DASHBOARD_HOST=127.0.0.1
 Environment=ANYCODE_DASHBOARD_PORT=43180
-ExecStart=/usr/local/bin/anycode dashboard --host 127.0.0.1 --port 43180
+ExecStart=/usr/local/bin/anyCode Workbench --host 127.0.0.1 --port 43180
 Restart=on-failure
 RestartSec=5
 
@@ -61,7 +61,7 @@ Place nginx/Caddy in front if exposing beyond localhost; terminate TLS at the pr
 
 ## Data & backup
 
-- [ ] SQLite WAL: copy `projects.db` + `-wal`/`-shm` together or use `anycode dashboard db backup`
+- [ ] SQLite WAL: copy `projects.db` + `-wal`/`-shm` together or use `anyCode Workbench db backup`
 - [ ] Schedule daily backup of `ANYCODE_DASHBOARD_DB` directory
 - [ ] Document restore: stop service → replace DB files → start → run doctor
 - [ ] Preview memory retention before pruning: `anycode memory prune --dry-run --older-than-days 90`

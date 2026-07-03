@@ -43,8 +43,7 @@ export function SettingsDataSection() {
               </p>
             ))}
             <p className="text-sm text-secondary m-0">
-              CLI: <code className="font-code">anycode dashboard db check</code> ·{" "}
-              <code className="font-code">anycode dashboard db backup</code>
+              Workbench: Settings → Data · DB health and backup via API
             </p>
           </>
         )}

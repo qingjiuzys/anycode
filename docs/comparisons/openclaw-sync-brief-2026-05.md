@@ -109,7 +109,7 @@
 
 - [weixin-plugin-parity.md](../comparisons/weixin-plugin-parity.md) — npm 插件 2.4.3 与 Rust 桥对照
 - [wx-streaming-bridge.md](wx-streaming-bridge.md) — 微信桥边界
-- [stream-repl-layout.md](stream-repl-layout.md) — 流式 REPL 不变量
+- [run-flow.md](run-flow.md) — 流式 REPL 不变量
 - [cron-observability.md](../ops/cron-observability.md) — `cron-runs.jsonl` 字段说明
 - [roadmap.md](../roadmap.md) — 执行层 now/next/later
 

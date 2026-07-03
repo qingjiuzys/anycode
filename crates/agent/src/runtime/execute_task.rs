@@ -107,11 +107,15 @@ impl AgentRuntime {
         let tools = self.tools.read().await;
         let raw =
             tool_surface::resolve_agent_tool_names(task.agent_type.as_str(), agent.tools(), &tools);
+        let merged_denies = anycode_tools::merge_agent_type_tool_denies(
+            task.agent_type.as_str(),
+            &task.context.tool_deny_names,
+        );
         let names = tool_surface::prepare_tool_names_for_llm(
             raw,
             &self.tool_name_deny,
             &self.claude_gating,
-            &task.context.tool_deny_names,
+            &merged_denies,
             &task.context.tool_deny_prefixes,
         );
         let tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
@@ -287,6 +291,7 @@ impl AgentRuntime {
                 session_label: &session_label,
                 turn,
                 loop_limits,
+                live_trace_tx: task.context.live_trace_tx.clone(),
             };
             let mut tool_state = TurnToolState {
                 total_tool_calls,

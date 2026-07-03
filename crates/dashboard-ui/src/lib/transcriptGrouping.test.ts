@@ -18,7 +18,7 @@ function block(
 }
 
 describe("groupTurnReplies", () => {
-  it("merges non-consecutive tool blocks into one group", () => {
+  it("preserves chronological order with segment clusters", () => {
     const replies = [
       block("t1", "tool_call", { meta: { tool_key: "1:1", phase: "start" } }),
       block("a1", "assistant_message", { body: "planning" }),
@@ -27,29 +27,34 @@ describe("groupTurnReplies", () => {
       block("f1", "assistant_message", { body: "done" }),
     ];
     const grouped = groupTurnReplies(replies);
-    expect(grouped).toHaveLength(3);
-    expect(grouped[0]?.kind).toBe("tool_group");
-    if (grouped[0]?.kind === "tool_group") {
-      expect(grouped[0].tools).toHaveLength(3);
-    }
+    expect(grouped).toHaveLength(4);
+    expect(grouped[0]?.kind).toBe("tool_cluster");
     expect(grouped[1]?.kind).toBe("block");
-    expect(grouped[2]?.kind).toBe("block");
+    if (grouped[1]?.kind === "block") {
+      expect(grouped[1].block.body).toBe("planning");
+    }
+    expect(grouped[2]?.kind).toBe("tool_cluster");
+    if (grouped[2]?.kind === "tool_cluster") {
+      expect(grouped[2].steps).toHaveLength(2);
+    }
+    expect(grouped[3]?.kind).toBe("block");
   });
 
-  it("folds intermediate assistant notices into process message count", () => {
+  it("folds intermediate assistant notices into process snippets", () => {
     const replies = [
       block("n1", "system_notice", {
         meta: { source: "intermediate_assistant" },
         body: "checking env",
       }),
-      block("t1", "tool_call"),
-      block("t2", "tool_result"),
+      block("t1", "tool_call", { meta: { tool_key: "1:1" } }),
+      block("t2", "tool_result", { meta: { tool_key: "1:1" } }),
     ];
     const grouped = groupTurnReplies(replies);
     expect(grouped).toHaveLength(1);
-    if (grouped[0]?.kind === "tool_group") {
+    if (grouped[0]?.kind === "tool_cluster") {
       expect(grouped[0].processMessageCount).toBe(1);
-      expect(grouped[0].tools).toHaveLength(2);
+      expect(grouped[0].processSnippets).toEqual(["checking env"]);
+      expect(grouped[0].steps).toHaveLength(1);
     }
   });
 });

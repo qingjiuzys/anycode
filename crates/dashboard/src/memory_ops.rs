@@ -1,24 +1,75 @@
-//! Memory retention preview/apply via CLI subprocess (avoids sled lock coupling in dashboard).
+//! Memory retention preview/apply via in-process memory store.
 
+use anycode_bootstrap::{build_memory_layer, MemoryAttachMode};
+use anycode_config::load_config_for_session;
+use anycode_core::MemoryType;
 use anyhow::{Context, Result};
+use serde::Serialize;
 use serde_json::Value;
-use std::path::PathBuf;
-use std::process::Stdio;
-use tokio::process::Command;
 
-fn resolve_anycode_bin() -> PathBuf {
-    if let Ok(p) = std::env::var("ANYCODE_BIN") {
-        let path = PathBuf::from(p);
-        if path.is_file() {
-            return path;
+#[derive(Debug, Serialize)]
+struct RetentionRow {
+    id: String,
+    mem_type: String,
+    title: String,
+    updated_at: String,
+    action: String,
+    reason: String,
+}
+
+async fn run_memory_prune(dry_run: bool, apply: bool, older_than_days: i64) -> Result<Value> {
+    if dry_run == apply {
+        anyhow::bail!("choose exactly one of dry_run or apply");
+    }
+    let config = load_config_for_session(None, false).await?;
+    let (store, _) = build_memory_layer(&config, MemoryAttachMode::Exclusive)?;
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(older_than_days.max(0));
+    let mut rows = Vec::new();
+    for mem_type in [
+        MemoryType::Project,
+        MemoryType::User,
+        MemoryType::Feedback,
+        MemoryType::Reference,
+    ] {
+        for memory in store.recall("", mem_type).await? {
+            let protect = memory.tags.iter().any(|t| {
+                matches!(
+                    t.as_str(),
+                    "pin" | "pinned" | "important" | "retain" | "provenance"
+                )
+            });
+            let old = memory.updated_at < cutoff;
+            let (action, reason) = if protect {
+                ("keep", "protected tag")
+            } else if old {
+                ("delete", "older than retention window")
+            } else {
+                ("keep", "recently updated")
+            };
+            if apply && action == "delete" {
+                store.delete(&memory.id).await?;
+            }
+            rows.push(RetentionRow {
+                id: memory.id,
+                mem_type: format!("{mem_type:?}"),
+                title: memory.title,
+                updated_at: memory.updated_at.to_rfc3339(),
+                action: if dry_run {
+                    format!("would_{action}")
+                } else {
+                    action.to_string()
+                },
+                reason: reason.to_string(),
+            });
         }
     }
-    if let Ok(exe) = std::env::current_exe() {
-        if exe.is_file() {
-            return exe;
-        }
-    }
-    PathBuf::from("anycode")
+    let rows_value = serde_json::to_value(&rows).context("serialize retention rows")?;
+    let summary = summarize_retention_rows(&rows_value);
+    Ok(serde_json::json!({
+        "rows": rows_value,
+        "summary": summary,
+        "older_than_days": older_than_days.max(0),
+    }))
 }
 
 pub async fn memory_retention_preview(older_than_days: i64) -> Result<Value> {
@@ -27,49 +78,6 @@ pub async fn memory_retention_preview(older_than_days: i64) -> Result<Value> {
 
 pub async fn memory_retention_apply(older_than_days: i64) -> Result<Value> {
     run_memory_prune(false, true, older_than_days).await
-}
-
-async fn run_memory_prune(dry_run: bool, apply: bool, older_than_days: i64) -> Result<Value> {
-    let bin = resolve_anycode_bin();
-    let mut cmd = Command::new(&bin);
-    cmd.arg("memory").arg("prune");
-    if dry_run {
-        cmd.arg("--dry-run");
-    }
-    if apply {
-        cmd.arg("--apply");
-    }
-    cmd.args([
-        "--json",
-        "--older-than-days",
-        &older_than_days.max(0).to_string(),
-    ]);
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let out = cmd
-        .output()
-        .await
-        .with_context(|| format!("spawn {}", bin.display()))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        anyhow::bail!("memory prune failed ({}): {}", out.status, stderr.trim());
-    }
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let rows: Value = serde_json::from_str(stdout.trim())
-        .or_else(|_| {
-            // CLI may print non-JSON warnings before JSON array.
-            let start = stdout.find('[').or_else(|| stdout.find('{'));
-            start
-                .map(|i| serde_json::from_str(stdout[i..].trim()))
-                .transpose()
-        })
-        .context("parse memory prune JSON")?
-        .unwrap_or_else(|| Value::Array(vec![]));
-    let summary = summarize_retention_rows(&rows);
-    Ok(serde_json::json!({
-        "rows": rows,
-        "summary": summary,
-        "older_than_days": older_than_days.max(0),
-    }))
 }
 
 fn summarize_retention_rows(rows: &Value) -> Value {

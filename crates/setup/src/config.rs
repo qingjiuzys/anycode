@@ -5,7 +5,7 @@ fn has_non_empty_secret(v: &str) -> bool {
     !v.trim().is_empty()
 }
 
-/// Whether `config.json` has enough LLM fields to run a chat (matches CLI `anycode setup` skip logic).
+/// Whether `config.json` has enough LLM fields to run a chat (matches CLI `Workbench /setup` skip logic).
 pub fn has_usable_model_config(cfg: &Value) -> bool {
     let provider = string_field(cfg, "provider", "provider").unwrap_or_default();
     let model = string_field(cfg, "model", "model").unwrap_or_default();

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded — composition root moved to **`crates/bootstrap`** (`initialize_runtime`). The `crates/cli` package was removed; Desktop and `anycode-daemon` share `anycode-bootstrap`. See also [ADR 003](003-http-daemon-deprecated.md).
+
+~~Accepted~~
 
 ## Context
 
@@ -10,7 +12,7 @@ The `anycode` CLI crate aggregates configuration, TUI/stream REPL, `run`, channe
 
 ## Decision
 
-- **`crates/cli/src/bootstrap/runtime.rs`** (`initialize_runtime`) is the **primary composition root** for the shared `AgentRuntime` used by TUI, `run`, and long-lived bridges (e.g. WeChat) that need a shared runtime. Prompt augmentation for system context lives in `bootstrap/prompt_runtime.rs`.
+- **`crates/bootstrap/src/runtime.rs`** (`initialize_runtime`) is the **primary composition root** for the shared `AgentRuntime` used by Workbench, channel bridges, and headless tasks.
 - **`anycode_core`** holds domain types and traits only; it must not depend on CLI or read `config.json` directly.
 - **Security policy registration** for default tools uses `catalog::SECURITY_SENSITIVE_TOOL_IDS` and `bootstrap` to align `SecurityLayer` with the tool registry—do not maintain a second list only in CLI.
 - Channel bridges and optional crates (e.g. `channels`) integrate at the CLI or adapter layer, not inside `AgentRuntime` internals.

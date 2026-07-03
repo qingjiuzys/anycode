@@ -17,6 +17,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use std::convert::Infallible;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Deserialize)]
@@ -127,6 +128,7 @@ mod media;
 mod model_catalog;
 mod models;
 mod operations;
+mod plugins;
 mod projects;
 mod prompt_settings;
 mod reports;
@@ -154,6 +156,7 @@ pub use media::*;
 pub use model_catalog::*;
 pub use models::*;
 pub use operations::*;
+pub use plugins::*;
 pub use projects::*;
 pub use prompt_settings::*;
 pub use reports::*;

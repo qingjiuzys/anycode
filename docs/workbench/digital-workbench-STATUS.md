@@ -33,7 +33,7 @@
 
 ```bash
 ./scripts/install-with-dashboard.sh   # or existing anycode binary
-anycode dashboard --open
+anyCode Workbench --open
 ```
 
 ## Planning docs (read in order)

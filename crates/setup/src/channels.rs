@@ -137,8 +137,8 @@ pub fn build_channels_settings_view() -> ChannelsSettingsView {
             .map(|h| h.join(".anycode/wechat"))
             .is_some_and(|p| p.is_dir()),
         platform: platform.into(),
-        telegram_start_command: "anycode channel telegram".into(),
-        discord_start_command: "anycode channel discord".into(),
+        telegram_start_command: "anycode-daemon telegram-bridge".into(),
+        discord_start_command: "anycode-daemon discord-bridge".into(),
     }
 }
 

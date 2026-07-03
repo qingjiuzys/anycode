@@ -8,7 +8,7 @@
 
 | Area | What works today |
 |------|------------------|
-| **CLI** | `anycode dashboard` (+ doctor, status, token, db backup) |
+| **CLI** | `anyCode Workbench` (+ doctor, status, token, db backup) |
 | **Recording** | run / goal / workflow / repl / cron → SQLite + SSE |
 | **Trust** | Gates block delivery; gate-less completed → verified |
 | **UI** | 12+ pages, zh/en, lazy routes, embedded release UI |
@@ -26,10 +26,10 @@
 
 ```bash
 ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh
-cargo test -p anycode-dashboard
+cargo test -p anycode-channel-bridge-dashboard
 cd crates/dashboard-ui && npm test && npm run test:e2e
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode --features embedded-ui
-anycode dashboard --open
+ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-channel-bridge --features embedded-ui
+anyCode Workbench --open
 ```
 
 ## Document map

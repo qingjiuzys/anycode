@@ -20,7 +20,7 @@
 
 | 阶段 | 顺序 |
 |------|------|
-| 进入 | 按 [`stream_repl_use_alternate_screen`](../crates/cli/src/term/terminal_guard.rs) 选备用屏或主缓冲 Inline；`Terminal::new` + ratatui 主循环 |
+| 进入 | 按 [`stream_repl_use_alternate_screen`](../crates/bootstrap/src/term/terminal_guard.rs) 选备用屏或主缓冲 Inline；`Terminal::new` + ratatui 主循环 |
 | 退出 | `shutdown_stream_terminal` / 备用屏与 scrollback dump 策略见 `stream_term`；会话 JSON 落盘在 `~/.anycode/sessions` |
 
 **Resize 防抖**：`resize_debounce` 模块在尺寸**连续快速变化**时跳过部分帧；**第一次**观察到终端尺寸时**不会**跳过，避免极短启动间隔下漏掉首帧。

@@ -5,18 +5,36 @@ import { useWorkbenchBrowser } from "../hooks/useWorkbenchBrowser";
 
 type Props = {
   projectId: string;
+  conversationSessionId?: string | null;
   active: boolean;
 };
 
-export function BrowserPanel({ projectId, active }: Props) {
+export function BrowserPanel({ projectId, conversationSessionId, active }: Props) {
   const t = useT();
-  const { urlInput, setUrlInput, navigate, screenshot, createSession } = useWorkbenchBrowser(
-    projectId,
-    active,
-  );
+  const {
+    urlInput,
+    setUrlInput,
+    navigate,
+    lockState,
+    unlockForUser,
+    screenshot,
+    createSession,
+  } = useWorkbenchBrowser(projectId, conversationSessionId, active);
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-outline-variant/60 text-[10px] text-secondary shrink-0">
+        <span>
+          {lockState === "agent"
+            ? t("workbench.browserLockAgent")
+            : t("workbench.browserLockUser")}
+        </span>
+        {lockState === "agent" && (
+          <button type="button" className="dw-btn-secondary px-2 py-0.5 text-[10px]" onClick={unlockForUser}>
+            {t("workbench.browserUnlock")}
+          </button>
+        )}
+      </div>
       <form
         className="flex items-center gap-1 px-2 py-2 border-b border-outline-variant/60 shrink-0"
         onSubmit={(e) => {
@@ -48,7 +66,7 @@ export function BrowserPanel({ projectId, active }: Props) {
       <div className="conv-browser-viewport flex-1 min-h-0 overflow-auto bg-surface-container-low p-2">
         {screenshot.data?.screenshot.image_base64 ? (
           <img
-            src={`data:image/png;base64,${screenshot.data.screenshot.image_base64}`}
+            src={`data:${screenshot.data.screenshot.mime ?? "image/png"};base64,${screenshot.data.screenshot.image_base64}`}
             alt={urlInput}
             className="w-full h-auto rounded border border-outline-variant/40"
           />

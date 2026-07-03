@@ -1,60 +1,25 @@
 ---
-title: 终端里怎么用 anyCode
-description: 不问命令表，只讲日常场景：提问、改代码、跑任务。
+title: 终端 CLI（已移除）
+description: anycode 终端 CLI 已退役；请使用桌面应用、工作台或 anycode-daemon。
 ---
 
-# 终端里怎么用 anyCode
+# 终端 CLI（已移除）
 
-anyCode 主要在**终端**里和你协作：你可以像聊天一样提问，也可以让它在项目目录里读文件、改代码、跑检查。
+**`anycode`** 终端二进制（REPL、TUI、`run`、`setup`、`dashboard` 子命令）**已不再发布**。请改用：
 
-## 你能做什么
+| 原工作流 | 现方案 |
+|----------|--------|
+| 项目内交互对话 | [Digital Workbench](./workbench) 或 **anyCode.app** |
+| `Workbench /setup` | Workbench **`/setup`** 或**设置** |
+| anyCode desktop or Workbench at http://127.0.0.1:43180 | 启动 **anyCode.app**（macOS） |
+| `anycode channel *` | `anycode-daemon wechat-bridge` 等 — [无头守护进程](./daemon) |
+| `anycode-daemon scheduler` | `anycode-daemon scheduler` — [定时提醒](./cli-scheduler) |
+| `anycode run` 单次任务 | Workbench 会话或 REST API |
 
-| 场景 | 怎么做 | 你会得到什么 |
-|------|--------|----------------|
-| 问一个问题 | 打开终端，输入 `anycode`，直接打字提问 | 文字回答；需要时会自动查文件 |
-| 在某个项目里干活 | `cd` 到项目目录，再运行 `anycode` | 助手以该目录为工作区 |
-| 跑一条明确任务 | `anycode run "整理本周变更并写摘要"` | 多步执行，结果写在终端或文件里 |
-| 定时提醒 | 在工作台「自动化」里建任务，或见 [定时提醒](./cli-scheduler) | 到点自动执行你写好的说明 |
+## 相关
 
-## 三步上手
+- [快速开始](./getting-started)
+- [桌面应用](./desktop)
+- [无头守护进程](./daemon)
 
-1. **安装并完成首次配置** — 见 [安装](./install) 与 [快速开始](./getting-started)。
-2. **进入你的项目目录**，运行 `anycode`。
-3. **用一句话说清楚目标**，例如：「帮我把 `README` 里的安装步骤改得更短」。
-
-首次使用若提示选择模型，按向导完成即可；之后可随时在设置里调整。
-
-## 界面说明（不用记名字）
-
-- **默认界面**：全屏对话，适合长时间协作。
-- **一行一行输入**：适合脚本或简单环境，可用 `anycode repl`。
-- **只想跑完一条命令就走**：用 `anycode run "你的任务"`。
-
-不确定用哪种时，直接输入 `anycode` 即可。
-
-## 工具审批
-
-改文件、执行命令前，终端可能会问你「是否允许」。这是为了保护你的机器：
-
-- 选 **允许一次** — 仅当前操作
-- 选 **拒绝** — 助手会换别的办法或停下来
-
-可在设置里查看安全相关选项（工作台 **设置 → 安全**）。
-
-## 和工作台怎么配合
-
-- 终端里跑的任务，会自动出现在工作台 **项目 / 会话** 里。
-- 定时任务在 **自动化** 页创建和查看，不必记 cron 语法。
-- 需要报表时，到 **报告** 页一键生成。
-
-## 出问题了怎么办
-
-| 现象 | 建议 |
-|------|------|
-| 提示找不到模型 | 重新运行 `anycode setup`，或检查网络与 API 密钥 |
-| 一直卡在等待 | 看是否有个审批提示没点；或 `Ctrl+C` 结束后重试 |
-| 回答和项目无关 | 确认终端当前目录是你的项目根目录 |
-
-详见 [常见问题](./troubleshooting)。需要命令级细节时，可在「了解更多」里查看 [run / REPL / 全屏界面](./cli-sessions)。
-
-English: [Using anyCode in the terminal](/guide/cli).
+English: [Terminal CLI (removed)](/guide/cli).

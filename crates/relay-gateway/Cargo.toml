@@ -1,0 +1,24 @@
+[package]
+name = "anycode-relay-gateway"
+version.workspace = true
+edition = "2021"
+description = "Local OpenAI-compatible relay gateway for multi-upstream model forwarding"
+license = "MIT"
+
+[lib]
+name = "anycode_relay_gateway"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { version = "0.8", features = ["json"] }
+bytes = "1.5"
+futures = "0.3"
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "net", "signal"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

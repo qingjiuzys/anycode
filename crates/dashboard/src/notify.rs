@@ -1,9 +1,26 @@
 //! Push events to a running dashboard server for live SSE (DB already written by CLI).
 
+use crate::events::EventBus;
 use crate::schema::{InsertEventRequest, ProjectEvent};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 const DEFAULT_BASE: &str = "http://127.0.0.1:43180";
+
+static INPROCESS_BUS: OnceLock<Arc<EventBus>> = OnceLock::new();
+
+/// Register the in-process dashboard event bus for embedded chat recorder notify.
+pub fn register_inprocess_bus(bus: Arc<EventBus>) {
+    let _ = INPROCESS_BUS.set(bus);
+}
+
+#[must_use]
+fn inprocess_events_enabled() -> bool {
+    matches!(
+        std::env::var("ANYCODE_DASHBOARD_INPROCESS_EVENTS").as_deref(),
+        Ok("1") | Ok("true") | Ok("on")
+    )
+}
 
 /// Whether to POST publish notifications after local SQLite insert.
 #[must_use]
@@ -25,6 +42,12 @@ fn base_url() -> String {
 pub fn spawn_publish_event(event: ProjectEvent) {
     if !notify_enabled() {
         return;
+    }
+    if inprocess_events_enabled() {
+        if let Some(bus) = INPROCESS_BUS.get() {
+            bus.publish(event);
+            return;
+        }
     }
     tokio::spawn(async move {
         if let Err(e) = publish_event_http(&event).await {

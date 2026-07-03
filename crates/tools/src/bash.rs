@@ -31,11 +31,52 @@ impl BashTool {
 
     fn check_denied(&self, command: &str) -> bool {
         for pattern in &self.security_policy.deny_commands {
-            if command.contains(pattern) {
+            if command_matches_deny_pattern(command, pattern) {
                 return true;
             }
         }
         false
+    }
+}
+
+/// Naive substring deny caused false positives (e.g. `git add` contains `dd `).
+fn command_matches_deny_pattern(command: &str, pattern: &str) -> bool {
+    match pattern {
+        "dd " => command_has_standalone_dd(command),
+        _ => command.contains(pattern),
+    }
+}
+
+fn command_has_standalone_dd(command: &str) -> bool {
+    for segment in command.split(['|', ';']) {
+        for part in segment.split("&&") {
+            let trimmed = part.trim();
+            if trimmed.starts_with("dd ") || trimmed == "dd" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn git_add_is_not_blocked_by_dd_deny() {
+        let tool = BashTool::new(false);
+        assert!(
+            !tool.check_denied("cd repo && git add crates/sales-metrics/src/lib.rs && git status")
+        );
+        assert!(!tool.check_denied("git add ."));
+    }
+
+    #[test]
+    fn dd_command_is_blocked() {
+        let tool = BashTool::new(false);
+        assert!(tool.check_denied("dd if=/dev/zero of=/dev/null bs=1M count=1"));
+        assert!(tool.check_denied("echo ok && dd if=/dev/zero of=/tmp/x"));
     }
 }
 

@@ -14,6 +14,7 @@ pub(super) struct TurnToolCtx<'a> {
     pub session_label: &'a str,
     pub turn: usize,
     pub loop_limits: AgentLoopLimits,
+    pub live_trace_tx: Option<tokio::sync::mpsc::UnboundedSender<LiveTraceEvent>>,
 }
 
 /// Mutable counters/state updated while dispatching tool calls in a turn.

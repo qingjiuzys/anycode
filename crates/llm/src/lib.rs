@@ -43,9 +43,10 @@ pub use chat_model_ref::{
     ChatModelResolution, ChatModelResolutionReason, ChatModelResolutionSource, ModelCatalogEntry,
 };
 pub use cloud_session::{
-    account_api_url, cloud_session_path, default_gateway_chat_url, read_cloud_access_token,
-    read_cloud_session, refresh_cloud_access_token, resolve_gateway_host, write_cloud_session,
-    CloudSessionFile,
+    account_api_url, cloud_portal_url, cloud_session_path, default_gateway_chat_url,
+    read_cloud_access_token, read_cloud_session, refresh_cloud_access_token, resolve_gateway_host,
+    write_cloud_session, CloudSessionFile, DEFAULT_ACCOUNT_API, DEFAULT_CLOUD_PORTAL,
+    DEFAULT_GATEWAY_HOST,
 };
 pub use config_file::{
     default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,

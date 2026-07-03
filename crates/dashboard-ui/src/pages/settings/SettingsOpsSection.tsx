@@ -4,13 +4,14 @@ import { DoctorPanel } from "@/components/settings/DoctorPanel";
 import { CommandList } from "@/components/ui/CommandList";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { SettingsFeaturesSection } from "@/pages/settings/SettingsFeaturesSection";
 
 const CHECKLIST = [
   "./scripts/build-dashboard-ui.sh",
   "cargo fmt --all -- --check",
   "cargo test -p anycode-dashboard",
   "cd crates/dashboard-ui && npm run build",
-  "cargo build --release -p anycode",
+  "cargo build --release -p anycode-desktop",
 ];
 
 export function SettingsOpsSection() {
@@ -19,6 +20,7 @@ export function SettingsOpsSection() {
 
   return (
     <>
+      <SettingsFeaturesSection />
       <DoctorPanel doctor={doctor.data?.doctor} />
       <SectionCard title={t("settings.releaseChecklist")}>
         <p className="text-sm text-secondary m-0 mb-3">{t("settings.maintainerChecklistHint")}</p>

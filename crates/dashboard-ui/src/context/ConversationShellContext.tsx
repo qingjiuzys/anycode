@@ -5,17 +5,14 @@ import {
   useEffect,
   useMemo,
   useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import type { SessionWithProject, TranscriptBlock } from "@/api/types";
-import { ConversationComposer } from "@/components/ConversationComposer";
 import { usePendingApprovalCounts } from "@/components/SecurityApprovalInbox";
 import { useSessionEventStream } from "@/hooks/useSessionEventStream";
+import { setActiveSessionForGlobalSse } from "@/lib/activeSessionSse";
 import { useSseStatus } from "@/context/SseContext";
 import { useT } from "@/i18n/context";
 import {
@@ -39,8 +36,6 @@ export type QuickChip = {
 type ConversationShellContextValue = {
   projectId: string;
   setProjectId: (id: string) => void;
-  showStartForm: boolean;
-  setShowStartForm: Dispatch<SetStateAction<boolean>>;
   workbenchDrawerOpen: boolean;
   setWorkbenchDrawerOpen: (v: boolean) => void;
   sessionsDrawerOpen: boolean;
@@ -53,6 +48,8 @@ type ConversationShellContextValue = {
   listSearch: string;
   setListSearch: (value: string) => void;
   filteredRows: SessionWithProject[];
+  sidebarRows: SessionWithProject[];
+  sidebarFilteredRows: SessionWithProject[];
   rows: SessionWithProject[];
   displaySessionId: string | null;
   selected: SessionWithProject | null;
@@ -63,17 +60,21 @@ type ConversationShellContextValue = {
   sessionsError: Error | null;
   pendingCountsLoading: boolean;
   sseLive: boolean;
-  projectOptions: Array<{ id: string; name: string }>;
+  liveBlocks: TranscriptBlock[];
+  chatStreamLive: boolean;
+  markSessionStreaming: (sessionId: string) => void;
+  projectOptions: Array<{ id: string; name: string; updated_at?: string }>;
   navigateSearch: (next: ConversationSearch) => void;
   effectiveSearch: ConversationSearch;
   search: ConversationSearch;
-  renderStartComposer: (compact?: boolean) => ReactNode;
   prefetchSession: (id: string, isRunning: boolean) => void;
+  startSessionForProject: (projectId: string) => void;
+  goHome: (projectId?: string) => void;
 };
 
 const ConversationShellContext = createContext<ConversationShellContextValue | null>(null);
 
-export function ConversationShellProvider({ children }: { children: ReactNode }) {
+export function ConversationShellProvider({ children }: { children: React.ReactNode }) {
   const value = useConversationShellState();
   return (
     <ConversationShellContext.Provider value={value}>{children}</ConversationShellContext.Provider>
@@ -92,16 +93,35 @@ function useConversationShellState(): ConversationShellContextValue {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const search = useSearch({ from: "/_shell/conversations" }) as ConversationSearch;
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
+  const conversationsSearch = useSearch({
+    from: "/_shell/conversations",
+    shouldThrow: false,
+  }) as ConversationSearch | undefined;
+  const homeSearch = useSearch({
+    from: "/_shell/",
+    shouldThrow: false,
+  }) as { project?: string } | undefined;
+  const search = useMemo((): ConversationSearch => {
+    if (pathname === "/conversations") {
+      return conversationsSearch ?? parseConversationSearch(searchStr);
+    }
+    if (pathname === "/") {
+      return parseConversationSearch(searchStr);
+    }
+    return {};
+  }, [conversationsSearch, homeSearch, pathname, searchStr]);
 
-  const [projectId, setProjectId] = useState(search.project ?? "");
-  const [showStartForm, setShowStartForm] = useState(Boolean(search.agent));
+  const [projectId, setProjectId] = useState(search.project ?? homeSearch?.project ?? "");
   const [workbenchDrawerOpen, setWorkbenchDrawerOpen] = useState(false);
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<TranscriptBlock | null>(null);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
+  const [optimisticStreamingSessionId, setOptimisticStreamingSessionId] = useState<string | null>(
+    null,
+  );
   const globalSseLive = useSseStatus() === "live";
   const { counts: pendingCounts, pendingTotal, isLoading: pendingCountsLoading } =
     usePendingApprovalCounts();
@@ -112,11 +132,11 @@ function useConversationShellState(): ConversationShellContextValue {
     const fromFilter = filterToQuerySearch(active);
     return {
       ...fromFilter,
-      project: search.project ?? (projectId || undefined),
+      project: search.project,
       session: search.session,
       agent: search.agent,
     };
-  }, [active, projectId, search.agent, search.project, search.session]);
+  }, [active, search.agent, search.project, search.session]);
 
   const navigateSearch = useCallback(
     (next: ConversationSearch) => {
@@ -126,7 +146,6 @@ function useConversationShellState(): ConversationShellContextValue {
       void navigate({
         to: "/conversations",
         search: () => canon,
-        replace: true,
       });
     },
     [navigate],
@@ -144,33 +163,66 @@ function useConversationShellState(): ConversationShellContextValue {
     void navigate({
       to: "/conversations",
       search: () => canon,
-      replace: true,
     });
   }, [navigate, searchStr]);
 
+  const goHome = useCallback(
+    (nextProjectId?: string) => {
+      setPendingSessionId(null);
+      setSelectedTool(null);
+      if (nextProjectId) {
+        setProjectId(nextProjectId);
+      }
+      void navigate({
+        to: "/",
+        search: nextProjectId ? { project: nextProjectId } : {},
+      });
+    },
+    [navigate],
+  );
+
+  const sidebarSessions = useQuery({
+    queryKey: ["all-sessions", "sidebar"],
+    queryFn: () => api.allSessions({ limit: 200 }),
+    staleTime: 8_000,
+    refetchInterval: globalSseLive ? false : 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const sidebarRows = sidebarSessions.data?.sessions ?? [];
+
   const selectSession = useCallback(
     (sessionId: string | null) => {
-      if (sessionId) {
-        setPendingSessionId(sessionId);
-      } else {
-        setPendingSessionId(null);
-      }
       setSelectedTool(null);
+      if (!sessionId) {
+        setPendingSessionId(null);
+        queueMicrotask(() => {
+          navigateSearch({
+            ...effectiveSearch,
+            session: undefined,
+          });
+        });
+        return;
+      }
+      setPendingSessionId(sessionId);
       queueMicrotask(() => {
+        const hit = sidebarRows.find((s) => s.id === sessionId);
         navigateSearch({
           ...effectiveSearch,
-          session: sessionId || undefined,
+          project: hit?.project_id ?? effectiveSearch.project,
+          session: sessionId,
         });
       });
     },
-    [effectiveSearch, navigateSearch],
+    [effectiveSearch, navigateSearch, sidebarRows],
   );
 
   useEffect(() => {
-    if (search.project) {
-      setProjectId(search.project);
+    const fromUrl = search.project ?? homeSearch?.project;
+    if (fromUrl) {
+      setProjectId(fromUrl);
     }
-  }, [search.project]);
+  }, [homeSearch?.project, search.project]);
 
   const projects = useQuery({
     queryKey: ["projects", "picker"],
@@ -183,8 +235,8 @@ function useConversationShellState(): ConversationShellContextValue {
   });
 
   const sessions = useQuery({
-    queryKey: ["all-sessions", active, projectId, search.project],
-    queryFn: () => api.allSessions(searchToSessionOpts(effectiveSearch, projectId || undefined)),
+    queryKey: ["all-sessions", active, search.project],
+    queryFn: () => api.allSessions(searchToSessionOpts(effectiveSearch, search.project)),
     staleTime: 8_000,
     refetchInterval: globalSseLive
       ? false
@@ -211,12 +263,23 @@ function useConversationShellState(): ConversationShellContextValue {
     });
   }, [listSearch, rows]);
 
+  const sidebarFilteredRows = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return sidebarRows;
+    return sidebarRows.filter((s) => {
+      const haystack = [s.title, s.id, s.project_name].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [listSearch, sidebarRows]);
+
   const urlSessionId = useMemo(() => {
-    if (rows.length === 0) return null;
+    if (pathname === "/") return null;
+    const pool = sidebarRows.length > 0 ? sidebarRows : rows;
+    if (pool.length === 0) return null;
     const fromUrl = search.session;
-    if (fromUrl && rows.some((s) => s.id === fromUrl)) return fromUrl;
-    return rows[0]!.id;
-  }, [rows, search.session]);
+    if (fromUrl && pool.some((s) => s.id === fromUrl)) return fromUrl;
+    return pool[0]!.id;
+  }, [pathname, rows, sidebarRows, search.session]);
 
   useEffect(() => {
     if (pendingSessionId && search.session === pendingSessionId) {
@@ -226,16 +289,18 @@ function useConversationShellState(): ConversationShellContextValue {
 
   const displaySessionId = pendingSessionId ?? urlSessionId;
 
-  const selected = useMemo(
-    () => rows.find((s) => s.id === displaySessionId) ?? null,
-    [rows, displaySessionId],
-  );
+  const selected = useMemo(() => {
+    const pool = sidebarRows.length > 0 ? sidebarRows : rows;
+    return pool.find((s) => s.id === displaySessionId) ?? null;
+  }, [rows, sidebarRows, displaySessionId]);
 
   useEffect(() => {
-    if (!displaySessionId || rows.length === 0) return;
-    const idx = rows.findIndex((s) => s.id === displaySessionId);
+    if (!displaySessionId) return;
+    const pool = sidebarRows.length > 0 ? sidebarRows : rows;
+    if (pool.length === 0) return;
+    const idx = pool.findIndex((s) => s.id === displaySessionId);
     if (idx < 0) return;
-    const neighbors = [rows[idx - 1], rows[idx + 1]].filter(Boolean) as typeof rows;
+    const neighbors = [pool[idx - 1], pool[idx + 1]].filter(Boolean) as typeof pool;
     const runIdle = () => {
       for (const s of neighbors) {
         prefetchSessionConversation(queryClient, s.id, s.status === "running");
@@ -247,12 +312,45 @@ function useConversationShellState(): ConversationShellContextValue {
     }
     const timer = setTimeout(runIdle, 200);
     return () => clearTimeout(timer);
-  }, [displaySessionId, queryClient, rows]);
+  }, [displaySessionId, queryClient, rows, sidebarRows]);
 
-  const sseLive = useSessionEventStream(
-    selected?.status === "running" ? (displaySessionId ?? undefined) : undefined,
-    "conversation",
-  );
+  const runningSessionId = displaySessionId ?? undefined;
+
+  const clearOptimisticStreaming = useCallback(() => {
+    setOptimisticStreamingSessionId(null);
+  }, []);
+
+  const markSessionStreaming = useCallback((sessionId: string) => {
+    setOptimisticStreamingSessionId(sessionId);
+  }, []);
+
+  const sessionStream = useSessionEventStream(runningSessionId, "conversation", {
+    onTurnDone: clearOptimisticStreaming,
+  });
+
+  useEffect(() => {
+    setActiveSessionForGlobalSse(runningSessionId ?? null);
+    return () => setActiveSessionForGlobalSse(null);
+  }, [runningSessionId]);
+
+  useEffect(() => {
+    if (!displaySessionId) {
+      clearOptimisticStreaming();
+      return;
+    }
+    if (selected?.status !== "running" && optimisticStreamingSessionId === displaySessionId) {
+      clearOptimisticStreaming();
+    }
+  }, [
+    clearOptimisticStreaming,
+    displaySessionId,
+    optimisticStreamingSessionId,
+    selected?.status,
+  ]);
+
+  const sseLive = sessionStream.connected;
+  const liveBlocks = sessionStream.liveBlocks;
+  const chatStreamLive = sessionStream.live;
 
   const quickChips = useMemo(() => {
     const chips: QuickChip[] = [
@@ -303,30 +401,26 @@ function useConversationShellState(): ConversationShellContextValue {
     [queryClient],
   );
 
-  const renderStartComposer = useCallback(
-    (compact?: boolean) => (
-      <ConversationComposer
-        mode="start"
-        projectId={projectId}
-        initialAgent={search.agent}
-        compact={compact}
-        onSuccess={({ session }) => {
-          setShowStartForm(false);
-          selectSession(session.id);
-        }}
-        onCancel={() => setShowStartForm(false)}
-      />
-    ),
-    [projectId, search.agent, selectSession],
+  const projectOptions = useMemo(
+    () =>
+      (projects.data?.projects ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        updated_at: p.updated_at,
+      })),
+    [projects.data?.projects],
   );
 
-  const projectOptions = projects.data?.projects ?? [];
+  const startSessionForProject = useCallback(
+    (nextProjectId: string) => {
+      goHome(nextProjectId);
+    },
+    [goHome],
+  );
 
   return {
     projectId,
     setProjectId,
-    showStartForm,
-    setShowStartForm,
     workbenchDrawerOpen,
     setWorkbenchDrawerOpen,
     sessionsDrawerOpen,
@@ -339,21 +433,27 @@ function useConversationShellState(): ConversationShellContextValue {
     listSearch,
     setListSearch,
     filteredRows,
+    sidebarRows,
+    sidebarFilteredRows,
     rows,
     displaySessionId,
     selected,
     selectSession,
     pendingCounts,
-    listBusy: sessions.isFetching,
+    listBusy: sessions.isFetching || sidebarSessions.isFetching,
     sessionsLoading: sessions.isLoading,
     sessionsError: sessions.error as Error | null,
     pendingCountsLoading,
     sseLive,
+    liveBlocks,
+    chatStreamLive,
+    markSessionStreaming,
     projectOptions,
     navigateSearch,
     effectiveSearch,
     search,
-    renderStartComposer,
     prefetchSession,
+    startSessionForProject,
+    goHome,
   };
 }

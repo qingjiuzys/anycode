@@ -22,9 +22,11 @@ tools-mcp = [
 ]
 tools-mcp-oauth = ["tools-mcp", "dep:axum"]
 tools-lsp = []
+tools-browser = ["dep:anycode-browser"]
 
 [dependencies]
 anycode-core = { path = "../core" }
+anycode-browser = { path = "../browser", optional = true }
 anycode-wechat-history = { path = "../wechat-history" }
 anycode-memory = { path = "../memory", optional = true }
 sled = { workspace = true, optional = true }
