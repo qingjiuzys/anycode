@@ -73,27 +73,27 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <SectionCard title={t("home.insightAutomation")}>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+      <SectionCard title={t("home.insightAutomation")} className="dw-insight-card">
         <div className="flex items-end gap-2">
-          <span className="text-3xl font-bold text-primary tabular-nums">{automationRate}%</span>
-          <span className="text-sm text-secondary pb-1">{t("home.insightSuccessRate")}</span>
+          <span className="text-2xl font-bold text-primary tabular-nums">{automationRate}%</span>
+          <span className="text-xs text-secondary pb-0.5">{t("home.insightSuccessRate")}</span>
         </div>
-        <p className="text-xs text-secondary m-0 mt-2">
+        <p className="text-xs text-secondary m-0 mt-1.5">
           {t("home.insightSessions")
             .replace("{total}", String(overview.sessions_total))
             .replace("{running}", String(overview.sessions_running))}
         </p>
       </SectionCard>
 
-      <SectionCard title={t("home.insightRisks")}>
+      <SectionCard title={t("home.insightRisks")} className="dw-insight-card">
         {risks.length === 0 ? (
           <p className="text-sm text-success m-0 flex items-center gap-2">
             <Icon name="check_circle" size={18} />
             {t("home.insightNoRisks")}
           </p>
         ) : (
-          <ul className="m-0 p-0 list-none space-y-2">
+          <ul className="m-0 p-0 list-none space-y-1.5">
             {risks.map((r) => (
               <li key={r.label}>
                 <Link
@@ -115,11 +115,11 @@ export function HomeInsightCards({ overview, readiness, firstProjectId }: Props)
         )}
       </SectionCard>
 
-      <SectionCard title={t("home.insightSuggestions")}>
+      <SectionCard title={t("home.insightSuggestions")} className="dw-insight-card">
         {suggestions.length === 0 ? (
           <p className="text-sm text-secondary m-0">{t("home.insightAllGood")}</p>
         ) : (
-          <ul className="m-0 p-0 list-none space-y-2">
+          <ul className="m-0 p-0 list-none space-y-1.5">
             {suggestions.map((s) => (
               <li key={s.label}>
                 <Link

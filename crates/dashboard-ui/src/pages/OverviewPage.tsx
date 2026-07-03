@@ -229,7 +229,7 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
       )}
 
       {ov && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
           <StatCard label={t("home.stats.projects")} value={ov.projects_count} to="/projects" primary />
           <StatCard label={t("home.stats.sessions")} value={ov.sessions_total} to="/conversations" />
           <StatCard
@@ -296,7 +296,7 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
 
       {pendingTotal > 0 && <SecurityApprovalInbox compact hideWhenEmpty />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
         <div className="lg:col-span-7">
           <SectionCard
             title={t("home.activeProjects")}
