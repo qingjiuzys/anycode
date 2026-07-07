@@ -20,7 +20,7 @@ export type TurnReplyItem =
 function isIntermediateAssistantNotice(block: TranscriptBlock): boolean {
   return (
     block.block_type === "system_notice" &&
-    block.meta?.source === "intermediate_assistant"
+    (block.meta?.source === "intermediate_assistant" || block.meta?.source === "llm_start")
   );
 }
 
@@ -160,4 +160,24 @@ export function findActiveToolInReplies(replies: TranscriptBlock[]): string | nu
     }
   }
   return null;
+}
+
+export function findActiveToolInExecutionLog(
+  lines: { event_type?: string | null; title?: string | null; raw: string }[],
+): string | null {
+  let lastStart: string | null = null;
+  for (const line of lines) {
+    if (line.event_type === "tool_call_start") {
+      const fromRaw = line.raw.match(/name=([^\s]+)/)?.[1];
+      lastStart =
+        fromRaw ||
+        line.title?.replace(/\s+started$/i, "") ||
+        line.title ||
+        null;
+    }
+    if (line.event_type === "tool_call_end") {
+      lastStart = null;
+    }
+  }
+  return lastStart;
 }

@@ -13,10 +13,21 @@ use anycode_core::prelude::*;
 use bootstrap::{build_embedded_runtime, embedded_chat_enabled, web_chat_log_dir};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
+
+const EMBEDDED_INGEST_INTERVAL: Duration = Duration::from_secs(5);
+
+fn poll_embedded_cancel(session_id: &str, coop: &AtomicBool) {
+    if crate::cancel_ipc::poll_cancel_requested(session_id) {
+        coop.store(true, Ordering::Release);
+        crate::cancel_ipc::consume_cancel(session_id);
+    }
+}
 
 #[derive(Clone)]
 pub struct ChatRuntimeHost {
@@ -31,6 +42,8 @@ struct EmbeddedSession {
     working_directory: String,
     task_id: TaskId,
     log_path: std::path::PathBuf,
+    /// Monotonic id per user message in this session (SSE scope key).
+    user_turn_seq: Arc<AtomicU32>,
 }
 
 impl ChatRuntimeHost {
@@ -88,11 +101,14 @@ impl ChatRuntimeHost {
                     working_directory,
                     task_id,
                     log_path: log_path.clone(),
+                    user_turn_seq: Arc::new(AtomicU32::new(0)),
                 });
                 guard.insert(session_id.to_string(), Arc::clone(&embedded));
                 embedded
             }
         };
+
+        let user_turn_id = session.user_turn_seq.fetch_add(1, Ordering::Relaxed) + 1;
 
         if log_tail_fallback_enabled() {
             tail_hub.ensure_tail(
@@ -108,6 +124,7 @@ impl ChatRuntimeHost {
             Arc::clone(&events),
             session_id.to_string(),
             project_id.to_string(),
+            user_turn_id,
             live_rx,
         );
 
@@ -226,21 +243,31 @@ async fn run_embedded_turn(
         });
     }
 
-    let coop = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let result = runtime
-        .execute_turn_from_messages(
-            session.task_id,
-            &session.agent_type,
-            Arc::clone(&session.messages),
-            &session.working_directory,
-            Some(coop),
-            &[],
-            &[],
-            TaskBudget::default(),
-            anycode_core::resolve_agent_loop_limits(None, None),
-            Some(live_trace_tx),
-        )
-        .await;
+    let coop = Arc::new(AtomicBool::new(false));
+    let session_id_cancel = session_id.clone();
+    let exec = runtime.execute_turn_from_messages(
+        session.task_id,
+        &session.agent_type,
+        Arc::clone(&session.messages),
+        &session.working_directory,
+        Some(Arc::clone(&coop)),
+        &[],
+        &[],
+        TaskBudget::default(),
+        anycode_core::resolve_agent_loop_limits(None, None),
+        Some(live_trace_tx),
+    );
+    tokio::pin!(exec);
+
+    let result = loop {
+        tokio::select! {
+            res = &mut exec => break res,
+            _ = tokio::time::sleep(EMBEDDED_INGEST_INTERVAL) => {
+                poll_embedded_cancel(&session_id_cancel, &coop);
+                recorder.ingest_delta(&disk, session.task_id).await;
+            }
+        }
+    };
 
     recorder.ingest_full_log(&disk, session.task_id).await;
     recorder.finish_run(&disk, session.task_id, None).await;
@@ -272,4 +299,27 @@ fn truncate(s: &str, max: usize) -> String {
         return s.to_string();
     }
     s.chars().take(max).collect::<String>() + "…"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+    use tempfile::tempdir;
+
+    #[test]
+    fn embedded_cancel_poll_sets_coop_flag() {
+        let dir = tempdir().unwrap();
+        std::env::set_var("ANYCODE_DASHBOARD_STATE_DIR", dir.path().join("dashboard"));
+        let session_id = "sess_embedded_cancel";
+        crate::cancel_ipc::register_active(session_id, "task_1").unwrap();
+        crate::cancel_ipc::request_cancel(session_id).unwrap();
+
+        let coop = AtomicBool::new(false);
+        poll_embedded_cancel(session_id, &coop);
+        assert!(coop.load(Ordering::Acquire));
+        assert!(!crate::cancel_ipc::poll_cancel_requested(session_id));
+
+        crate::cancel_ipc::unregister_active(session_id);
+    }
 }

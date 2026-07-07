@@ -29,6 +29,12 @@ pub enum LiveTraceEvent {
         error: Option<String>,
         output_preview: String,
     },
+    ToolCallProgress {
+        turn: u32,
+        idx: u32,
+        name: String,
+        elapsed_ms: u64,
+    },
     AssistantDone {
         turn: u32,
         text: String,

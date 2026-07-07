@@ -36,7 +36,13 @@ impl BridgeState {
         }
     }
 
-    fn flush_pending_delta(&mut self, events: &EventBus, session_id: &str, project_id: &str) {
+    fn flush_pending_delta(
+        &mut self,
+        events: &EventBus,
+        session_id: &str,
+        project_id: &str,
+        user_turn_id: u32,
+    ) {
         let Some(turn) = self.pending_delta_turn.take() else {
             return;
         };
@@ -49,7 +55,12 @@ impl BridgeState {
             return;
         }
         let chat_evt = crate::observability::chat_events::assistant_delta_event(
-            session_id, project_id, turn, "", &full,
+            session_id,
+            project_id,
+            user_turn_id,
+            turn,
+            "",
+            &full,
         );
         events.publish_chat(chat_evt);
     }
@@ -60,6 +71,7 @@ pub fn spawn_live_bridge(
     events: Arc<EventBus>,
     session_id: String,
     project_id: String,
+    user_turn_id: u32,
     mut rx: UnboundedReceiver<LiveTraceEvent>,
 ) {
     tokio::spawn(async move {
@@ -76,6 +88,7 @@ pub fn spawn_live_bridge(
                             if let Some(chat_evt) = chat_event_from_live_trace(
                                 &session_id,
                                 &project_id,
+                                user_turn_id,
                                 &evt,
                                 &mut state.assistant_buffers,
                             ) {
@@ -89,13 +102,14 @@ pub fn spawn_live_bridge(
                         }
                         LiveTraceEvent::AssistantDone { .. }
                         | LiveTraceEvent::TurnDone { .. } => {
-                            state.flush_pending_delta(&events, &session_id, &project_id);
+                            state.flush_pending_delta(&events, &session_id, &project_id, user_turn_id);
                         }
                         _ => {}
                     }
                     if let Some(chat_evt) = chat_event_from_live_trace(
                         &session_id,
                         &project_id,
+                        user_turn_id,
                         &evt,
                         &mut state.assistant_buffers,
                     ) {
@@ -104,12 +118,12 @@ pub fn spawn_live_bridge(
                 }
                 _ = flush_timer.tick() => {
                     if state.pending_delta_turn.is_some() {
-                        state.flush_pending_delta(&events, &session_id, &project_id);
+                        state.flush_pending_delta(&events, &session_id, &project_id, user_turn_id);
                     }
                 }
             }
         }
-        state.flush_pending_delta(&events, &session_id, &project_id);
+        state.flush_pending_delta(&events, &session_id, &project_id, user_turn_id);
     });
 }
 

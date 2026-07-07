@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { TranscriptBlock } from "@/api/types";
+import type { SessionDetail, TranscriptBlock } from "@/api/types";
 import { useEventSource, type SseStatus } from "@/hooks/useEventSource";
 import {
   applyChatStreamEvent,
@@ -17,6 +17,8 @@ const IMMEDIATE_EVENT_TYPES = new Set([
   "task_end",
   "session_completed",
   "session_blocked",
+  "session_error",
+  "session_cancelled",
 ]);
 
 const LIGHT_EVENT_TYPES = new Set([
@@ -43,6 +45,14 @@ export type SessionEventStreamOptions = {
   onTurnDone?: () => void;
 };
 
+/** True when SSE recovered from a drop and live overlay should rebase on REST. */
+export function shouldRebaseLiveOnSseReconnect(
+  prev: SseStatus,
+  next: SseStatus,
+): boolean {
+  return next === "live" && prev === "reconnecting";
+}
+
 /** Per-session SSE: single EventSource for project_event + chat_event. */
 export function useSessionEventStream(
   sessionId: string | undefined,
@@ -55,6 +65,7 @@ export function useSessionEventStream(
   const [liveBlocks, setLiveBlocks] = useState<TranscriptBlock[]>([]);
   const [chatLive, setChatLive] = useState(false);
   const blocksRef = useRef<TranscriptBlock[]>([]);
+  const prevStatusRef = useRef<SseStatus>("offline");
 
   useEffect(() => {
     return () => {
@@ -67,6 +78,23 @@ export function useSessionEventStream(
     setLiveBlocks([]);
   }, []);
 
+  const rebaseFromSnapshot = useCallback(() => {
+    resetLive();
+    setChatLive(false);
+    if (!sessionId) {
+      return;
+    }
+    void queryClient.invalidateQueries({
+      queryKey: ["session-transcript", sessionId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["session", sessionId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["session-execution-log-live", sessionId],
+    });
+  }, [queryClient, resetLive, sessionId]);
+
   useEffect(() => {
     resetLive();
     setChatLive(false);
@@ -75,9 +103,34 @@ export function useSessionEventStream(
   const applyChatEvent = useCallback(
     (evt: ChatStreamEvent) => {
       if (evt.kind === "turn_done") {
-        resetLive();
         setChatLive(false);
         onTurnDone?.();
+        if (sessionId) {
+          void Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: ["session-transcript", sessionId],
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["session", sessionId],
+            }),
+          ]).then(() => {
+            const cached = queryClient.getQueryData<{ session: SessionDetail }>([
+              "session",
+              sessionId,
+            ]);
+            if (cached?.session?.status !== "running") {
+              resetLive();
+            }
+          });
+        } else {
+          resetLive();
+        }
+        return;
+      }
+      if (evt.kind === "session_error") {
+        setChatLive(false);
+        blocksRef.current = applyChatStreamEvent(blocksRef.current, evt);
+        setLiveBlocks([...blocksRef.current]);
         if (sessionId) {
           void queryClient.invalidateQueries({
             queryKey: ["session-transcript", sessionId],
@@ -206,6 +259,14 @@ export function useSessionEventStream(
     onProjectEvent,
     scope === "conversation" ? onChatEvent : undefined,
   );
+
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (shouldRebaseLiveOnSseReconnect(prev, status)) {
+      rebaseFromSnapshot();
+    }
+  }, [rebaseFromSnapshot, status]);
 
   const connected = status === "live" || status === "connecting";
 

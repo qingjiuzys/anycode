@@ -28,8 +28,8 @@ import {
 } from "@/lib/sessionQuery";
 import { sanitizeAssistantDisplay } from "@/lib/assistantText";
 import { humanizeTranscriptError } from "@/lib/transcriptError";
-import { mergeTranscriptBlocks, hasLiveStreamActivity } from "@/lib/liveTranscript";
-import { findActiveToolInReplies } from "@/lib/transcriptGrouping";
+import { resolveTranscriptBlocks, hasTurnStreamActivity } from "@/lib/liveTranscript";
+import { findActiveToolInExecutionLog, findActiveToolInReplies } from "@/lib/transcriptGrouping";
 import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { useLocale, useT } from "@/i18n/context";
 
@@ -75,7 +75,6 @@ export function ConversationTranscript({
   const running = Boolean(isRunning);
   const streamLive = sseLive || chatStreamLive;
   const pollWhileRunning = running && !streamLive;
-  const lightPollWhileRunning = running && streamLive;
 
   const transcript = useQuery({
     ...transcriptQueryOptions(sessionId!, running),
@@ -88,18 +87,18 @@ export function ConversationTranscript({
   const liveLog = useQuery({
     queryKey: ["session-execution-log-live", sessionId],
     queryFn: () => api.sessionExecutionLog(sessionId!, { offset: 0, limit: 120 }),
-    enabled: Boolean(sessionId) && Boolean(isRunning),
+    enabled: Boolean(sessionId) && Boolean(isRunning) && !streamLive,
     staleTime: running ? 3_000 : transcriptStaleTime(false),
     gcTime: SESSION_QUERY_GC_MS,
     placeholderData: (prev) => prev,
-    refetchInterval: pollWhileRunning ? 4_000 : lightPollWhileRunning ? 12_000 : false,
+    refetchInterval: pollWhileRunning ? 4_000 : false,
     refetchIntervalInBackground: false,
   });
 
   const blocks = useMemo(() => {
     const snapshot = transcript.data?.transcript.blocks ?? [];
-    return mergeTranscriptBlocks(snapshot, liveBlocks);
-  }, [liveBlocks, transcript.data?.transcript.blocks]);
+    return resolveTranscriptBlocks(snapshot, liveBlocks, streamLive);
+  }, [liveBlocks, streamLive, transcript.data?.transcript.blocks]);
   const lifecycleCount = transcript.data?.transcript.lifecycle?.length ?? 0;
   const turns = useMemo(() => blocksToTurns(blocks), [blocks]);
   const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
@@ -108,15 +107,19 @@ export function ConversationTranscript({
     [lastTurn],
   );
   const activeToolFromLog = useMemo(
-    () => findActiveTool(liveLog.data?.execution_log.lines ?? []),
+    () => findActiveToolInExecutionLog(liveLog.data?.execution_log.lines ?? []),
     [liveLog.data?.execution_log.lines],
   );
   const activeTool = activeToolFromReplies ?? activeToolFromLog;
-  const streamHasActivity = hasLiveStreamActivity(liveBlocks);
+  const turnHasActivity = hasTurnStreamActivity(
+    liveBlocks,
+    activeTool,
+    lastTurn?.replies ?? [],
+  );
 
   const stalledSeconds = useStalledSeconds(
     Boolean(isRunning),
-    `${blocks.length}:${liveLog.data?.execution_log.lines.length ?? 0}:${activeTool ?? ""}:${streamHasActivity}`,
+    `${blocks.length}:${liveLog.data?.execution_log.lines.length ?? 0}:${activeTool ?? ""}:${turnHasActivity}`,
   );
   const lastUserPrompt =
     turns.length > 0 ? turns[turns.length - 1].user.body : null;
@@ -199,7 +202,7 @@ export function ConversationTranscript({
 
   const tail = (
     <>
-      {isRunning && stalledSeconds >= STALL_WARN_SECONDS && (
+      {isRunning && stalledSeconds >= STALL_WARN_SECONDS && !activeTool && (
         <div className="flex w-full justify-start">
           <div className="max-w-[min(100%,42rem)] w-full">
             <StalledIndicator
@@ -255,7 +258,7 @@ export function ConversationTranscript({
                 turn={turn}
                 isLast={item.index === turns.length - 1}
                 isRunning={Boolean(isRunning)}
-                streamHasActivity={streamHasActivity}
+                streamHasActivity={turnHasActivity}
                 sessionId={sessionId}
                 selectedToolId={selectedToolId}
                 onSelectTool={onSelectTool}
@@ -279,7 +282,7 @@ export function ConversationTranscript({
           turn={turn}
           isLast={index === turns.length - 1}
           isRunning={Boolean(isRunning)}
-          streamHasActivity={streamHasActivity}
+          streamHasActivity={turnHasActivity}
           sessionId={sessionId}
           selectedToolId={selectedToolId}
           onSelectTool={onSelectTool}
@@ -310,7 +313,6 @@ function ConversationTurnView({
 }) {
   const t = useT();
   const replyItems = useMemo(() => groupTurnReplies(turn.replies), [turn.replies]);
-  const hasToolCluster = replyItems.some((item) => item.kind === "tool_cluster");
   const hasRunningTool = findActiveToolInReplies(turn.replies) !== null;
   const hasAssistantText = replyItems.some(
     (item) =>
@@ -319,11 +321,7 @@ function ConversationTurnView({
       item.block.body.trim().length > 0,
   );
   const showTurnWaiting =
-    isLast &&
-    isRunning &&
-    !streamHasActivity &&
-    !hasAssistantText &&
-    (!hasRunningTool || hasToolCluster);
+    isLast && isRunning && !streamHasActivity && !hasAssistantText;
   const showThinkingOnly =
     isLast && isRunning && streamHasActivity && !hasAssistantText && !hasRunningTool;
 
@@ -725,26 +723,6 @@ function isReplyBlock(blockType: string): boolean {
     "tool_result",
     "system_notice",
   ].includes(blockType);
-}
-
-function findActiveTool(
-  lines: { event_type?: string | null; title?: string | null; raw: string }[],
-): string | null {
-  let lastStart: string | null = null;
-  for (const line of lines) {
-    if (line.event_type === "tool_call_start") {
-      const fromRaw = line.raw.match(/name=([^\s]+)/)?.[1];
-      lastStart =
-        fromRaw ||
-        line.title?.replace(/\s+started$/i, "") ||
-        line.title ||
-        null;
-    }
-    if (line.event_type === "tool_call_end") {
-      lastStart = null;
-    }
-  }
-  return lastStart;
 }
 
 function isGeoProviderError(text: string): boolean {

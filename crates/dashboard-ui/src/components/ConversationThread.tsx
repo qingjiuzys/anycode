@@ -1,4 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/client";
 import { Link } from "@tanstack/react-router";
 import type { SessionWithProject } from "@/api/types";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
@@ -10,6 +12,8 @@ import { SessionStatusBadges } from "@/components/ui/StatusBadge";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
 import { sessionDetailSearch } from "@/lib/sessionLinks";
+import { findActiveToolInExecutionLog } from "@/lib/transcriptGrouping";
+import { hasTurnStreamActivity } from "@/lib/liveTranscript";
 
 interface Props {
   sessions: SessionWithProject[];
@@ -174,7 +178,20 @@ export function ConversationThread({
   const running =
     session.status === "running" ||
     (chatStreamLive && liveBlocks.length > 0);
-  const hideComposerWaiting = chatStreamLive || liveBlocks.length > 0;
+  const streamLive = sseLive || chatStreamLive;
+
+  const liveLog = useQuery({
+    queryKey: ["session-execution-log-live", session.id],
+    queryFn: () => api.sessionExecutionLog(session.id, { offset: 0, limit: 120 }),
+    enabled: session.status === "running" && !streamLive,
+    staleTime: 3_000,
+    refetchInterval: session.status === "running" && !streamLive ? 4_000 : false,
+    refetchIntervalInBackground: false,
+  });
+  const activeTool = streamLive
+    ? null
+    : findActiveToolInExecutionLog(liveLog.data?.execution_log.lines ?? []);
+  const hideComposerWaiting = hasTurnStreamActivity(liveBlocks, activeTool);
 
   return (
     <div className="flex flex-col h-full min-h-0">

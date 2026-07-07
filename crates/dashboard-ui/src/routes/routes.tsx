@@ -382,6 +382,7 @@ export const settingsRoute = createRoute({
       "notify",
       "channels",
       "gates",
+      "plugins",
       "ops",
     ] as const;
     if (typeof section === "string" && (valid as readonly string[]).includes(section)) {

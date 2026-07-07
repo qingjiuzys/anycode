@@ -70,6 +70,24 @@ pub(crate) fn emit_tool_call_start(
     );
 }
 
+pub(crate) fn emit_tool_call_progress(
+    tx: &Option<UnboundedSender<LiveTraceEvent>>,
+    turn: usize,
+    tool_idx: usize,
+    tool_call: &ToolCall,
+    elapsed_ms: u128,
+) {
+    try_emit(
+        tx,
+        LiveTraceEvent::ToolCallProgress {
+            turn: turn as u32,
+            idx: tool_idx as u32,
+            name: tool_call.name.clone(),
+            elapsed_ms: elapsed_ms.min(u64::MAX as u128) as u64,
+        },
+    );
+}
+
 pub(crate) fn emit_tool_call_end(
     tx: &Option<UnboundedSender<LiveTraceEvent>>,
     turn: usize,

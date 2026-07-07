@@ -7,6 +7,7 @@ use super::agentic_turn::{
 use super::artifacts::extract_artifacts;
 use super::budget::{tick_budget, tool_blocked_under_degrade};
 use super::evidence;
+use super::live_trace_emit::emit_tool_call_progress;
 use super::logging::RunLogger;
 use super::session_activity::{ActivityReason, SessionActivityGuard};
 use super::tool_result_injection;
@@ -15,8 +16,53 @@ use anycode_core::prelude::*;
 use futures::future::join_all;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 const MAX_READONLY_TOOL_CONCURRENCY: usize = 10;
+const TOOL_PROGRESS_INTERVAL: Duration = Duration::from_secs(2);
+
+fn spawn_tool_progress(
+    live_trace_tx: &Option<tokio::sync::mpsc::UnboundedSender<LiveTraceEvent>>,
+    turn: usize,
+    tool_idx: usize,
+    tool_call: &ToolCall,
+    t0: Instant,
+) -> (
+    tokio::sync::oneshot::Sender<()>,
+    tokio::task::JoinHandle<()>,
+) {
+    let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
+    let live_tx = live_trace_tx.clone();
+    let tool_call = tool_call.clone();
+    let handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(TOOL_PROGRESS_INTERVAL);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        interval.tick().await;
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    emit_tool_call_progress(
+                        &live_tx,
+                        turn,
+                        tool_idx,
+                        &tool_call,
+                        t0.elapsed().as_millis(),
+                    );
+                }
+                _ = &mut done_rx => break,
+            }
+        }
+    });
+    (done_tx, handle)
+}
+
+fn stop_tool_progress(
+    done_tx: tokio::sync::oneshot::Sender<()>,
+    handle: tokio::task::JoinHandle<()>,
+) {
+    let _ = done_tx.send(());
+    handle.abort();
+}
 
 /// How a tool responds to cooperative cancel while running.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -292,35 +338,44 @@ impl AgentRuntime {
         );
 
         let policy = tool_cancel_policy(&tool_call.name);
-        let t0 = std::time::Instant::now();
+        let t0 = Instant::now();
+        let (progress_done, progress_handle) =
+            spawn_tool_progress(&ctx.live_trace_tx, ctx.turn, tool_idx, tool_call, t0);
 
         let tool_result = if policy == ToolCancelPolicy::Cancel {
             tokio::select! {
                 biased;
-                _ = wait_cancel_flag(cancel.clone_flag()) => synthetic_tool_output("cooperative_cancel"),
+                _ = wait_cancel_flag(cancel.clone_flag()) => {
+                    stop_tool_progress(progress_done, progress_handle);
+                    synthetic_tool_output("cooperative_cancel")
+                }
                 result = self.execute_tool_call(
                     ctx.task_id,
                     ctx.agent_type,
                     ctx.working_directory,
                     tool_call,
-                ) => match result {
+                ) => {
+                    stop_tool_progress(progress_done, progress_handle);
+                    match result {
                     Ok(out) => out,
                     Err(e) => {
                         logger.turn_error(ctx.task_id, ctx.turn, &tool_call.name, &e.to_string());
                         synthetic_tool_error(&e)
                     }
-                },
+                }
+                }
             }
         } else {
-            match self
+            let result = self
                 .execute_tool_call(
                     ctx.task_id,
                     ctx.agent_type,
                     ctx.working_directory,
                     tool_call,
                 )
-                .await
-            {
+                .await;
+            stop_tool_progress(progress_done, progress_handle);
+            match result {
                 Ok(out) => out,
                 Err(e) => {
                     logger.turn_error(ctx.task_id, ctx.turn, &tool_call.name, &e.to_string());

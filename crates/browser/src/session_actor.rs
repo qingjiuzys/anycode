@@ -161,11 +161,11 @@ impl SessionActorHandle {
     }
 
     pub async fn list_tabs(&self) -> BrowserResult<Vec<BrowserTabInfo>> {
-        self.send(|r| ActorCmd::ListTabs(r)).await
+        self.send(ActorCmd::ListTabs).await
     }
 
     pub async fn new_tab(&self) -> BrowserResult<String> {
-        self.send(|r| ActorCmd::NewTab(r)).await
+        self.send(ActorCmd::NewTab).await
     }
 
     pub async fn close_tab(&self, tab_id: &str) -> BrowserResult<()> {
@@ -193,7 +193,7 @@ impl SessionActorHandle {
     }
 
     pub async fn state(&self) -> BrowserResult<BrowserState> {
-        self.send(|r| ActorCmd::State(r)).await
+        self.send(ActorCmd::State).await
     }
 
     pub async fn snapshot(&self, root_ref: Option<&str>) -> BrowserResult<BrowserSnapshot> {
@@ -205,7 +205,7 @@ impl SessionActorHandle {
     }
 
     pub async fn screenshot(&self) -> BrowserResult<BrowserScreenshot> {
-        self.send(|r| ActorCmd::Screenshot(r)).await
+        self.send(ActorCmd::Screenshot).await
     }
 
     pub async fn click(&self, ref_id: &str) -> BrowserResult<()> {

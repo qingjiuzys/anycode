@@ -102,10 +102,23 @@ async fn run_inner(
         );
     }
     if let Ok(running) = db.list_running_sessions(500).await {
+        let mut reconciled = 0usize;
         for session in running {
             if !crate::cancel_ipc::is_active(&session.id) {
-                let _ = db.cancel_running_session(&session.id).await;
+                if db
+                    .cancel_running_session(&session.id)
+                    .await
+                    .unwrap_or(false)
+                {
+                    reconciled += 1;
+                }
             }
+        }
+        if reconciled > 0 {
+            info!(
+                count = reconciled,
+                "reconciled orphan running sessions after dashboard restart"
+            );
         }
     }
     let _ = db.reconcile_local_services("dashboard").await;

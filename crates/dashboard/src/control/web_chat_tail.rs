@@ -127,6 +127,7 @@ async fn run_tail(
                     events.publish_chat(assistant_delta_event(
                         &session_id,
                         &project_id,
+                        0,
                         assistant_turn,
                         &delta,
                         &assistant_text,
@@ -147,6 +148,7 @@ async fn run_tail(
                         events.publish_chat(assistant_delta_event(
                             &session_id,
                             &project_id,
+                            0,
                             assistant_turn,
                             &delta,
                             &assistant_text,

@@ -132,6 +132,7 @@ pub fn chat_event_from_parsed_line(
         return Some(assistant_delta_event(
             session_id,
             project_id,
+            0,
             turn,
             &parsed.body,
             &parsed.body,
@@ -173,6 +174,7 @@ pub fn chat_event_from_parsed_line(
 pub fn chat_event_from_live_trace(
     session_id: &str,
     project_id: &str,
+    user_turn_id: u32,
     evt: &anycode_core::LiveTraceEvent,
     assistant_buffers: &mut std::collections::HashMap<u32, String>,
 ) -> Option<ChatStreamEvent> {
@@ -182,7 +184,12 @@ pub fn chat_event_from_live_trace(
             let full = assistant_buffers.entry(*turn).or_default();
             full.push_str(delta);
             Some(assistant_delta_event(
-                session_id, project_id, *turn, delta, full,
+                session_id,
+                project_id,
+                user_turn_id,
+                *turn,
+                delta,
+                full,
             ))
         }
         anycode_core::LiveTraceEvent::AssistantDone { turn, text } => {
@@ -196,17 +203,17 @@ pub fn chat_event_from_live_trace(
                 tool_name: None,
                 text: Some(text.clone()),
                 block: Some(TranscriptBlock {
-                    id: format!("assistant-live:{turn}"),
+                    id: live_assistant_block_id(user_turn_id, *turn),
                     block_type: "assistant_message".into(),
                     at: at.clone(),
                     title: format!("Assistant (turn {turn})"),
                     body: text.clone(),
-                    meta: json!({ "live": false, "turn": turn }),
+                    meta: live_assistant_meta(user_turn_id, *turn, false),
                     collapsible: false,
                     default_collapsed: false,
                     event_id: None,
                 }),
-                payload: json!({ "turn": turn }),
+                payload: json!({ "turn": turn, "user_turn_id": user_turn_id }),
                 at,
             })
         }
@@ -216,8 +223,8 @@ pub fn chat_event_from_live_trace(
             name,
             input_preview,
         } => {
-            let tool_key = format!("{turn}:{idx}");
-            let id = format!("tool-live:{turn}:{idx}:call");
+            let tool_key = live_tool_key(user_turn_id, *turn, *idx);
+            let id = live_tool_block_id(user_turn_id, *turn, *idx, "call");
             Some(ChatStreamEvent {
                 session_id: session_id.to_string(),
                 project_id: project_id.to_string(),
@@ -233,7 +240,12 @@ pub fn chat_event_from_live_trace(
                     title: format!("{name} started"),
                     body: input_preview.clone(),
                     meta: merge_tool_meta(
-                        &json!({ "turn": turn.to_string(), "idx": idx.to_string(), "name": name }),
+                        &json!({
+                            "turn": turn.to_string(),
+                            "idx": idx.to_string(),
+                            "name": name,
+                            "user_turn_id": user_turn_id.to_string(),
+                        }),
                         Some(*turn),
                         Some(&tool_key),
                         "start",
@@ -242,7 +254,56 @@ pub fn chat_event_from_live_trace(
                     default_collapsed: true,
                     event_id: None,
                 }),
-                payload: json!({ "turn": turn, "idx": idx, "name": name }),
+                payload: json!({ "turn": turn, "idx": idx, "name": name, "user_turn_id": user_turn_id }),
+                at,
+            })
+        }
+        anycode_core::LiveTraceEvent::ToolCallProgress {
+            turn,
+            idx,
+            name,
+            elapsed_ms,
+        } => {
+            let tool_key = live_tool_key(user_turn_id, *turn, *idx);
+            let id = live_tool_block_id(user_turn_id, *turn, *idx, "call");
+            Some(ChatStreamEvent {
+                session_id: session_id.to_string(),
+                project_id: project_id.to_string(),
+                kind: "tool_progress".into(),
+                turn: Some(*turn),
+                tool_key: Some(tool_key.clone()),
+                tool_name: Some(name.clone()),
+                text: None,
+                block: Some(TranscriptBlock {
+                    id,
+                    block_type: "tool_call".into(),
+                    at: at.clone(),
+                    title: format!("{name} started"),
+                    body: String::new(),
+                    meta: merge_tool_meta(
+                        &json!({
+                            "turn": turn.to_string(),
+                            "idx": idx.to_string(),
+                            "name": name,
+                            "elapsed_ms": elapsed_ms,
+                            "duration_ms": elapsed_ms.to_string(),
+                            "user_turn_id": user_turn_id.to_string(),
+                        }),
+                        Some(*turn),
+                        Some(&tool_key),
+                        "running",
+                    ),
+                    collapsible: true,
+                    default_collapsed: true,
+                    event_id: None,
+                }),
+                payload: json!({
+                    "turn": turn,
+                    "idx": idx,
+                    "name": name,
+                    "elapsed_ms": elapsed_ms,
+                    "user_turn_id": user_turn_id,
+                }),
                 at,
             })
         }
@@ -254,8 +315,8 @@ pub fn chat_event_from_live_trace(
             error,
             output_preview,
         } => {
-            let tool_key = format!("{turn}:{idx}");
-            let id = format!("tool-live:{turn}:{idx}:result");
+            let tool_key = live_tool_key(user_turn_id, *turn, *idx);
+            let id = live_tool_block_id(user_turn_id, *turn, *idx, "result");
             let failed = error.is_some();
             let body = if failed {
                 error.clone().unwrap_or_default()
@@ -288,6 +349,7 @@ pub fn chat_event_from_live_trace(
                             "elapsed_ms": elapsed_ms,
                             "duration_ms": elapsed_ms.to_string(),
                             "output_preview": output_preview,
+                            "user_turn_id": user_turn_id.to_string(),
                         }),
                         Some(*turn),
                         Some(&tool_key),
@@ -297,7 +359,7 @@ pub fn chat_event_from_live_trace(
                     default_collapsed: true,
                     event_id: None,
                 }),
-                payload: json!({ "turn": turn, "idx": idx, "name": name, "elapsed_ms": elapsed_ms }),
+                payload: json!({ "turn": turn, "idx": idx, "name": name, "elapsed_ms": elapsed_ms, "user_turn_id": user_turn_id }),
                 at,
             })
         }
@@ -310,7 +372,7 @@ pub fn chat_event_from_live_trace(
             tool_name: None,
             text: Some(status.clone()),
             block: None,
-            payload: json!({ "status": status }),
+            payload: json!({ "status": status, "user_turn_id": user_turn_id }),
             at,
         }),
         anycode_core::LiveTraceEvent::TurnStart { .. } => None,
@@ -323,25 +385,55 @@ pub fn chat_event_from_live_trace(
             tool_name: None,
             text: None,
             block: Some(TranscriptBlock {
-                id: format!("llm-start:{turn}"),
+                id: format!("llm-start:u{user_turn_id}:{turn}"),
                 block_type: "system_notice".into(),
                 at: at.clone(),
                 title: "Thinking".into(),
                 body: String::new(),
-                meta: json!({ "source": "llm_start", "live": true, "turn": turn }),
+                meta: json!({
+                    "source": "llm_start",
+                    "live": true,
+                    "turn": turn,
+                    "user_turn_id": user_turn_id.to_string(),
+                }),
                 collapsible: false,
                 default_collapsed: false,
                 event_id: None,
             }),
-            payload: json!({ "turn": turn }),
+            payload: json!({ "turn": turn, "user_turn_id": user_turn_id }),
             at,
         }),
     }
 }
 
+#[must_use]
+pub fn live_tool_key(user_turn_id: u32, turn: u32, idx: u32) -> String {
+    format!("u{user_turn_id}:{turn}:{idx}")
+}
+
+#[must_use]
+pub fn live_tool_block_id(user_turn_id: u32, turn: u32, idx: u32, phase: &str) -> String {
+    format!("tool-live:u{user_turn_id}:{turn}:{idx}:{phase}")
+}
+
+#[must_use]
+pub fn live_assistant_block_id(user_turn_id: u32, turn: u32) -> String {
+    format!("assistant-live:u{user_turn_id}:{turn}")
+}
+
+fn live_assistant_meta(user_turn_id: u32, turn: u32, live: bool) -> serde_json::Value {
+    json!({
+        "live": live,
+        "turn": turn,
+        "user_turn_id": user_turn_id.to_string(),
+        "source": if live { serde_json::Value::String("llm_start".into()) } else { serde_json::Value::Null },
+    })
+}
+
 pub fn assistant_delta_event(
     session_id: &str,
     project_id: &str,
+    user_turn_id: u32,
     turn: u32,
     delta: &str,
     full_text: &str,
@@ -355,17 +447,17 @@ pub fn assistant_delta_event(
         tool_name: None,
         text: Some(delta.to_string()),
         block: Some(TranscriptBlock {
-            id: format!("assistant-live:{turn}"),
+            id: live_assistant_block_id(user_turn_id, turn),
             block_type: "assistant_message".into(),
             at: Utc::now().to_rfc3339(),
             title: format!("Assistant (turn {turn})"),
             body: full_text.to_string(),
-            meta: json!({ "live": true, "turn": turn }),
+            meta: live_assistant_meta(user_turn_id, turn, true),
             collapsible: false,
             default_collapsed: false,
             event_id: None,
         }),
-        payload: json!({ "turn": turn, "delta": delta }),
+        payload: json!({ "turn": turn, "delta": delta, "user_turn_id": user_turn_id }),
         at: Utc::now().to_rfc3339(),
     }
 }
@@ -467,6 +559,7 @@ mod tests {
         let chat = chat_event_from_live_trace(
             "s1",
             "p1",
+            3,
             &anycode_core::LiveTraceEvent::ToolCallStart {
                 turn: 2,
                 idx: 1,
@@ -477,6 +570,6 @@ mod tests {
         )
         .expect("mapped");
         assert_eq!(chat.kind, "tool_start");
-        assert_eq!(chat.tool_key.as_deref(), Some("2:1"));
+        assert_eq!(chat.tool_key.as_deref(), Some("u3:2:1"));
     }
 }

@@ -106,6 +106,7 @@ function SessionFirstShell() {
           </main>
         </div>
         <ControlCenterOverlay />
+        <ControlCenterButton />
       </div>
     </ConversationShellProvider>
   );
