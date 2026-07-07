@@ -27,6 +27,7 @@ impl DashboardServerState {
 }
 
 pub fn apply_dashboard_env(app: &AppHandle) {
+    apply_local_account_env_if_unset();
     if let Some(tpl) = resolve_resource_path(
         app,
         &[
@@ -113,4 +114,60 @@ fn resolve_resource_path(app: &AppHandle, candidates: &[&str]) -> Option<PathBuf
         }
     }
     None
+}
+
+/// When launched from Finder/DMG, shell env is empty. If a local account-service is
+/// listening on loopback, point Workbench cloud login at it instead of anycode.work.
+fn apply_local_account_env_if_unset() {
+    if std::env::var("ANYCODE_ACCOUNT_API_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .is_some()
+    {
+        return;
+    }
+
+    let Some(health_body) = http_get_body("127.0.0.1", 43200, "/health") else {
+        return;
+    };
+    let Ok(health) = serde_json::from_str::<serde_json::Value>(&health_body) else {
+        return;
+    };
+    if health.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+        return;
+    }
+
+    std::env::set_var("ANYCODE_ACCOUNT_API_URL", "http://127.0.0.1:43200");
+
+    let portal = if http_get_body("127.0.0.1", 43201, "/login").is_some() {
+        "http://127.0.0.1:43201".into()
+    } else if let Some(url) = health
+        .get("portal_url")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        url.trim_end_matches('/').to_string()
+    } else {
+        "http://127.0.0.1:43200".into()
+    };
+    std::env::set_var("ANYCODE_ACCOUNT_PORTAL_URL", portal);
+}
+
+fn http_get_body(host: &str, port: u16, path: &str) -> Option<String> {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let mut stream = TcpStream::connect((host, port)).ok()?;
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(800)));
+    let req = format!(
+        "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(req.as_bytes()).ok()?;
+    let mut raw = String::new();
+    stream.read_to_string(&mut raw).ok()?;
+    let (_head, body) = raw.split_once("\r\n\r\n")?;
+    Some(body.to_string())
 }

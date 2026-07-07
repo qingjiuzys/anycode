@@ -173,6 +173,10 @@ step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -ec
   cargo tauri build -- --profile "'"$TAURI_PROFILE"'"
 '
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  step "repackage DMG with Applications drag target" "$ROOT/scripts/package-desktop-dmg.sh"
+fi
+
 TOTAL=$((SECONDS - BUILD_START))
 echo "Done in ${TOTAL}s. Bundles under ${BUNDLE_DIR}/"
 echo "  DMG: ${BUNDLE_DIR}/dmg/anyCode_*_aarch64.dmg"
