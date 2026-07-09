@@ -19,6 +19,14 @@ export const FALLBACK_PROJECT_TEMPLATES: ProjectTemplateOption[] = [
       "Agent 自主 Flutter：创建时仅骨架，由 Agent 安装 SDK 与平台目录，再跑门禁与 Goal。",
     default_dir: "my_flutter_app",
   },
+  {
+    id: "web-app",
+    name: "Web App",
+    name_zh: "Web 应用",
+    description: "Agent-first web MVP: Vite + React skeleton, implement features, then run dev server.",
+    description_zh: "Agent 自主 Web 应用：Vite + React 骨架，实现功能后启动开发服务器。",
+    default_dir: "my_web_app",
+  },
 ];
 
 export function resolveProjectTemplates(

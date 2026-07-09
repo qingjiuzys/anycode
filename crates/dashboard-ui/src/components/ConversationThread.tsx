@@ -8,12 +8,16 @@ import { ConversationComposer } from "@/components/ConversationComposer";
 import { ConversationTranscript } from "@/components/ConversationTranscript";
 import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
 import { Icon } from "@/components/Icon";
-import { SessionStatusBadges } from "@/components/ui/StatusBadge";
+import { SessionStatusBadges, SessionRunningDots } from "@/components/ui/StatusBadge";
 import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
 import { sessionDetailSearch } from "@/lib/sessionLinks";
 import { findActiveToolInExecutionLog } from "@/lib/transcriptGrouping";
 import { hasTurnStreamActivity } from "@/lib/liveTranscript";
+import {
+  conversationStreamLive,
+  conversationThreadRunning,
+} from "@/hooks/useSessionEventStream";
 
 interface Props {
   sessions: SessionWithProject[];
@@ -21,9 +25,17 @@ interface Props {
   onSelect: (id: string) => void;
   pendingCounts?: Map<string, number>;
   onPrefetch?: (sessionId: string, isRunning: boolean) => void;
+  optimisticStreamingSessionId?: string | null;
 }
 
 type SessionGroup = "today" | "week" | "earlier";
+
+function sessionRunningVisual(
+  session: SessionWithProject,
+  optimisticStreamingSessionId?: string | null,
+): boolean {
+  return session.status === "running" || optimisticStreamingSessionId === session.id;
+}
 
 function sessionGroupKey(startedAt: string): SessionGroup {
   const normalized = startedAt.includes("T") ? startedAt : startedAt.replace(" ", "T");
@@ -38,9 +50,9 @@ function sessionGroupKey(startedAt: string): SessionGroup {
   return "earlier";
 }
 
-function statusDotClass(status: string, trusted: string): string {
+function statusDotClass(status: string, trusted: string, runningVisual: boolean): string {
   if (trusted === "blocked") return "bg-error";
-  if (status === "running") return "bg-primary animate-pulse";
+  if (runningVisual) return "bg-primary animate-pulse";
   if (status === "failed") return "bg-error";
   if (status === "completed") return "bg-secondary";
   return "bg-outline";
@@ -52,6 +64,7 @@ export function ConversationSessionList({
   onSelect,
   pendingCounts,
   onPrefetch,
+  optimisticStreamingSessionId = null,
 }: Props) {
   const t = useT();
 
@@ -88,6 +101,9 @@ export function ConversationSessionList({
               {rows.map((s) => {
                 const active = s.id === selectedId;
                 const pending = pendingCounts?.get(s.id) ?? 0;
+                const runningVisual = sessionRunningVisual(s, optimisticStreamingSessionId);
+                const showAlertBadge =
+                  s.status === "failed" || s.trusted_status === "blocked" || pending > 0;
                 return (
                   <li key={s.id} className="group">
                     <button
@@ -97,35 +113,42 @@ export function ConversationSessionList({
                         onPrefetch?.(s.id, s.status === "running")
                       }
                       onFocus={() => onPrefetch?.(s.id, s.status === "running")}
-                      className={`w-full text-left px-3 py-2 border-0 cursor-pointer transition-colors flex items-center gap-2 min-w-0 ${
+                      className={`w-full text-left px-3 py-2 border-0 cursor-pointer transition-colors flex items-start gap-2 min-w-0 ${
                         active
                           ? "bg-surface-container-high"
                           : "bg-transparent hover:bg-surface-container-low"
-                      }`}
+                      }${runningVisual ? " dw-session-row--running" : ""}`}
                     >
                       <span
-                        className={`shrink-0 w-2 h-2 rounded-full ${statusDotClass(s.status, s.trusted_status)}`}
+                        className={`shrink-0 w-2 h-2 rounded-full mt-1.5 ${statusDotClass(s.status, s.trusted_status, runningVisual)}`}
                         title={s.status}
                       />
                       <span className="min-w-0 flex-1">
                         <span className="text-sm font-medium truncate block">
                           {s.title || s.id}
                         </span>
-                        <span className="text-[11px] text-secondary truncate block">
-                          {formatRelativeTime(s.started_at)}
-                          {pending > 0 && (
-                            <span className="text-warn ml-1">
-                              · {t("home.securityPendingBadge").replace("{n}", String(pending))}
-                            </span>
-                          )}
-                        </span>
+                        {pending > 0 && (
+                          <span className="text-[11px] text-warn truncate block mt-0.5">
+                            {t("home.securityPendingBadge").replace("{n}", String(pending))}
+                          </span>
+                        )}
                       </span>
-                      <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <SessionStatusBadges
-                          status={s.status}
-                          trustedStatus={s.trusted_status}
-                          pendingApprovalCount={pending}
-                        />
+                      <span className="shrink-0 flex flex-col items-end gap-1 pt-0.5 min-w-[2.75rem]">
+                        {runningVisual ? (
+                          <SessionRunningDots />
+                        ) : (
+                          <span className="text-[11px] text-secondary tabular-nums">
+                            {formatRelativeTime(s.started_at)}
+                          </span>
+                        )}
+                        {showAlertBadge && (
+                          <SessionStatusBadges
+                            variant="sidebar"
+                            status={s.status}
+                            trustedStatus={s.trusted_status}
+                            pendingApprovalCount={pending}
+                          />
+                        )}
                       </span>
                     </button>
                   </li>
@@ -145,7 +168,9 @@ export function ConversationThread({
   showHeader = true,
   sseLive = false,
   liveBlocks = [],
+  liveEvents = [],
   chatStreamLive = false,
+  isOptimisticStreaming = false,
   markSessionStreaming,
   toolbarStart,
   selectedToolId,
@@ -156,7 +181,9 @@ export function ConversationThread({
   showHeader?: boolean;
   sseLive?: boolean;
   liveBlocks?: import("@/api/types").TranscriptBlock[];
+  liveEvents?: import("@/lib/liveTranscript").ChatStreamEvent[];
   chatStreamLive?: boolean;
+  isOptimisticStreaming?: boolean;
   markSessionStreaming?: (sessionId: string) => void;
   toolbarStart?: ReactNode;
   selectedToolId?: string | null;
@@ -175,10 +202,12 @@ export function ConversationThread({
     );
   }
 
-  const running =
-    session.status === "running" ||
-    (chatStreamLive && liveBlocks.length > 0);
-  const streamLive = sseLive || chatStreamLive;
+  const running = conversationThreadRunning(
+    session.status,
+    session.id,
+    isOptimisticStreaming ? session.id : null,
+  );
+  const streamLive = conversationStreamLive(chatStreamLive, sseLive, running);
 
   const liveLog = useQuery({
     queryKey: ["session-execution-log-live", session.id],
@@ -271,9 +300,9 @@ export function ConversationThread({
           <ConversationTranscript
             sessionId={session.id}
             isRunning={running}
-            sseLive={sseLive}
+            streamLive={streamLive}
             liveBlocks={liveBlocks}
-            chatStreamLive={chatStreamLive}
+            liveEvents={liveEvents}
             scrollContainerRef={scrollRef}
             promptPreview={session.prompt_preview}
             selectedToolId={selectedToolId}
@@ -283,13 +312,15 @@ export function ConversationThread({
       </div>
 
       <div className="shrink-0 border-t border-outline-variant bg-surface-container-low">
-        <ConversationComposer
+        <div className="max-w-4xl mx-auto w-full">
+          <ConversationComposer
           mode="follow-up"
           session={session}
           onSent={onFollowUpStarted}
           hideWaitingIndicator={hideComposerWaiting}
           onStreamingStart={markSessionStreaming}
         />
+        </div>
       </div>
     </div>
   );

@@ -49,8 +49,8 @@ On a project page, configure **knowledge paths** and **reindex**. Desktop releas
 | **Projects** | Workspaces, trust level, last activity | Open a project |
 | **Conversations** | Sessions grouped by project | Open a thread timeline |
 | **Automations** | Scheduled jobs, run history, guardrails | Create jobs, retry on failure |
-| **Assets** | Files the assistant changed | Review outputs |
-| **Reports** | Project/session reports | Export for sharing |
+| **Assets** | Deliverable files (PPTX, PDF, etc.) | Open outputs, filter unverified |
+| **Reports** | Summary exports (gates, trust, deliverables) | Share Markdown/HTML externally; files live under Assets / session panel |
 | **Audit** | Config change log | Trace policy edits |
 | **Agents / Skills** | Roles and local skill packs | See installed skills |
 | **Settings** | Login, models, notifications, ops | Change port, report format |

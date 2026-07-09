@@ -80,6 +80,7 @@ export interface SessionTranscriptResponse {
   session_id: string;
   blocks: TranscriptBlock[];
   lifecycle: TranscriptBlock[];
+  max_seq?: number | null;
 }
 
 export interface SessionSummaryFailure {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChatStreamEvent, hasLiveStreamActivity, hasTurnStreamActivity, mergeTranscriptBlocks, resolveTranscriptBlocks } from "@/lib/liveTranscript";
+import { applyChatStreamEvent, hasLiveStreamActivity, hasTurnStreamActivity, mergeTranscriptBlocks, resolveCanonicalTranscriptBlocks, resolveTranscriptBlocks } from "@/lib/liveTranscript";
 import type { TranscriptBlock } from "@/api/types";
 
 describe("applyChatStreamEvent", () => {
@@ -331,6 +331,63 @@ describe("mergeTranscriptBlocks", () => {
     ]);
     expect(merged[4]?.body).toBe("new glob");
     expect(merged[5]?.body).toBe("streaming answer");
+  });
+});
+
+describe("resolveCanonicalTranscriptBlocks", () => {
+  it("appends only events newer than snapshot max_seq", () => {
+    const snapshot = [
+      {
+        id: "u1",
+        block_type: "user_message",
+        at: "t0",
+        title: "User",
+        body: "hi",
+      },
+    ];
+    const liveEvents = [
+      {
+        session_id: "s1",
+        project_id: "p1",
+        kind: "assistant_delta",
+        turn: 1,
+        conversation_turn_id: 1,
+        seq: 1,
+        at: "t1",
+        text: "Hel",
+        block: {
+          id: "assistant-live:u1:1",
+          block_type: "assistant_message",
+          at: "t1",
+          title: "Assistant (turn 1)",
+          body: "Hel",
+          meta: { live: true, turn: 1, user_turn_id: "1" },
+        },
+      },
+      {
+        session_id: "s1",
+        project_id: "p1",
+        kind: "assistant_delta",
+        turn: 1,
+        conversation_turn_id: 1,
+        seq: 2,
+        at: "t2",
+        text: "lo",
+        block: {
+          id: "assistant-live:u1:1",
+          block_type: "assistant_message",
+          at: "t2",
+          title: "Assistant (turn 1)",
+          body: "Hello",
+          meta: { live: true, turn: 1, user_turn_id: "1" },
+        },
+      },
+    ];
+    expect(resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 1, true)).toHaveLength(2);
+    expect(
+      resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 1, true)[1]?.body,
+    ).toBe("Hello");
+    expect(resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 2, true)).toEqual(snapshot);
   });
 });
 

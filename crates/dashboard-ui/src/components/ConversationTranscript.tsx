@@ -28,7 +28,7 @@ import {
 } from "@/lib/sessionQuery";
 import { sanitizeAssistantDisplay } from "@/lib/assistantText";
 import { humanizeTranscriptError } from "@/lib/transcriptError";
-import { resolveTranscriptBlocks, hasTurnStreamActivity } from "@/lib/liveTranscript";
+import { resolveCanonicalTranscriptBlocks, hasTurnStreamActivity } from "@/lib/liveTranscript";
 import { findActiveToolInExecutionLog, findActiveToolInReplies } from "@/lib/transcriptGrouping";
 import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { useLocale, useT } from "@/i18n/context";
@@ -36,8 +36,11 @@ import { useLocale, useT } from "@/i18n/context";
 interface Props {
   sessionId: string | null;
   isRunning?: boolean;
+  /** Canonical merge / polling stream mode (prefer over raw sseLive + chatStreamLive). */
+  streamLive?: boolean;
   sseLive?: boolean;
   liveBlocks?: TranscriptBlock[];
+  liveEvents?: import("@/lib/liveTranscript").ChatStreamEvent[];
   chatStreamLive?: boolean;
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
   /** Shown while transcript loads (from session list). */
@@ -58,8 +61,10 @@ const COMPACT_TURN_ESTIMATE_PX = 140;
 export function ConversationTranscript({
   sessionId,
   isRunning,
+  streamLive: streamLiveOverride,
   sseLive = false,
   liveBlocks = [],
+  liveEvents = [],
   chatStreamLive = false,
   scrollContainerRef,
   promptPreview,
@@ -73,7 +78,8 @@ export function ConversationTranscript({
   const userNearBottomRef = useRef(true);
 
   const running = Boolean(isRunning);
-  const streamLive = sseLive || chatStreamLive;
+  const streamLive =
+    streamLiveOverride ?? (chatStreamLive || (sseLive && running));
   const pollWhileRunning = running && !streamLive;
 
   const transcript = useQuery({
@@ -97,8 +103,19 @@ export function ConversationTranscript({
 
   const blocks = useMemo(() => {
     const snapshot = transcript.data?.transcript.blocks ?? [];
-    return resolveTranscriptBlocks(snapshot, liveBlocks, streamLive);
-  }, [liveBlocks, streamLive, transcript.data?.transcript.blocks]);
+    const snapshotMaxSeq = transcript.data?.transcript.max_seq ?? 0;
+    return resolveCanonicalTranscriptBlocks(
+      snapshot,
+      liveEvents,
+      snapshotMaxSeq,
+      streamLive,
+    );
+  }, [
+    liveEvents,
+    streamLive,
+    transcript.data?.transcript.blocks,
+    transcript.data?.transcript.max_seq,
+  ]);
   const lifecycleCount = transcript.data?.transcript.lifecycle?.length ?? 0;
   const turns = useMemo(() => blocksToTurns(blocks), [blocks]);
   const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
@@ -320,10 +337,18 @@ function ConversationTurnView({
       item.block.block_type === "assistant_message" &&
       item.block.body.trim().length > 0,
   );
+  const hasThinkingCluster = replyItems.some(
+    (item) => item.kind === "tool_cluster" && item.processMessageCount > 0,
+  );
   const showTurnWaiting =
     isLast && isRunning && !streamHasActivity && !hasAssistantText;
   const showThinkingOnly =
-    isLast && isRunning && streamHasActivity && !hasAssistantText && !hasRunningTool;
+    isLast &&
+    isRunning &&
+    streamHasActivity &&
+    !hasAssistantText &&
+    !hasRunningTool &&
+    !hasThinkingCluster;
 
   return (
     <article className={`flex flex-col gap-2.5 ${isRunning && isLast ? "pb-4" : "pb-5"}`}>
@@ -444,17 +469,18 @@ function ReplyBubble({ block }: { block: TranscriptBlock }) {
 
   const isError = role === "error" || looksLikeError(block.body);
   const isLive = Boolean(block.meta?.live);
+  const isAssistant = block.block_type === "assistant_message";
   const collapseStats = useContentCollapse(displayBody);
-  const shouldCollapse = isLive
-    ? false
-    : collapseStats.lines > 20 || collapseStats.chars > 1200;
+  const shouldCollapse =
+    !isAssistant &&
+    !isLive &&
+    (collapseStats.lines > 20 || collapseStats.chars > 1200);
   const lines = collapseStats.lines;
   const usePanel =
     !isLive &&
-    (shouldCollapse ||
-      block.collapsible ||
-      block.default_collapsed ||
-      block.block_type === "system_notice");
+    (block.block_type === "system_notice" ||
+      (!isAssistant &&
+        (shouldCollapse || block.collapsible || block.default_collapsed)));
   const defaultOpen =
     isError ||
     (block.default_collapsed === true

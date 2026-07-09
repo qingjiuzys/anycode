@@ -480,7 +480,7 @@ export function ConversationComposer(props: Props) {
           value={message}
           onChange={(e) => onMessageChange(e.target.value)}
           disabled={running || pending}
-          rows={isStart ? 4 : 3}
+          rows={isStart ? 5 : 4}
           onKeyDown={onComposerKeyDown}
         />
         {attachedTextFiles.length > 0 && (

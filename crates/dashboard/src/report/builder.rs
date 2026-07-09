@@ -113,6 +113,7 @@ pub fn gate_rows(gates: &[GateRecord]) -> Vec<ReportGateRow> {
 pub fn artifact_rows(artifacts: &[ArtifactRecord]) -> Vec<ReportArtifactRow> {
     artifacts
         .iter()
+        .filter(|a| a.kind != "report")
         .take(20)
         .map(|a| ReportArtifactRow {
             path: a.path.clone(),

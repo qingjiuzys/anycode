@@ -1,7 +1,10 @@
 //! Bridge in-process [`LiveTraceEvent`] → dashboard `chat_event` SSE.
 
+use crate::db::DashboardDb;
 use crate::events::EventBus;
 use crate::observability::chat_events::chat_event_from_live_trace;
+use crate::observability::chat_turn_log::persist_and_enrich;
+use crate::schema::ChatStreamEvent;
 use anycode_core::LiveTraceEvent;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -36,8 +39,9 @@ impl BridgeState {
         }
     }
 
-    fn flush_pending_delta(
+    async fn flush_pending_delta(
         &mut self,
+        db: &DashboardDb,
         events: &EventBus,
         session_id: &str,
         project_id: &str,
@@ -62,13 +66,28 @@ impl BridgeState {
             "",
             &full,
         );
-        events.publish_chat(chat_evt);
+        publish_persisted(db, events, chat_evt, user_turn_id).await;
     }
 }
 
-/// Consume runtime live trace events and publish `chat_event` SSE immediately.
+async fn publish_persisted(
+    db: &DashboardDb,
+    events: &EventBus,
+    chat_evt: ChatStreamEvent,
+    conversation_turn_id: u32,
+) {
+    match persist_and_enrich(db, chat_evt, conversation_turn_id).await {
+        Ok(enriched) => events.publish_chat(enriched),
+        Err(error) => {
+            tracing::warn!(%error, "chat turn event persist failed");
+        }
+    }
+}
+
+/// Consume runtime live trace events, persist canonical events, then publish SSE.
 pub fn spawn_live_bridge(
     events: Arc<EventBus>,
+    db: DashboardDb,
     session_id: String,
     project_id: String,
     user_turn_id: u32,
@@ -93,7 +112,7 @@ pub fn spawn_live_bridge(
                                 &mut state.assistant_buffers,
                             ) {
                                 if state.should_flush_delta(*turn) {
-                                    events.publish_chat(chat_evt);
+                                    publish_persisted(&db, &events, chat_evt, user_turn_id).await;
                                 } else {
                                     state.pending_delta_turn = Some(*turn);
                                 }
@@ -102,7 +121,7 @@ pub fn spawn_live_bridge(
                         }
                         LiveTraceEvent::AssistantDone { .. }
                         | LiveTraceEvent::TurnDone { .. } => {
-                            state.flush_pending_delta(&events, &session_id, &project_id, user_turn_id);
+                            state.flush_pending_delta(&db, &events, &session_id, &project_id, user_turn_id).await;
                         }
                         _ => {}
                     }
@@ -113,17 +132,19 @@ pub fn spawn_live_bridge(
                         &evt,
                         &mut state.assistant_buffers,
                     ) {
-                        events.publish_chat(chat_evt);
+                        publish_persisted(&db, &events, chat_evt, user_turn_id).await;
                     }
                 }
                 _ = flush_timer.tick() => {
                     if state.pending_delta_turn.is_some() {
-                        state.flush_pending_delta(&events, &session_id, &project_id, user_turn_id);
+                        state.flush_pending_delta(&db, &events, &session_id, &project_id, user_turn_id).await;
                     }
                 }
             }
         }
-        state.flush_pending_delta(&events, &session_id, &project_id, user_turn_id);
+        state
+            .flush_pending_delta(&db, &events, &session_id, &project_id, user_turn_id)
+            .await;
     });
 }
 

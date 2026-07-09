@@ -37,7 +37,7 @@
   --color-warn-container: #fef9c3;
 
   --spacing-sidebar: 240px;
-  --spacing-session-sidebar: 280px;
+  --spacing-session-sidebar: 260px;
   --radius-sm: 0.125rem;
   --radius-default: 0.25rem;
   --radius-lg: 0.5rem;
@@ -219,7 +219,7 @@
   }
 
   .dw-brand-mark {
-    @apply h-8 w-8 shrink-0 rounded-md object-contain;
+    @apply h-8 w-8 shrink-0 object-contain;
   }
 
   .dw-brand-mark--sm {
@@ -258,10 +258,11 @@
 
   .dw-main-wrap--sessions {
     margin-left: var(--spacing-session-sidebar);
+    @apply flex flex-1 flex-col min-w-0 w-full overflow-hidden;
   }
 
   .dw-shell--sessions {
-    @apply flex h-full min-h-0 overflow-hidden;
+    @apply flex h-full min-h-0 w-full overflow-hidden;
   }
 
   .dw-session-sidebar {
@@ -284,6 +285,17 @@
 
   .dw-main--sessions {
     @apply max-w-none p-0 gap-0 overflow-hidden flex flex-col;
+  }
+
+  .dw-main--home {
+    @apply min-h-0 flex-1 overflow-y-auto overflow-x-hidden flex flex-col;
+    padding: 0 clamp(1rem, 3vw, 2rem) 1.5rem;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-home-stage {
+    @apply w-full max-w-4xl mx-auto min-w-0 flex flex-1 flex-col justify-center items-stretch;
+    padding-block: clamp(0.75rem, 2vh, 1.5rem);
   }
 
   .dw-session-sidebar-footer {
@@ -345,7 +357,11 @@
   }
 
   .dw-control-center-back {
-    @apply flex items-center gap-2 mx-2 mt-2 mb-1 px-3 py-2 rounded-lg text-sm text-secondary border-0 bg-transparent cursor-pointer hover:bg-surface-container hover:text-on-surface transition-colors;
+    @apply flex items-center gap-2 mx-2 mt-8 mb-2 px-3 py-2 rounded-lg text-sm text-secondary border-0 bg-transparent cursor-pointer hover:bg-surface-container hover:text-on-surface transition-colors;
+  }
+
+  html.dw-tauri .dw-control-center-nav {
+    padding-top: 2.75rem;
   }
 
   .dw-control-center-main {
@@ -390,6 +406,12 @@
     @apply gap-4;
   }
 
+  @media (max-width: 1100px) {
+    :root {
+      --spacing-session-sidebar: 228px;
+    }
+  }
+
   @media (max-width: 768px) {
     .dw-session-sidebar {
       display: none;
@@ -397,6 +419,23 @@
 
     .dw-main-wrap--sessions {
       margin-left: 0;
+    }
+
+    .dw-home-hero {
+      min-height: auto;
+      padding-top: 0.5rem;
+    }
+
+    .dw-hero-composer__toolbar {
+      @apply flex-col items-stretch;
+    }
+
+    .dw-hero-composer__toolbar-actions {
+      @apply ml-0 w-full justify-end;
+    }
+
+    .dw-project-picker {
+      @apply max-w-none w-full;
     }
 
     .dw-control-center {
@@ -410,14 +449,13 @@
   }
 
   .dw-topbar {
-    @apply shrink-0 z-[100] grid items-center gap-x-2 gap-y-1 min-h-12 h-12 px-4 lg:px-6 relative isolate;
-    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    @apply shrink-0 z-[100] flex w-full items-center gap-x-2 gap-y-1 min-h-12 h-12 px-4 lg:px-6 relative isolate;
     border-bottom: 1px solid var(--border, var(--color-outline-variant));
     background: var(--glass-bg, var(--color-surface));
   }
 
   .dw-topbar-start {
-    @apply min-w-0 flex items-center;
+    @apply min-w-0 flex flex-1 items-center;
   }
 
   .dw-topbar-start--empty {
@@ -429,7 +467,15 @@
   }
 
   .dw-topbar-end {
-    @apply flex items-center justify-end gap-1.5 sm:gap-2 min-w-0 shrink-0 flex-nowrap overflow-visible;
+    @apply flex items-center justify-end gap-1.5 sm:gap-2 min-w-0 shrink-0 flex-nowrap overflow-visible ml-auto;
+  }
+
+  .dw-topbar--home {
+    @apply justify-end;
+  }
+
+  .dw-topbar--home .dw-topbar-end {
+    @apply ml-0;
   }
 
   .dw-topbar-hit {
@@ -620,6 +666,86 @@
     @apply flex flex-col gap-4;
   }
 
+  .dw-agents-stats-modal__body {
+    scrollbar-width: thin;
+  }
+
+  .dw-agents-stats-modal__section {
+    @apply flex flex-col gap-2 min-w-0;
+  }
+
+  .dw-agents-stats-modal__section-head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .dw-agents-stats-modal__heading {
+    @apply text-[10px] font-semibold uppercase tracking-wide text-secondary m-0;
+  }
+
+  .dw-agents-kpi-strip--compact {
+    @apply grid grid-cols-2 lg:grid-cols-4 gap-2;
+  }
+
+  .dw-model-settings-shell {
+    @apply flex flex-col min-h-0 rounded-lg border border-outline-variant/45 bg-surface-container-lowest overflow-hidden shadow-sm;
+  }
+
+  .dw-model-settings-shell__head {
+    @apply flex flex-wrap items-start justify-between gap-3 px-4 py-3 border-b border-outline-variant/40 bg-surface-bright;
+  }
+
+  .dw-model-tab-content {
+    @apply flex flex-col min-h-0;
+  }
+
+  .dw-model-tab-panel-wrap {
+    @apply p-4 flex flex-col gap-4 min-h-0;
+  }
+
+  .dw-model-tab-panel-wrap--stack {
+    @apply gap-4;
+  }
+
+  .dw-model-tab-panel {
+    @apply min-w-0;
+  }
+
+  .dw-model-global-summary {
+    @apply flex flex-wrap items-start justify-between gap-3 rounded-lg border border-outline-variant/45 bg-surface-container-low px-3 py-2.5;
+  }
+
+  .dw-agents-skills-shell {
+    @apply flex flex-col min-h-0 rounded-lg border border-outline-variant/45 bg-surface-container-lowest overflow-hidden shadow-sm;
+  }
+
+  .dw-agents-tabs {
+    @apply flex flex-wrap gap-1 border-b border-outline-variant/40 bg-surface-bright px-3 pt-2;
+  }
+
+  .dw-agents-tabs__tab {
+    @apply px-3 py-2 text-xs font-medium text-secondary rounded-t-md border border-transparent -mb-px transition-colors hover:text-primary cursor-pointer bg-transparent;
+  }
+
+  .dw-agents-tabs__tab--active {
+    @apply text-primary border-outline-variant/45 border-b-surface-container-lowest bg-surface-container-lowest;
+  }
+
+  .dw-agents-tab-content {
+    @apply flex flex-col min-h-0;
+  }
+
+  .dw-agents-tab-panel-wrap {
+    @apply flex flex-col min-h-0;
+  }
+
+  .dw-agents-tab-toolbar {
+    @apply flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant/40 bg-surface-bright;
+  }
+
+  .dw-agents-tab-panel {
+    @apply flex flex-col min-h-0;
+  }
+
   .dw-agents-quick-nav {
     @apply flex flex-wrap items-center gap-2;
   }
@@ -774,12 +900,12 @@
   }
 
   .dw-agents-builtin-scroll {
-    @apply flex gap-2 overflow-x-auto px-4 pb-1 scroll-smooth xl:grid xl:grid-cols-1 xl:overflow-visible;
+    @apply flex gap-2 overflow-x-auto px-3 py-2 scroll-smooth;
     scrollbar-width: thin;
   }
 
   .dw-agents-builtin-chip {
-    @apply flex items-center gap-2 shrink-0 w-[11.5rem] xl:w-full rounded-lg bg-surface-container-low px-2.5 py-2 no-underline transition-colors hover:bg-surface-container border border-transparent hover:border-primary/20 cursor-pointer text-left;
+    @apply flex items-center gap-2 shrink-0 w-[11.5rem] rounded-xl bg-surface-container-low px-2.5 py-2 no-underline transition-colors hover:bg-surface-container border border-transparent hover:border-primary/20 cursor-pointer text-left;
   }
 
   .dw-agents-builtin-chip--active {
@@ -787,7 +913,7 @@
   }
 
   .dw-agents-builtin-chip__icon {
-    @apply w-8 h-8 rounded-lg flex items-center justify-center shrink-0;
+    @apply w-8 h-8 rounded-xl flex items-center justify-center shrink-0;
   }
 
   .dw-agents-builtin-chip__body {
@@ -819,7 +945,7 @@
   }
 
   .dw-agents-stat-row__icon {
-    @apply w-9 h-9 rounded-lg flex items-center justify-center shrink-0;
+    @apply w-9 h-9 rounded-xl flex items-center justify-center shrink-0;
   }
 
   .dw-agents-stat-row__main {
@@ -855,7 +981,7 @@
   }
 
   .dw-agents-skill-row__icon {
-    @apply w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0;
+    @apply w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0;
   }
 
   .dw-agents-skill-row__body {
@@ -1100,7 +1226,7 @@
   }
 
   .dw-composer-textarea {
-    @apply w-full min-h-[5.5rem] max-h-48 resize-y rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-outline outline-none;
+    @apply w-full min-h-[8.5rem] max-h-64 resize-y rounded-2xl px-4 py-3.5 text-base text-on-surface placeholder:text-outline outline-none;
     border: 1px solid var(--border, var(--color-outline-variant));
     background: var(--glass-bg-strong, var(--color-surface-container-lowest));
     transition: box-shadow 0.15s ease;
@@ -1132,13 +1258,13 @@
   }
 
   .dw-home-hero {
+    @apply flex flex-col items-stretch w-full;
     position: relative;
-    max-width: 42rem;
     margin-inline: auto;
-    min-height: calc(100dvh - var(--dw-topbar-height, 3rem) - 2.5rem);
+    min-height: min(calc(100dvh - var(--dw-topbar-height, 3rem) - 2rem), 720px);
     justify-content: center;
     gap: 1.25rem;
-    padding: 1.5rem 0 2rem;
+    padding: 1rem 0 1.5rem;
   }
 
   .dw-home-hero__intro {
@@ -1162,14 +1288,34 @@
     @apply w-full flex flex-col gap-3;
   }
 
+  .dw-hero-composer {
+    @apply flex flex-col gap-3 w-full;
+  }
+
+  .dw-hero-composer__scenarios {
+    @apply flex flex-col gap-2;
+  }
+
+  .dw-hero-composer__scenarios-label {
+    @apply text-xs font-medium text-secondary uppercase tracking-wide;
+  }
+
+  .dw-hero-composer__scenario-row {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .dw-hero-composer__scenario-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container-low px-3 py-1.5 text-sm text-on-surface transition-colors hover:border-primary/40 hover:bg-surface-container disabled:opacity-50;
+  }
+
   .dw-hero-composer__card {
-    @apply rounded-2xl overflow-hidden;
+    @apply rounded-3xl overflow-hidden;
     border: 1px solid var(--border, var(--color-outline-variant));
-    box-shadow: var(--shadow-float, 0 1px 2px rgba(0, 0, 0, 0.06));
+    box-shadow: var(--shadow-float, 0 12px 40px rgba(0, 0, 0, 0.14));
   }
 
   .dw-hero-composer__textarea {
-    @apply w-full min-h-[7rem] max-h-48 resize-none border-0 bg-transparent px-4 pt-4 pb-2 text-sm text-on-surface outline-none placeholder:text-outline;
+    @apply w-full min-h-[14rem] max-h-[24rem] resize-none border-0 bg-transparent px-6 pt-6 pb-4 text-lg leading-relaxed text-on-surface outline-none placeholder:text-outline;
     transition: box-shadow 0.15s ease;
   }
 
@@ -1178,7 +1324,126 @@
   }
 
   .dw-hero-composer__toolbar {
-    @apply flex items-center justify-between gap-3 px-3 py-2.5 border-t border-outline-variant/50 bg-surface-container-low;
+    @apply flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3 border-t border-outline-variant/50 bg-surface-container-low;
+  }
+
+  .dw-hero-composer__toolbar-actions {
+    @apply flex items-center gap-2 shrink-0 ml-auto;
+  }
+
+  .dw-model-picker {
+    @apply min-w-0;
+  }
+
+  .dw-model-picker--compact .dw-model-picker__trigger {
+    @apply max-w-[11rem] text-xs py-1 px-2;
+  }
+
+  .dw-model-picker__trigger {
+    @apply inline-flex max-w-[14rem] items-center gap-1 rounded-lg border border-outline-variant/50 bg-surface-container-low px-2.5 py-1.5 text-sm text-on-surface transition-colors hover:border-primary/30 hover:bg-surface-container;
+  }
+
+  .dw-model-picker__menu {
+    @apply absolute left-0 bottom-full z-[120] mb-2 flex w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl shadow-lg;
+  }
+
+  .dw-model-picker__search-wrap {
+    @apply flex items-center gap-2 border-b border-outline-variant/40 px-3 py-2;
+  }
+
+  .dw-model-picker__search {
+    @apply min-w-0 flex-1 border-0 bg-transparent text-sm text-on-surface outline-none placeholder:text-outline;
+  }
+
+  .dw-model-picker__list {
+    @apply flex max-h-[min(16rem,50vh)] flex-col overflow-y-auto overscroll-y-contain py-1;
+    scrollbar-width: thin;
+  }
+
+  .dw-model-picker__item {
+    @apply flex w-full flex-col gap-0.5 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-container;
+  }
+
+  .dw-model-picker__item--active {
+    @apply bg-primary/5;
+  }
+
+  .dw-model-picker__item-head {
+    @apply flex items-center justify-between gap-2 min-w-0;
+  }
+
+  .dw-model-picker__item-label {
+    @apply text-sm font-medium text-on-surface truncate;
+  }
+
+  .dw-model-picker__cloud-badge {
+    @apply shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+  }
+
+  .dw-model-picker__item-tier {
+    @apply text-[11px] text-secondary truncate;
+    font-family: var(--font-mono, ui-monospace, monospace);
+  }
+
+  .dw-model-picker__footer {
+    @apply border-t border-outline-variant/40 px-3 py-2;
+  }
+
+  .dw-model-picker__add {
+    @apply text-xs font-medium text-primary no-underline hover:underline;
+  }
+
+  .dw-project-picker {
+    @apply relative flex-1 min-w-[10rem] max-w-full sm:max-w-[15rem];
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-project-picker__trigger {
+    @apply w-full inline-flex items-center gap-1.5 min-h-9 px-2.5 rounded-lg border border-outline-variant/70 bg-surface text-sm text-on-surface cursor-pointer transition-colors hover:bg-surface-container-low disabled:opacity-50 disabled:cursor-not-allowed;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-project-picker__menu {
+    @apply absolute left-0 bottom-[calc(100%+0.375rem)] z-[300] min-w-full max-h-56 overflow-y-auto rounded-xl border border-outline-variant py-1 shadow-lg;
+    -webkit-app-region: no-drag;
+  }
+
+  .dw-project-picker__item {
+    @apply w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm border-0 bg-transparent cursor-pointer hover:bg-surface-container-low;
+  }
+
+  .dw-project-picker__item--active {
+    @apply bg-surface-container-high text-primary font-medium;
+  }
+
+  .dw-project-session-group__head {
+    @apply flex items-center gap-1 px-2 py-1 min-w-0;
+  }
+
+  .dw-project-session-group__toggle {
+    @apply flex items-center min-w-0 flex-1 gap-0.5;
+  }
+
+  .dw-project-session-group__chevron {
+    @apply inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-md border-0 bg-transparent cursor-pointer hover:bg-surface-container-low;
+  }
+
+  .dw-project-session-group__name-btn {
+    @apply min-w-0 flex-1 text-left text-xs font-semibold uppercase tracking-wide text-secondary border-0 bg-transparent cursor-pointer px-1 py-1 rounded-md hover:bg-surface-container-low hover:text-on-surface;
+  }
+
+  .dw-project-session-group__name-btn--active {
+    @apply text-primary bg-surface-container-high;
+  }
+
+  .dw-project-session-group__count {
+    @apply text-[10px] text-secondary shrink-0 tabular-nums;
+  }
+
+  .dw-project-session-group__add {
+    @apply inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-md border-0 bg-transparent cursor-pointer text-secondary hover:bg-surface-container-low hover:text-on-surface;
   }
 
   .dw-hero-composer__project-select {

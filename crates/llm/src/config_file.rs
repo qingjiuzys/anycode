@@ -275,7 +275,12 @@ fn merge_profile(obj: &mut Map<String, Value>, patch: &ModelProfileFile) {
         }
     }
     if let Some(k) = patch.api_key.as_ref().filter(|s| !s.trim().is_empty()) {
-        obj.insert("api_key".into(), json!(k.trim()));
+        if let Ok(reference) = crate::secret_store::store_secret("default", k.trim()) {
+            obj.insert("api_key_ref".into(), json!(reference));
+            obj.insert("api_key".into(), json!(""));
+        } else {
+            obj.insert("api_key".into(), json!(k.trim()));
+        }
     }
 }
 
@@ -332,7 +337,12 @@ pub fn patch_llm_config_value(cfg: &mut Value, patch: &LlmConfigPatch) -> Result
         }
     }
     if let Some(k) = patch.api_key.as_ref().filter(|s| !s.trim().is_empty()) {
-        obj.insert("api_key".into(), json!(k.trim()));
+        if let Ok(reference) = crate::secret_store::store_secret("default", k.trim()) {
+            obj.insert("api_key_ref".into(), json!(reference));
+            obj.insert("api_key".into(), json!(""));
+        } else {
+            obj.insert("api_key".into(), json!(k.trim()));
+        }
     }
     if let Some(creds) = patch.provider_credentials.as_ref() {
         let creds_obj = obj.entry("provider_credentials").or_insert(json!({}));

@@ -157,6 +157,7 @@ mod tests {
                 event_id: None,
             }],
             lifecycle: vec![],
+            max_seq: None,
         }
     }
 

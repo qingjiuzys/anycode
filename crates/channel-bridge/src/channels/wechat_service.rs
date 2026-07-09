@@ -52,29 +52,10 @@ fn build_argv(spec: &WechatServiceSpec) -> Result<Vec<String>> {
         anyhow::bail!("{}", tr_args("wx-svc-err-binary-missing", &a));
     }
 
-    let mut v = vec![abs.to_string_lossy().to_string()];
-    if spec.debug {
-        v.push("--debug".into());
-    }
-    if let Some(ref c) = spec.config {
-        let c = c.canonicalize().with_context(|| {
-            let mut a = FluentArgs::new();
-            a.set("path", format!("{:?}", c));
-            tr_args("wx-svc-ctx-resolve-config", &a)
-        })?;
-        v.push("-c".into());
-        v.push(c.to_string_lossy().to_string());
-    }
-    v.push("channel".into());
-    v.push("wechat".into());
-    v.push("--run-as-bridge".into());
-    v.push("--agent".into());
-    v.push(spec.agent.clone());
-    if let Some(ref d) = spec.data_dir {
-        v.push("--data-dir".into());
-        v.push(d.to_string_lossy().to_string());
-    }
-    Ok(v)
+    Ok(vec![
+        abs.to_string_lossy().to_string(),
+        "wechat-bridge".into(),
+    ])
 }
 
 #[cfg(target_os = "macos")]
@@ -206,6 +187,19 @@ fn macos_env_plist_block(spec: &WechatServiceSpec) -> String {
             "ANYCODE_APPLE_MEDIA_HELPER".into(),
             helper.display().to_string(),
         ));
+    }
+    if spec.debug {
+        pairs.push((
+            "RUST_LOG".into(),
+            "info,anycode_channel_bridge=debug".into(),
+        ));
+    }
+    if let Some(ref c) = spec.config {
+        if let Ok(canonical) = c.canonicalize() {
+            if let Some(s) = canonical.to_str() {
+                pairs.push(("ANYCODE_CONFIG".into(), s.to_string()));
+            }
+        }
     }
     if let Some(ref d) = spec.data_dir {
         if let Some(s) = d.to_str() {

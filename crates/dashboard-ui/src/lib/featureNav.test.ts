@@ -58,9 +58,19 @@ describe("featureNav", () => {
       vi.unstubAllGlobals();
     });
 
-    it("hides reports when localStorage flag is set", () => {
+    it("hides reports by default", () => {
       const reports = FEATURE_NAV.find((item) => item.id === "reports")!;
+      expect(isFeatureNavItemVisible(reports)).toBe(false);
+    });
+
+    it("shows reports when show flag is set", () => {
+      const reports = FEATURE_NAV.find((item) => item.id === "reports")!;
+      localStorage.setItem("anycode.features.showReports", "1");
       expect(isFeatureNavItemVisible(reports)).toBe(true);
+    });
+
+    it("hides reports when legacy hide flag is set", () => {
+      const reports = FEATURE_NAV.find((item) => item.id === "reports")!;
       localStorage.setItem(HIDE_REPORTS_KEY, "1");
       expect(isFeatureNavItemVisible(reports)).toBe(false);
     });

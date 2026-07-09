@@ -3,14 +3,16 @@
 //! OpenAI 兼容 `chat/completions`：支持 `tools` / `tool_calls`（与 OpenAI Chat Completions 对齐）。
 
 use crate::normalize_provider_id;
+use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 pub(crate) fn is_retryable_status(status: reqwest::StatusCode) -> bool {
@@ -1064,14 +1066,130 @@ impl LLMClient for ZaiClient {
 
     async fn chat_stream(
         &self,
-        _messages: Vec<Message>,
-        _tools: Vec<ToolSchema>,
-        _config: &ModelConfig,
+        messages: Vec<Message>,
+        tools: Vec<ToolSchema>,
+        config: &ModelConfig,
     ) -> Result<mpsc::Receiver<StreamEvent>, CoreError> {
-        let (tx, rx) = mpsc::channel(1);
+        use crate::openai_compat_stream::emit_openai_sse_json_chunk;
+        use std::collections::HashMap;
+
+        let tool_choice = zai_tool_choice(&messages, tools.is_empty(), self.tool_choice_first_turn);
+        let openai_messages = messages_to_openai_json(messages)?;
+
+        let model = if config.model.trim().is_empty() {
+            self.model.clone()
+        } else {
+            config.model.clone()
+        };
+
+        let tools_json = if tools.is_empty() {
+            None
+        } else {
+            Some(openai_tools_from_schemas(&tools))
+        };
+
+        let provider_label = provider_label_from_config(config);
+        let body = serde_json::json!({
+            "model": model,
+            "messages": openai_messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "stream": true,
+            "tools": tools_json,
+            "tool_choice": tool_choice,
+            "thinking": openai_compatible_thinking_body(&provider_label),
+            "stream_options": { "include_usage": true },
+        });
+
+        let base_url = config
+            .base_url
+            .clone()
+            .unwrap_or_else(|| self.base_url.clone());
+        let base_url = normalize_openai_compatible_base_url(&base_url, &provider_label);
+
+        let auth_key = config
+            .api_key
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(self.api_key.as_str());
+        let auth_key = sanitize_header_token(auth_key, &provider_label)?;
+
+        let client = self.client.clone();
+        let (tx, rx) = mpsc::channel(128);
+
         tokio::spawn(async move {
+            let response = match client
+                .post(&base_url)
+                .header("Authorization", format!("Bearer {}", auth_key))
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("{} stream request failed: {}", provider_label, e);
+                    let _ = tx.send(StreamEvent::Done).await;
+                    return;
+                }
+            };
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                error!(
+                    "{} stream HTTP error: {} {}",
+                    provider_label,
+                    status,
+                    &body[..body.len().min(500)]
+                );
+                let _ = tx.send(StreamEvent::Done).await;
+                return;
+            }
+
+            let mut stream = response.bytes_stream();
+            let mut sse_buf = SseLineBuffer::new();
+            let mut tool_builders: HashMap<u64, (Option<String>, Option<String>, String)> =
+                HashMap::new();
+
+            'read: while let Some(chunk_res) = stream.next().await {
+                let chunk = match chunk_res {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!("{} stream read: {}", provider_label, e);
+                        break;
+                    }
+                };
+                let Ok(text) = std::str::from_utf8(&chunk) else {
+                    continue;
+                };
+                for line_ev in sse_buf.push_str(text) {
+                    let data = match line_ev {
+                        SseDataLine::Done => break 'read,
+                        SseDataLine::Payload(s) => s,
+                    };
+                    let Ok(val) = serde_json::from_str::<Value>(&data) else {
+                        continue;
+                    };
+                    if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                        return;
+                    }
+                }
+            }
+
+            for line_ev in sse_buf.finish() {
+                let SseDataLine::Payload(data) = line_ev else {
+                    break;
+                };
+                if let Ok(val) = serde_json::from_str::<Value>(&data) {
+                    if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                        return;
+                    }
+                }
+            }
+
             let _ = tx.send(StreamEvent::Done).await;
         });
+
         Ok(rx)
     }
 }

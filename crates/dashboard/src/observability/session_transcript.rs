@@ -33,6 +33,10 @@ pub async fn session_transcript(
         .await?
         .context("session not found")?;
 
+    if let Some(canonical) = try_canonical_transcript(db, session_id).await? {
+        return Ok(canonical);
+    }
+
     let mut index_events = db
         .list_session_events(session_id, None, 500, None, None, None)
         .await?;
@@ -48,9 +52,10 @@ pub async fn session_transcript(
         assemble_transcript(&session, session_id, index_events, Vec::new())?
     } else {
         let task_ids = collect_task_ids(&session, &index_events);
+        let task_anchors = task_time_anchors(&session, &index_events, &task_ids);
         let session_for_logs = session.clone();
         let mut log_events = tokio::task::spawn_blocking(move || {
-            parsed_log_events_for_tasks(&session_for_logs, &task_ids)
+            parsed_log_events_for_tasks(&session_for_logs, &task_ids, &task_anchors)
         })
         .await
         .context("transcript log parse cancelled")?;
@@ -113,6 +118,26 @@ fn index_has_conversation(events: &[ProjectEvent]) -> bool {
     false
 }
 
+async fn try_canonical_transcript(
+    db: &DashboardDb,
+    session_id: &str,
+) -> Result<Option<SessionTranscriptResponse>> {
+    let count = db.chat_turn_event_count(session_id).await?;
+    if count == 0 {
+        return Ok(None);
+    }
+    let records = db.list_chat_turn_events(session_id, None, 50_000).await?;
+    let max_seq = records.last().map(|record| record.seq);
+    let blocks = super::chat_turn_log::records_to_transcript_blocks(&records);
+    Ok(Some(SessionTranscriptResponse {
+        schema_version: SCHEMA_VERSION,
+        session_id: session_id.to_string(),
+        blocks,
+        lifecycle: Vec::new(),
+        max_seq,
+    }))
+}
+
 fn assemble_transcript(
     session: &SessionDetail,
     session_id: &str,
@@ -155,6 +180,7 @@ fn assemble_transcript(
         session_id: session_id.to_string(),
         blocks,
         lifecycle,
+        max_seq: None,
     })
 }
 
@@ -185,19 +211,67 @@ fn collect_task_ids(
     out
 }
 
+fn task_time_anchors(
+    session: &crate::schema::SessionDetail,
+    events: &[ProjectEvent],
+    task_ids: &[String],
+) -> std::collections::HashMap<String, String> {
+    let mut anchors = std::collections::HashMap::new();
+    for event in events {
+        if let Some(task_id) = event.task_id.as_ref().filter(|id| !id.is_empty()) {
+            anchors
+                .entry(task_id.clone())
+                .and_modify(|existing: &mut String| {
+                    if event.occurred_at < *existing {
+                        *existing = event.occurred_at.clone();
+                    }
+                })
+                .or_insert_with(|| event.occurred_at.clone());
+        }
+    }
+
+    // Web chat user prompts are inserted before the embedded task id is attached,
+    // so the current task may have no task-scoped index event yet. Anchor it to
+    // the latest visible user prompt instead of the original recycled session time.
+    if let Some(current_task) = session.task_id.as_ref().filter(|id| !id.is_empty()) {
+        if !anchors.contains_key(current_task) {
+            if let Some(prompt_at) = events
+                .iter()
+                .filter(|event| matches!(event.event_type.as_str(), "user_prompt" | "prompt"))
+                .map(|event| event.occurred_at.clone())
+                .max()
+            {
+                anchors.insert(current_task.clone(), prompt_at);
+            }
+        }
+    }
+
+    for task_id in task_ids {
+        anchors
+            .entry(task_id.clone())
+            .or_insert_with(|| session.started_at.clone());
+    }
+    anchors
+}
+
 fn parsed_log_events_for_tasks(
     session: &crate::schema::SessionDetail,
     task_ids: &[String],
+    task_anchors: &std::collections::HashMap<String, String>,
 ) -> Vec<ProjectEvent> {
     if task_ids.is_empty() {
-        return parsed_log_events(session);
+        return parsed_log_events(session, &session.started_at);
     }
     let mut out = Vec::new();
     for task_id in task_ids {
         let mut scoped = session.clone();
         scoped.task_id = Some(task_id.clone());
-        out.extend(parsed_log_events(&scoped));
-        out.extend(prose_events_from_task_log(session, task_id));
+        let anchor = task_anchors
+            .get(task_id)
+            .map(String::as_str)
+            .unwrap_or(&session.started_at);
+        out.extend(parsed_log_events(&scoped, anchor));
+        out.extend(prose_events_from_task_log(session, task_id, anchor));
     }
     out.sort_by(|a, b| a.occurred_at.cmp(&b.occurred_at));
     out
@@ -206,6 +280,7 @@ fn parsed_log_events_for_tasks(
 fn prose_events_from_task_log(
     session: &crate::schema::SessionDetail,
     task_id: &str,
+    anchor_at: &str,
 ) -> Vec<ProjectEvent> {
     let path = output_log_path(task_id);
     let Ok(content) = std::fs::read_to_string(&path) else {
@@ -215,9 +290,7 @@ fn prose_events_from_task_log(
         .into_iter()
         .enumerate()
         .map(|(idx, (line_no, body))| {
-            let occurred_at = chrono::DateTime::parse_from_rfc3339(&session.started_at)
-                .map(|dt| (dt + chrono::Duration::milliseconds(line_no as i64)).to_rfc3339())
-                .unwrap_or_else(|_| session.started_at.clone());
+            let occurred_at = offset_timestamp(anchor_at, line_no);
             ProjectEvent {
                 id: format!("prose:{task_id}:{line_no}:{idx}"),
                 project_id: session.project_id.clone(),
@@ -235,7 +308,7 @@ fn prose_events_from_task_log(
         .collect()
 }
 
-fn parsed_log_events(session: &crate::schema::SessionDetail) -> Vec<ProjectEvent> {
+fn parsed_log_events(session: &crate::schema::SessionDetail, anchor_at: &str) -> Vec<ProjectEvent> {
     let Ok(log) = read_execution_log(session, 0, Some(500)) else {
         return Vec::new();
     };
@@ -244,9 +317,7 @@ fn parsed_log_events(session: &crate::schema::SessionDetail) -> Vec<ProjectEvent
         .filter_map(|line| {
             let event_type = line.event_type?;
             let body = line.body.unwrap_or_default();
-            let occurred_at = chrono::DateTime::parse_from_rfc3339(&session.started_at)
-                .map(|dt| (dt + chrono::Duration::milliseconds(line.line_no as i64)).to_rfc3339())
-                .unwrap_or_else(|_| session.started_at.clone());
+            let occurred_at = offset_timestamp(anchor_at, line.line_no);
             Some(ProjectEvent {
                 id: format!("log:{}", line.line_no),
                 project_id: session.project_id.clone(),
@@ -262,6 +333,20 @@ fn parsed_log_events(session: &crate::schema::SessionDetail) -> Vec<ProjectEvent
             })
         })
         .collect()
+}
+
+fn offset_timestamp(anchor_at: &str, line_no: usize) -> String {
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(anchor_at) {
+        return (dt + chrono::Duration::milliseconds(line_no as i64)).to_rfc3339();
+    }
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(anchor_at, "%Y-%m-%d %H:%M:%S") {
+        return naive
+            .and_utc()
+            .checked_add_signed(chrono::Duration::milliseconds(line_no as i64))
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_else(|| anchor_at.to_string());
+    }
+    anchor_at.to_string()
 }
 
 fn merge_line_no(mut payload: serde_json::Value, line_no: usize) -> serde_json::Value {

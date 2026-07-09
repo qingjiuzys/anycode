@@ -71,6 +71,9 @@ pub struct SessionTranscriptResponse {
     pub session_id: String,
     pub blocks: Vec<TranscriptBlock>,
     pub lifecycle: Vec<TranscriptBlock>,
+    /// Highest persisted canonical event seq when transcript is built from `chat_turn_events`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_seq: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,6 +245,12 @@ pub struct ChatStreamEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_turn_id: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seq: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_name: Option<String>,
@@ -252,6 +261,24 @@ pub struct ChatStreamEvent {
     #[serde(default)]
     pub payload: Value,
     pub at: String,
+}
+
+/// Persisted canonical chat turn event (`chat_turn_events` table).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatTurnEventRecord {
+    pub id: String,
+    pub session_id: String,
+    pub project_id: String,
+    pub conversation_turn_id: u32,
+    pub agent_turn: Option<u32>,
+    pub seq: i64,
+    pub kind: String,
+    pub tool_key: Option<String>,
+    pub tool_name: Option<String>,
+    pub body: String,
+    pub block_json: Option<String>,
+    pub payload: Value,
+    pub occurred_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

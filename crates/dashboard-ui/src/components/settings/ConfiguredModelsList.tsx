@@ -44,8 +44,11 @@ export function ConfiguredModelsList({ items, registry, onEdit, onDelete, onRefr
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium truncate">
-                      {item.display_name ?? item.id}
+                    <div className="font-medium truncate flex items-center gap-2">
+                      <span className="truncate">{item.display_name ?? item.id}</span>
+                      {item.source === "cloud" && (
+                        <span className="dw-model-picker__cloud-badge">{t("modelPicker.cloudBadge")}</span>
+                      )}
                     </div>
                     <div className="text-sm font-code text-secondary truncate">
                       {item.provider} / {item.model}

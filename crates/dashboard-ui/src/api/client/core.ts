@@ -117,4 +117,6 @@ export const coreClient = {
       snippet?: string;
       error?: string;
     }>("/api/cloud/gateway-test", {}),
+  cloudSyncModels: () =>
+    post<{ ok: boolean; synced: number; error?: string }>("/api/cloud/sync-models", {}),
 };

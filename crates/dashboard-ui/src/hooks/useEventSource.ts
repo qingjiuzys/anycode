@@ -8,6 +8,10 @@ export type ProjectEventSsePayload = {
   sessionId?: string;
 };
 
+export type StreamResetPayload = {
+  last_seq?: number;
+};
+
 /**
  * EventSource with automatic reconnect and connection status for the workbench UI.
  */
@@ -15,12 +19,15 @@ export function useEventSource(
   url: string | null,
   onProjectEvent?: (payload: ProjectEventSsePayload) => void,
   onChatEvent?: (raw: MessageEvent) => void,
+  onStreamReset?: (payload: StreamResetPayload) => void,
 ): SseStatus {
   const [status, setStatus] = useState<SseStatus>(url ? "connecting" : "offline");
   const onEventRef = useRef(onProjectEvent);
   onEventRef.current = onProjectEvent;
   const onChatRef = useRef(onChatEvent);
   onChatRef.current = onChatEvent;
+  const onResetRef = useRef(onStreamReset);
+  onResetRef.current = onStreamReset;
 
   useEffect(() => {
     if (!url) {
@@ -85,6 +92,16 @@ export function useEventSource(
           }
         });
       }
+      es.addEventListener("stream_reset", (raw) => {
+        if (!cancelled) {
+          try {
+            const payload = JSON.parse((raw as MessageEvent).data) as StreamResetPayload;
+            onResetRef.current?.(payload);
+          } catch {
+            onResetRef.current?.({});
+          }
+        }
+      });
     };
 
     connect();

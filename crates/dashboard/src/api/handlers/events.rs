@@ -150,14 +150,32 @@ pub(super) fn sse_filtered_events(
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
 }
 
-/// Session SSE: `project_event` + low-latency `chat_event`.
-pub(super) fn sse_session_stream(
+/// Session SSE: replay canonical `chat_event` then live `project_event` + `chat_event`.
+pub fn sse_session_stream(
+    db: crate::db::DashboardDb,
     mut project_rx: tokio::sync::broadcast::Receiver<crate::schema::ProjectEvent>,
     mut chat_rx: tokio::sync::broadcast::Receiver<crate::schema::ChatStreamEvent>,
     session_id: String,
+    after_seq: Option<i64>,
 ) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("connected").data("{}"));
+
+        let mut last_seen_seq = after_seq.unwrap_or(0);
+        if let Ok(records) = db.list_chat_turn_events(&session_id, after_seq, 10_000).await {
+            for record in records {
+                last_seen_seq = record.seq;
+                let evt = crate::observability::chat_turn_log::record_to_stream_event(&record);
+                let data = serde_json::to_string(&evt).unwrap_or_default();
+                yield Ok(
+                    Event::default()
+                        .id(record.seq.to_string())
+                        .event("chat_event")
+                        .data(data),
+                );
+            }
+        }
+
         loop {
             tokio::select! {
                 res = project_rx.recv() => {
@@ -174,11 +192,44 @@ pub(super) fn sse_session_stream(
                 res = chat_rx.recv() => {
                     match res {
                         Ok(evt) if evt.session_id == session_id => {
+                            if let Some(seq) = evt.seq {
+                                if seq <= last_seen_seq {
+                                    continue;
+                                }
+                                last_seen_seq = seq;
+                            }
                             let data = serde_json::to_string(&evt).unwrap_or_default();
-                            yield Ok(Event::default().event("chat_event").data(data));
+                            let mut event = Event::default().event("chat_event").data(data);
+                            if let Some(seq) = evt.seq {
+                                event = event.id(seq.to_string());
+                            }
+                            yield Ok(event);
                         }
                         Ok(_) => {}
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            let reset_seq = db
+                                .max_chat_turn_seq(&session_id)
+                                .await
+                                .unwrap_or(last_seen_seq);
+                            let payload = serde_json::json!({ "last_seq": reset_seq }).to_string();
+                            yield Ok(Event::default().event("stream_reset").data(payload));
+                            if let Ok(records) = db
+                                .list_chat_turn_events(&session_id, Some(last_seen_seq), 10_000)
+                                .await
+                            {
+                                for record in records {
+                                    last_seen_seq = record.seq;
+                                    let evt = crate::observability::chat_turn_log::record_to_stream_event(&record);
+                                    let data = serde_json::to_string(&evt).unwrap_or_default();
+                                    yield Ok(
+                                        Event::default()
+                                            .id(record.seq.to_string())
+                                            .event("chat_event")
+                                            .data(data),
+                                    );
+                                }
+                            }
+                        }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     }
                 }

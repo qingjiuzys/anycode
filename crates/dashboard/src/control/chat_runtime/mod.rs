@@ -110,6 +110,19 @@ impl ChatRuntimeHost {
 
         let user_turn_id = session.user_turn_seq.fetch_add(1, Ordering::Relaxed) + 1;
 
+        let user_evt = crate::observability::chat_turn_log::user_message_event(
+            session_id,
+            project_id,
+            user_turn_id,
+            prompt.trim(),
+        );
+        match crate::observability::chat_turn_log::persist_and_enrich(&db, user_evt, user_turn_id)
+            .await
+        {
+            Ok(enriched) => events.publish_chat(enriched),
+            Err(error) => tracing::warn!(%error, "user message canonical persist failed"),
+        }
+
         if log_tail_fallback_enabled() {
             tail_hub.ensure_tail(
                 Arc::clone(&events),
@@ -122,6 +135,7 @@ impl ChatRuntimeHost {
         let (live_tx, live_rx) = mpsc::unbounded_channel();
         spawn_live_bridge(
             Arc::clone(&events),
+            db.clone(),
             session_id.to_string(),
             project_id.to_string(),
             user_turn_id,
@@ -269,6 +283,7 @@ async fn run_embedded_turn(
         }
     };
 
+    recorder.scan_workspace_artifacts().await;
     recorder.ingest_full_log(&disk, session.task_id).await;
     recorder.finish_run(&disk, session.task_id, None).await;
 

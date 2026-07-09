@@ -111,13 +111,6 @@ pub async fn auth_middleware(
 fn is_public_path(path: &str) -> bool {
     matches!(
         path,
-        "/health"
-            | "/api/health"
-            | "/settings/doctor"
-            | "/api/settings/doctor"
-            | "/auth/login"
-            | "/api/auth/login"
-            | "/auth/me"
-            | "/api/auth/me"
+        "/health" | "/api/health" | "/auth/login" | "/api/auth/login" | "/auth/me" | "/api/auth/me"
     )
 }

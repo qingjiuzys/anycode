@@ -13,7 +13,7 @@ import type {
   SessionWithProject,
   TokenUsageDetail,
 } from "../types";
-import { get, post } from "../http";
+import { get, patch, post } from "../http";
 import { buildArtifactQuery, type ArtifactListOpts, type EventListOpts, type SessionListOpts } from "./shared";
 
 export const sessionsClient = {
@@ -34,6 +34,11 @@ export const sessionsClient = {
     ),
   session: (sessionId: string) =>
     get<{ session: SessionDetail }>(`/api/sessions/${sessionId}`),
+  renameSession: (sessionId: string, title: string) =>
+    patch<{ ok: boolean; session_id: string; title: string }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      { title },
+    ),
   cancelSession: (sessionId: string) =>
     post<{ ok: boolean; session_id: string; live_signal: boolean }>(
       `/api/sessions/${encodeURIComponent(sessionId)}/cancel`,

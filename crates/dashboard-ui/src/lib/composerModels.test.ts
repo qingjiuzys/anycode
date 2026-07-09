@@ -28,6 +28,24 @@ describe("composerModels", () => {
     expect(options[0]).toMatchObject({ id: "a", label: "Alpha", subtitle: "z.ai/glm-5" });
   });
 
+  it("sorts cloud auto before other cloud and local models", () => {
+    const items = [
+      chatItem({ id: "local", provider: "openai", model: "gpt-4" }),
+      chatItem({ id: "cloud-agnes", provider: "anycode_cloud", model: "agnes-chat", source: "cloud" }),
+      chatItem({ id: "cloud-auto", provider: "anycode_cloud", model: "auto", source: "cloud" }),
+    ];
+    const options = listChatModels(items);
+    expect(options.map((o) => o.id)).toEqual(["cloud-auto", "cloud-agnes", "local"]);
+  });
+
+  it("dedupes chat models by provider/model", () => {
+    const items = [
+      chatItem({ id: "a", provider: "google", model: "gemini-2.5-flash" }),
+      chatItem({ id: "b", display_name: "Gemini dup", provider: "google", model: "gemini-2.5-flash" }),
+    ];
+    expect(listChatModels(items)).toHaveLength(1);
+  });
+
   it("labels models without display_name", () => {
     expect(modelLabel(chatItem({ display_name: null }))).toBe("openai/gpt-4");
   });

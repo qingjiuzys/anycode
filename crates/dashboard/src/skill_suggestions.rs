@@ -16,6 +16,9 @@ pub const STARTER_SKILL_IDS: &[&str] = &[
     "cn-daily-brief",
     "cn-weekly-report",
     "cn-meeting-minutes",
+    "office-pptx",
+    "novel-writer",
+    "video-script",
 ];
 
 pub async fn build_suggestions(db: &DashboardDb) -> Result<Value> {

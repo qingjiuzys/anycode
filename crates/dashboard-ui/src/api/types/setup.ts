@@ -30,6 +30,7 @@ export type QuickAuthPreset = {
   default_model: string;
   base_url: string;
   key_envs: string[];
+  device_auth?: boolean;
 };
 
 export type WechatQrPayload = {

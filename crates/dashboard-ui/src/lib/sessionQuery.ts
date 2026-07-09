@@ -20,7 +20,7 @@ export function transcriptQueryOptions(sessionId: string, isRunning = false) {
 export function sessionArtifactsQueryOptions(sessionId: string, isRunning = false) {
   return {
     queryKey: ["session-artifacts", sessionId] as const,
-    queryFn: () => api.sessionArtifacts(sessionId),
+    queryFn: () => api.sessionArtifacts(sessionId, { finalOnly: true }),
     staleTime: isRunning ? TRANSCRIPT_STALE_RUNNING_MS : Number.POSITIVE_INFINITY,
     gcTime: SESSION_QUERY_GC_MS,
   };

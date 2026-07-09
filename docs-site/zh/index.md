@@ -31,3 +31,5 @@ features:
     title: macOS 桌面原生媒体
     details: anyCode.app 内置工作台，并提供 Apple Speech 语音识别与 Apple Vision OCR——当前 macOS 体验最佳。
 ---
+
+<HomeExtras />

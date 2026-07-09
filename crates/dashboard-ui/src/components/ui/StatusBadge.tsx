@@ -65,6 +65,7 @@ type SessionStatusProps = {
   status: string;
   trustedStatus: string;
   pendingApprovalCount?: number;
+  variant?: "default" | "sidebar";
 };
 
 /** Prefer blocked/trust over lifecycle status when both apply. Failed tasks show 失败, not 阻断. */
@@ -72,12 +73,13 @@ export function SessionStatusBadges({
   status,
   trustedStatus,
   pendingApprovalCount = 0,
+  variant = "default",
 }: SessionStatusProps) {
   const t = useT();
   const showFailed = status === "failed";
   const showBlocked = trustedStatus === "blocked" && !showFailed;
   const showPending = pendingApprovalCount > 0 && status === "running";
-  const showRunning = status === "running" && !showBlocked && !showFailed;
+  const showRunning = status === "running" && !showBlocked && !showFailed && variant !== "sidebar";
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
@@ -85,12 +87,26 @@ export function SessionStatusBadges({
       {showBlocked && <StatusBadge status="blocked" />}
       {showPending && <StatusBadge status="warn" />}
       {showRunning && <StatusBadge status="running" />}
-      {!showFailed && !showBlocked && !showRunning && status !== "running" && (
+      {variant === "default"
+        && !showFailed
+        && !showBlocked
+        && !showRunning
+        && status !== "running" && (
         <StatusBadge status={status} />
       )}
       {showBlocked && status === "running" && (
         <span className="text-[10px] text-secondary">{t("conversations.statusRunningNote")}</span>
       )}
+    </span>
+  );
+}
+
+export function SessionRunningDots({ className = "" }: { className?: string }) {
+  return (
+    <span className={`inline-flex gap-1 ${className}`} aria-hidden>
+      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:120ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:240ms]" />
     </span>
   );
 }

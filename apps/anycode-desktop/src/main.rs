@@ -3,7 +3,9 @@
 mod apple_media;
 mod dashboard_backend;
 
-use dashboard_backend::{apply_dashboard_env, DashboardServerState, start_in_process};
+use dashboard_backend::{
+    apply_dashboard_env, dashboard_http_ready, DashboardServerState, start_in_process,
+};
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -23,28 +25,6 @@ fn stop_bridges(state: &BridgeState) {
             handle.abort();
         }
     }
-}
-
-fn dashboard_http_ready() -> bool {
-    use std::io::{Read, Write};
-    use std::net::TcpStream;
-    let Ok(mut stream) = TcpStream::connect("127.0.0.1:43180") else {
-        return false;
-    };
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
-    if stream
-        .write_all(b"GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:43180\r\nConnection: close\r\n\r\n")
-        .is_err()
-    {
-        return false;
-    }
-    let mut buf = [0u8; 512];
-    let Ok(n) = stream.read(&mut buf) else {
-        return false;
-    };
-    let resp = String::from_utf8_lossy(&buf[..n]);
-    resp.contains("200") && resp.contains("\"ok\":true")
 }
 
 fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
@@ -114,7 +94,7 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
         }
     } else {
         let _ = w.eval(
-            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 16px">本地 Workbench 服务未就绪。</p><p style="color:#71717a;font-size:13px;margin:0">请重启 anyCode Desktop 或检查端口占用。</p></div></div>';"#,
+            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px;max-width:420px;margin:0 auto"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 12px">本地工作台服务未在 43180 端口就绪。</p><ol style="color:#71717a;font-size:13px;margin:0;padding-left:1.2rem;text-align:left;line-height:1.6"><li>完全退出 anyCode（Cmd+Q），再重新打开</li><li>若仍失败，终端执行：<code style="color:#d4d4d8">lsof -iTCP:43180 -sTCP:LISTEN</code> 并结束占用进程</li><li>不要同时运行 <code style="color:#d4d4d8">anycode-dashboard-serve</code> 与桌面应用</li></ol></div></div>';"#,
         );
     }
     let _ = w.show();
@@ -184,6 +164,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             open_external_url,
             apple_media::apple_media_capabilities,

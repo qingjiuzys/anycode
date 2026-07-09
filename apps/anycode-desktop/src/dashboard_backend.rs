@@ -4,7 +4,34 @@ use anycode_dashboard::server::{run_with_shutdown, DashboardConfig, default_db_p
 use anycode_dashboard::load_workspace_paths;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
+
+const DASHBOARD_HOST: &str = "127.0.0.1";
+const DASHBOARD_PORT: u16 = 43_180;
+
+/// True when loopback `/api/health` returns `{"ok":true}`.
+pub fn dashboard_http_ready() -> bool {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    let Ok(mut stream) = TcpStream::connect((DASHBOARD_HOST, DASHBOARD_PORT)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+    let req = format!(
+        "GET /api/health HTTP/1.1\r\nHost: {DASHBOARD_HOST}:{DASHBOARD_PORT}\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    let Ok(n) = stream.read(&mut buf) else {
+        return false;
+    };
+    let resp = String::from_utf8_lossy(&buf[..n]);
+    resp.contains("200") && resp.contains("\"ok\":true")
+}
 
 pub struct DashboardServerState {
     shutdown_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
@@ -74,6 +101,12 @@ pub fn apply_dashboard_env(app: &AppHandle) {
 
 pub fn start_in_process(app: AppHandle) {
     apply_dashboard_env(&app);
+    if dashboard_http_ready() {
+        eprintln!(
+            "anycode-desktop: reusing existing Workbench at http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/"
+        );
+        return;
+    }
     let static_dir = std::env::var("ANYCODE_DASHBOARD_STATIC")
         .ok()
         .map(PathBuf::from)

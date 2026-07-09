@@ -1,0 +1,8 @@
+{
+  "id": "web-app",
+  "name": "Web App",
+  "name_zh": "Web 应用",
+  "description": "Agent-first web MVP: Vite + React skeleton, implement features, then run dev server and tests.",
+  "description_zh": "Agent 自主 Web 应用：Vite + React 骨架，实现功能后启动开发服务器与测试。",
+  "default_dir": "my_web_app"
+}

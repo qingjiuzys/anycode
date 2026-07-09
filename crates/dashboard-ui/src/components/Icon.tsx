@@ -305,6 +305,11 @@ const icons: Record<string, ReactNode> = {
       <path d="m9 12 2 2 4-5" />
     </>
   ),
+  progress_activity: (
+    <>
+      <path d="M12 3a9 9 0 1 0 9 9" />
+    </>
+  ),
   psychology: (
     <>
       <path d="M9 18H8a4 4 0 0 1-1-7.87A5.5 5.5 0 0 1 17.5 8a4.5 4.5 0 0 1-1.5 8.74V21h-6v-3" />
@@ -445,10 +450,11 @@ export const registeredIconNames = new Set(Object.keys(icons));
 
 export function Icon({ name, filled, className, size = 20 }: IconProps) {
   const icon = icons[name] ?? <circle cx="12" cy="12" r="3" />;
+  const spinClass = name === "progress_activity" ? "animate-spin" : "";
 
   return (
     <svg
-      className={`dw-icon select-none shrink-0 ${filled ? "fill" : ""} ${className ?? ""}`}
+      className={`dw-icon select-none shrink-0 ${filled ? "fill" : ""} ${spinClass} ${className ?? ""}`}
       width={size}
       height={size}
       viewBox="0 0 24 24"

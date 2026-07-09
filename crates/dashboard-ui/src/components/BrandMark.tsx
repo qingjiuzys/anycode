@@ -22,7 +22,7 @@ export function BrandMark({
 
   const content = (
     <>
-      <img src={brandIcon} alt="" className={iconClass} />
+      <img src={brandIcon} alt="" className={iconClass} decoding="async" />
       {showTitle && <span className={titleClass}>{t("layout.brand")}</span>}
     </>
   );

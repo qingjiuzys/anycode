@@ -94,12 +94,20 @@ jobs:
           else
             export APPLE_SIGNING_IDENTITY="-"
           fi
+          if [[ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]]; then
+            export TAURI_SIGNING_PRIVATE_KEY="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}"
+          fi
           ./scripts/build-desktop-release.sh
 
       - name: Upload macOS DMG to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: target/release/bundle/dmg/*.dmg
+          files: |
+            target/release/bundle/dmg/*.dmg
+            target/release/bundle/macos/*.tar.gz
+            target/release/bundle/macos/*.sig
+            target/release/bundle/macos/latest.json
 
       - name: Upload macOS bundle (CI artifact)
         uses: actions/upload-artifact@v4

@@ -52,6 +52,7 @@ impl DashboardDb {
 
 pub mod agents;
 mod artifacts;
+mod chat_turn_events;
 mod events;
 mod gates;
 mod open;

@@ -20,7 +20,7 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
   const homeSearch = useSearch({ from: "/_shell/", shouldThrow: false }) as
     | { project?: string }
     | undefined;
-  const { projectOptions } = useConversationShell();
+  const { projectOptions, projectId, goHome } = useConversationShell();
   const health = useQuery({
     queryKey: ["health"],
     queryFn: api.health,
@@ -54,7 +54,8 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
   }
 
   const ov = overview.data?.overview;
-  const initialProjectId = homeSearch?.project ?? projectOptions[0]?.id;
+  const effectiveProjectId =
+    projectId || homeSearch?.project || projectOptions[0]?.id || "";
 
   return (
     <>
@@ -74,7 +75,9 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
           <HomeHeroComposer
             sseStatus={sseStatus}
             projectOptions={projectOptions.map((p) => ({ id: p.id, name: p.name }))}
-            initialProjectId={initialProjectId}
+            projectId={effectiveProjectId}
+            onProjectChange={goHome}
+            initialProjectId={homeSearch?.project}
             blockedCount={ov?.sessions_blocked ?? 0}
             pendingCount={pendingTotal}
             budgetExceededCount={ov?.sessions_budget_exceeded ?? 0}

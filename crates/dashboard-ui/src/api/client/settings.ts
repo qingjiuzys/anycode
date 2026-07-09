@@ -30,6 +30,7 @@ import { del, get, patch, post, put } from "../http";
 export const settingsClient = {
   services: () => get<{ services: LocalServiceRecord[] }>("/api/settings/services"),
   database: () => get<{ path: string; driver: string }>("/api/settings/database"),
+  databaseBackup: () => post<{ ok: boolean; path: string; error?: string }>("/api/settings/database/backup", {}),
   doctor: () => get<{ doctor: DoctorReport }>("/api/settings/doctor"),
   runtimeSettings: () => get<{ runtime: RuntimeSettings }>("/api/settings/runtime"),
   dashboardPreferences: () =>

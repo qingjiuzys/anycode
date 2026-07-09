@@ -34,6 +34,64 @@ pub async fn get_session(
     }
 }
 
+#[derive(Deserialize)]
+pub struct PatchSessionRequest {
+    pub title: String,
+}
+
+pub async fn patch_session(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Json(body): Json<PatchSessionRequest>,
+) -> impl IntoResponse {
+    let title = body.title.trim();
+    if title.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "title is required" })),
+        )
+            .into_response();
+    }
+    if title.chars().count() > 120 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "title must be at most 120 characters" })),
+        )
+            .into_response();
+    }
+    match state.db.get_session(&session_id).await {
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "session not found" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+        Ok(Some(_)) => {}
+    }
+    match state
+        .db
+        .update_session_metadata(&session_id, Some(title), None)
+        .await
+    {
+        Ok(()) => {
+            Json(json!({ "ok": true, "session_id": session_id, "title": title })).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn send_session_message(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
@@ -425,11 +483,21 @@ pub async fn list_session_event_types(
 pub async fn session_events_stream(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
+    Query(q): Query<SessionStreamQuery>,
+    headers: axum::http::HeaderMap,
 ) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
+    let after_seq = q.after_seq.or_else(|| {
+        headers
+            .get("Last-Event-ID")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<i64>().ok())
+    });
     sse_session_stream(
+        state.db.clone(),
         state.events.subscribe(),
         state.events.subscribe_chat(),
         session_id,
+        after_seq,
     )
 }
 

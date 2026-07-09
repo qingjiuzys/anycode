@@ -10,6 +10,8 @@ type Props = {
   items: ConfiguredModel[];
   onEnable: (modelId: string, capability: string) => void;
   enabling?: boolean;
+  /** Omit outer SectionCard when nested in settings tabs. */
+  embedded?: boolean;
 };
 
 function labelForItem(items: ConfiguredModel[], id: string) {
@@ -22,12 +24,12 @@ function candidatesForCap(items: ConfiguredModel[], cap: string) {
   return items.filter((m) => m.enabled && m.capabilities.includes(cap));
 }
 
-export function CapabilityActiveMatrix({ registry, items, onEnable, enabling }: Props) {
+export function CapabilityActiveMatrix({ registry, items, onEnable, enabling, embedded }: Props) {
   const t = useT();
   const active = registry?.active ?? {};
 
-  return (
-    <SectionCard title={t("settings.model.activeMatrixTitle")}>
+  const body = (
+    <>
       <p className="text-xs text-secondary m-0 mb-3">{t("settings.model.activeMatrixHint")}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {CAPABILITIES.map((cap) => {
@@ -89,6 +91,10 @@ export function CapabilityActiveMatrix({ registry, items, onEnable, enabling }: 
           );
         })}
       </div>
-    </SectionCard>
+    </>
   );
+
+  if (embedded) return <div className="dw-model-tab-panel">{body}</div>;
+
+  return <SectionCard title={t("settings.model.activeMatrixTitle")}>{body}</SectionCard>;
 }

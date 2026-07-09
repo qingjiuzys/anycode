@@ -72,6 +72,37 @@ start_portal() {
   npm run dev
 }
 
+load_agnes_upstream_key() {
+  if [[ -n "${AGNES_API_KEY:-}" ]]; then
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    local from_cfg
+    from_cfg="$(python3 -c "import json, pathlib; c=json.loads(pathlib.Path('${HOME}/.anycode/config.json').read_text()); print(c.get('provider_credentials',{}).get('agnes',''))" 2>/dev/null || true)"
+    if [[ -n "${from_cfg}" ]]; then
+      export AGNES_API_KEY="${from_cfg}"
+      return 0
+    fi
+  fi
+  for f in "${HOME}/.anycode/secrets/agnes.txt" "${HOME}/.anycode/secrets/default.txt"; do
+    if [[ -f "${f}" ]]; then
+      export AGNES_API_KEY="$(tr -d '\n' < "${f}")"
+      return 0
+    fi
+  done
+  echo "WARN: no AGNES_API_KEY — set env or ~/.anycode/config.json provider_credentials.agnes" >&2
+}
+
+start_gateway() {
+  load_agnes_upstream_key
+  export MODEL_GATEWAY_HOST="${MODEL_GATEWAY_HOST:-127.0.0.1}"
+  export MODEL_GATEWAY_PORT="${MODEL_GATEWAY_PORT:-43210}"
+  export ANYCODE_ACCOUNT_API_URL="${ANYCODE_ACCOUNT_API_URL:-http://127.0.0.1:${API_PORT}}"
+  cd "${ROOT}/crates/model-gateway"
+  cargo build --release
+  exec ./target/release/anycode-model-gateway
+}
+
 start_workbench() {
   pick_dashboard_port
   echo "Dashboard API: http://127.0.0.1:${DASHBOARD_PORT}"
@@ -92,7 +123,8 @@ Prerequisites: Docker, Node.js, Rust toolchain.
 Run in separate terminals:
 
   1. API:       ./scripts/dev-account-portal.sh api
-  2. Portal UI: ./scripts/dev-account-portal.sh portal
+  2. Gateway:  ./scripts/dev-account-portal.sh gateway
+  3. Portal UI: ./scripts/dev-account-portal.sh portal
      → http://127.0.0.1:${PORTAL_PORT}/login
 
 Optional Workbench (browser):
@@ -119,6 +151,7 @@ cmd="${1:-}"
 case "${cmd}" in
   mysql) start_mysql ;;
   api) start_api ;;
+  gateway) start_gateway ;;
   portal) start_portal ;;
   workbench) start_workbench ;;
   "") print_help ;;

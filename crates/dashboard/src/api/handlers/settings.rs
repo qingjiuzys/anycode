@@ -31,6 +31,36 @@ pub async fn database_settings(State(state): State<AppState>) -> impl IntoRespon
     }))
 }
 
+#[derive(Serialize)]
+pub struct DatabaseBackupResponse {
+    pub ok: bool,
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+pub async fn post_database_backup(State(state): State<AppState>) -> impl IntoResponse {
+    let src = state.db.path();
+    let dest = crate::service_governance::suggest_backup_path(src);
+    match crate::backup_db(src, &dest) {
+        Ok(()) => Json(DatabaseBackupResponse {
+            ok: true,
+            path: dest.display().to_string(),
+            error: None,
+        })
+        .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(DatabaseBackupResponse {
+                ok: false,
+                path: dest.display().to_string(),
+                error: Some(e.to_string()),
+            }),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct CronRunsQuery {
     #[serde(default = "default_limit")]

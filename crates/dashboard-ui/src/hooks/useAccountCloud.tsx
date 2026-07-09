@@ -94,12 +94,14 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
 
   const applyCloudSession = useCallback(() => {
     setTokenVersion((v) => v + 1);
+    void api.cloudSyncModels().then(() => {
+      void qc.invalidateQueries({ queryKey: ["models-registry"] });
+      void qc.invalidateQueries({ queryKey: ["llm-config"] });
+    });
     void qc.invalidateQueries({ queryKey: ["account-cloud-me"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-bundle"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-members"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-api-keys"] });
-    void qc.invalidateQueries({ queryKey: ["models-registry"] });
-    void qc.invalidateQueries({ queryKey: ["llm-config"] });
   }, [qc]);
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import type { AssetItem } from "@/api/types/artifacts";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { downloadCsv } from "@/utils/exportCsv";
 import { Icon } from "@/components/Icon";
@@ -61,10 +62,21 @@ function AssetsPageInner({
   const [trustFilter, setTrustFilter] = useState<TrustFilter>(
     trustSearch ?? "all",
   );
+  const [reportPreviewId, setReportPreviewId] = useState("");
 
   useEffect(() => {
     if (trustSearch) setTrustFilter(trustSearch);
   }, [trustSearch]);
+
+  useEffect(() => {
+    setReportPreviewId("");
+  }, [projectId, assetKind]);
+
+  const reportPreview = useQuery({
+    queryKey: ["artifact", reportPreviewId],
+    queryFn: () => api.artifactDetail(reportPreviewId),
+    enabled: Boolean(reportPreviewId),
+  });
 
   const assets = useQuery({
     queryKey: [
@@ -120,11 +132,11 @@ function AssetsPageInner({
 
   const sourceOptions: { value: SourceFilter; label: string }[] = [
     { value: "", label: t("assets.allSources") },
-    { value: "agent_created", label: t("assets.sources.agentCreated") },
-    { value: "workspace_scan", label: t("assets.sources.workspaceScan") },
-    { value: "report_archive", label: t("assets.sources.reportArchive") },
-    { value: "skill_scan", label: t("assets.sources.skillScan") },
-    { value: "workflow_scan", label: t("assets.sources.workflowScan") },
+    { value: "agent_created", label: t("assets.sources.agent_created") },
+    { value: "workspace_scan", label: t("assets.sources.workspace_scan") },
+    { value: "report_archive", label: t("assets.sources.report_archive") },
+    { value: "skill_scan", label: t("assets.sources.skill_scan") },
+    { value: "workflow_scan", label: t("assets.sources.workflow_scan") },
   ];
 
   const reuseOptions: { value: ReuseFilter; label: string }[] = [
@@ -145,6 +157,14 @@ function AssetsPageInner({
         ]}
         actions={
           <>
+            <ControlCenterLink
+              to="/reports"
+              search={projectId ? { project_id: projectId } : undefined}
+              className="dw-btn-secondary no-underline inline-flex items-center gap-1.5"
+            >
+              <Icon name="description" size={16} />
+              {t("assets.openReportGenerator")}
+            </ControlCenterLink>
             {projectId && (
               <button
                 type="button"
@@ -260,7 +280,12 @@ function AssetsPageInner({
                   <tr key={a.id}>
                     <td>{a.project_name ?? "—"}</td>
                     <td className="text-secondary">
-                      <AssetLink asset={a} />
+                      <AssetLink
+                        asset={a}
+                        onPreviewReport={
+                          a.asset_kind === "report" ? () => setReportPreviewId(a.backend_id) : undefined
+                        }
+                      />
                     </td>
                     <td>{t(`assets.kinds.${a.asset_kind}`)}</td>
                     <td className="text-xs text-secondary">
@@ -296,13 +321,58 @@ function AssetsPageInner({
           </div>
         </div>
       )}
+
+      {reportPreviewId && (
+        <SectionCard
+          title={reportPreview.data?.artifact?.artifact?.title ?? t("assets.reportPreview")}
+          className="mt-4"
+          action={
+            <button
+              type="button"
+              className="dw-btn-secondary text-xs"
+              onClick={() => setReportPreviewId("")}
+            >
+              {t("reports.close")}
+            </button>
+          }
+        >
+          {reportPreview.isLoading && (
+            <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+          )}
+          {!reportPreview.isLoading && reportPreview.data?.artifact?.report_markdown && (
+            <pre className="bg-surface-container-low border border-outline-variant rounded p-4 font-code text-xs overflow-auto max-h-[480px] whitespace-pre-wrap m-0">
+              {reportPreview.data.artifact.report_markdown}
+            </pre>
+          )}
+          {!reportPreview.isLoading && !reportPreview.data?.artifact?.report_markdown && (
+            <p className="text-sm text-secondary m-0">{t("assets.reportPreviewEmpty")}</p>
+          )}
+        </SectionCard>
+      )}
     </>
   );
 }
 
-function AssetLink({ asset }: { asset: AssetItem }) {
+function AssetLink({
+  asset,
+  onPreviewReport,
+}: {
+  asset: AssetItem;
+  onPreviewReport?: () => void;
+}) {
   const t = useT();
   if (asset.asset_kind === "report") {
+    if (onPreviewReport) {
+      return (
+        <button
+          type="button"
+          className="font-code text-xs text-left border-0 bg-transparent p-0 cursor-pointer text-primary hover:underline"
+          onClick={onPreviewReport}
+        >
+          {asset.title}
+        </button>
+      );
+    }
     return (
       <ControlCenterLink
         to="/reports"

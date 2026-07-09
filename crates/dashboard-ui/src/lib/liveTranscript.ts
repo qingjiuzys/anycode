@@ -5,6 +5,9 @@ export interface ChatStreamEvent {
   project_id: string;
   kind: string;
   turn?: number;
+  conversation_turn_id?: number;
+  seq?: number;
+  event_id?: string;
   tool_key?: string;
   tool_name?: string;
   text?: string;
@@ -260,7 +263,30 @@ export function mergeTranscriptBlocks(
   return order.map((id) => byId.get(id)!).filter(Boolean);
 }
 
-/** SSE-primary merge: when streaming, REST snapshot only hydrates history before the active tail. */
+/** Append-only canonical merge: REST snapshot + SSE events with seq > snapshotMaxSeq. */
+export function resolveCanonicalTranscriptBlocks(
+  snapshot: TranscriptBlock[],
+  liveEvents: ChatStreamEvent[],
+  snapshotMaxSeq = 0,
+  streaming = false,
+): TranscriptBlock[] {
+  if (!streaming || liveEvents.length === 0) {
+    return snapshot;
+  }
+  const pending = liveEvents
+    .filter((evt) => (evt.seq ?? 0) > snapshotMaxSeq)
+    .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  if (pending.length === 0) {
+    return snapshot;
+  }
+  let blocks = [...snapshot];
+  for (const evt of pending) {
+    blocks = applyChatStreamEvent(blocks, evt);
+  }
+  return blocks;
+}
+
+/** @deprecated Prefer resolveCanonicalTranscriptBlocks with liveEvents + max_seq. */
 export function resolveTranscriptBlocks(
   snapshot: TranscriptBlock[],
   live: TranscriptBlock[],
@@ -272,6 +298,16 @@ export function resolveTranscriptBlocks(
   const lastUserIdx = lastUserMessageIndex(snapshot);
   const baseline = lastUserIdx >= 0 ? snapshot.slice(0, lastUserIdx + 1) : [];
   return mergeTranscriptBlocks(baseline, live);
+}
+
+/** Build transcript blocks from canonical SSE events ordered by seq. */
+export function blocksFromCanonicalEvents(events: ChatStreamEvent[]): TranscriptBlock[] {
+  const sorted = [...events].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  let blocks: TranscriptBlock[] = [];
+  for (const evt of sorted) {
+    blocks = applyChatStreamEvent(blocks, evt);
+  }
+  return blocks;
 }
 
 /** True when SSE live blocks already show assistant/tool/thinking activity. */

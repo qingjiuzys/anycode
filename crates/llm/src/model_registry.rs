@@ -8,6 +8,17 @@ use crate::config_models::{
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
+fn resolve_global_api_key(cfg: &Value) -> String {
+    if let Some(ref_key) = string_field(cfg, "api_key_ref", "api_key_ref") {
+        if let Ok(Some(v)) = crate::secret_store::resolve_secret_ref(&ref_key) {
+            if !v.trim().is_empty() {
+                return v;
+            }
+        }
+    }
+    string_field(cfg, "api_key", "api_key").unwrap_or_default()
+}
+
 /// Resolved registry used at runtime and by media clients.
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedModelRegistry {
@@ -31,7 +42,7 @@ impl ResolvedModelRegistry {
         reg.provider_credentials = creds;
         reg.global_provider = string_field(cfg, "provider", "provider");
         reg.global_model = string_field(cfg, "model", "model");
-        reg.global_api_key = string_field(cfg, "api_key", "api_key").unwrap_or_default();
+        reg.global_api_key = resolve_global_api_key(cfg);
         reg.global_base_url = string_field(cfg, "base_url", "base_url");
         reg.global_plan = string_field(cfg, "plan", "plan");
         reg
@@ -53,6 +64,11 @@ impl ResolvedModelRegistry {
             }
         }
         if let Some(ref r) = item.api_key_ref {
+            if let Ok(Some(k)) = crate::secret_store::resolve_secret_ref(r) {
+                if !k.trim().is_empty() {
+                    return Some(k.trim().to_string());
+                }
+            }
             if let Some(k) = self.provider_credentials.get(r) {
                 if !k.trim().is_empty() {
                     return Some(k.trim().to_string());

@@ -33,7 +33,7 @@ function rowsToAgents(rows: AgentRow[]): Record<string, ModelProfile> {
   return out;
 }
 
-export function RoutingAgentsEditor() {
+export function RoutingAgentsEditor({ embedded = false }: { embedded?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
 
@@ -88,9 +88,9 @@ export function RoutingAgentsEditor() {
   const providers = catalog.data?.providers ?? [];
   const presets = catalog.data?.routing_agent_presets ?? [];
 
-  return (
-    <SectionCard title={t("settings.model.routingTitle")} noPadding>
-      <div className="px-4 pt-4 pb-3 border-b border-outline-variant">
+  const body = (
+    <>
+      <div className={embedded ? "pb-3" : "px-4 pt-4 pb-3 border-b border-outline-variant"}>
         <p className="text-sm text-secondary m-0 mb-3">{t("settings.model.routingHint")}</p>
         {presets.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2">
@@ -117,7 +117,9 @@ export function RoutingAgentsEditor() {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-secondary px-4 py-4 m-0">{t("settings.runtime.noRouting")}</p>
+        <p className={`text-sm text-secondary m-0 ${embedded ? "py-2" : "px-4 py-4"}`}>
+          {t("settings.runtime.noRouting")}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="dw-table">
@@ -177,7 +179,7 @@ export function RoutingAgentsEditor() {
         </div>
       )}
 
-      <div className="px-4 py-4 border-t border-outline-variant">
+      <div className={embedded ? "pt-4" : "px-4 py-4 border-t border-outline-variant"}>
         <button
           type="button"
           className="dw-btn-primary"
@@ -193,6 +195,16 @@ export function RoutingAgentsEditor() {
           <div className="dw-alert-error mt-2">{(save.error as Error).message}</div>
         )}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="dw-model-tab-panel">{body}</div>;
+  }
+
+  return (
+    <SectionCard title={t("settings.model.routingTitle")} noPadding>
+      {body}
     </SectionCard>
   );
 }

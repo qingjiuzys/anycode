@@ -31,3 +31,5 @@ features:
     title: macOS desktop native media
     details: anyCode.app bundles the Workbench plus Apple Speech STT and Apple Vision OCR—best on macOS today.
 ---
+
+<HomeExtras />

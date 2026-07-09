@@ -16,8 +16,12 @@ export function SessionSidebar() {
     pendingCounts,
     listBusy,
     projectOptions,
+    projectId,
     prefetchSession,
     startSessionForProject,
+    goHome,
+    onRenameSession,
+    optimisticStreamingSessionId,
   } = useConversationShell();
 
   return (
@@ -55,6 +59,10 @@ export function SessionSidebar() {
           onPrefetch={prefetchSession}
           hideEmptyProjects={listSearch.trim().length > 0}
           onNewSession={startSessionForProject}
+          activeProjectId={projectId}
+          onSelectProject={goHome}
+          onRenameSession={onRenameSession}
+          optimisticStreamingSessionId={optimisticStreamingSessionId}
         />
       </div>
 

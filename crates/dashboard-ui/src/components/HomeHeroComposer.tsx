@@ -4,9 +4,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { buildConversationsHref, conversationSearchParams } from "@/lib/conversationsSearch";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
+import { ProjectPicker } from "@/components/ProjectPicker";
 import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
-import { useT } from "@/i18n/context";
+import { useT, useLocale } from "@/i18n/context";
+import { SCENARIO_CARDS, scenarioPrompt, type ScenarioCard } from "@/lib/scenarioCards";
 
 type Sse = "live" | "connecting" | "reconnecting" | "offline";
 
@@ -15,6 +17,8 @@ const DISMISS_BROWSER_KEY = "anycode-home-browser-hint-dismiss";
 export function HomeHeroComposer({
   sseStatus,
   projectOptions,
+  projectId,
+  onProjectChange,
   initialProjectId,
   blockedCount = 0,
   pendingCount = 0,
@@ -24,6 +28,8 @@ export function HomeHeroComposer({
 }: {
   sseStatus: Sse;
   projectOptions: { id: string; name: string }[];
+  projectId?: string;
+  onProjectChange?: (projectId: string) => void;
   initialProjectId?: string;
   blockedCount?: number;
   pendingCount?: number;
@@ -32,12 +38,22 @@ export function HomeHeroComposer({
   onPromptChange?: (value: string) => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [internalPrompt, setInternalPrompt] = useState("");
   const prompt = promptProp ?? internalPrompt;
   const setPrompt = onPromptChange ?? setInternalPrompt;
-  const [projectId, setProjectId] = useState("");
+  const [internalProjectId, setInternalProjectId] = useState("");
+  const isControlled = projectId !== undefined;
+  const resolvedProjectId = isControlled ? projectId : internalProjectId;
+  const setResolvedProjectId = (nextProjectId: string) => {
+    if (onProjectChange) {
+      onProjectChange(nextProjectId);
+      return;
+    }
+    setInternalProjectId(nextProjectId);
+  };
   const [browserHintDismissed, setBrowserHintDismissed] = useState(false);
 
   const browser = useQuery({
@@ -58,29 +74,32 @@ export function HomeHeroComposer({
   }, []);
 
   useEffect(() => {
+    if (isControlled) return;
     if (
       initialProjectId &&
       projectOptions.some((p) => p.id === initialProjectId) &&
-      projectId !== initialProjectId
+      internalProjectId !== initialProjectId
     ) {
-      setProjectId(initialProjectId);
+      setInternalProjectId(initialProjectId);
       return;
     }
-    if (!projectId && projectOptions.length > 0) {
-      setProjectId(projectOptions[0]!.id);
+    if (!internalProjectId && projectOptions.length > 0) {
+      setInternalProjectId(projectOptions[0]!.id);
     }
-  }, [initialProjectId, projectId, projectOptions]);
+  }, [initialProjectId, internalProjectId, isControlled, projectOptions]);
 
   const start = useMutation({
-    mutationFn: () =>
-      api.startConversation(projectId, {
-        prompt: prompt.trim(),
+    mutationFn: (opts?: { agent?: string; skills?: string[]; prompt?: string }) =>
+      api.startConversation(resolvedProjectId, {
+        prompt: (opts?.prompt ?? prompt).trim(),
+        agent: opts?.agent,
+        skills: opts?.skills,
       }),
     onSuccess: (data) => {
       setPrompt("");
       const canon = conversationSearchParams({
         session: data.session.id,
-        project: projectId,
+        project: resolvedProjectId,
       });
       const href = buildConversationsHref(canon);
       window.history.replaceState(window.history.state, "", href);
@@ -102,7 +121,8 @@ export function HomeHeroComposer({
     setBrowserHintDismissed(true);
   }
 
-  const canSubmit = prompt.trim().length > 0 && projectId.length > 0 && !start.isPending;
+  const canSubmit =
+    prompt.trim().length > 0 && resolvedProjectId.length > 0 && !start.isPending;
   const hasAlerts = blockedCount > 0 || pendingCount > 0 || budgetExceededCount > 0;
 
   const statusLabel = connected
@@ -111,46 +131,58 @@ export function HomeHeroComposer({
       ? t("home.hero.statusConnecting")
       : t("home.hero.statusOffline");
 
+  function launchScenario(card: ScenarioCard) {
+    const text = scenarioPrompt(card, locale);
+    setPrompt(text);
+    start.mutate({
+      prompt: text,
+      agent: card.agent,
+      skills: card.skills.length > 0 ? card.skills : undefined,
+    });
+  }
+
   return (
     <div className="dw-hero-composer">
+      <div className="dw-hero-composer__scenarios">
+        <span className="dw-hero-composer__scenarios-label">{t("home.hero.scenariosLabel")}</span>
+        <div className="dw-hero-composer__scenario-row">
+          {SCENARIO_CARDS.map((card) => (
+            <button
+              key={card.id}
+              type="button"
+              className="dw-hero-composer__scenario-chip"
+              disabled={!resolvedProjectId || start.isPending}
+              onClick={() => launchScenario(card)}
+            >
+              <Icon name={card.icon} size={16} />
+              <span>{t(`home.scenarios.${card.id}`)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="dw-hero-composer__card glass-panel">
         <textarea
           className="dw-hero-composer__textarea"
           placeholder={t("home.hero.placeholder")}
           value={prompt}
-          rows={3}
+          rows={7}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && canSubmit) {
               e.preventDefault();
-              start.mutate();
+              start.mutate({});
             }
           }}
         />
         <div className="dw-hero-composer__toolbar">
-          <label className="dw-hero-composer__project-select">
-            <Icon name="folder" size={16} className="text-secondary shrink-0" />
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={projectOptions.length === 0}
-              className="dw-hero-composer__select"
-              aria-label={t("home.hero.projectLabel")}
-            >
-              {projectOptions.length === 0 ? (
-                <option value="">{t("home.hero.noProject")}</option>
-              ) : (
-                projectOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))
-              )}
-            </select>
-            <Icon name="expand_more" size={14} className="text-secondary shrink-0 pointer-events-none" />
-          </label>
+          <ProjectPicker
+            value={resolvedProjectId}
+            onChange={setResolvedProjectId}
+            options={projectOptions}
+            disabled={start.isPending}
+          />
           <ModelPicker disabled={start.isPending} />
-          <div className="flex items-center gap-2 shrink-0 ml-auto">
+          <div className="dw-hero-composer__toolbar-actions">
             <VoiceInputButton
               disabled={start.isPending}
               onTranscribed={(text) => setPrompt(mergeVoiceTranscript(prompt, text))}
@@ -160,7 +192,7 @@ export function HomeHeroComposer({
               className="dw-hero-composer__submit"
               disabled={!canSubmit}
               aria-label={t("home.hero.send")}
-              onClick={() => start.mutate()}
+              onClick={() => start.mutate({})}
             >
               <Icon name="arrow_upward" size={20} />
             </button>

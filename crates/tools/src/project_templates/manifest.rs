@@ -118,9 +118,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lists_flutter_app_template() {
+    fn lists_builtin_templates() {
         let list = list_project_templates().expect("templates");
         assert!(list.iter().any(|t| t.id == "flutter-app"));
+        assert!(list.iter().any(|t| t.id == "web-app"));
     }
 
     #[test]

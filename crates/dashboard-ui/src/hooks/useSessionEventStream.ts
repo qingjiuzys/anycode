@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { SessionDetail, TranscriptBlock } from "@/api/types";
+import type { TranscriptBlock } from "@/api/types";
 import { useEventSource, type SseStatus } from "@/hooks/useEventSource";
 import {
   applyChatStreamEvent,
+  blocksFromCanonicalEvents,
   type ChatStreamEvent,
 } from "@/lib/liveTranscript";
 import { apiUrl } from "@/api/http";
@@ -37,15 +38,20 @@ export type SessionEventStreamState = {
   connected: boolean;
   /** Assistant/tool chat stream is active. */
   live: boolean;
+  liveEvents: ChatStreamEvent[];
   liveBlocks: TranscriptBlock[];
   status: SseStatus;
 };
 
 export type SessionEventStreamOptions = {
   onTurnDone?: () => void;
+  /** Current session status from list/detail (drives replay vs live handling). */
+  sessionStatus?: string;
+  /** True while waiting for backend to mark session running after send. */
+  optimisticStreaming?: boolean;
 };
 
-/** True when SSE recovered from a drop and live overlay should rebase on REST. */
+/** True when SSE recovered from a drop and should reconnect with after_seq replay. */
 export function shouldRebaseLiveOnSseReconnect(
   prev: SseStatus,
   next: SseStatus,
@@ -53,7 +59,45 @@ export function shouldRebaseLiveOnSseReconnect(
   return next === "live" && prev === "reconnecting";
 }
 
-/** Per-session SSE: single EventSource for project_event + chat_event. */
+/** Whether incoming chat_event payloads should populate live transcript state. */
+export function shouldTrackChatEventAsLive(
+  sessionStatus: string | undefined,
+  optimisticStreaming: boolean,
+): boolean {
+  if (optimisticStreaming) {
+    return true;
+  }
+  return sessionStatus === "running";
+}
+
+/** streamLive for canonical merge / polling (not the same as SSE connected). */
+export function conversationStreamLive(
+  chatStreamLive: boolean,
+  sseLive: boolean,
+  running: boolean,
+): boolean {
+  return chatStreamLive || (sseLive && running);
+}
+
+/** running flag for conversation thread UI. */
+export function conversationThreadRunning(
+  sessionStatus: string,
+  sessionId: string,
+  optimisticStreamingSessionId: string | null,
+): boolean {
+  return (
+    sessionStatus === "running" || optimisticStreamingSessionId === sessionId
+  );
+}
+
+function invalidateSessionListQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+): void {
+  void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+  void queryClient.invalidateQueries({ queryKey: ["session-facets"] });
+}
+
+/** Per-session SSE: single EventSource for project_event + chat_event replay. */
 export function useSessionEventStream(
   sessionId: string | undefined,
   scope: SessionStreamScope = "conversation",
@@ -61,11 +105,23 @@ export function useSessionEventStream(
 ): SessionEventStreamState {
   const queryClient = useQueryClient();
   const onTurnDone = options.onTurnDone;
+  const sessionStatus = options.sessionStatus;
+  const optimisticStreaming = options.optimisticStreaming ?? false;
   const heavyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [liveBlocks, setLiveBlocks] = useState<TranscriptBlock[]>([]);
+  const [liveEvents, setLiveEvents] = useState<ChatStreamEvent[]>([]);
   const [chatLive, setChatLive] = useState(false);
-  const blocksRef = useRef<TranscriptBlock[]>([]);
+  const eventsRef = useRef<Map<number, ChatStreamEvent>>(new Map());
+  const lastSeqRef = useRef(0);
+  const [afterSeq, setAfterSeq] = useState(0);
   const prevStatusRef = useRef<SseStatus>("offline");
+  const trackLiveRef = useRef(
+    shouldTrackChatEventAsLive(sessionStatus, optimisticStreaming),
+  );
+
+  trackLiveRef.current = shouldTrackChatEventAsLive(
+    sessionStatus,
+    optimisticStreaming,
+  );
 
   useEffect(() => {
     return () => {
@@ -74,63 +130,28 @@ export function useSessionEventStream(
   }, []);
 
   const resetLive = useCallback(() => {
-    blocksRef.current = [];
-    setLiveBlocks([]);
+    eventsRef.current = new Map();
+    setLiveEvents([]);
   }, []);
-
-  const rebaseFromSnapshot = useCallback(() => {
-    resetLive();
-    setChatLive(false);
-    if (!sessionId) {
-      return;
-    }
-    void queryClient.invalidateQueries({
-      queryKey: ["session-transcript", sessionId],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["session", sessionId],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["session-execution-log-live", sessionId],
-    });
-  }, [queryClient, resetLive, sessionId]);
 
   useEffect(() => {
     resetLive();
     setChatLive(false);
+    setAfterSeq(0);
+    lastSeqRef.current = 0;
   }, [resetLive, sessionId]);
 
   const applyChatEvent = useCallback(
     (evt: ChatStreamEvent) => {
+      const trackLive = trackLiveRef.current;
+
       if (evt.kind === "turn_done") {
         setChatLive(false);
         onTurnDone?.();
-        if (sessionId) {
-          void Promise.all([
-            queryClient.invalidateQueries({
-              queryKey: ["session-transcript", sessionId],
-            }),
-            queryClient.invalidateQueries({
-              queryKey: ["session", sessionId],
-            }),
-          ]).then(() => {
-            const cached = queryClient.getQueryData<{ session: SessionDetail }>([
-              "session",
-              sessionId,
-            ]);
-            if (cached?.session?.status !== "running") {
-              resetLive();
-            }
-          });
-        } else {
-          resetLive();
+        if (evt.seq !== undefined) {
+          lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
         }
-        return;
-      }
-      if (evt.kind === "session_error") {
-        setChatLive(false);
-        blocksRef.current = applyChatStreamEvent(blocksRef.current, evt);
-        setLiveBlocks([...blocksRef.current]);
+        resetLive();
         if (sessionId) {
           void queryClient.invalidateQueries({
             queryKey: ["session-transcript", sessionId],
@@ -138,12 +159,52 @@ export function useSessionEventStream(
           void queryClient.invalidateQueries({
             queryKey: ["session", sessionId],
           });
+          invalidateSessionListQueries(queryClient);
         }
         return;
       }
+
+      if (evt.kind === "session_error") {
+        setChatLive(false);
+        resetLive();
+        if (evt.seq !== undefined) {
+          lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
+        }
+        if (sessionId) {
+          void queryClient.invalidateQueries({
+            queryKey: ["session-transcript", sessionId],
+          });
+          void queryClient.invalidateQueries({
+            queryKey: ["session", sessionId],
+          });
+          invalidateSessionListQueries(queryClient);
+        }
+        return;
+      }
+
+      if (evt.seq !== undefined) {
+        if (evt.seq <= lastSeqRef.current) {
+          return;
+        }
+        lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
+        if (!trackLive) {
+          return;
+        }
+      } else if (!trackLive) {
+        return;
+      }
+
       setChatLive(true);
-      blocksRef.current = applyChatStreamEvent(blocksRef.current, evt);
-      setLiveBlocks([...blocksRef.current]);
+      if (evt.seq !== undefined) {
+        eventsRef.current.set(evt.seq, evt);
+        setLiveEvents(
+          [...eventsRef.current.values()].sort(
+            (a, b) => (a.seq ?? 0) - (b.seq ?? 0),
+          ),
+        );
+      } else {
+        setLiveEvents((prev) => [...prev, evt]);
+      }
       if (evt.kind === "assistant_done" && sessionId) {
         void queryClient.invalidateQueries({
           queryKey: ["session-transcript", sessionId],
@@ -213,6 +274,7 @@ export function useSessionEventStream(
       if (IMMEDIATE_EVENT_TYPES.has(eventType)) {
         if (heavyTimer.current) clearTimeout(heavyTimer.current);
         invalidateNow(heavyKeys);
+        invalidateSessionListQueries(queryClient);
         return;
       }
 
@@ -252,27 +314,55 @@ export function useSessionEventStream(
     [applyChatEvent, sessionId],
   );
 
+  const onStreamReset = useCallback((payload: { last_seq?: number }) => {
+    const seq = payload.last_seq ?? lastSeqRef.current;
+    setAfterSeq(seq);
+  }, []);
+
+  const sseUrl = useMemo(() => {
+    if (!sessionId) {
+      return null;
+    }
+    const base = apiUrl(`/api/sessions/${sessionId}/events/stream`);
+    return afterSeq > 0 ? `${base}?after_seq=${afterSeq}` : base;
+  }, [afterSeq, sessionId]);
+
   const status = useEventSource(
-    sessionId
-      ? apiUrl(`/api/sessions/${sessionId}/events/stream`)
-      : null,
+    sseUrl,
     onProjectEvent,
     scope === "conversation" ? onChatEvent : undefined,
+    onStreamReset,
   );
 
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = status;
     if (shouldRebaseLiveOnSseReconnect(prev, status)) {
-      rebaseFromSnapshot();
+      setAfterSeq(lastSeqRef.current);
     }
-  }, [rebaseFromSnapshot, status]);
+  }, [status]);
+
+  const liveBlocks = useMemo(() => {
+    if (liveEvents.length === 0) {
+      return [];
+    }
+    const withSeq = liveEvents.filter((evt) => evt.seq !== undefined);
+    if (withSeq.length > 0) {
+      return blocksFromCanonicalEvents(withSeq);
+    }
+    let blocks: TranscriptBlock[] = [];
+    for (const evt of liveEvents) {
+      blocks = applyChatStreamEvent(blocks, evt);
+    }
+    return blocks;
+  }, [liveEvents]);
 
   const connected = status === "live" || status === "connecting";
 
   return {
     connected,
-    live: chatLive || connected,
+    live: chatLive,
+    liveEvents,
     liveBlocks,
     status,
   };

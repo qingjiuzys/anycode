@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { MemoryRetentionPanel } from "@/components/settings/MemoryRetentionPanel";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -7,11 +7,18 @@ import { useT } from "@/i18n/context";
 
 export function SettingsDataSection() {
   const t = useT();
+  const qc = useQueryClient();
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
   const db = useQuery({ queryKey: ["database"], queryFn: api.database });
   const dbOps = useQuery({ queryKey: ["db-operations"], queryFn: api.dbOperations });
   const runtime = useRuntimeSettings();
   const rt = runtime.data?.runtime;
+  const backup = useMutation({
+    mutationFn: () => api.databaseBackup(),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["db-operations"] });
+    },
+  });
 
   return (
     <>
@@ -37,6 +44,20 @@ export function SettingsDataSection() {
             <p className="text-sm text-secondary m-0 mb-2">
               {t("settings.backup")}: {dbOps.data.operations.backup_suggestion}
             </p>
+            <button
+              type="button"
+              className="dw-btn dw-btn-secondary text-sm mb-2"
+              disabled={backup.isPending}
+              onClick={() => backup.mutate()}
+            >
+              {backup.isPending ? t("settings.backupRunning") : t("settings.backupNow")}
+            </button>
+            {backup.data?.ok && (
+              <p className="text-sm text-secondary m-0 mb-2">{backup.data.path}</p>
+            )}
+            {backup.data?.error && (
+              <p className="text-sm text-error m-0 mb-2">{backup.data.error}</p>
+            )}
             {dbOps.data.operations.growth_warnings.map((w) => (
               <p key={w} className="text-sm text-secondary m-0 mb-1">
                 ⚠ {w}

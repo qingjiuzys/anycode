@@ -27,7 +27,7 @@ function providerNeedsPlan(provider: string) {
   return id === "z.ai" || id === "zai" || id === "bigmodel";
 }
 
-export function ModelSettingsPanel() {
+export function ModelSettingsPanel({ embedded = false }: { embedded?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
 
@@ -101,25 +101,23 @@ export function ModelSettingsPanel() {
   });
 
   if (llm.isLoading || catalog.isLoading) {
-    return (
-      <SectionCard title={t("settings.model.chatTitle")}>
-        <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
-      </SectionCard>
+    const loading = (
+      <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
     );
+    if (embedded) return <div className="dw-model-tab-panel">{loading}</div>;
+    return <SectionCard title={t("settings.model.chatTitle")}>{loading}</SectionCard>;
   }
 
   if (llm.isError) {
-    return (
-      <SectionCard title={t("settings.model.chatTitle")}>
-        <div className="dw-alert-error">{(llm.error as Error).message}</div>
-      </SectionCard>
-    );
+    const err = <div className="dw-alert-error">{(llm.error as Error).message}</div>;
+    if (embedded) return <div className="dw-model-tab-panel">{err}</div>;
+    return <SectionCard title={t("settings.model.chatTitle")}>{err}</SectionCard>;
   }
 
   const cfg = llm.data as LlmConfigView;
 
-  return (
-    <SectionCard title={t("settings.model.chatTitle")}>
+  const body = (
+    <>
       {!cfg.config_present && (
         <p className="text-sm text-secondary m-0 mb-3">
           {t("settings.runtime.configMissing")}{" "}
@@ -308,6 +306,10 @@ export function ModelSettingsPanel() {
       {test.isSuccess && test.data && !test.data.ok && (
         <div className="dw-alert-error mt-2">{test.data.error ?? t("settings.model.testFailed")}</div>
       )}
-    </SectionCard>
+    </>
   );
+
+  if (embedded) return <div className="dw-model-tab-panel">{body}</div>;
+
+  return <SectionCard title={t("settings.model.chatTitle")}>{body}</SectionCard>;
 }

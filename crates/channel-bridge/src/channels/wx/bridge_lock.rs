@@ -75,6 +75,13 @@ pub struct BridgeLockGuard {
 
 impl BridgeLockGuard {
     pub fn acquire(data_root: &Path) -> Result<Self> {
+        if wechat_bridge_active(data_root) {
+            let path = bridge_lock_path(data_root);
+            anyhow::bail!(
+                "another WeChat bridge is already running (see {})",
+                path.display()
+            );
+        }
         write_bridge_lock(data_root)?;
         Ok(Self {
             data_root: data_root.to_path_buf(),

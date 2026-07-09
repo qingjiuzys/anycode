@@ -17,7 +17,7 @@ use serde_json::json;
 use std::path::PathBuf;
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::{AllowOrigin, Any, CorsLayer},
     services::ServeDir,
     set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
@@ -35,6 +35,7 @@ pub fn router(state: AppState) -> Router {
             "/cloud/gateway-test",
             post(handlers::post_cloud_gateway_test),
         )
+        .route("/cloud/sync-models", post(handlers::post_cloud_sync_models))
         .route("/auth/me", get(handlers::get_auth_me))
         .route("/auth/login", post(handlers::post_auth_login))
         .route("/auth/logout", post(handlers::post_auth_logout))
@@ -372,7 +373,10 @@ pub fn router(state: AppState) -> Router {
             get(handlers::list_all_sessions).post(handlers::create_session),
         )
         .route("/sessions/facets", get(handlers::list_session_facets))
-        .route("/sessions/{session_id}", get(handlers::get_session))
+        .route(
+            "/sessions/{session_id}",
+            get(handlers::get_session).patch(handlers::patch_session),
+        )
         .route(
             "/sessions/{session_id}/message",
             axum::routing::post(handlers::send_session_message),
@@ -475,6 +479,10 @@ pub fn router(state: AppState) -> Router {
             get(handlers::get_gate_preferences).put(handlers::put_gate_preferences),
         )
         .route("/settings/database", get(handlers::database_settings))
+        .route(
+            "/settings/database/backup",
+            post(handlers::post_database_backup),
+        )
         .route("/settings/db-operations", get(handlers::get_db_operations))
         .route(
             "/settings/memory/retention",
@@ -599,12 +607,24 @@ pub fn router(state: AppState) -> Router {
         app = app.fallback(get(crate::embedded_ui::fallback));
     }
 
-    app.layer(TraceLayer::new_for_http()).layer(
-        CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any),
-    )
+    app.layer(TraceLayer::new_for_http()).layer(cors_layer())
+}
+
+fn cors_layer() -> CorsLayer {
+    let origins = [
+        "http://127.0.0.1:43180",
+        "http://localhost:43180",
+        "http://127.0.0.1:43199",
+        "http://localhost:43199",
+        "tauri://localhost",
+        "https://tauri.localhost",
+    ];
+    let list: Vec<axum::http::HeaderValue> =
+        origins.iter().filter_map(|o| o.parse().ok()).collect();
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(list))
+        .allow_methods(Any)
+        .allow_headers(Any)
 }
 
 async fn spa_fallback(uri: Uri, static_root: PathBuf, index: PathBuf) -> axum::response::Response {

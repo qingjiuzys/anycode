@@ -79,14 +79,15 @@ fn walk_files(root: &Path) -> Result<Vec<walkdir::DirEntry>> {
     for entry in walkdir::WalkDir::new(root)
         .follow_links(false)
         .into_iter()
+        .filter_entry(|e| {
+            if e.file_type().is_dir() {
+                let name = e.file_name().to_string_lossy();
+                return !SKIP_DIR_NAMES.contains(&name.as_ref());
+            }
+            true
+        })
         .filter_map(|e| e.ok())
     {
-        if entry.file_type().is_dir() {
-            let name = entry.file_name().to_string_lossy();
-            if SKIP_DIR_NAMES.contains(&name.as_ref()) {
-                continue;
-            }
-        }
         if entry.file_type().is_file() {
             out.push(entry);
             if out.len() >= MAX_SCAN_FILES * 4 {
@@ -101,11 +102,20 @@ fn should_skip_rel(rel: &str) -> bool {
     if rel.starts_with('.') {
         return true;
     }
+    let file_name = rel.rsplit('/').next().unwrap_or(rel);
+    if file_name.starts_with("~$") {
+        return true;
+    }
     let lower = rel.to_lowercase();
     lower.ends_with(".log")
         || lower.ends_with(".tmp")
+        || lower.ends_with(".pyc")
         || lower.contains("/target/")
         || lower.contains("/node_modules/")
+        || lower.contains("/__pycache__/")
+        || lower.contains("/build/")
+        || lower.contains("/dist/")
+        || lower.contains("/.git/")
 }
 
 /// Parse session `started_at` (RFC3339 or SQLite `datetime`) into [`SystemTime`].
@@ -172,6 +182,8 @@ fn artifact_kind_for_path(path: &Path) -> &'static str {
             "media"
         }
         Some(ext) if ext == "pdf" => "media",
+        Some(ext) if matches!(ext.as_str(), "pptx" | "ppt") => "presentation",
+        Some(ext) if matches!(ext.as_str(), "docx" | "doc" | "xlsx" | "xls") => "document",
         Some(ext)
             if matches!(ext.as_str(), "md" | "txt")
                 && path.to_string_lossy().contains("report") =>

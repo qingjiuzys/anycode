@@ -61,7 +61,11 @@ type ConversationShellContextValue = {
   pendingCountsLoading: boolean;
   sseLive: boolean;
   liveBlocks: TranscriptBlock[];
+  liveEvents: import("@/lib/liveTranscript").ChatStreamEvent[];
   chatStreamLive: boolean;
+  isOptimisticStreaming: boolean;
+  optimisticStreamingSessionId: string | null;
+  onRenameSession: (sessionId: string, title: string) => void;
   markSessionStreaming: (sessionId: string) => void;
   projectOptions: Array<{ id: string; name: string; updated_at?: string }>;
   navigateSearch: (next: ConversationSearch) => void;
@@ -326,6 +330,10 @@ function useConversationShellState(): ConversationShellContextValue {
 
   const sessionStream = useSessionEventStream(runningSessionId, "conversation", {
     onTurnDone: clearOptimisticStreaming,
+    sessionStatus: selected?.status,
+    optimisticStreaming:
+      optimisticStreamingSessionId !== null &&
+      optimisticStreamingSessionId === displaySessionId,
   });
 
   useEffect(() => {
@@ -350,7 +358,11 @@ function useConversationShellState(): ConversationShellContextValue {
 
   const sseLive = sessionStream.connected;
   const liveBlocks = sessionStream.liveBlocks;
+  const liveEvents = sessionStream.liveEvents;
   const chatStreamLive = sessionStream.live;
+  const isOptimisticStreaming =
+    optimisticStreamingSessionId !== null &&
+    optimisticStreamingSessionId === displaySessionId;
 
   const quickChips = useMemo(() => {
     const chips: QuickChip[] = [
@@ -418,6 +430,17 @@ function useConversationShellState(): ConversationShellContextValue {
     [goHome],
   );
 
+  const renameSession = useCallback(
+    (sessionId: string, title: string) => {
+      void (async () => {
+        await api.renameSession(sessionId, title);
+        await queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+        await queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+      })();
+    },
+    [queryClient],
+  );
+
   return {
     projectId,
     setProjectId,
@@ -446,7 +469,11 @@ function useConversationShellState(): ConversationShellContextValue {
     pendingCountsLoading,
     sseLive,
     liveBlocks,
+    liveEvents,
     chatStreamLive,
+    isOptimisticStreaming,
+    optimisticStreamingSessionId,
+    onRenameSession: renameSession,
     markSessionStreaming,
     projectOptions,
     navigateSearch,

@@ -139,6 +139,13 @@ fn parse_tagged(tag: &str, kv: &str) -> Option<ParsedLine> {
                 payload: fields_to_json(&fields),
             })
         }
+        "tool_call_input" => Some(ParsedLine {
+            event_type: "tool_call_input".into(),
+            severity: "info".into(),
+            title: format!("{} input", field(&fields, "name")),
+            body: kv.into(),
+            payload: fields_to_json(&fields),
+        }),
         "tool_call_start" => Some(ParsedLine {
             event_type: "tool_call_start".into(),
             severity: "info".into(),
@@ -418,6 +425,13 @@ mod tests {
             .unwrap();
         assert_eq!(p.event_type, "tool_call_end");
         assert_eq!(p.severity, "info");
+    }
+
+    #[test]
+    fn parses_tool_call_input() {
+        let p = parse_line("[tool_call_input] turn=1 idx=1 name=FileWrite").unwrap();
+        assert_eq!(p.event_type, "tool_call_input");
+        assert_eq!(p.payload["name"], "FileWrite");
     }
 
     #[test]

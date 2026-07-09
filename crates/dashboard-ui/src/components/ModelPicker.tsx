@@ -7,15 +7,24 @@ import { useEmbeddedControlCenter } from "@/context/EmbeddedControlCenterContext
 import { useControlCenter } from "@/context/ControlCenterContext";
 import { useT } from "@/i18n/context";
 import {
-  findGlobalDefaultChatId,
-  inferAutoFromRegistry,
   listChatModels,
-  modelLabel,
-  readStoredAuto,
-  writeStoredAuto,
+  readStoredModelId,
   writeStoredModelId,
   type ComposerModelOption,
 } from "@/lib/composerModels";
+
+function formatModelLabel(
+  option: ComposerModelOption,
+  t: (key: string, vars?: Record<string, string>) => string,
+): string {
+  if (option.isCloud && option.cloudModel === "auto") {
+    return t("modelPicker.cloudAuto");
+  }
+  if (option.isCloud) {
+    return t("modelPicker.cloudNamed", { name: option.label });
+  }
+  return option.label;
+}
 
 type Props = {
   disabled?: boolean;
@@ -29,10 +38,8 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
   const { openControlCenter } = useControlCenter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [auto, setAuto] = useState(() => readStoredAuto(true));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const syncedRef = useRef(false);
 
   const registry = useQuery({
     queryKey: ["models-registry"],
@@ -56,40 +63,14 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
     return chatOptions.find((m) => m.id === selectedId) ?? null;
   }, [chatOptions, selectedId]);
 
-  const globalDefaultId = useMemo(
-    () => findGlobalDefaultChatId(registry.data),
-    [registry.data],
-  );
-
-  const globalModelLabel = useMemo(() => {
-    const gp = registry.data?.global?.provider;
-    const gm = registry.data?.global?.model;
-    if (gp && gm) return `${gp}/${gm}`;
-    if (globalDefaultId) {
-      const item = registryItems.find((m) => m.id === globalDefaultId);
-      if (item) return modelLabel(item);
-    }
-    return null;
-  }, [registry.data, globalDefaultId, registryItems]);
-
   useEffect(() => {
-    if (!registry.data || syncedRef.current) return;
-    syncedRef.current = true;
-    const storedAuto = readStoredAuto(inferAutoFromRegistry(registry.data));
+    if (!registry.data) return;
     const activeChat = registry.data.active?.chat ?? null;
-    setAuto(storedAuto);
-    if (!storedAuto && activeChat) {
-      setSelectedId(activeChat);
-      return;
-    }
-    if (globalDefaultId) {
-      setSelectedId(globalDefaultId);
-    } else if (activeChat) {
-      setSelectedId(activeChat);
-    } else if (chatOptions[0]) {
-      setSelectedId(chatOptions[0].id);
-    }
-  }, [registry.data, globalDefaultId, chatOptions]);
+    const stored = readStoredModelId();
+    const storedValid = stored && chatOptions.some((m) => m.id === stored) ? stored : null;
+    const next = activeChat ?? storedValid ?? chatOptions[0]?.id ?? null;
+    setSelectedId(next);
+  }, [registry.data, chatOptions]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -111,29 +92,9 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  function applyAutoMode(next: boolean) {
-    setAuto(next);
-    writeStoredAuto(next);
-    if (next) {
-      const defaultId = findGlobalDefaultChatId(registry.data);
-      if (defaultId) {
-        setSelectedId(defaultId);
-        enableModel.mutate({ id: defaultId });
-      }
-      return;
-    }
-    const activeChat = registry.data?.active?.chat;
-    if (activeChat) {
-      setSelectedId(activeChat);
-      writeStoredModelId(activeChat);
-    }
-  }
-
   function pickModel(option: ComposerModelOption) {
     setSelectedId(option.id);
     writeStoredModelId(option.id);
-    setAuto(false);
-    writeStoredAuto(false);
     enableModel.mutate({ id: option.id });
     setOpen(false);
     setQuery("");
@@ -146,16 +107,14 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
     }
   }
 
-  const triggerLabel = auto
-    ? t("modelPicker.auto")
-    : selectedOption?.label ?? t("modelPicker.selectModel");
-
-  const triggerTitle =
-    auto && globalModelLabel
-      ? t("modelPicker.autoUses").replace("{model}", globalModelLabel)
-      : selectedOption
-        ? `${selectedOption.label}${selectedOption.subtitle !== selectedOption.label ? ` (${selectedOption.subtitle})` : ""}`
-        : undefined;
+  const triggerLabel = selectedOption
+    ? formatModelLabel(selectedOption, t)
+    : t("modelPicker.selectModel");
+  const triggerTitle = selectedOption
+    ? selectedOption.subtitle !== selectedOption.label
+      ? `${selectedOption.label} · ${selectedOption.subtitle}`
+      : selectedOption.label
+    : undefined;
 
   return (
     <div ref={rootRef} className={`dw-model-picker relative ${compact ? "dw-model-picker--compact" : ""}`}>
@@ -173,36 +132,20 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
       </button>
 
       {open && (
-        <div className="dw-model-picker__menu glass-panel" role="listbox">
-          <div className="dw-model-picker__search-wrap">
-            <Icon name="search" size={16} className="text-secondary shrink-0" />
-            <input
-              type="search"
-              className="dw-model-picker__search"
-              placeholder={t("modelPicker.search")}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
-            />
-          </div>
-
-          <div className="dw-model-picker__toggle-row">
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span>{t("modelPicker.auto")}</span>
-              {globalModelLabel && (
-                <span className="text-[11px] text-secondary truncate">
-                  {t("modelPicker.autoUses").replace("{model}", globalModelLabel)}
-                </span>
-              )}
+        <div className="dw-model-picker__menu glass-panel" role="listbox" aria-label={t("modelPicker.selectModel")}>
+          {chatOptions.length > 6 && (
+            <div className="dw-model-picker__search-wrap">
+              <Icon name="search" size={16} className="text-secondary shrink-0" />
+              <input
+                type="search"
+                className="dw-model-picker__search"
+                placeholder={t("modelPicker.search")}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+              />
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={auto}
-              className={`dw-model-picker__switch${auto ? " dw-model-picker__switch--on" : ""}`}
-              onClick={() => applyAutoMode(!auto)}
-            />
-          </div>
+          )}
 
           <div className="dw-model-picker__list">
             {filtered.length === 0 ? (
@@ -211,7 +154,7 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
               </p>
             ) : (
               filtered.map((option) => {
-                const active = !auto && selectedId === option.id;
+                const active = selectedId === option.id;
                 return (
                   <button
                     key={option.id}
@@ -222,7 +165,10 @@ export function ModelPicker({ disabled = false, compact = false }: Props) {
                     onClick={() => pickModel(option)}
                   >
                     <div className="dw-model-picker__item-head">
-                      <span className="dw-model-picker__item-label">{option.label}</span>
+                      <span className="dw-model-picker__item-label">{formatModelLabel(option, t)}</span>
+                      {option.isCloud && (
+                        <span className="dw-model-picker__cloud-badge">{t("modelPicker.cloudBadge")}</span>
+                      )}
                       {active && <Icon name="check" size={16} className="text-primary shrink-0" />}
                     </div>
                     {option.subtitle !== option.label && (

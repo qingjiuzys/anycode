@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Crop logo padding and scale artwork for macOS / Tauri app icons."""
+"""Crop logo padding, scale artwork, and emit transparent rounded PNG app icons."""
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw
 except ImportError:
     print("Pillow required: python3 -m pip install pillow", file=sys.stderr)
     sys.exit(1)
@@ -15,10 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "apps/anycode-desktop/assets/anycode-logo.png"
 OUT = ROOT / "apps/anycode-desktop/assets/anycode-logo-app-icon.png"
 OUT_UI = ROOT / "crates/dashboard-ui/src/assets/anycode-logo-app-icon.png"
+OUT_BRAND = ROOT / "crates/dashboard-ui/src/assets/brand-icon.png"
 
 # Fraction of canvas used by artwork (macOS dock reads better with ~8% margin).
 FILL_RATIO = 0.92
-BG = (255, 255, 255, 255)
+# Corner radius as a fraction of output size (~macOS squircle feel).
+CORNER_RATIO = 0.22
 
 
 def is_background(r: int, g: int, b: int, a: int) -> bool:
@@ -57,30 +59,59 @@ def content_bbox(im: Image.Image) -> tuple[int, int, int, int]:
     )
 
 
-def main() -> None:
-    if not SRC.is_file():
-        print(f"missing source: {SRC}", file=sys.stderr)
-        sys.exit(1)
+def rounded_alpha_mask(size: int, radius: int) -> Image.Image:
+    mask = Image.new("L", (size, size), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=radius, fill=255)
+    return mask
 
+
+def apply_rounded_corners(im: Image.Image, radius: int) -> Image.Image:
+    im = im.convert("RGBA")
+    w, h = im.size
+    mask = rounded_alpha_mask(w, radius)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(im, (0, 0), mask)
+    return out
+
+
+def build_icon(size: int) -> Image.Image:
     im = Image.open(SRC).convert("RGBA")
     box = content_bbox(im)
     cropped = im.crop(box)
 
-    size = 1024
     target = int(size * FILL_RATIO)
     cw, ch = cropped.size
     scale = min(target / cw, target / ch)
     nw, nh = max(1, int(cw * scale)), max(1, int(ch * scale))
     resized = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
 
-    canvas = Image.new("RGBA", (size, size), BG)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     ox = (size - nw) // 2
     oy = (size - nh) // 2
     canvas.paste(resized, (ox, oy), resized)
-    canvas.save(OUT, format="PNG", optimize=True)
+    radius = max(8, int(size * CORNER_RATIO))
+    return apply_rounded_corners(canvas, radius)
+
+
+def main() -> None:
+    if not SRC.is_file():
+        print(f"missing source: {SRC}", file=sys.stderr)
+        sys.exit(1)
+
+    app_icon = build_icon(1024)
+    brand_icon = build_icon(128)
+
+    app_icon.save(OUT, format="PNG", optimize=True)
     OUT_UI.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(OUT_UI, format="PNG", optimize=True)
-    print(f"wrote {OUT} and {OUT_UI} ({nw}x{nh} artwork on {size}x{size})")
+    app_icon.save(OUT_UI, format="PNG", optimize=True)
+    brand_icon.save(OUT_BRAND, format="PNG", optimize=True)
+    print(
+        f"wrote transparent rounded icons:\n"
+        f"  {OUT}\n"
+        f"  {OUT_UI}\n"
+        f"  {OUT_BRAND}"
+    )
 
 
 if __name__ == "__main__":

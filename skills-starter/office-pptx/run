@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Build a simple .pptx from a Markdown outline (## Slide title + bullets)."""
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+except ImportError:
+    print("ERROR: python-pptx not installed. Run: pip install python-pptx", file=sys.stderr)
+    sys.exit(2)
+
+
+def parse_outline(text: str) -> list[tuple[str, list[str]]]:
+    slides: list[tuple[str, list[str]]] = []
+    title: str | None = None
+    bullets: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if title:
+                slides.append((title, bullets))
+            title = line[3:].strip()
+            bullets = []
+        elif line.strip().startswith(("- ", "* ")):
+            if title:
+                bullets.append(line.strip()[2:].strip())
+    if title:
+        slides.append((title, bullets))
+    return slides
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print("usage: run outline.md [output.pptx]", file=sys.stderr)
+        return 1
+    outline_path = Path(sys.argv[1]).resolve()
+    out_path = (
+        Path(sys.argv[2]).resolve()
+        if len(sys.argv) > 2
+        else outline_path.with_suffix(".pptx")
+    )
+    text = outline_path.read_text(encoding="utf-8")
+    slides = parse_outline(text)
+    if not slides:
+        print("ERROR: no ## slide headings found in outline", file=sys.stderr)
+        return 1
+
+    prs = Presentation()
+    for slide_title, bullets in slides:
+        layout = prs.slide_layouts[1] if len(prs.slide_layouts) > 1 else prs.slide_layouts[0]
+        slide = prs.slides.add_slide(layout)
+        slide.shapes.title.text = slide_title
+        body = slide.placeholders[1].text_frame if len(slide.placeholders) > 1 else None
+        if body and bullets:
+            body.clear()
+            for i, b in enumerate(bullets):
+                p = body.paragraphs[0] if i == 0 else body.add_paragraph()
+                p.text = b
+                p.font.size = Pt(18)
+        elif not bullets and body:
+            body.text = ""
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(str(out_path))
+    print(out_path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

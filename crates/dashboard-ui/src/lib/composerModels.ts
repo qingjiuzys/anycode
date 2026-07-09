@@ -4,6 +4,8 @@ export type ComposerModelOption = {
   id: string;
   label: string;
   subtitle: string;
+  isCloud?: boolean;
+  cloudModel?: string;
 };
 
 export const COMPOSER_MODEL_STORAGE_KEY = "anycode-composer-model";
@@ -21,14 +23,42 @@ export function modelSubtitle(item: ConfiguredModel): string {
 }
 
 export function listChatModels(items: ConfiguredModel[]): ComposerModelOption[] {
-  return items
+  const seen = new Set<string>();
+  const options = items
     .filter((m) => m.enabled && m.capabilities.includes("chat"))
+    .filter((m) => {
+      const key = `${m.provider}/${m.model}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map((item) => ({
       id: item.id,
       label: modelLabel(item),
       subtitle: modelSubtitle(item),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+      isCloud: item.source === "cloud",
+      cloudModel: item.model,
+    }));
+
+  return options.sort((a, b) => {
+    const rank = (o: ComposerModelOption) => {
+      if (o.isCloud && o.cloudModel === "auto") return 0;
+      if (o.isCloud) return 1;
+      return 2;
+    };
+    const dr = rank(a) - rank(b);
+    if (dr !== 0) return dr;
+    return a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+  });
+}
+
+export function readStoredModelId(): string | null {
+  try {
+    const v = localStorage.getItem(COMPOSER_MODEL_STORAGE_KEY);
+    return v?.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Registry item id for global provider/model, if present in chat-capable items. */

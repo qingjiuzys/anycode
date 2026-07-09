@@ -17,6 +17,118 @@ pub async fn workbench_doctor_checks(db: &DashboardDb) -> Vec<DoctorCheck> {
     checks
 }
 
+fn process_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
+fn wechat_bridge_process_check() -> DoctorCheck {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => {
+            return DoctorCheck {
+                id: "wechat.bridge_process".into(),
+                status: "warn".into(),
+                message: "Could not resolve home directory for WeChat bridge check".into(),
+            };
+        }
+    };
+    let lock_path = home.join(".anycode/wechat/bridge.lock");
+    let Ok(raw) = std::fs::read_to_string(&lock_path) else {
+        return DoctorCheck {
+            id: "wechat.bridge_process".into(),
+            status: "warn".into(),
+            message: "WeChat bridge is not running — run `anycode-daemon wechat-bridge` or re-link WeChat in Settings".into(),
+        };
+    };
+    let Ok(lock) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return DoctorCheck {
+            id: "wechat.bridge_process".into(),
+            status: "warn".into(),
+            message: "WeChat bridge.lock is invalid — restart the bridge".into(),
+        };
+    };
+    let pid = lock.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    if process_alive(pid) {
+        DoctorCheck {
+            id: "wechat.bridge_process".into(),
+            status: "ok".into(),
+            message: format!("WeChat bridge running (pid {pid})"),
+        }
+    } else {
+        DoctorCheck {
+            id: "wechat.bridge_process".into(),
+            status: "warn".into(),
+            message: "WeChat bridge lock is stale — run `anycode-daemon wechat-bridge` to receive messages".into(),
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn wechat_launchd_argv_check() -> DoctorCheck {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => {
+            return DoctorCheck {
+                id: "wechat.launchd".into(),
+                status: "warn".into(),
+                message: "Could not inspect LaunchAgent for WeChat bridge".into(),
+            };
+        }
+    };
+    let plist = home.join("Library/LaunchAgents/dev.anycode.wechat.plist");
+    if !plist.is_file() {
+        return DoctorCheck {
+            id: "wechat.launchd".into(),
+            status: "warn".into(),
+            message: "WeChat LaunchAgent not installed — re-link WeChat in Settings to autostart the bridge".into(),
+        };
+    }
+    let Ok(raw) = std::fs::read_to_string(&plist) else {
+        return DoctorCheck {
+            id: "wechat.launchd".into(),
+            status: "warn".into(),
+            message: "Could not read WeChat LaunchAgent plist".into(),
+        };
+    };
+    if raw.contains("wechat-bridge") {
+        DoctorCheck {
+            id: "wechat.launchd".into(),
+            status: "ok".into(),
+            message: "WeChat LaunchAgent uses `anycode-daemon wechat-bridge`".into(),
+        }
+    } else {
+        DoctorCheck {
+            id: "wechat.launchd".into(),
+            status: "warn".into(),
+            message: "WeChat LaunchAgent is outdated (missing wechat-bridge) — re-link WeChat in Settings to repair autostart".into(),
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wechat_launchd_argv_check() -> DoctorCheck {
+    DoctorCheck {
+        id: "wechat.launchd".into(),
+        status: "ok".into(),
+        message: "LaunchAgent check applies on macOS only".into(),
+    }
+}
+
 async fn project_trust_stale_check(db: &DashboardDb) -> DoctorCheck {
     let rows = match sqlx::query("SELECT id, trust_score FROM projects WHERE organization_id = ?")
         .bind(crate::schema::LOCAL_ORG_ID)
@@ -191,6 +303,8 @@ fn wechat_bridge_checks() -> Vec<DoctorCheck> {
             "WeChat cron notify target missing — cron results won't push to WeChat".into()
         },
     });
+    checks.push(wechat_bridge_process_check());
+    checks.push(wechat_launchd_argv_check());
     checks
 }
 

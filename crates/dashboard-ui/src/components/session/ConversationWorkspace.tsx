@@ -29,11 +29,15 @@ export function ConversationWorkspace() {
     pendingCountsLoading,
     sseLive,
     liveBlocks,
+    liveEvents,
     chatStreamLive,
+    isOptimisticStreaming,
     markSessionStreaming,
     projectOptions,
     prefetchSession,
     startSessionForProject,
+    onRenameSession,
+    optimisticStreamingSessionId,
   } = useConversationShell();
 
   if (sessionsError) {
@@ -120,7 +124,9 @@ export function ConversationWorkspace() {
               showHeader={false}
               sseLive={sseLive}
               liveBlocks={liveBlocks}
+              liveEvents={liveEvents}
               chatStreamLive={chatStreamLive}
+              isOptimisticStreaming={isOptimisticStreaming}
               markSessionStreaming={markSessionStreaming}
               selectedToolId={selectedTool?.id ?? null}
               onSelectTool={(tool) => {
@@ -177,6 +183,8 @@ export function ConversationWorkspace() {
                   onPrefetch={prefetchSession}
                   hideEmptyProjects={listSearch.trim().length > 0}
                   onNewSession={startSessionForProject}
+                  onRenameSession={onRenameSession}
+                  optimisticStreamingSessionId={optimisticStreamingSessionId}
                 />
               </div>
             </div>

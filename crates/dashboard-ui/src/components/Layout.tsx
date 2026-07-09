@@ -2,7 +2,6 @@ import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { TopbarSearch } from "@/components/TopbarSearch";
 import { TopbarNewMenu } from "@/components/TopbarNewMenu";
-import { AppearanceMenu } from "@/components/AppearanceMenu";
 import { Icon } from "@/components/Icon";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
 import { UserMenu, LanguageSwitcher } from "@/components/UserMenu";
@@ -42,14 +41,16 @@ function Topbar({ compact = false, hideProfile = false }: { compact?: boolean; h
   const sseStatus = useSseStatus();
 
   return (
-    <header className="dw-topbar glass-panel">
-      <div className={`dw-topbar-start ${pathname === "/" ? "dw-topbar-start--empty" : ""}`}>
-        {!compact && pathname !== "/" && (
-          <div className="dw-topbar-hit w-full min-w-0">
-            <TopbarSearch />
-          </div>
-        )}
-      </div>
+    <header className={`dw-topbar glass-panel${pathname === "/" ? " dw-topbar--home" : ""}`}>
+      {pathname !== "/" ? (
+        <div className="dw-topbar-start">
+          {!compact && (
+            <div className="dw-topbar-hit w-full min-w-0">
+              <TopbarSearch />
+            </div>
+          )}
+        </div>
+      ) : null}
       <div className="dw-topbar-end">
         {!compact && pathname !== "/" && (
           <div className="hidden xl:block dw-topbar-hit">
@@ -127,7 +128,6 @@ function StandardShell() {
       <ControlCenterButton />
       <ControlCenterOverlay />
       <footer className="dw-standard-footer hidden lg:flex">
-        <AppearanceMenu />
         <ExternalNavLink href={docsHomeUrl(locale)} className="dw-nav-link">
           <Icon name="description" size={18} />
           <span>{t("nav.docs")}</span>

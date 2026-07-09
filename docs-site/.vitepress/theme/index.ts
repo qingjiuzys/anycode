@@ -1,10 +1,12 @@
 import DefaultTheme from 'vitepress/theme'
 import './style.css'
+import HomeExtras from '../components/HomeExtras.vue'
 
 export default {
   extends: DefaultTheme,
   enhanceApp(ctx) {
     DefaultTheme.enhanceApp?.(ctx)
+    ctx.app.component('HomeExtras', HomeExtras)
 
     ctx.router.onAfterRouteChange = async () => {
       if (typeof window === 'undefined') return

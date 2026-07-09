@@ -112,3 +112,27 @@ jobs:
       - name: VitePress build (link check)
         working-directory: docs-site
         run: npm run build
+
+  desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: crates/dashboard-ui/package-lock.json
+
+      - name: macOS desktop release build (smoke)
+        run: |
+          set -euo pipefail
+          export MACOSX_DEPLOYMENT_TARGET=10.15
+          export CMAKE_OSX_DEPLOYMENT_TARGET=10.15
+          export APPLE_SIGNING_IDENTITY="-"
+          ./scripts/build-desktop-release.sh
+        continue-on-error: true

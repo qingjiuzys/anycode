@@ -8,6 +8,7 @@ import { TelegramChannelPanel } from "@/components/channels/TelegramChannelPanel
 import { BrandMark } from "@/components/BrandMark";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { useT } from "@/i18n/context";
+import { useAccountCloud } from "@/hooks/useAccountCloud";
 
 const WIZARD_STEPS = [
   "welcome",
@@ -199,6 +200,7 @@ function SetupWelcomeStep({
 function SetupModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const t = useT();
   const qc = useQueryClient();
+  const { linkCloudAccount } = useAccountCloud();
   const catalog = useQuery({ queryKey: ["model-catalog"], queryFn: () => api.modelCatalog() });
   const quickAuth = useQuery({ queryKey: ["setup-quick-auth"], queryFn: () => api.setupQuickAuth() });
   const llm = useQuery({ queryKey: ["llm-config"], queryFn: () => api.getLlmConfig() });
@@ -217,7 +219,25 @@ function SetupModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => 
     setBaseUrl(llm.data.base_url ?? "");
   }, [llm.data]);
 
-  const applyPreset = (preset: QuickAuthPreset) => {
+  const [linkingCloud, setLinkingCloud] = useState(false);
+
+  const applyPreset = async (preset: QuickAuthPreset) => {
+    if (preset.device_auth) {
+      setLinkingCloud(true);
+      try {
+        await linkCloudAccount();
+        await api.cloudSyncModels();
+        qc.invalidateQueries({ queryKey: ["models-registry"] });
+        qc.invalidateQueries({ queryKey: ["llm-config"] });
+        qc.invalidateQueries({ queryKey: ["setup-status"] });
+        onNext();
+      } catch (err) {
+        console.error("cloud device link failed", err);
+      } finally {
+        setLinkingCloud(false);
+      }
+      return;
+    }
     setProvider(preset.provider);
     setModel(preset.default_model);
     setPlan(preset.plan);
@@ -256,7 +276,8 @@ function SetupModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => 
                 key={p.id}
                 type="button"
                 className="dw-btn dw-btn-secondary text-sm"
-                onClick={() => applyPreset(p)}
+                disabled={linkingCloud}
+                onClick={() => void applyPreset(p)}
               >
                 {p.label}
               </button>

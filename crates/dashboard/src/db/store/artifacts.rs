@@ -89,7 +89,10 @@ impl DashboardDb {
               session_id = excluded.session_id,
               title = excluded.title,
               metadata_json = excluded.metadata_json,
-              is_final = excluded.is_final,
+              is_final = CASE
+                WHEN artifacts.is_final = 1 OR excluded.is_final = 1 THEN 1
+                ELSE 0
+              END,
               updated_at = datetime('now')
             "#,
         )

@@ -202,7 +202,7 @@ impl DashboardRecorder {
         })
     }
 
-    async fn scan_workspace_artifacts(&self) {
+    pub(crate) async fn scan_workspace_artifacts(&self) {
         if let Err(e) = crate::workspace_scan::scan_and_register_artifacts(
             &self.db,
             &self.project_id,

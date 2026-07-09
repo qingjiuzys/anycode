@@ -79,7 +79,7 @@ pub async fn project_report(
             None,
             false,
             false,
-            false,
+            true,
             opts.artifacts_limit,
         )
         .await?;
@@ -160,7 +160,7 @@ pub async fn session_report(
             None,
             false,
             false,
-            false,
+            true,
             opts.artifacts_limit,
         )
         .await?;
@@ -395,8 +395,77 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(doc.markdown.contains("src/main.rs"));
+        assert!(doc.artifacts.iter().any(|a| a.path.contains("src/main.rs")));
         assert!(doc.summary.artifacts >= 1);
+    }
+
+    #[tokio::test]
+    async fn session_report_omits_scanned_intermediate_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = crate::db::DashboardDb::open(dir.path().join("scan.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/scan".into(),
+                name: Some("Scan".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let session = db
+            .create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "run".into(),
+                task_id: None,
+                title: "run".into(),
+                prompt_preview: None,
+                agent_type: None,
+                model: None,
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        db.upsert_artifact(
+            &project.id,
+            &session.id,
+            "out/deck.pptx",
+            "presentation",
+            "deck.pptx",
+        )
+        .await
+        .unwrap();
+        db.upsert_artifact_scanned(
+            &project.id,
+            &session.id,
+            "tmp/slide.xml",
+            "file",
+            "slide.xml",
+        )
+        .await
+        .unwrap();
+        let doc = session_report(
+            &db,
+            &session.id,
+            ReportOptions {
+                force_template: true,
+                ..ReportOptions::default()
+            },
+            false,
+        )
+        .await
+        .unwrap();
+        assert!(doc
+            .artifacts
+            .iter()
+            .any(|a| a.path.contains("out/deck.pptx")));
+        assert!(!doc
+            .artifacts
+            .iter()
+            .any(|a| a.path.contains("tmp/slide.xml")));
+        assert_eq!(doc.summary.artifacts, 1);
     }
 
     #[tokio::test]

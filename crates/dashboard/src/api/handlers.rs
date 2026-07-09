@@ -14,7 +14,7 @@ use axum::{
         IntoResponse, Json,
     },
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -44,6 +44,11 @@ pub struct EventsQuery {
 
 fn default_events_limit() -> i64 {
     200
+}
+
+#[derive(Deserialize)]
+pub struct SessionStreamQuery {
+    pub after_seq: Option<i64>,
 }
 
 #[derive(Deserialize)]
