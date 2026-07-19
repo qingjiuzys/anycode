@@ -1,0 +1,106 @@
+name: Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Eval profile"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - release-candidate
+          - full
+      models:
+        description: "Comma-separated models (local-1b,agnes,cloud-auto)"
+        required: false
+        default: ""
+      shard:
+        description: "Shard index/total (e.g. 0/4)"
+        required: false
+        default: ""
+      coverage:
+        description: "Collect coverage snapshot"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.profile == 'full' && 720 || (inputs.profile == 'release-candidate' && 180 || 45) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: crates/dashboard-ui/package-lock.json
+
+      - name: Install dashboard-ui deps
+        working-directory: crates/dashboard-ui
+        run: npm ci
+
+      - name: Build dashboard for e2e
+        run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui --bin anycode-dashboard-serve
+
+      - name: Install Playwright browsers
+        working-directory: crates/dashboard-ui
+        run: npx playwright install --with-deps chromium
+
+      - name: Eval doctor
+        run: python3 test/run.py doctor
+
+      - name: Run eval profile
+        env:
+          ANYCODE_EVAL_DASHBOARD_URL: http://127.0.0.1:43199
+          DASHBOARD_E2E_REUSE: "1"
+        run: |
+          set -euo pipefail
+          PORT=43199
+          bash scripts/dashboard-e2e-server.sh "$PORT" &
+          SERVER_PID=$!
+          cleanup() { kill "$SERVER_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for _ in $(seq 1 90); do
+            if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          ARGS=(--profile "${{ inputs.profile }}")
+          if [[ -n "${{ inputs.models }}" ]]; then
+            ARGS+=(--models "${{ inputs.models }}")
+          fi
+          if [[ -n "${{ inputs.shard }}" ]]; then
+            ARGS+=(--shard "${{ inputs.shard }}")
+          fi
+          if [[ "${{ inputs.coverage }}" == "true" ]]; then
+            ARGS+=(--coverage)
+          fi
+          python3 test/run.py "${ARGS[@]}"
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ inputs.profile }}-${{ github.run_id }}
+          path: |
+            test/results/**/*
+            !test/results/**/workspaces/**
+          if-no-files-found: warn

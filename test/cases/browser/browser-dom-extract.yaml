@@ -1,0 +1,24 @@
+id: browser-dom-extract
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Extract all table header texts from the products page into headers.json as a JSON
+  array.
+expected:
+  assertions:
+  - validator: file_json_keys
+    args:
+      path: headers.json
+      keys:
+      - Name
+      - Category
+      - Price
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

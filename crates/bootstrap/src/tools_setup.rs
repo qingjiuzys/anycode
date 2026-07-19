@@ -10,6 +10,7 @@ use anycode_tools::{
 };
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::skills_registry;
@@ -27,6 +28,7 @@ pub async fn build_tools_setup(
     mcp_defer_gate: Option<Arc<Mutex<HashSet<String>>>>,
     security: &SecurityLayer,
     fw_policy: &anycode_security::SecurityPolicy,
+    skill_project_root: Option<&Path>,
 ) -> anyhow::Result<ToolsSetup> {
     let mut merged_extra = config.skills.extra_dirs.clone();
     if let Some(ref ru) = config.skills.registry_url {
@@ -35,7 +37,11 @@ pub async fn build_tools_setup(
     }
 
     let skill_catalog: Arc<SkillCatalog> = Arc::new(if config.skills.enabled {
-        let roots = default_skill_roots(&merged_extra, dirs::home_dir().as_deref());
+        let mut roots = default_skill_roots(&merged_extra, dirs::home_dir().as_deref());
+        if let Some(root) = skill_project_root {
+            roots.push(root.join("skills"));
+            roots.push(root.join(".anycode/skills"));
+        }
         SkillCatalog::scan(
             &roots,
             config.skills.allowlist.as_deref(),

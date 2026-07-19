@@ -46,7 +46,7 @@ anyCode Workbench --open
 
 中文：[digital-workbench-next-steps-zh.md](digital-workbench-next-steps-zh.md)
 
-User docs: [docs-site/guide/dashboard.md](../docs-site/guide/dashboard.md) · [Planning page](../docs-site/guide/dashboard-planning.md)
+User docs: [https://anycode.work/docs/guide/dashboard.md](../docs/user/guide/dashboard) · [Planning page](../https://anycode.work/docs/guide/dashboard-planning)
 
 ## Explicitly not in 0.3 (product)
 

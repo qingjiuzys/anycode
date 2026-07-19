@@ -1,6 +1,12 @@
+pub mod agent_resolve;
+pub mod approval_notify;
 pub mod chat_live_bridge;
 pub mod chat_runtime;
 pub mod gate_runner;
+pub mod message_queue;
+pub mod question_notify;
+pub mod session_status;
+pub mod start_server_intent;
 pub mod task_trigger;
 pub mod text_upload;
 pub mod vision_payload;

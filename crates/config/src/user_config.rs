@@ -58,6 +58,7 @@ pub struct AnyCodeConfig {
     pub provider: String,
     // 套餐：coding（编码套餐） / general（通用）
     pub plan: String,
+    #[serde(default)]
     pub api_key: String,
     /// 按厂商 id 存额外密钥（如 `anthropic`、`openrouter`），用于与全局不同厂商混跑 routing。
     #[serde(default)]

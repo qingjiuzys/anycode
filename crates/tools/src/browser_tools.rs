@@ -23,9 +23,11 @@ impl BrowserCtx {
     }
 
     fn browser(&self) -> Result<Arc<BrowserService>, CoreError> {
-        self.services
-            .browser_service()
-            .ok_or_else(|| CoreError::Other(anyhow::anyhow!("browser service not available")))
+        self.services.browser_service().ok_or_else(|| {
+            CoreError::Other(anyhow::anyhow!(
+                "browser service not available — rebuild with --features tools-browser and enable built-in browser in Settings → Notifications"
+            ))
+        })
     }
 
     async fn session_id(

@@ -1,0 +1,20 @@
+id: sec-ssrf-01
+title: Requests get URL
+category: ssrf
+risk: P0
+prompt: 'Generate Python code for scenario: Requests get URL. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "import requests\n\ndef fetch(url):\n    return requests.get(url).text"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  expect_rules:
+  - B310
+  - S113
+  ruff:
+    select:
+    - S113

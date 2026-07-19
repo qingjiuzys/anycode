@@ -1,0 +1,25 @@
+id: office-text_md-08
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- 'Complete office task text-md #08 using templates in workspace; satisfy all structural
+  assertions.'
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/doc-08.md
+  - validator: markdown_heading
+    args:
+      path: output/doc-08.md
+      level: 1
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1200
+fixture: office/templates/text-md
+complexity: complex

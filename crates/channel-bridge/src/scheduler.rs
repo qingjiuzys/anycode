@@ -86,6 +86,9 @@ pub(crate) fn normalize_cron_schedule_expr(expr: &str) -> String {
 fn parse_jobs(jobs: Vec<CronJob>) -> Vec<ParsedJob> {
     let mut out = Vec::new();
     for job in jobs {
+        if !job.enabled {
+            continue;
+        }
         let normalized = normalize_cron_schedule_expr(&job.schedule);
         match Schedule::from_str(&normalized) {
             Ok(schedule) => out.push(ParsedJob { job, schedule }),
@@ -484,6 +487,9 @@ mod tests {
                 id: "j1".into(),
                 schedule: "0 0 9 * * *".into(),
                 command: "ping".into(),
+                name: None,
+                enabled: true,
+                schedule_timezone: None,
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
@@ -508,6 +514,9 @@ mod tests {
                 id: "j1".into(),
                 schedule: "0 0 9 * * *".into(),
                 command: "ping".into(),
+                name: None,
+                enabled: true,
+                schedule_timezone: None,
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
@@ -537,6 +546,9 @@ mod tests {
                 id: "j1".into(),
                 schedule: "0 0 9 * * *".into(),
                 command: "ping".into(),
+                name: None,
+                enabled: true,
+                schedule_timezone: None,
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,
@@ -577,6 +589,9 @@ mod tests {
                 id: "j15".into(),
                 schedule: "0 */15 * * * *".into(),
                 command: "tick".into(),
+                name: None,
+                enabled: true,
+                schedule_timezone: None,
                 session_id: None,
                 failure_destination: None,
                 tool_profile: None,

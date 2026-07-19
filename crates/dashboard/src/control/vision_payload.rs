@@ -58,6 +58,25 @@ pub fn vision_file_line(path: &Path) -> String {
     format!("@anycode/vision-file:{}\n", path.display())
 }
 
+/// Convert API payloads to core [`VisionImage`] values for embedded chat metadata.
+pub fn to_core_images(images: &[VisionImagePayload]) -> Vec<anycode_core::VisionImage> {
+    images
+        .iter()
+        .map(|img| anycode_core::VisionImage::new(img.mime_type.clone(), img.data_base64.clone()))
+        .collect()
+}
+
+/// Whether the active chat model advertises vision / multimodal input.
+pub fn active_chat_supports_vision() -> anyhow::Result<bool> {
+    use anycode_llm::capability_catalog::ModelCapability;
+    use anycode_llm::ResolvedModelRegistry;
+    let (_, cfg) = crate::config_patch::read_config_value(None)?;
+    let registry = ResolvedModelRegistry::from_config(&cfg);
+    Ok(registry
+        .active_item(ModelCapability::Chat)
+        .is_some_and(|item| item.capabilities.contains(&ModelCapability::Vision)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,5 +93,16 @@ mod tests {
         }])
         .unwrap_err();
         assert!(err.to_string().contains("limit"));
+    }
+
+    #[test]
+    fn to_core_images_maps_payloads() {
+        let core = to_core_images(&[VisionImagePayload {
+            mime_type: "image/jpeg".into(),
+            data_base64: "abc123".into(),
+        }]);
+        assert_eq!(core.len(), 1);
+        assert_eq!(core[0].mime_type, "image/jpeg");
+        assert_eq!(core[0].data_base64, "abc123");
     }
 }

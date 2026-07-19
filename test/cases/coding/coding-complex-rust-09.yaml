@@ -1,0 +1,23 @@
+id: coding-complex-rust-09
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Implement the complex rust task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: cargo_test_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 900
+fixture: coding/complex-rust
+complexity: complex
+meta:
+  language: rust

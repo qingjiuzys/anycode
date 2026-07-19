@@ -4,6 +4,7 @@ import { AssetReadPolicyPanel } from "@/components/settings/AssetReadPolicyPanel
 import { PromptPreviewPanel } from "@/components/settings/PromptPreviewPanel";
 import { ReportPreferencesPanel } from "@/components/settings/ReportPreferencesPanel";
 import { UiDensityPanel } from "@/components/settings/UiDensityPanel";
+import { WorkspaceCreatePanel } from "@/components/settings/WorkspaceCreatePanel";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useDashboardPreferences } from "@/hooks/useDashboardPreferences";
 import { useT } from "@/i18n/context";
@@ -27,6 +28,7 @@ export function SettingsPreferencesSection() {
         )}
       </SectionCard>
       <AppearanceSettingsPanel />
+      <WorkspaceCreatePanel />
       <AppleMediaSettingsPanel />
       <ReportPreferencesPanel />
       <PromptPreviewPanel />

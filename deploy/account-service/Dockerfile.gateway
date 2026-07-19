@@ -1,0 +1,12 @@
+FROM rust:1.85-bookworm AS builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release -p anycode-model-gateway
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/anycode-model-gateway /usr/local/bin/anycode-model-gateway
+ENV MODEL_GATEWAY_HOST=0.0.0.0
+ENV MODEL_GATEWAY_PORT=43210
+EXPOSE 43210
+CMD ["anycode-model-gateway"]

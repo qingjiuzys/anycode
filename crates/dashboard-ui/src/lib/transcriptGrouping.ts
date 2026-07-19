@@ -20,8 +20,21 @@ export type TurnReplyItem =
 function isIntermediateAssistantNotice(block: TranscriptBlock): boolean {
   return (
     block.block_type === "system_notice" &&
-    (block.meta?.source === "intermediate_assistant" || block.meta?.source === "llm_start")
+    (block.meta?.source === "intermediate_assistant" ||
+      block.meta?.source === "llm_start" ||
+      block.meta?.source === "thinking_delta")
   );
+}
+
+function isNarrationAssistant(block: TranscriptBlock): boolean {
+  return (
+    block.block_type === "assistant_message" &&
+    (block.meta?.narration === true || block.meta?.message_role === "status")
+  );
+}
+
+function isProgressAssistant(block: TranscriptBlock): boolean {
+  return block.block_type === "progress_update" || isNarrationAssistant(block);
 }
 
 function isToolBlock(block: TranscriptBlock): boolean {
@@ -63,9 +76,63 @@ function makeToolCluster(
   };
 }
 
+function pushThinkingSnippet(processSnippets: string[], snippet: string) {
+  const trimmed = snippet.trim();
+  if (!trimmed) return;
+  const last = processSnippets[processSnippets.length - 1];
+  if (last === trimmed) return;
+  processSnippets.push(trimmed);
+}
+
+/**
+ * Merge multiple assistant_message blocks into one final bubble per user turn segment.
+ */
+export function mergeFinalAssistantBlocks(replies: TranscriptBlock[]): TranscriptBlock[] {
+  const out: TranscriptBlock[] = [];
+  let buffer: TranscriptBlock[] = [];
+
+  const flush = () => {
+    if (buffer.length === 0) return;
+    if (buffer.length === 1) {
+      out.push(buffer[0]!);
+    } else {
+      const last = buffer[buffer.length - 1]!;
+      const body = buffer
+        .map((b) => b.body?.trim() ?? "")
+        .filter(Boolean)
+        .join("\n\n");
+      out.push({
+        ...last,
+        body,
+        meta: {
+          ...(last.meta ?? {}),
+          live: buffer.some((b) => Boolean(b.meta?.live)),
+          merged_assistant: true,
+        },
+      });
+    }
+    buffer = [];
+  };
+
+  for (const block of replies) {
+    if (
+      block.block_type === "assistant_message" &&
+      !isNarrationAssistant(block)
+    ) {
+      buffer.push(block);
+      continue;
+    }
+    flush();
+    out.push(block);
+  }
+  flush();
+  return out;
+}
+
 /**
  * Group tool blocks into per-segment clusters (Cursor/Codex-style interleaving).
- * Contiguous tool + thinking runs become one cluster; assistant text stays in order.
+ * Agent narration is a user-facing progress update, so it remains a first-class
+ * transcript block. Only transport/system notices fold into tool details.
  */
 export function groupTurnReplies(replies: TranscriptBlock[]): TurnReplyItem[] {
   const out: TurnReplyItem[] = [];
@@ -74,7 +141,7 @@ export function groupTurnReplies(replies: TranscriptBlock[]): TurnReplyItem[] {
   const processSnippets: string[] = [];
 
   const flushTools = () => {
-    if (toolBuffer.length === 0 && processCount === 0) {
+    if (toolBuffer.length === 0 && processCount === 0 && processSnippets.length === 0) {
       return;
     }
     out.push(makeToolCluster(toolBuffer, processCount, [...processSnippets]));
@@ -83,24 +150,145 @@ export function groupTurnReplies(replies: TranscriptBlock[]): TurnReplyItem[] {
     processSnippets.length = 0;
   };
 
-  for (const block of replies) {
+  for (let index = 0; index < replies.length; index += 1) {
+    const block = replies[index]!;
     if (isToolBlock(block)) {
       toolBuffer.push(block);
       continue;
     }
+
     if (isIntermediateAssistantNotice(block)) {
-      processCount += 1;
-      const snippet = block.body?.trim();
+      const snippet = block.body?.trim() ?? "";
+      const source = block.meta?.source;
+      // Keep user-facing mid-turn narration on the timeline (above tools).
+      // Only transport noise (llm_start / empty / thinking_delta) folds into
+      // the following tool cluster's thinking strip.
+      if (source === "intermediate_assistant" && snippet.length > 0) {
+        flushTools();
+        out.push({ kind: "block", block });
+        continue;
+      }
       if (snippet) {
-        processSnippets.push(snippet);
+        pushThinkingSnippet(processSnippets, snippet);
+      } else {
+        processCount += 1;
       }
       continue;
     }
+
+    if (isProgressAssistant(block)) {
+      flushTools();
+      out.push({ kind: "block", block });
+      continue;
+    }
+
+    if (block.block_type === "assistant_message") {
+      const body = block.body?.trim() ?? "";
+      if (body.length === 0 && block.meta?.live !== true) {
+        processCount += 1;
+        continue;
+      }
+      // Keep mid-turn assistant narration on the timeline (Claude/Codex-style),
+      // even when more tools follow. Do not fold into tool thinking snippets.
+      flushTools();
+      out.push({ kind: "block", block });
+      continue;
+    }
+
     flushTools();
     out.push({ kind: "block", block });
   }
 
   flushTools();
+  return mergeToolClusters(out);
+}
+
+function isClusterMergeSeparator(block: TranscriptBlock): boolean {
+  if (isProgressAssistant(block)) return false;
+  if (isIntermediateAssistantNotice(block)) return false;
+  if (block.block_type === "system_notice") return true;
+  if (block.block_type === "assistant_message") {
+    const body = block.body?.trim() ?? "";
+    return body.length === 0 && block.meta?.live !== true;
+  }
+  return false;
+}
+
+function mergeClusterItems(
+  left: Extract<TurnReplyItem, { kind: "tool_cluster" }>,
+  right: Extract<TurnReplyItem, { kind: "tool_cluster" }>,
+  sepSnippets: string[],
+  sepCount: number,
+): Extract<TurnReplyItem, { kind: "tool_cluster" }> {
+  const snippets = [...left.processSnippets];
+  for (const snippet of sepSnippets) {
+    pushThinkingSnippet(snippets, snippet);
+  }
+  return {
+    kind: "tool_cluster",
+    id: left.id,
+    steps: [...left.steps, ...right.steps],
+    processMessageCount: left.processMessageCount + sepCount + right.processMessageCount,
+    processSnippets: [...snippets, ...right.processSnippets],
+  };
+}
+
+/** Merge tool clusters separated only by narration / status blocks. */
+function mergeToolClusters(items: TurnReplyItem[]): TurnReplyItem[] {
+  const out: TurnReplyItem[] = [];
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i]!;
+    if (item.kind !== "tool_cluster") {
+      out.push(item);
+      continue;
+    }
+
+    let merged: Extract<TurnReplyItem, { kind: "tool_cluster" }> = {
+      kind: "tool_cluster",
+      id: item.id,
+      steps: [...item.steps],
+      processMessageCount: item.processMessageCount,
+      processSnippets: [...item.processSnippets],
+    };
+
+    let j = i + 1;
+    while (j < items.length) {
+      const sepSnippets: string[] = [];
+      let sepCount = 0;
+      let k = j;
+      while (k < items.length) {
+        const mid = items[k]!;
+        if (mid.kind === "block" && isClusterMergeSeparator(mid.block)) {
+          const snippet = mid.block.body?.trim();
+          if (snippet) {
+            pushThinkingSnippet(sepSnippets, snippet);
+          } else {
+            sepCount += 1;
+          }
+          k += 1;
+          continue;
+        }
+        break;
+      }
+      const next = items[k];
+      if (next?.kind === "tool_cluster" && k > j) {
+        merged = mergeClusterItems(merged, next, sepSnippets, sepCount);
+        i = k;
+        j = k + 1;
+        continue;
+      }
+      break;
+    }
+
+    const last = out[out.length - 1];
+    if (last?.kind === "tool_cluster") {
+      last.steps = [...last.steps, ...merged.steps];
+      last.processMessageCount += merged.processMessageCount;
+      last.processSnippets = [...last.processSnippets, ...merged.processSnippets];
+    } else {
+      out.push(merged);
+    }
+  }
   return out;
 }
 

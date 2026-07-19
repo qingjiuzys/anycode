@@ -53,6 +53,16 @@ pub async fn build_security_setup(
         .await;
 
     for t in catalog::SECURITY_SENSITIVE_TOOL_IDS {
+        // AskUserQuestion is user-facing clarification — no separate tool approval gate.
+        if *t == catalog::TOOL_ASK_USER_QUESTION {
+            let mut ask_policy = SecurityPolicy::sensitive_mutation();
+            ask_policy.sandbox_mode = config.security.sandbox_mode;
+            ask_policy.require_approval = false;
+            security
+                .set_tool_policy(catalog::TOOL_ASK_USER_QUESTION, ask_policy)
+                .await;
+            continue;
+        }
         security.set_tool_policy(*t, fw_policy.clone()).await;
     }
 

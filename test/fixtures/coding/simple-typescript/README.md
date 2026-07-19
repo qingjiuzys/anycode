@@ -1,0 +1,1 @@
+# simple typescript coding fixture

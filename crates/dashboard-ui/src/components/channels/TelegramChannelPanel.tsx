@@ -95,7 +95,7 @@ export function TelegramChannelPanel({
       <div className="flex flex-wrap gap-2 mb-3">
         <button
           type="button"
-          className="dw-btn dw-btn-secondary text-sm"
+          className="dw-btn-secondary text-sm"
           disabled={verify.isPending || !token.trim()}
           onClick={() => verify.mutate()}
         >
@@ -122,7 +122,7 @@ export function TelegramChannelPanel({
           <div className="flex flex-wrap gap-2 mb-3">
             <button
               type="button"
-              className="dw-btn dw-btn-secondary text-sm"
+              className="dw-btn-secondary text-sm"
               disabled={fetchChats.isPending}
               onClick={() => fetchChats.mutate()}
             >
@@ -181,7 +181,7 @@ export function TelegramChannelPanel({
       <div className="flex flex-wrap gap-2 mb-2">
         <button
           type="button"
-          className="dw-btn dw-btn-primary text-sm"
+          className="dw-btn-primary text-sm"
           disabled={save.isPending || !token.trim() || !verifiedBot}
           onClick={() => save.mutate()}
         >

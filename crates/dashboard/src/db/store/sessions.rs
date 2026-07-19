@@ -571,11 +571,14 @@ impl DashboardDb {
         status: &str,
         summary: Option<&str>,
     ) -> Result<()> {
-        sqlx::query(
+        // Terminal-state guard: a session already finished (e.g. cancelled from
+        // the dashboard) must not have its status overwritten by a late writer.
+        // The summary is still merged in best-effort so partial output survives.
+        let updated = sqlx::query(
             r#"
             UPDATE sessions
             SET status = ?, ended_at = datetime('now'), summary = COALESCE(?, summary)
-            WHERE id = ?
+            WHERE id = ? AND status IN ('running', 'pending')
             "#,
         )
         .bind(status)
@@ -583,6 +586,22 @@ impl DashboardDb {
         .bind(session_id)
         .execute(&self.pool)
         .await?;
+        if updated.rows_affected() == 0 {
+            if summary.is_some() {
+                sqlx::query(
+                    r#"
+                    UPDATE sessions
+                    SET summary = COALESCE(?, summary)
+                    WHERE id = ?
+                    "#,
+                )
+                .bind(summary)
+                .bind(session_id)
+                .execute(&self.pool)
+                .await?;
+            }
+            return Ok(());
+        }
         self.refresh_session_trusted_status(session_id).await?;
         if let Some(sess) = self.get_session(session_id).await? {
             let _ = crate::automation_policy::handle_session_completed(
@@ -1023,5 +1042,66 @@ mod tests {
         let reopened = db.get_session(&found.id).await.unwrap().unwrap();
         assert_eq!(reopened.status, "pending");
         assert_eq!(reopened.title, "reopened");
+    }
+
+    async fn session_for_status_tests(db: &DashboardDb, root: &str) -> SessionDetail {
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: root.into(),
+                name: Some("demo".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        db.create_session(CreateSessionRequest {
+            project_id: project.id,
+            kind: "run".into(),
+            task_id: None,
+            title: "status".into(),
+            prompt_preview: None,
+            agent_type: Some("general-purpose".into()),
+            model: None,
+            metadata_json: None,
+        })
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn finish_session_persists_each_terminal_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("terminal-status.db"))
+            .await
+            .unwrap();
+        for status in ["completed", "failed", "cancelled"] {
+            let session = session_for_status_tests(&db, &format!("/tmp/terminal-{status}")).await;
+            db.finish_session(&session.id, status, Some("summary"))
+                .await
+                .unwrap();
+            let row = db.get_session(&session.id).await.unwrap().unwrap();
+            assert_eq!(row.status, status);
+            assert_eq!(row.summary, "summary");
+        }
+    }
+
+    #[tokio::test]
+    async fn finish_session_does_not_overwrite_terminal_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("terminal-guard.db"))
+            .await
+            .unwrap();
+        let session = session_for_status_tests(&db, "/tmp/terminal-guard").await;
+
+        assert!(db.cancel_running_session(&session.id).await.unwrap());
+        // Late writer (stale turn) tries to mark completed; status must hold.
+        db.finish_session(&session.id, "completed", Some("late summary"))
+            .await
+            .unwrap();
+        let row = db.get_session(&session.id).await.unwrap().unwrap();
+        assert_eq!(row.status, "cancelled");
+        // Summary merge is still allowed best-effort.
+        assert_eq!(row.summary, "late summary");
     }
 }

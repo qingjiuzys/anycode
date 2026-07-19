@@ -1,0 +1,28 @@
+id: skills-weekly-report-ab-official
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Turn the attached notes into a weekly report with sections: Summary, Wins, Blockers,
+  Next Week.'
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+  - validator: skill_invoked
+    args:
+      skill_id: weekly-report
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: official
+  ab_task: weekly-report-ab
+  skills:
+  - weekly-report

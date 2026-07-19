@@ -23,10 +23,9 @@ pub fn merge_profile_routing(
         if model_overrides.contains_key(&AgentType::new(id)) {
             continue;
         }
-        model_overrides.insert(
-            AgentType::new(id.clone()),
-            resolve_model_profile(config, routing),
-        );
+        if let Ok(model) = resolve_model_profile(config, routing) {
+            model_overrides.insert(AgentType::new(id.clone()), model);
+        }
     }
 }
 

@@ -1,7 +1,8 @@
 use super::*;
 use crate::workbench::{
-    list_dir, read_file, shared_manager, stat_path, CreateBrowserSessionBody, PtySession,
-    TerminalClientMessage, TerminalServerMessage, DEFAULT_MAX_READ_BYTES,
+    list_dir, read_file, shared_manager, stat_path, BrowserSessionManager,
+    CreateBrowserSessionBody, PtySession, TerminalClientMessage, TerminalServerMessage,
+    DEFAULT_MAX_READ_BYTES,
 };
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
@@ -166,9 +167,34 @@ async fn handle_terminal_ws(socket: WebSocket, root_path: String) {
     read_task.abort();
 }
 
+pub async fn get_workbench_browser_status() -> impl IntoResponse {
+    let enabled = crate::config_patch::read_config_root()
+        .ok()
+        .map(|(_, cfg)| crate::browser_connector::read_browser_enabled(&cfg))
+        .unwrap_or(false);
+    let ready = crate::browser_connector::native_chromium_ready();
+    let mut status = crate::browser_connector::browser_connector_status();
+    if let Some(obj) = status.as_object_mut() {
+        obj.insert("enabled".into(), json!(enabled));
+        obj.insert("ready".into(), json!(ready));
+        obj.insert(
+            "doctor_message".into(),
+            json!(BrowserSessionManager::doctor_message()),
+        );
+    }
+    Json(status).into_response()
+}
+
 pub async fn create_browser_session(
     Json(body): Json<CreateBrowserSessionBody>,
 ) -> impl IntoResponse {
+    if let Err(msg) = BrowserSessionManager::ensure_ready() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({ "error": msg, "code": "browser_unavailable" })),
+        )
+            .into_response();
+    }
     let mgr = shared_manager();
     match mgr
         .create(&body.project_id, body.conversation_id.as_deref())

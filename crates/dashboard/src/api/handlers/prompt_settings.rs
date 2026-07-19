@@ -1,7 +1,9 @@
 use crate::config_patch::{read_config_root, write_config_root};
 use anycode_agent::{
-    ExploreAgent, GeneralPurposeAgent, PlanAgent, PromptAssembler, RuntimePromptConfig,
+    compose_runtime_system_segments, render_system_prompt_segments, ExploreAgent,
+    GeneralPurposeAgent, PlanAgent,
 };
+use anycode_bootstrap::build_runtime_prompt_config;
 use anycode_core::{Agent, LLMProvider, ModelConfig};
 use anycode_tools::SkillCatalog;
 use axum::{extract::Query, http::StatusCode, response::IntoResponse, Json};
@@ -26,8 +28,8 @@ fn optional_string(v: Option<String>) -> Option<String> {
 }
 
 pub async fn get_prompt_preview(Query(q): Query<PromptPreviewQuery>) -> impl IntoResponse {
-    let (_, cfg_json) = match read_config_root() {
-        Ok(v) => v,
+    let config = match anycode_config::load_config(None).await {
+        Ok(cfg) => cfg,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -37,53 +39,19 @@ pub async fn get_prompt_preview(Query(q): Query<PromptPreviewQuery>) -> impl Int
         }
     };
 
-    let system_prompt_override = cfg_json
-        .get("system_prompt_override")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let system_prompt_append = cfg_json
-        .get("system_prompt_append")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-
     let cwd = q.cwd.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| {
         std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| ".".into())
     });
 
-    let mut prompt_config = RuntimePromptConfig::default();
-    if let Some(v) = system_prompt_override
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        prompt_config.system_prompt_override = Some(v.to_string());
+    let cwd_path = PathBuf::from(&cwd);
+    let mut roots = vec![cwd_path.join("skills"), cwd_path.join(".anycode/skills")];
+    if let Some(h) = dirs::home_dir() {
+        roots.push(h.join(".anycode/skills"));
     }
-    if let Some(v) = system_prompt_append
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        prompt_config.system_prompt_append = Some(v.to_string());
-    }
-
-    let skills_enabled = cfg_json
-        .get("skills")
-        .and_then(|s| s.get("enabled"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-    if skills_enabled {
-        let cwd_path = PathBuf::from(&cwd);
-        let mut roots = vec![cwd_path.join("skills"), cwd_path.join(".anycode/skills")];
-        if let Some(h) = dirs::home_dir() {
-            roots.push(h.join(".anycode/skills"));
-        }
-        let catalog = SkillCatalog::scan(&roots, None, 120_000, false);
-        if let Some(section) = catalog.render_prompt_subsection() {
-            prompt_config.skills_section = Some(section);
-        }
-    }
+    let catalog = SkillCatalog::scan(&roots, None, 120_000, false);
+    let prompt_config = build_runtime_prompt_config(&config, &catalog, None);
 
     let agent_id = q
         .agent
@@ -106,25 +74,25 @@ pub async fn get_prompt_preview(Query(q): Query<PromptPreviewQuery>) -> impl Int
         _ => Box::new(GeneralPurposeAgent::new(model_config)),
     };
 
-    let assembler = PromptAssembler {
-        config: &prompt_config,
-        agent: agent.as_ref(),
-        cwd: &cwd,
-        task_append: None,
-    };
-    let segments: Vec<_> = assembler
-        .build_segments()
-        .into_iter()
-        .map(|s| json!({ "id": s.id, "text": s.text, "chars": s.text.chars().count() }))
-        .collect();
+    let segments: Vec<_> =
+        compose_runtime_system_segments(&prompt_config, agent.as_ref(), &cwd, None)
+            .into_iter()
+            .map(|s| json!({ "id": s.id, "text": s.text, "chars": s.text.chars().count() }))
+            .collect();
+    let composed = render_system_prompt_segments(compose_runtime_system_segments(
+        &prompt_config,
+        agent.as_ref(),
+        &cwd,
+        None,
+    ));
 
     Json(json!({
         "agent": agent_id,
         "cwd": cwd,
-        "system_prompt_override": system_prompt_override,
-        "system_prompt_append": system_prompt_append,
+        "system_prompt_override": prompt_config.system_prompt_override,
+        "system_prompt_append": prompt_config.system_prompt_append,
         "segments": segments,
-        "composed": assembler.compose(),
+        "composed": composed,
     }))
     .into_response()
 }

@@ -44,6 +44,7 @@ async fn chat_turn_events_persist_and_hydrate_in_order() {
         1,
         "Hi",
         "Hi",
+        false,
     );
     persist_and_enrich(&db, llm_evt, 1).await.unwrap();
 

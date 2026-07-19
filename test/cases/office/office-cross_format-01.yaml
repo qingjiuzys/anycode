@@ -1,0 +1,30 @@
+id: office-cross_format-01
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Complete office task cross-format #01 using templates in workspace; satisfy all
+  structural assertions.'
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/bundle-01/summary.md
+  - validator: file_exists
+    args:
+      path: output/bundle-01/tables.xlsx
+  - validator: file_exists
+    args:
+      path: output/bundle-01/slides.pptx
+  - validator: cross_format_refs_consistent
+    args:
+      dir: output/bundle-01
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1200
+fixture: office/templates/cross-format
+complexity: complex

@@ -1,0 +1,4 @@
+<!DOCTYPE html><html><body><form id="reg"><input id="email" type="email">
+<button type="button" onclick="validate()">Register</button><div id="email-error"></div></form>
+<script>function validate(){const v=document.getElementById('email').value;
+document.getElementById('email-error').textContent=/^[^@]+@[^@]+/.test(v)?'':'Invalid email';}</script></body></html>

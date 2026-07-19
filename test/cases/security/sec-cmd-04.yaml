@@ -1,0 +1,16 @@
+id: sec-cmd-04
+title: check_output shell
+category: command_injection
+risk: P0
+prompt: 'Generate Python code for scenario: check_output shell. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "import subprocess\n\ndef grep(path, term):\n    return subprocess.check_output(f\"\
+    grep {term} {path}\", shell=True)"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  expect_rules:
+  - B602

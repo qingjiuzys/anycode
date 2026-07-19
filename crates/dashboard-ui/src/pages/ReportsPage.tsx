@@ -5,7 +5,9 @@ import { api } from "@/api/client";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { ReportPreview } from "@/components/ReportPreview";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { ListPageToolbar } from "@/components/ui/ListPageToolbar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { ArtifactRecord, ReportDocument } from "@/api/types";
@@ -120,16 +122,18 @@ function ReportsPageInner({
   };
 
   return (
-    <>
-      <PageHeader
-        title={t("reports.title")}
-        subtitle={t("reports.subtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("reports.title") },
-        ]}
-      />
-
+    <CcPageShell
+      header={
+        <PageHeader
+          title={t("reports.title")}
+          subtitle={t("reports.subtitle")}
+          breadcrumbs={[
+            { label: t("nav.home"), to: "/" },
+            { label: t("reports.title") },
+          ]}
+        />
+      }
+    >
       {projectList.length === 0 && !projects.isLoading && (
         <EmptyState
           title={t("reports.emptyTitle")}
@@ -140,63 +144,73 @@ function ReportsPageInner({
 
       {projectList.length > 0 && (
         <>
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <button
-              type="button"
-              className={`dw-chip${scope === "project" ? " active" : ""}`}
-              onClick={() => setScope("project")}
-            >
-              {t("reports.projectReport")}
-            </button>
-            <button
-              type="button"
-              className={`dw-chip${scope === "session" ? " active" : ""}`}
-              onClick={() => setScope("session")}
-            >
-              {t("reports.sessionReport")}
-            </button>
-            <select
-              className="dw-input"
-              value={projectId}
-              onChange={(e) => {
-                setProjectId(e.target.value);
-                setSessionId("");
-                setReport(null);
-              }}
-            >
-              <option value="">{t("reports.selectProject")}</option>
-              {projectList.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {scope === "session" && (
-              <select
-                className="dw-input"
-                value={sessionId}
-                onChange={(e) => {
-                  setSessionId(e.target.value);
-                  setReport(null);
-                }}
-                disabled={!projectId}
-              >
-                <option value="">{t("reports.selectSession")}</option>
-                {sessionList.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title} ({s.kind})
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              type="button"
-              className="dw-btn-primary"
-              disabled={generate.isPending || (scope === "project" ? !projectId : !sessionId)}
-              onClick={() => generate.mutate()}
-            >
-              {generate.isPending ? t("reports.generating") : t("reports.generate")}
-            </button>
+          <div className="dw-section-card">
+            <div className="px-3 py-3">
+              <ListPageToolbar
+                left={
+                  <>
+                    <button
+                      type="button"
+                      className={`dw-chip${scope === "project" ? " active" : ""}`}
+                      onClick={() => setScope("project")}
+                    >
+                      {t("reports.projectReport")}
+                    </button>
+                    <button
+                      type="button"
+                      className={`dw-chip${scope === "session" ? " active" : ""}`}
+                      onClick={() => setScope("session")}
+                    >
+                      {t("reports.sessionReport")}
+                    </button>
+                    <select
+                      className="dw-input dw-input--pill h-[34px] min-w-[140px] shrink-0 pr-8"
+                      value={projectId}
+                      onChange={(e) => {
+                        setProjectId(e.target.value);
+                        setSessionId("");
+                        setReport(null);
+                      }}
+                    >
+                      <option value="">{t("reports.selectProject")}</option>
+                      {projectList.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    {scope === "session" && (
+                      <select
+                        className="dw-input dw-input--pill h-[34px] min-w-[160px] shrink-0 pr-8"
+                        value={sessionId}
+                        onChange={(e) => {
+                          setSessionId(e.target.value);
+                          setReport(null);
+                        }}
+                        disabled={!projectId}
+                      >
+                        <option value="">{t("reports.selectSession")}</option>
+                        {sessionList.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.title} ({s.kind})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                }
+                actions={
+                  <button
+                    type="button"
+                    className="dw-btn-primary dw-btn--pill"
+                    disabled={generate.isPending || (scope === "project" ? !projectId : !sessionId)}
+                    onClick={() => generate.mutate()}
+                  >
+                    {generate.isPending ? t("reports.generating") : t("reports.generate")}
+                  </button>
+                }
+              />
+            </div>
           </div>
 
           {generate.isError && (
@@ -228,7 +242,7 @@ function ReportsPageInner({
 
           <ReportPreview report={report} loading={generate.isPending} />
 
-          <div className="mt-6">
+          <div className="mt-2">
             <h2 className="text-base font-semibold text-on-surface m-0 mb-3">
               {t("reports.library")}
             </h2>
@@ -236,8 +250,8 @@ function ReportsPageInner({
               <p className="text-sm text-secondary m-0">{t("reports.libraryEmpty")}</p>
             )}
             {libraryRows.length > 0 && (
-              <div className="dw-section-card overflow-hidden">
-                <div className="overflow-x-auto">
+              <div className="dw-section-card dw-list-card">
+                <div className="dw-list-card__scroll">
                   <table className="dw-table">
                     <thead>
                       <tr>
@@ -355,6 +369,6 @@ function ReportsPageInner({
           </div>
         </>
       )}
-    </>
+    </CcPageShell>
   );
 }

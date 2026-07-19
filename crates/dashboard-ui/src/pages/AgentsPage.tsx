@@ -11,6 +11,7 @@ import { SkillSuggestionsPanel } from "@/components/SkillSuggestionsPanel";
 import { SkillsImportPanel } from "@/components/SkillsImportPanel";
 import { AgentEditorDrawer } from "@/components/settings/AgentEditorDrawer";
 import { Icon } from "@/components/Icon";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
@@ -142,113 +143,118 @@ export function AgentsPage(_props: EmbeddedPageProps = {}) {
 
   return (
     <>
-      <PageHeader
-        title={t("agents.title")}
-        subtitle={t("agents.subtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("agents.title") },
-        ]}
-        actions={
-          <nav className="dw-agents-quick-nav" aria-label={t("agents.configureTitle")}>
-            <button
-              type="button"
-              className="dw-agents-quick-nav__item"
-              onClick={() => setStatsOpen(true)}
-              aria-haspopup="dialog"
-            >
-              <Icon name="bar_chart" size={16} />
-              <span className="hidden sm:inline">{t("agents.usage")}</span>
-              <span className="text-[10px] font-semibold tabular-nums text-secondary sm:ml-0.5">
-                {skills.isLoading ? "…" : skillList.length}/{totalSessions}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="dw-btn-primary text-sm"
-              onClick={() => setEditor({})}
-            >
-              <Icon name="add" size={16} />
-              {t("agents.newAgent")}
-            </button>
-            <Link to="/settings" search={{ section: "agents" }} className="dw-agents-quick-nav__item">
-              <Icon name="tune" size={16} />
-              {t("agents.configLink")}
-            </Link>
-            <Link to="/settings" search={{ section: "model" }} className="dw-agents-quick-nav__item">
-              <Icon name="route" size={16} />
-              {t("agents.routingLink")}
-            </Link>
-          </nav>
+      <CcPageShell
+        header={
+          <>
+            <PageHeader
+              title={t("agents.title")}
+              subtitle={t("agents.subtitle")}
+              breadcrumbs={[
+                { label: t("nav.home"), to: "/" },
+                { label: t("agents.title") },
+              ]}
+              actions={
+                <nav className="dw-agents-quick-nav" aria-label={t("agents.configureTitle")}>
+                  <button
+                    type="button"
+                    className="dw-agents-quick-nav__item"
+                    onClick={() => setStatsOpen(true)}
+                    aria-haspopup="dialog"
+                  >
+                    <Icon name="bar_chart" size={16} />
+                    <span className="hidden sm:inline">{t("agents.usage")}</span>
+                    <span className="text-[13px] font-semibold tabular-nums text-secondary sm:ml-0.5">
+                      {skills.isLoading ? "…" : skillList.length}/{totalSessions}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="dw-btn-primary text-sm"
+                    onClick={() => setEditor({})}
+                  >
+                    <Icon name="add" size={16} />
+                    {t("agents.newAgent")}
+                  </button>
+                  <Link to="/settings" search={{ section: "agents" }} className="dw-agents-quick-nav__item">
+                    <Icon name="tune" size={16} />
+                    {t("agents.configLink")}
+                  </Link>
+                  <Link to="/settings" search={{ section: "model" }} className="dw-agents-quick-nav__item">
+                    <Icon name="route" size={16} />
+                    {t("agents.routingLink")}
+                  </Link>
+                </nav>
+              }
+            />
+            <div className="dw-agents-tabs mt-3" role="tablist" aria-label={t("agents.skills")}>
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`agents-tab-${tab.id}`}
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`agents-panel-${tab.id}`}
+                  className={`dw-agents-tabs__tab ${activeTab === tab.id ? "dw-agents-tabs__tab--active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
         }
-      />
+      >
+        <div className="dw-agents-page">
+          <SkillSuggestionsPanel />
 
-      <div className="dw-agents-page">
-        <SkillSuggestionsPanel />
-
-        <section className="dw-agents-skills-shell" aria-label={t("agents.skills")}>
-          <div className="dw-agents-tabs" role="tablist" aria-label={t("agents.skills")}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`agents-tab-${tab.id}`}
-                aria-selected={activeTab === tab.id}
-                aria-controls={`agents-panel-${tab.id}`}
-                className={`dw-agents-tabs__tab ${activeTab === tab.id ? "dw-agents-tabs__tab--active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="dw-agents-tab-content">
-            {activeTab === "installed" && (
-              <div
-                role="tabpanel"
-                id="agents-panel-installed"
-                aria-labelledby="agents-tab-installed"
-                className="dw-agents-tab-panel-wrap"
-              >
-                <InstalledSkillsPanel
-                  embedded
-                  skills={skillList}
-                  loading={skills.isLoading}
-                  rescanPending={rescan.isPending}
-                  onRescan={() => rescan.mutate()}
-                  rescanSuccess={rescan.isSuccess ? rescan.data.skills_synced : undefined}
-                  missingStarterCount={missingStarter.length}
-                  onInstallStarter={() => installStarter.mutate()}
-                  installStarterPending={installStarter.isPending}
-                />
-              </div>
-            )}
-            {activeTab === "catalog" && (
-              <div
-                role="tabpanel"
-                id="agents-panel-catalog"
-                aria-labelledby="agents-tab-catalog"
-                className="dw-agents-tab-panel-wrap"
-              >
-                <p className="text-xs text-secondary m-0 mb-3">{t("agents.skillMarketHint")}</p>
-                <SkillMarketPanel embedded />
-              </div>
-            )}
-            {activeTab === "import" && (
-              <div
-                role="tabpanel"
-                id="agents-panel-import"
-                aria-labelledby="agents-tab-import"
-                className="dw-agents-tab-panel-wrap"
-              >
-                <SkillsImportPanel />
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
+          <section className="dw-agents-skills-shell" aria-label={t("agents.skills")}>
+            <div className="dw-agents-tab-content">
+              {activeTab === "installed" && (
+                <div
+                  role="tabpanel"
+                  id="agents-panel-installed"
+                  aria-labelledby="agents-tab-installed"
+                  className="dw-agents-tab-panel-wrap"
+                >
+                  <InstalledSkillsPanel
+                    embedded
+                    skills={skillList}
+                    loading={skills.isLoading}
+                    rescanPending={rescan.isPending}
+                    onRescan={() => rescan.mutate()}
+                    rescanSuccess={rescan.isSuccess ? rescan.data.skills_synced : undefined}
+                    missingStarterCount={missingStarter.length}
+                    onInstallStarter={() => installStarter.mutate()}
+                    installStarterPending={installStarter.isPending}
+                  />
+                </div>
+              )}
+              {activeTab === "catalog" && (
+                <div
+                  role="tabpanel"
+                  id="agents-panel-catalog"
+                  aria-labelledby="agents-tab-catalog"
+                  className="dw-agents-tab-panel-wrap"
+                >
+                  <p className="text-[13px] text-secondary m-0 mb-3">{t("agents.skillMarketHint")}</p>
+                  <SkillMarketPanel embedded />
+                </div>
+              )}
+              {activeTab === "import" && (
+                <div
+                  role="tabpanel"
+                  id="agents-panel-import"
+                  aria-labelledby="agents-tab-import"
+                  className="dw-agents-tab-panel-wrap"
+                >
+                  <SkillsImportPanel />
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </CcPageShell>
 
       <AgentUsageStatsModal
         open={statsOpen}

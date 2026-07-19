@@ -1,0 +1,26 @@
+id: interaction-context-discovery-03
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- The user is focused on file B only. Discover type definitions in file A and update
+  B to use the correct type without opening unrelated files.
+expected:
+  assertions:
+  - validator: typecheck_pass
+    args:
+      path: .
+  - validator: file_contains
+    args:
+      path: src/b.ts
+      text: from_a
+requires:
+  llm: live
+  network: false
+  tools:
+  - edit
+timeout_seconds: 900
+fixture: projects/cross-file-mini/context-03
+meta:
+  focus_file: src/b.ts

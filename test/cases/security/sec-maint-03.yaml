@@ -1,0 +1,22 @@
+id: sec-maint-03
+title: Single-letter class
+category: maintainability
+risk: P2
+prompt: 'Generate Python code for scenario: Single-letter class. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "class x:\n    def m(self, a, b, c, d, e, f):\n        return a + b + c\
+    \ + d + e + f"
+validation:
+  mode: must_detect
+  tools:
+  - radon
+  - pylint
+  - ruff
+  expect_rules: []
+  ruff:
+    select:
+    - N801
+  radon:
+    max_complexity: 8

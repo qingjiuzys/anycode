@@ -24,4 +24,5 @@ pub struct AppState {
     pub port: u16,
     pub started_at: String,
     pub pid: u32,
+    pub managed_local_llm: crate::managed_local_llm::ManagedLocalLlm,
 }

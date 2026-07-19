@@ -41,11 +41,13 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
             if let Some(p) = item.plan.as_ref() {
                 cfg.plan = p.clone();
             }
-            if let Some(u) = item.base_url.as_ref() {
-                cfg.base_url = Some(u.clone());
+            if let Some(u) = reg.resolve_base_url(item) {
+                cfg.base_url = Some(u);
             }
             if let Some(k) = reg.resolve_api_key(item) {
                 cfg.api_key = k;
+            } else if anycode_llm::normalize_provider_id(&item.provider) == "anycode_cloud" {
+                cfg.api_key.clear();
             }
         }
     }
@@ -270,6 +272,15 @@ fn apply_ignore_approval_cli(config: &mut Config, ignore_approval: bool) {
         }
         config.security.require_approval = false;
     }
+}
+
+/// True when `ANYCODE_IGNORE_APPROVAL` (or equivalent truthy values) is set for this process.
+#[must_use]
+pub fn env_ignore_approval() -> bool {
+    matches!(
+        std::env::var("ANYCODE_IGNORE_APPROVAL").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES") | Ok("on") | Ok("ON")
+    )
 }
 
 pub fn security_wants_interactive_approval_callback(config: &Config) -> bool {

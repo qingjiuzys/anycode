@@ -93,4 +93,35 @@ describe("groupSessionsByProject", () => {
     );
     expect(defaultCollapsedProjectIds(groups)).toEqual(new Set(["p3"]));
   });
+
+  it("keeps pinned projects ahead of activity order", () => {
+    const groups = groupSessionsByProject(
+      [
+        { id: "p1", name: "Alpha" },
+        { id: "p2", name: "Beta" },
+      ],
+      [
+        session({ id: "s1", project_id: "p1", started_at: "2026-01-01T10:00:00Z" }),
+        session({ id: "s2", project_id: "p2", started_at: "2026-01-03T10:00:00Z" }),
+      ],
+      new Set(["p1"]),
+    );
+    expect(groups.map((g) => g.id)).toEqual(["p1", "p2"]);
+  });
+
+  it("does not resurrect archived projects from leftover sessions", () => {
+    const groups = groupSessionsByProject(
+      [{ id: "p1", name: "Alpha" }],
+      [
+        session({ id: "s1", project_id: "p1", started_at: "2026-01-03T10:00:00Z" }),
+        session({
+          id: "s-gone",
+          project_id: "p-archived",
+          project_name: "Gone",
+          started_at: "2026-01-04T10:00:00Z",
+        }),
+      ],
+    );
+    expect(groups.map((g) => g.id)).toEqual(["p1"]);
+  });
 });

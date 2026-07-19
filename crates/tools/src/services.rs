@@ -115,11 +115,24 @@ pub struct TeamRecord {
     pub member_ids: Vec<String>,
 }
 
+fn default_cron_enabled() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CronJob {
     pub id: String,
     pub schedule: String,
     pub command: String,
+    /// Human-readable label shown in Workbench scheduled-task UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// When false the scheduler skips this job until re-enabled.
+    #[serde(default = "default_cron_enabled")]
+    pub enabled: bool,
+    /// Original wall-clock timezone hint (`local`, `utc`, or IANA) for display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schedule_timezone: Option<String>,
     /// Stable session id for all future runs of this cron job. The scheduler still
     /// executes independent task ids today; this id is the durable correlation key.
     #[serde(default)]
@@ -141,10 +154,27 @@ pub struct CronJob {
 /// Optional production fields when creating cron jobs via `CronCreate` or scheduler APIs.
 #[derive(Debug, Clone, Default)]
 pub struct CronJobCreateOptions {
+    pub name: Option<String>,
+    pub enabled: Option<bool>,
+    pub schedule_timezone: Option<String>,
     pub session_id: Option<String>,
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
     pub tool_allowlist: Option<Vec<String>>,
+    pub project_id: Option<String>,
+}
+
+/// Partial update for an existing cron job in orchestration.json.
+#[derive(Debug, Clone, Default)]
+pub struct CronJobPatch {
+    pub name: Option<String>,
+    pub enabled: Option<bool>,
+    pub schedule: Option<String>,
+    pub command: Option<String>,
+    pub schedule_timezone: Option<String>,
+    pub session_id: Option<String>,
+    pub failure_destination: Option<String>,
+    pub tool_profile: Option<String>,
     pub project_id: Option<String>,
 }
 
@@ -611,6 +641,31 @@ impl ToolServices {
         }
     }
 
+    /// Mark a background shell (Bash `run_in_background`) as finished.
+    pub fn finish_background_shell(
+        &self,
+        id: Uuid,
+        status: BackgroundAgentStatus,
+        summary: impl Into<String>,
+    ) {
+        let map = self.background_agents.lock().expect("background_agents");
+        let Some(job) = map.get(&id) else {
+            return;
+        };
+        {
+            let st = job.status.lock().expect("bg status");
+            if *st == BackgroundAgentStatus::Cancelled {
+                return;
+            }
+        }
+        let summary = summary.into();
+        let mut st = job.status.lock().expect("bg status");
+        *st = status;
+        drop(st);
+        *job.summary.lock().expect("bg summary") = Some(summary.clone());
+        Self::persist_background_state(id, status, Some(&summary));
+    }
+
     /// Best-effort: marks cancelled and aborts the tokio task running `run_nested_task`.
     pub fn cancel_background_agent(&self, id: Uuid) -> bool {
         let map = self.background_agents.lock().expect("background_agents");
@@ -875,6 +930,9 @@ impl ToolServices {
             id: id.clone(),
             schedule,
             command,
+            name: opts.name.filter(|s| !s.trim().is_empty()),
+            enabled: opts.enabled.unwrap_or(true),
+            schedule_timezone: opts.schedule_timezone.filter(|s| !s.trim().is_empty()),
             session_id: opts
                 .session_id
                 .filter(|s| !s.trim().is_empty())
@@ -915,6 +973,48 @@ impl ToolServices {
             self.try_persist();
         }
         removed
+    }
+
+    pub fn update_cron(&self, id: &str, patch: CronJobPatch) -> Option<CronJob> {
+        let mut g = self.crons.lock().expect("crons mutex");
+        let Some(job) = g.iter_mut().find(|c| c.id == id) else {
+            return None;
+        };
+        if let Some(name) = patch.name.filter(|s| !s.trim().is_empty()) {
+            job.name = Some(name);
+        }
+        if let Some(enabled) = patch.enabled {
+            job.enabled = enabled;
+        }
+        if let Some(schedule) = patch.schedule.filter(|s| !s.trim().is_empty()) {
+            job.schedule = schedule;
+        }
+        if let Some(command) = patch.command.filter(|s| !s.trim().is_empty()) {
+            job.command = command;
+        }
+        if let Some(tz) = patch.schedule_timezone.filter(|s| !s.trim().is_empty()) {
+            job.schedule_timezone = Some(tz);
+        }
+        if let Some(session_id) = patch.session_id.filter(|s| !s.trim().is_empty()) {
+            job.session_id = Some(session_id);
+        }
+        if let Some(dest) = patch.failure_destination.filter(|s| !s.trim().is_empty()) {
+            job.failure_destination = Some(dest);
+        }
+        if let Some(profile) = patch.tool_profile.filter(|s| !s.trim().is_empty()) {
+            job.tool_profile = Some(profile);
+        }
+        if let Some(project_id) = patch.project_id {
+            job.project_id = if project_id.trim().is_empty() {
+                None
+            } else {
+                Some(project_id)
+            };
+        }
+        let updated = job.clone();
+        drop(g);
+        self.try_persist();
+        Some(updated)
     }
 
     pub fn list_crons(&self) -> Vec<CronJob> {
@@ -1031,6 +1131,9 @@ pub fn append_cron_job_to_orchestration_file(
         id: Uuid::new_v4().to_string(),
         schedule,
         command,
+        name: opts.name.filter(|s| !s.trim().is_empty()),
+        enabled: opts.enabled.unwrap_or(true),
+        schedule_timezone: opts.schedule_timezone.filter(|s| !s.trim().is_empty()),
         session_id: opts
             .session_id
             .filter(|s| !s.trim().is_empty())
@@ -1052,6 +1155,58 @@ pub fn append_cron_job_to_orchestration_file(
     let text = serde_json::to_string_pretty(&snap)?;
     fs::write(path, text)?;
     Ok(job)
+}
+
+/// Update fields on an existing cron job in `orchestration.json` by id.
+pub fn update_cron_job_in_orchestration_file(
+    path: &Path,
+    id: &str,
+    patch: CronJobPatch,
+) -> anyhow::Result<Option<CronJob>> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(path)?;
+    let mut snap = serde_json::from_str::<OrchestrationSnapshotV1>(&text)
+        .map_err(|e| anyhow::anyhow!("invalid orchestration JSON: {e}"))?;
+    let Some(job) = snap.crons.iter_mut().find(|c| c.id == id) else {
+        return Ok(None);
+    };
+    if let Some(name) = patch.name.filter(|s| !s.trim().is_empty()) {
+        job.name = Some(name);
+    }
+    if let Some(enabled) = patch.enabled {
+        job.enabled = enabled;
+    }
+    if let Some(schedule) = patch.schedule.filter(|s| !s.trim().is_empty()) {
+        job.schedule = schedule;
+    }
+    if let Some(command) = patch.command.filter(|s| !s.trim().is_empty()) {
+        job.command = command;
+    }
+    if let Some(tz) = patch.schedule_timezone.filter(|s| !s.trim().is_empty()) {
+        job.schedule_timezone = Some(tz);
+    }
+    if let Some(session_id) = patch.session_id.filter(|s| !s.trim().is_empty()) {
+        job.session_id = Some(session_id);
+    }
+    if let Some(dest) = patch.failure_destination.filter(|s| !s.trim().is_empty()) {
+        job.failure_destination = Some(dest);
+    }
+    if let Some(profile) = patch.tool_profile.filter(|s| !s.trim().is_empty()) {
+        job.tool_profile = Some(profile);
+    }
+    if let Some(project_id) = patch.project_id {
+        job.project_id = if project_id.trim().is_empty() {
+            None
+        } else {
+            Some(project_id)
+        };
+    }
+    let updated = job.clone();
+    let text = serde_json::to_string_pretty(&snap)?;
+    fs::write(path, text)?;
+    Ok(Some(updated))
 }
 
 /// Remove a cron job from `~/.anycode/tasks/orchestration.json` (or `path`) by id.
@@ -1114,6 +1269,9 @@ mod orchestration_persist_tests {
             "0 0 12 * * *".into(),
             "check health".into(),
             CronJobCreateOptions {
+                name: Some("Health check".into()),
+                enabled: Some(true),
+                schedule_timezone: Some("local".into()),
                 session_id: Some("sess-abc".into()),
                 failure_destination: Some("http".into()),
                 tool_profile: Some("allowlist".into()),

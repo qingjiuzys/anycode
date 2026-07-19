@@ -78,6 +78,9 @@ pub(super) fn log_tool_call_input(
 ) -> String {
     let tool_input_json =
         serde_json::to_string(&tool_call.input).unwrap_or_else(|_| "<unserializable>".to_string());
+    if let Some(path) = artifact_path_from_tool_input(&tool_call.input) {
+        logger.line(task_id, &format!("artifact_path={path}"));
+    }
     let (tool_input_json, truncated) = truncate_text(tool_input_json, TOOL_INPUT_LOG_MAX_BYTES);
     let preview = if truncated {
         format!("{tool_input_json}…")
@@ -145,6 +148,7 @@ pub(super) fn log_tool_call_end(
     tool_call: &ToolCall,
     tool_result: &ToolOutput,
     elapsed_ms: u128,
+    progress_seq: &mut u32,
 ) {
     live_trace_emit::emit_tool_call_end(
         live_trace_tx,
@@ -154,6 +158,21 @@ pub(super) fn log_tool_call_end(
         elapsed_ms,
         tool_result,
     );
+    if let Some(err) = tool_result.error.as_deref() {
+        *progress_seq += 1;
+        live_trace_emit::emit_progress_update(
+            live_trace_tx,
+            super::progress_update::build_discovery_from_failure(
+                turn as u32,
+                *progress_seq,
+                &tool_call.name,
+                err,
+                0,
+                turn as u32,
+                tool_idx as u32,
+            ),
+        );
+    }
     let preview = live_trace_emit::tool_output_preview_for_log(tool_result);
     let preview_hex: String = preview.bytes().map(|b| format!("{b:02x}")).collect();
     logger.line(
@@ -171,4 +190,15 @@ pub(super) fn log_tool_call_end(
             preview_hex
         ),
     );
+}
+
+fn artifact_path_from_tool_input(input: &serde_json::Value) -> Option<String> {
+    for key in ["file_path", "path", "notebook_path", "target_file"] {
+        if let Some(p) = input.get(key).and_then(|x| x.as_str()) {
+            if !p.is_empty() {
+                return Some(p.to_string());
+            }
+        }
+    }
+    None
 }

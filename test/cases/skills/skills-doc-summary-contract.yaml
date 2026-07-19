@@ -1,0 +1,27 @@
+id: skills-doc-summary-contract
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Validate the official skill ''doc-summary'': read SKILL.md frontmatter, run vet
+  checks, and confirm required env contract.'
+expected:
+  assertions:
+  - validator: skill_frontmatter_valid
+    args:
+      skill_id: doc-summary
+      source: official
+  - validator: skill_vet_pass
+    args:
+      skill_id: doc-summary
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 300
+meta:
+  skill_id: doc-summary
+  skills:
+  - doc-summary

@@ -1,7 +1,6 @@
 import { useT } from "@/i18n/context";
 
 export type SettingsSection =
-  | "auth"
   | "prefs"
   | "data"
   | "service"
@@ -13,10 +12,10 @@ export type SettingsSection =
   | "channels"
   | "gates"
   | "plugins"
-  | "ops";
+  | "ops"
+  | "about";
 
-const SECTIONS: SettingsSection[] = [
-  "auth",
+export const SETTINGS_SECTIONS: SettingsSection[] = [
   "prefs",
   "data",
   "service",
@@ -29,6 +28,7 @@ const SECTIONS: SettingsSection[] = [
   "gates",
   "plugins",
   "ops",
+  "about",
 ];
 
 export function SettingsNav({
@@ -41,7 +41,7 @@ export function SettingsNav({
   const t = useT();
   return (
     <nav className="dw-settings-nav">
-      {SECTIONS.map((id) => (
+      {SETTINGS_SECTIONS.map((id) => (
         <button
           key={id}
           type="button"

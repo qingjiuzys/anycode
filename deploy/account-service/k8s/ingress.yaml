@@ -1,0 +1,27 @@
+# TLS terminates here (cert-manager or platform-managed cert). Pod serves HTTP :8080 only.
+# Adjust ingressClassName / annotations to match your cluster.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: anycode-account
+  annotations:
+    # cert-manager example:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - anycode.work
+      secretName: anycode-work-tls
+  rules:
+    - host: anycode.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: anycode-account
+                port:
+                  number: 80

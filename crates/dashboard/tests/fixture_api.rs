@@ -5,9 +5,35 @@ use axum::body::Body;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::sync::LazyLock;
 use tempfile::tempdir;
 use tower::ServiceExt;
+
+static ENV_LOCK: LazyLock<tokio::sync::Mutex<()>> = LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<OsString>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: impl AsRef<OsStr>) -> Self {
+        let previous = std::env::var_os(key);
+        std::env::set_var(key, value);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.take() {
+            std::env::set_var(self.key, previous);
+        } else {
+            std::env::remove_var(self.key);
+        }
+    }
+}
 
 async fn get_json(app: axum::Router, path: &str) -> Value {
     let res = app
@@ -170,10 +196,11 @@ async fn non_loopback_login_accepts_hashed_password_and_sets_session_cookie() {
 
 #[tokio::test]
 async fn fixture_api_smoke() {
+    let _env_lock = ENV_LOCK.lock().await;
     let dir = tempdir().unwrap();
     let db = dir.path().join("fixture.db");
     let prefs_path = dir.path().join("dashboard_preferences.json");
-    std::env::set_var(
+    let _preferences = EnvVarGuard::set(
         "ANYCODE_DASHBOARD_PREFERENCES_PATH",
         prefs_path.display().to_string(),
     );
@@ -332,14 +359,14 @@ async fn fixture_api_smoke() {
 
     let usage = get_json(app.clone(), "/api/metrics/usage?days=7").await;
     assert!(usage["usage"]["total_tokens"].is_number());
-    assert!(usage["usage"]["estimated_cost_usd"].is_number());
+    assert!(usage["usage"]["estimated_cost_cny"].is_number());
     assert!(usage["by_model"].is_array());
     assert!(usage["by_project"].is_array());
     assert!(usage["by_day"].is_array());
 
     let saved_hours = get_json(app.clone(), "/api/metrics/kpi/saved-hours?days=7").await;
     assert!(saved_hours["kpi"]["estimated_saved_hours"].is_number());
-    assert!(saved_hours["kpi"]["estimated_value_usd"].is_number());
+    assert!(saved_hours["kpi"]["estimated_value_cny"].is_number());
 
     let export = app
         .clone()
@@ -406,7 +433,11 @@ async fn fixture_api_smoke() {
     .await;
     assert!(start["session"]["id"].is_string());
     assert_eq!(start["session"]["title"], "Fixture conversation");
-    assert_eq!(start["session"]["status"], "pending");
+    let start_status = start["session"]["status"].as_str().unwrap_or("");
+    assert!(
+        start_status == "pending" || start_status == "running",
+        "unexpected session status: {start_status}"
+    );
     assert!(start["chat"]["pid"].is_number());
 
     let gates = get_json(app.clone(), &format!("/api/projects/{project_id}/gates")).await;
@@ -571,7 +602,6 @@ async fn fixture_api_smoke() {
         let detail = get_json(app, &format!("/api/skills/{skill_id}")).await;
         assert!(detail["skill"]["projects"].is_array());
     }
-    std::env::remove_var("ANYCODE_DASHBOARD_PREFERENCES_PATH");
 }
 
 #[tokio::test]
@@ -981,6 +1011,7 @@ async fn memory_retention_preview_api() {
 
 #[tokio::test]
 async fn setup_memory_and_complete_with_isolated_home() {
+    let _env_lock = ENV_LOCK.lock().await;
     let home = tempdir().unwrap();
     let cfg_dir = home.path().join(".anycode");
     std::fs::create_dir_all(&cfg_dir).unwrap();
@@ -989,7 +1020,7 @@ async fn setup_memory_and_complete_with_isolated_home() {
         r#"{"provider":"openai","model":"gpt-4o","api_key":"sk-test"}"#,
     )
     .unwrap();
-    std::env::set_var("HOME", home.path());
+    let _home = EnvVarGuard::set("HOME", home.path());
 
     let dir = tempdir().unwrap();
     let db = dir.path().join("setup_mem.db");
@@ -1038,6 +1069,22 @@ async fn skills_market_and_scan_roots() {
 
     let market = get_json(app.clone(), "/api/skills/market").await;
     assert!(market["market"]["entries"].is_array());
+    let entries = market["market"]["entries"].as_array().unwrap();
+    assert!(entries.iter().any(|e| e["badge"] == "official"));
+    let starter = entries
+        .iter()
+        .find(|e| e["badge"] == "anycode")
+        .and_then(|e| e["id"].as_str());
+    if let Some(id) = starter {
+        let installed = post_json(
+            app.clone(),
+            "/api/skills/market/install",
+            json!({ "id": id }),
+        )
+        .await;
+        assert_eq!(installed["ok"], true);
+        assert_eq!(installed["id"], id);
+    }
 
     let skills = get_json(app.clone(), "/api/skills?limit=10").await;
     assert!(skills["skills"].is_array());
@@ -1046,11 +1093,12 @@ async fn skills_market_and_scan_roots() {
 
 #[tokio::test]
 async fn security_questions_roundtrip() {
+    let _env_lock = ENV_LOCK.lock().await;
     let dir = tempdir().unwrap();
     let db = dir.path().join("questions.db");
     let state_dir = dir.path().join("dashboard-state");
     std::fs::create_dir_all(&state_dir).unwrap();
-    std::env::set_var("ANYCODE_DASHBOARD_STATE_DIR", &state_dir);
+    let _state_dir = EnvVarGuard::set("ANYCODE_DASHBOARD_STATE_DIR", &state_dir);
 
     let app = app_for_test(&db).await.unwrap();
     let project = post_json(
@@ -1078,6 +1126,7 @@ async fn security_questions_roundtrip() {
 
     let qid = anycode_dashboard::ipc::question_ipc::register_pending(
         session_id,
+        1,
         "Pick one",
         "Choice",
         &[anycode_dashboard::ipc::question_ipc::QuestionOptionRecord {
@@ -1103,10 +1152,11 @@ async fn security_questions_roundtrip() {
 
 #[tokio::test]
 async fn session_message_with_text_files() {
+    let _env_lock = ENV_LOCK.lock().await;
     let dir = tempdir().unwrap();
     let state_dir = dir.path().join("dashboard-state");
     std::fs::create_dir_all(&state_dir).unwrap();
-    std::env::set_var("ANYCODE_DASHBOARD_STATE_DIR", &state_dir);
+    let _state_dir = EnvVarGuard::set("ANYCODE_DASHBOARD_STATE_DIR", &state_dir);
 
     let db = dir.path().join("text_files.db");
     let app = app_for_test(&db).await.unwrap();
@@ -1154,11 +1204,140 @@ async fn session_message_with_text_files() {
         )
         .await
         .unwrap();
+    let status = res.status();
+    let response_body = res.into_body().collect().await.unwrap().to_bytes();
     assert!(
-        res.status().is_success() || res.status() == axum::http::StatusCode::ACCEPTED,
-        "message status={}",
-        res.status()
+        status.is_success() || status == axum::http::StatusCode::ACCEPTED,
+        "message status={status}, body={}",
+        String::from_utf8_lossy(&response_body)
     );
+}
+
+#[tokio::test]
+async fn session_message_dispatches_when_running_without_turn() {
+    let _lock = ENV_LOCK.lock().await;
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("queue_idle_running.db");
+    let app = app_for_test(&db_path).await.unwrap();
+    let root = dir.path().join("idle-proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": root.display().to_string(),
+            "name": "Idle running",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "idle chat",
+            "prompt_preview": "hi"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+    let db = anycode_dashboard::db::DashboardDb::open(&db_path)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE sessions SET status = 'running' WHERE id = ?")
+        .bind(session_id)
+        .execute(db.pool())
+        .await
+        .unwrap();
+
+    let res = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/sessions/{session_id}/message"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({ "prompt": "follow up while idle" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(
+        res.status(),
+        axum::http::StatusCode::ACCEPTED,
+        "idle running session must dispatch, not enqueue"
+    );
+}
+
+#[tokio::test]
+async fn cancel_session_clears_pending_message_queue() {
+    let _lock = ENV_LOCK.lock().await;
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("queue_cancel.db");
+    let app = app_for_test(&db_path).await.unwrap();
+    let root = dir.path().join("cancel-proj");
+    std::fs::create_dir_all(&root).unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": root.display().to_string(),
+            "name": "Cancel queue",
+            "create_root": true
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "repl",
+            "title": "cancel chat",
+            "prompt_preview": "hi"
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+    let db = anycode_dashboard::db::DashboardDb::open(&db_path)
+        .await
+        .unwrap();
+    db.enqueue_session_message(anycode_dashboard::db::EnqueueMessageInput {
+        session_id: session_id.to_string(),
+        prompt: "queued item".into(),
+        agent: None,
+        skills: None,
+        vision_images: None,
+        text_files: None,
+        lang: None,
+    })
+    .await
+    .unwrap();
+    sqlx::query("UPDATE sessions SET status = 'running' WHERE id = ?")
+        .bind(session_id)
+        .execute(db.pool())
+        .await
+        .unwrap();
+
+    post_json(
+        app.clone(),
+        &format!("/api/sessions/{session_id}/cancel"),
+        json!({}),
+    )
+    .await;
+
+    let queue = get_json(
+        app.clone(),
+        &format!("/api/sessions/{session_id}/message-queue"),
+    )
+    .await;
+    assert_eq!(queue["items"].as_array().unwrap().len(), 0);
 }
 
 #[tokio::test]

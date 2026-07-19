@@ -44,9 +44,8 @@ impl SkillsGovernance {
         }
 
         if let Some(project) = &self.project_enabled {
-            if !project.is_empty() {
-                sets.push(project.clone());
-            }
+            // `Some(empty)` means the project explicitly disabled every skill.
+            sets.push(project.clone());
         }
 
         if sets.is_empty() {
@@ -86,5 +85,15 @@ mod tests {
         assert_eq!(eff, ["b".into()].into_iter().collect::<HashSet<_>>());
         assert!(gov.is_allowed("general-purpose", "b"));
         assert!(!gov.is_allowed("general-purpose", "a"));
+    }
+
+    #[test]
+    fn explicit_empty_project_set_denies_every_skill() {
+        let gov = SkillsGovernance {
+            project_enabled: Some(HashSet::new()),
+            ..Default::default()
+        };
+        assert_eq!(gov.effective_ids("general-purpose"), Some(HashSet::new()));
+        assert!(!gov.is_allowed("general-purpose", "weekly-report"));
     }
 }

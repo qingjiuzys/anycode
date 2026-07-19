@@ -15,6 +15,46 @@ pub const BUILTIN_EXTENDS: &[&str] = &[
     "goal",
 ];
 
+/// Deprecated shipped role ids mapped to their canonical builtin/profile id.
+pub const DEPRECATED_AGENT_ALIASES: &[(&str, &str)] = &[
+    ("builder", "general-purpose"),
+    ("planner", "plan"),
+    ("explorer", "explore"),
+    ("goal-runner", "goal"),
+    ("channel-ops", "workspace-assistant"),
+];
+
+/// Resolve legacy role ids to the canonical agent id (unchanged when already canonical).
+#[must_use]
+pub fn normalize_agent_id(id: &str) -> String {
+    let t = id.trim();
+    if t.is_empty() {
+        return String::new();
+    }
+    DEPRECATED_AGENT_ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == t)
+        .map(|(_, canonical)| (*canonical).to_string())
+        .unwrap_or_else(|| t.to_string())
+}
+
+/// Whether `id` is a known builtin, shipped profile, alias, or routing-only key.
+#[must_use]
+pub fn is_known_agent_id(id: &str) -> bool {
+    let t = id.trim();
+    if t.is_empty() {
+        return false;
+    }
+    let canonical = normalize_agent_id(t);
+    BUILTIN_EXTENDS.contains(&canonical.as_str())
+        || SHIPPED_ROLE_IDS.contains(&canonical.as_str())
+        || t == "summary"
+        || DEPRECATED_AGENT_ALIASES
+            .iter()
+            .any(|(alias, _)| *alias == t)
+        || matches!(t, "workspace" | "code")
+}
+
 /// Shipped role preset metadata (Composite catalog seed).
 pub struct BuiltinAgentSeed {
     pub id: &'static str,
@@ -49,21 +89,6 @@ pub const BUILTIN_AGENT_SEED: &[BuiltinAgentSeed] = &[
         description: "Autonomous goal iteration",
     },
     BuiltinAgentSeed {
-        id: "builder",
-        extends: "general-purpose",
-        description: "Default implementation-focused coding agent",
-    },
-    BuiltinAgentSeed {
-        id: "planner",
-        extends: "plan",
-        description: "Architecture and task decomposition",
-    },
-    BuiltinAgentSeed {
-        id: "explorer",
-        extends: "explore",
-        description: "Fast codebase exploration",
-    },
-    BuiltinAgentSeed {
         id: "verifier",
         extends: "explore",
         description: "Read-only verification and test inspection",
@@ -72,16 +97,6 @@ pub const BUILTIN_AGENT_SEED: &[BuiltinAgentSeed] = &[
         id: "reviewer",
         extends: "explore",
         description: "PR-style review without shell mutation",
-    },
-    BuiltinAgentSeed {
-        id: "channel-ops",
-        extends: "workspace-assistant",
-        description: "IM / cron channel operations",
-    },
-    BuiltinAgentSeed {
-        id: "goal-runner",
-        extends: "goal",
-        description: "Autonomous goal iteration",
     },
     BuiltinAgentSeed {
         id: "office-writer",
@@ -110,8 +125,8 @@ pub fn runtime_mode_for_extends(extends: &str) -> RuntimeMode {
     match extends.trim() {
         "plan" => RuntimeMode::Plan,
         "explore" => RuntimeMode::Explore,
-        "workspace-assistant" | "channel" | "channel-ops" => RuntimeMode::Channel,
-        "goal" | "goal-runner" => RuntimeMode::Goal,
+        "workspace-assistant" | "channel" => RuntimeMode::Channel,
+        "goal" => RuntimeMode::Goal,
         _ => RuntimeMode::Code,
     }
 }
@@ -228,13 +243,8 @@ pub fn is_builtin_extends(id: &str) -> bool {
 
 /// Shipped role preset ids (extends builtins) registered by CLI bootstrap when not overridden in config.
 pub const SHIPPED_ROLE_IDS: &[&str] = &[
-    "builder",
-    "planner",
-    "explorer",
     "verifier",
     "reviewer",
-    "channel-ops",
-    "goal-runner",
     "office-writer",
     "data-analyst",
     "researcher",
@@ -309,5 +319,24 @@ mod tests {
         let base = vec!["A".into(), "B".into(), "C".into()];
         let out = apply_tool_filters(base, None, Some(&["B".into()]));
         assert_eq!(out, vec!["A", "C"]);
+    }
+
+    #[test]
+    fn normalize_agent_id_maps_deprecated_aliases() {
+        assert_eq!(normalize_agent_id("builder"), "general-purpose");
+        assert_eq!(normalize_agent_id("planner"), "plan");
+        assert_eq!(normalize_agent_id("explorer"), "explore");
+        assert_eq!(normalize_agent_id("goal-runner"), "goal");
+        assert_eq!(normalize_agent_id("channel-ops"), "workspace-assistant");
+        assert_eq!(normalize_agent_id("office-writer"), "office-writer");
+    }
+
+    #[test]
+    fn is_known_agent_id_accepts_aliases_and_shipped_roles() {
+        assert!(is_known_agent_id("builder"));
+        assert!(is_known_agent_id("office-writer"));
+        assert!(is_known_agent_id("summary"));
+        assert!(!is_known_agent_id(""));
+        assert!(!is_known_agent_id("unknown-role"));
     }
 }

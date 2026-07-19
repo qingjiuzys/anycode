@@ -26,10 +26,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@anycode/site-urls": path.resolve(__dirname, "../../brand/site-urls.ts"),
     },
   },
   server: {
     port: 5173,
+    fs: {
+      allow: [path.resolve(__dirname, "../..")],
+    },
     proxy: {
       "/api": {
         target: `http://127.0.0.1:${process.env.ANYCODE_DASHBOARD_DEV_PORT ?? "43180"}`,
@@ -40,7 +44,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    base: "./",
+    base: "/",
     rollupOptions: {
       output: {
         manualChunks(id) {

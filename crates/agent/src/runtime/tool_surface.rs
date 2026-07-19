@@ -6,6 +6,17 @@ use anycode_tools::DEFAULT_TOOL_IDS;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
+const WEAK_LOCAL_CORE_TOOLS: &[&str] = &[
+    "FileRead",
+    "FileWrite",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Bash",
+    "ToolSearch",
+    "AskUserQuestion",
+];
+
 /// Sort tool names: builtins (sorted), then other non-MCP (sorted), then `mcp__*` (sorted).
 pub(crate) fn order_tool_names_like_assemble_tool_pool(names: Vec<ToolName>) -> Vec<ToolName> {
     let builtin: HashSet<&str> = DEFAULT_TOOL_IDS.iter().copied().collect();
@@ -112,6 +123,22 @@ pub(crate) fn build_tool_schemas(
                 input_schema: tool.schema(),
             })
         })
+        .collect()
+}
+
+/// Keep a small, actionable first-turn schema for 4K/weak local models.
+/// ToolSearch provides a controlled escape hatch for tools outside this core.
+pub(crate) fn schemas_for_model_turn(
+    all: &[ToolSchema],
+    model: &ModelConfig,
+    turn: usize,
+) -> Vec<ToolSchema> {
+    if turn != 1 || !anycode_llm::capabilities_for_model_config(model).weak_local_model {
+        return all.to_vec();
+    }
+    all.iter()
+        .filter(|schema| WEAK_LOCAL_CORE_TOOLS.contains(&schema.name.as_str()))
+        .cloned()
         .collect()
 }
 
@@ -267,5 +294,43 @@ mod tests {
         assert_eq!(schemas.len(), 2);
         assert_eq!(schemas[0].name, "B");
         assert_eq!(schemas[1].name, "A");
+    }
+
+    #[test]
+    fn weak_local_first_turn_schema_is_core_only_and_shrinks_materially() {
+        let reg = reg_with(&[
+            "FileRead",
+            "FileWrite",
+            "Edit",
+            "Glob",
+            "Grep",
+            "Bash",
+            "ToolSearch",
+            "AskUserQuestion",
+            "WebFetch",
+            "WebSearch",
+            "Agent",
+            "Skill",
+            "TaskCreate",
+            "TaskList",
+            "BrowserNavigate",
+            "BrowserSnapshot",
+        ]);
+        let all = build_tool_schemas(&reg.keys().cloned().collect::<Vec<_>>(), &reg);
+        let model = ModelConfig {
+            provider: LLMProvider::OpenAI,
+            model: "minicpm5-1b".into(),
+            base_url: Some("http://127.0.0.1:47100/v1/chat/completions".into()),
+            ..Default::default()
+        };
+        let compact = schemas_for_model_turn(&all, &model, 1);
+        assert!(compact
+            .iter()
+            .all(|schema| { WEAK_LOCAL_CORE_TOOLS.contains(&schema.name.as_str()) }));
+        assert!(
+            compact.len() * 10 <= all.len() * 6,
+            "expected >=40% reduction"
+        );
+        assert_eq!(schemas_for_model_turn(&all, &model, 2).len(), all.len());
     }
 }

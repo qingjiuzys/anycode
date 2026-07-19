@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { AnalyticsBlock, KpiMetricGrid } from "@/components/KpiMetricGrid";
@@ -9,11 +9,12 @@ import { TokenTimelineChart } from "@/components/TokenTimelineChart";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { formatMoney } from "@/lib/money";
 import { apiConnectionMessage } from "@/lib/apiConnectionMessage";
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
-export function HomeTokenUsage() {
+export function HomeTokenUsage({ belowTrend }: { belowTrend?: ReactNode } = {}) {
   const t = useT();
   const [days, setDays] = useState<(typeof DAY_OPTIONS)[number]>(7);
   const usage = useQuery({
@@ -26,6 +27,7 @@ export function HomeTokenUsage() {
     return (
       <AnalyticsBlock title={t("home.tokenUsage")}>
         <p className="text-sm text-secondary m-0">{t("common.loading")}</p>
+        {belowTrend}
       </AnalyticsBlock>
     );
   }
@@ -35,6 +37,7 @@ export function HomeTokenUsage() {
     return (
       <AnalyticsBlock title={t("home.tokenUsage")}>
         <p className="text-sm text-error m-0">{msg.text}</p>
+        {belowTrend}
       </AnalyticsBlock>
     );
   }
@@ -94,14 +97,14 @@ export function HomeTokenUsage() {
               { label: t("home.tokenTotal"), value: formatTokens(u.total_tokens), highlight: true },
               {
                 label: t("home.tokenCost"),
-                value: `$${u.estimated_cost_usd.toFixed(2)}`,
+                value: formatMoney(u.estimated_cost_cny),
                 highlight: true,
               },
             ]}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <SectionCard title={t("charts.tokenTimeline")} noPadding className="dw-analytics-chart-card">
-              <TokenTimelineChart points={byDay} />
+              <TokenTimelineChart points={byDay} days={days} />
             </SectionCard>
             <SectionCard title={t("charts.byProject")} noPadding className="dw-analytics-chart-card">
               <div className="px-2 pb-2">
@@ -109,6 +112,11 @@ export function HomeTokenUsage() {
               </div>
             </SectionCard>
           </div>
+        </>
+      )}
+      {belowTrend}
+      {!isEmpty && (
+        <>
           <SectionCard title={t("home.tokenChart")} noPadding className="dw-analytics-chart-card mt-4">
             <div className="px-2 pb-2">
               <SessionTokenChart rows={byModel} />

@@ -19,6 +19,27 @@ fn mock_model_filter_sql() -> &'static str {
     "#
 }
 
+/// Prefer session.model, then llm_usage payload.model, else unknown.
+fn resolved_usage_model_sql() -> &'static str {
+    "COALESCE(NULLIF(TRIM(s.model), ''), NULLIF(TRIM(json_extract(e.payload_json, '$.model')), ''), 'unknown')"
+}
+
+/// Calendar dates for a rolling window ending today (UTC), oldest → newest.
+/// Always returns exactly `days` keys so charts can render zero-filled days.
+fn calendar_day_keys(days: u32) -> Vec<String> {
+    use chrono::{Duration, Utc};
+    let today = Utc::now().date_naive();
+    let days = days.max(1) as i64;
+    (0..days)
+        .rev()
+        .map(|offset| {
+            (today - Duration::days(offset))
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .collect()
+}
+
 pub async fn global_readiness(db: &DashboardDb) -> Result<DeliveryReadiness> {
     let overview = db.overview_stats().await?;
     let blocked = overview.sessions_blocked;
@@ -231,8 +252,20 @@ pub async fn global_timeline(
             .gates_failed = r.get::<i64, _>("c");
     }
 
-    let points: Vec<TimelineMetricPoint> = map.into_values().collect();
-    let trust_trend_pct = if points.len() >= 2 {
+    let points: Vec<TimelineMetricPoint> = calendar_day_keys(days)
+        .into_iter()
+        .map(|date| {
+            map.get(&date).cloned().unwrap_or(TimelineMetricPoint {
+                date,
+                sessions_count: 0,
+                events_count: 0,
+                gates_failed: 0,
+            })
+        })
+        .collect();
+    let trust_trend_pct = if points.iter().all(|p| p.sessions_count == 0) {
+        0.0
+    } else if points.len() >= 2 {
         let first = points.first().map(|p| p.sessions_count).unwrap_or(0).max(1) as f64;
         let last = points.last().map(|p| p.sessions_count).unwrap_or(0) as f64;
         ((last - first) / first) * 100.0
@@ -286,7 +319,7 @@ async fn usage_detail(
     let llm_calls: i64 = by_model.iter().map(|r| r.llm_calls).sum();
     let input_tokens: i64 = by_model.iter().map(|r| r.input_tokens).sum();
     let output_tokens: i64 = by_model.iter().map(|r| r.output_tokens).sum();
-    let estimated_cost_usd: f64 = by_model.iter().map(|r| r.estimated_cost_usd).sum();
+    let estimated_cost_cny: f64 = by_model.iter().map(|r| r.estimated_cost_cny).sum();
     Ok(TokenUsageDetail {
         usage: TokenUsageStats {
             days,
@@ -294,7 +327,7 @@ async fn usage_detail(
             input_tokens,
             output_tokens,
             total_tokens: input_tokens + output_tokens,
-            estimated_cost_usd,
+            estimated_cost_cny,
             generated_at: chrono::Utc::now().to_rfc3339(),
         },
         by_model,
@@ -317,7 +350,7 @@ async fn usage_by_model(
     let mut sql = format!(
         r#"
         SELECT
-          COALESCE(NULLIF(TRIM(s.model), ''), 'unknown') AS model,
+          {resolved_model} AS model,
           COUNT(*) AS llm_calls,
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.input_tokens') AS INTEGER)), 0) AS input_tokens,
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
@@ -327,6 +360,9 @@ async fn usage_by_model(
           AND datetime(e.occurred_at) >= datetime('now', ?)
           {mock_filter}
         "#,
+        resolved_model = resolved_usage_model_sql(),
+        event_filter = event_filter,
+        mock_filter = mock_filter,
     );
     if project_id.filter(|s| !s.is_empty()).is_some() {
         sql.push_str(" AND e.project_id = ?");
@@ -350,7 +386,7 @@ async fn usage_by_model(
                 input_tokens,
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
-                estimated_cost_usd: estimate_model_cost_usd(&model, input_tokens, output_tokens),
+                estimated_cost_cny: estimate_model_cost_cny(&model, input_tokens, output_tokens),
             }
         })
         .collect())
@@ -407,7 +443,7 @@ async fn usage_by_project(
                 input_tokens,
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
-                estimated_cost_usd: estimate_model_cost_usd(model, input_tokens, output_tokens),
+                estimated_cost_cny: estimate_model_cost_cny(model, input_tokens, output_tokens),
             }
         })
         .collect())
@@ -447,19 +483,34 @@ async fn usage_by_day(
         q = q.bind(pid);
     }
     let rows = q.fetch_all(db.pool()).await?;
-    Ok(rows
-        .into_iter()
-        .map(|r| {
-            let input_tokens: i64 = r.get("input_tokens");
-            let output_tokens: i64 = r.get("output_tokens");
+    let mut by_date = std::collections::BTreeMap::<String, TokenTimelinePoint>::new();
+    for r in rows {
+        let input_tokens: i64 = r.get("input_tokens");
+        let output_tokens: i64 = r.get("output_tokens");
+        let date: String = r.get("d");
+        by_date.insert(
+            date.clone(),
             TokenTimelinePoint {
-                date: r.get("d"),
+                date,
                 llm_calls: r.get("llm_calls"),
                 input_tokens,
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
-                estimated_cost_usd: estimate_model_cost_usd("unknown", input_tokens, output_tokens),
-            }
+                estimated_cost_cny: estimate_model_cost_cny("unknown", input_tokens, output_tokens),
+            },
+        );
+    }
+    Ok(calendar_day_keys(days)
+        .into_iter()
+        .map(|date| {
+            by_date.remove(&date).unwrap_or(TokenTimelinePoint {
+                date,
+                llm_calls: 0,
+                input_tokens: 0,
+                output_tokens: 0,
+                total_tokens: 0,
+                estimated_cost_cny: 0.0,
+            })
         })
         .collect())
 }
@@ -492,7 +543,7 @@ pub async fn saved_hours_kpi(db: &DashboardDb, days: u32) -> Result<crate::schem
     let baseline_hours_per_session = baseline_session_hours();
     let estimated_manual_hours = sessions_completed as f64 * baseline_hours_per_session;
     let estimated_saved_hours = (estimated_manual_hours - automation_hours).max(0.0);
-    let hourly_rate_usd = hourly_rate_usd();
+    let hourly_rate_cny = hourly_rate_cny();
     Ok(SavedHoursKpi {
         days,
         sessions_completed,
@@ -500,8 +551,8 @@ pub async fn saved_hours_kpi(db: &DashboardDb, days: u32) -> Result<crate::schem
         baseline_hours_per_session,
         estimated_manual_hours,
         estimated_saved_hours,
-        hourly_rate_usd,
-        estimated_value_usd: estimated_saved_hours * hourly_rate_usd,
+        hourly_rate_cny,
+        estimated_value_cny: estimated_saved_hours * hourly_rate_cny,
         generated_at: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -534,38 +585,38 @@ pub fn infer_provider(model: &str) -> &'static str {
     }
 }
 
-fn model_token_rates(model: &str) -> (f64, f64) {
+fn model_token_rates_cny(model: &str) -> (f64, f64) {
     let m = model.to_ascii_lowercase();
     if m.contains("opus") {
-        (15.0, 75.0)
+        (108.0, 540.0)
     } else if m.contains("sonnet") || m.contains("claude") {
-        (3.0, 15.0)
+        (21.6, 108.0)
     } else if m.contains("haiku") {
-        (0.25, 1.25)
+        (1.8, 9.0)
     } else if m.contains("gpt-4o-mini") || m.contains("mini") {
-        (0.15, 0.6)
+        (1.08, 4.32)
     } else if m.contains("gpt-4") || m.starts_with("o1") || m.starts_with("o3") {
-        (2.5, 10.0)
+        (18.0, 72.0)
     } else if m.contains("gemini") {
-        (1.25, 5.0)
+        (9.0, 36.0)
     } else if m.contains("deepseek") {
-        (0.27, 1.1)
+        (1.944, 7.92)
     } else {
         (
-            std::env::var("ANYCODE_DASHBOARD_INPUT_USD_PER_M")
+            std::env::var("ANYCODE_DASHBOARD_INPUT_CNY_PER_M")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(3.0),
-            std::env::var("ANYCODE_DASHBOARD_OUTPUT_USD_PER_M")
+                .unwrap_or(21.6),
+            std::env::var("ANYCODE_DASHBOARD_OUTPUT_CNY_PER_M")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(15.0),
+                .unwrap_or(108.0),
         )
     }
 }
 
-fn estimate_model_cost_usd(model: &str, input_tokens: i64, output_tokens: i64) -> f64 {
-    let (input_rate, output_rate) = model_token_rates(model);
+fn estimate_model_cost_cny(model: &str, input_tokens: i64, output_tokens: i64) -> f64 {
+    let (input_rate, output_rate) = model_token_rates_cny(model);
     (input_tokens as f64 / 1_000_000.0) * input_rate
         + (output_tokens as f64 / 1_000_000.0) * output_rate
 }
@@ -578,16 +629,16 @@ fn baseline_session_hours() -> f64 {
         / 60.0
 }
 
-fn hourly_rate_usd() -> f64 {
-    std::env::var("ANYCODE_DASHBOARD_HOURLY_RATE_USD")
+fn hourly_rate_cny() -> f64 {
+    std::env::var("ANYCODE_DASHBOARD_HOURLY_RATE_CNY")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(50.0)
+        .unwrap_or(360.0)
 }
 
-/// Rough USD estimate (override via env: `ANYCODE_DASHBOARD_INPUT_USD_PER_M`, `ANYCODE_DASHBOARD_OUTPUT_USD_PER_M`).
-fn estimate_token_cost_usd(input_tokens: i64, output_tokens: i64) -> f64 {
-    estimate_model_cost_usd("unknown", input_tokens, output_tokens)
+/// Rough CNY estimate, configurable with `*_CNY_PER_M` environment variables.
+fn estimate_token_cost_cny(input_tokens: i64, output_tokens: i64) -> f64 {
+    estimate_model_cost_cny("unknown", input_tokens, output_tokens)
 }
 
 /// Per-project LLM token usage.
@@ -612,7 +663,7 @@ pub async fn session_token_usage_detail(
     let llm_calls: i64 = by_model.iter().map(|r| r.llm_calls).sum();
     let input_tokens: i64 = by_model.iter().map(|r| r.input_tokens).sum();
     let output_tokens: i64 = by_model.iter().map(|r| r.output_tokens).sum();
-    let estimated_cost_usd: f64 = by_model.iter().map(|r| r.estimated_cost_usd).sum();
+    let estimated_cost_cny: f64 = by_model.iter().map(|r| r.estimated_cost_cny).sum();
     Ok(TokenUsageDetail {
         usage: TokenUsageStats {
             days: 0,
@@ -620,7 +671,7 @@ pub async fn session_token_usage_detail(
             input_tokens,
             output_tokens,
             total_tokens: input_tokens + output_tokens,
-            estimated_cost_usd,
+            estimated_cost_cny,
             generated_at: chrono::Utc::now().to_rfc3339(),
         },
         by_model,
@@ -640,7 +691,7 @@ async fn usage_by_model_session(
     let sql = format!(
         r#"
         SELECT
-          COALESCE(NULLIF(TRIM(s.model), ''), 'unknown') AS model,
+          {resolved_model} AS model,
           COUNT(*) AS llm_calls,
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.input_tokens') AS INTEGER)), 0) AS input_tokens,
           COALESCE(SUM(CAST(json_extract(e.payload_json, '$.output_tokens') AS INTEGER)), 0) AS output_tokens
@@ -651,6 +702,9 @@ async fn usage_by_model_session(
           {mock_filter}
         GROUP BY model ORDER BY input_tokens + output_tokens DESC LIMIT 20
         "#,
+        resolved_model = resolved_usage_model_sql(),
+        event_filter = event_filter,
+        mock_filter = mock_filter,
     );
     let rows = sqlx::query(&sql)
         .bind(session_id)
@@ -669,7 +723,7 @@ async fn usage_by_model_session(
                 input_tokens,
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
-                estimated_cost_usd: estimate_model_cost_usd(&model, input_tokens, output_tokens),
+                estimated_cost_cny: estimate_model_cost_cny(&model, input_tokens, output_tokens),
             }
         })
         .collect())
@@ -713,7 +767,7 @@ async fn usage_by_day_session(
                 input_tokens,
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
-                estimated_cost_usd: estimate_model_cost_usd("unknown", input_tokens, output_tokens),
+                estimated_cost_cny: estimate_model_cost_cny("unknown", input_tokens, output_tokens),
             }
         })
         .collect())
@@ -728,7 +782,7 @@ pub async fn usage_export_csv(
     use sqlx::Row;
     let days = days.clamp(1, 90);
     let span = format!("-{days} days");
-    let mut out = String::from("project_id,project_name,llm_calls,input_tokens,output_tokens,total_tokens,estimated_cost_usd\n");
+    let mut out = String::from("project_id,project_name,llm_calls,input_tokens,output_tokens,total_tokens,estimated_cost_cny,currency\n");
     if let Some(pid) = project_id.filter(|s| !s.is_empty()) {
         let usage = project_token_usage(db, pid, days).await?;
         let name = db
@@ -737,14 +791,14 @@ pub async fn usage_export_csv(
             .map(|p| p.name)
             .unwrap_or_else(|| pid.to_string());
         out.push_str(&format!(
-            "{},{},{},{},{},{},{:.4}\n",
+            "{},{},{},{},{},{},{:.4},CNY\n",
             pid,
             csv_escape(&name),
             usage.llm_calls,
             usage.input_tokens,
             usage.output_tokens,
             usage.total_tokens,
-            usage.estimated_cost_usd
+            usage.estimated_cost_cny
         ));
         return Ok(out);
     }
@@ -772,9 +826,9 @@ pub async fn usage_export_csv(
         let input_tokens: i64 = r.get("input_tokens");
         let output_tokens: i64 = r.get("output_tokens");
         let total = input_tokens + output_tokens;
-        let cost = estimate_token_cost_usd(input_tokens, output_tokens);
+        let cost = estimate_token_cost_cny(input_tokens, output_tokens);
         out.push_str(&format!(
-            "{},{},{},{},{},{},{:.4}\n",
+            "{},{},{},{},{},{},{:.4},CNY\n",
             r.get::<String, _>("project_id"),
             csv_escape(
                 &r.get::<Option<String>, _>("project_name")
@@ -855,8 +909,8 @@ mod tests {
 
     #[test]
     fn token_cost_estimate() {
-        assert!((super::estimate_token_cost_usd(1_000_000, 0) - 3.0).abs() < 0.01);
-        assert!((super::estimate_token_cost_usd(0, 1_000_000) - 15.0).abs() < 0.01);
+        assert!((super::estimate_token_cost_cny(1_000_000, 0) - 21.6).abs() < 0.01);
+        assert!((super::estimate_token_cost_cny(0, 1_000_000) - 108.0).abs() < 0.01);
     }
 
     #[test]
@@ -870,8 +924,8 @@ mod tests {
 
     #[test]
     fn model_cost_sonnet() {
-        let cost = estimate_model_cost_usd("claude-sonnet-4", 1_000_000, 1_000_000);
-        assert!((cost - 18.0).abs() < 0.01);
+        let cost = estimate_model_cost_cny("claude-sonnet-4", 1_000_000, 1_000_000);
+        assert!((cost - 129.6).abs() < 0.01);
     }
 
     #[tokio::test]
@@ -931,6 +985,138 @@ mod tests {
         let db = DashboardDb::open(dir.path().join("tl.db")).await.unwrap();
         let tl = global_timeline(&db, 7).await.unwrap();
         assert_eq!(tl.days, 7);
+        assert_eq!(tl.points.len(), 7, "empty window still returns 7 zero days");
+        assert!(tl
+            .points
+            .iter()
+            .all(|p| { p.sessions_count == 0 && p.events_count == 0 && p.gates_failed == 0 }));
+        assert_eq!(tl.trust_trend_pct, 0.0);
+    }
+
+    #[tokio::test]
+    async fn usage_by_day_fills_zero_days() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("usage-days.db"))
+            .await
+            .unwrap();
+        let detail = global_token_usage_detail(&db, 7).await.unwrap();
+        assert_eq!(detail.by_day.len(), 7);
+        assert!(detail
+            .by_day
+            .iter()
+            .all(|p| { p.llm_calls == 0 && p.total_tokens == 0 && p.estimated_cost_cny == 0.0 }));
+        let keys = calendar_day_keys(7);
+        assert_eq!(
+            detail
+                .by_day
+                .iter()
+                .map(|p| p.date.as_str())
+                .collect::<Vec<_>>(),
+            keys.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn usage_by_model_prefers_session_then_payload() {
+        use crate::schema::InsertEventRequest;
+        use serde_json::json;
+
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("usage-model.db"))
+            .await
+            .unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/usage-model".into(),
+                name: Some("UM".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let session_empty = db
+            .create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "run".into(),
+                task_id: None,
+                title: "empty-model".into(),
+                prompt_preview: None,
+                agent_type: None,
+                model: None,
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        let session_named = db
+            .create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "run".into(),
+                task_id: None,
+                title: "named-model".into(),
+                prompt_preview: None,
+                agent_type: None,
+                model: Some("gpt-4o".into()),
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+
+        db.insert_event(InsertEventRequest {
+            project_id: project.id.clone(),
+            session_id: Some(session_empty.id),
+            task_id: None,
+            agent_id: None,
+            event_type: LLM_USAGE_EVENT.into(),
+            severity: Some("info".into()),
+            title: "payload model".into(),
+            body: None,
+            payload: Some(json!({
+                "turn": "1",
+                "input_tokens": 10,
+                "output_tokens": 2,
+                "model": "claude-sonnet-4",
+            })),
+        })
+        .await
+        .unwrap();
+        db.insert_event(InsertEventRequest {
+            project_id: project.id,
+            session_id: Some(session_named.id),
+            task_id: None,
+            agent_id: None,
+            event_type: LLM_USAGE_EVENT.into(),
+            severity: Some("info".into()),
+            title: "session model wins".into(),
+            body: None,
+            payload: Some(json!({
+                "turn": "1",
+                "input_tokens": 5,
+                "output_tokens": 1,
+                "model": "claude-sonnet-4",
+            })),
+        })
+        .await
+        .unwrap();
+
+        let detail = global_token_usage_detail(&db, 7).await.unwrap();
+        let models: Vec<_> = detail.by_model.iter().map(|r| r.model.as_str()).collect();
+        assert!(models.contains(&"claude-sonnet-4"));
+        assert!(models.contains(&"gpt-4o"));
+        let claude = detail
+            .by_model
+            .iter()
+            .find(|r| r.model == "claude-sonnet-4")
+            .unwrap();
+        assert_eq!(claude.provider, "anthropic");
+        assert_eq!(claude.llm_calls, 1);
+        let gpt = detail
+            .by_model
+            .iter()
+            .find(|r| r.model == "gpt-4o")
+            .unwrap();
+        assert_eq!(gpt.provider, "openai");
+        assert_eq!(gpt.llm_calls, 1);
     }
 
     #[tokio::test]

@@ -1,12 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { api } from "@/api/client";
 import type { ApprovalDecision, PendingApprovalsResponse } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import {
+  applyApprovalResolvedToCaches,
+  invalidateApprovalCaches,
+  restoreApprovalResolvedCaches,
+  scheduleApprovalSummaryRefresh,
+  type ApprovalResolvedCacheSnapshot,
+} from "@/lib/approvalCache";
+import {
+  getOptimisticResolvedApprovalIds,
+  markApprovalResolvedOptimistic,
+  optimisticResolvedApprovalsEpoch,
+  optimisticResolvedApprovalsSnapshot,
+  subscribeOptimisticResolvedApprovals,
+  unmarkApprovalResolvedOptimistic,
+} from "@/lib/approvalOptimisticStore";
 import { sessionChatSearch } from "@/lib/sessionLinks";
+import type { LivePendingApproval } from "@/lib/sessionLiveStore";
+
+/** Max approval cards shown at once (overflow summarized). */
+export const APPROVAL_INBOX_DISPLAY_LIMIT = 5;
 
 type Props = {
   sessionId?: string;
@@ -16,6 +36,10 @@ type Props = {
   compact?: boolean;
   /** Inline fold inside the chat transcript (last turn). */
   inline?: boolean;
+  /** SSE-driven pending rows (session hot path — no polling). */
+  liveApprovals?: LivePendingApproval[];
+  /** When using liveApprovals, whether respond is allowed. */
+  respondAllowed?: boolean;
 };
 
 /** Live pending tool approvals — respond from Web when CLI session is recording. */
@@ -24,16 +48,42 @@ export function SecurityApprovalInbox({
   hideWhenEmpty,
   compact,
   inline = false,
+  liveApprovals,
+  respondAllowed: respondAllowedProp,
 }: Props) {
   const t = useT();
   const queryClient = useQueryClient();
   const pendingQueryKey = ["security-approvals-pending", sessionId ?? ""] as const;
+  const useLiveFeed = liveApprovals !== undefined;
+
+  const optimisticSnapshot = useSyncExternalStore(
+    subscribeOptimisticResolvedApprovals,
+    () => optimisticResolvedApprovalsSnapshot(sessionId),
+    () => "",
+  );
+  const optimisticResolved = useMemo(() => {
+    void optimisticSnapshot;
+    return getOptimisticResolvedApprovalIds(sessionId);
+  }, [optimisticSnapshot, sessionId]);
+
+  const liveRows: ApprovalRowData[] = (liveApprovals ?? [])
+    .filter((row) => !optimisticResolved.has(row.approval_id))
+    .map((row) => ({
+      approval_id: row.approval_id,
+      session_id: row.session_id,
+      tool: row.tool,
+      input_preview: row.input_preview,
+      created_at: "",
+      status: "pending",
+    }));
 
   const inbox = useQuery({
     queryKey: pendingQueryKey,
-    queryFn: () => api.pendingApprovals({ limit: 10, sessionId }),
-    staleTime: 5_000,
-    refetchInterval: sessionId ? 4_000 : 12_000,
+    queryFn: () => api.pendingApprovals({ limit: 20, sessionId }),
+    // Live path relies on sessionLive + rehydrate; do not poll when live feed is wired.
+    enabled: !useLiveFeed,
+    staleTime: Infinity,
+    refetchInterval: !useLiveFeed ? (sessionId ? false : 12_000) : false,
     refetchIntervalInBackground: false,
   });
 
@@ -44,37 +94,57 @@ export function SecurityApprovalInbox({
     }: {
       approvalId: string;
       decision: ApprovalDecision;
+      sessionIdForCache?: string;
     }) => api.respondToApproval(approvalId, decision),
-    onMutate: async ({ approvalId }) => {
-      await queryClient.cancelQueries({ queryKey: pendingQueryKey });
-      const previous = queryClient.getQueryData<PendingApprovalsResponse>(pendingQueryKey);
-      if (previous) {
-        queryClient.setQueryData<PendingApprovalsResponse>(pendingQueryKey, {
-          ...previous,
-          pending: previous.pending.filter((row) => row.approval_id !== approvalId),
-        });
-      }
-      return { previous };
+    onMutate: async ({ approvalId, sessionIdForCache }) => {
+      await queryClient.cancelQueries({ queryKey: ["security-approvals-summary"] });
+      await queryClient.cancelQueries({ queryKey: ["pending-approvals-rehydrate"] });
+      await queryClient.cancelQueries({ queryKey: ["security-approvals-pending"] });
+
+      const sid =
+        sessionIdForCache ||
+        sessionId ||
+        liveApprovals?.find((row) => row.approval_id === approvalId)?.session_id ||
+        inbox.data?.pending.find((row) => row.approval_id === approvalId)?.session_id;
+
+      markApprovalResolvedOptimistic(sid || sessionId, approvalId);
+
+      const cacheSnapshot = applyApprovalResolvedToCaches(queryClient, {
+        approvalId,
+        sessionId: sid,
+      });
+      return {
+        cacheSnapshot,
+        sid: sid || sessionId,
+      } satisfies {
+        cacheSnapshot: ApprovalResolvedCacheSnapshot;
+        sid: string | undefined;
+      };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(pendingQueryKey, context.previous);
+    onError: (_err, { approvalId }, context) => {
+      unmarkApprovalResolvedOptimistic(context?.sid || sessionId, approvalId);
+      if (context?.cacheSnapshot) {
+        restoreApprovalResolvedCaches(queryClient, context.cacheSnapshot);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["security-approvals-pending"] });
-      queryClient.invalidateQueries({ queryKey: ["security-approvals-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["security-activity"] });
+      invalidateApprovalCaches(queryClient);
+      scheduleApprovalSummaryRefresh(queryClient);
     },
   });
 
   const data = inbox.data;
-  const rows = data?.pending ?? [];
-  const canRespond = data?.respond_allowed ?? false;
+  const polledRows: ApprovalRowData[] = (data?.pending ?? []).filter(
+    (row) => !optimisticResolved.has(row.approval_id),
+  );
+  const rows = useLiveFeed ? liveRows : polledRows;
+  const visibleRows = rows.slice(0, APPROVAL_INBOX_DISPLAY_LIMIT);
+  const overflowCount = Math.max(0, rows.length - visibleRows.length);
+  const canRespond = respondAllowedProp ?? data?.respond_allowed ?? true;
   const webEnabled = data?.web_enabled ?? true;
   const title = compact ? t("session.securityInbox") : t("home.securityInbox");
 
-  if (inbox.isLoading) {
+  if (!useLiveFeed && inbox.isLoading && rows.length === 0) {
     if (hideWhenEmpty) return null;
     return (
       <SectionCard title={title}>
@@ -83,7 +153,7 @@ export function SecurityApprovalInbox({
     );
   }
 
-  if (!webEnabled) {
+  if (!webEnabled && !useLiveFeed) {
     if (hideWhenEmpty) return null;
     return (
       <SectionCard title={title}>
@@ -108,7 +178,7 @@ export function SecurityApprovalInbox({
   const hint = sessionId ? t("session.securityInboxHint") : t("home.securityInboxHint");
   const rowList = (
     <div className={inline ? "space-y-2" : "space-y-3"}>
-      {rows.map((row) => (
+      {visibleRows.map((row) => (
         <ApprovalRow
           key={row.approval_id}
           row={row}
@@ -116,27 +186,31 @@ export function SecurityApprovalInbox({
           sessionId={sessionId}
           canRespond={canRespond}
           respondPending={respond.isPending}
-          onRespond={(approvalId, decision) => respond.mutate({ approvalId, decision })}
+          onRespond={(approvalId, decision) =>
+            respond.mutate({
+              approvalId,
+              decision,
+              sessionIdForCache: row.session_id || sessionId,
+            })
+          }
           t={t}
         />
       ))}
+      {overflowCount > 0 ? (
+        <p className="text-xs text-secondary m-0 px-1" data-testid="approval-inbox-overflow">
+          {t("home.securityInboxOverflow").replace("{n}", String(overflowCount))}
+        </p>
+      ) : null}
     </div>
   );
 
   if (inline) {
     return (
-      <div className="chat-trace chat-trace-approval">
-        <div className="chat-trace-toggle-static">
-          <span className="inline-flex items-center gap-1.5 text-warn">
-            <Icon name="policy" size={16} />
-            {title}
-          </span>
-        </div>
-        <p className="text-xs text-secondary m-0 mt-1">{hint}</p>
+      <div className="approval-inbox approval-inbox--inline" data-testid="approval-inbox">
         {!canRespond && (
-          <p className="text-xs text-warn m-0 mt-1">{t("home.securityInboxRemoteBlocked")}</p>
+          <p className="text-xs text-warn m-0 mb-2">{t("home.securityInboxRemoteBlocked")}</p>
         )}
-        <div className="mt-2">{rowList}</div>
+        {rowList}
       </div>
     );
   }
@@ -171,79 +245,100 @@ function ApprovalRow({
   onRespond: (approvalId: string, decision: ApprovalDecision) => void;
   t: ReturnType<typeof useT>;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const busy = !canRespond || respondPending;
+  const previewOneLine = row.input_preview?.trim().replace(/\s+/g, " ") ?? "";
+  const previewSnippet =
+    previewOneLine.length > 72 ? `${previewOneLine.slice(0, 72)}…` : previewOneLine;
+
   return (
     <div
       className={
         inline
-          ? "rounded-xl border border-warn/30 bg-warn/5 p-3"
-          : "dw-card p-3 border border-outline-variant"
+          ? "approval-card approval-card--inline"
+          : "approval-card approval-card--panel"
       }
+      data-testid="approval-card"
     >
-      <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-        <div>
-          <code className="font-code text-sm">{row.tool}</code>
-          <span className="text-xs text-secondary ml-2">{row.created_at}</span>
-        </div>
-        {!sessionId && (
-          <Link
-            to="/conversations"
-            search={sessionChatSearch(row.session_id)}
-            className="text-xs text-primary hover:underline"
+      <p className="approval-card__summary m-0">
+        {t("home.securityNeedsApproval").replace("{tool}", row.tool || "Tool")}
+      </p>
+      {previewSnippet ? (
+        <p className="approval-card__snippet m-0" title={previewOneLine}>
+          {previewSnippet}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        className="approval-card__details-toggle"
+        aria-expanded={detailsOpen}
+        onClick={() => setDetailsOpen((open) => !open)}
+      >
+        <span>{t("home.securityToolDetails")}</span>
+        <Icon name={detailsOpen ? "expand_more" : "chevron_right"} size={14} />
+      </button>
+
+      {detailsOpen && (
+        <div className="approval-card__details">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <code className="font-code text-sm">{row.tool}</code>
+              {row.created_at ? (
+                <span className="text-xs text-secondary ml-2">{row.created_at}</span>
+              ) : null}
+            </div>
+            {!sessionId && (
+              <Link
+                to="/conversations"
+                search={sessionChatSearch(row.session_id)}
+                className="text-xs text-primary hover:underline"
+              >
+                {row.session_id}
+              </Link>
+            )}
+          </div>
+          {row.input_preview?.trim() ? (
+            <pre className="approval-card__preview">{row.input_preview}</pre>
+          ) : null}
+          <button
+            type="button"
+            className="approval-card__advanced"
+            disabled={busy}
+            onClick={() => onRespond(row.approval_id, "allow_all_session")}
           >
-            {row.session_id}
-          </Link>
-        )}
-      </div>
-      <pre className="text-xs text-secondary m-0 mb-3 max-h-24 overflow-auto whitespace-pre-wrap font-code bg-surface-container-low p-2 rounded">
-        {row.input_preview}
-      </pre>
-      <div className="flex flex-wrap gap-2">
-        <ActionButton
-          label={t("home.securityAllowOnce")}
-          disabled={!canRespond || respondPending}
+            {t("home.securityAllowAllSession")}
+          </button>
+        </div>
+      )}
+
+      <div className="approval-card__actions">
+        <button
+          type="button"
+          className="approval-btn approval-btn--allow"
+          disabled={busy}
           onClick={() => onRespond(row.approval_id, "allow_once")}
-        />
-        <ActionButton
-          label={t("home.securityAllowTool")}
-          disabled={!canRespond || respondPending}
+        >
+          {t("home.securityAllowOnce")}
+        </button>
+        <button
+          type="button"
+          className="approval-btn approval-btn--allow"
+          disabled={busy}
           onClick={() => onRespond(row.approval_id, "allow_tool")}
-        />
-        <ActionButton
-          label={t("home.securityAllowAllSession")}
-          disabled={!canRespond || respondPending}
-          onClick={() => onRespond(row.approval_id, "allow_all_session")}
-        />
-        <ActionButton
-          label={t("home.securityDeny")}
-          variant="secondary"
-          disabled={!canRespond || respondPending}
+        >
+          {t("home.securityAllowTool")}
+        </button>
+        <button
+          type="button"
+          className="approval-btn approval-btn--deny"
+          disabled={busy}
           onClick={() => onRespond(row.approval_id, "deny")}
-        />
+        >
+          {t("home.securityDeny")}
+        </button>
       </div>
     </div>
-  );
-}
-
-function ActionButton({
-  label,
-  onClick,
-  disabled,
-  variant = "primary",
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  variant?: "primary" | "secondary";
-}) {
-  return (
-    <button
-      type="button"
-      className={variant === "primary" ? "dw-btn-primary text-xs" : "dw-btn-secondary text-xs"}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -284,11 +379,25 @@ export function usePendingApprovalCounts() {
     refetchInterval: 12_000,
     refetchIntervalInBackground: false,
   });
+  const optimisticEpoch = useSyncExternalStore(
+    subscribeOptimisticResolvedApprovals,
+    optimisticResolvedApprovalsEpoch,
+    () => 0,
+  );
+  void optimisticEpoch;
   const bySession = summary.data?.summary.by_session ?? [];
-  const counts = new Map(bySession.map((row) => [row.session_id, row.count]));
+  const counts = new Map<string, number>();
+  for (const row of bySession) {
+    const optimistic = getOptimisticResolvedApprovalIds(row.session_id).size;
+    const next = Math.max(0, row.count - optimistic);
+    if (next > 0) {
+      counts.set(row.session_id, next);
+    }
+  }
+  const pendingTotal = [...counts.values()].reduce((a, b) => a + b, 0);
   return {
     counts,
-    pendingTotal: summary.data?.summary.pending_total ?? 0,
+    pendingTotal,
     webEnabled: summary.data?.web_enabled ?? true,
     isLoading: summary.isLoading,
   };

@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
-# Local dev stack for anycode.work/login (account-portal + account-service).
+# Local dev stack — everything on loopback (MySQL in Docker + host services).
 # Usage:
-#   ./scripts/dev-account-portal.sh          # print instructions + ensure deps
+#   ./scripts/dev-account-portal.sh          # print instructions
+#   ./scripts/dev-account-portal.sh stack    # MySQL + account API + portal dist (one shot)
 #   ./scripts/dev-account-portal.sh mysql    # start MySQL only
-#   ./scripts/dev-account-portal.sh api      # start account-service (needs MySQL)
-#   ./scripts/dev-account-portal.sh portal   # start account-portal Vite
-#   ./scripts/dev-account-portal.sh workbench # start dashboard-serve + dashboard-ui vite
+#   ./scripts/dev-account-portal.sh api      # start account-service (starts MySQL if needed)
+#   ./scripts/dev-account-portal.sh portal   # start account-portal Vite HMR
+#   ./scripts/dev-account-portal.sh workbench # start dashboard-serve
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MYSQL_CONTAINER=anycode-account-mysql
-MYSQL_PORT=3307
-API_PORT=43200
-PORTAL_PORT=43201
+# shellcheck source=scripts/lib/build-target.sh
+source "$ROOT/scripts/lib/build-target.sh"
+# shellcheck source=scripts/lib/local-mysql.sh
+source "$ROOT/scripts/lib/local-mysql.sh"
+export ANYCODE_BUILD_TARGET=local
+anycode_apply_build_target_exports
+
+API_PORT="${ANYCODE_LOCAL_ACCOUNT_API_PORT}"
+PORTAL_PORT="${ANYCODE_LOCAL_ACCOUNT_PORTAL_PORT}"
 DASHBOARD_PORT="${ANYCODE_DASHBOARD_DEV_PORT:-43180}"
 
-export DATABASE_URL="mysql://anycode:anycode@127.0.0.1:${MYSQL_PORT}/anycode"
-export ACCOUNT_PORTAL_URL="http://127.0.0.1:${PORTAL_PORT}"
-export ACCOUNT_PUBLIC_URL="http://127.0.0.1:${API_PORT}"
+export DATABASE_URL="$(local_mysql_url)"
 export CORS_ORIGINS="http://127.0.0.1:${PORTAL_PORT},http://localhost:${PORTAL_PORT},http://127.0.0.1:43180,http://localhost:43180,http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:${API_PORT},http://localhost:${API_PORT}"
 export WECHAT_PAY_SKIP_VERIFY=1
 export ADMIN_BOOTSTRAP_EMAIL="${ADMIN_BOOTSTRAP_EMAIL:-dev@anycode.local}"
 export ADMIN_BOOTSTRAP_PASSWORD="${ADMIN_BOOTSTRAP_PASSWORD:-anycode-dev}"
-export ANYCODE_ACCOUNT_API_URL="http://127.0.0.1:${API_PORT}"
-export ANYCODE_ACCOUNT_PORTAL_URL="http://127.0.0.1:${PORTAL_PORT}"
 
 pick_dashboard_port() {
   if lsof -i ":${DASHBOARD_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
@@ -36,34 +38,15 @@ pick_dashboard_port() {
 }
 
 start_mysql() {
-  if docker ps --format '{{.Names}}' | grep -qx "${MYSQL_CONTAINER}"; then
-    echo "MySQL already running (${MYSQL_CONTAINER} on :${MYSQL_PORT})"
-    return
-  fi
-  docker rm -f "${MYSQL_CONTAINER}" >/dev/null 2>&1 || true
-  docker run -d --name "${MYSQL_CONTAINER}" \
-    -e MYSQL_ROOT_PASSWORD=anycode \
-    -e MYSQL_DATABASE=anycode \
-    -e MYSQL_USER=anycode \
-    -e MYSQL_PASSWORD=anycode \
-    -p "${MYSQL_PORT}:3306" \
-    mysql:8.0
-  echo "Waiting for MySQL..."
-  for _ in $(seq 1 45); do
-    if docker exec "${MYSQL_CONTAINER}" mysqladmin ping -h127.0.0.1 -uroot -panycode --silent 2>/dev/null; then
-      break
-    fi
-    sleep 2
-  done
-  docker exec -i "${MYSQL_CONTAINER}" mysql -uroot -panycode anycode \
-    < "${ROOT}/deploy/account-service/schema.mysql.sql"
-  echo "MySQL ready on 127.0.0.1:${MYSQL_PORT}"
+  start_local_mysql
 }
 
 start_api() {
-  start_mysql
-  cd "${ROOT}/crates/account-service"
-  cargo run -p anycode-account-service
+  exec "$ROOT/scripts/start-local-account.sh" "$@"
+}
+
+start_stack() {
+  exec "$ROOT/scripts/start-local-account.sh" "$@"
 }
 
 start_portal() {
@@ -115,42 +98,52 @@ start_workbench() {
 
 print_help() {
   pick_dashboard_port
+  anycode_print_build_target_summary
   cat <<EOF
-anycode.work/login — local dev stack
+anyCode account portal — local dev stack (${ANYCODE_BUILD_TARGET})
 
 Prerequisites: Docker, Node.js, Rust toolchain.
 
-Run in separate terminals:
+One-shot (MySQL + API + portal dist on :43200):
 
-  1. API:       ./scripts/dev-account-portal.sh api
-  2. Gateway:  ./scripts/dev-account-portal.sh gateway
-  3. Portal UI: ./scripts/dev-account-portal.sh portal
-     → http://127.0.0.1:${PORTAL_PORT}/login
+  ./scripts/dev-account-portal.sh stack
+  # same as ./scripts/start-local-account.sh
+
+Optional separate terminals:
+
+  1. MySQL only:  ./scripts/dev-account-portal.sh mysql
+  2. API + portal: ./scripts/dev-account-portal.sh api
+  3. Gateway:     ./scripts/dev-account-portal.sh gateway
+  4. Portal HMR:  ./scripts/dev-account-portal.sh portal → :${PORTAL_PORT}/login
 
 Optional Workbench (browser):
 
   3. Dashboard: ./scripts/dev-account-portal.sh workbench
-  4. UI HMR:    cd crates/dashboard-ui && ANYCODE_DASHBOARD_DEV_PORT=${DASHBOARD_PORT} npm run dev
+  4. UI HMR:    cd crates/dashboard-ui && ANYCODE_BUILD_TARGET=local ANYCODE_DASHBOARD_DEV_PORT=${DASHBOARD_PORT} npm run dev
      → http://localhost:5173/account
 
-Desktop (stop any process on :43180 first):
+Local desktop DMG (loopback login baked in):
 
-  export ANYCODE_ACCOUNT_API_URL=http://127.0.0.1:${API_PORT}
-  export ANYCODE_ACCOUNT_PORTAL_URL=http://127.0.0.1:${PORTAL_PORT}
-  ./scripts/build-dashboard-ui.sh
-  cd apps/anycode-desktop && cargo tauri dev
+  ./scripts/build-desktop-local.sh
+  ./scripts/install-desktop-macos.sh --build
 
-Test account (bootstrap): ${ADMIN_BOOTSTRAP_EMAIL} / ${ADMIN_BOOTSTRAP_PASSWORD}
-Or register at http://127.0.0.1:${PORTAL_PORT}/register
+Cloud shipping DMG (anycode.work login):
+
+  ./scripts/release-desktop-local.sh
+
+Test account (portal login): ${ADMIN_BOOTSTRAP_EMAIL} / ${ADMIN_BOOTSTRAP_PASSWORD}
+Or register at ${ANYCODE_ACCOUNT_PORTAL_URL}/register
 
 Note: account-service uses MySQL (not Postgres). Schema: deploy/account-service/schema.mysql.sql
 EOF
 }
 
 cmd="${1:-}"
+shift || true
 case "${cmd}" in
   mysql) start_mysql ;;
-  api) start_api ;;
+  stack|all) start_stack "$@" ;;
+  api) start_api "$@" ;;
   gateway) start_gateway ;;
   portal) start_portal ;;
   workbench) start_workbench ;;

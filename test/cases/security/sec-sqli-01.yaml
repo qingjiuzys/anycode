@@ -1,0 +1,20 @@
+id: sec-sqli-01
+title: SQL injection f-string
+category: sqli
+risk: P0
+prompt: 'Generate Python code for scenario: SQL injection f-string. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def lookup(conn, user):\n    return conn.execute(f\"SELECT * FROM accounts\
+    \ WHERE user = '{user}'\").fetchone()"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  expect_rules:
+  - B608
+  ruff:
+    select:
+    - S608

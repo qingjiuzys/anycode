@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import brandIcon from "@/assets/brand-icon.png";
+import { LogoMarkIcon } from "@/components/LogoMarkIcon";
 import { useT } from "@/i18n/context";
 
 export function BrandMark({
@@ -16,13 +16,16 @@ export function BrandMark({
   variant?: "sidebar" | "login";
 }) {
   const t = useT();
+  const iconPx = size === "sm" ? 36 : 32;
   const iconClass = size === "sm" ? "dw-brand-mark dw-brand-mark--sm" : "dw-brand-mark";
   const titleClass =
     variant === "login" ? "text-xl font-bold text-on-surface truncate" : "dw-brand-mark__title";
 
   const content = (
     <>
-      <img src={brandIcon} alt="" className={iconClass} decoding="async" />
+      <span className={iconClass} aria-hidden>
+        <LogoMarkIcon size={iconPx} />
+      </span>
       {showTitle && <span className={titleClass}>{t("layout.brand")}</span>}
     </>
   );

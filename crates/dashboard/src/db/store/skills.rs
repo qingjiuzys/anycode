@@ -7,19 +7,25 @@ impl DashboardDb {
         name: &str,
         description: &str,
         description_zh: Option<&str>,
+        name_zh: Option<&str>,
+        version: &str,
         source_path: &str,
         category: Option<&str>,
+        permissions: &serde_json::Value,
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO skills (id, name, description, description_zh, source_path, category)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO skills (id, name, description, description_zh, name_zh, version, source_path, category, permissions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               name = excluded.name,
               description = excluded.description,
               description_zh = excluded.description_zh,
+              name_zh = excluded.name_zh,
+              version = excluded.version,
               source_path = excluded.source_path,
               category = excluded.category,
+              permissions_json = excluded.permissions_json,
               updated_at = datetime('now')
             "#,
         )
@@ -27,8 +33,11 @@ impl DashboardDb {
         .bind(name)
         .bind(description)
         .bind(description_zh)
+        .bind(name_zh)
+        .bind(version)
         .bind(source_path)
         .bind(category)
+        .bind(permissions.to_string())
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -65,7 +74,7 @@ impl DashboardDb {
     pub async fn list_skills(&self, limit: i64) -> Result<Vec<SkillRecord>> {
         let rows = sqlx::query(
             r#"
-            SELECT s.id, s.name, s.description, s.description_zh, s.source_path, s.category,
+            SELECT s.id, s.name, s.description, s.description_zh, s.name_zh, s.source_path, s.category,
                    (SELECT COUNT(*) FROM project_skills ps WHERE ps.skill_id = s.id AND ps.enabled = 1) AS projects_count
             FROM skills s
             ORDER BY s.name
@@ -82,6 +91,7 @@ impl DashboardDb {
                 name: r.get("name"),
                 description: r.get("description"),
                 description_zh: r.get("description_zh"),
+                name_zh: r.get("name_zh"),
                 source_path: r.get("source_path"),
                 category: r.get("category"),
                 projects_count: r.get("projects_count"),
@@ -93,7 +103,7 @@ impl DashboardDb {
     pub async fn list_skills_for_project(&self, project_id: &str) -> Result<Vec<SkillRecord>> {
         let rows = sqlx::query(
             r#"
-            SELECT s.id, s.name, s.description, s.description_zh, s.source_path, s.category,
+            SELECT s.id, s.name, s.description, s.description_zh, s.name_zh, s.source_path, s.category,
                    (SELECT COUNT(*) FROM project_skills ps2 WHERE ps2.skill_id = s.id AND ps2.enabled = 1) AS projects_count,
                    COALESCE(ps.enabled, 0) AS project_enabled
             FROM skills s
@@ -111,6 +121,7 @@ impl DashboardDb {
                 name: r.get("name"),
                 description: r.get("description"),
                 description_zh: r.get("description_zh"),
+                name_zh: r.get("name_zh"),
                 source_path: r.get("source_path"),
                 category: r.get("category"),
                 projects_count: r.get("projects_count"),

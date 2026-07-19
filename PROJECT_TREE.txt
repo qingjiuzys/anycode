@@ -4,7 +4,7 @@ anycode/
 ├── README.md
 ├── WORKBENCH.md               # Digital Workbench quick-start and operator notes
 ├── docs/                      # Maintainer docs, ADRs, roadmap, workbench planning/archive
-├── docs-site/                 # User-facing VitePress docs site
+├── docs/user/                 # User docs source (published at anycode.work/docs via account-portal)
 ├── scripts/                   # Install/build/dashboard/eval scripts and fixtures
 ├── examples/                  # Small runnable examples
 │
@@ -29,4 +29,4 @@ anycode/
         ├── repl/              # stream ratatui REPL
         └── term/              # transcript, styles, session persist
 
-说明：`docs/` 是维护者文档与 ADR；面向用户的文档以 `docs-site/` 为准。`crates/dashboard-ui/` 是 Node/Vite 项目，不是 Cargo workspace member，但由 `crates/dashboard/build.rs` 和 `scripts/build-dashboard-ui.sh` 嵌入发布产物。
+说明：`docs/` 是维护者文档与 ADR；面向用户的文档以 `docs/user/` 为准。`crates/dashboard-ui/` 是 Node/Vite 项目，不是 Cargo workspace member，但由 `crates/dashboard/build.rs` 和 `scripts/build-dashboard-ui.sh` 嵌入发布产物。

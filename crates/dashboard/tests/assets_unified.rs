@@ -64,8 +64,11 @@ async fn list_unified_assets_includes_skill_and_artifact() {
         "Demo Skill",
         "A test skill",
         None,
+        None,
+        "1.0.0",
         "/tmp/skills/demo-skill",
         Some("other"),
+        &serde_json::json!({}),
     )
     .await
     .unwrap();

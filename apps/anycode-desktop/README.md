@@ -2,7 +2,7 @@
 
 Desktop shell for Digital Workbench (dashboard runs **in-process**, no CLI sidecar).
 
-App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (brand artwork). Release builds run `scripts/prepare-desktop-icon.py` to crop padding and scale the graphic for Dock visibility, then regenerate `icons/` (`.icns`, `.ico`, platform sizes) from [`assets/anycode-logo-app-icon.png`](assets/anycode-logo-app-icon.png) via `cargo tauri icon`. Requires `python3` + `pillow` (`pip install pillow`).
+App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (brand artwork). Release builds run `scripts/prepare-desktop-icon.py` to crop white margins and emit a **full-bleed opaque** PNG (no transparent ring — macOS applies the Dock squircle), then regenerate `icons/` (`.icns`, `.ico`, platform sizes) from [`assets/anycode-logo-app-icon.png`](assets/anycode-logo-app-icon.png) via `cargo tauri icon`. Requires `python3` + `pillow` (`pip install pillow`). Force refresh: `ANYCODE_DESKTOP_ICON_FORCE=1`.
 
 ## Prerequisites
 
@@ -13,6 +13,15 @@ App icon source: [`assets/anycode-logo.png`](assets/anycode-logo.png) (brand art
 - Release builds embed the dashboard in-process (no separate `anycode` CLI)
 
 ## Development
+
+**Fast iteration (recommended):**
+
+```bash
+./scripts/sync-desktop-dev.sh              # UI-only → /Applications/anyCode.app (~15s)
+./scripts/sync-desktop-dev.sh --rust       # UI + Rust shell (release-local, ~30–40s incremental)
+```
+
+Avoid `cargo build --release -p anycode-desktop` during daily work — release enables LTO and takes ~5min. Use `./scripts/build-desktop-local.sh` only when you need a shipping DMG.
 
 ```bash
 cd apps/anycode-desktop
@@ -33,12 +42,20 @@ ANYCODE_DESKTOP_WECHAT=1 cargo tauri dev
 
 Headless channels/cron on servers: install `anycode-daemon` separately.
 
-## Release build
+## Release build (local, signed DMG)
 
-From repo root:
+Primary distribution: **local build** → upload to **https://anycode.work/downloads/**.
+
+See [docs/ops/desktop-release-local.md](../../docs/ops/desktop-release-local.md).
 
 ```bash
-chmod +x scripts/build-desktop-release.sh
+# ~/.anycode/release.env — copy from scripts/release.env.example
+./scripts/release-desktop-local.sh
+```
+
+Quick unsigned dev DMG (no notarization):
+
+```bash
 ./scripts/build-desktop-release.sh
 ```
 
@@ -91,35 +108,28 @@ If dashboard-ui is already built, skip the UI npm step during Rust release build
 
 Other models (Whisper, FastEmbed, Piper voices) are **not** bundled at build time; they download on first use under `~/.anycode` or `~/.cache`.
 
-## GitHub Release
+## GitHub Release (optional)
 
-On tag push (`v*`), [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds the **macOS DMG** and attaches it to the GitHub Release. **Linux/Windows CLI** tarballs are not published on tag; use `cargo install` / build from source, or run [`release-binaries.yml`](../../.github/workflows/release-binaries.yml) manually if needed.
+CI desktop job is **manual only** (`workflow_dispatch`). Prefer local signed builds.
 
-Download: **GitHub → Releases → Assets → `anyCode_*_aarch64.dmg`** (Apple Silicon).
-
-## Optional code signing (CI / release)
-
-Set repository secrets to enable Apple signing in `.github/workflows/desktop-release.yml`:
-
-| Secret | Purpose |
-|--------|---------|
-| `APPLE_CERTIFICATE_BASE64` | Developer ID `.p12` (base64) |
-| `APPLE_CERTIFICATE_PASSWORD` | Export password |
-| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: …` |
-| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | Notarization (Tauri reads env at build) |
-
-Without secrets, CI still uploads **unsigned/ad-hoc** artifacts (same as local `build-desktop-release.sh`).
-
-### CI failure: build and upload locally
-
-If the macOS desktop job fails but you need a DMG on the Release page:
+If needed: Actions → Desktop release → Run workflow, or upload a local DMG:
 
 ```bash
-./scripts/build-desktop-release.sh
-gh release upload v0.2.x target/release/bundle/dmg/*.dmg --clobber
+gh release upload v0.2.x crates/account-portal/public/downloads/anyCode_*.dmg --clobber
 ```
 
-Ad-hoc DMG: first open may require **System Settings → Privacy & Security** or right-click **Open**. For distribution without Gatekeeper prompts, configure all Apple secrets above for signed + notarized builds.
+Primary download: **https://anycode.work/downloads/anyCode_latest_aarch64.dmg**
+
+## Code signing (local)
+
+Copy `scripts/release.env.example` → `~/.anycode/release.env`:
+
+| Variable | Purpose |
+|----------|---------|
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: …` |
+| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | Notarization |
+
+`./scripts/release-desktop-local.sh` runs `build-desktop-release.sh` with these env vars and verifies Gatekeeper acceptance.
 
 ## Notes
 

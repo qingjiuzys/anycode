@@ -1,0 +1,144 @@
+[profile]
+id = "full"
+max_duration_minutes = 720
+tier = ["full"]
+suites = ["office", "coding", "skills", "browser", "interaction", "robustness"]
+
+[[profile.cases]]
+id = "rust-fmt-check"
+suite = "static"
+risk = "P1"
+runner = "static"
+command = "cargo fmt --all -- --check"
+timeout_seconds = 120
+
+[[profile.cases]]
+id = "rust-clippy"
+suite = "static"
+risk = "P1"
+runner = "static"
+command = "ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh && cargo clippy --workspace --all-targets"
+timeout_seconds = 3600
+
+[[profile.cases]]
+id = "rust-workspace-test"
+suite = "rust"
+risk = "P0"
+runner = "cargo"
+command = "cargo test --workspace"
+timeout_seconds = 3600
+
+[profile.cases.meta]
+build_dashboard_ui = true
+
+[[profile.cases]]
+id = "rust-tools-matrix"
+suite = "rust"
+risk = "P1"
+runner = "cargo"
+command = "cargo test -p anycode-tools --features tools-lsp && cargo test -p anycode-tools --features tools-mcp && cargo test -p anycode-browser && cargo test -p anycode-tools --features tools-browser"
+timeout_seconds = 1800
+
+[[profile.cases]]
+id = "dashboard-ui-vitest"
+suite = "dashboard"
+risk = "P0"
+runner = "npm"
+timeout_seconds = 300
+
+[profile.cases.meta]
+workdir = "crates/dashboard-ui"
+
+[[profile.cases]]
+id = "playwright-e2e-full"
+suite = "dashboard"
+risk = "P0"
+runner = "playwright"
+command = "npm run test:e2e -- --workers=1"
+timeout_seconds = 2400
+
+[profile.cases.meta]
+spec = "e2e"
+
+[[profile.cases]]
+id = "account-service-test"
+suite = "account"
+risk = "P0"
+runner = "cargo"
+command = "cargo test --all-targets"
+timeout_seconds = 900
+
+[profile.cases.meta]
+workdir = "crates/account-service"
+
+[[profile.cases]]
+id = "model-probe-local-1b"
+suite = "models"
+risk = "P0"
+runner = "dashboard"
+models = ["local-1b"]
+timeout_seconds = 120
+
+[profile.cases.requires]
+llm = "live"
+
+[profile.cases.meta]
+prompt = "Use the Glob tool with pattern '*.txt' in the workspace root. After the tool returns, reply with exactly TOOL_PROBE_OK."
+agent = "general-purpose"
+expect_trace_event = "tool_call_start"
+
+[[profile.cases]]
+id = "model-probe-agnes"
+suite = "models"
+risk = "P0"
+runner = "dashboard"
+models = ["agnes"]
+timeout_seconds = 600
+
+[profile.cases.requires]
+llm = "live"
+
+[profile.cases.meta]
+prompt = "Reply with the word PROBE."
+agent = "general-purpose"
+
+[[profile.cases]]
+id = "model-probe-cloud-auto"
+suite = "models"
+risk = "P1"
+runner = "dashboard"
+models = ["cloud-auto"]
+timeout_seconds = 600
+
+[profile.cases.requires]
+llm = "live"
+
+[profile.cases.meta]
+prompt = "Reply with the word PROBE."
+agent = "general-purpose"
+
+[[profile.cases]]
+id = "benchmark-humaneval-stub"
+suite = "benchmark"
+risk = "P2"
+runner = "benchmark"
+timeout_seconds = 7200
+
+[profile.cases.meta]
+adapter = "humaneval"
+
+[[profile.cases]]
+id = "risk-catalog-gate"
+suite = "risk"
+risk = "P0"
+runner = "static"
+command = "python3 test/runner/risk_gate.py"
+timeout_seconds = 60
+
+[[profile.cases]]
+id = "coverage-snapshot"
+suite = "coverage"
+risk = "P1"
+runner = "static"
+command = "./scripts/test-coverage.sh test/results/.full-coverage"
+timeout_seconds = 7200

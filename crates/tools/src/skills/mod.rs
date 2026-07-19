@@ -24,23 +24,30 @@ pub const MAX_SKILL_INSTRUCTION_BYTES: usize = 64 * 1024;
 pub const MAX_SKILL_OUTPUT_BYTES: usize = 256 * 1024;
 
 /// Parsed YAML frontmatter from `SKILL.md`.
-#[derive(Debug, Deserialize)]
-struct SkillFrontmatter {
-    name: String,
-    description: String,
+#[derive(Debug, Clone, Deserialize)]
+pub struct SkillManifest {
+    pub name: String,
     #[serde(default)]
-    description_zh: Option<String>,
+    pub description: String,
+    #[serde(default)]
+    pub description_zh: Option<String>,
+    #[serde(default)]
+    pub name_zh: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
     /// Grouping hint (e.g. office/docs/dev/data/other); passed through, not validated.
     #[serde(default)]
-    category: Option<String>,
+    pub category: Option<String>,
     #[serde(default)]
-    model: Option<String>,
+    pub model: Option<String>,
     #[serde(default)]
-    mode: Option<String>,
+    pub mode: Option<String>,
     #[serde(default)]
-    channel_capabilities: Vec<String>,
+    pub channel_capabilities: Vec<String>,
     #[serde(default)]
-    approval: Option<String>,
+    pub approval: Option<String>,
+    #[serde(default)]
+    pub permissions: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +55,7 @@ pub struct SkillMeta {
     pub id: String,
     pub description: String,
     pub description_zh: Option<String>,
+    pub version: Option<String>,
     /// Grouping hint (e.g. office/docs/dev/data/other).
     pub category: Option<String>,
     pub root_dir: PathBuf,
@@ -56,6 +64,7 @@ pub struct SkillMeta {
     pub mode: Option<String>,
     pub channel_capabilities: Vec<String>,
     pub approval: Option<String>,
+    pub permissions: Option<serde_json::Value>,
 }
 
 /// Snapshot of discovered skills (startup scan + optional cwd resolution at tool run).
@@ -139,7 +148,7 @@ impl SkillCatalog {
                     warn!(target: "anycode_tools", "skill: unreadable {}", md_path.display());
                     continue;
                 };
-                let Some(fm) = parse_skill_frontmatter(&text) else {
+                let Some(fm) = parse_skill_manifest_text(&text) else {
                     warn!(target: "anycode_tools", "skill: bad frontmatter {}", md_path.display());
                     continue;
                 };
@@ -164,9 +173,13 @@ impl SkillCatalog {
                             .description_zh
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
+                        version: fm
+                            .version
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
                         category: fm
                             .category
-                            .map(|s| s.trim().to_string())
+                            .map(|s| normalize_skill_category(&s))
                             .filter(|s| !s.is_empty()),
                         root_dir: skill_dir,
                         has_run,
@@ -188,6 +201,7 @@ impl SkillCatalog {
                             .approval
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
+                        permissions: fm.permissions,
                     },
                 );
             }
@@ -223,6 +237,18 @@ impl SkillCatalog {
     /// Markdown block for system prompt (no leading `#` title — inserted under agent loop section).
     pub fn render_prompt_subsection(&self) -> Option<String> {
         self.render_prompt_subsection_allowlist(None)
+    }
+
+    /// Short contract when skills are enabled but not fully enumerated in the system prompt.
+    pub fn render_prompt_skills_contract() -> String {
+        [
+            "## Skills",
+            "",
+            "Use **SkillSearch** to discover skills allowed for this project and agent profile.",
+            "To load documentation or run a skill, call **Skill** with `{\"name\": \"<id>\"}` and optional `args` when the skill provides a `run` script.",
+            "Do not assume a skill exists until SkillSearch or Skill confirms it.",
+        ]
+        .join("\n")
     }
 
     /// 若 `allow` 为 `Some`，仅列出 id 在该集合中的技能（用于按 agent 裁剪提示，避免全量目录灌入）。
@@ -291,32 +317,46 @@ impl SkillCatalog {
         Some(lines.join("\n"))
     }
 
-    /// Resolve install root: catalog first, then `<cwd>/skills/<id>`, then `<cwd>/.anycode/skills/<id>`.
+    /// Resolve install root: project-local roots override the startup/global catalog.
     pub fn resolve_skill_root(&self, id: &str, task_cwd: Option<&Path>) -> Option<PathBuf> {
         if !Self::is_valid_skill_id(id) {
             return None;
         }
-        if let Some(i) = self.by_id.get(id) {
-            return Some(self.skills[*i].root_dir.clone());
-        }
-        let cwd = task_cwd?;
-        for rel in [Path::new("skills"), Path::new(".anycode/skills")] {
-            let dir = cwd.join(rel).join(id);
-            let md = dir.join(SKILL_FILE);
-            if md.is_file() {
-                return fs::canonicalize(&dir).ok().or(Some(dir));
+        if let Some(cwd) = task_cwd {
+            for rel in [Path::new("skills"), Path::new(".anycode/skills")] {
+                let dir = cwd.join(rel).join(id);
+                let md = dir.join(SKILL_FILE);
+                if md.is_file() {
+                    return fs::canonicalize(&dir).ok().or(Some(dir));
+                }
             }
         }
-        None
+        self.by_id.get(id).map(|i| self.skills[*i].root_dir.clone())
     }
 }
 
-fn parse_skill_frontmatter(md: &str) -> Option<SkillFrontmatter> {
+pub fn parse_skill_manifest_text(md: &str) -> Option<SkillManifest> {
     let t = md.trim_start();
     let rest = t.strip_prefix("---")?.trim_start();
     let end = rest.find("\n---")?;
     let yaml = &rest[..end];
-    serde_yaml::from_str::<SkillFrontmatter>(yaml).ok()
+    serde_yaml::from_str::<SkillManifest>(yaml).ok()
+}
+
+pub fn parse_skill_manifest_file(path: &Path) -> Option<SkillManifest> {
+    let text = fs::read_to_string(path).ok()?;
+    parse_skill_manifest_text(&text)
+}
+
+pub fn normalize_skill_category(raw: &str) -> String {
+    let category = raw.trim().to_lowercase();
+    match category.as_str() {
+        "library-ref" | "verification" | "data" | "business" | "scaffolding" | "quality"
+        | "cicd" | "runbook" | "infra" | "other" => category,
+        "office" | "docs" => "business".into(),
+        "dev" => "quality".into(),
+        _ => "other".into(),
+    }
 }
 
 /// Markdown body after YAML frontmatter (trimmed). Used for documentation-only skills.
@@ -384,5 +424,45 @@ mod tests {
     fn extract_skill_body_strips_frontmatter() {
         let md = "---\nname: demo\ndescription: x\n---\n\n# Title\n\nDo the thing.\n";
         assert_eq!(extract_skill_body(md), "# Title\n\nDo the thing.");
+    }
+
+    #[test]
+    fn parses_version_permissions_and_normalized_category() {
+        let manifest = parse_skill_manifest_text(
+            "---\nname: demo\ndescription: Demo\nversion: 1.2.0\ncategory: office\npermissions:\n  network: false\n---\n",
+        )
+        .unwrap();
+        assert_eq!(manifest.version.as_deref(), Some("1.2.0"));
+        assert_eq!(normalize_skill_category("office"), "business");
+        assert_eq!(
+            manifest.permissions.unwrap().get("network"),
+            Some(&serde_json::Value::Bool(false))
+        );
+    }
+
+    #[test]
+    fn project_skill_overrides_catalog_skill() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = temp.path().join("global");
+        let project = temp.path().join("project");
+        let global_skill = global.join("demo");
+        let project_skill = project.join(".anycode/skills/demo");
+        fs::create_dir_all(&global_skill).unwrap();
+        fs::create_dir_all(&project_skill).unwrap();
+        fs::write(
+            global_skill.join(SKILL_FILE),
+            "---\nname: demo\ndescription: global\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            project_skill.join(SKILL_FILE),
+            "---\nname: demo\ndescription: project\n---\n",
+        )
+        .unwrap();
+        let catalog = SkillCatalog::scan(&[global], None, 1_000, true);
+        assert_eq!(
+            catalog.resolve_skill_root("demo", Some(&project)),
+            fs::canonicalize(project_skill).ok()
+        );
     }
 }

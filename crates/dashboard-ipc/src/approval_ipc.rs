@@ -3,16 +3,41 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub const SESSION_ENV: &str = "ANYCODE_DASHBOARD_SESSION_ID";
 
+type RegisterHook = Box<dyn Fn(&PendingApprovalRecord) + Send + Sync>;
+static REGISTER_HOOK: OnceLock<Mutex<Option<RegisterHook>>> = OnceLock::new();
+
+/// Optional hook invoked after an approval is registered (dashboard SSE notify).
+pub fn set_register_hook(hook: RegisterHook) {
+    let slot = REGISTER_HOOK.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = slot.lock() {
+        *guard = Some(hook);
+    }
+}
+
+fn invoke_register_hook(rec: &PendingApprovalRecord) {
+    let Some(slot) = REGISTER_HOOK.get() else {
+        return;
+    };
+    if let Ok(guard) = slot.lock() {
+        if let Some(hook) = guard.as_ref() {
+            hook(rec);
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingApprovalRecord {
     pub approval_id: String,
     pub session_id: String,
+    /// User turn this approval belongs to (SSE scope key); 0 when unknown.
+    #[serde(default)]
+    pub user_turn_id: u32,
     pub tool: String,
     pub input_preview: String,
     pub created_at: String,
@@ -118,12 +143,18 @@ pub fn input_is_high_risk(tool: &str, input_preview: &str) -> bool {
     PATTERNS.iter().any(|p| lower.contains(p))
 }
 
-pub fn register_pending(session_id: &str, tool: &str, input_preview: &str) -> Result<String> {
+pub fn register_pending(
+    session_id: &str,
+    user_turn_id: u32,
+    tool: &str,
+    input_preview: &str,
+) -> Result<String> {
     std::fs::create_dir_all(pending_dir())?;
     let approval_id = format!("apr_{}", Uuid::new_v4().simple());
     let rec = PendingApprovalRecord {
         approval_id: approval_id.clone(),
         session_id: session_id.to_string(),
+        user_turn_id,
         tool: tool.to_string(),
         input_preview: truncate_preview(input_preview, 4000),
         created_at: chrono::Utc::now().to_rfc3339(),
@@ -131,6 +162,8 @@ pub fn register_pending(session_id: &str, tool: &str, input_preview: &str) -> Re
     };
     let path = pending_dir().join(format!("{approval_id}.json"));
     std::fs::write(&path, serde_json::to_string_pretty(&rec)?)?;
+    invalidate_pending_summary_cache();
+    invoke_register_hook(&rec);
     Ok(approval_id)
 }
 
@@ -181,10 +214,15 @@ pub struct PendingApprovalSummary {
     pub by_session: Vec<PendingApprovalSessionCount>,
 }
 
-static PENDING_SUMMARY_CACHE: Mutex<Option<(Instant, PendingApprovalSummary)>> = Mutex::new(None);
+static PENDING_SUMMARY_CACHE: Mutex<Option<(u64, Instant, PendingApprovalSummary)>> =
+    Mutex::new(None);
+static PENDING_SUMMARY_GEN: Mutex<u64> = Mutex::new(0);
 const PENDING_SUMMARY_TTL: Duration = Duration::from_secs(2);
 
 pub fn invalidate_pending_summary_cache() {
+    if let Ok(mut gen) = PENDING_SUMMARY_GEN.lock() {
+        *gen = gen.wrapping_add(1);
+    }
     if let Ok(mut guard) = PENDING_SUMMARY_CACHE.lock() {
         *guard = None;
     }
@@ -193,16 +231,24 @@ pub fn invalidate_pending_summary_cache() {
 #[must_use]
 pub fn pending_summary() -> PendingApprovalSummary {
     let now = Instant::now();
+    let gen_at_start = PENDING_SUMMARY_GEN.lock().map(|g| *g).unwrap_or(0);
     if let Ok(guard) = PENDING_SUMMARY_CACHE.lock() {
-        if let Some((at, summary)) = guard.as_ref() {
-            if now.duration_since(*at) < PENDING_SUMMARY_TTL {
+        if let Some((gen, at, summary)) = guard.as_ref() {
+            if *gen == gen_at_start && now.duration_since(*at) < PENDING_SUMMARY_TTL {
                 return summary.clone();
             }
         }
     }
     let summary = build_pending_summary();
     if let Ok(mut guard) = PENDING_SUMMARY_CACHE.lock() {
-        *guard = Some((now, summary.clone()));
+        let gen_now = PENDING_SUMMARY_GEN
+            .lock()
+            .map(|g| *g)
+            .unwrap_or(gen_at_start);
+        // Drop stale builds that raced with invalidate during disk I/O.
+        if gen_now == gen_at_start {
+            *guard = Some((gen_now, Instant::now(), summary.clone()));
+        }
     }
     summary
 }
@@ -248,7 +294,6 @@ pub fn submit_response(approval_id: &str, decision: &str) -> Result<()> {
     let path = response_dir().join(format!("{approval_id}.json"));
     std::fs::write(&path, serde_json::to_string_pretty(&body)?)?;
     clear_pending(approval_id);
-    invalidate_pending_summary_cache();
     Ok(())
 }
 
@@ -265,6 +310,19 @@ pub fn poll_response(approval_id: &str) -> Option<String> {
 pub fn clear_pending(approval_id: &str) {
     let path = pending_dir().join(format!("{approval_id}.json"));
     let _ = std::fs::remove_file(path);
+    invalidate_pending_summary_cache();
+}
+
+/// Clear all pending approval files for a session (e.g. dashboard Stop).
+#[must_use]
+pub fn clear_pending_for_session(session_id: &str) -> usize {
+    let rows = list_pending_for_session(Some(session_id), 500);
+    let mut n = 0usize;
+    for row in rows {
+        clear_pending(&row.approval_id);
+        n += 1;
+    }
+    n
 }
 
 /// Default max age for orphan pending approval files (CLI crash / timeout).
@@ -329,7 +387,7 @@ mod tests {
         let _guard = test_util::lock_state_dir_env();
         let dir = tempdir().unwrap();
         test_state(&dir);
-        let id = register_pending("sess_1", "Bash", "{ \"command\": \"rm -rf /\" }").unwrap();
+        let id = register_pending("sess_1", 0, "Bash", "{ \"command\": \"rm -rf /\" }").unwrap();
         assert_eq!(list_pending(10).len(), 1);
         submit_response(&id, "deny").unwrap();
         assert!(list_pending(10).is_empty(), "pending cleared on submit");
@@ -342,9 +400,9 @@ mod tests {
         let _guard = test_util::lock_state_dir_env();
         let dir = tempdir().unwrap();
         test_state(&dir);
-        let _ = register_pending("sess_a", "Bash", "{}").unwrap();
-        let _ = register_pending("sess_a", "Edit", "{}").unwrap();
-        let _ = register_pending("sess_b", "Bash", "{}").unwrap();
+        let _ = register_pending("sess_a", 0, "Bash", "{}").unwrap();
+        let _ = register_pending("sess_a", 0, "Edit", "{}").unwrap();
+        let _ = register_pending("sess_b", 0, "Bash", "{}").unwrap();
         let summary = pending_summary();
         assert_eq!(summary.pending_total, 3);
         assert_eq!(summary.by_session.len(), 2);
@@ -380,8 +438,8 @@ mod tests {
         let _guard = test_util::lock_state_dir_env();
         let dir = tempdir().unwrap();
         test_state(&dir);
-        let _ = register_pending("sess_a", "Bash", "{}").unwrap();
-        let _ = register_pending("sess_b", "Edit", "{}").unwrap();
+        let _ = register_pending("sess_a", 0, "Bash", "{}").unwrap();
+        let _ = register_pending("sess_b", 0, "Edit", "{}").unwrap();
         assert_eq!(list_pending_for_session(Some("sess_a"), 10).len(), 1);
     }
 
@@ -393,5 +451,26 @@ mod tests {
         std::fs::create_dir_all(pending_dir()).unwrap();
         std::fs::write(pending_dir().join("apr_bad.json"), "{not json").unwrap();
         assert_eq!(sweep_stale_pending(STALE_PENDING_MAX_AGE_SECS), 1);
+    }
+
+    #[test]
+    fn register_hook_invoked_on_register() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let _guard = test_util::lock_state_dir_env();
+        let dir = tempdir().unwrap();
+        test_state(&dir);
+        let called = Arc::new(AtomicBool::new(false));
+        let called_hook = Arc::clone(&called);
+        // The hook is a process-global static: other tests may register
+        // sessions concurrently, so only react to this test's session.
+        set_register_hook(Box::new(move |rec| {
+            if rec.session_id == "sess_hook" {
+                called_hook.store(true, Ordering::SeqCst);
+            }
+        }));
+        let _ = register_pending("sess_hook", 0, "Bash", "{}").unwrap();
+        assert!(called.load(Ordering::SeqCst));
     }
 }

@@ -54,7 +54,7 @@ impl DashboardServerState {
 }
 
 pub fn apply_dashboard_env(app: &AppHandle) {
-    apply_local_account_env_if_unset();
+    apply_account_env_if_unset(app);
     if let Some(tpl) = resolve_resource_path(
         app,
         &[
@@ -78,6 +78,7 @@ pub fn apply_dashboard_env(app: &AppHandle) {
         }
     }
     std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_CHAT", "1");
+    std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP", "1");
     std::env::set_var("ANYCODE_DASHBOARD_INPROCESS_TRIGGERS", "1");
     std::env::set_var("ANYCODE_DASHBOARD_INPROCESS_EVENTS", "1");
     if let Some(browser) = resolve_resource_path(
@@ -97,15 +98,36 @@ pub fn apply_dashboard_env(app: &AppHandle) {
             }
         }
     }
+    if let Some(starter) = resolve_resource_path(
+        app,
+        &[
+            "resources/skills-starter",
+            "skills-starter",
+            "_up_/resources/skills-starter",
+        ],
+    ) {
+        if starter.is_dir() {
+            std::env::set_var("ANYCODE_SKILLS_STARTER", starter);
+        }
+    }
 }
 
 pub fn start_in_process(app: AppHandle) {
     apply_dashboard_env(&app);
     if dashboard_http_ready() {
         eprintln!(
-            "anycode-desktop: reusing existing Workbench at http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/"
+            "anycode-desktop: stopping stale Workbench on http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/ before restart"
         );
-        return;
+        if let Ok(out) = std::process::Command::new("lsof")
+            .args(["-ti", &format!(":{DASHBOARD_PORT}")])
+            .output()
+        {
+            let pids = String::from_utf8_lossy(&out.stdout);
+            for pid in pids.split_whitespace() {
+                let _ = std::process::Command::new("kill").arg(pid).status();
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
     }
     let static_dir = std::env::var("ANYCODE_DASHBOARD_STATIC")
         .ok()
@@ -149,9 +171,9 @@ fn resolve_resource_path(app: &AppHandle, candidates: &[&str]) -> Option<PathBuf
     None
 }
 
-/// When launched from Finder/DMG, shell env is empty. If a local account-service is
-/// listening on loopback, point Workbench cloud login at it instead of anycode.work.
-fn apply_local_account_env_if_unset() {
+/// When launched from Finder/DMG, shell env is empty. Prefer a live loopback
+/// account-service, then the build-time `account-endpoints.json` manifest.
+fn apply_account_env_if_unset(app: &AppHandle) {
     if std::env::var("ANYCODE_ACCOUNT_API_URL")
         .ok()
         .filter(|s| !s.trim().is_empty())
@@ -160,18 +182,76 @@ fn apply_local_account_env_if_unset() {
         return;
     }
 
-    let Some(health_body) = http_get_body("127.0.0.1", 43200, "/health") else {
-        return;
-    };
-    let Ok(health) = serde_json::from_str::<serde_json::Value>(&health_body) else {
-        return;
-    };
-    if health.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+    if let Some((api, portal, gateway)) = probe_live_local_account() {
+        std::env::set_var("ANYCODE_ACCOUNT_API_URL", &api);
+        std::env::set_var("ANYCODE_ACCOUNT_PORTAL_URL", &portal);
+        if let Some(gateway) = gateway {
+            std::env::set_var("ANYCODE_MODEL_GATEWAY_URL", gateway);
+        }
         return;
     }
 
-    std::env::set_var("ANYCODE_ACCOUNT_API_URL", "http://127.0.0.1:43200");
+    if let Some(manifest) = read_bundled_account_endpoints(app) {
+        std::env::set_var("ANYCODE_ACCOUNT_API_URL", &manifest.api_url);
+        std::env::set_var("ANYCODE_ACCOUNT_PORTAL_URL", &manifest.portal_url);
+        if let Some(gateway) = manifest.gateway_url {
+            std::env::set_var("ANYCODE_MODEL_GATEWAY_URL", gateway);
+        }
+    }
+}
 
+#[derive(Debug)]
+struct BundledAccountEndpoints {
+    api_url: String,
+    portal_url: String,
+    gateway_url: Option<String>,
+}
+
+fn read_bundled_account_endpoints(app: &AppHandle) -> Option<BundledAccountEndpoints> {
+    let path = resolve_resource_path(
+        app,
+        &[
+            "resources/account-endpoints.json",
+            "account-endpoints.json",
+            "_up_/resources/account-endpoints.json",
+        ],
+    )?;
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let api_url = value
+        .get("account_api_url")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?
+        .to_string();
+    let portal_url = value
+        .get("account_portal_url")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(api_url.as_str())
+        .to_string();
+    let gateway_url = value
+        .get("model_gateway_url")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    Some(BundledAccountEndpoints {
+        api_url,
+        portal_url,
+        gateway_url,
+    })
+}
+
+fn probe_live_local_account() -> Option<(String, String, Option<String>)> {
+    let health_body = http_get_body("127.0.0.1", 43200, "/health")?;
+    let health: serde_json::Value = serde_json::from_str(&health_body).ok()?;
+    if health.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+        return None;
+    }
+
+    let api = "http://127.0.0.1:43200".to_string();
     let portal = if http_get_body("127.0.0.1", 43201, "/login").is_some() {
         "http://127.0.0.1:43201".into()
     } else if let Some(url) = health
@@ -182,9 +262,14 @@ fn apply_local_account_env_if_unset() {
     {
         url.trim_end_matches('/').to_string()
     } else {
-        "http://127.0.0.1:43200".into()
+        api.clone()
     };
-    std::env::set_var("ANYCODE_ACCOUNT_PORTAL_URL", portal);
+    let gateway = if http_get_body("127.0.0.1", 43210, "/health").is_some() {
+        Some("http://127.0.0.1:43210".into())
+    } else {
+        None
+    };
+    Some((api, portal, gateway))
 }
 
 fn http_get_body(host: &str, port: u16, path: &str) -> Option<String> {

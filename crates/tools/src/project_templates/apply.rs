@@ -11,7 +11,7 @@ pub struct ApplyTemplateOptions {
     pub project_name: Option<String>,
     pub app_title: Option<String>,
     pub bundle_org: Option<String>,
-    /// Overwrite when target exists and only contains safe-to-replace files.
+    /// Create the target (and parents) when missing. Never deletes existing files.
     pub force: bool,
     /// Run `flutter create` when Flutter is on PATH (opt-in; default is agent-first skeleton).
     pub run_flutter_create: bool,
@@ -39,22 +39,39 @@ pub fn apply_project_template(
 ) -> Result<ApplyTemplateResult> {
     let manifest = load_manifest(template_id)?;
     let dir = template_dir(template_id)?;
-    let target = target
+    let mut target = target
         .canonicalize()
         .unwrap_or_else(|_| target.to_path_buf());
-
-    if target.exists() {
-        ensure_empty_or_force(&target, opts.force)?;
-    } else if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)?;
-    }
 
     let project_name = normalize_project_name(
         opts.project_name
             .as_deref()
             .or(target.file_name().and_then(|s| s.to_str()))
-            .unwrap_or(&manifest.default_dir),
+            .unwrap_or(manifest.default_dir.as_str()),
+        &manifest.default_dir,
     );
+
+    // Prefer nesting under a non-empty parent (e.g. Desktop → Desktop/my_web_app)
+    // instead of refusing or wiping user folders.
+    if target.exists() && !dir_is_empty(&target)? {
+        let nested = target.join(&project_name);
+        if nested.exists() && !dir_is_empty(&nested)? {
+            anyhow::bail!(
+                "target directory is not empty: {} (pick an empty folder, or a parent for a new subdirectory)",
+                nested.display()
+            );
+        }
+        target = nested;
+    }
+
+    if target.exists() {
+        ensure_empty_or_create(&target, opts.force)?;
+    } else if opts.force {
+        fs::create_dir_all(&target)?;
+    } else if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     let app_title = opts
         .app_title
         .clone()
@@ -74,7 +91,7 @@ pub fn apply_project_template(
     if template_id == "flutter-app" {
         apply_flutter_app(&dir, &target, &manifest, &vars, &opts)?;
     } else {
-        anyhow::bail!("template {template_id} has no apply handler");
+        apply_generic_template(&dir, &target, &vars)?;
     }
 
     Ok(ApplyTemplateResult {
@@ -96,6 +113,33 @@ fn flutter_on_path() -> bool {
         .unwrap_or(false)
 }
 
+fn apply_generic_template(
+    template_dir: &Path,
+    target: &Path,
+    vars: &HashMap<String, String>,
+) -> Result<()> {
+    fs::create_dir_all(target)?;
+    let skeleton = template_dir.join("skeleton");
+    let overlay = template_dir.join("overlay");
+    let mut wrote = false;
+    if skeleton.is_dir() {
+        copy_tree(&skeleton, target, vars)?;
+        wrote = true;
+    }
+    if overlay.is_dir() {
+        copy_tree(&overlay, target, vars)?;
+        wrote = true;
+    }
+    if !wrote {
+        anyhow::bail!(
+            "template {} has neither skeleton/ nor overlay/",
+            template_dir.display()
+        );
+    }
+    copy_template_skills(template_dir, target, vars)?;
+    Ok(())
+}
+
 fn apply_flutter_app(
     template_dir: &Path,
     target: &Path,
@@ -113,19 +157,7 @@ fn apply_flutter_app(
     if template_dir.join("overlay").is_dir() {
         copy_tree(&template_dir.join("overlay"), target, vars)?;
     }
-    if template_dir.join("skills").is_dir() {
-        copy_tree(
-            &template_dir.join("skills"),
-            &target.join(".anycode/skills"),
-            vars,
-        )?;
-    } else if template_dir.join(".anycode").is_dir() {
-        copy_tree(
-            &template_dir.join(".anycode"),
-            &target.join(".anycode"),
-            vars,
-        )?;
-    }
+    copy_template_skills(template_dir, target, vars)?;
 
     let meta = FlutterProjectMeta {
         project_name: vars.get("project_name").cloned().unwrap_or_default(),
@@ -148,6 +180,27 @@ fn apply_flutter_app(
         run_flutter_pub_get(target)?;
     }
 
+    Ok(())
+}
+
+fn copy_template_skills(
+    template_dir: &Path,
+    target: &Path,
+    vars: &HashMap<String, String>,
+) -> Result<()> {
+    if template_dir.join("skills").is_dir() {
+        copy_tree(
+            &template_dir.join("skills"),
+            &target.join(".anycode/skills"),
+            vars,
+        )?;
+    } else if template_dir.join(".anycode").is_dir() {
+        copy_tree(
+            &template_dir.join(".anycode"),
+            &target.join(".anycode"),
+            vars,
+        )?;
+    }
     Ok(())
 }
 
@@ -182,32 +235,31 @@ fn run_flutter_pub_get(target: &Path) -> Result<()> {
     Ok(())
 }
 
-fn ensure_empty_or_force(path: &Path, force: bool) -> Result<()> {
+fn dir_is_empty(path: &Path) -> Result<bool> {
     if !path.exists() {
-        return Ok(());
+        return Ok(true);
     }
-    let entries: Vec<_> = fs::read_dir(path)?.filter_map(Result::ok).collect();
-    if entries.is_empty() {
-        return Ok(());
-    }
-    if force {
-        for ent in entries {
-            let p = ent.path();
-            if ent.file_type()?.is_dir() {
-                fs::remove_dir_all(&p)?;
-            } else {
-                fs::remove_file(&p)?;
-            }
+    let mut rd = fs::read_dir(path)?;
+    Ok(rd.next().is_none())
+}
+
+fn ensure_empty_or_create(path: &Path, create_if_missing: bool) -> Result<()> {
+    if !path.exists() {
+        if create_if_missing {
+            fs::create_dir_all(path)?;
         }
         return Ok(());
     }
+    if dir_is_empty(path)? {
+        return Ok(());
+    }
     anyhow::bail!(
-        "target directory is not empty: {} (use --force to replace)",
+        "target directory is not empty: {} (pick an empty folder, or a parent for a new subdirectory)",
         path.display()
     );
 }
 
-fn normalize_project_name(raw: &str) -> String {
+fn normalize_project_name(raw: &str, fallback: &str) -> String {
     let mut s: String = raw
         .chars()
         .map(|c| {
@@ -223,7 +275,22 @@ fn normalize_project_name(raw: &str) -> String {
     }
     s = s.trim_matches('_').to_string();
     if s.is_empty() {
-        "my_flutter_app".into()
+        let fb: String = fallback
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() {
+                    c.to_ascii_lowercase()
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let fb = fb.trim_matches('_').to_string();
+        if fb.is_empty() {
+            "my_app".into()
+        } else {
+            fb
+        }
     } else if s.chars().next().is_some_and(|c| c.is_ascii_digit()) {
         format!("app_{s}")
     } else {
@@ -284,6 +351,7 @@ mod tests {
             ApplyTemplateOptions {
                 project_name: Some("demo_app".into()),
                 app_title: Some("演示".into()),
+                force: true,
                 ..Default::default()
             },
         )
@@ -296,5 +364,51 @@ mod tests {
             .is_file());
         assert!(r.root.join(".anycode/flutter-project.json").is_file());
         assert!(!r.root.join("ios").exists());
+    }
+
+    #[test]
+    fn apply_web_app_overlay() {
+        let tmp = tempfile::tempdir().unwrap();
+        let r = apply_project_template(
+            "web-app",
+            tmp.path(),
+            ApplyTemplateOptions {
+                project_name: Some("demo_web".into()),
+                force: true,
+                ..Default::default()
+            },
+        )
+        .expect("apply web-app");
+        assert_eq!(r.template_id, "web-app");
+        assert!(r.root.join("package.json").is_file());
+        assert!(r.root.join("README.md").is_file());
+        assert!(r.root.join("PRODUCT_BRIEF.md").is_file());
+        let pkg = fs::read_to_string(r.root.join("package.json")).unwrap();
+        assert!(pkg.contains("\"name\": \"demo_web\"") || pkg.contains("\"name\":\"demo_web\""));
+    }
+
+    #[test]
+    fn nest_under_non_empty_parent() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("keep.txt"), "x").unwrap();
+        let r = apply_project_template(
+            "web-app",
+            tmp.path(),
+            ApplyTemplateOptions {
+                project_name: Some("nested_app".into()),
+                force: true,
+                ..Default::default()
+            },
+        )
+        .expect("nest");
+        assert_eq!(
+            r.root.canonicalize().unwrap(),
+            tmp.path()
+                .join("nested_app")
+                .canonicalize()
+                .unwrap_or_else(|_| tmp.path().join("nested_app"))
+        );
+        assert!(tmp.path().join("keep.txt").is_file());
+        assert!(r.root.join("package.json").is_file());
     }
 }

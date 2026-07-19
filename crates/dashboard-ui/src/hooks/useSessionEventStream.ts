@@ -20,6 +20,8 @@ const IMMEDIATE_EVENT_TYPES = new Set([
   "session_blocked",
   "session_error",
   "session_cancelled",
+  "message_queued",
+  "message_dequeued",
 ]);
 
 const LIGHT_EVENT_TYPES = new Set([
@@ -57,6 +59,27 @@ export function shouldRebaseLiveOnSseReconnect(
   next: SseStatus,
 ): boolean {
   return next === "live" && prev === "reconnecting";
+}
+
+/** Whether to skip session-transcript invalidate during an active stream window. */
+export function shouldSuppressTranscriptInvalidate(
+  chatLive: boolean,
+  trackLive: boolean,
+): boolean {
+  return chatLive || trackLive;
+}
+
+/** Clear optimistic streaming once server status catches up to running. */
+export function shouldClearOptimisticOnRunningHandoff(
+  sessionStatus: string | undefined,
+  optimisticSessionId: string | null,
+  displaySessionId: string,
+): boolean {
+  return (
+    sessionStatus === "running" &&
+    optimisticSessionId !== null &&
+    optimisticSessionId === displaySessionId
+  );
 }
 
 /** Whether incoming chat_event payloads should populate live transcript state. */
@@ -110,6 +133,7 @@ export function useSessionEventStream(
   const heavyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [liveEvents, setLiveEvents] = useState<ChatStreamEvent[]>([]);
   const [chatLive, setChatLive] = useState(false);
+  const chatLiveRef = useRef(false);
   const eventsRef = useRef<Map<number, ChatStreamEvent>>(new Map());
   const lastSeqRef = useRef(0);
   const [afterSeq, setAfterSeq] = useState(0);
@@ -134,19 +158,32 @@ export function useSessionEventStream(
     setLiveEvents([]);
   }, []);
 
+  const setChatLiveState = useCallback((live: boolean) => {
+    chatLiveRef.current = live;
+    setChatLive(live);
+  }, []);
+
   useEffect(() => {
     resetLive();
-    setChatLive(false);
+    setChatLiveState(false);
     setAfterSeq(0);
     lastSeqRef.current = 0;
   }, [resetLive, sessionId]);
 
+  // When the session leaves `running` (e.g. turn finished but `turn_done` SSE was
+  // missed), drop stale live stream state so the composer and recap unstick.
+  useEffect(() => {
+    if (!sessionId) return;
+    if (optimisticStreaming) return;
+    if (sessionStatus === "running" || sessionStatus === "pending") return;
+    setChatLiveState(false);
+    resetLive();
+  }, [optimisticStreaming, resetLive, sessionId, sessionStatus, setChatLiveState]);
+
   const applyChatEvent = useCallback(
     (evt: ChatStreamEvent) => {
-      const trackLive = trackLiveRef.current;
-
       if (evt.kind === "turn_done") {
-        setChatLive(false);
+        setChatLiveState(false);
         onTurnDone?.();
         if (evt.seq !== undefined) {
           lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
@@ -159,13 +196,35 @@ export function useSessionEventStream(
           void queryClient.invalidateQueries({
             queryKey: ["session", sessionId],
           });
+          void queryClient.invalidateQueries({
+            queryKey: ["session-message-queue", sessionId],
+          });
           invalidateSessionListQueries(queryClient);
         }
         return;
       }
 
+      if (
+        evt.kind === "message_queued" ||
+        evt.kind === "message_dequeued"
+      ) {
+        if (evt.seq !== undefined) {
+          lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
+        }
+        if (sessionId) {
+          void queryClient.invalidateQueries({
+            queryKey: ["session-message-queue", sessionId],
+          });
+          if (!chatLiveRef.current && !trackLiveRef.current) {
+            void queryClient.invalidateQueries({
+              queryKey: ["session-transcript", sessionId],
+            });
+          }
+        }
+      }
+
       if (evt.kind === "session_error") {
-        setChatLive(false);
+        setChatLiveState(false);
         resetLive();
         if (evt.seq !== undefined) {
           lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
@@ -187,14 +246,9 @@ export function useSessionEventStream(
           return;
         }
         lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
-        if (!trackLive) {
-          return;
-        }
-      } else if (!trackLive) {
-        return;
       }
 
-      setChatLive(true);
+      setChatLiveState(true);
       if (evt.seq !== undefined) {
         eventsRef.current.set(evt.seq, evt);
         setLiveEvents(
@@ -205,13 +259,8 @@ export function useSessionEventStream(
       } else {
         setLiveEvents((prev) => [...prev, evt]);
       }
-      if (evt.kind === "assistant_done" && sessionId) {
-        void queryClient.invalidateQueries({
-          queryKey: ["session-transcript", sessionId],
-        });
-      }
     },
-    [onTurnDone, queryClient, resetLive, sessionId],
+    [onTurnDone, queryClient, resetLive, sessionId, setChatLiveState],
   );
 
   const heavyKeysForScope = useCallback((): (readonly unknown[])[] => {
@@ -262,18 +311,28 @@ export function useSessionEventStream(
     [invalidateNow],
   );
 
+  const filterHeavyKeys = useCallback(
+    (keys: readonly (readonly unknown[])[]) => {
+      if (!chatLiveRef.current && !trackLiveRef.current) {
+        return keys;
+      }
+      return keys.filter((k) => k[0] !== "session-transcript");
+    },
+    [],
+  );
+
   const onProjectEvent = useCallback(
     (payload: { eventType?: string }) => {
       if (!sessionId) {
         return;
       }
 
-      const heavyKeys = heavyKeysForScope();
+      const heavyKeys = filterHeavyKeys(heavyKeysForScope());
       const eventType = payload.eventType?.trim().toLowerCase() ?? "";
 
       if (IMMEDIATE_EVENT_TYPES.has(eventType)) {
         if (heavyTimer.current) clearTimeout(heavyTimer.current);
-        invalidateNow(heavyKeys);
+        invalidateNow([...heavyKeys]);
         invalidateSessionListQueries(queryClient);
         return;
       }
@@ -288,16 +347,18 @@ export function useSessionEventStream(
         void queryClient.invalidateQueries({
           queryKey: ["session-trace-inspector", sessionId],
         });
-        void queryClient.invalidateQueries({
-          queryKey: ["session-transcript", sessionId],
-        });
+        if (!chatLiveRef.current && !trackLiveRef.current) {
+          void queryClient.invalidateQueries({
+            queryKey: ["session-transcript", sessionId],
+          });
+        }
         scheduleHeavy(heavyKeys.filter((k) => k[0] !== "session-transcript"));
         return;
       }
 
       scheduleHeavy(heavyKeys);
     },
-    [heavyKeysForScope, invalidateNow, queryClient, scheduleHeavy, sessionId],
+    [filterHeavyKeys, heavyKeysForScope, invalidateNow, queryClient, scheduleHeavy, sessionId],
   );
 
   const onChatEvent = useCallback(

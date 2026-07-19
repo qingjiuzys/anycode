@@ -11,13 +11,22 @@ import {
   groupSkillsByCategory,
   normalizeSkillCategory,
   skillDisplayDescription,
+  skillDisplayName,
   skillMatchesSearch,
   type SkillCategory,
 } from "@/lib/skillCatalog";
+import { skillIconMeta, skillIconToneClass } from "@/lib/skillIcons";
 
 type Props = {
   /** When true, renders without outer SectionCard (for tabbed Agents page). */
   embedded?: boolean;
+};
+
+type StoreSection = {
+  key: "official" | "anycode";
+  title: string;
+  hint?: string;
+  entries: SkillMarketEntry[];
 };
 
 export function SkillMarketPanel({ embedded = false }: Props) {
@@ -26,6 +35,9 @@ export function SkillMarketPanel({ embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [categoryFilter, setCategoryFilter] = useState<SkillCategory | "all">("all");
   const [search, setSearch] = useState("");
+  const [installingId, setInstallingId] = useState<string | null>(null);
+  const [lastInstalledId, setLastInstalledId] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   const market = useQuery({
     queryKey: ["skill-market"],
@@ -39,11 +51,23 @@ export function SkillMarketPanel({ embedded = false }: Props) {
   });
 
   const install = useMutation({
-    mutationFn: (source: string) => api.importSkill(source),
-    onSuccess: () => {
+    mutationFn: (id: string) => api.installMarketSkill(id),
+    onMutate: (id) => {
+      setInstallingId(id);
+      setInstallError(null);
+      setLastInstalledId(null);
+    },
+    onSuccess: (result) => {
+      setLastInstalledId(result.id);
       queryClient.invalidateQueries({ queryKey: ["skills"] });
       queryClient.invalidateQueries({ queryKey: ["skill-suggestions"] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+    onError: (error) => {
+      setInstallError((error as Error).message);
+    },
+    onSettled: () => {
+      setInstallingId(null);
     },
   });
 
@@ -52,23 +76,44 @@ export function SkillMarketPanel({ embedded = false }: Props) {
     [installed.data?.skills],
   );
 
-  const entries = useMemo(() => {
+  const filteredEntries = useMemo(() => {
     const raw = market.data?.market.entries ?? [];
     let list = raw.filter((e) => skillMatchesSearch(e, search));
     list = filterSkillsByCategory(list, categoryFilter);
     return list;
   }, [market.data?.market.entries, search, categoryFilter]);
 
+  const sections = useMemo((): StoreSection[] => {
+    const official = filteredEntries.filter((e) => e.badge === "official");
+    const anycode = filteredEntries.filter((e) => e.badge === "anycode");
+    const out: StoreSection[] = [];
+    if (official.length > 0) {
+      out.push({
+        key: "official",
+        title: t("agents.skillMarketOfficialSection"),
+        hint: t("agents.skillMarketOfficialHint"),
+        entries: official,
+      });
+    }
+    if (anycode.length > 0) {
+      out.push({
+        key: "anycode",
+        title: t("agents.skillMarketAnycodeSection"),
+        hint: t("agents.skillMarketAnycodeHint"),
+        entries: anycode,
+      });
+    }
+    return out;
+  }, [filteredEntries, t]);
+
   const visibleCategories = useMemo(
     () => categoriesWithEntries(market.data?.market.entries ?? []),
     [market.data?.market.entries],
   );
 
-  const grouped = useMemo(() => groupSkillsByCategory(entries), [entries]);
-
   const body = (
     <>
-      {!embedded && <p className="text-xs text-secondary m-0 mb-3">{t("agents.skillMarketHint")}</p>}
+      {!embedded && <p className="text-[13px] text-secondary m-0 mb-3">{t("agents.skillMarketHint")}</p>}
 
       <div className="flex flex-wrap gap-1.5 mb-3">
         <CategoryPill
@@ -105,47 +150,64 @@ export function SkillMarketPanel({ embedded = false }: Props) {
       {market.isError && (
         <p className="text-sm text-error m-0">{(market.error as Error).message}</p>
       )}
-      {!market.isLoading && entries.length === 0 && (
+      {!market.isLoading && filteredEntries.length === 0 && (
         <p className="text-sm text-secondary m-0">{t("agents.skillMarketEmpty")}</p>
       )}
 
-      <div className="space-y-4">
-        {grouped.map((group) => (
-          <div key={group.category}>
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-secondary m-0 mb-2 flex items-center gap-2">
-              {t(`agents.skillCategory.${group.category}`)}
-              <span className="font-normal tabular-nums text-outline">{group.items.length}</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {group.items.map((entry) => (
-                <MarketCard
-                  key={`${entry.badge}-${entry.id}`}
-                  entry={entry}
-                  locale={locale}
-                  installed={installedIds.has(entry.id)}
-                  installing={install.isPending}
-                  onInstall={() => install.mutate(entry.source)}
-                  t={t}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="space-y-6">
+        {sections.map((section) => {
+          const grouped = groupSkillsByCategory(section.entries);
+          return (
+            <section key={section.key} className="dw-skill-store-section">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-on-surface m-0">{section.title}</h3>
+                {section.hint && (
+                  <p className="text-[13px] text-secondary m-0 mt-1">{section.hint}</p>
+                )}
+              </div>
+              <div className="space-y-4">
+                {grouped.map((group) => (
+                  <div key={`${section.key}-${group.category}`}>
+                    <h4 className="text-[13px] font-semibold uppercase tracking-wide text-secondary m-0 mb-2 flex items-center gap-2">
+                      {t(`agents.skillCategory.${group.category}`)}
+                      <span className="font-normal tabular-nums text-outline">{group.items.length}</span>
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {group.items.map((entry) => (
+                        <MarketCard
+                          key={`${entry.badge}-${entry.id}`}
+                          entry={entry}
+                          locale={locale}
+                          installed={installedIds.has(entry.id)}
+                          installing={installingId === entry.id}
+                          onInstall={() => install.mutate(entry.id)}
+                          t={t}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
 
-      {install.isSuccess && (
-        <p className="text-xs text-secondary mt-3 m-0">
-          {t("agents.skillMarketInstalled")}: {install.data?.id}
+      {lastInstalledId && (
+        <p className="dw-agents-toast m-0 mt-3" role="status">
+          {t("agents.skillMarketInstallOk").replace("{name}", lastInstalledId)}
         </p>
       )}
-      {install.isError && (
-        <p className="text-xs text-error mt-3 m-0">{(install.error as Error).message}</p>
+      {installError && (
+        <p className="text-[13px] text-error mt-3 m-0" role="alert">
+          {installError}
+        </p>
       )}
     </>
   );
 
   if (embedded) {
-    return <div className="dw-agents-tab-panel">{body}</div>;
+    return <div className="dw-agents-tab-panel skill-market-panel">{body}</div>;
   }
 
   return (
@@ -167,7 +229,7 @@ function CategoryPill({
   return (
     <button
       type="button"
-      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+      className={`text-[13px] px-2.5 py-1 rounded-full border transition-colors ${
         active
           ? "bg-primary/15 border-primary/40 text-primary font-medium"
           : "border-outline-variant text-secondary hover:bg-surface-container-low"
@@ -208,33 +270,46 @@ function MarketCard({
   t: (key: string) => string;
 }) {
   const desc = skillDisplayDescription(entry, locale);
+  const displayName = skillDisplayName(entry, locale);
   const cat = normalizeSkillCategory(entry.category);
   const badge = marketBadgeMeta(entry, t);
+  const { icon, tone } = skillIconMeta(entry);
 
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-lg border border-outline-variant bg-surface-container-lowest h-full">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-sm font-medium text-on-surface">{entry.name}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-high text-secondary">
-          {t(`agents.skillCategory.${cat}`)}
+    <div className="flex flex-col gap-3 p-4 rounded-xl border border-outline-variant bg-surface-container-lowest h-full">
+      <div className="flex items-start gap-3 min-w-0">
+        <span className={`dw-agents-skill-row__icon ${skillIconToneClass(tone)}`}>
+          <Icon name={icon} size={20} />
         </span>
-        <span className={badge.className}>{badge.label}</span>
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-on-surface">{displayName}</span>
+            <span className="text-[13px] px-1.5 py-0.5 rounded-md bg-surface-container-high text-secondary">
+              {t(`agents.skillCategory.${cat}`)}
+            </span>
+            <span className={badge.className}>{badge.label}</span>
+          </div>
+          <p className="text-[13px] text-secondary m-0 line-clamp-2 leading-relaxed flex-1">
+            {desc || entry.description}
+          </p>
+        </div>
       </div>
-      <p className="text-xs text-secondary m-0 line-clamp-2 flex-1">{desc || entry.description}</p>
-      {locale === "en" && (
-        <p className="text-[10px] text-outline font-code m-0 truncate" title={entry.source}>
-          {entry.source}
-        </p>
-      )}
       <button
         type="button"
-        className={`text-xs shrink-0 w-full ${installed ? "dw-btn-ghost" : "dw-btn-secondary"}`}
+        className={`text-[13px] shrink-0 w-full ${installed ? "dw-btn-ghost" : "dw-btn-secondary"}`}
         disabled={installed || installing}
-        title={locale === "zh" ? entry.source : undefined}
         onClick={onInstall}
       >
-        <Icon name={installed ? "check_circle" : "download"} size={14} className="inline mr-1" />
-        {installed ? t("agents.skillMarketAlreadyInstalled") : t("agents.skillMarketInstall")}
+        <Icon
+          name={installed ? "check_circle" : installing ? "hourglass_top" : "download"}
+          size={14}
+          className="inline mr-1"
+        />
+        {installed
+          ? t("agents.skillMarketAlreadyInstalled")
+          : installing
+            ? t("agents.skillMarketInstalling")
+            : t("agents.skillMarketInstall")}
       </button>
     </div>
   );

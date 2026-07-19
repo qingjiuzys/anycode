@@ -19,17 +19,41 @@ impl WorkbenchAskUserQuestionHost {
         Self
     }
 
+    /// Task-local chat turn context first (embedded chat / triggers); env var
+    /// only as legacy fallback for headless single-task CLI processes.
     fn session_id() -> Option<String> {
-        std::env::var(SESSION_ENV).ok().filter(|s| !s.is_empty())
+        anycode_core::current_dashboard_session_id()
+            .or_else(|| std::env::var(SESSION_ENV).ok())
+            .filter(|s| !s.is_empty())
+    }
+
+    fn user_turn_id() -> u32 {
+        anycode_core::current_user_turn_id().unwrap_or_else(|| {
+            std::env::var(question_ipc::USER_TURN_ENV)
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0)
+        })
     }
 
     async fn wait_web(
         question_id: &str,
     ) -> Option<anycode_dashboard_ipc::question_ipc::QuestionResponseRecord> {
         let deadline = tokio::time::Instant::now() + WEB_TIMEOUT;
+        let session_id = Self::session_id();
         loop {
             if let Some(resp) = question_ipc::poll_response(question_id) {
                 return Some(resp);
+            }
+            if question_ipc::get_pending(question_id).is_none() {
+                return None;
+            }
+            if session_id
+                .as_deref()
+                .is_some_and(anycode_dashboard_ipc::cancel_ipc::poll_cancel_requested)
+            {
+                question_ipc::clear_pending(question_id);
+                return None;
             }
             if tokio::time::Instant::now() >= deadline {
                 question_ipc::clear_pending(question_id);
@@ -69,6 +93,7 @@ impl AskUserQuestionHost for WorkbenchAskUserQuestionHost {
             .collect();
         let question_id = question_ipc::register_pending(
             &sid,
+            Self::user_turn_id(),
             &request.question,
             &request.header,
             &options,

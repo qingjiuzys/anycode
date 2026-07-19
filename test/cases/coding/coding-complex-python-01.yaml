@@ -1,0 +1,23 @@
+id: coding-complex-python-01
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Implement the complex python task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: pytest_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 900
+fixture: coding/complex-python
+complexity: complex
+meta:
+  language: python

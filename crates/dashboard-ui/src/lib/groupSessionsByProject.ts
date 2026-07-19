@@ -3,6 +3,7 @@ import type { SessionWithProject } from "@/api/types";
 export type ProjectGroupOption = {
   id: string;
   name: string;
+  root_path?: string;
   updated_at?: string;
 };
 
@@ -40,7 +41,13 @@ export function projectGroupActivityAt(
 export function groupSessionsByProject(
   projectOptions: ProjectGroupOption[],
   sessions: SessionWithProject[],
+  pinnedIds: ReadonlySet<string> = new Set(),
+  opts?: { allowUnknownProjects?: boolean },
 ): ProjectSessionGroup[] {
+  // When the project catalog is loaded, ignore sessions whose project was
+  // archived/removed so they don't resurrect sidebar groups.
+  const allowUnknown =
+    opts?.allowUnknownProjects ?? projectOptions.length === 0;
   const projectUpdatedAt = new Map(
     projectOptions.map((project) => [project.id, project.updated_at]),
   );
@@ -54,7 +61,7 @@ export function groupSessionsByProject(
     const existing = map.get(session.project_id);
     if (existing) {
       existing.sessions.push(session);
-    } else {
+    } else if (allowUnknown) {
       map.set(session.project_id, {
         id: session.project_id,
         name: session.project_name,
@@ -71,6 +78,11 @@ export function groupSessionsByProject(
   }
 
   const groups = [...map.values()].sort((a, b) => {
+    const aPinned = pinnedIds.has(a.id);
+    const bPinned = pinnedIds.has(b.id);
+    if (aPinned !== bPinned) {
+      return aPinned ? -1 : 1;
+    }
     const aAt = projectGroupActivityAt(a, projectUpdatedAt.get(a.id));
     const bAt = projectGroupActivityAt(b, projectUpdatedAt.get(b.id));
     if (aAt !== bAt) {

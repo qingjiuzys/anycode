@@ -2,7 +2,7 @@
 
 use anycode_config::{default_base_url_for, Config, ModelProfile};
 use anycode_core::prelude::*;
-use anycode_llm::normalize_provider_id;
+use anycode_llm::{apply_anycode_cloud_model_config, normalize_provider_id};
 
 use super::llm_session::{effective_provider, resolve_agent_base_url, resolve_profile_api_key};
 
@@ -19,7 +19,10 @@ pub fn default_base_url_for_config(config: &Config) -> Option<String> {
     }
 }
 
-pub fn resolve_model_profile(config: &Config, profile: &ModelProfile) -> ModelConfig {
+pub fn resolve_model_profile(
+    config: &Config,
+    profile: &ModelProfile,
+) -> anyhow::Result<ModelConfig> {
     let default_base_url = default_base_url_for_config(config);
     let eff_p = effective_provider(&config.llm.provider, Some(profile));
     let resolved_model = profile
@@ -30,7 +33,7 @@ pub fn resolve_model_profile(config: &Config, profile: &ModelProfile) -> ModelCo
     let resolved_max_tokens = profile.max_tokens.or(Some(config.llm.max_tokens));
     let resolved_base_url = resolve_agent_base_url(config, profile, &default_base_url);
     let api_key = resolve_profile_api_key(config, profile, &eff_p);
-    ModelConfig {
+    apply_anycode_cloud_model_config(ModelConfig {
         provider: LLMProvider::Custom(eff_p),
         model: resolved_model,
         base_url: resolved_base_url,
@@ -38,5 +41,6 @@ pub fn resolve_model_profile(config: &Config, profile: &ModelProfile) -> ModelCo
         max_tokens: resolved_max_tokens,
         api_key,
         ..Default::default()
-    }
+    })
+    .map_err(|e| anyhow::anyhow!(e.to_string()))
 }

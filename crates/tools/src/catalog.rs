@@ -24,6 +24,7 @@ pub const TOOL_MCP_AUTH: &str = "McpAuth";
 pub const TOOL_LSP: &str = "LSP";
 pub const TOOL_AGENT: &str = "Agent";
 pub const TOOL_SKILL: &str = "Skill";
+pub const TOOL_SKILL_SEARCH: &str = "SkillSearch";
 pub const TOOL_SEND_MESSAGE: &str = "SendMessage";
 pub const TOOL_LEGACY_TASK_AGENT: &str = "Task";
 pub const TOOL_TASK_CREATE: &str = "TaskCreate";
@@ -35,6 +36,7 @@ pub const TOOL_TASK_OUTPUT: &str = "TaskOutput";
 pub const TOOL_TEAM_CREATE: &str = "TeamCreate";
 pub const TOOL_TEAM_DELETE: &str = "TeamDelete";
 pub const TOOL_CRON_CREATE: &str = "CronCreate";
+pub const TOOL_CRON_UPDATE: &str = "CronUpdate";
 pub const TOOL_CRON_DELETE: &str = "CronDelete";
 pub const TOOL_CRON_LIST: &str = "CronList";
 pub const TOOL_REMOTE_TRIGGER: &str = "RemoteTrigger";
@@ -112,6 +114,7 @@ pub const CRON_READ_ONLY_DENIED_TOOL_IDS: &[&str] = &[
     TOOL_TEAM_CREATE,
     TOOL_TEAM_DELETE,
     TOOL_CRON_CREATE,
+    TOOL_CRON_UPDATE,
     TOOL_CRON_DELETE,
     TOOL_REMOTE_TRIGGER,
     TOOL_ENTER_PLAN,
@@ -256,6 +259,7 @@ pub fn workspace_assistant_tool_names(include_skill: bool) -> Vec<ToolName> {
         TOOL_TASK_LIST.to_string(),
         TOOL_TASK_GET.to_string(),
         TOOL_CRON_CREATE.to_string(),
+        TOOL_CRON_UPDATE.to_string(),
         TOOL_CRON_DELETE.to_string(),
         TOOL_CRON_LIST.to_string(),
         TOOL_TOOL_SEARCH.to_string(),
@@ -298,6 +302,7 @@ mod workspace_assistant_tools_tests {
     fn workspace_assistant_exposes_cron_create_delete_list() {
         let tools = workspace_assistant_tool_names(false);
         assert!(tools.contains(&TOOL_CRON_CREATE.to_string()));
+        assert!(tools.contains(&TOOL_CRON_UPDATE.to_string()));
         assert!(tools.contains(&TOOL_CRON_DELETE.to_string()));
         assert!(tools.contains(&TOOL_CRON_LIST.to_string()));
     }
@@ -335,6 +340,7 @@ mod workspace_assistant_tools_tests {
             TOOL_LSP,
             TOOL_AGENT,
             TOOL_SKILL,
+            TOOL_SKILL_SEARCH,
             TOOL_SEND_MESSAGE,
             TOOL_LEGACY_TASK_AGENT,
             TOOL_TASK_CREATE,
@@ -346,6 +352,7 @@ mod workspace_assistant_tools_tests {
             TOOL_TEAM_CREATE,
             TOOL_TEAM_DELETE,
             TOOL_CRON_CREATE,
+            TOOL_CRON_UPDATE,
             TOOL_CRON_DELETE,
             TOOL_CRON_LIST,
             TOOL_REMOTE_TRIGGER,
@@ -408,6 +415,16 @@ mod workspace_assistant_tools_tests {
 pub fn validate_default_registry(tools: &HashMap<ToolName, Box<dyn Tool>>) -> anyhow::Result<()> {
     for id in DEFAULT_TOOL_IDS {
         if !tools.contains_key(*id) {
+            // MCP passthrough tools are optional when no MCP servers are configured.
+            if matches!(
+                *id,
+                crate::catalog::TOOL_MCP
+                    | crate::catalog::TOOL_LIST_MCP_RESOURCES
+                    | crate::catalog::TOOL_READ_MCP_RESOURCE
+                    | crate::catalog::TOOL_MCP_AUTH
+            ) {
+                continue;
+            }
             anyhow::bail!("default tool registry missing tool {:?}", id);
         }
         let entry = tool_catalog_entry(id).ok_or_else(|| {
@@ -467,6 +484,10 @@ pub fn iter_cli_tool_help() -> impl Iterator<Item = (&'static str, &'static str)
         (
             TOOL_CRON_CREATE,
             "Register cron-like job (persisted under ~/.anycode/tasks/orchestration.json; executed by `anycode-daemon scheduler` when running)",
+        ),
+        (
+            TOOL_CRON_UPDATE,
+            "Update fields on an existing cron job by id in orchestration.json",
         ),
         (TOOL_ENTER_WORKTREE, "git worktree add + record path"),
         (TOOL_STRUCTURED_OUTPUT, "Structured JSON passthrough"),

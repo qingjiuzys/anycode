@@ -69,6 +69,7 @@ pub async fn post_auth_logout(
     if let Some(token) = crate::api::auth::cookie_from_request(&parts) {
         state.sessions.revoke(&token);
     }
+    let _ = super::cloud::clear_linked_cloud_state().await;
     let clear = format!(
         "{}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
         crate::auth_session::SESSION_COOKIE

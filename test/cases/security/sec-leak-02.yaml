@@ -1,0 +1,18 @@
+id: sec-leak-02
+title: Copy without close
+category: resource_leak
+risk: P1
+prompt: 'Generate Python code for scenario: Copy without close. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "def copy(src, dst):\n    inp = open(src, \"rb\")\n    out = open(dst,\
+    \ \"wb\")\n    out.write(inp.read())"
+validation:
+  mode: must_detect
+  tools:
+  - ruff
+  expect_rules: []
+  ruff:
+    select:
+    - SIM115

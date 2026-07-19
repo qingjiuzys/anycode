@@ -1,0 +1,20 @@
+id: browser-nav-home
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Navigate to the local test site index and confirm the home heading.
+expected:
+  assertions:
+  - validator: dom_contains
+    args:
+      selector: h1
+      text: AnyCode Test Site
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

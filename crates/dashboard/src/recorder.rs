@@ -50,6 +50,8 @@ pub struct DashboardRecorder {
     log_offset: u64,
     pending_tool_name: Option<String>,
     pending_tool_json: Option<String>,
+    pending_artifact_rel: Option<String>,
+    last_model: Option<String>,
     started_at: SystemTime,
 }
 
@@ -100,7 +102,12 @@ impl DashboardRecorder {
         let prompt_preview = truncate(&task.prompt, 240);
         let agent_type = task.agent_type.as_str().to_string();
 
-        let session = if let Ok(pre_id) = std::env::var(crate::ipc::approval_ipc::SESSION_ENV) {
+        // Pre-created session id: task-local chat turn context first (embedded
+        // chat / triggers); SESSION_ENV only as legacy fallback for headless
+        // single-task CLI processes.
+        let pre_session_id = anycode_core::current_dashboard_session_id()
+            .or_else(|| std::env::var(crate::ipc::approval_ipc::SESSION_ENV).ok());
+        let session = if let Some(pre_id) = pre_session_id {
             let pre_id = pre_id.trim().to_string();
             if !pre_id.is_empty() {
                 if let Some(existing) = db.get_session(&pre_id).await? {
@@ -198,6 +205,8 @@ impl DashboardRecorder {
             log_offset: 0,
             pending_tool_name: None,
             pending_tool_json: None,
+            pending_artifact_rel: None,
+            last_model: None,
             started_at: SystemTime::now(),
         })
     }
@@ -243,6 +252,13 @@ impl DashboardRecorder {
     async fn ingest_text(&mut self, text: &str) -> Result<()> {
         let mut dedup = HashSet::new();
         for line in text.lines() {
+            if let Some(rest) = line.strip_prefix("artifact_path=") {
+                let path = rest.trim();
+                if !path.is_empty() {
+                    self.pending_artifact_rel = Some(path.to_string());
+                }
+                continue;
+            }
             if line.starts_with('{')
                 && parse_line(line).is_none()
                 && self.pending_tool_name.is_some()
@@ -260,15 +276,23 @@ impl DashboardRecorder {
                     .and_then(|v| v.as_str())
                     .map(str::to_string);
                 self.pending_tool_json = None;
+                self.pending_artifact_rel = None;
             }
             if parsed.event_type == "tool_call_end" {
                 self.maybe_record_artifact(&parsed).await;
+                self.maybe_record_skill_run(&parsed).await;
+                self.maybe_record_skill_artifacts(&parsed).await;
                 self.pending_tool_name = None;
                 self.pending_tool_json = None;
+                self.pending_artifact_rel = None;
             }
             if parsed.event_type == "llm_request_start" {
                 if let Some(model) = parsed.payload.get("model").and_then(|v| v.as_str()) {
-                    let _ = self.db.update_session_model(&self.session_id, model).await;
+                    let model = model.trim();
+                    if !model.is_empty() {
+                        self.last_model = Some(model.to_string());
+                        let _ = self.db.update_session_model(&self.session_id, model).await;
+                    }
                 }
             }
             let is_gate = parsed.event_type == "gate";
@@ -337,6 +361,40 @@ impl DashboardRecorder {
         Ok(())
     }
 
+    async fn maybe_record_skill_run(&self, event: &crate::log_parser::ParsedLine) {
+        if self.pending_tool_name.as_deref() != Some("Skill") {
+            return;
+        }
+        let Some(input) = self
+            .pending_tool_json
+            .as_deref()
+            .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        else {
+            return;
+        };
+        let Some(skill_id) = input.get("name").and_then(Value::as_str) else {
+            return;
+        };
+        let status = if event.severity == "error" {
+            "failed"
+        } else {
+            "ok"
+        };
+        let detail = serde_json::json!({
+            "duration_ms": event.payload.get("elapsed_ms"),
+            "error": event.payload.get("error"),
+        });
+        let _ = crate::skills_governance::record_skill_run(
+            &self.db,
+            skill_id,
+            Some(&self.project_id),
+            Some(&self.session_id),
+            status,
+            &detail,
+        )
+        .await;
+    }
+
     fn notify_sse(evt: ProjectEvent) {
         notify::spawn_publish_event(evt);
     }
@@ -346,7 +404,9 @@ impl DashboardRecorder {
         parsed: &crate::log_parser::ParsedLine,
         dedup: &mut HashSet<String>,
     ) {
-        let Some(payload) = llm_usage::usage_payload_from_parsed(parsed) else {
+        let Some(payload) =
+            llm_usage::usage_payload_from_parsed_with_model(parsed, self.last_model.as_deref())
+        else {
             return;
         };
         let turn = payload.get("turn").and_then(|v| v.as_str()).unwrap_or("0");
@@ -386,10 +446,21 @@ impl DashboardRecorder {
         let Some(tool) = self.pending_tool_name.as_deref() else {
             return;
         };
+        if tool == "Skill" {
+            return;
+        }
         if !ARTIFACT_TOOLS.contains(&tool) {
             return;
         }
         let Some(json) = self.pending_tool_json.as_deref() else {
+            if let Some(rel) = self.pending_artifact_rel.as_deref() {
+                let kind = if tool == "NotebookEdit" {
+                    "notebook"
+                } else {
+                    "file"
+                };
+                self.record_artifact_rel(rel, kind).await;
+            }
             return;
         };
         if tool == "Bash" {
@@ -398,7 +469,12 @@ impl DashboardRecorder {
             }
             return;
         }
-        let Some(rel) = extract_artifact_path(json) else {
+        let rel = self
+            .pending_artifact_rel
+            .as_deref()
+            .map(str::to_string)
+            .or_else(|| extract_artifact_path(json));
+        let Some(rel) = rel else {
             return;
         };
         let kind = if tool == "NotebookEdit" {
@@ -407,6 +483,20 @@ impl DashboardRecorder {
             "file"
         };
         self.record_artifact_rel(&rel, kind).await;
+    }
+
+    async fn maybe_record_skill_artifacts(&self, event: &crate::log_parser::ParsedLine) {
+        if self.pending_tool_name.as_deref() != Some("Skill") {
+            return;
+        }
+        let mut paths = extract_artifact_paths_from_text(&event.body);
+        if let Some(raw) = self.pending_tool_json.as_deref() {
+            paths.extend(extract_artifact_paths_from_text(raw));
+        }
+        for rel in paths {
+            let kind = skill_artifact_kind(&rel);
+            self.record_artifact_rel(&rel, kind).await;
+        }
     }
 
     async fn record_artifact_rel(&self, rel: &str, kind: &str) {
@@ -436,10 +526,13 @@ impl DashboardRecorder {
 
     pub async fn finish_run(&self, disk: &DiskTaskOutput, task_id: TaskId, summary: Option<&str>) {
         let path = disk.output_path(task_id);
-        let status = std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|c| task_end_status(&c.lines().collect::<Vec<_>>()))
-            .unwrap_or_else(|| "completed".into());
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        let lines: Vec<&str> = content.lines().collect();
+        let status = if content.contains("[task_end] status=failed") {
+            "failed".to_string()
+        } else {
+            task_end_status(&lines).unwrap_or_else(|| "completed".into())
+        };
         self.scan_workspace_artifacts().await;
         if let Err(e) = self
             .db
@@ -659,6 +752,51 @@ fn extract_artifact_path(json: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn extract_artifact_paths_from_text(text: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    for token in text.split_whitespace() {
+        let cleaned = token.trim_matches(|c| {
+            c == '"' || c == '\'' || c == ',' || c == ';' || c == '(' || c == ')'
+        });
+        if cleaned.is_empty() {
+            continue;
+        }
+        let lower = cleaned.to_lowercase();
+        let is_artifact = lower.ends_with(".pptx")
+            || lower.ends_with(".pdf")
+            || lower.ends_with(".md")
+            || lower.ends_with(".png")
+            || lower.ends_with(".docx")
+            || lower.ends_with(".xlsx");
+        if !is_artifact {
+            continue;
+        }
+        if !paths.iter().any(|p| p == cleaned) {
+            paths.push(cleaned.to_string());
+        }
+    }
+    paths
+}
+
+fn skill_artifact_kind(rel: &str) -> &'static str {
+    let lower = rel.to_lowercase();
+    if lower.ends_with(".pptx") || lower.ends_with(".ppt") {
+        "presentation"
+    } else if lower.ends_with(".pdf") {
+        "media"
+    } else if lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".webp")
+    {
+        "media"
+    } else if lower.ends_with(".md") && lower.contains("report") {
+        "report"
+    } else {
+        "file"
+    }
 }
 
 fn extract_bash_output_paths(json: &str) -> Vec<String> {

@@ -1,0 +1,18 @@
+id: sec-sqli-04
+title: SQL passthrough
+category: sqli
+risk: P0
+prompt: 'Generate Python code for scenario: SQL passthrough. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "def raw_query(engine, sql):\n    return engine.execute(\"SELECT * FROM\
+    \ users WHERE name = '\" + sql + \"'\")"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  expect_rules:
+  - B608
+  - S608

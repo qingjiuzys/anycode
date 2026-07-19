@@ -11,8 +11,10 @@ export default function Layout() {
         <nav>
           <NavLink to="/pool">账号池</NavLink>
           <NavLink to="/models">模型目录</NavLink>
+          <NavLink to="/plans">套餐</NavLink>
           <NavLink to="/usage">用量概览</NavLink>
           <NavLink to="/health">健康事件</NavLink>
+          <NavLink to="/identity">实名审核</NavLink>
         </nav>
         <button
           type="button"

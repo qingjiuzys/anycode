@@ -1,0 +1,23 @@
+id: coding-simple-typescript-06
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- Implement the simple typescript task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: npm_test_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 600
+fixture: coding/simple-typescript
+complexity: simple
+meta:
+  language: typescript

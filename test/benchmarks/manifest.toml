@@ -1,0 +1,82 @@
+# Links industry benchmark adapters to the full eval profile.
+# Consumed by test/manifests/full.toml via [[include]] and runner preflight.
+
+[manifest]
+version = 1
+description = "Industry code-generation benchmarks (adapters only — data downloaded on demand)"
+
+[[benchmark]]
+id = "humaneval-plus"
+adapter = "humaneval"
+title = "HumanEval+ (EvalPlus)"
+profiles = ["full"]
+timeout_seconds = 7200
+docker_image = "anycode/bench-humaneval:evalplus-0.3.1"
+dataset = "HumanEval+"
+expected_tasks = 164
+
+[[benchmark]]
+id = "mbpp-plus"
+adapter = "mbpp"
+title = "MBPP+ (EvalPlus)"
+profiles = ["full"]
+timeout_seconds = 7200
+docker_image = "anycode/bench-mbpp:evalplus-0.3.1"
+dataset = "MBPP+"
+expected_tasks = 378
+
+[[benchmark]]
+id = "multipl-e"
+adapter = "multipl-e"
+title = "MultiPL-E (Python, Rust, TS, Go, Java)"
+profiles = ["full"]
+timeout_seconds = 14400
+docker_image = "anycode/bench-multipl-e:7e843e0"
+languages = ["python", "rust", "typescript", "go", "java"]
+
+[[benchmark]]
+id = "ds1000"
+adapter = "ds1000"
+title = "DS-1000 data-science completion"
+profiles = ["full"]
+timeout_seconds = 10800
+docker_image = "anycode/bench-ds1000:c4e8f12"
+expected_tasks = 1000
+
+[[benchmark]]
+id = "canitedit"
+adapter = "canitedit"
+title = "CanItEdit code editing"
+profiles = ["full"]
+timeout_seconds = 5400
+docker_image = "anycode/bench-canitedit:9a2f4b1"
+expected_tasks = 105
+
+[[benchmark]]
+id = "codexglue-repair"
+adapter = "codexglue"
+title = "CodeXGLUE Bugs2Fix / code repair"
+profiles = ["full"]
+timeout_seconds = 7200
+docker_image = "anycode/bench-codexglue:b2e8c4a"
+subset = "code-refinement-small"
+
+[[benchmark]]
+id = "codecontests-stratified"
+adapter = "codecontests"
+title = "CodeContests stratified representative set"
+profiles = ["full"]
+timeout_seconds = 14400
+docker_image = "anycode/bench-codecontests:f1a9d3e"
+subset = "stratified-500"
+
+[profile.full]
+benchmarks = [
+  "humaneval-plus",
+  "mbpp-plus",
+  "multipl-e",
+  "ds1000",
+  "canitedit",
+  "codexglue-repair",
+  "codecontests-stratified",
+]

@@ -5,10 +5,12 @@ mod agentic_turn;
 mod artifacts;
 mod budget;
 mod evidence;
+mod execute_eval;
 mod execute_goal;
 mod execute_task;
 mod execute_tool;
 mod execute_turn;
+mod execute_turn_finalize;
 pub mod failover;
 mod limits;
 mod live_trace_emit;
@@ -18,6 +20,7 @@ mod memory_hooks;
 mod nested_task;
 mod nested_worktree;
 mod plan_tree_context;
+mod progress_update;
 mod provider_errors;
 mod receipt;
 mod session;
@@ -36,7 +39,7 @@ mod runtime_options;
 pub use runtime_options::{RuntimeCoreDeps, RuntimeMemoryOptions, RuntimeToolPolicy};
 pub use tool_gating::AgentClaudeToolGating;
 
-use crate::compact::{CompactionHooks, DefaultCompactionHooks};
+use crate::compact::{CompactPolicy, CompactionHooks, DefaultCompactionHooks};
 use crate::prompt_assembler::{
     relevant_memories_context_section, runtime_mode_context_section, slash_commands_context_section,
 };
@@ -82,8 +85,18 @@ pub struct AgentRuntime {
     tool_name_deny: Vec<Regex>,
     claude_gating: AgentClaudeToolGating,
     compaction_hooks: Arc<dyn CompactionHooks>,
-    /// Shared tool services (for nested Agent/Task tool surface inheritance).
+    auto_compact: bool,
+    auto_compact_policy: CompactPolicy,
+    /// When false and `session_context_window_tokens > 0`, compaction uses the manual window.
+    session_context_window_auto: bool,
+    session_context_window_tokens: u32,
     tool_services: StdMutex<Option<Arc<anycode_tools::ToolServices>>>,
+}
+
+fn canonical_agent_type(agent_type: &AgentType) -> AgentType {
+    AgentType::new(crate::agent_profiles::normalize_agent_id(
+        agent_type.as_str(),
+    ))
 }
 
 pub(super) struct ParentToolSurfaceGuard {
@@ -245,7 +258,37 @@ impl AgentRuntime {
             tool_name_deny,
             claude_gating,
             compaction_hooks: Arc::new(DefaultCompactionHooks::new()),
+            auto_compact: false,
+            auto_compact_policy: CompactPolicy::default(),
+            session_context_window_auto: true,
+            session_context_window_tokens: 0,
             tool_services: StdMutex::new(None),
+        }
+    }
+
+    #[must_use]
+    pub fn with_auto_compact(mut self, enabled: bool, policy: CompactPolicy) -> Self {
+        self.auto_compact = enabled;
+        self.auto_compact_policy = policy;
+        self
+    }
+
+    #[must_use]
+    pub fn with_session_context(
+        mut self,
+        context_window_auto: bool,
+        context_window_tokens: u32,
+    ) -> Self {
+        self.session_context_window_auto = context_window_auto;
+        self.session_context_window_tokens = context_window_tokens;
+        self
+    }
+
+    pub(super) fn effective_context_window_tokens(&self, model: &ModelConfig) -> u32 {
+        if !self.session_context_window_auto && self.session_context_window_tokens > 0 {
+            self.session_context_window_tokens
+        } else {
+            anycode_llm::capabilities_for_model_config(model).context_tokens
         }
     }
 
@@ -263,6 +306,7 @@ impl AgentRuntime {
         task_id: TaskId,
         logger: &RunLogger,
     ) -> Result<LLMResponse, CoreError> {
+        let messages = crate::reply_language::inject_ephemeral_reply_language_reminder(messages);
         match self
             .llm_client
             .chat(messages.clone(), tools.clone(), primary)
@@ -355,8 +399,10 @@ impl AgentRuntime {
     }
 
     fn model_for_task(&self, agent_type: &AgentType) -> &ModelConfig {
+        let canonical = canonical_agent_type(agent_type);
         self.model_overrides
             .get(agent_type)
+            .or_else(|| self.model_overrides.get(&canonical))
             .unwrap_or(&self.default_model_config)
     }
 
@@ -369,13 +415,9 @@ impl AgentRuntime {
     }
 
     fn runtime_mode_for_agent(agent_type: &AgentType) -> RuntimeMode {
-        match agent_type.as_str() {
-            "plan" => RuntimeMode::Plan,
-            "explore" => RuntimeMode::Explore,
-            "workspace-assistant" | "channel" => RuntimeMode::Channel,
-            "goal" => RuntimeMode::Goal,
-            _ => RuntimeMode::Code,
-        }
+        crate::agent_profiles::runtime_mode_for_extends(&crate::agent_profiles::normalize_agent_id(
+            agent_type.as_str(),
+        ))
     }
 
     /// 构建 TUI 会话使用的初始 `system` 消息（不注入 memory，避免引入额外不确定性）。
@@ -385,8 +427,10 @@ impl AgentRuntime {
         working_directory: &str,
     ) -> Result<Message, CoreError> {
         let agents = self.agents.read().await;
+        let canonical = canonical_agent_type(agent_type);
         let agent = agents
-            .get(agent_type)
+            .get(&canonical)
+            .or_else(|| agents.get(agent_type))
             .ok_or_else(|| CoreError::AgentNotFound(Uuid::new_v4()))?;
 
         let prompt = self.build_system_prompt(agent, working_directory, None)?;
@@ -411,8 +455,10 @@ impl AgentRuntime {
             .await?;
         let mode = {
             let agents = self.agents.read().await;
+            let canonical = canonical_agent_type(agent_type);
             let agent = agents
-                .get(agent_type)
+                .get(&canonical)
+                .or_else(|| agents.get(agent_type))
                 .ok_or_else(|| CoreError::AgentNotFound(Uuid::new_v4()))?;
             agent.runtime_mode()
         };

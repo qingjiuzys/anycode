@@ -29,8 +29,10 @@ mod openai_compat_stream;
 mod provider_catalog;
 mod providers;
 mod retry_strategy;
+mod runtime_capabilities;
 mod secret_store;
 mod sse_data_lines;
+mod tool_call_normalizer;
 mod vision_format;
 mod whisper_model_fetch;
 
@@ -45,10 +47,12 @@ pub use chat_model_ref::{
     ChatModelResolution, ChatModelResolutionReason, ChatModelResolutionSource, ModelCatalogEntry,
 };
 pub use cloud_session::{
-    account_api_url, cloud_portal_url, cloud_session_path, default_gateway_chat_url,
-    read_cloud_access_token, read_cloud_session, refresh_cloud_access_token, resolve_gateway_host,
-    write_cloud_session, CloudSessionFile, DEFAULT_ACCOUNT_API, DEFAULT_CLOUD_PORTAL,
-    DEFAULT_GATEWAY_HOST,
+    account_api_url, clear_cloud_session, cloud_portal_url, cloud_session_path,
+    default_gateway_chat_url, direct_agnes_fallback_for_cloud_model, gateway_chat_url_reachable,
+    gateway_host_reachable, read_cloud_access_token, read_cloud_session,
+    refresh_cloud_access_token, resolve_anycode_cloud_endpoint, resolve_gateway_host,
+    write_cloud_session, CloudSessionFile, DirectAgnesFallback, ResolvedCloudEndpoint,
+    AGNES_DIRECT_CHAT_URL, DEFAULT_ACCOUNT_API, DEFAULT_CLOUD_PORTAL, DEFAULT_GATEWAY_HOST,
 };
 pub use config_file::{
     default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,
@@ -94,6 +98,12 @@ pub use retry_strategy::{
     is_retryable_status as retry_is_retryable_status, retry_delay_ms as retry_strategy_delay_ms,
     ErrorCategory, JitterRetryStrategy, ProviderRetryConfig, RetryConfig, RetryStrategy,
 };
+pub use runtime_capabilities::{
+    capabilities_for_model_config, explicitly_requests_tool_execution, has_tool_recovery_nudge,
+    is_first_agent_turn, resolve_runtime_model_capabilities, RuntimeModelCapabilities,
+    TOOL_RECOVERY_NUDGE, TOOL_RECOVERY_NUDGE_FORCE_GLOB, WEAK_LOCAL_TOOL_GUIDANCE,
+};
+pub use tool_call_normalizer::normalize_assistant_output;
 
 // ============================================================================
 // anyCode 多模型门面
@@ -113,6 +123,30 @@ pub struct ProviderConfig {
     pub zai_tool_choice_first_turn: bool,
 }
 
+/// Align per-turn [`ModelConfig`] with anyCode Cloud gateway / direct-Agnes fallback.
+pub fn apply_anycode_cloud_model_config(cfg: ModelConfig) -> Result<ModelConfig, CoreError> {
+    let LLMProvider::Custom(ref provider) = cfg.provider else {
+        return Ok(cfg);
+    };
+    if normalize_provider_id(provider) != "anycode_cloud" {
+        return Ok(cfg);
+    }
+
+    let resolved = cloud_session::resolve_anycode_cloud_endpoint(
+        &cfg.model,
+        cfg.base_url.as_deref(),
+        cfg.api_key.as_deref(),
+    )
+    .map_err(CoreError::LLMError)?;
+
+    let mut out = cfg;
+    out.provider = LLMProvider::Custom(resolved.provider);
+    out.model = resolved.model;
+    out.base_url = Some(resolved.base_url);
+    out.api_key = Some(resolved.api_key);
+    Ok(out)
+}
+
 /// OpenAI Chat Completions 兼容客户端（内部为 [`ZaiClient`]）。
 pub fn build_zai_openai_stack_client(
     cfg: &ProviderConfig,
@@ -120,17 +154,18 @@ pub fn build_zai_openai_stack_client(
     let norm = normalize_provider_id(&cfg.provider);
     let mut effective = cfg.clone();
     if norm == "anycode_cloud" {
-        if effective.api_key.trim().is_empty() {
-            effective.api_key = cloud_session::read_cloud_access_token().ok_or_else(|| {
-                CoreError::LLMError(
-                    "anyCode Cloud：请运行 `anycode auth login` 并完成设备关联".to_string(),
-                )
-            })?;
-        }
-        if effective.base_url.is_none() {
-            effective.base_url = Some(cloud_session::default_gateway_chat_url());
-        }
+        let resolved = cloud_session::resolve_anycode_cloud_endpoint(
+            &effective.model,
+            effective.base_url.as_deref(),
+            Some(effective.api_key.as_str()).filter(|s| !s.is_empty()),
+        )
+        .map_err(CoreError::LLMError)?;
+        effective.provider = resolved.provider;
+        effective.model = resolved.model;
+        effective.base_url = Some(resolved.base_url);
+        effective.api_key = resolved.api_key;
     }
+    let norm = normalize_provider_id(&effective.provider);
     match transport_for_provider_id(&norm) {
         LlmTransport::OpenAiChatCompletions => {
             let mut client = providers::zai::ZaiClient::new(

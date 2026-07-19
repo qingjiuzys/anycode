@@ -116,7 +116,12 @@ export function ModelCatalogBrowser({ catalog, onAdd }: Props) {
                     provider,
                     model: m.id,
                     display_name: m.label,
-                    capabilities: capFilter ? [capFilter] : ["chat"],
+                    capabilities:
+                      m.capabilities && m.capabilities.length > 0
+                        ? m.capabilities
+                        : capFilter
+                          ? [capFilter]
+                          : ["chat"],
                     enabled: true,
                     source: "catalog",
                   })

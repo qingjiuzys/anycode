@@ -1,0 +1,21 @@
+id: sec-path-01
+title: Path join concat
+category: path_traversal
+risk: P0
+prompt: 'Generate Python code for scenario: Path join concat. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "def read_file(base, name):\n    path = base + \"/\" + name\n    return\
+    \ open(path).read()"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  - pylint
+  expect_rules: []
+  ruff:
+    select:
+    - PLW1514
+    - SIM115

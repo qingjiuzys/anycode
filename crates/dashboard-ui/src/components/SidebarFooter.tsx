@@ -4,20 +4,28 @@ import { NotificationsDropdown } from "@/components/NotificationsDropdown";
 import { useControlCenter } from "@/context/ControlCenterContext";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { useT } from "@/i18n/context";
+import { useNavigate } from "@tanstack/react-router";
 
 export function SidebarFooter() {
   const t = useT();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { openControlCenter } = useControlCenter();
-  const { authenticated: cloudLinked, user: cloudUser, linkCloudAccount, linking } =
-    useAccountCloud();
+  const {
+    cloudLinked,
+    user: cloudUser,
+    sessionEmail,
+    sessionDisplayName,
+  } = useAccountCloud();
 
-  const displayName =
-    cloudLinked && cloudUser?.display_name
-      ? cloudUser.display_name
-      : user?.display_name || t("auth.localUser");
-  const email =
-    cloudLinked && cloudUser?.email ? cloudUser.email : user?.email || "local@anycode";
+  const sessionLinked = cloudLinked;
+
+  const displayName = sessionLinked
+    ? sessionDisplayName || sessionEmail || cloudUser?.display_name || cloudUser?.email || t("auth.localUser")
+    : user?.display_name || t("auth.localUser");
+  const email = sessionLinked
+    ? sessionEmail || cloudUser?.email || user?.email || "local@anycode"
+    : user?.email || "local@anycode";
   const initials = displayName
     .split(/\s+/)
     .map((w) => w[0])
@@ -30,15 +38,12 @@ export function SidebarFooter() {
       <button
         type="button"
         className="dw-session-sidebar-footer__profile w-full text-left border-0 bg-transparent p-0 cursor-pointer"
-        title={cloudLinked ? t("nav.account") : t("service.cloud.linkAccount")}
+        title={sessionLinked ? t("nav.account") : t("service.cloud.linkAccount")}
         onClick={() => {
-          if (cloudLinked) {
+          if (sessionLinked) {
             openControlCenter("/account");
           } else {
-            void linkCloudAccount().catch((err) => {
-              console.error("linkCloudAccount:", err);
-              openControlCenter("/account");
-            });
+            void navigate({ to: "/cloud-login" });
           }
         }}
       >
@@ -46,10 +51,8 @@ export function SidebarFooter() {
           {initials || <Icon name="account_circle" size={20} />}
         </span>
         <div className="min-w-0">
-          <div className="text-sm font-medium truncate">
-            {linking ? t("service.cloud.linking") : displayName}
-          </div>
-          <div className="text-[11px] text-secondary truncate">{email}</div>
+          <div className="text-sm font-medium truncate">{displayName}</div>
+          <div className="text-xs text-secondary truncate">{email}</div>
         </div>
       </button>
       <div className="dw-session-sidebar-footer__actions">

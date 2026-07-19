@@ -11,14 +11,17 @@ mod model_instructions;
 mod nested_model;
 pub mod plugins;
 mod prompt_assembler;
+mod prompt_catalog;
+mod reply_language;
 mod runtime;
 mod system_prompt;
 mod workspace_assistant;
 
 pub use agent_profiles::{
-    apply_tool_filters, base_tools_for_extends, is_builtin_extends, profile_spec_for_builtin,
-    resolve_profile, runtime_mode_for_extends, AgentProfileSpec, BuiltinAgentSeed,
-    ResolvedAgentProfile, BUILTIN_AGENT_SEED, BUILTIN_EXTENDS, SHIPPED_ROLE_IDS,
+    apply_tool_filters, base_tools_for_extends, is_builtin_extends, is_known_agent_id,
+    normalize_agent_id, profile_spec_for_builtin, resolve_profile, runtime_mode_for_extends,
+    AgentProfileSpec, BuiltinAgentSeed, ResolvedAgentProfile, BUILTIN_AGENT_SEED, BUILTIN_EXTENDS,
+    DEPRECATED_AGENT_ALIASES, SHIPPED_ROLE_IDS,
 };
 pub use agents::{ExploreAgent, GeneralPurposeAgent, PlanAgent};
 pub use compact::{
@@ -32,7 +35,10 @@ pub use model_instructions::{
     DEFAULT_MODEL_INSTRUCTIONS_FILENAME, MODEL_INSTRUCTIONS_FILENAMES,
 };
 pub use plugins::{load_builtin_plugins, load_plugins, set_plugin_enabled, PluginManifest};
-pub use prompt_assembler::{render_system_prompt_segments, PromptAssembler, SystemPromptSegment};
+pub use prompt_assembler::{
+    compose_runtime_system_segments, render_system_prompt_segments, PromptAssembler,
+    SystemPromptSegment,
+};
 pub use runtime::{
     failover::{error_triggers_failover, FailoverPolicy},
     AgentClaudeToolGating, AgentRuntime, RuntimeCoreDeps, RuntimeMemoryOptions, RuntimeToolPolicy,

@@ -14,12 +14,16 @@ pub fn register_inprocess_bus(bus: Arc<EventBus>) {
     let _ = INPROCESS_BUS.set(bus);
 }
 
+/// In-process publishing is used whenever an event bus has been registered
+/// (embedded Workbench). The env var remains a legacy opt-in for processes
+/// that register the bus lazily.
 #[must_use]
 fn inprocess_events_enabled() -> bool {
-    matches!(
-        std::env::var("ANYCODE_DASHBOARD_INPROCESS_EVENTS").as_deref(),
-        Ok("1") | Ok("true") | Ok("on")
-    )
+    INPROCESS_BUS.get().is_some()
+        || matches!(
+            std::env::var("ANYCODE_DASHBOARD_INPROCESS_EVENTS").as_deref(),
+            Ok("1") | Ok("true") | Ok("on")
+        )
 }
 
 /// Whether to POST publish notifications after local SQLite insert.

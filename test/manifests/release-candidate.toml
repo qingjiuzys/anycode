@@ -1,0 +1,91 @@
+[profile]
+id = "release-candidate"
+max_duration_minutes = 120
+tier = ["release-candidate", "full"]
+
+[[profile.cases]]
+id = "rust-fmt-check"
+suite = "static"
+risk = "P1"
+runner = "static"
+command = "cargo fmt --all -- --check"
+timeout_seconds = 120
+
+[[profile.cases]]
+id = "rust-clippy"
+suite = "static"
+risk = "P1"
+runner = "static"
+command = "ANYCODE_BUILD_DASHBOARD_UI=1 ./scripts/build-dashboard-ui.sh && cargo clippy --workspace --all-targets"
+timeout_seconds = 2400
+
+[[profile.cases]]
+id = "rust-workspace-test"
+suite = "rust"
+risk = "P0"
+runner = "cargo"
+command = "cargo test --workspace"
+timeout_seconds = 2400
+[profile.cases.meta]
+build_dashboard_ui = true
+
+[[profile.cases]]
+id = "rust-tools-lsp-mcp"
+suite = "rust"
+risk = "P1"
+runner = "cargo"
+command = "cargo test -p anycode-tools --features tools-lsp && cargo test -p anycode-tools --features tools-mcp"
+timeout_seconds = 900
+
+[[profile.cases]]
+id = "rust-tools-browser"
+suite = "browser"
+risk = "P1"
+runner = "cargo"
+command = "cargo test -p anycode-browser && cargo test -p anycode-tools --features tools-browser"
+timeout_seconds = 600
+
+[[profile.cases]]
+id = "dashboard-ui-vitest"
+suite = "dashboard"
+risk = "P0"
+runner = "npm"
+command = "npm test"
+timeout_seconds = 300
+[profile.cases.meta]
+workdir = "crates/dashboard-ui"
+
+[[profile.cases]]
+id = "playwright-e2e-core"
+suite = "dashboard"
+risk = "P0"
+runner = "playwright"
+timeout_seconds = 1200
+[profile.cases.meta]
+spec = "e2e/acceptance.spec.ts e2e/v3-api.spec.ts e2e/conversation-streaming.spec.ts e2e/v3-week3-api.spec.ts e2e/v3-week4-api.spec.ts e2e/v3-week5-api.spec.ts e2e/v3-week6-api.spec.ts e2e/control-center.spec.ts e2e/settings-gates.spec.ts"
+
+[[profile.cases]]
+id = "account-service-test"
+suite = "account"
+risk = "P0"
+runner = "cargo"
+command = "cargo test --all-targets"
+timeout_seconds = 600
+[profile.cases.meta]
+workdir = "crates/account-service"
+
+[[profile.cases]]
+id = "risk-catalog-gate"
+suite = "risk"
+risk = "P0"
+runner = "static"
+command = "python3 test/runner/risk_gate.py"
+timeout_seconds = 60
+
+[[profile.cases]]
+id = "coverage-snapshot"
+suite = "coverage"
+risk = "P1"
+runner = "static"
+command = "./scripts/test-coverage.sh test/results/.rc-coverage"
+timeout_seconds = 3600

@@ -134,72 +134,107 @@ pub async fn list_recent_notifications(
         .collect())
 }
 
+fn audit_filter_where(
+    project_id: Option<&str>,
+    action: Option<&str>,
+    risk: Option<&str>,
+) -> (String, bool, bool, bool) {
+    let mut sql = String::from("WHERE source = ?");
+    let has_project = project_id.filter(|s| !s.is_empty()).is_some();
+    let has_action = action.filter(|s| !s.is_empty()).is_some();
+    let has_risk = risk.filter(|s| !s.is_empty()).is_some();
+    if has_project {
+        sql.push_str(" AND json_extract(metadata_json, '$.project_id') = ?");
+    }
+    if has_action {
+        sql.push_str(" AND event_type = ?");
+    }
+    if has_risk {
+        sql.push_str(" AND json_extract(metadata_json, '$.risk') = ?");
+    }
+    (sql, has_project, has_action, has_risk)
+}
+
+fn row_to_audit_record(row: &sqlx::sqlite::SqliteRow) -> Option<AuditRecord> {
+    let metadata_json: String = row.get("metadata_json");
+    let meta: Value = serde_json::from_str(&metadata_json).ok()?;
+    Some(AuditRecord {
+        id: row.get("id"),
+        project_id: meta
+            .get("project_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        session_id: meta
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        actor: meta
+            .get("actor")
+            .and_then(|v| v.as_str())
+            .unwrap_or("local")
+            .to_string(),
+        action: row.get("event_type"),
+        risk: meta
+            .get("risk")
+            .and_then(|v| v.as_str())
+            .unwrap_or("low")
+            .to_string(),
+        detail: meta.get("detail").cloned().unwrap_or(Value::Null),
+        created_at: row.get("created_at"),
+    })
+}
+
 pub async fn list_audit_events(
     db: &DashboardDb,
     project_id: Option<&str>,
     action: Option<&str>,
     risk: Option<&str>,
     limit: i64,
-) -> Result<Vec<AuditRecord>> {
-    let mut sql = String::from(
+    offset: i64,
+) -> Result<(Vec<AuditRecord>, i64)> {
+    let limit = limit.clamp(1, 200);
+    let offset = offset.max(0);
+    let (where_sql, has_project, has_action, has_risk) =
+        audit_filter_where(project_id, action, risk);
+
+    let count_sql = format!("SELECT COUNT(*) AS cnt FROM auth_events {where_sql}");
+    let mut count_q = sqlx::query(&count_sql).bind(AUDIT_SOURCE);
+    if has_project {
+        count_q = count_q.bind(project_id.filter(|s| !s.is_empty()).unwrap());
+    }
+    if has_action {
+        count_q = count_q.bind(action.filter(|s| !s.is_empty()).unwrap());
+    }
+    if has_risk {
+        count_q = count_q.bind(risk.filter(|s| !s.is_empty()).unwrap());
+    }
+    let total: i64 = count_q.fetch_one(db.pool()).await?.get("cnt");
+
+    let list_sql = format!(
         r#"
         SELECT id, event_type, metadata_json, created_at
         FROM auth_events
-        WHERE source = ?
-        "#,
+        {where_sql}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+        "#
     );
-    if project_id.filter(|s| !s.is_empty()).is_some() {
-        sql.push_str(" AND json_extract(metadata_json, '$.project_id') = ?");
+    let mut list_q = sqlx::query(&list_sql).bind(AUDIT_SOURCE);
+    if has_project {
+        list_q = list_q.bind(project_id.filter(|s| !s.is_empty()).unwrap());
     }
-    if action.filter(|s| !s.is_empty()).is_some() {
-        sql.push_str(" AND event_type = ?");
+    if has_action {
+        list_q = list_q.bind(action.filter(|s| !s.is_empty()).unwrap());
     }
-    if risk.filter(|s| !s.is_empty()).is_some() {
-        sql.push_str(" AND json_extract(metadata_json, '$.risk') = ?");
+    if has_risk {
+        list_q = list_q.bind(risk.filter(|s| !s.is_empty()).unwrap());
     }
-    sql.push_str(" ORDER BY created_at DESC LIMIT ?");
-    let mut q = sqlx::query(&sql).bind(AUDIT_SOURCE);
-    if let Some(pid) = project_id.filter(|s| !s.is_empty()) {
-        q = q.bind(pid);
-    }
-    if let Some(act) = action.filter(|s| !s.is_empty()) {
-        q = q.bind(act);
-    }
-    if let Some(r) = risk.filter(|s| !s.is_empty()) {
-        q = q.bind(r);
-    }
-    let rows = q.bind(limit).fetch_all(db.pool()).await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| {
-            let metadata_json: String = row.get("metadata_json");
-            let meta: Value = serde_json::from_str(&metadata_json).ok()?;
-            Some(AuditRecord {
-                id: row.get("id"),
-                project_id: meta
-                    .get("project_id")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string),
-                session_id: meta
-                    .get("session_id")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string),
-                actor: meta
-                    .get("actor")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("local")
-                    .to_string(),
-                action: row.get("event_type"),
-                risk: meta
-                    .get("risk")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("low")
-                    .to_string(),
-                detail: meta.get("detail").cloned().unwrap_or(Value::Null),
-                created_at: row.get("created_at"),
-            })
-        })
-        .collect())
+    let rows = list_q.bind(limit).bind(offset).fetch_all(db.pool()).await?;
+    let events = rows
+        .iter()
+        .filter_map(row_to_audit_record)
+        .collect::<Vec<_>>();
+    Ok((events, total))
 }
 
 pub fn policy_summary(host: &str, port: u16) -> crate::schema::PolicySummary {
@@ -253,16 +288,51 @@ mod tests {
         )
         .await
         .unwrap();
-        let all = list_audit_events(&db, None, None, None, 10).await.unwrap();
+        let (all, total) = list_audit_events(&db, None, None, None, 10, 0)
+            .await
+            .unwrap();
         assert_eq!(all.len(), 2);
-        let filtered = list_audit_events(&db, Some("proj_a"), None, None, 10)
+        assert_eq!(total, 2);
+        let (filtered, filtered_total) = list_audit_events(&db, Some("proj_a"), None, None, 10, 0)
             .await
             .unwrap();
         assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered_total, 1);
         assert_eq!(filtered[0].action, "project_reindex_requested");
-        let by_action = list_audit_events(&db, None, Some("dashboard_started"), None, 10)
+        let (by_action, _) = list_audit_events(&db, None, Some("dashboard_started"), None, 10, 0)
             .await
             .unwrap();
         assert_eq!(by_action.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn audit_pagination_offset_and_total() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("audit-page.db"))
+            .await
+            .unwrap();
+        for i in 0..5 {
+            record_audit(
+                &db,
+                AuditEventInput::low(format!("audit_page_event_{i}"), json!({ "i": i })),
+            )
+            .await
+            .unwrap();
+        }
+        let (page1, total) = list_audit_events(&db, None, None, None, 2, 0)
+            .await
+            .unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(page1.len(), 2);
+        let (page2, total2) = list_audit_events(&db, None, None, None, 2, 2)
+            .await
+            .unwrap();
+        assert_eq!(total2, 5);
+        assert_eq!(page2.len(), 2);
+        assert_ne!(page1[0].id, page2[0].id);
+        let (page3, _) = list_audit_events(&db, None, None, None, 2, 4)
+            .await
+            .unwrap();
+        assert_eq!(page3.len(), 1);
     }
 }

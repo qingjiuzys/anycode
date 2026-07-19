@@ -129,6 +129,9 @@ pub struct Usage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StreamEvent {
     Delta(String),
+    /// Thinking/reasoning chain (DeepSeek/GLM). Runtime stores on assistant metadata
+    /// and providers must echo it as `reasoning_content` after tool turns.
+    Reasoning(String),
     ToolCall(ToolCall),
     Usage(Usage),
     Done,

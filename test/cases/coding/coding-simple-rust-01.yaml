@@ -1,0 +1,23 @@
+id: coding-simple-rust-01
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- Implement the simple rust task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: cargo_test_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 600
+fixture: coding/simple-rust
+complexity: simple
+meta:
+  language: rust

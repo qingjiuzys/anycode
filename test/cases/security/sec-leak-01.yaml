@@ -1,0 +1,18 @@
+id: sec-leak-01
+title: Read without context manager
+category: resource_leak
+risk: P1
+prompt: 'Generate Python code for scenario: Read without context manager. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def read_lines(path):\n    f = open(path)\n    data = f.read()\n    return\
+    \ data.splitlines()"
+validation:
+  mode: must_detect
+  tools:
+  - ruff
+  expect_rules: []
+  ruff:
+    select:
+    - SIM115

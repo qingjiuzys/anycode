@@ -35,7 +35,36 @@ pub async fn dispatch_web_chat_prompt(
         if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
             return Err((StatusCode::BAD_REQUEST, e.to_string()));
         }
+        if !imgs.is_empty() {
+            match crate::control::vision_payload::active_chat_supports_vision() {
+                Ok(false) => {
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        "Active chat model does not support vision. Attach images only when the \
+                         current chat model has the vision capability, or switch models in Settings."
+                            .into(),
+                    ));
+                }
+                Err(e) => {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("vision capability check failed: {e}"),
+                    ));
+                }
+                Ok(true) => {}
+            }
+        }
     }
+    if let Some(ref files) = text_files {
+        if let Err(e) = crate::control::text_upload::validate_text_payloads(files) {
+            return Err((StatusCode::BAD_REQUEST, e.to_string()));
+        }
+    }
+    let prompt_for_chat =
+        match crate::control::text_upload::append_to_prompt(prompt_for_chat, text_files) {
+            Ok(p) => p,
+            Err(e) => return Err((StatusCode::BAD_REQUEST, e.to_string())),
+        };
 
     if let Ok(evt) = state
         .db
@@ -61,6 +90,9 @@ pub async fn dispatch_web_chat_prompt(
 
     let embedded = crate::control::chat_runtime::ChatRuntimeHost::enabled();
     let dashboard_url = dashboard_loopback_url(&state.host, state.port);
+    let drain = Some(crate::control::message_queue::QueueDrainContext::new(
+        Arc::new(state.clone()),
+    ));
     let chat_result = if embedded {
         state
             .chat_runtime
@@ -72,10 +104,21 @@ pub async fn dispatch_web_chat_prompt(
                 project_id,
                 root,
                 agent_type,
-                prompt_for_chat,
+                &prompt_for_chat,
+                vision_images,
+                reply_lang,
+                drain,
             )
             .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            .map_err(|e| {
+                if e.downcast_ref::<crate::control::chat_runtime::ChatSendConflict>()
+                    .is_some()
+                {
+                    (StatusCode::CONFLICT, e.to_string())
+                } else {
+                    (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+                }
+            })
     } else {
         state
             .web_chat
@@ -85,7 +128,7 @@ pub async fn dispatch_web_chat_prompt(
                 root,
                 agent_type,
                 &dashboard_url,
-                prompt_for_chat,
+                &prompt_for_chat,
                 vision_images,
                 text_files,
                 reply_lang,
@@ -145,14 +188,16 @@ pub async fn dispatch_web_chat_prompt(
             Ok((session, chat))
         }
         Err((status, message)) => {
-            let _ = state
-                .db
-                .finish_session(
-                    session_id,
-                    "failed",
-                    Some(&format!("Failed to start task: {message}")),
-                )
-                .await;
+            if status != StatusCode::BAD_REQUEST && status != StatusCode::CONFLICT {
+                let _ = state
+                    .db
+                    .finish_session(
+                        session_id,
+                        "failed",
+                        Some(&format!("Failed to start task: {message}")),
+                    )
+                    .await;
+            }
             Err((status, message))
         }
     }

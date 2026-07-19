@@ -1,5 +1,6 @@
 import type { ModelUsageRow } from "@/api/types";
 import { useT } from "@/i18n/context";
+import { formatMoney } from "@/lib/money";
 
 export function ModelUsageTable({ rows }: { rows: ModelUsageRow[] }) {
   const t = useT();
@@ -31,7 +32,9 @@ export function ModelUsageTable({ rows }: { rows: ModelUsageRow[] }) {
               <td className="py-2 px-3 font-mono">{row.model}</td>
               <td className="py-2 px-3 text-right tabular-nums">{row.llm_calls}</td>
               <td className="py-2 px-3 text-right tabular-nums">{formatTokens(row.total_tokens)}</td>
-              <td className="py-2 px-3 text-right tabular-nums">${row.estimated_cost_usd.toFixed(2)}</td>
+              <td className="py-2 px-3 text-right tabular-nums">
+                {formatMoney(row.estimated_cost_cny)}
+              </td>
             </tr>
           ))}
         </tbody>

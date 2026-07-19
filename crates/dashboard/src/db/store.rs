@@ -55,6 +55,7 @@ mod artifacts;
 mod chat_turn_events;
 mod events;
 mod gates;
+pub(crate) mod message_queue;
 mod open;
 mod projects;
 mod services;

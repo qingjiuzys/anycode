@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { AnalyticsBlock, KpiMetricGrid } from "@/components/KpiMetricGrid";
 import { useT } from "@/i18n/context";
+import { formatMoney } from "@/lib/money";
 
 export function HomeSavedHoursKpi() {
   const t = useT();
@@ -37,7 +38,7 @@ export function HomeSavedHoursKpi() {
           },
           {
             label: t("home.savedHoursValue"),
-            value: `$${k.estimated_value_usd.toFixed(0)}`,
+            value: formatMoney(k.estimated_value_cny, undefined, { maximumFractionDigits: 0 }),
             highlight: true,
           },
         ]}

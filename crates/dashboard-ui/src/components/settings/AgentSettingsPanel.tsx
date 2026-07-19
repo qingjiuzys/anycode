@@ -134,17 +134,17 @@ function ProfileRow({
   return (
     <tr>
       <td>
-        <code className="font-code text-xs">{profile.id}</code>
+        <code className="font-code text-[13px]">{profile.id}</code>
       </td>
-      <td className="font-code text-xs text-secondary">{profile.extends}</td>
+      <td className="font-code text-[13px] text-secondary">{profile.extends}</td>
       <td>{profile.description || "—"}</td>
       <td className="text-right">
         {!readonly && (
           <div className="flex justify-end gap-2">
-            <button type="button" className="dw-btn-ghost text-xs" onClick={onEdit}>
+            <button type="button" className="dw-btn-ghost text-[13px]" onClick={onEdit}>
               {t("common.details")}
             </button>
-            <button type="button" className="dw-btn-ghost text-xs text-error" onClick={onDelete}>
+            <button type="button" className="dw-btn-ghost text-[13px] text-error" onClick={onDelete}>
               {t("common.delete")}
             </button>
           </div>

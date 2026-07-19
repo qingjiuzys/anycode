@@ -3,26 +3,34 @@ import type { GlobalTimelineMetrics } from "@/api/types";
 import { useSkin } from "@/hooks/useSkin";
 import { useT } from "@/i18n/context";
 import { chartPalette } from "@/lib/chartTheme";
+import { fillHomeTimelineDays } from "@/lib/fillTimelineDays";
 
 export function HomeTimelineChart({
   timeline,
   tall,
+  days = 7,
 }: {
   timeline?: GlobalTimelineMetrics;
   tall?: boolean;
+  days?: number;
 }) {
   const t = useT();
   const { skin } = useSkin();
   const palette = chartPalette();
+  const filled = fillHomeTimelineDays(timeline, days);
+  const hasActivity = filled?.points.some(
+    (p) => p.sessions_count > 0 || p.events_count > 0 || p.gates_failed > 0,
+  );
 
-  if (!timeline || timeline.points.length === 0) {
+  if (!filled || !hasActivity) {
     return <p className="text-sm text-secondary px-4 py-6 m-0">{t("charts.noTimeline")}</p>;
   }
 
-  const dates = timeline.points.map((p) => p.date.slice(5));
-  const sessions = timeline.points.map((p) => p.sessions_count);
-  const events = timeline.points.map((p) => p.events_count);
-  const trend = timeline.trust_trend_pct;
+  const dates = filled.points.map((p) => p.date.slice(5));
+  const sessions = filled.points.map((p) => p.sessions_count);
+  const events = filled.points.map((p) => p.events_count);
+  const trend = filled.trust_trend_pct;
+  const showAllLabels = days <= 14;
 
   const option = {
     backgroundColor: "transparent",
@@ -31,28 +39,38 @@ export function HomeTimelineChart({
       data: [t("charts.sessions"), t("charts.events")],
       textStyle: { color: palette.secondary },
     },
-    grid: { left: 40, right: 12, top: 40, bottom: 32 },
+    grid: { left: 40, right: 12, top: 40, bottom: showAllLabels ? 36 : 32 },
     xAxis: {
       type: "category",
       data: dates,
-      axisLabel: { color: palette.outline, fontSize: 10 },
+      axisLabel: {
+        color: palette.outline,
+        fontSize: 10,
+        interval: showAllLabels ? 0 : "auto",
+        hideOverlap: !showAllLabels,
+      },
     },
     yAxis: {
       type: "value",
+      min: 0,
       axisLabel: { color: palette.outline, fontSize: 10 },
+      splitLine: { lineStyle: { opacity: 0.35 } },
     },
     series: [
       {
         name: t("charts.sessions"),
         type: "line",
-        smooth: true,
+        smooth: 0.2,
+        showSymbol: true,
+        symbolSize: 6,
         data: sessions,
         itemStyle: { color: palette.primary },
-        areaStyle: { color: palette.accentMuted },
+        areaStyle: { color: palette.accentMuted, opacity: 0.35 },
       },
       {
         name: t("charts.events"),
         type: "bar",
+        barMaxWidth: 18,
         data: events,
         itemStyle: { color: palette.success, borderRadius: [2, 2, 0, 0] },
       },

@@ -73,12 +73,19 @@ export const governanceClient = {
     action?: string;
     risk?: string;
     limit?: number;
+    offset?: number;
   }) => {
     const q = new URLSearchParams();
-    q.set("limit", String(opts?.limit ?? 100));
+    q.set("limit", String(opts?.limit ?? 50));
+    if (opts?.offset) q.set("offset", String(opts.offset));
     if (opts?.projectId) q.set("project_id", opts.projectId);
     if (opts?.action) q.set("action", opts.action);
     if (opts?.risk) q.set("risk", opts.risk);
-    return get<{ events: AuditRecord[] }>(`/api/audit/events?${q}`);
+    return get<{
+      events: AuditRecord[];
+      total: number;
+      limit: number;
+      offset: number;
+    }>(`/api/audit/events?${q}`);
   },
 };

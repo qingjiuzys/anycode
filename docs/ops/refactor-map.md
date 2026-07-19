@@ -10,7 +10,7 @@ Maintainer guide for moving code without changing behavior.
 - `crates/dashboard`: Digital Workbench backend.
 - `crates/bootstrap`: binary composition root, dispatch, channels, terminal UX.
 - `crates/dashboard-ui`: embedded React UI; shared UI in `src/components/ui`.
-- `docs` / `docs-site` / `scripts`: as before.
+- `docs` / `docs/user` / `scripts`: as before.
 
 ## Completed (2026-05)
 

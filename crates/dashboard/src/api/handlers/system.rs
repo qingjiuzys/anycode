@@ -54,6 +54,37 @@ pub async fn get_overview(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
+#[derive(Deserialize)]
+pub struct OverviewBriefingQuery {
+    #[serde(default = "default_briefing_days")]
+    pub days: u32,
+    #[serde(default = "default_briefing_lang")]
+    pub lang: String,
+}
+
+fn default_briefing_days() -> u32 {
+    7
+}
+
+fn default_briefing_lang() -> String {
+    "zh".into()
+}
+
+/// Generate overview「汇报」with dedicated briefing prompts (LLM, template fallback).
+pub async fn post_overview_briefing(
+    State(state): State<AppState>,
+    Query(q): Query<OverviewBriefingQuery>,
+) -> impl IntoResponse {
+    match crate::overview_briefing::generate_overview_briefing(&state.db, q.days, &q.lang).await {
+        Ok(briefing) => Json(json!({ "briefing": briefing })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn get_bootstrap(State(state): State<AppState>) -> impl IntoResponse {
     match crate::bootstrap::bootstrap_summary(&state.db, &state.workspace_paths).await {
         Ok(summary) => Json(json!({ "bootstrap": summary })).into_response(),

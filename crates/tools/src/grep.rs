@@ -1,5 +1,5 @@
 use crate::limits::GREP_MAX_JSON_LINES;
-use crate::paths::resolve_path_fields;
+use crate::paths::resolve_read_path_fields;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -73,7 +73,7 @@ impl Tool for GrepTool {
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
 
         let path_arg = g.path.unwrap_or_else(|| ".".to_string());
-        let root = resolve_path_fields(self.sandbox_mode, sandbox_in, wd, &path_arg)?;
+        let root = resolve_read_path_fields(self.sandbox_mode, sandbox_in, wd, &path_arg)?;
         let pat = g.pattern.clone();
         let root_m = root.clone();
 

@@ -48,6 +48,7 @@ impl SubAgentExecutor for AgentRuntime {
                 user_vision_images: vec![],
                 budget: nested_budget_from_env(),
                 loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
+                chat_turn: anycode_core::current_chat_turn(),
             },
             created_at: chrono::Utc::now(),
         };
@@ -63,8 +64,8 @@ fn nested_budget_from_env() -> TaskBudget {
             .or_else(|_| std::env::var("ANYCODE_TASK_TOKEN_BUDGET"))
             .ok()
             .and_then(|v| v.parse::<u32>().ok()),
-        cost_budget_usd: std::env::var("ANYCODE_NESTED_COST_BUDGET_USD")
-            .or_else(|_| std::env::var("ANYCODE_TASK_COST_BUDGET_USD"))
+        cost_budget_cny: std::env::var("ANYCODE_NESTED_COST_BUDGET_CNY")
+            .or_else(|_| std::env::var("ANYCODE_TASK_COST_BUDGET_CNY"))
             .ok()
             .and_then(|v| v.parse::<f64>().ok()),
         max_duration_secs: std::env::var("ANYCODE_NESTED_MAX_DURATION_SECS")

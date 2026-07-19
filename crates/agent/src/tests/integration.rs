@@ -104,6 +104,7 @@ async fn test_agent_runtime_tool_loop_injects_tool_result_message() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -238,6 +239,7 @@ async fn execute_task_cooperative_cancel_before_first_llm() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -346,6 +348,7 @@ async fn execute_task_cooperative_cancel_after_tool() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -448,6 +451,7 @@ async fn execute_task_in_flight_llm_cooperative_cancel() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1015,6 +1019,7 @@ async fn test_security_denied_bash_skips_execute_and_logs_tool_denied() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1179,6 +1184,7 @@ async fn test_security_denied_filewrite_silent_approval_skips_execute() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1316,6 +1322,7 @@ async fn test_tool_result_truncation_is_logged() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1448,6 +1455,7 @@ async fn test_filewrite_artifact_is_returned() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1628,6 +1636,7 @@ async fn execute_task_pipeline_hooks_ingest_tool_and_turn_fragments() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1865,6 +1874,7 @@ async fn execute_task_success_triggers_memory_autosave_when_enabled() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -1897,4 +1907,292 @@ fn goal_engine_max_attempts_cap_stops_even_when_infinite_retries() {
     assert!(!engine.should_continue(&p));
     p.attempts = 1;
     assert!(engine.should_continue(&p));
+}
+
+struct CoreReadTool;
+
+#[async_trait]
+impl Tool for CoreReadTool {
+    fn name(&self) -> &str {
+        "FileRead"
+    }
+
+    fn description(&self) -> &str {
+        "test core read"
+    }
+
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({"type":"object","properties":{"path":{"type":"string"}}})
+    }
+
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Auto
+    }
+
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        None
+    }
+
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        Ok(ToolOutput {
+            result: serde_json::json!({"read": input.input}),
+            error: None,
+            duration_ms: 1,
+        })
+    }
+}
+
+fn response(text: &str, tool_calls: Vec<ToolCall>, input_tokens: u32) -> LLMResponse {
+    LLMResponse {
+        message: msg_text(MessageRole::Assistant, text),
+        tool_calls,
+        usage: Usage {
+            input_tokens,
+            output_tokens: 4,
+            cache_creation_tokens: None,
+            cache_read_tokens: None,
+        },
+    }
+}
+
+fn read_call(id: &str) -> ToolCall {
+    ToolCall {
+        id: id.into(),
+        name: "FileRead".into(),
+        input: serde_json::json!({"path":"Cargo.toml"}),
+    }
+}
+
+fn local_runtime(
+    responses: Vec<LLMResponse>,
+    auto_compact: bool,
+) -> (AgentRuntime, Arc<MockLLM>, DiskTaskOutput) {
+    let temp = tempfile::tempdir().unwrap();
+    let output_root = temp.keep();
+    let disk = DiskTaskOutput::new(output_root);
+    let llm = Arc::new(MockLLM::new(responses));
+    let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+    tools.insert("FileRead".into(), Box::new(CoreReadTool));
+    let runtime = AgentRuntime::new(
+        RuntimeCoreDeps {
+            llm_client: llm.clone(),
+            tools,
+            memory_store: Arc::new(DummyMemoryStore),
+            default_model_config: ModelConfig {
+                provider: LLMProvider::OpenAI,
+                model: "minicpm5-1b".into(),
+                base_url: Some("http://127.0.0.1:47100/v1/chat/completions".into()),
+                ..Default::default()
+            },
+            model_overrides: HashMap::new(),
+            failover_policy: None,
+            disk_output: Some(disk.clone()),
+            security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+            sandbox_mode: false,
+            prompt_config: RuntimePromptConfig::default(),
+        },
+        RuntimeMemoryOptions {
+            memory_pipeline: None,
+            memory_pipeline_settings: None,
+            memory_project_autosave_enabled: false,
+            session_notifications: None,
+        },
+        RuntimeToolPolicy {
+            tool_name_deny: vec![],
+            claude_gating: AgentClaudeToolGating::default(),
+            expose_skill_on_explore_plan: false,
+        },
+    )
+    .with_auto_compact(
+        auto_compact,
+        crate::CompactPolicy {
+            trigger_ratio: 0.75,
+            ..Default::default()
+        },
+    );
+    (runtime, llm, disk)
+}
+
+fn local_task(task_id: TaskId, max_turns: usize) -> Task {
+    Task {
+        id: task_id,
+        agent_type: AgentType::new("general-purpose"),
+        prompt: "请读取 Cargo.toml 并报告结果".into(),
+        context: TaskContext {
+            session_id: Uuid::new_v4(),
+            working_directory: ".".into(),
+            environment: HashMap::new(),
+            user_id: None,
+            system_prompt_append: None,
+            context_injections: vec![],
+            nested_model_override: None,
+            nested_worktree_path: None,
+            nested_worktree_repo_root: None,
+            nested_cancel: None,
+            channel_progress_tx: None,
+            live_trace_tx: None,
+            tool_deny_names: vec![],
+            tool_deny_prefixes: vec![],
+            user_vision_images: vec![],
+            budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits {
+                max_agent_turns: max_turns,
+                max_tool_calls: 8,
+            },
+            chat_turn: None,
+        },
+        created_at: chrono::Utc::now(),
+    }
+}
+
+#[tokio::test]
+async fn weak_local_task_recovers_once_from_first_no_tool_response() {
+    let task_id = Uuid::new_v4();
+    let (runtime, llm, disk) = local_runtime(
+        vec![
+            response("I cannot access files", vec![], 20),
+            response("using tool", vec![read_call("read-1")], 30),
+            response("done", vec![], 40),
+        ],
+        false,
+    );
+    let result = runtime.execute_task(local_task(task_id, 4)).await.unwrap();
+    assert!(matches!(result, TaskResult::Success { ref output, .. } if output == "done"));
+    let calls = llm.call_roles().await;
+    assert_eq!(calls.len(), 3);
+    // Recovery must leave exactly one assistant entry for the recovered
+    // response: no back-to-back duplicate assistant messages in history.
+    let third_call = &calls[2];
+    assert!(
+        !third_call
+            .windows(2)
+            .any(|w| w[0] == MessageRole::Assistant && w[1] == MessageRole::Assistant),
+        "duplicate assistant message in history: {third_call:?}"
+    );
+    let log = disk.tail(task_id, 64 * 1024).unwrap();
+    assert!(log.contains("[tool_recovery] turn=1 attempt=1"));
+    assert!(log.contains("status=completed reason=completed"));
+}
+
+#[tokio::test]
+async fn weak_local_second_no_tool_response_is_structured_refusal() {
+    let task_id = Uuid::new_v4();
+    let (runtime, _llm, disk) = local_runtime(
+        vec![
+            response("cannot", vec![], 20),
+            response("still cannot", vec![], 20),
+            response("still cannot again", vec![], 20),
+        ],
+        false,
+    );
+    let result = runtime.execute_task(local_task(task_id, 4)).await.unwrap();
+    assert!(matches!(
+        result,
+        TaskResult::Failure { ref details, .. }
+            if details.as_deref() == Some("refusal_no_tool")
+    ));
+    assert!(disk
+        .tail(task_id, 64 * 1024)
+        .unwrap()
+        .contains("status=failed reason=refusal_no_tool"));
+}
+
+#[tokio::test]
+async fn max_turns_after_tool_call_is_not_reported_as_success() {
+    let task_id = Uuid::new_v4();
+    let (runtime, _llm, disk) = local_runtime(
+        vec![response("working", vec![read_call("read-1")], 20)],
+        false,
+    );
+    let result = runtime.execute_task(local_task(task_id, 1)).await.unwrap();
+    assert!(matches!(
+        result,
+        TaskResult::Failure { ref details, .. }
+            if details.as_deref().is_some_and(|d| d.starts_with("max_turns"))
+    ));
+    assert!(disk
+        .tail(task_id, 64 * 1024)
+        .unwrap()
+        .contains("status=failed reason=max_turns"));
+}
+
+#[tokio::test]
+async fn proactive_compaction_runs_before_local_context_overflow() {
+    let task_id = Uuid::new_v4();
+    let (runtime, llm, disk) = local_runtime(
+        vec![
+            response("working", vec![read_call("read-1")], 3_200),
+            response(
+                "<analysis>x</analysis><summary>kept tool checkpoint</summary>",
+                vec![],
+                3_300,
+            ),
+            response("done after compact", vec![], 200),
+        ],
+        true,
+    );
+    let result = runtime.execute_task(local_task(task_id, 4)).await.unwrap();
+    assert!(matches!(
+        result,
+        TaskResult::Success { ref output, .. } if output == "done after compact"
+    ));
+    let calls = llm.call_roles().await;
+    // Third model call must exist: turn 1 (tool), compact summary, turn 2.
+    assert_eq!(calls.len(), 3);
+    // Compaction folds history: the post-compact call must be shorter than an
+    // uncompacted transcript would be, and must not carry duplicate
+    // assistant/tool-call pairs.
+    let post_compact_call = &calls[2];
+    assert!(
+        post_compact_call.len() <= 3,
+        "post-compact history should be folded, got {post_compact_call:?}"
+    );
+    assert!(
+        !post_compact_call
+            .windows(2)
+            .any(|w| w[0] == MessageRole::Assistant && w[1] == MessageRole::Assistant),
+        "duplicate assistant message in history: {post_compact_call:?}"
+    );
+    let log = disk.tail(task_id, 64 * 1024).unwrap();
+    assert!(log.contains("[auto_compact] input_tokens=3200 context_tokens=4096 action=start"));
+    assert!(log.contains("[auto_compact] action=completed"));
+}
+
+#[tokio::test]
+async fn continuous_turn_reports_same_max_turns_reason() {
+    let task_id = Uuid::new_v4();
+    let (runtime, _llm, _disk) = local_runtime(
+        vec![
+            response("working", vec![read_call("read-1")], 20),
+            response("PARTIAL_SUMMARY", vec![], 20),
+        ],
+        false,
+    );
+    let messages = Arc::new(Mutex::new(vec![
+        runtime
+            .build_system_message(&AgentType::new("general-purpose"), ".")
+            .await
+            .unwrap(),
+        msg_text(MessageRole::User, "请读取 Cargo.toml"),
+    ]));
+    let output = runtime
+        .execute_turn_from_messages(
+            task_id,
+            &AgentType::new("general-purpose"),
+            messages,
+            ".",
+            None,
+            &[],
+            &[],
+            TaskBudget::default(),
+            AgentLoopLimits {
+                max_agent_turns: 1,
+                max_tool_calls: 8,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(output.termination_reason, TerminationReason::MaxTurns);
+    assert_eq!(output.final_text, "PARTIAL_SUMMARY");
 }

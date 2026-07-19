@@ -46,7 +46,7 @@ export function SettingsDataSection() {
             </p>
             <button
               type="button"
-              className="dw-btn dw-btn-secondary text-sm mb-2"
+              className="dw-btn-secondary text-sm mb-2"
               disabled={backup.isPending}
               onClick={() => backup.mutate()}
             >
@@ -63,9 +63,7 @@ export function SettingsDataSection() {
                 ⚠ {w}
               </p>
             ))}
-            <p className="text-sm text-secondary m-0">
-              Workbench: Settings → Data · DB health and backup via API
-            </p>
+            <p className="text-sm text-secondary m-0">{t("settings.dataOpsHint")}</p>
           </>
         )}
       </SectionCard>

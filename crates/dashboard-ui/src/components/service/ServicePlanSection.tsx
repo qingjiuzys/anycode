@@ -1,6 +1,8 @@
 import { useState } from "react";
-import type { BillingCycle, PlanTier } from "@/api/types/service";
-import { PLAN_CATALOG } from "@/lib/planCatalog";
+import { useQuery } from "@tanstack/react-query";
+import type { BillingCycle, PlanCatalogEntry, PlanTier } from "@/api/types/service";
+import { accountCloud } from "@/api/client/accountCloud";
+import { PLAN_CATALOG, catalogFromApi } from "@/lib/planCatalog";
 import { isDevMockEnabled } from "@/lib/isDevMockEnabled";
 import { CurrentPlanSummary, UpgradeValueCard } from "@/components/service/CurrentPlanSummary";
 import { PlanTierCard } from "@/components/service/PlanTierCard";
@@ -10,11 +12,23 @@ import { useT } from "@/i18n/context";
 
 export function ServicePlanSection() {
   const t = useT();
-  const { entitlements, setPlan } = useAccountCloud();
+  const { entitlements, setPlan, baseUrl } = useAccountCloud();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [pendingTier, setPendingTier] = useState<PlanTier | null>(null);
   const [error, setError] = useState<string | null>(null);
   const devMock = isDevMockEnabled();
+
+  const catalogQuery = useQuery({
+    queryKey: ["plans-catalog", baseUrl],
+    queryFn: () => accountCloud.plansCatalog(baseUrl!),
+    enabled: Boolean(baseUrl),
+    staleTime: 60_000,
+  });
+
+  const catalogEntries: PlanCatalogEntry[] =
+    catalogQuery.data?.plans != null
+      ? catalogFromApi(catalogQuery.data.plans)
+      : (Object.keys(PLAN_CATALOG) as PlanTier[]).map((tier) => PLAN_CATALOG[tier]);
 
   const confirmUpgrade = async () => {
     if (!pendingTier) return;
@@ -56,14 +70,15 @@ export function ServicePlanSection() {
         <UpgradeValueCard />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {(Object.keys(PLAN_CATALOG) as PlanTier[]).map((tier) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {catalogEntries.map((entry) => (
           <PlanTierCard
-            key={tier}
-            catalog={PLAN_CATALOG[tier]}
+            key={entry.tier}
+            catalog={entry}
             current={entitlements.plan}
             billingCycle={billingCycle}
-            highlighted={tier === "pro"}
+            highlighted={Boolean(entry.featured)}
+            promoLabel={entry.promoLabel}
             onSelect={setPendingTier}
           />
         ))}
@@ -98,9 +113,9 @@ export function ServicePlanSection() {
               </button>
             )}
             {pendingTier === "team" && (
-              <a href="mailto:sales@anycode.dev" className="dw-btn-primary no-underline text-sm">
-                {t("service.enterprise.contactSales")}
-              </a>
+              <button type="button" className="dw-btn-primary" onClick={() => setPendingTier(null)}>
+                {t("service.plan.contactTeam")}
+              </button>
             )}
           </div>
         </div>

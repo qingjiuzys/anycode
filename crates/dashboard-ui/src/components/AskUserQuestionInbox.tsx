@@ -1,28 +1,29 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/api/client";
-import type { PendingQuestionsResponse } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
+import type { LivePendingQuestion } from "@/lib/sessionLiveStore";
 
 type Props = {
   sessionId: string;
+  questions: LivePendingQuestion[];
+  respondAllowed: boolean;
+  hideWhenEmpty?: boolean;
+  inline?: boolean;
 };
 
-export function AskUserQuestionInbox({ sessionId }: Props) {
+export function AskUserQuestionInbox({
+  sessionId: _sessionId,
+  questions,
+  respondAllowed,
+  hideWhenEmpty = false,
+  inline = false,
+}: Props) {
   const t = useT();
-  const queryClient = useQueryClient();
-  const queryKey = ["pending-questions", sessionId] as const;
   const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
-
-  const inbox = useQuery({
-    queryKey,
-    queryFn: () => api.pendingQuestions({ limit: 5, sessionId }),
-    staleTime: 3_000,
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
-  });
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
   const respond = useMutation({
     mutationFn: ({
@@ -34,34 +35,27 @@ export function AskUserQuestionInbox({ sessionId }: Props) {
       selected_labels: string[];
       other_text?: string;
     }) => api.respondToQuestion(questionId, { selected_labels, other_text }),
-    onMutate: async ({ questionId }) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<PendingQuestionsResponse>(queryKey);
-      if (previous) {
-        queryClient.setQueryData<PendingQuestionsResponse>(queryKey, {
-          ...previous,
-          pending: previous.pending.filter((row) => row.question_id !== questionId),
-        });
-      }
-      return { previous };
+    onMutate: ({ questionId }) => {
+      setRemovedIds((prev) => new Set(prev).add(questionId));
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey });
+    onError: (_err, { questionId }) => {
+      setRemovedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(questionId);
+        return next;
+      });
     },
   });
 
-  const rows = inbox.data?.pending ?? [];
-  const canRespond = inbox.data?.respond_allowed ?? false;
+  const rows = questions.filter((row) => !removedIds.has(row.question_id));
+  const canRespond = respondAllowed;
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    return hideWhenEmpty ? null : null;
+  }
 
-  return (
-    <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low shrink-0 space-y-3">
+  const rowList = (
+    <div className={inline ? "space-y-2" : "space-y-3"}>
       {rows.map((row) => {
         const sel = selected[row.question_id] ?? new Set<string>();
         const toggle = (label: string) => {
@@ -89,7 +83,11 @@ export function AskUserQuestionInbox({ sessionId }: Props) {
         return (
           <div
             key={row.question_id}
-            className="rounded-lg border border-primary/30 bg-surface-container-lowest p-3"
+            className={
+              inline
+                ? "rounded-xl border border-primary/30 bg-primary/5 p-3"
+                : "rounded-lg border border-primary/30 bg-surface-container-lowest p-3"
+            }
           >
             <div className="flex items-start gap-2 mb-2">
               <Icon name="quiz" size={18} className="text-primary shrink-0 mt-0.5" />
@@ -146,6 +144,30 @@ export function AskUserQuestionInbox({ sessionId }: Props) {
           </div>
         );
       })}
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="chat-trace chat-trace-question">
+        <div className="chat-trace-toggle-static">
+          <span className="inline-flex items-center gap-1.5 text-primary">
+            <Icon name="quiz" size={16} />
+            {t("conversations.askInboxTitle")}
+          </span>
+        </div>
+        <p className="text-xs text-secondary m-0 mt-1">{t("conversations.askInboxHint")}</p>
+        {!canRespond && (
+          <p className="text-xs text-warn m-0 mt-1">{t("conversations.askInboxRemoteBlocked")}</p>
+        )}
+        <div className="mt-2">{rowList}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low shrink-0">
+      {rowList}
     </div>
   );
 }

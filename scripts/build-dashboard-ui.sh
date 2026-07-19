@@ -4,6 +4,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/build-target.sh
+source "$ROOT/scripts/lib/build-target.sh"
+anycode_apply_build_target_exports
 UI="$ROOT/crates/dashboard-ui"
 NPM_FP="$UI/.npm-fingerprint"
 DIST_FP="$UI/.dist-fingerprint"
@@ -54,7 +57,10 @@ expected_npm_fingerprint() {
 }
 
 expected_dist_fingerprint() {
-  printf 'lock=%s\nsrc=%s\n' "$(sha256_file "$LOCKFILE")" "$(src_tree_signature)"
+  printf 'lock=%s\nsrc=%s\ntarget=%s\n' \
+    "$(sha256_file "$LOCKFILE")" \
+    "$(src_tree_signature)" \
+    "${ANYCODE_BUILD_TARGET:-cloud}"
 }
 
 npm_cache_hit() {
@@ -96,6 +102,7 @@ fi
 if dist_cache_hit; then
   echo "dashboard-ui dist cache hit, skip vite build"
 else
+  anycode_print_build_target_summary
   npm run build
   write_dist_fingerprint
 fi
@@ -105,13 +112,25 @@ if [[ ! -f dist/index.html ]]; then
   exit 1
 fi
 
-# Tauri offline bundle: absolute /assets/* breaks file/custom protocol — force relative URLs.
-if [[ "$(uname -s)" == "Darwin" ]] || [[ "${ANYCODE_DESKTOP_RELATIVE_ASSETS:-}" == "1" ]]; then
-  perl -pi -e '
-    s|src="/assets/|src="./assets/|g;
-    s|href="/assets/|href="./assets/|g;
-    s|href="/favicon|href="./favicon|g;
-  ' dist/index.html
+# Offline/custom-protocol bundles may opt into relative assets. The normal Desktop
+# and Dashboard servers use loopback HTTP, where root-relative assets preserve SPA
+# deep links such as /projects/:id and /sessions/:id.
+if [[ "${ANYCODE_DESKTOP_RELATIVE_ASSETS:-}" == "1" ]]; then
+  if grep -Eq '(src|href)="/(assets|favicon)' dist/index.html; then
+    perl -pi -e '
+      s|src="/assets/|src="./assets/|g;
+      s|href="/assets/|href="./assets/|g;
+      s|href="/favicon|href="./favicon|g;
+    ' dist/index.html
+  fi
+else
+  if grep -Eq '(src|href)="\./(assets|favicon)' dist/index.html; then
+    perl -pi -e '
+      s|src="\./assets/|src="/assets/|g;
+      s|href="\./assets/|href="/assets/|g;
+      s|href="\./favicon|href="/favicon|g;
+    ' dist/index.html
+  fi
 fi
 
 echo "Dashboard UI built: $UI/dist"

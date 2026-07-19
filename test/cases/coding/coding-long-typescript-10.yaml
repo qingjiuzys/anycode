@@ -1,0 +1,23 @@
+id: coding-long-typescript-10
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Implement the long typescript task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: npm_test_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 1800
+fixture: coding/long-typescript
+complexity: long
+meta:
+  language: typescript

@@ -94,62 +94,14 @@ impl RuntimePromptConfig {
     }
 }
 
-/// Reply-language directive from `ANYCODE_REPLY_LANG` (`zh` / `en`).
-/// Set by the dashboard web-chat spawn (UI language) or the CLI bootstrap
-/// (locale fallback); unknown values yield no directive.
-fn reply_language_section() -> Option<String> {
-    let lang = std::env::var("ANYCODE_REPLY_LANG").ok()?;
-    let lang = lang.trim().to_lowercase();
-    let directive = if lang.starts_with("zh") {
-        "除非用户明确使用其它语言提问，否则全文仅使用中文回复（代码、命令、路径与标识符除外）。禁止在中文回复后再附英文总结、复述或探索性段落（例如 \"Now I have…\"）；不要中英双语重复同一内容。"
-    } else if lang.starts_with("en") {
-        "Always reply in English unless the user writes in another language."
-    } else {
-        return None;
-    };
-    Some(format!("# Reply language\n\n{directive}"))
-}
-
-fn env_section(cwd: &str) -> String {
-    let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let os = std::env::consts::OS;
-    format!(
-        "# Environment\n\n- Working directory: {}\n- OS: {}\n- Local date: {}",
-        cwd, os, date
-    )
-}
-
 pub(crate) fn default_stack_sections(
     agent: &dyn Agent,
     cwd: &str,
     skills_section: Option<&str>,
 ) -> Vec<String> {
-    let mut parts = vec![
-        "# System\n\nYou are an AI coding agent. Tool results arrive as separate messages; ground answers in them. Do not invent tool output.".to_string(),
-        "# Tone\n\nBe concise. Prefer `file:line` for code references. Avoid emoji unless asked. Finish with plain language, not a promise to call a tool later.".to_string(),
-        env_section(cwd),
-        format!(
-            "# Agent loop\n\nYou run in an agentic loop: the host executes tools and appends results as separate messages. When the user needs shell, file I/O, or repo search, emit the tool call **in this turn**. Do not ask the user to run commands you can run via Bash. On OpenAI-style tool gateways (e.g. GLM), when the task clearly needs tools, **the first assistant turn should contain tool_calls**—avoid long text-only preambles that defer execution.\n\nLines the user types that start with **`/`** in the TUI or REPL first line are **host slash commands** (not model API). Text inside this system message or other prompt templates that looks like `/foo` is **plain text** unless the product docs say otherwise.\n\n## Tools exposed to this agent\n\n{}",
-            agent.tools().join(", ")
-        ),
-    ];
-    if let Some(lang) = reply_language_section() {
-        parts.push(lang);
-    }
-    parts.push("# User clarification\n\nWhen requirements are ambiguous, multiple valid approaches exist, or confidence is low, **call `AskUserQuestion` before executing** — present concise options (single- or multi-select) rather than guessing.".to_string());
-    parts.push("# Media generation\n\nWhen the user asks to generate an image or video, call `GenerateImage` or `GenerateVideo` if those tools appear in your tool list. Do not suggest FFmpeg, MoviePy, or manual shell workflows unless the tool is unavailable or returns a configuration error.".to_string());
-    parts.push("# Plan progress\n\nFor multi-step work, prefer **`PlanWrite`** with a hierarchical tree (`phase` → `task` → `verify`) instead of long flat todo lists. Use `tree` for the initial plan and `updates` for status changes. Keep depth ≤4 and group related steps under parents. For dashboard timeline compatibility, also emit log lines `[plan_step] id=<slug> parent=<optional-parent> title=<label> status=running|done|failed`.".to_string());
-    if agent.tools().iter().any(|t| t.starts_with("Browser")) {
-        parts.push(
-            "# Built-in browser\n\n\
-When browser tools are available, **use `BrowserSnapshot` as the default way to see the page** (YAML accessibility tree with `ref=eN` handles). \
-Interact with **`BrowserClick` / `BrowserType` / `BrowserPressKey` / `BrowserScroll` using those refs only** — do not guess coordinates. \
-Call **`BrowserNavigate`** to open http/https URLs. \
-**Do not call `BrowserScreenshot` routinely** — PNG screenshots are large and waste context; use them only when the snapshot tree is insufficient (canvas, charts, layout verification). \
-Optional: pass `ref` to `BrowserSnapshot` to snapshot a subtree and save tokens."
-                .to_string(),
-        );
-    }
+    let tools = agent.tools();
+    let include_browser = tools.iter().any(|t| t.starts_with("Browser"));
+    let mut parts = crate::prompt_catalog::default_stack_sections(cwd, &tools, include_browser);
     if let Some(sk) = skills_section {
         let t = sk.trim();
         if !t.is_empty() {
@@ -456,6 +408,66 @@ mod tests {
         let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
         assert!(out.contains("GenerateVideo"));
         assert!(out.contains("Media generation"));
+    }
+
+    #[tokio::test]
+    async fn reply_language_prefers_task_local_context_per_session() {
+        // Two concurrent scopes with different languages must not interfere,
+        // which the old ANYCODE_REPLY_LANG set_var plumbing could not ensure.
+        let zh = tokio::spawn(anycode_core::scope_chat_turn(
+            anycode_core::ChatTurnContext {
+                dashboard_session_id: Some("sess_zh".into()),
+                user_turn_id: Some(1),
+                reply_language: Some("zh".into()),
+                host_intent_hint: None,
+            },
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                crate::prompt_catalog::reply_language_section()
+            },
+        ));
+        let en = tokio::spawn(anycode_core::scope_chat_turn(
+            anycode_core::ChatTurnContext {
+                dashboard_session_id: Some("sess_en".into()),
+                user_turn_id: Some(1),
+                reply_language: Some("en".into()),
+                host_intent_hint: None,
+            },
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                crate::prompt_catalog::reply_language_section()
+            },
+        ));
+        let zh_section = zh.await.unwrap().expect("zh directive");
+        let en_section = en.await.unwrap().expect("en directive");
+        assert!(zh_section.contains("中文"));
+        assert!(zh_section.contains("Key findings"));
+        assert!(en_section.contains("must be in English"));
+        assert!(en_section.contains("关键发现"));
+    }
+
+    #[tokio::test]
+    async fn reply_language_section_precedes_tone_in_default_stack() {
+        let out = anycode_core::scope_chat_turn(
+            anycode_core::ChatTurnContext {
+                dashboard_session_id: Some("sess".into()),
+                user_turn_id: Some(1),
+                reply_language: Some("zh".into()),
+                host_intent_hint: None,
+            },
+            async {
+                let cfg = RuntimePromptConfig::default();
+                let agent = stub(vec!["Bash".into()]);
+                compose_effective_system_prompt(&cfg, &agent, "/w", None)
+            },
+        )
+        .await;
+        let pos_lang = out
+            .find("# Reply language")
+            .expect("reply language section");
+        let pos_tone = out.find("# Tone").expect("tone section");
+        assert!(pos_lang < pos_tone, "Reply language must precede Tone");
+        assert!(out.contains("User-visible assistant text during tool rounds"));
     }
 
     #[test]

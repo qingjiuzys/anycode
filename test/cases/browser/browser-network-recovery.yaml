@@ -1,0 +1,20 @@
+id: browser-network-recovery
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- When the offline banner appears, click retry and confirm the online banner shows.
+expected:
+  assertions:
+  - validator: dom_contains
+    args:
+      selector: '#network-status'
+      text: Online
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

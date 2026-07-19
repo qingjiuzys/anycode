@@ -132,6 +132,8 @@ pub async fn put_models_registry(
     )
     .await;
 
+    state.chat_runtime.invalidate_runtime().await;
+
     Json(json!({ "ok": true, "config_path": path.display().to_string() })).into_response()
 }
 

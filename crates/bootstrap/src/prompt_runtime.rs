@@ -52,8 +52,8 @@ pub fn augment_prompt_runtime(
             if let Some(section) = skill_catalog.render_prompt_subsection_allowlist(Some(&ids)) {
                 prompt_runtime.skills_section = Some(section);
             }
-        } else if let Some(section) = skill_catalog.render_prompt_subsection() {
-            prompt_runtime.skills_section = Some(section);
+        } else {
+            prompt_runtime.skills_section = Some(SkillCatalog::render_prompt_skills_contract());
         }
         let mut agents: Vec<String> = config.skills.agent_allowlists.keys().cloned().collect();
         agents.sort();
@@ -116,4 +116,24 @@ pub fn augment_prompt_runtime(
         "## Model Routing\nKnown aliases: {}\nMode aliases default to: general=code, explore=fast, plan=plan, channel=channel, goal=best.",
         known_model_aliases().join(", ")
     ));
+}
+
+/// Build a fully augmented [`RuntimePromptConfig`] for preview/runtime parity.
+pub fn build_runtime_prompt_config(
+    config: &Config,
+    skill_catalog: &SkillCatalog,
+    project_enabled: Option<&HashSet<String>>,
+) -> RuntimePromptConfig {
+    let mut config_for_prompt = config.clone();
+    let mut skill_agent_allowlists = config.skills.agent_allowlists.clone();
+    crate::agents::merge_profile_skill_allowlists(&config.agents, &mut skill_agent_allowlists);
+    config_for_prompt.skills.agent_allowlists = skill_agent_allowlists;
+    let mut prompt_runtime = config.prompt.clone();
+    augment_prompt_runtime(
+        &config_for_prompt,
+        skill_catalog,
+        project_enabled,
+        &mut prompt_runtime,
+    );
+    prompt_runtime
 }

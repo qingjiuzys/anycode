@@ -1,5 +1,5 @@
 use crate::limits::file_read_max_bytes;
-use crate::paths::resolve_path_fields;
+use crate::paths::resolve_read_path_fields;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
@@ -70,7 +70,7 @@ impl Tool for FileReadTool {
         let ReadInput { file_path } =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
 
-        let path = resolve_path_fields(self.sandbox_mode, sandbox_in, wd, &file_path)?;
+        let path = resolve_read_path_fields(self.sandbox_mode, sandbox_in, wd, &file_path)?;
         let max = file_read_max_bytes();
 
         let meta = tokio::fs::metadata(&path).await;

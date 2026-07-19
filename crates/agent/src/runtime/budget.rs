@@ -18,7 +18,7 @@ pub(super) struct RuntimeBudgetState {
     pub(super) budget: TaskBudget,
     started_at: Instant,
     pub(super) consumed_tokens: u32,
-    pub(super) consumed_cost_usd: f64,
+    pub(super) consumed_cost_cny: f64,
     last_decision: BudgetDecision,
 }
 
@@ -28,7 +28,7 @@ impl RuntimeBudgetState {
             budget: normalize_budget(budget),
             started_at: Instant::now(),
             consumed_tokens: 0,
-            consumed_cost_usd: 0.0,
+            consumed_cost_cny: 0.0,
             last_decision: BudgetDecision::Continue,
         })
     }
@@ -40,7 +40,7 @@ impl RuntimeBudgetState {
             .saturating_add(usage.output_tokens)
             .saturating_add(usage.cache_read_tokens.unwrap_or(0))
             .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
-        self.consumed_cost_usd += estimate_usage_cost_usd(usage);
+        self.consumed_cost_cny += estimate_usage_cost_cny(usage);
     }
 
     pub(super) fn evaluate(&self) -> BudgetDecision {
@@ -56,11 +56,11 @@ impl RuntimeBudgetState {
                 self.consumed_tokens as f32 / total as f32
             }
         });
-        let cost_ratio = self.budget.cost_budget_usd.map(|total| {
+        let cost_ratio = self.budget.cost_budget_cny.map(|total| {
             if total <= 0.0 {
                 f32::INFINITY
             } else {
-                (self.consumed_cost_usd / total) as f32
+                (self.consumed_cost_cny / total) as f32
             }
         });
         let ratio = token_ratio
@@ -94,17 +94,17 @@ impl RuntimeBudgetState {
     }
 }
 
-fn estimate_usage_cost_usd(usage: &Usage) -> f64 {
-    let input_rate = std::env::var("ANYCODE_BUDGET_INPUT_USD_PER_M")
-        .or_else(|_| std::env::var("ANYCODE_DASHBOARD_INPUT_USD_PER_M"))
+fn estimate_usage_cost_cny(usage: &Usage) -> f64 {
+    let input_rate = std::env::var("ANYCODE_BUDGET_INPUT_CNY_PER_M")
+        .or_else(|_| std::env::var("ANYCODE_DASHBOARD_INPUT_CNY_PER_M"))
         .ok()
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(3.0);
-    let output_rate = std::env::var("ANYCODE_BUDGET_OUTPUT_USD_PER_M")
-        .or_else(|_| std::env::var("ANYCODE_DASHBOARD_OUTPUT_USD_PER_M"))
+        .unwrap_or(21.6);
+    let output_rate = std::env::var("ANYCODE_BUDGET_OUTPUT_CNY_PER_M")
+        .or_else(|_| std::env::var("ANYCODE_DASHBOARD_OUTPUT_CNY_PER_M"))
         .ok()
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(15.0);
+        .unwrap_or(108.0);
     let input_tokens = usage
         .input_tokens
         .saturating_add(usage.cache_read_tokens.unwrap_or(0))
@@ -157,13 +157,13 @@ pub(super) fn log_budget_event(
     logger.line(
         task_id,
         &format!(
-            "[{event}] consumed_tokens={} token_budget={} consumed_cost_usd={:.6} cost_budget_usd={} elapsed_secs={} max_duration_secs={}",
+            "[{event}] consumed_tokens={} token_budget={} consumed_cost_cny={:.6} cost_budget_cny={} elapsed_secs={} max_duration_secs={}",
             state.consumed_tokens,
             token_budget,
-            state.consumed_cost_usd,
+            state.consumed_cost_cny,
             state
                 .budget
-                .cost_budget_usd
+                .cost_budget_cny
                 .map(|v| format!("{v:.6}"))
                 .unwrap_or_else(|| "<none>".to_string()),
             state.elapsed_secs(),
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn budget_stops_by_cost_ratio() {
         let mut state = RuntimeBudgetState::new(TaskBudget {
-            cost_budget_usd: Some(0.000001),
+            cost_budget_cny: Some(0.000001),
             ..TaskBudget::default()
         })
         .unwrap();

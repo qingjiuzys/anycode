@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.DASHBOARD_E2E_PORT ?? "43199");
 const baseURL = `http://127.0.0.1:${port}`;
+const reuseServer = process.env.DASHBOARD_E2E_REUSE === "1";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -20,11 +21,13 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  webServer: {
-    command: `bash ../../scripts/dashboard-e2e-server.sh ${port}`,
-    wait: { stdout: /e2e-fixture-ready/ },
-    stdout: "pipe",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: reuseServer
+    ? undefined
+    : {
+        command: `bash ../../scripts/dashboard-e2e-server.sh ${port}`,
+        wait: { stdout: /e2e-fixture-ready/ },
+        stdout: "pipe",
+        reuseExistingServer: !process.env.CI,
+        timeout: 600_000,
+      },
 });

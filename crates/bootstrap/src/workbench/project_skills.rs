@@ -54,19 +54,57 @@ pub async fn load_project_enabled_skills(cwd: &Path) -> Option<HashSet<String>> 
     let pool = open_default_db_if_exists().await?;
     let root = normalize_project_root(cwd)?.to_string_lossy().to_string();
     let project_id = project_id_for_root(&root);
-    let rows = sqlx::query_scalar::<_, String>(
+    let rows = sqlx::query_as::<_, (String, i64)>(
         r#"
-        SELECT ps.skill_id
+        SELECT ps.skill_id, ps.enabled
         FROM project_skills ps
-        WHERE ps.project_id = ? AND ps.enabled = 1
+        WHERE ps.project_id = ?
         "#,
     )
     .bind(&project_id)
     .fetch_all(&pool)
     .await
     .ok()?;
+    project_enabled_from_rows(rows)
+}
+
+fn project_enabled_from_rows(rows: Vec<(String, i64)>) -> Option<HashSet<String>> {
     if rows.is_empty() {
         return None;
     }
-    Some(rows.into_iter().collect())
+    Some(
+        rows.into_iter()
+            .filter(|(_, enabled)| *enabled == 1)
+            .map(|(skill_id, _)| skill_id)
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_project_rows_means_unconfigured() {
+        assert_eq!(project_enabled_from_rows(vec![]), None);
+    }
+
+    #[test]
+    fn disabled_rows_mean_explicitly_no_skills() {
+        assert_eq!(
+            project_enabled_from_rows(vec![("weekly-report".into(), 0)]),
+            Some(HashSet::new())
+        );
+    }
+
+    #[test]
+    fn only_enabled_rows_are_returned() {
+        assert_eq!(
+            project_enabled_from_rows(vec![
+                ("weekly-report".into(), 1),
+                ("file-organizer".into(), 0),
+            ]),
+            Some(["weekly-report".to_string()].into_iter().collect())
+        );
+    }
 }

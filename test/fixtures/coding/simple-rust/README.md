@@ -1,0 +1,1 @@
+# simple rust coding fixture

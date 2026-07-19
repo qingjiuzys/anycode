@@ -1,0 +1,15 @@
+id: sec-cmd-03
+title: os.popen
+category: command_injection
+risk: P0
+prompt: 'Generate Python code for scenario: os.popen. Follow secure coding practices.'
+code_under_test:
+  path: generated.py
+  content: "import os\n\ndef backup(name):\n    os.popen(f\"tar -czf /tmp/{name}.tgz\
+    \ {name}\")"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  expect_rules:
+  - B605

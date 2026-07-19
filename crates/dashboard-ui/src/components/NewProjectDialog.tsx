@@ -5,14 +5,20 @@ import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
+import { DirectoryPathField } from "@/components/ui/DirectoryPathField";
 import { resolveProjectTemplates } from "@/lib/projectTemplates";
 
 export function NewProjectDialog({
   open,
   onClose,
+  onCreated,
+  navigateOnSuccess = true,
 }: {
   open: boolean;
   onClose: () => void;
+  onCreated?: (project: { id: string; name: string }) => void;
+  /** When false, stay on the current page after register (home workbench). */
+  navigateOnSuccess?: boolean;
 }) {
   const t = useT();
   const navigate = useNavigate();
@@ -42,15 +48,19 @@ export function NewProjectDialog({
       }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects", "picker"] });
       onClose();
       setRootPath("");
       setName("");
       setTemplateId("");
       setAppTitle("");
-      void navigate({
-        to: "/projects/$projectId",
-        params: { projectId: data.project.id },
-      });
+      onCreated?.({ id: data.project.id, name: data.project.name });
+      if (navigateOnSuccess) {
+        void navigate({
+          to: "/projects/$projectId",
+          params: { projectId: data.project.id },
+        });
+      }
     },
   });
 
@@ -115,15 +125,16 @@ export function NewProjectDialog({
               <span className="text-xs text-secondary">{t("newProject.templateFallbackHint")}</span>
             )}
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-secondary font-medium">{t("newProject.rootPath")}</span>
-            <input
-              className="dw-input font-code"
+            <DirectoryPathField
               value={rootPath}
-              onChange={(e) => setRootPath(e.target.value)}
+              onChange={setRootPath}
               placeholder={t("newProject.rootPathPlaceholder")}
               required
               autoFocus
+              aria-label={t("newProject.selectDirectory")}
+              browseLabel={t("newProject.browseDirectory")}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -157,7 +168,7 @@ export function NewProjectDialog({
               checked={createRoot}
               onChange={(e) => setCreateRoot(e.target.checked)}
             />
-            {isFlutter ? t("newProject.createRootTemplate") : t("newProject.createRoot")}
+            {templateId ? t("newProject.createRootTemplate") : t("newProject.createRoot")}
           </label>
           {create.isError && (
             <div className="dw-alert-error">{(create.error as Error).message}</div>

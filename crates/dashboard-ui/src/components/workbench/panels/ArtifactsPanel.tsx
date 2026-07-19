@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
@@ -27,14 +27,18 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
   const { locale } = useI18n();
   const queryClient = useQueryClient();
   const running = Boolean(isRunning);
-  const [showScanned, setShowScanned] = useState(false);
+  const [showScanned, setShowScanned] = useState(true);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryReport, setSummaryReport] = useState<ReportDocument | null>(null);
+  const autoScanKey = useRef<string | null>(null);
 
   const artifacts = useQuery({
     queryKey: ["session-artifacts", sessionId, showScanned ? "all" : "final"],
     queryFn: () =>
-      api.sessionArtifacts(sessionId, showScanned ? { limit: 100 } : { finalOnly: true, limit: 100 }),
+      api.sessionArtifacts(
+        sessionId,
+        showScanned ? { limit: 100 } : { finalOnly: true, limit: 100 },
+      ),
     enabled: Boolean(sessionId),
     staleTime: running ? TRANSCRIPT_STALE_RUNNING_MS : Number.POSITIVE_INFINITY,
     gcTime: SESSION_QUERY_GC_MS,
@@ -49,6 +53,24 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
     },
   });
 
+  useEffect(() => {
+    if (running) {
+      autoScanKey.current = null;
+      return;
+    }
+    if (!sessionId) {
+      return;
+    }
+    const key = `${sessionId}:idle`;
+    if (autoScanKey.current === key) {
+      return;
+    }
+    autoScanKey.current = key;
+    void api.scanSessionArtifacts(sessionId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["session-artifacts", sessionId] });
+    });
+  }, [queryClient, running, sessionId]);
+
   const exportSummary = useMutation({
     mutationFn: () => api.sessionReport(sessionId, locale),
     onSuccess: (data) => {
@@ -58,7 +80,14 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
   });
 
   const rows = artifacts.data?.artifacts ?? [];
-  const groups = groupArtifacts(rows, t);
+  const deliverableRows = rows.filter(isDeliverableArtifact);
+  const visibleRows = showScanned
+    ? deliverableRows.length > 0
+      ? deliverableRows
+      : rows
+    : rows;
+  const groups = groupArtifacts(visibleRows, t);
+  const indexing = scan.isPending || (artifacts.isFetching && rows.length === 0);
 
   const exportSummaryButton = (
     <div className="px-3 py-2 border-t border-outline-variant/40 shrink-0">
@@ -86,16 +115,42 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
   );
 
   if (artifacts.isPending && !artifacts.data) {
-    return <p className="text-sm text-secondary px-4 py-6 m-0">{t("common.loading")}</p>;
+    return (
+      <div className="flex flex-col min-h-[10rem] px-4 py-6">
+        <p className="text-sm text-secondary m-0">
+          {indexing ? t("conversations.artifactsIndexing") : t("common.loading")}
+        </p>
+      </div>
+    );
   }
 
-  if (rows.length === 0) {
+  if (artifacts.isError && rows.length === 0) {
+    return (
+      <div className="flex flex-col min-h-[10rem] px-4 py-6 gap-3">
+        <p className="text-sm text-error m-0">{(artifacts.error as Error).message}</p>
+        <button
+          type="button"
+          className="dw-btn-secondary text-xs self-center"
+          disabled={scan.isPending}
+          onClick={() => scan.mutate()}
+        >
+          {t("conversations.artifactsScan")}
+        </button>
+      </div>
+    );
+  }
+
+  if (visibleRows.length === 0) {
     return (
       <div className="flex flex-col min-h-0 flex-1">
         <div className="p-3 flex-1">
           <EmptyState
             title={t("conversations.artifactsEmpty")}
-            description={t("conversations.inspectorArtifactsEmptyDesc")}
+            description={
+              indexing
+                ? t("conversations.artifactsIndexing")
+                : t("conversations.inspectorArtifactsEmptyDesc")
+            }
             icon="inventory_2"
           />
           <div className="text-center mt-3 flex flex-col items-center gap-2">
@@ -108,13 +163,13 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
               <Icon name="document_scanner" size={14} className="inline mr-1" />
               {scan.isPending ? t("conversations.artifactsScanning") : t("conversations.artifactsScan")}
             </button>
-            {!showScanned && (
+            {showScanned && (
               <button
                 type="button"
                 className="text-xs text-secondary underline border-0 bg-transparent cursor-pointer"
-                onClick={() => setShowScanned(true)}
+                onClick={() => setShowScanned(false)}
               >
-                {t("conversations.artifactsShowScanned")}
+                {t("conversations.artifactsHideScanned")}
               </button>
             )}
           </div>
@@ -176,6 +231,23 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
       {exportSummaryButton}
     </div>
   );
+}
+
+function isDeliverableArtifact(row: ArtifactRecord): boolean {
+  const path = row.path.toLowerCase();
+  if (
+    path.includes("/docs-src/") ||
+    path.includes("/docs-site/") ||
+    path.endsWith(".tsbuildinfo") ||
+    path.includes(".fingerprint")
+  ) {
+    return false;
+  }
+  const ext = path.split(".").pop() ?? "";
+  if (["pdf", "pptx", "ppt", "docx", "doc", "xlsx", "xls", "md", "txt", "ipynb", "png", "jpg", "jpeg", "webp", "gif", "mp4", "mov", "webm", "csv"].includes(ext)) {
+    return true;
+  }
+  return row.kind === "presentation" || row.kind === "document" || row.kind === "media" || row.kind === "report";
 }
 
 function groupArtifacts(rows: ArtifactRecord[], t: ReturnType<typeof useT>): ArtifactGroup[] {

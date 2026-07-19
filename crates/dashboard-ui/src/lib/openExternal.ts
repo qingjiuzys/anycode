@@ -1,5 +1,19 @@
 import { isTauriDesktop } from "@/lib/desktopShell";
 
+/** Open a folder/file in the system file manager (Finder / Explorer). */
+export async function revealInFileManager(path: string): Promise<void> {
+  const target = path.trim();
+  if (!target) return;
+
+  if (isTauriDesktop()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("reveal_in_file_manager", { path: target });
+    return;
+  }
+
+  throw new Error("not_desktop");
+}
+
 /** Open a URL in the system browser (Tauri) or a new tab (web). */
 export async function openExternal(url: string): Promise<void> {
   const target = url.trim();

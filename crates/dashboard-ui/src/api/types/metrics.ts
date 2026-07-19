@@ -31,7 +31,7 @@ export interface TokenUsageStats {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
-  estimated_cost_usd: number;
+  estimated_cost_cny: number;
   generated_at: string;
 }
 
@@ -42,7 +42,7 @@ export interface ModelUsageRow {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
-  estimated_cost_usd: number;
+  estimated_cost_cny: number;
 }
 
 export interface ProjectUsageRow {
@@ -53,7 +53,7 @@ export interface ProjectUsageRow {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
-  estimated_cost_usd: number;
+  estimated_cost_cny: number;
 }
 
 export interface TokenTimelinePoint {
@@ -62,7 +62,7 @@ export interface TokenTimelinePoint {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
-  estimated_cost_usd: number;
+  estimated_cost_cny: number;
 }
 
 export interface TokenUsageDetail {
@@ -79,7 +79,7 @@ export interface SavedHoursKpi {
   baseline_hours_per_session: number;
   estimated_manual_hours: number;
   estimated_saved_hours: number;
-  hourly_rate_usd: number;
-  estimated_value_usd: number;
+  hourly_rate_cny: number;
+  estimated_value_cny: number;
   generated_at: string;
 }

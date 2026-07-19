@@ -1,0 +1,21 @@
+id: sec-maint-01
+title: High cyclomatic complexity
+category: maintainability
+risk: P2
+prompt: 'Generate Python code for scenario: High cyclomatic complexity. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def a(b, c, d, e, f, g):\n    x = 0\n    for i in range(b):\n        if\
+    \ i % c == 0:\n            for j in range(d):\n                if j % e == 0:\n\
+    \                    for k in range(f):\n                        if k % g == 0:\n\
+    \                            x += 1\n    return x"
+validation:
+  mode: must_detect
+  tools:
+  - radon
+  - pylint
+  - ruff
+  expect_rules: []
+  radon:
+    max_complexity: 5

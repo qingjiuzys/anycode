@@ -1,0 +1,15 @@
+[profile]
+id = "fixture-ci"
+max_duration_minutes = 5
+tier = ["fixture-ci"]
+
+[[profile.cases]]
+id = "agent-corpus-static-validation"
+suite = "agent-corpus"
+risk = "P1"
+runner = "static"
+command = "python3 test/scripts/verify_scenario_corpus.py && python3 -m unittest discover -s test/runner/tests -p 'test_*.py'"
+timeout_seconds = 300
+
+[profile.cases.meta]
+eval_mode = "fixture-ci"

@@ -128,7 +128,29 @@ async fn try_canonical_transcript(
     }
     let records = db.list_chat_turn_events(session_id, None, 50_000).await?;
     let max_seq = records.last().map(|record| record.seq);
-    let blocks = super::chat_turn_log::records_to_transcript_blocks(&records);
+    let mut blocks = super::chat_turn_log::records_to_transcript_blocks(&records);
+    let approval_events = db
+        .list_session_events(session_id, None, 500, None, None, None)
+        .await?;
+    let mut seen_ids: std::collections::HashSet<String> =
+        blocks.iter().map(|b| b.id.clone()).collect();
+    for evt in approval_events {
+        if !matches!(
+            evt.event_type.as_str(),
+            "tool_approval_pending" | "tool_approval_resolved"
+        ) {
+            continue;
+        }
+        if !seen_ids.insert(evt.id.clone()) {
+            continue;
+        }
+        if let Some(chat_evt) = super::chat_events::chat_event_from_project_event(&evt) {
+            if let Some(block) = chat_evt.block {
+                blocks.push(block);
+            }
+        }
+    }
+    blocks.sort_by(|a, b| a.at.cmp(&b.at));
     Ok(Some(SessionTranscriptResponse {
         schema_version: SCHEMA_VERSION,
         session_id: session_id.to_string(),
@@ -537,12 +559,94 @@ fn tool_trace_meta(event: &ProjectEvent, phase: &str) -> serde_json::Value {
             meta["error"] = json!(err);
         }
     }
+    let tool_name = tool_title(event);
+    meta["name"] = json!(tool_name);
+    if phase == "end" {
+        let body = tool_body(event);
+        merge_activity_count_meta(&mut meta, &tool_name, &body);
+    }
     for key in ["command", "path", "query"] {
         if let Some(v) = payload_str(event, key) {
             meta[key] = json!(v);
         }
     }
     meta
+}
+
+/// Activity counters for transcript tool_result meta (UI recap: Explored N files / Edited +M -N).
+pub(crate) fn merge_activity_count_meta(meta: &mut serde_json::Value, tool_name: &str, body: &str) {
+    let Some(obj) = meta.as_object_mut() else {
+        return;
+    };
+    match tool_name {
+        "Glob" => {
+            let count = body.lines().filter(|l| !l.trim().is_empty()).count();
+            if count > 0 {
+                obj.insert("files_matched".into(), json!(count));
+            }
+        }
+        "Grep" => {
+            if let Some(n) = grep_match_count(body) {
+                obj.insert("matches".into(), json!(n));
+                obj.insert("match_count".into(), json!(n));
+            }
+        }
+        "Read" | "FileRead" => {
+            obj.insert("files_matched".into(), json!(1));
+        }
+        "Bash" | "Shell" => {
+            obj.insert("commands_run".into(), json!(1));
+        }
+        "Edit" | "Write" | "StrReplace" | "ApplyPatch" | "NotebookEdit" => {
+            obj.insert("files_edited".into(), json!(1));
+            let (add, del) = diff_line_counts(body);
+            if add > 0 {
+                obj.insert("lines_added".into(), json!(add));
+            }
+            if del > 0 {
+                obj.insert("lines_removed".into(), json!(del));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn grep_match_count(body: &str) -> Option<u32> {
+    for line in body.lines() {
+        let lower = line.to_ascii_lowercase();
+        if lower.contains("match") {
+            for token in line.split_whitespace() {
+                if let Ok(n) = token
+                    .trim_matches(|c: char| !c.is_ascii_digit())
+                    .parse::<u32>()
+                {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    let lines = body.lines().filter(|l| !l.trim().is_empty()).count();
+    if lines > 0 {
+        Some(lines as u32)
+    } else {
+        None
+    }
+}
+
+fn diff_line_counts(body: &str) -> (u32, u32) {
+    let mut add = 0u32;
+    let mut del = 0u32;
+    for line in body.lines() {
+        if line.starts_with("+++") || line.starts_with("---") || line.starts_with("@@") {
+            continue;
+        }
+        if line.starts_with('+') {
+            add += 1;
+        } else if line.starts_with('-') {
+            del += 1;
+        }
+    }
+    (add, del)
 }
 
 fn payload_str(event: &ProjectEvent, key: &str) -> Option<String> {
@@ -668,7 +772,7 @@ fn humanize_event_type(event_type: &str) -> String {
 fn is_reply_block_type(block_type: &str) -> bool {
     matches!(
         block_type,
-        "assistant_message" | "session_error" | "tool_call" | "tool_result"
+        "assistant_message" | "progress_update" | "session_error" | "tool_call" | "tool_result"
     )
 }
 
@@ -1023,6 +1127,26 @@ fn time_in_range(at: &str, start: &str, end: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merge_activity_count_meta_glob_and_edit() {
+        let mut meta = json!({});
+        merge_activity_count_meta(&mut meta, "Glob", "a.rs\nb.rs\nc.rs");
+        assert_eq!(meta["files_matched"], 3);
+
+        let mut edit_meta = json!({});
+        merge_activity_count_meta(&mut edit_meta, "Edit", "@@\n-old\n+new\n+line");
+        assert_eq!(edit_meta["files_edited"], 1);
+        assert_eq!(edit_meta["lines_added"], 2);
+        assert_eq!(edit_meta["lines_removed"], 1);
+    }
+
+    #[test]
+    fn merge_activity_count_meta_file_read() {
+        let mut meta = json!({});
+        merge_activity_count_meta(&mut meta, "FileRead", "file contents");
+        assert_eq!(meta["files_matched"], 1);
+    }
 
     #[test]
     fn humanize_error_text_bare_path() {

@@ -1,0 +1,15 @@
+id: sec-err-03
+title: Socket no try/finally
+category: error_handling
+risk: P1
+prompt: 'Generate Python code for scenario: Socket no try/finally. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "import socket\n\ndef send(host, payload):\n    s = socket.socket()\n \
+    \   s.connect((host, 80))\n    s.sendall(payload)\n    return s.recv(4096)"
+validation:
+  mode: must_detect
+  tools:
+  - pylint
+  expect_rules: []

@@ -3,7 +3,8 @@
 //! 请求/响应 JSON 与 [`super::zai::ZaiClient`] 所用 OpenAI 兼容形态一致；非流式解析复用 `ZaiResponse` + [`super::zai::convert_response`]。
 
 use super::zai::{
-    llm_response_from_openai_compatible_str, messages_to_openai_json, openai_tools_from_schemas,
+    llm_response_from_openai_compatible_str, messages_to_openai_json_for_config,
+    openai_tools_from_schemas,
 };
 use crate::http_retry::{
     evaluate_http_retry, evaluate_network_retry, retry_after_header_ms, retry_exhausted_error,
@@ -13,15 +14,15 @@ use crate::retry_strategy::ProviderRetryConfig;
 use crate::sse_data_lines::{SseDataLine, SseLineBuffer};
 use crate::LLMError;
 use anycode_core::prelude::*;
+use anycode_core::{LlmRetryObserver, QuerySource};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::Serialize;
-use serde_json::{json, Value};
-use std::collections::HashMap;
+use serde_json::Value;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 const DEFAULT_OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 /// 单次 HTTP 请求总超时（含流式读 body）；更长对话可设环境变量 `API_TIMEOUT_MS`。
@@ -53,7 +54,11 @@ struct OpenAiStreamOptions {
     include_usage: bool,
 }
 
-fn openai_tool_choice(tools_empty: bool) -> Option<String> {
+fn openai_tool_choice(
+    messages: &[Message],
+    tools_empty: bool,
+    config: &ModelConfig,
+) -> Option<String> {
     if tools_empty {
         return None;
     }
@@ -62,6 +67,14 @@ fn openai_tool_choice(tools_empty: bool) -> Option<String> {
         if matches!(v.as_str(), "required" | "auto" | "none") {
             return Some(v);
         }
+    }
+    let capabilities = crate::capabilities_for_model_config(config);
+    if capabilities.weak_local_model
+        && (crate::has_tool_recovery_nudge(messages)
+            || (crate::is_first_agent_turn(messages)
+                && crate::explicitly_requests_tool_execution(messages)))
+    {
+        return Some("required".to_string());
     }
     Some("auto".to_string())
 }
@@ -83,12 +96,12 @@ fn build_http_client() -> Client {
 }
 
 /// `true` 表示应停止（`tx` 已关闭）。
-async fn emit_openai_sse_json_chunk(
+async fn emit_openai_sse_with_state(
     val: &Value,
     tx: &mpsc::Sender<StreamEvent>,
-    tool_builders: &mut HashMap<u64, (Option<String>, Option<String>, String)>,
+    state: &mut crate::tool_call_normalizer::OpenAiCompatStreamState,
 ) -> bool {
-    crate::openai_compat_stream::emit_openai_sse_json_chunk(val, tx, tool_builders).await
+    crate::openai_compat_stream::emit_openai_sse_with_state(val, tx, state).await
 }
 
 fn openai_stream_usage_from_value(v: &Value) -> Option<Usage> {
@@ -221,8 +234,8 @@ impl LLMClient for OpenAIClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<LLMResponse, CoreError> {
-        let tool_choice = openai_tool_choice(tools.is_empty());
-        let openai_messages = messages_to_openai_json(messages)?;
+        let tool_choice = openai_tool_choice(&messages, tools.is_empty(), config);
+        let openai_messages = messages_to_openai_json_for_config(messages, config)?;
 
         let model = config
             .model
@@ -245,6 +258,7 @@ impl LLMClient for OpenAIClient {
             );
         }
 
+        let model_for_retry = model.clone();
         let body = OpenAiChatRequestBody {
             model,
             messages: openai_messages,
@@ -273,7 +287,7 @@ impl LLMClient for OpenAIClient {
             auth_key,
             &body,
             config.query_source,
-            &model,
+            &model_for_retry,
             config.retry_observer.as_deref(),
         )
         .await?;
@@ -297,7 +311,7 @@ impl LLMClient for OpenAIClient {
             .text()
             .await
             .map_err(|e| CoreError::LLMError(e.to_string()))?;
-        llm_response_from_openai_compatible_str(&text)
+        llm_response_from_openai_compatible_str(&text, &tools)
     }
 
     async fn chat_stream(
@@ -306,8 +320,8 @@ impl LLMClient for OpenAIClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<mpsc::Receiver<StreamEvent>, CoreError> {
-        let tool_choice = openai_tool_choice(tools.is_empty());
-        let openai_messages = messages_to_openai_json(messages)?;
+        let tool_choice = openai_tool_choice(&messages, tools.is_empty(), config);
+        let openai_messages = messages_to_openai_json_for_config(messages, config)?;
 
         let model = config
             .model
@@ -349,6 +363,7 @@ impl LLMClient for OpenAIClient {
 
         let client = self.client.clone();
         let (tx, rx) = mpsc::channel(128);
+        let stream_tools = tools.clone();
 
         tokio::spawn(async move {
             let response = match client
@@ -380,8 +395,8 @@ impl LLMClient for OpenAIClient {
 
             let mut stream = response.bytes_stream();
             let mut sse_buf = SseLineBuffer::new();
-            let mut tool_builders: HashMap<u64, (Option<String>, Option<String>, String)> =
-                HashMap::new();
+            let mut stream_state =
+                crate::tool_call_normalizer::OpenAiCompatStreamState::new(stream_tools);
 
             'read: while let Some(chunk_res) = stream.next().await {
                 let chunk = match chunk_res {
@@ -402,7 +417,7 @@ impl LLMClient for OpenAIClient {
                     let Ok(val) = serde_json::from_str::<Value>(&data) else {
                         continue;
                     };
-                    if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                    if emit_openai_sse_with_state(&val, &tx, &mut stream_state).await {
                         return;
                     }
                 }
@@ -415,14 +430,97 @@ impl LLMClient for OpenAIClient {
                 let Ok(val) = serde_json::from_str::<Value>(&data) else {
                     continue;
                 };
-                if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                if emit_openai_sse_with_state(&val, &tx, &mut stream_state).await {
                     return;
                 }
+            }
+
+            if crate::openai_compat_stream::flush_openai_sse_state(&tx, &mut stream_state).await {
+                return;
             }
 
             let _ = tx.send(StreamEvent::Done).await;
         });
 
         Ok(rx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    fn text(role: MessageRole, value: &str) -> Message {
+        Message {
+            id: Uuid::new_v4(),
+            role,
+            content: MessageContent::Text(value.into()),
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
+        }
+    }
+
+    fn local_config() -> ModelConfig {
+        ModelConfig {
+            provider: LLMProvider::OpenAI,
+            model: "minicpm5-1b".into(),
+            base_url: Some("http://127.0.0.1:47100/v1/chat/completions".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn local_weak_model_requires_tool_only_for_explicit_agent_work() {
+        let config = local_config();
+        let tool_task = vec![
+            text(MessageRole::System, "system"),
+            text(MessageRole::User, "请读取 Cargo.toml"),
+        ];
+        assert_eq!(
+            openai_tool_choice(&tool_task, false, &config).as_deref(),
+            Some("required")
+        );
+
+        let question = vec![
+            text(MessageRole::System, "system"),
+            text(MessageRole::User, "解释 Rust 所有权"),
+        ];
+        assert_eq!(
+            openai_tool_choice(&question, false, &config).as_deref(),
+            Some("auto")
+        );
+    }
+
+    #[test]
+    fn local_weak_model_requires_tool_for_complex_delivery_brief() {
+        let config = local_config();
+        let brief = vec![
+            text(MessageRole::System, "system"),
+            text(
+                MessageRole::User,
+                "六月数据、代码仓库，帮我完整交付一轮。fixtures/e2e-complex-repo/ artifacts/ DELIVERY_MANIFEST.json cargo test",
+            ),
+        ];
+        assert_eq!(
+            openai_tool_choice(&brief, false, &config).as_deref(),
+            Some("required")
+        );
+    }
+
+    #[test]
+    fn recovery_nudge_requires_tool_once_after_refusal() {
+        let config = local_config();
+        let messages = vec![
+            text(MessageRole::User, "请执行测试"),
+            text(MessageRole::Assistant, "I cannot do that"),
+            text(MessageRole::User, crate::TOOL_RECOVERY_NUDGE),
+        ];
+        assert_eq!(
+            openai_tool_choice(&messages, false, &config).as_deref(),
+            Some("required")
+        );
     }
 }

@@ -111,6 +111,28 @@ export function isAppleTtsProvider(provider?: string | null): boolean {
   return provider?.trim().toLowerCase() === "apple_tts";
 }
 
+/** Prefer on-device Apple Speech in the desktop app when the helper is available. */
+export function shouldUseNativeAppleSpeech(
+  sttProvider: string | null | undefined,
+  appleMediaStt?: boolean | null,
+): boolean {
+  if (!isTauriDesktop()) return false;
+  if (isAppleSpeechProvider(sttProvider)) return true;
+  return appleMediaStt === true;
+}
+
+/** Native folder picker (Desktop only). Returns absolute path or null if cancelled / unavailable. */
+export async function pickDirectory(): Promise<string | null> {
+  if (!isTauriDesktop()) return null;
+  try {
+    const path = await invokeTauri<string | null>("pick_directory");
+    if (!path || !path.trim()) return null;
+    return path.trim();
+  } catch {
+    return null;
+  }
+}
+
 /** Reset cached desktop detection (tests). */
 export function resetDesktopShellCache(): void {
   tauriAvailable = null;

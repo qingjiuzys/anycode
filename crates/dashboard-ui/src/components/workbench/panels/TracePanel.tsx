@@ -1,16 +1,24 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import type { TranscriptBlock } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { ToolDetailPanel } from "@/components/TranscriptToolBlock";
+import { ExecutionTraceGraph } from "@/components/workbench/ExecutionTraceGraph";
 import { useT } from "@/i18n/context";
+import { resolveCanonicalTranscriptBlocks } from "@/lib/liveTranscript";
+import type { ChatStreamEvent } from "@/lib/liveTranscript";
 import { sessionDetailSearch } from "@/lib/sessionLinks";
+import { SESSION_QUERY_GC_MS, transcriptQueryOptions } from "@/lib/sessionQuery";
 
 type Props = {
   sessionId: string;
   live?: boolean;
   isRunning?: boolean;
+  liveEvents?: ChatStreamEvent[];
+  /** Optional pre-resolved blocks; when omitted, merges transcript query + liveEvents. */
+  blocks?: TranscriptBlock[];
   selectedTool?: TranscriptBlock | null;
   onSelectTool?: (tool: TranscriptBlock | null) => void;
 };
@@ -19,24 +27,50 @@ export function TracePanel({
   sessionId,
   live,
   isRunning = false,
+  liveEvents = [],
+  blocks: blocksProp,
   selectedTool,
+  onSelectTool,
 }: Props) {
   const t = useT();
   const running = Boolean(isRunning);
+  const streamLive = Boolean(live);
 
-  const trace = useQuery({
+  const transcript = useQuery({
+    ...transcriptQueryOptions(sessionId, running, streamLive, streamLive),
+    enabled: Boolean(sessionId) && blocksProp == null,
+    placeholderData: (prev) => prev,
+    refetchInterval: running && !streamLive ? 5_000 : false,
+  });
+
+  const blocks = useMemo(() => {
+    if (blocksProp) return blocksProp;
+    const snapshot = transcript.data?.transcript.blocks ?? [];
+    const snapshotMaxSeq = transcript.data?.transcript.max_seq ?? 0;
+    return resolveCanonicalTranscriptBlocks(
+      snapshot,
+      liveEvents,
+      snapshotMaxSeq,
+      streamLive,
+    );
+  }, [
+    blocksProp,
+    liveEvents,
+    streamLive,
+    transcript.data?.transcript.blocks,
+    transcript.data?.transcript.max_seq,
+  ]);
+
+  // Keep /trace warm for debug invalidate; not used as primary timeline.
+  useQuery({
     queryKey: ["session-trace-inspector", sessionId],
     queryFn: () => api.sessionTrace(sessionId),
     enabled: Boolean(sessionId),
     staleTime: running ? 3_000 : 15_000,
+    gcTime: SESSION_QUERY_GC_MS,
     refetchInterval: running && !live ? 6_000 : false,
     placeholderData: (prev) => prev,
   });
-
-  const traceEvents = (trace.data?.trace.events ?? []).filter((evt) =>
-    evt.event_type.startsWith("tool_call"),
-  );
-  const recentTrace = traceEvents.slice(-12).reverse();
 
   return (
     <div className="flex flex-col min-h-0 h-full overflow-y-auto">
@@ -44,31 +78,19 @@ export function TracePanel({
         <h3 className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-secondary m-0 flex items-center gap-1.5 bg-surface-container-low/50">
           <Icon name="timeline" size={14} />
           {t("conversations.inspectorTimeline")}
-          {recentTrace.length > 0 && (
-            <span className="text-outline normal-case">({recentTrace.length})</span>
+          {blocks.length > 0 && (
+            <span className="text-outline normal-case">({blocks.length})</span>
           )}
         </h3>
-        {recentTrace.length === 0 ? (
-          <p className="text-xs text-secondary m-0 px-3 py-2">
-            {t("conversations.inspectorTimelineEmpty")}
-          </p>
+        {transcript.isPending && blocksProp == null && blocks.length === 0 ? (
+          <p className="text-xs text-secondary m-0 px-3 py-2">{t("common.loading")}</p>
         ) : (
-          <ul className="m-0 p-0 list-none">
-            {recentTrace.map((evt, index) => (
-              <li
-                key={`${evt.event_type}-${evt.occurred_at}-${index}`}
-                className="px-3 py-1.5 text-xs border-b border-outline-variant/30 last:border-0"
-              >
-                <span className="font-medium text-on-surface block truncate">
-                  {(evt.payload?.name as string | undefined) ?? evt.title}
-                </span>
-                <span className="text-secondary font-code truncate block">
-                  {evt.event_type.replace("tool_call_", "")}
-                  {typeof evt.payload?.command === "string" ? ` · ${evt.payload.command}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <ExecutionTraceGraph
+            blocks={blocks}
+            isRunning={running}
+            selectedToolId={selectedTool?.id ?? null}
+            onSelectTool={onSelectTool}
+          />
         )}
       </section>
 

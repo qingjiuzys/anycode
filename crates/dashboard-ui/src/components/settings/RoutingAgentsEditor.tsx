@@ -136,15 +136,15 @@ export function RoutingAgentsEditor({ embedded = false }: { embedded?: boolean }
                 <tr key={`${row.agent}-${index}`}>
                   <td>
                     <input
-                      className="dw-input font-code text-xs w-full min-w-[8rem]"
+                      className="dw-input font-code text-[13px] w-full min-w-[8rem]"
                       value={row.agent}
                       onChange={(e) => updateRow(index, { agent: e.target.value })}
-                      placeholder="planner"
+                      placeholder="plan"
                     />
                   </td>
                   <td>
                     <select
-                      className="dw-input font-code text-xs w-full min-w-[8rem]"
+                      className="dw-input font-code text-[13px] w-full min-w-[8rem]"
                       value={row.provider}
                       onChange={(e) => updateRow(index, { provider: e.target.value })}
                     >
@@ -158,7 +158,7 @@ export function RoutingAgentsEditor({ embedded = false }: { embedded?: boolean }
                   </td>
                   <td>
                     <input
-                      className="dw-input font-code text-xs w-full min-w-[8rem]"
+                      className="dw-input font-code text-[13px] w-full min-w-[8rem]"
                       value={row.model}
                       onChange={(e) => updateRow(index, { model: e.target.value })}
                     />
@@ -166,7 +166,7 @@ export function RoutingAgentsEditor({ embedded = false }: { embedded?: boolean }
                   <td className="text-right whitespace-nowrap">
                     <button
                       type="button"
-                      className="dw-btn-ghost text-xs text-error"
+                      className="dw-btn-ghost text-[13px] text-error"
                       onClick={() => removeRow(index)}
                     >
                       {t("common.delete")}

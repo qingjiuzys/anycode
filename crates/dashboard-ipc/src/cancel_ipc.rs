@@ -59,19 +59,21 @@ pub fn unregister_active(session_id: &str) {
     consume_cancel(session_id);
 }
 
-/// Write a cancel request when the session has a live CLI registration.
+/// Write a cancel request. Returns whether a live CLI active registration existed.
 pub fn request_cancel(session_id: &str) -> Result<bool> {
     let active = active_dir().join(format!("{session_id}.json"));
-    if !active.exists() {
-        return Ok(false);
+    let mut had_live = active.exists();
+    if had_live {
+        if get_active(session_id)
+            .as_ref()
+            .is_some_and(|rec| !process_is_alive(rec.pid))
+        {
+            unregister_active(session_id);
+            had_live = false;
+        }
     }
-    if get_active(session_id)
-        .as_ref()
-        .is_some_and(|rec| !process_is_alive(rec.pid))
-    {
-        unregister_active(session_id);
-        return Ok(false);
-    }
+    // Always write the cancel signal so embedded wait_web loops can observe it,
+    // even when there is no CLI `active` registration.
     std::fs::create_dir_all(cancel_dir())?;
     let path = cancel_dir().join(format!("{session_id}.json"));
     let body = CancelRequestRecord {
@@ -80,7 +82,7 @@ pub fn request_cancel(session_id: &str) -> Result<bool> {
         source: "dashboard".into(),
     };
     std::fs::write(&path, serde_json::to_string_pretty(&body)?)?;
-    Ok(true)
+    Ok(had_live)
 }
 
 #[must_use]
@@ -170,7 +172,9 @@ mod tests {
         assert!(!poll_cancel_requested("sess_a"));
         unregister_active("sess_a");
         assert!(!is_active("sess_a"));
+        // Still writes cancel signal for embedded waiters; no live CLI registration.
         assert!(!request_cancel("sess_a").unwrap());
+        assert!(poll_cancel_requested("sess_a"));
     }
 
     #[test]

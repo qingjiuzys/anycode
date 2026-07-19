@@ -6,8 +6,9 @@
 - [ ] `cargo clippy --workspace --all-targets`
 - [ ] `cargo test --workspace`
 - [ ] `cd crates/dashboard-ui && npm test`
-- [ ] `cd docs-site && npm ci && npm run build`
-- [ ] Tag `v*` → `desktop-release.yml` (DMG + updater artifacts)
+- [ ] `cd crates/account-portal && npm ci && npm run build`
+- [ ] `./scripts/build-account-image.sh` → ACR image with portal + DMG baked in
+- [ ] `kubectl rollout` on anycode.work
 
 ## Cloud stack (out of main git)
 
@@ -17,24 +18,24 @@
 
 ## Desktop
 
-- [ ] `ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop`
-- [ ] Optional: `APPLE_*` + `TAURI_SIGNING_PRIVATE_KEY` secrets for signed DMG/updater
+- [ ] `~/.anycode/release.env` configured (see `scripts/release.env.example`)
+- [ ] `./scripts/release-desktop-local.sh` → trusted DMG staged for portal
 - [ ] Install DMG → link cloud → **云端 Auto** chat → usage recorded
 
 ## Sites
 
-- [ ] GitHub Pages docs: https://qingjiuzys.github.io/anycode/
+- [ ] Docs site live: https://anycode.work/docs/
 - [ ] Portal: https://anycode.work (download CTA + pricing)
 
-## User action (if signing)
+## User action (signing)
 
-Configure repository secrets: `APPLE_CERTIFICATE_BASE64`, `APPLE_SIGNING_IDENTITY`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` for Gatekeeper-trusted builds and updater pubkey.
+Copy `scripts/release.env.example` to `~/.anycode/release.env` with Apple Developer ID + app-specific password. See [desktop-release-local.md](./desktop-release-local.md).
 
 ## Deliverables
 
 | Item | Location |
 |------|----------|
-| macOS DMG | GitHub Releases `anycode-desktop_*.dmg` |
+| macOS DMG | Baked in ACR image → `anycode.work/downloads/anyCode_latest_aarch64.dmg` |
 | Updater manifest | `latest.json` on release |
 | Daemon | `target/release/anycode-daemon` |
 | Scenario eval | [scenario-eval.md](./scenario-eval.md) |

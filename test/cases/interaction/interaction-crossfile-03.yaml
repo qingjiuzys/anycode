@@ -1,0 +1,25 @@
+id: interaction-crossfile-03
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Fix the cross-file type error across all 3 modules without breaking existing tests.
+expected:
+  assertions:
+  - validator: cargo_test_pass
+    args:
+      path: .
+  - validator: file_exists
+    args:
+      path: src/index.rs
+requires:
+  llm: live
+  network: false
+  tools:
+  - edit
+  - shell
+timeout_seconds: 1200
+fixture: projects/cross-file-mini/project-03
+meta:
+  file_count: 3

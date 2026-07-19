@@ -1,19 +1,21 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { Link } from "@tanstack/react-router";
 import type { SessionWithProject } from "@/api/types";
-import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ConversationComposer } from "@/components/ConversationComposer";
 import { ConversationTranscript } from "@/components/ConversationTranscript";
-import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
 import { Icon } from "@/components/Icon";
+import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
+import { SessionTitleMenu } from "@/components/session/SessionTitleMenu";
 import { SessionStatusBadges, SessionRunningDots } from "@/components/ui/StatusBadge";
-import { formatDuration, formatRelativeTime } from "@/utils/formatTime";
+import { formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
-import { sessionDetailSearch } from "@/lib/sessionLinks";
 import { findActiveToolInExecutionLog } from "@/lib/transcriptGrouping";
 import { hasTurnStreamActivity } from "@/lib/liveTranscript";
+import { hideComposerWaitingFromSession } from "@/lib/turnLiveStatus";
+import type { SessionLiveState } from "@/lib/sessionLiveStore";
+import type { SseStatus } from "@/hooks/useEventSource";
+import { useConversationShell } from "@/context/ConversationShellContext";
 import {
   conversationStreamLive,
   conversationThreadRunning,
@@ -94,7 +96,7 @@ export function ConversationSessionList({
         if (rows.length === 0) return null;
         return (
           <section key={key}>
-            <h4 className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-secondary m-0 sticky top-0 bg-surface-container-lowest/95 backdrop-blur-sm z-[1]">
+            <h4 className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-secondary m-0 sticky top-0 bg-surface-container-lowest/95 backdrop-blur-sm z-[1]">
               {label}
             </h4>
             <ul className="m-0 p-0 list-none">
@@ -128,7 +130,7 @@ export function ConversationSessionList({
                           {s.title || s.id}
                         </span>
                         {pending > 0 && (
-                          <span className="text-[11px] text-warn truncate block mt-0.5">
+                          <span className="text-xs text-warn truncate block mt-0.5">
                             {t("home.securityPendingBadge").replace("{n}", String(pending))}
                           </span>
                         )}
@@ -137,7 +139,7 @@ export function ConversationSessionList({
                         {runningVisual ? (
                           <SessionRunningDots />
                         ) : (
-                          <span className="text-[11px] text-secondary tabular-nums">
+                          <span className="text-xs text-secondary tabular-nums">
                             {formatRelativeTime(s.started_at)}
                           </span>
                         )}
@@ -170,11 +172,20 @@ export function ConversationThread({
   liveBlocks = [],
   liveEvents = [],
   chatStreamLive = false,
+  sessionLive,
+  questionsRespondAllowed = true,
+  approvalsRespondAllowed = true,
+  pendingApprovalCount = 0,
+  sseStatus = "offline",
   isOptimisticStreaming = false,
   markSessionStreaming,
+  clearOptimisticStreaming,
   toolbarStart,
   selectedToolId,
   onSelectTool,
+  onRenameSession,
+  workbenchOpen = false,
+  onToggleWorkbench,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
@@ -183,15 +194,25 @@ export function ConversationThread({
   liveBlocks?: import("@/api/types").TranscriptBlock[];
   liveEvents?: import("@/lib/liveTranscript").ChatStreamEvent[];
   chatStreamLive?: boolean;
+  sessionLive?: SessionLiveState;
+  questionsRespondAllowed?: boolean;
+  approvalsRespondAllowed?: boolean;
+  /** Disk/summary pending count — used to surface approval UI above composer. */
+  pendingApprovalCount?: number;
+  sseStatus?: SseStatus;
   isOptimisticStreaming?: boolean;
   markSessionStreaming?: (sessionId: string) => void;
+  clearOptimisticStreaming?: () => void;
   toolbarStart?: ReactNode;
   selectedToolId?: string | null;
   onSelectTool?: (tool: import("@/api/types").TranscriptBlock) => void;
+  onRenameSession?: (sessionId: string, title: string) => void | Promise<void>;
+  workbenchOpen?: boolean;
+  onToggleWorkbench?: () => void;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [metaOpen, setMetaOpen] = useState(false);
+  const { sessionSidebarCollapsed, setSessionSidebarCollapsed } = useConversationShell();
 
   if (!session) {
     return (
@@ -208,80 +229,73 @@ export function ConversationThread({
     isOptimisticStreaming ? session.id : null,
   );
   const streamLive = conversationStreamLive(chatStreamLive, sseLive, running);
+  // Do not treat a stuck `chatStreamLive` alone as active — only session status
+  // (or optimistic send) should block the composer after the turn ends.
+  const turnActive = running || isOptimisticStreaming;
 
   const liveLog = useQuery({
     queryKey: ["session-execution-log-live", session.id],
     queryFn: () => api.sessionExecutionLog(session.id, { offset: 0, limit: 120 }),
-    enabled: session.status === "running" && !streamLive,
-    staleTime: 3_000,
-    refetchInterval: session.status === "running" && !streamLive ? 4_000 : false,
+    enabled: session.status === "running" && !streamLive && sseStatus === "offline",
+    staleTime: 30_000,
+    refetchInterval:
+      session.status === "running" && !streamLive && sseStatus === "offline" ? 30_000 : false,
     refetchIntervalInBackground: false,
   });
   const activeTool = streamLive
     ? null
     : findActiveToolInExecutionLog(liveLog.data?.execution_log.lines ?? []);
-  const hideComposerWaiting = hasTurnStreamActivity(liveBlocks, activeTool);
+  const streamHasActivity = hasTurnStreamActivity(liveBlocks, activeTool);
+  const hideComposerWaiting = hideComposerWaitingFromSession({
+    running,
+    streamHasActivity: streamLive || streamHasActivity,
+    turnPhase: sessionLive?.turnPhase ?? null,
+    liveBlocksActive: streamHasActivity,
+  });
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div
+      className={`flex flex-col h-full min-h-0${workbenchOpen ? " conv-thread--workbench-open" : ""}`}
+    >
       {showHeader && (
-        <div className="px-4 py-2.5 border-b border-outline-variant bg-surface-container-low shrink-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="text-base font-semibold m-0 truncate">{session.title}</h3>
-                <SessionStatusBadges
-                  status={session.status}
-                  trustedStatus={session.trusted_status}
-                />
-              </div>
-              {session.block_reason && (
-                <p className="text-xs text-error m-0 mt-1 truncate" title={session.block_reason}>
-                  {session.block_reason}
-                </p>
-              )}
+        <div className="conv-thread-header bg-surface-container-lowest shrink-0">
+          <div className="conv-thread-header__row">
+            <div className="conv-thread-header__side">
+              <button
+                type="button"
+                className={`dw-btn-ghost p-1.5${sessionSidebarCollapsed ? " text-primary" : ""}`}
+                aria-pressed={!sessionSidebarCollapsed}
+                aria-label={
+                  sessionSidebarCollapsed
+                    ? t("conversations.expandSessions")
+                    : t("conversations.collapseSessions")
+                }
+                title={
+                  sessionSidebarCollapsed
+                    ? t("conversations.expandSessions")
+                    : t("conversations.collapseSessions")
+                }
+                onClick={() => setSessionSidebarCollapsed(!sessionSidebarCollapsed)}
+              >
+                <Icon name="view_sidebar" size={18} className="scale-x-[-1]" />
+              </button>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <div className="relative">
+            <div className="conv-thread-header__center">
+              <SessionTitleMenu session={session} onRename={onRenameSession} />
+            </div>
+            <div className="conv-thread-header__side conv-thread-header__side--end">
+              {onToggleWorkbench ? (
                 <button
                   type="button"
-                  className="dw-btn-ghost p-1.5"
-                  aria-expanded={metaOpen}
-                  aria-label={t("common.details")}
-                  onClick={() => setMetaOpen((v) => !v)}
+                  className={`dw-btn-ghost p-1.5${workbenchOpen ? " text-primary" : ""}`}
+                  aria-pressed={workbenchOpen}
+                  aria-label={t("workbench.title")}
+                  title={t("workbench.title")}
+                  onClick={onToggleWorkbench}
                 >
-                  <Icon name="more_horiz" size={18} />
+                  <Icon name="view_sidebar" size={18} />
                 </button>
-                {metaOpen && (
-                  <>
-                    <button
-                      type="button"
-                      className="fixed inset-0 z-10 cursor-default"
-                      aria-hidden
-                      onClick={() => setMetaOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-1 z-20 min-w-[14rem] rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg p-3 text-xs text-secondary">
-                      <p className="m-0">
-                        {session.kind} · {formatDuration(session.started_at, session.ended_at)}
-                      </p>
-                      <p className="m-0 mt-1">
-                        {session.agent_type || "—"} · {session.model || "—"}
-                      </p>
-                      <Link
-                        to="/sessions/$sessionId"
-                        params={{ sessionId: session.id }}
-                        search={sessionDetailSearch("debug")}
-                        className="inline-flex items-center gap-1 mt-2 text-primary no-underline hover:underline"
-                        onClick={() => setMetaOpen(false)}
-                      >
-                        <Icon name="open_in_new" size={14} />
-                        {t("conversations.openDetail")}
-                      </Link>
-                    </div>
-                  </>
-                )}
-              </div>
-              <CancelSessionButton sessionId={session.id} status={session.status} compact />
+              ) : null}
             </div>
           </div>
         </div>
@@ -293,16 +307,21 @@ export function ConversationThread({
         </div>
       ) : null}
 
-      <AskUserQuestionInbox sessionId={session.id} />
-
-      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
-        <div className="px-3 py-4 max-w-4xl mx-auto w-full">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 overscroll-y-contain">
+        <div className="conv-thread-body">
           <ConversationTranscript
             sessionId={session.id}
+            modelName={session.model}
             isRunning={running}
             streamLive={streamLive}
+            sseLive={sseLive}
+            sseStatus={sseStatus}
             liveBlocks={liveBlocks}
             liveEvents={liveEvents}
+            chatStreamLive={chatStreamLive}
+            sessionLive={sessionLive}
+            questionsRespondAllowed={questionsRespondAllowed}
+            approvalsRespondAllowed={approvalsRespondAllowed}
             scrollContainerRef={scrollRef}
             promptPreview={session.prompt_preview}
             selectedToolId={selectedToolId}
@@ -311,15 +330,32 @@ export function ConversationThread({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-outline-variant bg-surface-container-low">
-        <div className="max-w-4xl mx-auto w-full">
+      <div className="conv-thread-composer-dock">
+        <div className="conv-thread-composer">
+          {(pendingApprovalCount > 0 ||
+            (sessionLive?.pendingApprovals.length ?? 0) > 0) && (
+            <div className="conv-thread-approval-pin px-1 pb-2">
+              <SecurityApprovalInbox
+                sessionId={session.id}
+                hideWhenEmpty
+                inline
+                liveApprovals={sessionLive?.pendingApprovals ?? []}
+                respondAllowed={approvalsRespondAllowed}
+              />
+            </div>
+          )}
           <ConversationComposer
-          mode="follow-up"
-          session={session}
-          onSent={onFollowUpStarted}
-          hideWaitingIndicator={hideComposerWaiting}
-          onStreamingStart={markSessionStreaming}
-        />
+            mode="follow-up"
+            session={session}
+            onSent={onFollowUpStarted}
+            hideWaitingIndicator={hideComposerWaiting}
+            onStreamingStart={markSessionStreaming}
+            onStreamingEnd={clearOptimisticStreaming}
+            waitingForQuestion={(sessionLive?.pendingQuestions.length ?? 0) > 0}
+            turnActive={turnActive}
+            chatStreamLive={chatStreamLive}
+            sseStatus={sseStatus}
+          />
         </div>
       </div>
     </div>

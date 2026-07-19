@@ -3,8 +3,34 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 use uuid::Uuid;
+
+/// Monotonic user message id for the active embedded chat turn (SSE scope).
+pub const USER_TURN_ENV: &str = "ANYCODE_DASHBOARD_USER_TURN_ID";
+
+type RegisterHook = Box<dyn Fn(&PendingQuestionRecord) + Send + Sync>;
+static REGISTER_HOOK: OnceLock<Mutex<Option<RegisterHook>>> = OnceLock::new();
+
+/// Optional hook invoked after a question is registered (dashboard SSE notify).
+pub fn set_register_hook(hook: RegisterHook) {
+    let slot = REGISTER_HOOK.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = slot.lock() {
+        *guard = Some(hook);
+    }
+}
+
+fn invoke_register_hook(rec: &PendingQuestionRecord) {
+    let Some(slot) = REGISTER_HOOK.get() else {
+        return;
+    };
+    if let Ok(guard) = slot.lock() {
+        if let Some(hook) = guard.as_ref() {
+            hook(rec);
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuestionOptionRecord {
@@ -17,6 +43,9 @@ pub struct QuestionOptionRecord {
 pub struct PendingQuestionRecord {
     pub question_id: String,
     pub session_id: String,
+    /// User turn this question belongs to (SSE scope key); 0 when unknown.
+    #[serde(default)]
+    pub user_turn_id: u32,
     pub question: String,
     pub header: String,
     pub options: Vec<QuestionOptionRecord>,
@@ -65,6 +94,7 @@ fn response_dir() -> PathBuf {
 
 pub fn register_pending(
     session_id: &str,
+    user_turn_id: u32,
     question: &str,
     header: &str,
     options: &[QuestionOptionRecord],
@@ -78,6 +108,7 @@ pub fn register_pending(
     let rec = PendingQuestionRecord {
         question_id: question_id.clone(),
         session_id: session_id.to_string(),
+        user_turn_id,
         question: question.to_string(),
         header: header.to_string(),
         options: options.to_vec(),
@@ -87,6 +118,7 @@ pub fn register_pending(
     };
     let path = pending_dir().join(format!("{question_id}.json"));
     std::fs::write(&path, serde_json::to_string_pretty(&rec)?)?;
+    invoke_register_hook(&rec);
     Ok(question_id)
 }
 
@@ -170,6 +202,18 @@ pub fn clear_pending(question_id: &str) {
     let _ = std::fs::remove_file(path);
 }
 
+/// Clear all pending questions for a session (e.g. dashboard Stop).
+#[must_use]
+pub fn clear_pending_for_session(session_id: &str) -> usize {
+    let rows = list_pending_for_session(Some(session_id), 500);
+    let mut n = 0usize;
+    for row in rows {
+        clear_pending(&row.question_id);
+        n += 1;
+    }
+    n
+}
+
 pub const STALE_PENDING_MAX_AGE_SECS: u64 = 30 * 60;
 
 #[must_use]
@@ -227,12 +271,37 @@ mod tests {
             label: "A".into(),
             description: "first".into(),
         }];
-        let id = register_pending("sess_1", "Pick one?", "Choice", &opts, false).unwrap();
+        let id = register_pending("sess_1", 0, "Pick one?", "Choice", &opts, false).unwrap();
         assert_eq!(list_pending(10).len(), 1);
         submit_response(&id, &["A".into()], None).unwrap();
         assert!(list_pending(10).is_empty(), "pending cleared on submit");
         let resp = poll_response(&id).unwrap();
         assert_eq!(resp.selected_labels, vec!["A"]);
         assert!(list_pending(10).is_empty());
+    }
+
+    #[test]
+    fn register_hook_invoked_on_register() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let _guard = test_util::lock_state_dir_env();
+        let dir = tempdir().unwrap();
+        test_state(&dir);
+        let called = Arc::new(AtomicBool::new(false));
+        let called_hook = Arc::clone(&called);
+        // The hook is a process-global static: other tests may register
+        // sessions concurrently, so only react to this test's session.
+        set_register_hook(Box::new(move |rec| {
+            if rec.session_id == "sess_hook" {
+                called_hook.store(true, Ordering::SeqCst);
+            }
+        }));
+        let opts = vec![QuestionOptionRecord {
+            label: "A".into(),
+            description: String::new(),
+        }];
+        let _ = register_pending("sess_hook", 0, "Pick?", "Choice", &opts, false).unwrap();
+        assert!(called.load(Ordering::SeqCst));
     }
 }

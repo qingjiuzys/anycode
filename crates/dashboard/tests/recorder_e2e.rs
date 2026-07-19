@@ -12,6 +12,19 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
     let db = DashboardDb::open(&db_path).await.unwrap();
     let work = dir.path().join("repo");
     std::fs::create_dir_all(&work).unwrap();
+    db.upsert_skill(
+        "weekly-report",
+        "Weekly report",
+        "Create a weekly report",
+        None,
+        None,
+        "1.1.0",
+        "/tmp/skills/weekly-report",
+        Some("business"),
+        &serde_json::json!({}),
+    )
+    .await
+    .unwrap();
 
     let task_id = Uuid::new_v4();
     let task = Task {
@@ -36,6 +49,7 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };
@@ -70,6 +84,18 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
         "[llm_response_end] turn=1 elapsed_ms=500 input_tokens=1200 output_tokens=300",
     )
     .unwrap();
+    disk.append_line(
+        task_id,
+        "[tool_call_input] turn=1 idx=1 name=Skill truncated=false",
+    )
+    .unwrap();
+    disk.append_line(task_id, r#"{"name":"weekly-report","args":[]}"#)
+        .unwrap();
+    disk.append_line(
+        task_id,
+        "[tool_call_end] turn=1 idx=1 name=Skill elapsed_ms=7 error=<none>",
+    )
+    .unwrap();
     disk.append_line(task_id, "[task_end] status=completed")
         .unwrap();
 
@@ -97,6 +123,13 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
     assert_eq!(usage.usage.llm_calls, 1);
     assert_eq!(usage.usage.input_tokens, 1200);
     assert_eq!(usage.usage.output_tokens, 300);
+
+    let skill_runs =
+        anycode_dashboard::skills_governance::list_skill_runs(&db, "weekly-report", 10)
+            .await
+            .unwrap();
+    assert_eq!(skill_runs.len(), 1);
+    assert_eq!(skill_runs[0].status, "ok");
 
     let session = db.get_session(rec.session_id()).await.unwrap().unwrap();
     assert_eq!(session.status, "completed");
@@ -180,6 +213,7 @@ async fn recorder_begin_attaches_precreated_session_and_preserves_title() {
             user_vision_images: vec![],
             budget: TaskBudget::default(),
             loop_limits: AgentLoopLimits::default(),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     };

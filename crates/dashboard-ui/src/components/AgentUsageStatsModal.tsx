@@ -5,7 +5,7 @@ import { AgentRoleCards } from "@/components/AgentRoleCards";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
-import { builtinAgentMeta } from "@/lib/agentCatalog";
+import { builtinAgentMeta, agentDisplayLabel } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
 
 function formatShortTime(iso: string | null): string {
@@ -71,7 +71,7 @@ export function AgentUsageStatsModal({
             <h2 id="agents-stats-modal-title" className="text-lg font-semibold m-0 text-on-surface">
               {t("agents.statsSection")}
             </h2>
-            <p className="text-xs text-secondary m-0 mt-1 tabular-nums">{statsSummary}</p>
+            <p className="text-[13px] text-secondary m-0 mt-1 tabular-nums">{statsSummary}</p>
           </div>
           <button
             type="button"
@@ -155,7 +155,7 @@ export function AgentUsageStatsModal({
             <section className="dw-agents-stats-modal__section">
               <header className="dw-agents-stats-modal__section-head">
                 <h3 className="dw-agents-stats-modal__heading m-0">{t("agents.customAgents")}</h3>
-                <button type="button" className="dw-btn-ghost text-xs shrink-0" onClick={onNewAgent}>
+                <button type="button" className="dw-btn-ghost text-[13px] shrink-0" onClick={onNewAgent}>
                   <Icon name="add" size={14} />
                   {t("agents.newAgent")}
                 </button>
@@ -188,11 +188,11 @@ function CustomProfileRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="font-medium text-sm font-code truncate block">{profile.id}</span>
-        <span className="text-xs text-secondary truncate block">
+        <span className="text-[13px] text-secondary truncate block">
           {profile.description || profile.extends}
         </span>
       </span>
-      <button type="button" className="dw-btn-ghost text-xs shrink-0" onClick={onEdit}>
+      <button type="button" className="dw-btn-ghost text-[13px] shrink-0" onClick={onEdit}>
         {t("common.details")}
       </button>
     </li>
@@ -253,19 +253,19 @@ function AgentStatRow({
         </div>
         <div className="dw-agents-stat-row__main min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-medium text-sm truncate">{row.agent_type}</span>
+            <span className="font-medium text-sm truncate">{agentDisplayLabel(row.agent_type, t)}</span>
             {top && <span className="dw-agents-stat-row__top">{topLabel}</span>}
           </div>
-          <span className="text-xs text-secondary font-code truncate block">{row.model}</span>
+          <span className="text-[13px] text-secondary font-code truncate block">{row.model}</span>
           <div className="dw-agents-stat-row__bar" aria-hidden>
             <span style={{ width: `${pct}%` }} />
           </div>
         </div>
         <div className="dw-agents-stat-row__nums shrink-0 text-right">
           <div className="text-lg font-semibold tabular-nums leading-none">{row.sessions_count}</div>
-          <div className="text-[10px] text-secondary mt-0.5">{t("agents.sessionsShort")}</div>
+          <div className="text-[13px] text-secondary mt-0.5">{t("agents.sessionsShort")}</div>
         </div>
-        <time className="dw-agents-stat-row__time hidden sm:block shrink-0 font-code text-[11px] text-secondary">
+        <time className="dw-agents-stat-row__time hidden sm:block shrink-0 font-code text-[13px] text-secondary">
           {formatShortTime(row.last_started_at)}
         </time>
         <span className="dw-agents-stat-row__go shrink-0 text-outline" aria-hidden>

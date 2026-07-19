@@ -77,16 +77,25 @@ pub async fn list_audit_events(
     State(state): State<AppState>,
     Query(q): Query<AuditQuery>,
 ) -> impl IntoResponse {
+    let limit = q.limit.clamp(1, 200);
+    let offset = q.offset.max(0);
     match crate::audit::list_audit_events(
         &state.db,
         q.project_id.as_deref(),
         q.action.as_deref(),
         q.risk.as_deref(),
-        q.limit,
+        limit,
+        offset,
     )
     .await
     {
-        Ok(events) => Json(json!({ "events": events })).into_response(),
+        Ok((events, total)) => Json(json!({
+            "events": events,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }))
+        .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),

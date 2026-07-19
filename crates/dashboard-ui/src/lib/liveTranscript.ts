@@ -45,6 +45,64 @@ function upsertBlock(blocks: TranscriptBlock[], block: TranscriptBlock): Transcr
   return [...blocks, block];
 }
 
+function turnDoneNoticeBlock(evt: ChatStreamEvent): TranscriptBlock | null {
+  const status =
+    (typeof evt.payload?.status === "string" ? evt.payload.status : null) ??
+    evt.text ??
+    "completed";
+  if (status === "completed") return null;
+  const userTurnId = evt.conversation_turn_id ?? 1;
+  const copy =
+    status === "max_turns"
+      ? {
+          title: "已达模型轮次上限",
+          body: "任务在未完全完成时中断；下方为部分进度总结。可在 config.json 的 runtime.max_agent_turns 提高上限。",
+        }
+      : status === "max_tools"
+        ? {
+            title: "已达工具调用上限",
+            body: "任务因 max_tool_calls 限制中断；下方为部分进度总结。可在 config.json 的 runtime.max_tool_calls 提高上限。",
+          }
+        : status === "budget"
+          ? {
+              title: "已达预算上限",
+              body: "任务因 token/费用预算限制中断；下方为部分进度总结。",
+            }
+          : status === "refusal_no_tool"
+            ? {
+                title: "模型未调用工具",
+                body: "首轮未触发工具调用即结束；可换模型或调整 prompt 后重试。",
+              }
+            : status === "cancelled"
+              ? {
+                  title: "任务已取消",
+                  body: "本轮执行被用户或系统中止；下方为已完成部分的总结（如有）。",
+                }
+              : { title: "任务结束", body: status };
+  const severity =
+    status === "max_turns" ||
+    status === "max_tools" ||
+    status === "budget" ||
+    status === "refusal_no_tool"
+      ? "warning"
+      : "info";
+  return {
+    id: `turn-done:u${userTurnId}:${status}`,
+    block_type: "system_notice",
+    at: evt.at,
+    title: copy.title,
+    body: copy.body,
+    meta: {
+      source: "turn_done",
+      status,
+      severity,
+      user_turn_id: String(userTurnId),
+    },
+    collapsible: false,
+    default_collapsed: false,
+  };
+}
+
 /** Apply one `chat_event` SSE payload onto transcript blocks. */
 export function applyChatStreamEvent(
   blocks: TranscriptBlock[],
@@ -73,6 +131,9 @@ export function applyChatStreamEvent(
           live: true,
           turn,
           ...(userTurnId ? { user_turn_id: userTurnId } : {}),
+          ...(evt.block?.meta?.narration === true
+            ? { narration: true, message_role: "status" as const }
+            : {}),
         },
         collapsible: false,
         default_collapsed: false,
@@ -89,6 +150,13 @@ export function applyChatStreamEvent(
       }
       return blocks;
     }
+    case "progress_update": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, {
+        ...evt.block,
+        meta: { ...(evt.block.meta ?? {}), live: evt.block.meta?.live ?? true },
+      });
+    }
     case "tool_start":
     case "tool_result":
     case "tool_progress": {
@@ -96,6 +164,10 @@ export function applyChatStreamEvent(
       return upsertBlock(blocks, evt.block);
     }
     case "llm_start": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, evt.block);
+    }
+    case "thinking_delta": {
       if (!evt.block) return blocks;
       return upsertBlock(blocks, evt.block);
     }
@@ -115,8 +187,35 @@ export function applyChatStreamEvent(
       }
       return upsertBlock(blocks, evt.block);
     }
-    case "turn_done":
-      return blocks;
+    case "approval_request":
+    case "approval_resolved": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, evt.block);
+    }
+    case "question_request":
+    case "question_resolved": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, evt.block);
+    }
+    case "message_queued": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, evt.block);
+    }
+    case "message_dequeued": {
+      const queueId = evt.payload?.queue_id;
+      if (typeof queueId !== "string" || !queueId) return blocks;
+      return blocks.filter(
+        (b) => b.meta?.queue_id !== queueId && b.id !== `queue:${queueId}`,
+      );
+    }
+    case "turn_phase": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, evt.block);
+    }
+    case "turn_done": {
+      const notice = turnDoneNoticeBlock(evt);
+      return notice ? upsertBlock(blocks, notice) : blocks;
+    }
     default:
       return blocks;
   }
@@ -263,27 +362,23 @@ export function mergeTranscriptBlocks(
   return order.map((id) => byId.get(id)!).filter(Boolean);
 }
 
-/** Append-only canonical merge: REST snapshot + SSE events with seq > snapshotMaxSeq. */
+/** Merge REST snapshot with in-memory SSE: baseline through last user message + live tail overlay. */
 export function resolveCanonicalTranscriptBlocks(
   snapshot: TranscriptBlock[],
   liveEvents: ChatStreamEvent[],
-  snapshotMaxSeq = 0,
+  _snapshotMaxSeq = 0,
   streaming = false,
 ): TranscriptBlock[] {
   if (!streaming || liveEvents.length === 0) {
     return snapshot;
   }
-  const pending = liveEvents
-    .filter((evt) => (evt.seq ?? 0) > snapshotMaxSeq)
-    .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
-  if (pending.length === 0) {
+  const liveBlocks = blocksFromCanonicalEvents(liveEvents);
+  if (liveBlocks.length === 0) {
     return snapshot;
   }
-  let blocks = [...snapshot];
-  for (const evt of pending) {
-    blocks = applyChatStreamEvent(blocks, evt);
-  }
-  return blocks;
+  const lastUserIdx = lastUserMessageIndex(snapshot);
+  const baseline = lastUserIdx >= 0 ? snapshot.slice(0, lastUserIdx + 1) : [];
+  return mergeTranscriptBlocks(baseline, liveBlocks);
 }
 
 /** @deprecated Prefer resolveCanonicalTranscriptBlocks with liveEvents + max_seq. */

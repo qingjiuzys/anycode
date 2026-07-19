@@ -1,12 +1,10 @@
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { TopbarSearch } from "@/components/TopbarSearch";
-import { TopbarNewMenu } from "@/components/TopbarNewMenu";
 import { Icon } from "@/components/Icon";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
-import { UserMenu, LanguageSwitcher } from "@/components/UserMenu";
+import { UserMenu } from "@/components/UserMenu";
 import { NotificationsDropdown } from "@/components/NotificationsDropdown";
-import { ControlCenterButton } from "@/components/control-center/ControlCenterButton";
 import { ControlCenterOverlay } from "@/components/control-center/ControlCenterOverlay";
 import { SessionSidebar } from "@/components/session/SessionSidebar";
 import { useAuth } from "@/auth/context";
@@ -16,7 +14,7 @@ import { ExternalNavLink } from "@/components/ExternalNavLink";
 import { useSseStatus } from "@/context/SseContext";
 import { FeatureRouteSync } from "@/components/control-center/FeatureRouteSync";
 import { ControlCenterProvider } from "@/context/ControlCenterContext";
-import { ConversationShellProvider } from "@/context/ConversationShellContext";
+import { ConversationShellProvider, useConversationShell } from "@/context/ConversationShellContext";
 import { api } from "@/api/client";
 
 function isFullPageShellRoute(pathname: string, searchStr: string): boolean {
@@ -39,6 +37,9 @@ function Topbar({ compact = false, hideProfile = false }: { compact?: boolean; h
   const { t, locale } = useI18n();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sseStatus = useSseStatus();
+  const showSse = !compact && pathname !== "/";
+  const showProfileCluster = !hideProfile;
+  const showEnd = showSse || showProfileCluster;
 
   return (
     <header className={`dw-topbar glass-panel${pathname === "/" ? " dw-topbar--home" : ""}`}>
@@ -51,43 +52,31 @@ function Topbar({ compact = false, hideProfile = false }: { compact?: boolean; h
           )}
         </div>
       ) : null}
-      <div className="dw-topbar-end">
-        {!compact && pathname !== "/" && (
-          <div className="hidden xl:block dw-topbar-hit">
-            <SseStatusBadge status={mapSseStatus(sseStatus)} />
-          </div>
-        )}
-        <div className="dw-topbar-hit">
-          <LanguageSwitcher />
+      {showEnd ? (
+        <div className="dw-topbar-end">
+          {showSse ? (
+            <div className="hidden xl:block dw-topbar-hit">
+              <SseStatusBadge status={mapSseStatus(sseStatus)} />
+            </div>
+          ) : null}
+          {showProfileCluster ? (
+            <>
+              <div className="dw-topbar-hit">
+                <NotificationsDropdown />
+              </div>
+              <ExternalNavLink
+                href={helpGuideUrl(locale)}
+                className="dw-btn-secondary hidden md:inline-flex no-underline dw-topbar-hit"
+              >
+                {t("nav.help")}
+              </ExternalNavLink>
+              <div className="dw-topbar-hit">
+                <UserMenu />
+              </div>
+            </>
+          ) : null}
         </div>
-        {!hideProfile ? (
-          <>
-            <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
-            <div className="dw-topbar-hit">
-              <NotificationsDropdown />
-            </div>
-            <ExternalNavLink
-              href={helpGuideUrl(locale)}
-              className="dw-btn-secondary hidden md:inline-flex no-underline dw-topbar-hit"
-            >
-              {t("nav.help")}
-            </ExternalNavLink>
-            <div className="dw-topbar-hit">
-              <TopbarNewMenu />
-            </div>
-            <div className="dw-topbar-hit">
-              <UserMenu />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="w-px h-6 bg-outline-variant hidden sm:block shrink-0" />
-            <div className="dw-topbar-hit">
-              <TopbarNewMenu />
-            </div>
-          </>
-        )}
-      </div>
+      ) : null}
     </header>
   );
 }
@@ -98,18 +87,41 @@ function SessionFirstShell() {
 
   return (
     <ConversationShellProvider>
-      <div className="dw-shell dw-shell--sessions">
-        <SessionSidebar />
-        <div className="dw-main-wrap dw-main-wrap--sessions">
-          <Topbar compact hideProfile />
-          <main className={`dw-main dw-main--sessions${isHome ? " dw-main--home" : ""}`}>
-            <Outlet />
-          </main>
-        </div>
-        <ControlCenterOverlay />
-        <ControlCenterButton />
-      </div>
+      <SessionFirstShellInner isHome={isHome} />
     </ConversationShellProvider>
+  );
+}
+
+function SessionFirstShellInner({ isHome }: { isHome: boolean }) {
+  const { t } = useI18n();
+  const { sessionSidebarCollapsed, setSessionSidebarCollapsed } = useConversationShell();
+
+  return (
+    <div
+      className={`dw-shell dw-shell--sessions${
+        sessionSidebarCollapsed ? " dw-sessions-sidebar-collapsed" : ""
+      }`}
+    >
+      <SessionSidebar />
+      <div className="dw-main-wrap dw-main-wrap--sessions">
+        {/* No shell Topbar: home has no chrome strip; conversations use the thread title bar. */}
+        <main className={`dw-main dw-main--sessions${isHome ? " dw-main--home" : ""}`}>
+          {sessionSidebarCollapsed && isHome ? (
+            <button
+              type="button"
+              className="dw-sessions-expand-fab"
+              aria-label={t("conversations.expandSessions")}
+              title={t("conversations.expandSessions")}
+              onClick={() => setSessionSidebarCollapsed(false)}
+            >
+              <Icon name="view_sidebar" size={18} className="scale-x-[-1]" />
+            </button>
+          ) : null}
+          <Outlet />
+        </main>
+      </div>
+      <ControlCenterOverlay />
+    </div>
   );
 }
 
@@ -125,7 +137,6 @@ function StandardShell() {
           <Outlet />
         </main>
       </div>
-      <ControlCenterButton />
       <ControlCenterOverlay />
       <footer className="dw-standard-footer hidden lg:flex">
         <ExternalNavLink href={docsHomeUrl(locale)} className="dw-nav-link">

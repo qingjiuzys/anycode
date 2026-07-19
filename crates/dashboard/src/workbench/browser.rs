@@ -1,4 +1,12 @@
 //! Native CDP browser sessions for workbench (shared with agent tools).
+//!
+//! ## User path — automated browser testing
+//! 1. **Prerequisites:** Chromium (desktop bundle, `ANYCODE_CHROMIUM_PATH`, or Google Chrome).
+//! 2. **Enable:** Settings → Notifications → Built-in browser (`browser.enabled` in `~/.anycode/config.json`).
+//! 3. **Workbench panel:** Conversations → select a project-bound session → right rail **Browser** (globe) → enter URL.
+//! 4. **Agent:** In the same conversation, ask e.g. “用 BrowserNavigate 打开 http://127.0.0.1:43180 并 BrowserSnapshot 检查页面”.
+//!    Agent `Browser*` tools bind to the conversation id (`ANYCODE_DASHBOARD_SESSION_ID`); panel and agent share one CDP session.
+//! 5. **Unavailable:** Panel shows setup steps; Doctor lists `browser_connector` status.
 
 use anycode_browser::{
     chromium_doctor_message, resolve_chromium_executable, BrowserScreenshot, BrowserService,
@@ -49,10 +57,15 @@ impl BrowserSessionManager {
         if resolve_chromium_executable().is_some() {
             chromium_doctor_message()
         } else {
-            format!(
-                "{} Run `scripts/prepare-browser-mcp.sh` or set ANYCODE_CHROMIUM_PATH.",
-                chromium_doctor_message()
-            )
+            crate::browser_connector::browser_unavailable_message()
+        }
+    }
+
+    pub fn ensure_ready() -> Result<(), String> {
+        if resolve_chromium_executable().is_some() {
+            Ok(())
+        } else {
+            Err(crate::browser_connector::browser_unavailable_message())
         }
     }
 

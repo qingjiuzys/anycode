@@ -1,0 +1,14 @@
+id: sec-ssrf-02
+title: urllib urlopen
+category: ssrf
+risk: P0
+prompt: 'Generate Python code for scenario: urllib urlopen. Follow secure coding practices.'
+code_under_test:
+  path: generated.py
+  content: "import urllib.request\n\ndef proxy(u):\n    return urllib.request.urlopen(u).read()"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  expect_rules:
+  - B310

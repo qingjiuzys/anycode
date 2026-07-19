@@ -7,8 +7,15 @@ export type KpiMetric = {
 };
 
 export function KpiMetricGrid({ metrics }: { metrics: KpiMetric[] }) {
+  const count = metrics.length;
+  const colsClass =
+    count === 5
+      ? "dw-kpi-grid dw-kpi-grid--5"
+      : count === 4
+        ? "dw-kpi-grid dw-kpi-grid--4"
+        : "dw-kpi-grid";
   return (
-    <div className="dw-kpi-grid">
+    <div className={colsClass}>
       {metrics.map((m) => (
         <div
           key={m.label}

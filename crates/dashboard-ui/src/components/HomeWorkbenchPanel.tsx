@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/api/client";
 import type { OverviewStats, ProjectSummary } from "@/api/types";
@@ -10,7 +10,6 @@ type Props = {
   projects: ProjectSummary[];
   loadingProjects?: boolean;
   pendingApprovals: number;
-  onNewProject: () => void;
 };
 
 export function HomeWorkbenchPanel({
@@ -18,22 +17,12 @@ export function HomeWorkbenchPanel({
   projects,
   loadingProjects,
   pendingApprovals,
-  onNewProject,
 }: Props) {
   const t = useT();
-  const qc = useQueryClient();
   const recentEvents = useQuery({
     queryKey: ["recent-events", "home-workbench"],
     queryFn: api.recentEvents,
     staleTime: 30_000,
-  });
-  const scan = useMutation({
-    mutationFn: api.scanProjects,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["projects"] });
-      void qc.invalidateQueries({ queryKey: ["overview"] });
-      void qc.invalidateQueries({ queryKey: ["bootstrap"] });
-    },
   });
 
   const recentProjects = projects.slice(0, 3);
@@ -180,34 +169,6 @@ export function HomeWorkbenchPanel({
             })}
           </div>
         </section>
-      </div>
-
-      <div className="dw-home-action-bar" aria-label={t("home.quickActions")}>
-        <button
-          type="button"
-          className="dw-home-action"
-          disabled={scan.isPending}
-          onClick={() => scan.mutate()}
-        >
-          <Icon name="radar" size={17} />
-          {scan.isPending ? t("common.loading") : t("home.actionScan")}
-        </button>
-        <button type="button" className="dw-home-action" onClick={onNewProject}>
-          <Icon name="add" size={17} />
-          {t("home.actionNewProject")}
-        </button>
-        <Link to="/agents" className="dw-home-action">
-          <Icon name="extension" size={17} />
-          {t("home.workbench.importSkills")}
-        </Link>
-        <Link to="/settings" className="dw-home-action">
-          <Icon name="settings" size={17} />
-          {t("home.actionSettings")}
-        </Link>
-        <Link to="/reports" className="dw-home-action">
-          <Icon name="description" size={17} />
-          {t("home.workbench.viewReports")}
-        </Link>
       </div>
     </div>
   );

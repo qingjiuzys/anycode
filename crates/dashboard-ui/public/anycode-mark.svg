@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">anyCode A monogram</title>
+  <defs>
+    <linearGradient id="surface" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7868FF"/>
+      <stop offset="1" stop-color="#5144E8"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#surface)"/>
+  <path d="M17 46 28.8 18h6.4L47 46h-7.2l-2.5-6.4H26.7L24.2 46H17Zm12-12.4h6l-3-8-3 8Z" fill="#fff"/>
+  <path d="M41.5 17.5h7v7" fill="none" stroke="#C9C4FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

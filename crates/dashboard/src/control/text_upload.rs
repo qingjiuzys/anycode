@@ -67,6 +67,27 @@ pub fn text_file_line(path: &Path) -> String {
     format!("@anycode/text-file:{}\n", path.display())
 }
 
+/// Inline uploaded text/PDF content into the user prompt for embedded chat.
+pub fn append_to_prompt(prompt: &str, files: Option<&[TextFilePayload]>) -> Result<String> {
+    let Some(files) = files else {
+        return Ok(prompt.to_string());
+    };
+    if files.is_empty() {
+        return Ok(prompt.to_string());
+    }
+    validate_text_payloads(files)?;
+    let mut out = prompt.to_string();
+    for f in files {
+        let text = normalize_upload_content(&f.filename, &f.content)?;
+        out.push_str(&format!(
+            "\n\n--- attached: {} ---\n{}",
+            f.filename.trim(),
+            text
+        ));
+    }
+    Ok(out)
+}
+
 fn normalize_upload_content(filename: &str, content: &str) -> Result<String> {
     let ext = Path::new(filename)
         .extension()
@@ -119,6 +140,21 @@ mod tests {
             content: "x".repeat(MAX_FILE_BYTES + 1),
         }])
         .unwrap_err();
-        assert!(err.to_string().contains("1 MB"));
+        assert!(err.to_string().contains("exceeds 1 MB limit"));
+    }
+
+    #[test]
+    fn append_to_prompt_inlines_text_files() {
+        let out = append_to_prompt(
+            "hello",
+            Some(&[TextFilePayload {
+                filename: "note.txt".into(),
+                content: "file body".into(),
+            }]),
+        )
+        .unwrap();
+        assert!(out.starts_with("hello"));
+        assert!(out.contains("--- attached: note.txt ---"));
+        assert!(out.contains("file body"));
     }
 }

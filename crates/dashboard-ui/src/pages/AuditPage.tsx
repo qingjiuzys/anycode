@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
+import { CcPageShell } from "@/components/ui/CcPageShell";
+import { ListPageToolbar } from "@/components/ui/ListPageToolbar";
+import { ListPaginationBar } from "@/components/ui/ListPaginationBar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { downloadCsv } from "@/utils/exportCsv";
@@ -11,6 +14,7 @@ import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 const RISKS = ["", "low", "medium", "high", "critical"] as const;
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
 function riskLabel(r: string, t: (k: string) => string) {
   if (!r) return t("audit.allRisks");
@@ -53,89 +57,119 @@ export function AuditPage(_props: EmbeddedPageProps = {}) {
   const [projectId, setProjectId] = useState("");
   const [action, setAction] = useState("");
   const [risk, setRisk] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [projectId, action, risk]);
 
   const projects = useQuery({ queryKey: ["projects"], queryFn: () => api.projects({ limit: 500 }) });
   const audit = useQuery({
-    queryKey: ["audit", projectId, action, risk],
+    queryKey: ["audit", projectId, action, risk, page, pageSize],
     queryFn: () =>
       api.auditEvents({
         projectId: projectId || undefined,
         action: action || undefined,
         risk: risk || undefined,
-        limit: 100,
+        limit: pageSize,
+        offset: page * pageSize,
       }),
   });
 
   const rows = audit.data?.events ?? [];
+  const total = audit.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  const filterToolbar = (
+    <ListPageToolbar
+      left={
+        <>
+          <div className="relative flex-1 sm:max-w-xs min-w-0">
+            <Icon
+              name="search"
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none"
+            />
+            <input
+              type="search"
+              className="dw-input dw-input--pill w-full pl-9"
+              placeholder={t("audit.actionFilter")}
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+            />
+          </div>
+          <select
+            className="dw-input dw-input--pill h-[34px] min-w-[140px] shrink-0 pr-8"
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+          >
+            <option value="">{t("audit.allProjects")}</option>
+            {(projects.data?.projects ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </>
+      }
+      actions={
+        rows.length > 0 ? (
+          <button
+            type="button"
+            className="dw-btn-secondary dw-btn--pill"
+            onClick={() => exportAudit(rows, t)}
+          >
+            <Icon name="download" size={16} />
+            {t("audit.export")}
+          </button>
+        ) : undefined
+      }
+      extra={RISKS.map((r) => (
+        <button
+          key={r || "all"}
+          type="button"
+          className={`dw-chip${risk === r ? " active" : ""}`}
+          onClick={() => setRisk(r)}
+        >
+          {riskLabel(r, t)}
+        </button>
+      ))}
+    />
+  );
 
   return (
-    <>
-      <PageHeader
-        title={t("audit.title")}
-        subtitle={t("audit.subtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("audit.title") },
-        ]}
-        actions={
-          rows.length > 0 ? (
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              onClick={() => exportAudit(rows, t)}
-            >
-              <Icon name="download" size={16} />
-              {t("audit.export")}
-            </button>
-          ) : undefined
-        }
-      />
-
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <select
-          className="dw-input"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-        >
-          <option value="">{t("audit.allProjects")}</option>
-          {(projects.data?.projects ?? []).map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          className="dw-input w-48"
-          placeholder={t("audit.actionFilter")}
-          value={action}
-          onChange={(e) => setAction(e.target.value)}
+    <CcPageShell
+      header={
+        <PageHeader
+          title={t("audit.title")}
+          subtitle={t("audit.subtitle")}
+          breadcrumbs={[
+            { label: t("nav.home"), to: "/" },
+            { label: t("audit.title") },
+          ]}
         />
-        {RISKS.map((r) => (
-          <button
-            key={r || "all"}
-            type="button"
-            className={`dw-chip${risk === r ? " active" : ""}`}
-            onClick={() => setRisk(r)}
-          >
-            {riskLabel(r, t)}
-          </button>
-        ))}
-      </div>
-
+      }
+    >
       {audit.isLoading && <p className="text-sm text-secondary">{t("common.loading")}</p>}
 
-      {rows.length === 0 && !audit.isLoading && (
-        <EmptyState
-          title={t("audit.emptyTitle")}
-          description={t("audit.emptyDesc")}
-          icon="policy"
-        />
+      {!audit.isLoading && rows.length === 0 && (
+        <>
+          {filterToolbar}
+          <EmptyState
+            title={t("audit.emptyTitle")}
+            description={t("audit.emptyDesc")}
+            icon="policy"
+          />
+        </>
       )}
 
       {rows.length > 0 && (
-        <div className="dw-section-card overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="dw-section-card dw-list-card">
+          <div className="dw-list-card__toolbar px-3 py-3 border-b border-outline-variant/40">
+            {filterToolbar}
+          </div>
+          <div className="dw-list-card__scroll">
             <table className="dw-table">
               <thead>
                 <tr>
@@ -166,8 +200,23 @@ export function AuditPage(_props: EmbeddedPageProps = {}) {
               </tbody>
             </table>
           </div>
+          <div className="dw-list-card__footer">
+            <ListPaginationBar
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
+              total={total}
+              pageSizeLabel={t("audit.pageSizeLabel")}
+              onPageChange={setPage}
+              onPageSizeChange={(n) => {
+                setPageSize(n);
+                setPage(0);
+              }}
+            />
+          </div>
         </div>
       )}
-    </>
+    </CcPageShell>
   );
 }

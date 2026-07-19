@@ -2,8 +2,10 @@
 
 use crate::cancel_ipc::dashboard_state_dir;
 use crate::service_governance::is_loopback_host;
+use anycode_tools::{SkillCatalog, SkillsGovernance};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -75,9 +77,9 @@ pub fn normalize_trigger_request(req: &mut TriggerRunRequest) {
     }
 }
 
-pub fn validate_request(req: &TriggerRunRequest) -> Result<()> {
-    let prompt = req.prompt.trim();
-    if prompt.is_empty() {
+fn validate_prompt_text(prompt: &str, vision_count: usize, text_file_count: usize) -> Result<()> {
+    let prompt = prompt.trim();
+    if prompt.is_empty() && vision_count == 0 && text_file_count == 0 {
         bail!("prompt is required");
     }
     if prompt.len() > 8_000 {
@@ -86,6 +88,20 @@ pub fn validate_request(req: &TriggerRunRequest) -> Result<()> {
     if prompt.contains('\0') {
         bail!("invalid prompt");
     }
+    Ok(())
+}
+
+/// Conversation follow-up: allow image/text-only messages when attachments are present.
+pub fn validate_conversation_message(
+    prompt: &str,
+    vision_count: usize,
+    text_file_count: usize,
+) -> Result<()> {
+    validate_prompt_text(prompt, vision_count, text_file_count)
+}
+
+pub fn validate_request(req: &TriggerRunRequest) -> Result<()> {
+    validate_prompt_text(&req.prompt, 0, 0)?;
     let kind = req.kind.trim();
     if kind != "run" && kind != "goal" {
         bail!("kind must be run or goal");
@@ -142,6 +158,71 @@ pub fn validate_skill_ids(skills: Option<&[String]>) -> Result<()> {
     Ok(())
 }
 
+/// Scan skill directories for a project root (same roots as runtime bootstrap).
+#[must_use]
+pub fn scan_skill_catalog_for_root(project_root: &Path) -> SkillCatalog {
+    let mut roots = vec![
+        project_root.join("skills"),
+        project_root.join(".anycode/skills"),
+    ];
+    if let Some(h) = dirs::home_dir() {
+        roots.push(h.join(".anycode/skills"));
+    }
+    SkillCatalog::scan(&roots, None, 120_000, false)
+}
+
+pub fn skills_governance_from_config(
+    config: &anycode_config::Config,
+    project_enabled: Option<HashSet<String>>,
+) -> SkillsGovernance {
+    SkillsGovernance {
+        global_allowlist: config.skills.allowlist.clone(),
+        agent_allowlists: config.skills.agent_allowlists.clone(),
+        project_enabled,
+    }
+}
+
+pub fn validate_skills_governed(
+    skills: Option<&[String]>,
+    catalog: &SkillCatalog,
+    governance: &SkillsGovernance,
+    agent: &str,
+) -> Result<()> {
+    validate_skill_ids(skills)?;
+    let Some(list) = skills else {
+        return Ok(());
+    };
+    for skill in list {
+        let id = skill.trim();
+        if id.is_empty() {
+            continue;
+        }
+        if !catalog.metas().iter().any(|s| s.id == id) {
+            bail!("unknown skill: {id}");
+        }
+        if !governance.is_allowed(agent, id) {
+            bail!("skill not allowed for this project or agent: {id}");
+        }
+    }
+    Ok(())
+}
+
+pub async fn validate_trigger_skills_for_project(
+    skills: Option<&[String]>,
+    agent: Option<&str>,
+    project_root: &Path,
+) -> Result<()> {
+    let config = anycode_config::load_config(None).await?;
+    let catalog = scan_skill_catalog_for_root(project_root);
+    let project_enabled = anycode_bootstrap::load_project_enabled_skills(project_root).await;
+    let governance = skills_governance_from_config(&config, project_enabled);
+    let agent_id = agent
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("general-purpose");
+    validate_skills_governed(skills, &catalog, &governance, agent_id)
+}
+
 #[must_use]
 pub fn prompt_with_skills(prompt: &str, skills: Option<&[String]>) -> String {
     let ids: Vec<&str> = skills
@@ -192,13 +273,7 @@ async fn trigger_run_inprocess(
     let log_path = dir.join(format!("{trigger_id}.log"));
     let meta_path = dir.join(format!("{trigger_id}.json"));
 
-    let agent = req
-        .agent
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("general-purpose")
-        .to_string();
+    let agent = crate::control::agent_resolve::resolve_web_chat_agent(req.agent.as_deref());
     let prompt = prompt_with_skills(&req.prompt, req.skills.as_deref());
     let command_preview = format!(
         "in-process run -C {} --agent {} {}",
@@ -237,12 +312,10 @@ async fn trigger_run_inprocess(
     let db = db.cloned();
     tokio::spawn(async move {
         let run_result: anyhow::Result<()> = async {
-            if let Some(ref sid) = session_id {
-                std::env::set_var(crate::approval_ipc::SESSION_ENV, sid);
-            }
-            let runtime = crate::control::chat_runtime::bootstrap::build_embedded_runtime(None)
-                .await
-                .context("embedded runtime for trigger")?;
+            let runtime =
+                crate::control::chat_runtime::bootstrap::build_embedded_runtime(None, &root)
+                    .await
+                    .context("embedded runtime for trigger")?;
             let task = anycode_core::Task {
                 id: Uuid::new_v4(),
                 agent_type: anycode_core::AgentType::new(agent),
@@ -265,19 +338,35 @@ async fn trigger_run_inprocess(
                     budget: anycode_core::TaskBudget::default(),
                     user_vision_images: vec![],
                     loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
+                    // Structured task-local context replaces the old
+                    // process-wide SESSION_ENV write (approval/question scope).
+                    chat_turn: session_id
+                        .as_ref()
+                        .map(|sid| anycode_core::ChatTurnContext {
+                            dashboard_session_id: Some(sid.clone()),
+                            user_turn_id: None,
+                            reply_language: None,
+                            host_intent_hint: None,
+                        }),
                 },
                 created_at: chrono::Utc::now(),
             };
             let outcome = runtime.execute_task(task).await;
-            let summary = match outcome {
-                Ok(anycode_core::TaskResult::Success { output, .. }) => output,
-                Ok(anycode_core::TaskResult::Failure { error, .. }) => error,
-                Ok(anycode_core::TaskResult::Partial { success, .. }) => success,
-                Err(e) => e.to_string(),
+            let (status, summary) = match &outcome {
+                Ok(result) => (
+                    crate::control::session_status::session_status_for_task_result(result),
+                    crate::control::session_status::session_summary_for_task_result(result)
+                        .to_string(),
+                ),
+                Err(e) if e.is_cooperative_cancel() => (
+                    crate::control::session_status::STATUS_CANCELLED,
+                    e.to_string(),
+                ),
+                Err(e) => (crate::control::session_status::STATUS_FAILED, e.to_string()),
             };
             let _ = std::fs::write(&log_path_bg, &summary);
             if let (Some(db), Some(sid)) = (db.as_ref(), session_id.as_deref()) {
-                let _ = db.finish_session(sid, "completed", Some(&summary)).await;
+                let _ = db.finish_session(sid, status, Some(&summary)).await;
             }
             Ok(())
         }
@@ -288,9 +377,6 @@ async fn trigger_run_inprocess(
             if let (Some(db), Some(sid)) = (db.as_ref(), session_id.as_deref()) {
                 let _ = db.finish_session(sid, "failed", Some(&msg)).await;
             }
-        }
-        if session_id.is_some() {
-            std::env::remove_var(crate::approval_ipc::SESSION_ENV);
         }
     });
 
@@ -363,6 +449,13 @@ mod tests {
     }
 
     #[test]
+    fn validate_conversation_message_allows_attachments_without_text() {
+        validate_conversation_message("", 1, 0).unwrap();
+        validate_conversation_message("", 0, 1).unwrap();
+        validate_conversation_message("  ", 0, 0).unwrap_err();
+    }
+
+    #[test]
     fn prompt_with_skills_prefixes_hint() {
         let out = prompt_with_skills(
             "summarize",
@@ -392,5 +485,27 @@ mod tests {
         normalize_trigger_request(&mut req);
         validate_request(&req).unwrap();
         assert_eq!(req.goal.as_deref(), Some("ship feature"));
+    }
+
+    #[test]
+    fn validate_skills_governed_rejects_unknown_id() {
+        let dir = tempdir().unwrap();
+        let known = dir.path().join("skills/known");
+        std::fs::create_dir_all(&known).unwrap();
+        std::fs::write(
+            known.join("SKILL.md"),
+            "---\nname: known\ndescription: ok\n---\n",
+        )
+        .unwrap();
+        let catalog = scan_skill_catalog_for_root(dir.path());
+        let gov = SkillsGovernance::default();
+        let err = validate_skills_governed(
+            Some(&["missing-skill".to_string()]),
+            &catalog,
+            &gov,
+            "general-purpose",
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("unknown skill"));
     }
 }

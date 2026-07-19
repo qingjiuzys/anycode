@@ -17,6 +17,10 @@ pub type ToolName = String;
 /// Assistant `Message.metadata` 键：保存本轮 `Vec<ToolCall>` JSON，供 LLM 客户端重建工具调用历史。
 pub const ANYCODE_TOOL_CALLS_METADATA_KEY: &str = "anycode_tool_calls";
 
+/// Assistant `Message.metadata` 键：DeepSeek/GLM thinking 模式的 `reasoning_content`。
+/// 发生过 tool_calls 的助手轮次必须在后续请求中原样回传，否则 API 返回 400。
+pub const ANYCODE_REASONING_CONTENT_METADATA_KEY: &str = "reasoning_content";
+
 /// User `Message.metadata`：本条为会话压缩后的续接摘要（与 Claude Code `isCompactSummary` 对齐）。
 pub const ANYCODE_COMPACT_SUMMARY_METADATA_KEY: &str = "anycode_compact_summary";
 

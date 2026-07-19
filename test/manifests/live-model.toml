@@ -1,0 +1,5 @@
+[profile]
+id = "live-model"
+max_duration_minutes = 720
+tier = ["full"]
+suites = ["office", "coding", "skills", "browser", "interaction", "robustness"]

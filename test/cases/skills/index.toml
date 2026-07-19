@@ -1,0 +1,267 @@
+schema_version = 1
+suite = "skills"
+
+[[cases]]
+id = "skills-cn-daily-brief-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-cn-meeting-minutes-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-cn-weekly-report-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-content-repurpose-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-daily-brief-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-doc-summary-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-file-organizer-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-md-to-pdf-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-novel-writer-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-office-pptx-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-report-to-csv-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-video-script-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-wechat-daily-history-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-weekly-report-contract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-weekly-report-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-weekly-report-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-weekly-report-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-meeting-minutes-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-meeting-minutes-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-meeting-minutes-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-doc-summary-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-doc-summary-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-doc-summary-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-md-to-pdf-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-md-to-pdf-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-md-to-pdf-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-report-csv-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-report-csv-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-report-csv-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-file-organizer-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-file-organizer-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-file-organizer-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-content-repurpose-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-content-repurpose-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-content-repurpose-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-daily-brief-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-daily-brief-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-daily-brief-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-office-pptx-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-office-pptx-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-office-pptx-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-novel-writer-ab-no-skill"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-novel-writer-ab-official"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+
+[[cases]]
+id = "skills-novel-writer-ab-market-stub"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 600
+

@@ -27,7 +27,7 @@
 
 | ID | 项 | 证据 | 建议动作 | 风险 |
 |----|-----|------|----------|------|
-| U1 | HTTP `anycode daemon` | ADR 003；docs-site `cli-daemon.md` | **document** 仅保留迁移说明 | 低 |
+| U1 | HTTP `anycode daemon` | ADR 003 | **document** 仅保留迁移说明 | 低 |
 | U2 | Rerank model probe | `dashboard/src/llm_probe.rs` — `rerank probe not implemented` | **defer** 或实现 probe | 低 |
 | U3 | LSP 关闭时 stub 响应 | `tools/src/lsp_tool.rs` | **keep** feature-gated | — |
 | U4 | MCP 关闭时 unsupported | `tools/src/mcp_tools.rs` | **keep** feature-gated | — |

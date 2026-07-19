@@ -1,30 +1,34 @@
 import { Icon } from "@/components/Icon";
 import type { BillingCycle, PlanCatalogEntry, PlanTier } from "@/api/types/service";
 import { useT } from "@/i18n/context";
+import { formatFen } from "@/lib/money";
 
 export function PlanTierCard({
   catalog,
   current,
   highlighted,
+  promoLabel,
   billingCycle,
   onSelect,
 }: {
   catalog: PlanCatalogEntry;
   current: PlanTier;
   highlighted?: boolean;
+  promoLabel?: string | null;
   billingCycle: BillingCycle;
   onSelect: (tier: PlanTier) => void;
 }) {
   const t = useT();
   const isCurrent = catalog.tier === current;
-  const priceUsd =
-    billingCycle === "yearly" ? catalog.yearlyPriceUsd : catalog.monthlyPriceUsd;
+  const priceFen =
+    billingCycle === "yearly" ? catalog.yearlyPriceFen : catalog.monthlyPriceFen;
   const price =
-    priceUsd === 0
+    priceFen === 0
       ? t("service.plan.freePrice")
       : billingCycle === "yearly"
-        ? t("service.plan.pricePerYear").replace("{price}", String(priceUsd))
-        : t("service.plan.pricePerMonth").replace("{price}", String(priceUsd));
+        ? t("service.plan.pricePerYear").replace("{price}", formatFen(priceFen))
+        : t("service.plan.pricePerMonth").replace("{price}", formatFen(priceFen));
+  const badge = promoLabel?.trim() || (highlighted ? t("service.plan.recommended") : null);
 
   return (
     <div
@@ -36,9 +40,9 @@ export function PlanTierCard({
         <div>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="text-lg font-semibold m-0">{t(`service.plan.tiers.${catalog.tier}`)}</h3>
-            {highlighted && (
+            {badge && (
               <span className="console-plan-badge console-plan-badge--featured">
-                {t("service.plan.recommended")}
+                {badge}
               </span>
             )}
             {isCurrent && (

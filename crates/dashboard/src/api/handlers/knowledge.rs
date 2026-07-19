@@ -140,6 +140,7 @@ pub async fn import_skill(
     match anycode_tools::install_skill(body.source.trim(), &dest) {
         Ok(r) => {
             let _ = crate::skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            state.chat_runtime.invalidate_runtime().await;
             Json(json!({
                 "ok": true,
                 "id": r.id,
@@ -159,6 +160,10 @@ pub async fn import_skill(
 pub struct CreateCronJobBody {
     pub schedule: String,
     pub command: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
     #[serde(default = "default_cron_tz")]
     pub schedule_timezone: String,
     pub session_id: Option<String>,
@@ -186,17 +191,7 @@ pub async fn create_cron_job(Json(body): Json<CreateCronJobBody>) -> impl IntoRe
             return (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response();
         }
     };
-    let schedule =
-        match anycode_tools::wall_clock_cron_to_utc_storage_for_timezone(&body.schedule, tz) {
-            Some(s) => s,
-            None => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({ "error": "could not convert schedule to UTC storage" })),
-                )
-                    .into_response();
-            }
-        };
+    let schedule = anycode_tools::prepare_cron_schedule_for_storage(&body.schedule, tz);
     let path = match cron_ledger::orchestration_path() {
         Some(p) => p,
         None => {
@@ -208,15 +203,24 @@ pub async fn create_cron_job(Json(body): Json<CreateCronJobBody>) -> impl IntoRe
         }
     };
     let opts = anycode_tools::CronJobCreateOptions {
+        name: body.name,
+        enabled: body.enabled,
+        schedule_timezone: Some(body.schedule_timezone),
         session_id: body.session_id,
         failure_destination: body.failure_destination,
         tool_profile: body.tool_profile,
         tool_allowlist: None,
         project_id: body.project_id,
     };
-    match anycode_tools::append_cron_job_to_orchestration_file(&path, schedule, body.command, opts)
-    {
-        Ok(job) => Json(json!({ "ok": true, "job": job })).into_response(),
+    match anycode_tools::append_cron_job_to_orchestration_file(
+        &path,
+        schedule.schedule,
+        body.command,
+        opts,
+    ) {
+        Ok(job) => {
+            Json(json!({ "ok": true, "job": job, "schedule_note": schedule.note })).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),

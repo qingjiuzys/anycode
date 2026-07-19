@@ -45,7 +45,7 @@ export function AgentLoopLimitsPanel() {
       <div className="grid gap-4 sm:grid-cols-2 max-w-xl">
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">{t("settings.agentLimits.maxAgentTurns")}</span>
-          <span className="text-xs text-secondary">
+          <span className="text-[13px] text-secondary">
             {t("settings.agentLimits.maxAgentTurnsHint")}
           </span>
           <input
@@ -61,7 +61,7 @@ export function AgentLoopLimitsPanel() {
 
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">{t("settings.agentLimits.maxToolCalls")}</span>
-          <span className="text-xs text-secondary">
+          <span className="text-[13px] text-secondary">
             {t("settings.agentLimits.maxToolCallsHint")}
           </span>
           <input
@@ -77,7 +77,7 @@ export function AgentLoopLimitsPanel() {
       </div>
 
       {defaults ? (
-        <p className="text-xs text-secondary m-0 mt-3">
+        <p className="text-[13px] text-secondary m-0 mt-3">
           {t("settings.agentLimits.defaults")
             .replace("{turns}", String(defaults.max_agent_turns))
             .replace("{tools}", String(defaults.max_tool_calls))}
@@ -85,7 +85,7 @@ export function AgentLoopLimitsPanel() {
       ) : null}
 
       {data?.config_path ? (
-        <p className="text-xs text-secondary m-0 mt-2">
+        <p className="text-[13px] text-secondary m-0 mt-2">
           {t("settings.runtime.configPath")}:{" "}
           <code className="font-code break-all">{data.config_path}</code>
         </p>
@@ -101,14 +101,14 @@ export function AgentLoopLimitsPanel() {
           {save.isPending ? t("common.saving") : t("common.save")}
         </button>
         {save.isSuccess ? (
-          <span className="text-xs text-success">{t("settings.agentLimits.saved")}</span>
+          <span className="text-[13px] text-success">{t("settings.agentLimits.saved")}</span>
         ) : null}
         {save.isError ? (
-          <span className="text-xs text-error">{(save.error as Error).message}</span>
+          <span className="text-[13px] text-error">{(save.error as Error).message}</span>
         ) : null}
       </div>
 
-      <p className="text-xs text-secondary m-0 mt-3">{t("settings.agentLimits.restartHint")}</p>
+      <p className="text-[13px] text-secondary m-0 mt-3">{t("settings.agentLimits.restartHint")}</p>
     </SectionCard>
   );
 }

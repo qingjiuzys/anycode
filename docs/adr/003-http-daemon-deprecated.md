@@ -18,7 +18,7 @@ Documentation and roadmap items still referred to an “optional daemon HTTP” 
 
 ## Consequences
 
-- Docs-site pages that described **`POST /v1/tasks`** are **historical / removed**; see the **HTTP daemon (removed)** stub (source: [`docs-site/guide/cli-daemon.md`](../../docs-site/guide/cli-daemon.md)).
+- Docs-site pages that described **`POST /v1/tasks`** are **historical / removed**; see the **HTTP daemon (removed)** stub (source: [`https://anycode.work/docs/guide/cli-daemon.md`](../../docs/user/guide/cli-daemon)).
 - Maintainer backlog and MVP wording must **not** list “optional daemon HTTP” as in-scope.
 - If a future maintainer needs HTTP, they should treat it as a **separate service or fork**, or draft **ADR 00x** with security, auth, and composition-root boundaries before landing code.
 

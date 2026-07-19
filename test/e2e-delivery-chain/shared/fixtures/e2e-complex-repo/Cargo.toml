@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["crates/sales-metrics", "crates/sales-report"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"

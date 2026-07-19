@@ -5,8 +5,8 @@ import { useMediaStatus } from "@/hooks/useMediaStatus";
 import { useT } from "@/i18n/context";
 import {
   appleTranscribeAudio,
-  isAppleSpeechProvider,
   isTauriDesktop,
+  shouldUseNativeAppleSpeech,
 } from "@/lib/desktopShell";
 import {
   blobToWav16k,
@@ -25,6 +25,19 @@ type Props = {
 
 type Phase = "idle" | "recording" | "transcribing";
 
+function VoiceWaveBars({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`dw-voice-wave ${active ? "dw-voice-wave--active" : "dw-voice-wave--idle"}`}
+      aria-hidden
+    >
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i} className="dw-voice-wave__bar" />
+      ))}
+    </span>
+  );
+}
+
 function appendText(prev: string, next: string): string {
   const t = next.trim();
   if (!t) return prev;
@@ -34,12 +47,12 @@ function appendText(prev: string, next: string): string {
 
 export function VoiceInputButton({ onTranscribed, disabled, className }: Props) {
   const t = useT();
-  const { sttAvailable, sttBuiltin, sttProvider, isLoading } = useMediaStatus();
+  const { sttAvailable, sttBuiltin, sttProvider, appleMedia, isLoading } = useMediaStatus();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
   const timerRef = useRef<number | null>(null);
-  const appleSpeech = isAppleSpeechProvider(sttProvider);
+  const nativeAppleSpeech = shouldUseNativeAppleSpeech(sttProvider, appleMedia?.stt);
 
   useEffect(() => {
     return () => {
@@ -69,7 +82,7 @@ export function VoiceInputButton({ onTranscribed, disabled, className }: Props) 
       setError(t("settings.model.voiceInput.unsupported"));
       return;
     }
-    if (appleSpeech && !isTauriDesktop()) {
+    if (nativeAppleSpeech && !isTauriDesktop()) {
       setError(t("settings.model.voiceInput.desktopOnly"));
       return;
     }
@@ -80,7 +93,7 @@ export function VoiceInputButton({ onTranscribed, disabled, className }: Props) 
       setPhase("transcribing");
       try {
         const blob = await stopRecording();
-        if (appleSpeech) {
+        if (nativeAppleSpeech) {
           const wav = await blobToWav16k(blob);
           const result = await appleTranscribeAudio(wav);
           if (!result.ok) {
@@ -161,27 +174,40 @@ export function VoiceInputButton({ onTranscribed, disabled, className }: Props) 
         ? t("settings.model.voiceInput.transcribing")
         : t("settings.model.voiceInput.start");
 
+  const buttonClass =
+    phase === "recording"
+      ? "dw-voice-input-btn dw-voice-input-btn--recording"
+      : phase === "transcribing"
+        ? "dw-voice-input-btn dw-voice-input-btn--transcribing"
+        : "dw-voice-input-btn";
+
   return (
     <div className={`flex flex-col items-start gap-1 ${className ?? ""}`}>
-      <button
-        type="button"
-        className={`dw-btn-secondary text-xs py-1 ${phase === "recording" ? "text-error border-error/40" : ""}`}
-        disabled={disabled || phase === "transcribing"}
-        title={title}
-        aria-label={title}
-        onClick={() => void handleClick()}
-      >
-        {phase === "transcribing" ? (
-          <Icon name="hourglass_empty" size={14} />
-        ) : phase === "recording" ? (
-          <Icon name="stop" size={14} />
-        ) : (
-          <Icon name="mic" size={14} />
-        )}
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={disabled || phase === "transcribing"}
+          title={title}
+          aria-label={title}
+          aria-pressed={phase === "recording" ? true : undefined}
+          onClick={() => void handleClick()}
+        >
+          {phase === "transcribing" ? (
+            <Icon name="hourglass_empty" size={16} className="dw-voice-input-btn__hourglass" />
+          ) : phase === "recording" ? (
+            <VoiceWaveBars active />
+          ) : (
+            <>
+              <Icon name="mic" size={16} className="dw-voice-input-btn__mic" />
+              <VoiceWaveBars active={false} />
+            </>
+          )}
+        </button>
         {phase === "recording" && (
-          <span className="ml-1 tabular-nums">{seconds}s</span>
+          <span className="text-[11px] font-medium text-primary tabular-nums">{seconds}s</span>
         )}
-      </button>
+      </div>
       {error && (
         <span className="text-[11px] text-error max-w-[14rem] leading-snug">{error}</span>
       )}

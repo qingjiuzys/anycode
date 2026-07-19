@@ -11,7 +11,7 @@ export const SCENARIO_CARDS: ScenarioCard[] = [
   {
     id: "coding",
     icon: "code",
-    agent: "builder",
+    agent: "general-purpose",
     skills: [],
     promptEn:
       "Help me build a small web feature end-to-end: clarify requirements, scaffold files, implement, and run checks.",

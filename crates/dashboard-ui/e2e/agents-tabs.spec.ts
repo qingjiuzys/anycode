@@ -18,10 +18,25 @@ test.describe("Agents tabs", () => {
     }
   });
 
-  test("skill market API returns entries", async ({ request }) => {
+  test("installed skills show Chinese names in zh locale", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("anycode-dashboard-locale", "zh");
+    });
+    await page.goto("/agents");
+    await page.getByRole("button", { name: /已安装|installed/i }).first().click();
+    const row = page.locator(".dw-agents-skill-row").filter({ hasText: "cn-daily-brief" }).first();
+    if (await row.count()) {
+      await expect(row.locator(".dw-agents-skill-row__name")).toHaveText("中文日报");
+    } else {
+      const csvRow = page.locator(".dw-agents-skill-row").filter({ hasText: "report-to-csv" }).first();
+      await expect(csvRow.locator(".dw-agents-skill-row__name")).toHaveText("报表转 CSV");
+    }
+  });
+
+  test("skills market API returns entries", async ({ request }) => {
     const res = await request.get("/api/skills/market");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    expect(Array.isArray(body.entries)).toBeTruthy();
+    expect(Array.isArray(body.market?.entries)).toBeTruthy();
   });
 });

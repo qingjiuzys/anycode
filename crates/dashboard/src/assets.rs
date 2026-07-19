@@ -330,6 +330,7 @@ fn skill_to_asset_item_from_detail(skill: &SkillDetailRecord) -> AssetItem {
             name: skill.name.clone(),
             description: skill.description.clone(),
             description_zh: skill.description_zh.clone(),
+            name_zh: skill.name_zh.clone(),
             source_path: skill.source_path.clone(),
             category: skill.category.clone(),
             projects_count: skill.projects_count,

@@ -17,7 +17,7 @@ export function SessionTokenChart({ rows }: Props) {
 
   const labels = rows.map((r) => r.model || r.provider || "unknown");
   const tokens = rows.map((r) => r.total_tokens);
-  const costs = rows.map((r) => Number(r.estimated_cost_usd.toFixed(4)));
+  const costs = rows.map((r) => Number(r.estimated_cost_cny.toFixed(4)));
 
   const option = {
     backgroundColor: "transparent",
@@ -40,7 +40,7 @@ export function SessionTokenChart({ rows }: Props) {
       },
       {
         type: "value",
-        name: "USD",
+        name: "CNY",
         axisLabel: { color: palette.outline, fontSize: 10 },
       },
     ],

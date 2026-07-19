@@ -10,6 +10,10 @@ fn main() {
 
     println!("cargo:rerun-if-changed={}", ui_src.display());
     println!("cargo:rerun-if-changed={}", dist.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        manifest_dir.join("migrations").display()
+    );
     println!("cargo:rerun-if-env-changed=ANYCODE_BUILD_DASHBOARD_UI");
 
     let embed = std::env::var("CARGO_FEATURE_EMBEDDED_UI").is_ok();

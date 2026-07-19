@@ -1,0 +1,1 @@
+[Reply language: English] User-visible text this turn must be English (code/paths/commands/identifiers exempt). No Chinese scaffolding (关键发现 / 让我 / 总结 / 下一步). Prefer tool_calls directly; tool rounds should have minimal visible text; no bilingual duplicate summaries.

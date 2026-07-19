@@ -84,6 +84,62 @@ fn open_external_url(url: String) -> Result<(), String> {
     }
 }
 
+/// Native folder picker (returns absolute path, or null if cancelled).
+#[tauri::command]
+fn pick_directory(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    app.run_on_main_thread(move || {
+        let picked = rfd::FileDialog::new()
+            .set_title("选择目录")
+            .pick_folder();
+        let _ = tx.send(picked.map(|p| p.display().to_string()));
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|e| e.to_string())
+}
+
+/// Open a local file/directory in Finder / Explorer / file manager.
+#[tauri::command]
+fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("empty path".into());
+    }
+    let p = std::path::Path::new(path);
+    if !p.exists() {
+        return Err(format!("path does not exist: {path}"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = path;
+        Err("reveal_in_file_manager unsupported on this platform".into())
+    }
+}
+
 fn show_workbench(app: &tauri::AppHandle, ready: bool) {
     let Some(w) = app.get_webview_window("main") else {
         return;
@@ -167,6 +223,8 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             open_external_url,
+            reveal_in_file_manager,
+            pick_directory,
             apple_media::apple_media_capabilities,
             apple_media::apple_media_transcribe,
             apple_media::apple_media_ocr_image,

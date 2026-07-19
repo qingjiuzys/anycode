@@ -87,7 +87,7 @@ export function AgentEditorDrawer({ profileId, onClose, onSaved }: Props) {
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
           {isNew && (
             <div>
-              <label className="block text-xs font-medium text-secondary mb-1">{t("common.id")}</label>
+              <label className="block text-[13px] font-medium text-secondary mb-1">{t("common.id")}</label>
               <input
                 className="dw-input w-full font-code"
                 value={id}
@@ -97,7 +97,7 @@ export function AgentEditorDrawer({ profileId, onClose, onSaved }: Props) {
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">
+            <label className="block text-[13px] font-medium text-secondary mb-1">
               {t("settings.agents.extends")}
             </label>
             <select
@@ -113,7 +113,7 @@ export function AgentEditorDrawer({ profileId, onClose, onSaved }: Props) {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">{t("common.name")}</label>
+            <label className="block text-[13px] font-medium text-secondary mb-1">{t("common.name")}</label>
             <input
               className="dw-input w-full"
               value={description}
@@ -121,22 +121,22 @@ export function AgentEditorDrawer({ profileId, onClose, onSaved }: Props) {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">
+            <label className="block text-[13px] font-medium text-secondary mb-1">
               {t("settings.agents.toolsDeny")}
             </label>
             <input
-              className="dw-input w-full font-code text-xs"
+              className="dw-input w-full font-code text-[13px]"
               value={toolsDeny}
               onChange={(e) => setToolsDeny(e.target.value)}
               placeholder="Bash, Edit, FileWrite"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-secondary mb-1">
+            <label className="block text-[13px] font-medium text-secondary mb-1">
               {t("settings.agents.skillsAllowlist")}
             </label>
             <input
-              className="dw-input w-full font-code text-xs"
+              className="dw-input w-full font-code text-[13px]"
               value={skillsAllowlist}
               onChange={(e) => setSkillsAllowlist(e.target.value)}
               placeholder="skill-a, skill-b"

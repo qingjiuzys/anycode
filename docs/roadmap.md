@@ -5,10 +5,10 @@
 
 | 语言 | 源码路径 |
 |------|-----------|
-| English | [`docs-site/guide/roadmap.md`](../docs-site/guide/roadmap.md) |
-| 中文 | [`docs-site/zh/guide/roadmap.md`](../docs-site/zh/guide/roadmap.md) |
+| English | [`https://anycode.work/docs/guide/roadmap.md`](../docs/user/guide/roadmap) |
+| 中文 | [`https://anycode.work/docs/zh/guide/roadmap.md`](../docs/user/zh/guide/roadmap) |
 
-协作约定：**迭代任务与决策状态只改本文件（及 `docs/adr/`）**；不要在 `docs-site` 再维护一份相同的 now/next/later 列表。
+协作约定：**迭代任务与决策状态只改本文件（及 `docs/adr/`）**；不要在 `docs/user` 再维护一份相同的 now/next/later 列表。
 
 在线浏览本文件：<https://github.com/qingjiuzys/anycode/blob/main/docs/roadmap.md>
 
@@ -17,7 +17,7 @@
 ## 1. 文档治理（落地规则）
 
 1. **分工**  
-   - **`docs-site/.../roadmap.md`**：产品叙事、MVP、工具阶段矩阵、MCP/LSP 提纲。  
+   - **`docs/user/.../roadmap.md`**：产品叙事、MVP、工具阶段矩阵、MCP/LSP 提纲。  
    - **`docs/roadmap.md`（本文件）**：可执行的 now/next/later、已完成摘要、决策表。
 
 2. **Next**  

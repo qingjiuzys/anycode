@@ -2,6 +2,8 @@
 
 use crate::observability::log_parser::ParsedLine;
 use crate::schema::{ChatStreamEvent, ProjectEvent, TranscriptBlock};
+use anycode_core::strip_llm_reasoning_for_display;
+use anycode_dashboard_ipc::question_ipc::PendingQuestionRecord;
 use chrono::Utc;
 use serde_json::{json, Value};
 
@@ -44,6 +46,12 @@ pub fn chat_event_from_project_event(evt: &ProjectEvent) -> Option<ChatStreamEve
         "tool_call_start" => "tool_start",
         "tool_call_end" => "tool_result",
         "assistant_response" => "assistant_done",
+        "tool_approval_pending" => "approval_request",
+        "tool_approval_resolved" => "approval_resolved",
+        "ask_user_question_pending" => "question_request",
+        "ask_user_question_resolved" => "question_resolved",
+        "message_queued" => "message_queued",
+        "message_dequeued" => "message_dequeued",
         "task_end" | "session_completed" => "turn_done",
         "session_error" | "session_blocked" | "session_cancelled" | "tool_denied" => {
             "session_error"
@@ -102,6 +110,88 @@ pub fn chat_event_from_project_event(evt: &ProjectEvent) -> Option<ChatStreamEve
             default_collapsed: true,
             event_id: Some(evt.id.clone()),
         }),
+        "approval_request" => Some(TranscriptBlock {
+            id: evt.id.clone(),
+            block_type: "approval_request".into(),
+            at: evt.occurred_at.clone(),
+            title: evt.title.clone(),
+            body: evt.body.clone(),
+            meta: evt.payload.clone(),
+            collapsible: true,
+            default_collapsed: false,
+            event_id: Some(evt.id.clone()),
+        }),
+        "approval_resolved" => {
+            let mut meta = evt.payload.clone();
+            if let Value::Object(ref mut map) = meta {
+                map.insert("source".into(), json!("approval_resolved"));
+                map.insert("severity".into(), json!("info"));
+            }
+            Some(TranscriptBlock {
+                id: evt.id.clone(),
+                block_type: "system_notice".into(),
+                at: evt.occurred_at.clone(),
+                title: evt.title.clone(),
+                body: evt.body.clone(),
+                meta,
+                collapsible: true,
+                default_collapsed: true,
+                event_id: Some(evt.id.clone()),
+            })
+        }
+        "question_request" => Some(TranscriptBlock {
+            id: evt.id.clone(),
+            block_type: "question_request".into(),
+            at: evt.occurred_at.clone(),
+            title: evt.title.clone(),
+            body: evt.body.clone(),
+            meta: evt.payload.clone(),
+            collapsible: false,
+            default_collapsed: false,
+            event_id: Some(evt.id.clone()),
+        }),
+        "question_resolved" => {
+            let mut meta = evt.payload.clone();
+            if let Value::Object(ref mut map) = meta {
+                map.insert("source".into(), json!("question_resolved"));
+                map.insert("severity".into(), json!("info"));
+            }
+            Some(TranscriptBlock {
+                id: evt.id.clone(),
+                block_type: "system_notice".into(),
+                at: evt.occurred_at.clone(),
+                title: evt.title.clone(),
+                body: evt.body.clone(),
+                meta,
+                collapsible: true,
+                default_collapsed: true,
+                event_id: Some(evt.id.clone()),
+            })
+        }
+        "message_queued" => {
+            let queue_id = evt
+                .payload
+                .get("queue_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&evt.id);
+            let mut meta = evt.payload.clone();
+            if let Value::Object(ref mut map) = meta {
+                map.insert("source".into(), json!("message_queue"));
+                map.insert("status".into(), json!("pending"));
+            }
+            Some(TranscriptBlock {
+                id: format!("queue:{queue_id}"),
+                block_type: "user_message".into(),
+                at: evt.occurred_at.clone(),
+                title: evt.title.clone(),
+                body: evt.body.clone(),
+                meta,
+                collapsible: false,
+                default_collapsed: false,
+                event_id: Some(evt.id.clone()),
+            })
+        }
+        "message_dequeued" => None,
         _ => None,
     };
 
@@ -144,6 +234,7 @@ pub fn chat_event_from_parsed_line(
             turn,
             &parsed.body,
             &parsed.body,
+            false,
         ));
     }
 
@@ -184,24 +275,60 @@ pub fn chat_event_from_live_trace(
     project_id: &str,
     user_turn_id: u32,
     evt: &anycode_core::LiveTraceEvent,
-    assistant_buffers: &mut std::collections::HashMap<u32, String>,
+    assistant_raw_buffers: &mut std::collections::HashMap<u32, String>,
+    assistant_display_buffers: &mut std::collections::HashMap<u32, String>,
 ) -> Option<ChatStreamEvent> {
     let at = Utc::now().to_rfc3339();
     match evt {
-        anycode_core::LiveTraceEvent::AssistantDelta { turn, delta } => {
-            let full = assistant_buffers.entry(*turn).or_default();
-            full.push_str(delta);
+        anycode_core::LiveTraceEvent::AssistantDelta {
+            turn,
+            delta,
+            narration,
+        } => {
+            let raw = assistant_raw_buffers.entry(*turn).or_default();
+            raw.push_str(delta);
+            let new_display = strip_llm_reasoning_for_display(raw);
+            let prev_display = assistant_display_buffers
+                .get(turn)
+                .cloned()
+                .unwrap_or_default();
+            let display_delta = display_text_suffix_delta(&prev_display, &new_display);
+            assistant_display_buffers.insert(*turn, new_display.clone());
+            if display_delta.is_empty() && new_display.is_empty() {
+                return None;
+            }
             Some(assistant_delta_event(
                 session_id,
                 project_id,
                 user_turn_id,
                 *turn,
-                delta,
-                full,
+                &display_delta,
+                &new_display,
+                *narration,
+            ))
+        }
+        anycode_core::LiveTraceEvent::AssistantNarrationMark { turn } => {
+            let new_display = assistant_display_buffers
+                .get(turn)
+                .cloned()
+                .unwrap_or_default();
+            if new_display.is_empty() {
+                return None;
+            }
+            Some(assistant_delta_event(
+                session_id,
+                project_id,
+                user_turn_id,
+                *turn,
+                "",
+                &new_display,
+                true,
             ))
         }
         anycode_core::LiveTraceEvent::AssistantDone { turn, text } => {
-            assistant_buffers.insert(*turn, text.clone());
+            let display = strip_llm_reasoning_for_display(text);
+            assistant_raw_buffers.insert(*turn, text.clone());
+            assistant_display_buffers.insert(*turn, display.clone());
             Some(ChatStreamEvent {
                 session_id: session_id.to_string(),
                 project_id: project_id.to_string(),
@@ -212,14 +339,14 @@ pub fn chat_event_from_live_trace(
                 event_id: None,
                 tool_key: None,
                 tool_name: None,
-                text: Some(text.clone()),
+                text: Some(display.clone()),
                 block: Some(TranscriptBlock {
                     id: live_assistant_block_id(user_turn_id, *turn),
                     block_type: "assistant_message".into(),
                     at: at.clone(),
                     title: format!("Assistant (turn {turn})"),
-                    body: text.clone(),
-                    meta: live_assistant_meta(user_turn_id, *turn, false),
+                    body: display,
+                    meta: live_assistant_meta(user_turn_id, *turn, false, false),
                     collapsible: false,
                     default_collapsed: false,
                     event_id: None,
@@ -340,6 +467,18 @@ pub fn chat_event_from_live_trace(
             } else {
                 output_preview.clone()
             };
+            let mut end_meta = json!({
+                "turn": turn.to_string(),
+                "idx": idx.to_string(),
+                "name": name,
+                "elapsed_ms": elapsed_ms,
+                "duration_ms": elapsed_ms.to_string(),
+                "output_preview": output_preview,
+                "user_turn_id": user_turn_id.to_string(),
+            });
+            if !failed {
+                super::session_transcript::merge_activity_count_meta(&mut end_meta, name, &body);
+            }
             Some(ChatStreamEvent {
                 session_id: session_id.to_string(),
                 project_id: project_id.to_string(),
@@ -361,20 +500,7 @@ pub fn chat_event_from_live_trace(
                     at: at.clone(),
                     title: format!("{name} {}", if failed { "failed" } else { "finished" }),
                     body,
-                    meta: merge_tool_meta(
-                        &json!({
-                            "turn": turn.to_string(),
-                            "idx": idx.to_string(),
-                            "name": name,
-                            "elapsed_ms": elapsed_ms,
-                            "duration_ms": elapsed_ms.to_string(),
-                            "output_preview": output_preview,
-                            "user_turn_id": user_turn_id.to_string(),
-                        }),
-                        Some(*turn),
-                        Some(&tool_key),
-                        "end",
-                    ),
+                    meta: merge_tool_meta(&end_meta, Some(*turn), Some(&tool_key), "end"),
                     collapsible: true,
                     default_collapsed: true,
                     event_id: None,
@@ -383,6 +509,30 @@ pub fn chat_event_from_live_trace(
                 at,
             })
         }
+        anycode_core::LiveTraceEvent::ProgressUpdate {
+            turn,
+            seq,
+            phase,
+            work_stage,
+            summary,
+            next,
+            discovery,
+            evidence_refs,
+        } => Some(progress_update_event(
+            session_id,
+            project_id,
+            user_turn_id,
+            *turn,
+            *seq,
+            phase,
+            work_stage.as_ref(),
+            summary,
+            next.as_ref(),
+            discovery.as_ref(),
+            evidence_refs,
+            true,
+            &at,
+        )),
         anycode_core::LiveTraceEvent::TurnDone { status } => Some(ChatStreamEvent {
             session_id: session_id.to_string(),
             project_id: project_id.to_string(),
@@ -432,6 +582,210 @@ pub fn chat_event_from_live_trace(
     }
 }
 
+pub fn turn_phase_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    turn: u32,
+    phase: &str,
+) -> ChatStreamEvent {
+    let at = Utc::now().to_rfc3339();
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "turn_phase".into(),
+        turn: Some(turn),
+        conversation_turn_id: Some(user_turn_id),
+        seq: None,
+        event_id: None,
+        tool_key: None,
+        tool_name: None,
+        text: None,
+        block: Some(TranscriptBlock {
+            id: format!("turn-phase:u{user_turn_id}:{turn}"),
+            block_type: "system_notice".into(),
+            at: at.clone(),
+            title: "Turn phase".into(),
+            body: String::new(),
+            meta: json!({
+                "source": "turn_phase",
+                "phase": phase,
+                "live": true,
+                "turn": turn,
+                "user_turn_id": user_turn_id.to_string(),
+                "started_at": at,
+            }),
+            collapsible: false,
+            default_collapsed: false,
+            event_id: None,
+        }),
+        payload: json!({ "phase": phase, "turn": turn, "user_turn_id": user_turn_id }),
+        at,
+    }
+}
+
+pub fn question_resolved_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    question_id: &str,
+) -> ChatStreamEvent {
+    let at = Utc::now().to_rfc3339();
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "question_resolved".into(),
+        turn: None,
+        conversation_turn_id: Some(user_turn_id),
+        seq: None,
+        event_id: None,
+        tool_key: None,
+        tool_name: None,
+        text: None,
+        block: Some(TranscriptBlock {
+            id: format!("question-resolved:{question_id}"),
+            block_type: "system_notice".into(),
+            at: at.clone(),
+            title: "Question answered".into(),
+            body: String::new(),
+            meta: json!({
+                "source": "question_resolved",
+                "question_id": question_id,
+                "user_turn_id": user_turn_id,
+            }),
+            collapsible: true,
+            default_collapsed: true,
+            event_id: None,
+        }),
+        payload: json!({ "question_id": question_id, "user_turn_id": user_turn_id }),
+        at,
+    }
+}
+
+pub fn approval_request_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    rec: &anycode_dashboard_ipc::approval_ipc::PendingApprovalRecord,
+) -> ChatStreamEvent {
+    let at = Utc::now().to_rfc3339();
+    let payload = json!({
+        "approval_id": rec.approval_id,
+        "session_id": rec.session_id,
+        "tool": rec.tool,
+        "input_preview": rec.input_preview,
+        "user_turn_id": user_turn_id,
+    });
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "approval_request".into(),
+        turn: None,
+        conversation_turn_id: Some(user_turn_id),
+        seq: None,
+        event_id: None,
+        tool_key: None,
+        tool_name: Some(rec.tool.clone()),
+        text: Some(rec.input_preview.clone()),
+        block: Some(TranscriptBlock {
+            id: format!("approval-live:{}", rec.approval_id),
+            block_type: "approval_request".into(),
+            at: at.clone(),
+            title: format!("Approve {}", rec.tool),
+            body: rec.input_preview.clone(),
+            meta: payload.clone(),
+            collapsible: false,
+            default_collapsed: false,
+            event_id: None,
+        }),
+        payload,
+        at,
+    }
+}
+
+pub fn approval_resolved_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    approval_id: &str,
+    decision: &str,
+) -> ChatStreamEvent {
+    let at = Utc::now().to_rfc3339();
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "approval_resolved".into(),
+        turn: None,
+        conversation_turn_id: Some(user_turn_id),
+        seq: None,
+        event_id: None,
+        tool_key: None,
+        tool_name: None,
+        text: Some(decision.to_string()),
+        block: Some(TranscriptBlock {
+            id: format!("approval-resolved:{approval_id}"),
+            block_type: "system_notice".into(),
+            at: at.clone(),
+            title: "Approval resolved".into(),
+            body: decision.to_string(),
+            meta: json!({
+                "source": "approval_resolved",
+                "approval_id": approval_id,
+                "decision": decision,
+                "user_turn_id": user_turn_id,
+            }),
+            collapsible: true,
+            default_collapsed: true,
+            event_id: None,
+        }),
+        payload: json!({ "approval_id": approval_id, "decision": decision, "user_turn_id": user_turn_id }),
+        at,
+    }
+}
+
+pub fn question_request_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    rec: &PendingQuestionRecord,
+) -> ChatStreamEvent {
+    let at = Utc::now().to_rfc3339();
+    let id = format!("question-live:{}", rec.question_id);
+    let payload = json!({
+        "question_id": rec.question_id,
+        "session_id": rec.session_id,
+        "header": rec.header,
+        "options": rec.options,
+        "multi_select": rec.multi_select,
+        "user_turn_id": user_turn_id,
+    });
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "question_request".into(),
+        turn: None,
+        conversation_turn_id: Some(user_turn_id),
+        seq: None,
+        event_id: None,
+        tool_key: None,
+        tool_name: Some("AskUserQuestion".into()),
+        text: Some(rec.question.clone()),
+        block: Some(TranscriptBlock {
+            id,
+            block_type: "question_request".into(),
+            at: at.clone(),
+            title: rec.header.clone(),
+            body: rec.question.clone(),
+            meta: payload.clone(),
+            collapsible: false,
+            default_collapsed: false,
+            event_id: None,
+        }),
+        payload,
+        at,
+    }
+}
+
 #[must_use]
 pub fn live_tool_key(user_turn_id: u32, turn: u32, idx: u32) -> String {
     format!("u{user_turn_id}:{turn}:{idx}")
@@ -443,17 +797,106 @@ pub fn live_tool_block_id(user_turn_id: u32, turn: u32, idx: u32, phase: &str) -
 }
 
 #[must_use]
+pub fn live_progress_block_id(user_turn_id: u32, seq: u32) -> String {
+    format!("progress-live:u{user_turn_id}:{seq}")
+}
+
+fn normalize_evidence_refs(user_turn_id: u32, refs: &[String]) -> Vec<String> {
+    refs.iter()
+        .map(|r| {
+            if r.starts_with("tool:") {
+                r.clone()
+            } else if r.contains(':') {
+                format!("tool:u{user_turn_id}:{r}")
+            } else {
+                r.clone()
+            }
+        })
+        .collect()
+}
+
+fn progress_update_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    turn: u32,
+    seq: u32,
+    phase: &str,
+    work_stage: Option<&String>,
+    summary: &str,
+    next: Option<&String>,
+    discovery: Option<&String>,
+    evidence_refs: &[String],
+    live: bool,
+    at: &str,
+) -> ChatStreamEvent {
+    let refs = normalize_evidence_refs(user_turn_id, evidence_refs);
+    let body = summary.trim().to_string();
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "progress_update".into(),
+        turn: Some(turn),
+        conversation_turn_id: Some(user_turn_id),
+        seq: Some(i64::from(seq)),
+        event_id: None,
+        tool_key: None,
+        tool_name: None,
+        text: Some(body.clone()),
+        block: Some(TranscriptBlock {
+            id: live_progress_block_id(user_turn_id, seq),
+            block_type: "progress_update".into(),
+            at: at.to_string(),
+            title: phase.to_string(),
+            body,
+            meta: json!({
+                "live": live,
+                "turn": turn,
+                "seq": seq,
+                "phase": phase,
+                "work_stage": work_stage,
+                "summary": summary,
+                "next": next,
+                "discovery": discovery,
+                "evidence_refs": refs,
+                "user_turn_id": user_turn_id.to_string(),
+            }),
+            collapsible: true,
+            default_collapsed: !live,
+            event_id: None,
+        }),
+        payload: json!({
+            "turn": turn,
+            "seq": seq,
+            "phase": phase,
+            "user_turn_id": user_turn_id,
+        }),
+        at: at.to_string(),
+    }
+}
+
+#[must_use]
 pub fn live_assistant_block_id(user_turn_id: u32, turn: u32) -> String {
     format!("assistant-live:u{user_turn_id}:{turn}")
 }
 
-fn live_assistant_meta(user_turn_id: u32, turn: u32, live: bool) -> serde_json::Value {
-    json!({
+fn live_assistant_meta(
+    user_turn_id: u32,
+    turn: u32,
+    live: bool,
+    narration: bool,
+) -> serde_json::Value {
+    let mut meta = serde_json::json!({
         "live": live,
         "turn": turn,
         "user_turn_id": user_turn_id.to_string(),
         "source": if live { serde_json::Value::String("llm_start".into()) } else { serde_json::Value::Null },
-    })
+    });
+    if narration {
+        meta["narration"] = serde_json::json!(true);
+        meta["message_role"] = serde_json::json!("status");
+    }
+    meta
 }
 
 pub fn assistant_delta_event(
@@ -461,8 +904,9 @@ pub fn assistant_delta_event(
     project_id: &str,
     user_turn_id: u32,
     turn: u32,
-    delta: &str,
-    full_text: &str,
+    display_delta: &str,
+    display_full: &str,
+    narration: bool,
 ) -> ChatStreamEvent {
     ChatStreamEvent {
         session_id: session_id.to_string(),
@@ -474,20 +918,35 @@ pub fn assistant_delta_event(
         event_id: None,
         tool_key: None,
         tool_name: None,
-        text: Some(delta.to_string()),
+        text: Some(display_delta.to_string()),
         block: Some(TranscriptBlock {
             id: live_assistant_block_id(user_turn_id, turn),
             block_type: "assistant_message".into(),
             at: Utc::now().to_rfc3339(),
             title: format!("Assistant (turn {turn})"),
-            body: full_text.to_string(),
-            meta: live_assistant_meta(user_turn_id, turn, true),
+            body: display_full.to_string(),
+            meta: live_assistant_meta(user_turn_id, turn, true, narration),
             collapsible: false,
             default_collapsed: false,
             event_id: None,
         }),
-        payload: json!({ "turn": turn, "delta": delta, "user_turn_id": user_turn_id }),
+        payload: json!({
+            "turn": turn,
+            "delta": display_delta,
+            "user_turn_id": user_turn_id
+        }),
         at: Utc::now().to_rfc3339(),
+    }
+}
+
+/// Incremental sanitized text: suffix of `new_display` after `prev_display`.
+fn display_text_suffix_delta(prev_display: &str, new_display: &str) -> String {
+    if new_display.starts_with(prev_display) {
+        new_display[prev_display.len()..].to_string()
+    } else if prev_display.is_empty() {
+        new_display.to_string()
+    } else {
+        String::new()
     }
 }
 
@@ -584,7 +1043,8 @@ mod tests {
 
     #[test]
     fn live_trace_maps_tool_start() {
-        let mut buffers = std::collections::HashMap::new();
+        let mut raw = std::collections::HashMap::new();
+        let mut display = std::collections::HashMap::new();
         let chat = chat_event_from_live_trace(
             "s1",
             "p1",
@@ -595,10 +1055,108 @@ mod tests {
                 name: "Bash".into(),
                 input_preview: "ls".into(),
             },
-            &mut buffers,
+            &mut raw,
+            &mut display,
         )
         .expect("mapped");
         assert_eq!(chat.kind, "tool_start");
         assert_eq!(chat.tool_key.as_deref(), Some("u3:2:1"));
+    }
+
+    #[test]
+    fn live_trace_assistant_delta_strips_redacted_thinking() {
+        let mut raw = std::collections::HashMap::new();
+        let mut display = std::collections::HashMap::new();
+        let payload = [
+            "<redacted",
+            "_thinking>secret</redacted",
+            "_thinking>\nHello",
+        ]
+        .concat();
+        let chat = chat_event_from_live_trace(
+            "s1",
+            "p1",
+            1,
+            &anycode_core::LiveTraceEvent::AssistantDelta {
+                turn: 1,
+                delta: payload,
+                narration: false,
+            },
+            &mut raw,
+            &mut display,
+        )
+        .expect("visible tail");
+        assert_eq!(chat.text.as_deref().map(str::trim), Some("Hello"));
+        assert!(!chat.block.as_ref().unwrap().body.contains("secret"));
+    }
+
+    #[test]
+    fn live_trace_narration_mark_tags_assistant_block() {
+        let mut raw = std::collections::HashMap::new();
+        let mut display = std::collections::HashMap::new();
+        raw.insert(2, "Now let me check".into());
+        display.insert(2, "Now let me check".into());
+        let chat = chat_event_from_live_trace(
+            "s1",
+            "p1",
+            1,
+            &anycode_core::LiveTraceEvent::AssistantNarrationMark { turn: 2 },
+            &mut raw,
+            &mut display,
+        )
+        .expect("narration mark");
+        assert_eq!(chat.kind, "assistant_delta");
+        let meta = chat.block.as_ref().unwrap().meta.clone();
+        assert_eq!(meta.get("narration").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            meta.get("message_role").and_then(|v| v.as_str()),
+            Some("status")
+        );
+    }
+
+    #[test]
+    fn live_trace_progress_update_maps_to_block() {
+        let mut raw = std::collections::HashMap::new();
+        let mut display = std::collections::HashMap::new();
+        let chat = chat_event_from_live_trace(
+            "s1",
+            "p1",
+            2,
+            &anycode_core::LiveTraceEvent::ProgressUpdate {
+                turn: 3,
+                seq: 1,
+                phase: "execute".into(),
+                work_stage: Some("inspect".into()),
+                summary: "Checking tests".into(),
+                next: Some("Run grep".into()),
+                discovery: None,
+                evidence_refs: vec!["3:1".into()],
+            },
+            &mut raw,
+            &mut display,
+        )
+        .expect("progress");
+        assert_eq!(chat.kind, "progress_update");
+        let block = chat.block.expect("block");
+        assert_eq!(block.block_type, "progress_update");
+        assert_eq!(
+            block.meta.get("phase").and_then(|v| v.as_str()),
+            Some("execute")
+        );
+    }
+
+    #[test]
+    fn turn_phase_event_carries_phase_meta() {
+        let evt = turn_phase_event("s1", "p1", 2, 3, "waiting_first_token");
+        assert_eq!(evt.kind, "turn_phase");
+        let block = evt.block.expect("block");
+        assert_eq!(
+            block.meta.get("source").and_then(|v| v.as_str()),
+            Some("turn_phase")
+        );
+        assert_eq!(
+            block.meta.get("phase").and_then(|v| v.as_str()),
+            Some("waiting_first_token")
+        );
     }
 }

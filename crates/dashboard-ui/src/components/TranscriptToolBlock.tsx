@@ -4,7 +4,7 @@ import type { TranscriptBlock } from "@/api/types";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { Icon } from "@/components/Icon";
 import { previewLines } from "@/components/ui/CollapsiblePanel";
-import { formatTranscriptBlockTitle } from "@/lib/eventFormat";
+import { formatToolPhaseLabel, formatTranscriptBlockTitle } from "@/lib/eventFormat";
 import { countLogicalToolSteps, toolStepKey } from "@/lib/transcriptGrouping";
 import { useT } from "@/i18n/context";
 
@@ -299,7 +299,9 @@ export function ToolDetailPanel({ tool }: { tool: TranscriptBlock | null }) {
         <div className="min-w-0">
           <p className="m-0 text-sm font-medium truncate">{label}</p>
           <p className="m-0 text-[11px] text-secondary">
-            {typeof meta.phase === "string" ? meta.phase : tool.block_type}
+            {typeof meta.phase === "string"
+              ? formatToolPhaseLabel(meta.phase, t)
+              : tool.block_type}
             {typeof meta.duration_ms === "string" ? ` · ${meta.duration_ms}ms` : ""}
           </p>
         </div>

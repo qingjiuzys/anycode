@@ -1,0 +1,8 @@
+<!DOCTYPE html><html><body><h1>Login</h1>
+<form id="login-form"><input id="user" name="user"><input id="pass" type="password">
+<button type="button" onclick="doLogin()">Sign in</button></form>
+<div id="login-success" hidden>Welcome, demo</div>
+<script>
+function doLogin(){const u=document.getElementById('user').value;const p=document.getElementById('pass').value;
+if(u==='demo'&&p==='secret123'){document.getElementById('login-success').hidden=false;}}
+</script></body></html>

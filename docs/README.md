@@ -1,15 +1,13 @@
 # 文档位置说明
 
-面向用户的正文以 **VitePress 文档站**（中英双语）为准；本目录保留**维护者文档**、ADR 与按主题归类的运营材料。
+面向用户的正文发布在 **https://anycode.work/docs/**（源码 `docs/user/`，由 account-portal 构建）；本目录保留**维护者文档**、ADR 与按主题归类的运营材料。
 
 | 受众 | 入口 |
 |------|------|
-| 用户 | [`docs-site/guide/`](../docs-site/guide/) · 本地 `cd docs-site && npm run dev` |
+| 用户 | [`docs/user/`](user/) · 本地 `cd crates/account-portal && npm run dev` → http://127.0.0.1:43201/docs |
 | 维护者 backlog | **[`roadmap.md`](roadmap.md)**（SSOT，含 §3.5 **0.3** 计划） |
 | 架构 | [`architecture.md`](architecture.md) · ADR [`adr/`](adr/) |
 | 文档地图 | 本文件 |
-
-GitHub Pages：见 [`.github/workflows/docs.yml`](../.github/workflows/docs.yml)。
 
 ---
 
@@ -20,8 +18,9 @@ docs/
  README.md          ← 本文件
  roadmap.md         ← 执行层 backlog / 0.3 SSOT
  architecture.md
+ user/              ← 用户文档源码（中英），发布到 anycode.work/docs
 
- adr/               ← 架构决策（不参与 VitePress 构建）
+ adr/               ← 架构决策
 
  planning/          ← 计划、验收、Harness（0.4 技术 hardening）
  comparisons/       ← OpenClaw / Claude / WorkBuddy / 微信对标
@@ -33,9 +32,9 @@ docs/
 
 **原则**
 
-1. **迭代任务只改 [`roadmap.md`](roadmap.md)**（及 `adr/`）；不要在 `docs-site` 重复 now/next/later 列表。
-2. **产品 MVP / 工具矩阵** 仍以 [`docs-site/guide/roadmap.md`](../docs-site/guide/roadmap.md) 为准。
-3. **历史 sprint 日志** 已自仓库删除（仅 git 历史保留）；状态见 [`workbench/digital-workbench-STATUS.md`](workbench/digital-workbench-STATUS.md)。
+1. **迭代任务只改 [`roadmap.md`](roadmap.md)**（及 `adr/`）；不要在 `docs/user` 重复 now/next/later 列表。
+2. **产品 MVP / 工具矩阵** 仍以 [用户文档 Roadmap](https://anycode.work/docs/guide/roadmap) 为准。
+3. **历史 sprint 日志** 已自仓库删除（仅 git 历史保留）；状态见 [`workbench/digital-workbench-STATUS.md`](workbench/digital-workbench-STATUS.md).
 
 ---
 
@@ -84,7 +83,7 @@ docs/
 | [`workbench/digital-workbench-next-steps-zh.md`](workbench/digital-workbench-next-steps-zh.md) | 后续规划（中文） |
 | [`workbench/digital-workbench-api.md`](workbench/digital-workbench-api.md) | API 合约 |
 | [`workbench/workbench-ipc.md`](workbench/workbench-ipc.md) | CLI ↔ Dashboard IPC |
-| 用户指南 | [`docs-site/guide/dashboard.md`](../docs-site/guide/dashboard.md) |
+| 用户指南 | [Workbench 导览](https://anycode.work/docs/guide/dashboard) |
 
 仓库根 [`WORKBENCH.md`](../WORKBENCH.md) 为 Workbench 快捷入口。
 
@@ -110,6 +109,6 @@ docs/
 
 ## 已删除 / 归档说明
 
-**已删除**（内容已被 SSOT 覆盖或过期）：`implementation-audit-checklist.md`、`autonomous-8h-*`、`qa-defect-log.md`、`docs/archive/`（历史 sprint 快照，仅 git 历史保留）、`scripts/eval/`。
+**已删除**（内容已被 SSOT 覆盖或过期）：`implementation-audit-checklist.md`、`autonomous-8h-*`、`qa-defect-log.md`、`docs/archive/`（历史 sprint 快照，仅 git 历史保留）、`scripts/eval/`、`docs-site/`（VitePress，已并入 account-portal）。
 
-若外链仍指向旧路径（如 `docs/cron-observability.md`），请改为 `docs/ops/cron-observability.md` 或文档站 URL。
+若外链仍指向旧路径（如 `docs/cron-observability.md`），请改为 `docs/ops/cron-observability.md` 或 https://anycode.work/docs/ URL。

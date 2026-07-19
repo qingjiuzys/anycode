@@ -1,25 +1,27 @@
-# Eval Harness (removed)
+# Eval Harness
 
-The **`anycode eval`** CLI subcommand and **`scripts/eval/`** harness were **removed** with the terminal CLI retirement.
+Structured scenario evals run through the same **`AgentRuntime::execute_task`** path as Workbench and daemon — no second agent loop.
 
-## Use instead
+## Commands
 
-- **`cargo test --workspace`** — primary CI validation (mock LLM integration tests in crate test suites).
-- **Workbench** — manual smoke: `/setup`, short chat, automations, channel bridges via `anycode-daemon`.
-- **DeepSeek / live API checks** — configure provider in Workbench Settings, send a one-line test message (no dedicated eval script).
+| Command | Purpose |
+|---------|---------|
+| `cargo test --workspace` | Primary CI validation (mock LLM integration tests in crate test suites). |
+| `python3 test/run.py --profile smoke` | Scenario assembly layer over manifest cases; consumes structured **`EvalResult`** JSON (not raw `output.log` text). |
+| `cargo test -p anycode-core eval` | Unit tests for eval contract / judge. |
 
-Historical design notes below are kept for context only.
+CI: see `.github/workflows/eval.yml` (scenario smoke) and `.github/workflows/ci.yml` (full workspace tests).
 
----
+## Contract (`crates/core/src/eval.rs`)
 
-## Former design (historical)
+- **`EvalScenario`** — id, prompt, optional agent/mode, **`EvalExpectation`**
+- **`EvalResult`** — status, message, **`ExecutionTraceEvent`** trace, optional final text
+- **`judge_eval_scenario`** — shared assertion helper for trace + terminal status + text contains/excludes
 
-Production changes were validated by repeatable scenarios:
+Runtime entry: **`AgentRuntime::execute_eval_scenario`** (`crates/agent/src/runtime/execute_eval.rs`).
 
-| Class | Purpose |
-|-------|---------|
-| CLI smoke | Help/status/doctor commands without provider credentials. |
-| Automation | Cron ledger reads when empty. |
-| Mock fixture | Scripted mock LLM + fixture repos. |
+## Workbench smoke
 
-CI previously ran `python3 scripts/eval/run.py --with-mock` after building the release binary. That job is **gone**; use `cargo test --workspace`.
+Manual: `/setup`, short chat, automations, channel bridges via `anycode-daemon`.
+
+Historical note: the removed **`anycode eval`** CLI subcommand and **`scripts/eval/`** tree are superseded by the contract above plus `test/run.py`.

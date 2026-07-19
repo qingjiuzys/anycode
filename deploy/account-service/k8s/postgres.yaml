@@ -1,0 +1,75 @@
+# In-cluster Postgres for account-service (dev/small prod).
+# For RDS/managed DB, skip this and point DATABASE_URL at your external host.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: anycode-postgres-env
+type: Opaque
+stringData:
+  POSTGRES_USER: anycode
+  POSTGRES_PASSWORD: anycode
+  POSTGRES_DB: anycode_account
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: anycode-postgres
+spec:
+  selector:
+    app: anycode-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: anycode-postgres
+spec:
+  serviceName: anycode-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: anycode-postgres
+  template:
+    metadata:
+      labels:
+        app: anycode-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: anycode-postgres-env
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "anycode", "-d", "anycode_account"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "anycode", "-d", "anycode_account"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

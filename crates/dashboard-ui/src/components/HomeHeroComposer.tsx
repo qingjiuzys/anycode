@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { buildConversationsHref, conversationSearchParams } from "@/lib/conversationsSearch";
@@ -25,6 +25,8 @@ export function HomeHeroComposer({
   budgetExceededCount = 0,
   prompt: promptProp,
   onPromptChange,
+  onSessionStarted,
+  onSelectDirectory,
 }: {
   sseStatus: Sse;
   projectOptions: { id: string; name: string }[];
@@ -36,6 +38,12 @@ export function HomeHeroComposer({
   budgetExceededCount?: number;
   prompt?: string;
   onPromptChange?: (value: string) => void;
+  onSessionStarted?: (data: {
+    session: import("@/api/types").SessionDetail;
+    projectId: string;
+    projectName: string;
+  }) => void;
+  onSelectDirectory?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -55,6 +63,7 @@ export function HomeHeroComposer({
     setInternalProjectId(nextProjectId);
   };
   const [browserHintDismissed, setBrowserHintDismissed] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const browser = useQuery({
     queryKey: ["browser-connector"],
@@ -72,6 +81,19 @@ export function HomeHeroComposer({
   useEffect(() => {
     setBrowserHintDismissed(sessionStorage.getItem(DISMISS_BROWSER_KEY) === "1");
   }, []);
+
+  const seededFocusDone = useRef(false);
+  useEffect(() => {
+    if (seededFocusDone.current) return;
+    if (!prompt.trim()) return;
+    seededFocusDone.current = true;
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(prompt.length, prompt.length);
+    });
+  }, [prompt]);
 
   useEffect(() => {
     if (isControlled) return;
@@ -94,9 +116,24 @@ export function HomeHeroComposer({
         prompt: (opts?.prompt ?? prompt).trim(),
         agent: opts?.agent,
         skills: opts?.skills,
+        recycle_session: false,
       }),
     onSuccess: (data) => {
       setPrompt("");
+      const projectName =
+        projectOptions.find((p) => p.id === resolvedProjectId)?.name ?? "";
+      onSessionStarted?.({
+        session: data.session,
+        projectId: resolvedProjectId,
+        projectName,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+      void queryClient.invalidateQueries({ queryKey: ["all-sessions", "sidebar"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects", "picker"] });
+      void queryClient.invalidateQueries({ queryKey: ["session", data.session.id] });
+      void queryClient.invalidateQueries({
+        queryKey: ["session-transcript", data.session.id],
+      });
       const canon = conversationSearchParams({
         session: data.session.id,
         project: resolvedProjectId,
@@ -131,13 +168,14 @@ export function HomeHeroComposer({
       ? t("home.hero.statusConnecting")
       : t("home.hero.statusOffline");
 
-  function launchScenario(card: ScenarioCard) {
+  function applyScenario(card: ScenarioCard) {
     const text = scenarioPrompt(card, locale);
     setPrompt(text);
-    start.mutate({
-      prompt: text,
-      agent: card.agent,
-      skills: card.skills.length > 0 ? card.skills : undefined,
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(text.length, text.length);
     });
   }
 
@@ -151,8 +189,7 @@ export function HomeHeroComposer({
               key={card.id}
               type="button"
               className="dw-hero-composer__scenario-chip"
-              disabled={!resolvedProjectId || start.isPending}
-              onClick={() => launchScenario(card)}
+              onClick={() => applyScenario(card)}
             >
               <Icon name={card.icon} size={16} />
               <span>{t(`home.scenarios.${card.id}`)}</span>
@@ -162,6 +199,7 @@ export function HomeHeroComposer({
       </div>
       <div className="dw-hero-composer__card glass-panel">
         <textarea
+          ref={textareaRef}
           className="dw-hero-composer__textarea"
           placeholder={t("home.hero.placeholder")}
           value={prompt}
@@ -180,6 +218,7 @@ export function HomeHeroComposer({
             onChange={setResolvedProjectId}
             options={projectOptions}
             disabled={start.isPending}
+            onSelectDirectory={onSelectDirectory}
           />
           <ModelPicker disabled={start.isPending} />
           <div className="dw-hero-composer__toolbar-actions">
@@ -257,7 +296,9 @@ export function HomeHeroComposer({
       )}
 
       {start.isError && (
-        <p className="text-xs text-error m-0 text-center">{t("home.hero.startError")}</p>
+        <p className="text-xs text-error m-0 text-center">
+          {(start.error as Error).message || t("home.hero.startError")}
+        </p>
       )}
     </div>
   );

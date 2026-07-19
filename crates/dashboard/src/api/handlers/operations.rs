@@ -78,16 +78,25 @@ pub async fn delete_cron_job(
 pub async fn list_cron_jobs(State(_state): State<AppState>) -> impl IntoResponse {
     match cron_ledger::read_cron_jobs(None) {
         Ok(jobs) => {
-            let jobs: Vec<CronJobRecord> = jobs
+            let jobs: Vec<serde_json::Value> = jobs
                 .into_iter()
-                .map(|j| CronJobRecord {
-                    id: j.id,
-                    schedule: j.schedule,
-                    command: j.command,
-                    session_id: j.session_id,
-                    failure_destination: j.failure_destination,
-                    tool_profile: j.tool_profile,
-                    project_id: j.project_id,
+                .map(|j| {
+                    let next_run_at =
+                        anycode_tools::next_fire_utc_from_stored_schedule(&j.schedule)
+                            .map(|dt| dt.to_rfc3339());
+                    json!({
+                        "id": j.id,
+                        "schedule": j.schedule,
+                        "command": j.command,
+                        "name": j.name,
+                        "enabled": j.enabled,
+                        "schedule_timezone": j.schedule_timezone,
+                        "session_id": j.session_id,
+                        "failure_destination": j.failure_destination,
+                        "tool_profile": j.tool_profile,
+                        "project_id": j.project_id,
+                        "next_run_at": next_run_at,
+                    })
                 })
                 .collect();
             Json(json!({
@@ -96,6 +105,89 @@ pub async fn list_cron_jobs(State(_state): State<AppState>) -> impl IntoResponse
             }))
             .into_response()
         }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PatchCronJobBody {
+    pub name: Option<String>,
+    pub enabled: Option<bool>,
+    pub schedule: Option<String>,
+    pub command: Option<String>,
+    pub schedule_timezone: Option<String>,
+    pub session_id: Option<String>,
+    pub failure_destination: Option<String>,
+    pub tool_profile: Option<String>,
+    pub project_id: Option<String>,
+}
+
+pub async fn patch_cron_job(
+    axum::extract::Path(job_id): axum::extract::Path<String>,
+    Json(body): Json<PatchCronJobBody>,
+) -> impl IntoResponse {
+    let job_id = job_id.trim();
+    if job_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "job id is required" })),
+        )
+            .into_response();
+    }
+    let path = match cron_ledger::orchestration_path() {
+        Some(p) => p,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "could not resolve orchestration path" })),
+            )
+                .into_response();
+        }
+    };
+    let mut stored_schedule = body.schedule.clone();
+    if let Some(ref expr) = body.schedule {
+        if let Err(e) = anycode_tools::validate_cron_schedule_expr(expr) {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": format!("invalid schedule: {e}") })),
+            )
+                .into_response();
+        }
+        let tz_raw = body.schedule_timezone.as_deref().unwrap_or("local").trim();
+        let tz = match anycode_tools::resolve_schedule_timezone(tz_raw) {
+            Ok(t) => t,
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response();
+            }
+        };
+        stored_schedule = Some(anycode_tools::prepare_cron_schedule_for_storage(expr, tz).schedule);
+    }
+    let patch = anycode_tools::CronJobPatch {
+        name: body.name,
+        enabled: body.enabled,
+        schedule: stored_schedule,
+        command: body.command,
+        schedule_timezone: body.schedule_timezone,
+        session_id: body.session_id,
+        failure_destination: body.failure_destination,
+        tool_profile: body.tool_profile,
+        project_id: body.project_id,
+    };
+    match anycode_tools::update_cron_job_in_orchestration_file(&path, job_id, patch) {
+        Ok(Some(job)) => {
+            let next_run_at = anycode_tools::next_fire_utc_from_stored_schedule(&job.schedule)
+                .map(|dt| dt.to_rfc3339());
+            Json(json!({ "ok": true, "job": job, "next_run_at": next_run_at })).into_response()
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "cron job not found" })),
+        )
+            .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": e.to_string() })),

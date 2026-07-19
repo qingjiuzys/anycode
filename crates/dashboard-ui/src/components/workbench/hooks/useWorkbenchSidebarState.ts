@@ -56,7 +56,8 @@ export function useWorkbenchSidebarState() {
   }, []);
 
   const setPanelWidth = useCallback((panelWidth: number) => {
-    setState((prev) => ({ ...prev, panelWidth: Math.min(480, Math.max(240, panelWidth)) }));
+    // Keep headroom for the 3rem activity rail inside the dock.
+    setState((prev) => ({ ...prev, panelWidth: Math.min(360, Math.max(220, panelWidth)) }));
   }, []);
 
   const openTab = useCallback((tab: WorkbenchTab) => {

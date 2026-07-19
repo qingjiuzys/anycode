@@ -1,0 +1,27 @@
+id: skills-content-repurpose-contract
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Validate the official skill ''content-repurpose'': read SKILL.md frontmatter, run
+  vet checks, and confirm required env contract.'
+expected:
+  assertions:
+  - validator: skill_frontmatter_valid
+    args:
+      skill_id: content-repurpose
+      source: official
+  - validator: skill_vet_pass
+    args:
+      skill_id: content-repurpose
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 300
+meta:
+  skill_id: content-repurpose
+  skills:
+  - content-repurpose

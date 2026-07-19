@@ -146,7 +146,7 @@ macOS 桌面 App 打开即带工作台。
 2. **配置** — 运行 `Workbench /setup`（选模型 + 可选微信）
 3. **验证** — `Workbench task "请只回复：OK"` 或 `anyCode Workbench --open`
 
-**文档**：https://qingjiuzys.github.io/anycode/  
+**文档**：https://anycode.work/docs/  
 **开源**：https://github.com/qingjiuzys/anycode （MIT）
 
 ---
@@ -166,7 +166,7 @@ macOS 桌面 App 打开即带工作台。
 **anyCode** — 编码万物，构建一切
 
 - GitHub：github.com/qingjiuzys/anycode
-- 文档：qingjiuzys.github.io/anycode
+- 文档：anycode.work/docs
 - 许可：MIT 开源
 
 **Q&A**
@@ -282,7 +282,7 @@ macOS 桌面 App 打开即带工作台。
 ## 文档来源
 
 - [README.zh.md](../../README.zh.md)
-- [docs-site/zh/index.md](../../docs-site/zh/index.md)
-- [docs-site/zh/guide/workbench.md](../../docs-site/zh/guide/workbench.md)
-- [docs-site/zh/guide/wechat.md](../../docs-site/zh/guide/wechat.md)
-- [docs-site/zh/guide/architecture.md](../../docs-site/zh/guide/architecture.md)
+- [https://anycode.work/docs/zh](../../https://anycode.work/docs/zh)
+- [https://anycode.work/docs/zh/guide/workbench.md](../../docs/user/zh/guide/workbench)
+- [https://anycode.work/docs/zh/guide/wechat.md](../../docs/user/zh/guide/wechat)
+- [https://anycode.work/docs/zh/guide/architecture.md](../../docs/user/zh/guide/architecture)

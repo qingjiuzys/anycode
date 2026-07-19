@@ -1,0 +1,20 @@
+id: browser-table-pagination
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Go to page 2 of the paginated table and confirm row ids 11-20 are visible.
+expected:
+  assertions:
+  - validator: dom_contains
+    args:
+      selector: '#page-indicator'
+      text: Page 2
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

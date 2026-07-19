@@ -1,0 +1,30 @@
+id: office-pptx-10
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- 'Complete office task pptx #10 using templates in workspace; satisfy all structural
+  assertions.'
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/deck-10.pptx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck-10.pptx
+      min: 5
+  - validator: pptx_title_contains
+    args:
+      path: output/deck-10.pptx
+      slide: 0
+      text: Overview
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1200
+fixture: office/templates/pptx
+complexity: complex

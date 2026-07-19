@@ -1,0 +1,363 @@
+schema_version = 1
+suite = "office"
+
+[[cases]]
+id = "office-text_md-01"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-02"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-03"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-04"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-05"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-06"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-07"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-text_md-08"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-01"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-02"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-03"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-04"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-05"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-06"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-07"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-08"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-09"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-10"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-11"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-12"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-13"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-docx-14"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-01"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-02"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-03"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-04"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-05"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-06"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-07"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-08"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-09"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-10"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-11"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-12"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-13"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-14"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-15"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-xlsx-16"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-01"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-02"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-03"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-04"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-05"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-06"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-07"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-08"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-09"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-10"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-11"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-pptx-12"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-01"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-02"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-03"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-04"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-05"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-06"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-07"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-08"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-09"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+
+[[cases]]
+id = "office-cross_format-10"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1200
+

@@ -1,0 +1,195 @@
+/* Workbench-aligned marketing home (anycode.work) */
+
+.wb-home {
+  --wb-fg: var(--on-surface, #1c1c1e);
+  --wb-muted: var(--secondary, #6e6e73);
+  --wb-line: var(--outline-variant, rgba(0, 0, 0, 0.08));
+  --wb-surface: var(--surface, #f5f5f7);
+  --wb-accent: var(--accent, #2563eb);
+  color: var(--wb-fg);
+  background: var(--wb-surface);
+  min-height: calc(100vh - 4rem);
+}
+
+.wb-hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--wb-line);
+  padding: 4.5rem 1.5rem 3.5rem;
+}
+
+.wb-hero__glow {
+  position: absolute;
+  inset: -20% 10% auto;
+  height: 28rem;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--wb-accent) 18%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.wb-hero__inner {
+  position: relative;
+  max-width: 42rem;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.wb-eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wb-muted);
+}
+
+.wb-hero__logo {
+  margin-bottom: 1.25rem;
+}
+
+.wb-hero__title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.wb-hero__lead {
+  margin: 0 0 1.5rem;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wb-muted);
+  max-width: 36rem;
+}
+
+.wb-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+
+.wb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 0.5rem;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.wb-btn--primary {
+  background: var(--wb-accent);
+  color: #fff;
+}
+
+.wb-btn--ghost {
+  background: transparent;
+  border-color: var(--wb-line);
+  color: var(--wb-fg);
+}
+
+.wb-boundary {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--wb-line);
+  font-size: 13px;
+  color: var(--wb-muted);
+}
+
+.wb-boundary p {
+  margin: 0;
+}
+
+.wb-plans {
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.wb-plans__inner {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.wb-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.wb-section-lead {
+  margin: 0 0 1.5rem;
+  font-size: 14px;
+  color: var(--wb-muted);
+}
+
+.wb-plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.wb-plan {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--wb-line);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--wb-surface) 88%, #fff);
+}
+
+.wb-plan__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.wb-plan__price {
+  color: var(--wb-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-plan__desc {
+  margin: 0 0 0.75rem;
+  font-size: 13px;
+  color: var(--wb-muted);
+  line-height: 1.45;
+}
+
+.wb-plan__highlights {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 13px;
+  color: var(--wb-fg);
+  line-height: 1.5;
+}
+
+.wb-plans__cta {
+  margin-top: 1.5rem;
+}
+
+html.dark .wb-home,
+html[data-theme="dark"] .wb-home {
+  --wb-fg: #f5f5f7;
+  --wb-muted: #8e8e93;
+  --wb-line: rgba(255, 255, 255, 0.1);
+  --wb-surface: #121214;
+}
+
+@media (max-width: 640px) {
+  .wb-hero {
+    padding-top: 3rem;
+  }
+}

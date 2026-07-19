@@ -1,0 +1,23 @@
+id: coding-complex-typescript-05
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Implement the complex typescript task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: npm_test_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 900
+fixture: coding/complex-typescript
+complexity: complex
+meta:
+  language: typescript

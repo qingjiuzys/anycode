@@ -1,27 +1,47 @@
 import type { PlanCatalogEntry, PlanTier, ServiceEntitlements } from "@/api/types/service";
 import type { CloudAccountBundle } from "@/api/types/accountCloud";
 
+/** Fallback catalog when `/api/v1/plans/catalog` is unreachable (seed-aligned). */
 export const PLAN_CATALOG: Record<PlanTier, PlanCatalogEntry> = {
   free: {
     tier: "free",
-    monthlyPriceUsd: 0,
-    yearlyPriceUsd: 0,
+    monthlyPriceFen: 0,
+    yearlyPriceFen: 0,
     tokenLimit: 500_000,
     apiKeyLimit: 1,
     seatLimit: 1,
+    featured: false,
+    promoLabel: null,
     featureKeys: [
       "service.plan.features.localWorkbench",
       "service.plan.features.basicUsage",
       "service.plan.features.singleApiKey",
     ],
   },
+  cloud_5h: {
+    tier: "cloud_5h",
+    monthlyPriceFen: 9_900,
+    yearlyPriceFen: 99_000,
+    tokenLimit: 50_000_000,
+    apiKeyLimit: 3,
+    seatLimit: 1,
+    featured: false,
+    promoLabel: null,
+    featureKeys: [
+      "service.plan.features.cloud5hWindow",
+      "service.plan.features.cloud5hCalls",
+      "service.plan.features.apiAccess",
+    ],
+  },
   pro: {
     tier: "pro",
-    monthlyPriceUsd: 29,
-    yearlyPriceUsd: 290,
-    tokenLimit: 5_000_000,
+    monthlyPriceFen: 59_900,
+    yearlyPriceFen: 599_000,
+    tokenLimit: 15_000_000,
     apiKeyLimit: 5,
     seatLimit: 1,
+    featured: true,
+    promoLabel: null,
     featureKeys: [
       "service.plan.features.higherQuota",
       "service.plan.features.automation",
@@ -31,11 +51,13 @@ export const PLAN_CATALOG: Record<PlanTier, PlanCatalogEntry> = {
   },
   team: {
     tier: "team",
-    monthlyPriceUsd: 99,
-    yearlyPriceUsd: 990,
-    tokenLimit: 20_000_000,
+    monthlyPriceFen: 199_900,
+    yearlyPriceFen: 1_999_000,
+    tokenLimit: 60_000_000,
     apiKeyLimit: 20,
     seatLimit: 10,
+    featured: false,
+    promoLabel: null,
     featureKeys: [
       "service.plan.features.teamSeats",
       "service.plan.features.rbac",
@@ -46,12 +68,57 @@ export const PLAN_CATALOG: Record<PlanTier, PlanCatalogEntry> = {
   },
 };
 
+const FEATURE_KEYS_BY_TIER: Record<PlanTier, readonly string[]> = {
+  free: PLAN_CATALOG.free.featureKeys,
+  cloud_5h: PLAN_CATALOG.cloud_5h.featureKeys,
+  pro: PLAN_CATALOG.pro.featureKeys,
+  team: PLAN_CATALOG.team.featureKeys,
+};
+
+export type CloudPlanCatalogDto = {
+  id: string;
+  monthly_price_fen: number;
+  yearly_price_fen: number;
+  token_limit: number;
+  api_key_limit: number;
+  seat_limit: number;
+  promo_label: string | null;
+  featured: boolean;
+  enabled: boolean;
+  sort_order: number;
+};
+
+export function isPlanTier(id: string): id is PlanTier {
+  return id === "free" || id === "pro" || id === "team" || id === "cloud_5h";
+}
+
+export function catalogFromApi(rows: CloudPlanCatalogDto[]): PlanCatalogEntry[] {
+  return rows
+    .filter((r) => isPlanTier(r.id))
+    .map((r) => {
+      const tier = r.id as PlanTier;
+      return {
+        tier,
+        monthlyPriceFen: r.monthly_price_fen,
+        yearlyPriceFen: r.yearly_price_fen,
+        tokenLimit: r.token_limit,
+        apiKeyLimit: r.api_key_limit,
+        seatLimit: r.seat_limit,
+        featured: r.featured,
+        promoLabel: r.promo_label,
+        featureKeys: FEATURE_KEYS_BY_TIER[tier] ?? PLAN_CATALOG.free.featureKeys,
+      };
+    });
+}
+
 export function bundleToEntitlements(
   bundle: CloudAccountBundle,
   tokenUsed: number,
   apiKeyUsed: number,
 ): ServiceEntitlements {
-  const plan = (bundle.subscription.plan as PlanTier) || "free";
+  const plan = isPlanTier(bundle.subscription.plan)
+    ? bundle.subscription.plan
+    : "free";
   return {
     plan,
     subscriptionStatus: bundle.subscription.status as ServiceEntitlements["subscriptionStatus"],
@@ -95,7 +162,8 @@ export function bundleToEntitlements(
       number: inv.number,
       periodStart: inv.period_start,
       periodEnd: inv.period_end,
-      amountUsd: inv.amount_usd,
+      amountFen: inv.amount_fen ?? Math.round((inv.amount_cny ?? 0) * 100),
+      currency: "CNY",
       status: inv.status as ServiceEntitlements["invoices"][number]["status"],
     })),
     paymentMethodBound: bundle.subscription.payment_method_bound,

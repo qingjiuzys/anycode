@@ -1,0 +1,8 @@
+[[permission]]
+identifier = "shell-helpers-default"
+description = "Open URLs, reveal paths, and pick directories from the Workbench UI"
+commands.allow = [
+  "open_external_url",
+  "reveal_in_file_manager",
+  "pick_directory",
+]

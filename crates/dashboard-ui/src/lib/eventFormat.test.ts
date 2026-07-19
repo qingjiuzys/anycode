@@ -4,6 +4,7 @@ import {
   formatEventTitle,
   formatEventTypeLabel,
   formatExecutionLogLine,
+  formatToolCallPhaseLabel,
   isImportedSessionTitle,
   localizeLogTitle,
 } from "./eventFormat";
@@ -14,6 +15,7 @@ describe("eventFormat", () => {
       "eventTypes.tool_call_end": "工具调用完成",
       "eventTypes.other": "其他事件",
       "eventTitles.toolStarted": "{tool} 已开始",
+      "eventTitles.toolFinished": "{tool} 已完成",
       "eventTitles.toolDeniedBare": "工具被拒绝",
       "eventTitles.taskStart": "任务开始",
       "eventTitles.turnEnd": "第 {turn} 轮结束",
@@ -34,6 +36,8 @@ describe("eventFormat", () => {
 
   it("localizes common backend log titles", () => {
     expect(localizeLogTitle("Bash started", "tool_call_start", t)).toBe("Bash 已开始");
+    expect(localizeLogTitle("Bash start", "tool_call_start", t)).toBe("Bash 已开始");
+    expect(localizeLogTitle("Bash end", "tool_call_end", t)).toBe("Bash 已完成");
     expect(localizeLogTitle("Turn 3 finished", "turn_end", t)).toBe("第 3 轮结束");
     expect(localizeLogTitle("User prompt", "user_prompt", t)).toBe("用户输入");
     expect(localizeLogTitle("Tool denied", "tool_call_end", t)).toBe("工具被拒绝");
@@ -55,5 +59,19 @@ describe("eventFormat", () => {
       t,
     );
     expect(formatted.title).toBe("Bash 已开始");
+  });
+
+  it("localizes tool call phase suffixes", () => {
+    const phaseT = (key: string) => {
+      const map: Record<string, string> = {
+        "conversations.tracePhase.start": "开始",
+        "conversations.tracePhase.end": "结束",
+        "conversations.tracePhase.input": "输入",
+      };
+      return map[key] ?? key;
+    };
+    expect(formatToolCallPhaseLabel("tool_call_start", phaseT)).toBe("开始");
+    expect(formatToolCallPhaseLabel("tool_call_end", phaseT)).toBe("结束");
+    expect(formatToolCallPhaseLabel("tool_call_input", phaseT)).toBe("输入");
   });
 });

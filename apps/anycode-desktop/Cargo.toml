@@ -16,11 +16,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 anycode-apple-media = { path = "../../crates/apple-media" }
 anycode-channel-bridge = { path = "../../crates/channel-bridge" }
-anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser", "knowledge-embeddings", "media-local"] }
+# Desktop uses the native macOS speech stack for TTS. Keep local embeddings/STT,
+# but do not pull piper/espeak into the app bundle.
+anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser", "knowledge-embeddings", "embedding-local", "stt-local"] }
 anycode-setup = { path = "../../crates/setup" }
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rfd = "0.15"
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-shell = "2"
@@ -34,10 +37,11 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 
-# Local iterative DMG builds: same bundle contents, faster link (no LTO).
-# Use: ANYCODE_DESKTOP_LOCAL_RELEASE=1 ./scripts/build-desktop-release.sh
+# Local iterative builds: no LTO, parallel codegen (~1–2min vs ~5min release).
+# Use: ./scripts/sync-desktop-dev.sh --rust   or   ANYCODE_DESKTOP_LOCAL_RELEASE=1
 [profile.release-local]
 inherits = "release"
 lto = false
 codegen-units = 16
 opt-level = 3
+strip = false

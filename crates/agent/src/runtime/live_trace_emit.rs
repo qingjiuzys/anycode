@@ -21,6 +21,7 @@ pub(crate) fn emit_assistant_delta(
     tx: &Option<UnboundedSender<LiveTraceEvent>>,
     turn: usize,
     delta: &str,
+    narration: bool,
 ) {
     if delta.is_empty() {
         return;
@@ -30,7 +31,27 @@ pub(crate) fn emit_assistant_delta(
         LiveTraceEvent::AssistantDelta {
             turn: turn as u32,
             delta: delta.to_string(),
+            narration,
         },
+    );
+}
+
+pub(crate) fn emit_progress_update(
+    tx: &Option<UnboundedSender<LiveTraceEvent>>,
+    event: LiveTraceEvent,
+) {
+    if matches!(event, LiveTraceEvent::ProgressUpdate { .. }) {
+        try_emit(tx, event);
+    }
+}
+
+pub(crate) fn emit_assistant_narration_mark(
+    tx: &Option<UnboundedSender<LiveTraceEvent>>,
+    turn: usize,
+) {
+    try_emit(
+        tx,
+        LiveTraceEvent::AssistantNarrationMark { turn: turn as u32 },
     );
 }
 
@@ -111,7 +132,7 @@ pub(crate) fn emit_tool_call_end(
 }
 
 fn tool_output_preview(tool_result: &ToolOutput) -> String {
-    const MAX: usize = 500;
+    const MAX: usize = 4_000;
     if let Some(err) = tool_result.error.as_ref() {
         return truncate_preview(err, MAX);
     }

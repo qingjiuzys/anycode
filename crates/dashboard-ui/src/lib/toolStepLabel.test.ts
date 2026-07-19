@@ -41,6 +41,17 @@ describe("extractToolCommand", () => {
     };
     expect(extractToolCommand(block)).toBe("1 todos");
   });
+
+  it("extracts file_path from truncated JSON body", () => {
+    const block: TranscriptBlock = {
+      id: "1",
+      block_type: "tool_call",
+      at: "t",
+      title: "Edit",
+      body: '{"file_path":"/private/tmp/app/index.html","old_string":"aaaa',
+    };
+    expect(extractToolCommand(block)).toBe("/private/tmp/app/index.html");
+  });
 });
 
 describe("formatDurationMs", () => {

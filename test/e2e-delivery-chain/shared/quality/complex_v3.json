@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "name": "complex-delivery-v3",
+  "description": "Next-tier E2E: 30-day data, deliberate conflict, second repo API, multi-commit OSS flow",
+  "min_ppt_slides": 15,
+  "min_ppt_themes": 10,
+  "data": {
+    "csv": "fixtures/sales_june_30d.csv",
+    "summary_md": "fixtures/sales_executive_summary.md",
+    "conflict_delta_pct": 1.0,
+    "require_reconciliation_note": true
+  },
+  "repos": {
+    "metrics": "fixtures/e2e-complex-repo",
+    "api": "fixtures/e2e-metrics-api"
+  },
+  "git": {
+    "min_commits_after_seed": 2,
+    "required_commit_patterns": ["fix", "docs|changelog"]
+  },
+  "required_artifacts": [
+    "artifacts/executive_pack/june_ops.xlsx",
+    "artifacts/executive_pack/regional_scorecard.xlsx",
+    "artifacts/executive_pack/incident_brief.docx",
+    "artifacts/executive_pack/board_deck.pptx",
+    "artifacts/executive_pack/qa_signoff.md",
+    "artifacts/executive_pack/reconciliation_note.md",
+    "artifacts/executive_dashboard.html",
+    "artifacts/metrics_snapshot.json",
+    "artifacts/DELIVERY_MANIFEST.json"
+  ],
+  "api_requirements": {
+    "endpoint": "/api/v1/metrics/summary",
+    "must_serve_from_repo": "fixtures/e2e-metrics-api",
+    "html_must_reference_json": true
+  },
+  "truth": {
+    "total_sales_source": "csv",
+    "allow_reconciliation_note": true
+  },
+  "activation": {
+    "env_flag": "COMPLEX_LEVEL=v3",
+    "scenario_id": "09-complex-delivery-v3",
+    "default_off": true,
+    "ci": "nightly RUN_COMPLEX=1 COMPLEX_LEVEL=v3"
+  }
+}

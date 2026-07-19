@@ -7,14 +7,13 @@
 /// 无法识别模型时的回退窗口（与常见 128k 级模型对齐）。
 pub const DEFAULT_CONTEXT_WINDOW_TOKENS: u32 = 128_000;
 
-/// 根据规范化后的 `provider` id（见 [`crate::normalize_provider_id`]）与 `model` 字符串推断上下文窗口上限（tokens）。
-///
-/// 匹配顺序：模型名子串（更具体）→ 厂商默认 → 全局默认。
-pub fn resolve_context_window_tokens(normalized_provider_id: &str, model_id: &str) -> u32 {
+pub(crate) fn resolve_known_context_window_tokens(
+    normalized_provider_id: &str,
+    model_id: &str,
+) -> u32 {
     let m = model_id.to_ascii_lowercase();
     let p = normalized_provider_id.to_ascii_lowercase();
 
-    // --- 模型名（跨厂商网关时往往比 provider 更可靠）---
     if m.contains("gemini") {
         return 1_000_000;
     }
@@ -33,17 +32,13 @@ pub fn resolve_context_window_tokens(normalized_provider_id: &str, model_id: &st
     if m.contains("gpt-3.5") {
         return 16_384;
     }
-    if m.contains("glm") || m.contains("qwen") {
-        return 128_000;
-    }
-    if m.contains("deepseek") {
+    if m.contains("glm") || m.contains("qwen") || m.contains("deepseek") {
         return 128_000;
     }
     if m.contains("llama") || m.contains("mistral") || m.contains("mixtral") {
         return 128_000;
     }
 
-    // --- 厂商默认（模型字段为空或自定义名时）---
     match p.as_str() {
         "anthropic" | "claude" => 200_000,
         "amazon_bedrock" | "bedrock" => 200_000,
@@ -53,6 +48,13 @@ pub fn resolve_context_window_tokens(normalized_provider_id: &str, model_id: &st
         "z.ai" | "zai" | "bigmodel" => 128_000,
         _ => DEFAULT_CONTEXT_WINDOW_TOKENS,
     }
+}
+
+/// 根据规范化后的 `provider` id（见 [`crate::normalize_provider_id`]）与 `model` 字符串推断上下文窗口上限（tokens）。
+///
+/// 匹配顺序：模型名子串（更具体）→ 厂商默认 → 全局默认。
+pub fn resolve_context_window_tokens(normalized_provider_id: &str, model_id: &str) -> u32 {
+    crate::resolve_runtime_model_capabilities(normalized_provider_id, model_id, None).context_tokens
 }
 
 #[cfg(test)]
@@ -87,5 +89,21 @@ mod tests {
             200_000
         );
         assert_eq!(resolve_context_window_tokens("acme_unknown", "x"), 128_000);
+    }
+
+    #[test]
+    fn minicpm_and_ollama_do_not_fall_back_to_128k() {
+        assert_eq!(
+            resolve_context_window_tokens("openai", "managed-minicpm5-1b"),
+            4_096
+        );
+        assert_eq!(
+            resolve_context_window_tokens("ollama", "minicpm5-1b-e2e"),
+            32_768
+        );
+        assert_eq!(
+            resolve_context_window_tokens("ollama", "custom-local"),
+            4_096
+        );
     }
 }

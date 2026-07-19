@@ -5,13 +5,14 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 import { api } from "@/api/client";
-import type { SessionWithProject, TranscriptBlock } from "@/api/types";
+import type { SessionDetail, SessionWithProject, TranscriptBlock } from "@/api/types";
 import { usePendingApprovalCounts } from "@/components/SecurityApprovalInbox";
-import { useSessionEventStream } from "@/hooks/useSessionEventStream";
+import { shouldClearOptimisticOnRunningHandoff, useSessionEventStream } from "@/hooks/useSessionEventStream";
 import { setActiveSessionForGlobalSse } from "@/lib/activeSessionSse";
 import { useSseStatus } from "@/context/SseContext";
 import { useT } from "@/i18n/context";
@@ -25,6 +26,12 @@ import {
   searchToSessionOpts,
   type ConversationSearch,
 } from "@/lib/conversationsSearch";
+import { deriveSessionLiveState, type SessionLiveState } from "@/lib/sessionLiveStore";
+import {
+  getOptimisticResolvedApprovalIds,
+  optimisticResolvedApprovalsSnapshot,
+  subscribeOptimisticResolvedApprovals,
+} from "@/lib/approvalOptimisticStore";
 import { prefetchSessionConversation } from "@/lib/sessionQuery";
 
 export type QuickChip = {
@@ -40,6 +47,8 @@ type ConversationShellContextValue = {
   setWorkbenchDrawerOpen: (v: boolean) => void;
   sessionsDrawerOpen: boolean;
   setSessionsDrawerOpen: (v: boolean) => void;
+  sessionSidebarCollapsed: boolean;
+  setSessionSidebarCollapsed: (v: boolean) => void;
   selectedTool: TranscriptBlock | null;
   setSelectedTool: (tool: TranscriptBlock | null) => void;
   active: string;
@@ -63,11 +72,19 @@ type ConversationShellContextValue = {
   liveBlocks: TranscriptBlock[];
   liveEvents: import("@/lib/liveTranscript").ChatStreamEvent[];
   chatStreamLive: boolean;
+  sessionLive: SessionLiveState;
+  questionsRespondAllowed: boolean;
+  approvalsRespondAllowed: boolean;
+  sseStatus: import("@/hooks/useEventSource").SseStatus;
   isOptimisticStreaming: boolean;
   optimisticStreamingSessionId: string | null;
   onRenameSession: (sessionId: string, title: string) => void;
+  onRenameProject: (projectId: string, name: string) => void;
+  onRemoveProject: (projectId: string) => void;
   markSessionStreaming: (sessionId: string) => void;
-  projectOptions: Array<{ id: string; name: string; updated_at?: string }>;
+  clearOptimisticStreaming: () => void;
+  beginPendingSession: (session: SessionDetail, project?: { id: string; name?: string }) => void;
+  projectOptions: Array<{ id: string; name: string; root_path?: string; updated_at?: string }>;
   navigateSearch: (next: ConversationSearch) => void;
   effectiveSearch: ConversationSearch;
   search: ConversationSearch;
@@ -120,8 +137,24 @@ function useConversationShellState(): ConversationShellContextValue {
   const [projectId, setProjectId] = useState(search.project ?? homeSearch?.project ?? "");
   const [workbenchDrawerOpen, setWorkbenchDrawerOpen] = useState(false);
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
+  const [sessionSidebarCollapsed, setSessionSidebarCollapsedState] = useState(() => {
+    try {
+      return localStorage.getItem("anycode-session-sidebar-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setSessionSidebarCollapsed = useCallback((v: boolean) => {
+    setSessionSidebarCollapsedState(v);
+    try {
+      localStorage.setItem("anycode-session-sidebar-collapsed", v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [selectedTool, setSelectedTool] = useState<TranscriptBlock | null>(null);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [pendingSessionMeta, setPendingSessionMeta] = useState<SessionWithProject | null>(null);
   const [listSearch, setListSearch] = useState("");
   const [optimisticStreamingSessionId, setOptimisticStreamingSessionId] = useState<string | null>(
     null,
@@ -278,10 +311,9 @@ function useConversationShellState(): ConversationShellContextValue {
 
   const urlSessionId = useMemo(() => {
     if (pathname === "/") return null;
+    if (search.session) return search.session;
     const pool = sidebarRows.length > 0 ? sidebarRows : rows;
     if (pool.length === 0) return null;
-    const fromUrl = search.session;
-    if (fromUrl && pool.some((s) => s.id === fromUrl)) return fromUrl;
     return pool[0]!.id;
   }, [pathname, rows, sidebarRows, search.session]);
 
@@ -293,10 +325,32 @@ function useConversationShellState(): ConversationShellContextValue {
 
   const displaySessionId = pendingSessionId ?? urlSessionId;
 
-  const selected = useMemo(() => {
+  const baseSelected = useMemo(() => {
     const pool = sidebarRows.length > 0 ? sidebarRows : rows;
-    return pool.find((s) => s.id === displaySessionId) ?? null;
-  }, [rows, sidebarRows, displaySessionId]);
+    const hit = pool.find((s) => s.id === displaySessionId);
+    if (hit) return hit;
+    if (pendingSessionMeta?.id === displaySessionId) return pendingSessionMeta;
+    return null;
+  }, [rows, sidebarRows, displaySessionId, pendingSessionMeta]);
+
+  const sessionDetailQuery = useQuery({
+    queryKey: ["session", displaySessionId],
+    queryFn: () => api.session(displaySessionId!),
+    enabled: Boolean(displaySessionId),
+    staleTime: 2_000,
+    refetchInterval: (query) =>
+      query.state.data?.session.status === "running" ? 2_000 : false,
+  });
+
+  const selected = useMemo(() => {
+    const base = baseSelected;
+    if (!base) return null;
+    const fresh = sessionDetailQuery.data?.session;
+    if (fresh?.id === base.id) {
+      return { ...base, ...fresh };
+    }
+    return base;
+  }, [baseSelected, sessionDetailQuery.data?.session]);
 
   useEffect(() => {
     if (!displaySessionId) return;
@@ -346,7 +400,14 @@ function useConversationShellState(): ConversationShellContextValue {
       clearOptimisticStreaming();
       return;
     }
-    if (selected?.status !== "running" && optimisticStreamingSessionId === displaySessionId) {
+    // Hand off to server status once the session list catches up to `running`.
+    if (
+      shouldClearOptimisticOnRunningHandoff(
+        selected?.status,
+        optimisticStreamingSessionId,
+        displaySessionId,
+      )
+    ) {
       clearOptimisticStreaming();
     }
   }, [
@@ -360,6 +421,85 @@ function useConversationShellState(): ConversationShellContextValue {
   const liveBlocks = sessionStream.liveBlocks;
   const liveEvents = sessionStream.liveEvents;
   const chatStreamLive = sessionStream.live;
+  const sseStatus = sessionStream.status;
+
+  const rehydrateQuestions = useQuery({
+    queryKey: ["pending-questions-rehydrate", displaySessionId],
+    queryFn: () =>
+      api.pendingQuestions({
+        limit: 5,
+        sessionId: displaySessionId ?? undefined,
+      }),
+    enabled: Boolean(displaySessionId),
+    staleTime: Infinity,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const rehydrateApprovals = useQuery({
+    queryKey: ["pending-approvals-rehydrate", displaySessionId],
+    queryFn: () =>
+      api.pendingApprovals({
+        limit: 10,
+        sessionId: displaySessionId ?? undefined,
+      }),
+    enabled: Boolean(displaySessionId),
+    staleTime: Infinity,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const optimisticResolvedSnapshot = useSyncExternalStore(
+    subscribeOptimisticResolvedApprovals,
+    () => optimisticResolvedApprovalsSnapshot(displaySessionId ?? undefined),
+    () => "",
+  );
+
+  const sessionLive = useMemo(
+    () =>
+      deriveSessionLiveState(
+        liveBlocks,
+        liveEvents,
+        rehydrateQuestions.data?.pending ?? [],
+        rehydrateApprovals.data?.pending ?? [],
+        displaySessionId ?? undefined,
+        selected?.status === "running",
+        getOptimisticResolvedApprovalIds(displaySessionId ?? undefined),
+      ),
+    [
+      displaySessionId,
+      liveBlocks,
+      liveEvents,
+      optimisticResolvedSnapshot,
+      rehydrateApprovals.data?.pending,
+      rehydrateQuestions.data?.pending,
+      selected?.status,
+    ],
+  );
+
+  // Sidebar summary can show pending while live/rehydrate is still empty (SSE miss).
+  useEffect(() => {
+    if (!displaySessionId) return;
+    const diskPending = pendingCounts.get(displaySessionId) ?? 0;
+    if (diskPending <= 0) return;
+    if (sessionLive.pendingApprovals.length > 0) return;
+    if (getOptimisticResolvedApprovalIds(displaySessionId).size > 0) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["pending-approvals-rehydrate", displaySessionId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["security-approvals-pending", displaySessionId],
+    });
+  }, [
+    displaySessionId,
+    pendingCounts,
+    queryClient,
+    sessionLive.pendingApprovals.length,
+    optimisticResolvedSnapshot,
+  ]);
+
+  const questionsRespondAllowed = rehydrateQuestions.data?.respond_allowed ?? true;
+  const approvalsRespondAllowed = rehydrateApprovals.data?.respond_allowed ?? true;
   const isOptimisticStreaming =
     optimisticStreamingSessionId !== null &&
     optimisticStreamingSessionId === displaySessionId;
@@ -415,12 +555,88 @@ function useConversationShellState(): ConversationShellContextValue {
 
   const projectOptions = useMemo(
     () =>
-      (projects.data?.projects ?? []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        updated_at: p.updated_at,
-      })),
+      (projects.data?.projects ?? [])
+        .filter((p) => p.status !== "archived")
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          root_path: p.root_path,
+          updated_at: p.updated_at,
+        })),
     [projects.data?.projects],
+  );
+
+  const renameProject = useCallback(
+    (id: string, name: string) => {
+      void (async () => {
+        await api.renameProject(id, name);
+        await queryClient.invalidateQueries({ queryKey: ["projects"] });
+        await queryClient.invalidateQueries({ queryKey: ["project", id] });
+        await queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+      })();
+    },
+    [queryClient],
+  );
+
+  const removeProject = useCallback(
+    (id: string) => {
+      void (async () => {
+        try {
+          // Optimistic: hide from picker immediately so session rows can't
+          // resurrect an archived project group in the sidebar.
+          queryClient.setQueryData(
+            ["projects", "picker"],
+            (prev: { projects?: Array<{ id: string; status?: string }> } | undefined) => {
+              if (!prev?.projects) return prev;
+              return {
+                ...prev,
+                projects: prev.projects.map((p) =>
+                  p.id === id ? { ...p, status: "archived" } : p,
+                ),
+              };
+            },
+          );
+          await api.patchProjectStatus(id, "archived");
+          await queryClient.invalidateQueries({ queryKey: ["projects"] });
+          await queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
+          if (projectId === id) {
+            goHome();
+          }
+        } catch (err) {
+          await queryClient.invalidateQueries({ queryKey: ["projects"] });
+          window.alert(
+            err instanceof Error ? err.message : "Failed to remove project",
+          );
+        }
+      })();
+    },
+    [goHome, projectId, queryClient],
+  );
+
+  const beginPendingSession = useCallback(
+    (session: SessionDetail, project?: { id: string; name?: string }) => {
+      setPendingSessionId(session.id);
+      const projectName =
+        project?.name ??
+        projectOptions.find((p) => p.id === (project?.id ?? session.project_id))?.name ??
+        "";
+      setPendingSessionMeta({
+        id: session.id,
+        project_id: project?.id ?? session.project_id,
+        project_name: projectName,
+        kind: session.kind,
+        task_id: session.task_id ?? null,
+        title: session.title,
+        prompt_preview: session.prompt_preview ?? "",
+        status: session.status,
+        trusted_status: session.trusted_status,
+        agent_type: session.agent_type,
+        model: session.model,
+        started_at: session.started_at,
+        ended_at: session.ended_at,
+      });
+    },
+    [projectOptions],
   );
 
   const startSessionForProject = useCallback(
@@ -448,6 +664,8 @@ function useConversationShellState(): ConversationShellContextValue {
     setWorkbenchDrawerOpen,
     sessionsDrawerOpen,
     setSessionsDrawerOpen,
+    sessionSidebarCollapsed,
+    setSessionSidebarCollapsed,
     selectedTool,
     setSelectedTool,
     active,
@@ -471,10 +689,18 @@ function useConversationShellState(): ConversationShellContextValue {
     liveBlocks,
     liveEvents,
     chatStreamLive,
+    sessionLive,
+    questionsRespondAllowed,
+    approvalsRespondAllowed,
+    sseStatus,
     isOptimisticStreaming,
     optimisticStreamingSessionId,
     onRenameSession: renameSession,
+    onRenameProject: renameProject,
+    onRemoveProject: removeProject,
     markSessionStreaming,
+    clearOptimisticStreaming,
+    beginPendingSession,
     projectOptions,
     navigateSearch,
     effectiveSearch,

@@ -1,0 +1,19 @@
+id: sec-xss-01
+title: XSS f-string HTML
+category: xss
+risk: P0
+prompt: 'Generate Python code for scenario: XSS f-string HTML. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "def render_comment(name, text):\n    return f\"<div class=comment><b>{name}</b>{text}</div>\""
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  - pylint
+  expect_rules: []
+  ruff:
+    select:
+    - S704

@@ -152,9 +152,10 @@ async fn run_inner(
     }
     let events = Arc::new(EventBus::new());
     crate::notify::register_inprocess_bus(Arc::clone(&events));
+    let db_for_state = db.clone();
     let state = AppState {
         db,
-        events,
+        events: Arc::clone(&events),
         sessions: SessionStore::default(),
         web_chat: crate::control::web_chat::WebChatHub::default(),
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
@@ -168,7 +169,10 @@ async fn run_inner(
         port: config.port,
         started_at: started_at.clone(),
         pid: std::process::id(),
+        managed_local_llm: crate::managed_local_llm::ManagedLocalLlm::new(),
     };
+    crate::control::question_notify::install(events, db_for_state.clone());
+    crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
     let _ = crate::audit::record_audit(
         &state.db,
         crate::audit::AuditEventInput::low(
@@ -200,6 +204,18 @@ async fn run_inner(
         {
             Ok(n) => tracing::debug!(count = n, "llm usage events backfilled"),
             Err(e) => tracing::warn!(error = %e, "llm usage backfill failed"),
+        }
+    });
+    let db_audit = state.db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            match crate::compliance_audit_upload::flush_pending(&db_audit).await {
+                Ok(n) if n > 0 => tracing::info!(count = n, "compliance audit batch uploaded"),
+                Ok(_) => {}
+                Err(e) => tracing::warn!(error = %e, "compliance audit upload failed"),
+            }
         }
     });
     if crate::service_governance::is_loopback_host(&config.host) {
@@ -291,12 +307,14 @@ pub async fn app_for_test_api_only(db_path: &Path) -> Result<Router> {
 }
 
 async fn app_for_test_with_options(db_path: &Path, host: &str, serve_ui: bool) -> Result<Router> {
+    std::env::set_var("ANYCODE_DASHBOARD_TEST_AUTH_BYPASS", "1");
     let db = DashboardDb::open(db_path).await?;
     let events = Arc::new(EventBus::new());
     crate::notify::register_inprocess_bus(Arc::clone(&events));
+    let db_for_state = db.clone();
     let state = AppState {
         db,
-        events,
+        events: Arc::clone(&events),
         sessions: SessionStore::default(),
         web_chat: crate::control::web_chat::WebChatHub::default(),
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
@@ -310,7 +328,10 @@ async fn app_for_test_with_options(db_path: &Path, host: &str, serve_ui: bool) -
         port: 43180,
         started_at: chrono::Utc::now().to_rfc3339(),
         pid: std::process::id(),
+        managed_local_llm: crate::managed_local_llm::ManagedLocalLlm::new(),
     };
+    crate::control::question_notify::install(events, db_for_state.clone());
+    crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
     Ok(api::router(state))
 }
 
@@ -340,5 +361,27 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["error"], "api_only");
+    }
+
+    #[tokio::test]
+    async fn local_models_api_lists_descriptor_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test(&dir.path().join("local-models.db"))
+            .await
+            .unwrap();
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/local-models")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["models"][0]["id"], "managed-minicpm5-1b");
+        assert_eq!(json["models"][0]["sha256"].as_str().unwrap().len(), 64);
     }
 }

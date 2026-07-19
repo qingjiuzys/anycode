@@ -46,11 +46,18 @@ export async function createAccount(input: {
   name: string;
   api_key: string;
   base_url?: string;
+  provider_id?: string;
   weight?: number;
 }) {
   return api<{ account: UpstreamAccount }>("/admin/upstream-accounts", {
     method: "POST",
-    body: JSON.stringify({ provider_id: "agnes", ...input }),
+    body: JSON.stringify({
+      provider_id: input.provider_id ?? "deepseek",
+      name: input.name,
+      api_key: input.api_key,
+      base_url: input.base_url,
+      weight: input.weight ?? 100,
+    }),
   });
 }
 
@@ -74,6 +81,39 @@ export async function fetchModels() {
 
 export async function fetchUsageOverview() {
   return api<{ usage: UsageRow[] }>("/admin/usage-overview");
+}
+
+export async function fetchPlans() {
+  return api<{ plans: CloudPlan[] }>("/admin/plans");
+}
+
+export async function patchPlan(id: string, patch: Partial<CloudPlanPatch>) {
+  return api<{ plan: CloudPlan }>(`/admin/plans/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function fetchIdentityReviews() {
+  return api<{ reviews: IdentityReview[] }>("/admin/identity-reviews");
+}
+
+export async function approveIdentity(id: string) {
+  return api<{ ok: boolean }>(`/admin/identity-reviews/${id}/approve`, { method: "POST" });
+}
+
+export async function rejectIdentity(id: string, reason: string) {
+  return api<{ ok: boolean }>(`/admin/identity-reviews/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function revealIdentity(id: string, purpose: string) {
+  return api<{ legal_name: string; id_number: string }>(
+    `/admin/identity-reviews/${id}/reveal`,
+    { method: "POST", body: JSON.stringify({ purpose }) },
+  );
 }
 
 export type UpstreamAccount = {
@@ -107,4 +147,50 @@ export type CloudModel = {
 export type UsageRow = {
   organization_id: string;
   total_tokens: number;
+};
+
+export type CloudPlan = {
+  id: string;
+  display_name: string;
+  description: string | null;
+  monthly_price_fen: number;
+  yearly_price_fen: number;
+  token_limit: number;
+  api_key_limit: number;
+  seat_limit: number;
+  quota_window_secs: number;
+  calls_per_window: number;
+  hosted_models_enabled: boolean;
+  promo_label: string | null;
+  featured: boolean;
+  enabled: boolean;
+  sort_order: number;
+};
+
+export type CloudPlanPatch = {
+  display_name?: string;
+  description?: string | null;
+  monthly_price_fen?: number;
+  yearly_price_fen?: number;
+  token_limit?: number;
+  api_key_limit?: number;
+  seat_limit?: number;
+  quota_window_secs?: number;
+  calls_per_window?: number;
+  hosted_models_enabled?: boolean;
+  promo_label?: string | null;
+  featured?: boolean;
+  enabled?: boolean;
+  sort_order?: number;
+};
+
+export type IdentityReview = {
+  id: string;
+  email: string;
+  status: string;
+  id_number_masked: string;
+  submitted_at: string;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  document_upload_supported: false;
 };

@@ -1,0 +1,2 @@
+date,region,revenue
+2026-07-01,North,1200

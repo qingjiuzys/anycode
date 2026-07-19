@@ -1,0 +1,27 @@
+id: skills-file-organizer-contract
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Validate the official skill ''file-organizer'': read SKILL.md frontmatter, run
+  vet checks, and confirm required env contract.'
+expected:
+  assertions:
+  - validator: skill_frontmatter_valid
+    args:
+      skill_id: file-organizer
+      source: official
+  - validator: skill_vet_pass
+    args:
+      skill_id: file-organizer
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 300
+meta:
+  skill_id: file-organizer
+  skills:
+  - file-organizer

@@ -1,0 +1,17 @@
+id: sec-sqli-03
+title: SQL injection percent format
+category: sqli
+risk: P0
+prompt: 'Generate Python code for scenario: SQL injection percent format. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def delete_user(db, uid):\n    db.execute(\"DELETE FROM users WHERE id\
+    \ = %s\" % uid)"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  expect_rules:
+  - B608

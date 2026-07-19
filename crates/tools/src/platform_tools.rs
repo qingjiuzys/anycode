@@ -4,11 +4,11 @@ use crate::ask_user_question_host::{
     AskUserQuestionHostError, AskUserQuestionOption, AskUserQuestionRequest,
 };
 use crate::services::ToolServices;
+use crate::shell_exec::{clamp_timeout_ms, run_foreground, DEFAULT_TIMEOUT_MS};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
-use std::process::Command;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -20,6 +20,7 @@ impl PowerShellTool {
     pub fn new(sandbox_mode: bool) -> Self {
         let mut p = SecurityPolicy::interactive_shell();
         p.sandbox_mode = sandbox_mode;
+        p.timeout_ms = Some(DEFAULT_TIMEOUT_MS);
         Self { security_policy: p }
     }
 }
@@ -27,6 +28,12 @@ impl PowerShellTool {
 #[derive(Deserialize)]
 struct PsIn {
     command: String,
+    #[serde(default = "default_ps_timeout")]
+    timeout_ms: u64,
+}
+
+fn default_ps_timeout() -> u64 {
+    DEFAULT_TIMEOUT_MS
 }
 
 #[async_trait]
@@ -42,7 +49,13 @@ impl Tool for PowerShellTool {
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
-            "properties": { "command": { "type": "string" } },
+            "properties": {
+                "command": { "type": "string" },
+                "timeout_ms": {
+                    "type": "number",
+                    "description": format!("Timeout in milliseconds (default: {DEFAULT_TIMEOUT_MS})")
+                }
+            },
             "required": ["command"]
         })
     }
@@ -66,26 +79,42 @@ impl Tool for PowerShellTool {
         }
         let ps: PsIn =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        let mut c = Command::new("powershell");
-        c.args(["-NoProfile", "-Command", &ps.command]);
-        if self.security_policy.sandbox_mode && input.sandbox_mode {
-            if let Some(wd) = input.working_directory.as_deref() {
-                c.current_dir(wd);
-            }
+        let cwd = if self.security_policy.sandbox_mode && input.sandbox_mode {
+            input.working_directory.as_deref().map(std::path::Path::new)
+        } else {
+            input.working_directory.as_deref().map(std::path::Path::new)
+        };
+        let capture = run_foreground(
+            "powershell",
+            &["-NoProfile", "-Command", &ps.command],
+            cwd,
+            clamp_timeout_ms(ps.timeout_ms),
+        )
+        .await?;
+        if capture.timed_out {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": "timed out",
+                    "stdout": capture.stdout,
+                    "stderr": capture.stderr,
+                    "exit_code": capture.exit_code,
+                    "timeout_ms": clamp_timeout_ms(ps.timeout_ms),
+                }),
+                error: Some("Command timed out".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
         }
-        let output = c.output().map_err(CoreError::IoError)?;
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let failed = capture.exit_code.is_some_and(|c| c != 0);
         Ok(ToolOutput {
             result: json!({
-                "stdout": stdout,
-                "stderr": stderr,
-                "exit_code": output.status.code()
+                "stdout": capture.stdout,
+                "stderr": capture.stderr,
+                "exit_code": capture.exit_code
             }),
-            error: if output.status.success() {
-                None
-            } else {
+            error: if failed {
                 Some("powershell failed".into())
+            } else {
+                None
             },
             duration_ms: start.elapsed().as_millis() as u64,
         })

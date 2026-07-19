@@ -1,0 +1,28 @@
+id: robustness-ultra-long-05
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'In the 5000-line repo, locate handler #185 and patch the off-by-one bug; run tests.'
+expected:
+  assertions:
+  - validator: cargo_test_pass
+    args:
+      path: .
+      filter: handler_185
+  - validator: file_line_changed
+    args:
+      path: src/handlers.rs
+      near_line: 4200
+requires:
+  llm: live
+  network: false
+  tools:
+  - edit
+  - shell
+  - grep
+timeout_seconds: 3600
+fixture: projects/large-repo
+meta:
+  context_lines: 5000

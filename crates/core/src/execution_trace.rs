@@ -57,6 +57,7 @@ impl ExecutionTraceEvent {
             )),
             "task_end" => {
                 let status = non_empty(field("status"), "unknown");
+                let reason = non_empty(field("reason"), status.as_str());
                 let severity = match status.as_str() {
                     "failed" => "error",
                     "cancelled" => "warn",
@@ -65,7 +66,7 @@ impl ExecutionTraceEvent {
                 Some(Self::new(
                     tag,
                     severity,
-                    format!("Task {status}"),
+                    format!("Task {status} ({reason})"),
                     kv.trim(),
                     payload,
                 ))
@@ -211,13 +212,9 @@ impl ExecutionTraceEvent {
                 "",
                 payload,
             )),
-            "turn_error" | "tool_synthetic_result" => Some(Self::new(
-                tag,
-                "warn",
-                tag.replace('_', " "),
-                kv.trim(),
-                payload,
-            )),
+            "turn_error" | "tool_synthetic_result" | "tool_recovery" | "auto_compact" => Some(
+                Self::new(tag, "warn", tag.replace('_', " "), kv.trim(), payload),
+            ),
             _ => None,
         }
     }
@@ -268,7 +265,7 @@ mod tests {
     #[test]
     fn builds_trace_from_budget_exceeded_log_line() {
         let event = ExecutionTraceEvent::from_log_line(
-            "[budget_exceeded] consumed_tokens=100 token_budget=4 consumed_cost_usd=0.000000 cost_budget_usd=<none> elapsed_secs=0 max_duration_secs=<none>",
+            "[budget_exceeded] consumed_tokens=100 token_budget=4 consumed_cost_cny=0.000000 cost_budget_cny=<none> elapsed_secs=0 max_duration_secs=<none>",
         )
         .unwrap();
         assert_eq!(event.event_type, "budget_exceeded");
@@ -277,8 +274,10 @@ mod tests {
 
     #[test]
     fn marks_failed_task_as_error() {
-        let event = ExecutionTraceEvent::from_log_line("[task_end] status=failed").unwrap();
+        let event = ExecutionTraceEvent::from_log_line("[task_end] status=failed reason=max_turns")
+            .unwrap();
         assert_eq!(event.severity, "error");
-        assert_eq!(event.title, "Task failed");
+        assert_eq!(event.title, "Task failed (max_turns)");
+        assert_eq!(event.payload["reason"], "max_turns");
     }
 }

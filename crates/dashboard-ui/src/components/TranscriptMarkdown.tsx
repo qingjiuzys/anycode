@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import hljs from "highlight.js/lib/core";
@@ -23,9 +23,19 @@ hljs.registerLanguage("html", xml);
 type Props = {
   text: string;
   className?: string;
+  /** While streaming, render plain text; parse markdown once settled. */
+  live?: boolean;
 };
 
-export function TranscriptMarkdown({ text, className = "" }: Props) {
+export const TranscriptMarkdown = memo(function TranscriptMarkdown({
+  text,
+  className = "",
+  live = false,
+}: Props) {
+  const displayText = useMemo(
+    () => text.replace(/^[ \t]*(\*{3,}|-{3,}|_{3,})[ \t]*$/gm, ""),
+    [text],
+  );
   const components = useMemo(
     () => ({
       code({ className: codeClass, children, ...props }: React.ComponentProps<"code">) {
@@ -75,11 +85,19 @@ export function TranscriptMarkdown({ text, className = "" }: Props) {
     [],
   );
 
+  if (live) {
+    return (
+      <div className={`dw-transcript-markdown ${className}`}>
+        <div className="whitespace-pre-wrap break-words leading-relaxed">{displayText}</div>
+      </div>
+    );
+  }
+
   return (
     <div className={`dw-transcript-markdown ${className}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {text}
+        {displayText}
       </ReactMarkdown>
     </div>
   );
-}
+});

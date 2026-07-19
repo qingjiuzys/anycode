@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   conversationStreamLive,
   conversationThreadRunning,
+  shouldClearOptimisticOnRunningHandoff,
   shouldRebaseLiveOnSseReconnect,
+  shouldSuppressTranscriptInvalidate,
   shouldTrackChatEventAsLive,
 } from "@/hooks/useSessionEventStream";
 
@@ -63,5 +65,31 @@ describe("conversationStreamLive", () => {
 
   it("is true when SSE connected and session is running", () => {
     expect(conversationStreamLive(false, true, true)).toBe(true);
+  });
+});
+
+describe("shouldSuppressTranscriptInvalidate", () => {
+  it("suppresses when chat is live or trackLive is active", () => {
+    expect(shouldSuppressTranscriptInvalidate(true, false)).toBe(true);
+    expect(shouldSuppressTranscriptInvalidate(false, true)).toBe(true);
+    expect(shouldSuppressTranscriptInvalidate(true, true)).toBe(true);
+    expect(shouldSuppressTranscriptInvalidate(false, false)).toBe(false);
+  });
+});
+
+describe("shouldClearOptimisticOnRunningHandoff", () => {
+  it("clears only when server status is running for the optimistic session", () => {
+    expect(
+      shouldClearOptimisticOnRunningHandoff("running", "s1", "s1"),
+    ).toBe(true);
+    expect(
+      shouldClearOptimisticOnRunningHandoff("completed", "s1", "s1"),
+    ).toBe(false);
+    expect(
+      shouldClearOptimisticOnRunningHandoff("running", "s1", "s2"),
+    ).toBe(false);
+    expect(
+      shouldClearOptimisticOnRunningHandoff("running", null, "s1"),
+    ).toBe(false);
   });
 });

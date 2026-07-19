@@ -627,9 +627,7 @@ struct ZaiUsage {
 
 /// 是否为「首轮主对话」：仅 system + user，尚无 assistant/tool 历史（与 AgentRuntime 首包 LLM 请求一致）。
 fn is_zai_first_agent_turn(messages: &[Message]) -> bool {
-    messages.len() == 2
-        && matches!(messages.first().map(|m| &m.role), Some(MessageRole::System))
-        && matches!(messages.get(1).map(|m| &m.role), Some(MessageRole::User))
+    crate::is_first_agent_turn(messages)
 }
 
 /// OpenAI 兼容 `tool_choice`。Claude Code 对 Anthropic 主路径传 `tool_choice: undefined`，依赖 Claude 的工具习惯；z.ai/GLM 在 `auto` 下常返回纯文本而不带 `tool_calls`，故支持用环境变量收紧（与 OpenAI `required` 语义一致）。
@@ -651,6 +649,7 @@ fn zai_tool_choice(
     messages: &[Message],
     tools_empty: bool,
     client_wants_first_turn_required: bool,
+    config: &ModelConfig,
 ) -> Option<String> {
     if tools_empty {
         return None;
@@ -668,7 +667,11 @@ fn zai_tool_choice(
         Some("1") | Some("true") | Some("yes")
     );
     let first_turn_required = client_wants_first_turn_required || env_first_turn;
-    if first_turn_required && is_zai_first_agent_turn(messages) {
+    let weak_local_required = crate::capabilities_for_model_config(config).weak_local_model
+        && (crate::has_tool_recovery_nudge(messages)
+            || (is_zai_first_agent_turn(messages)
+                && crate::explicitly_requests_tool_execution(messages)));
+    if weak_local_required || (first_turn_required && is_zai_first_agent_turn(messages)) {
         return Some("required".to_string());
     }
     Some("auto".to_string())
@@ -737,6 +740,13 @@ fn message_text_for_openai(m: &Message) -> Result<String, CoreError> {
 }
 
 /// 将 anyCode 消息转为 OpenAI Chat Completions `messages` JSON。
+pub(crate) fn messages_to_openai_json_for_config(
+    messages: Vec<Message>,
+    _config: &ModelConfig,
+) -> Result<Vec<Value>, CoreError> {
+    messages_to_openai_json(messages)
+}
+
 pub(crate) fn messages_to_openai_json(messages: Vec<Message>) -> Result<Vec<Value>, CoreError> {
     let mut out = Vec::with_capacity(messages.len());
     for msg in messages {
@@ -787,12 +797,28 @@ pub(crate) fn messages_to_openai_json(messages: Vec<Message>) -> Result<Vec<Valu
                         obj.insert("content".to_string(), json!(text));
                     }
                     obj.insert("tool_calls".to_string(), Value::Array(tool_calls));
+                    if let Some(rc) = msg
+                        .metadata
+                        .get(ANYCODE_REASONING_CONTENT_METADATA_KEY)
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.trim().is_empty())
+                    {
+                        obj.insert("reasoning_content".to_string(), json!(rc));
+                    }
                     out.push(Value::Object(obj));
                 } else {
-                    out.push(json!({
-                        "role": "assistant",
-                        "content": text
-                    }));
+                    let mut obj = serde_json::Map::new();
+                    obj.insert("role".to_string(), json!("assistant"));
+                    obj.insert("content".to_string(), json!(text));
+                    if let Some(rc) = msg
+                        .metadata
+                        .get(ANYCODE_REASONING_CONTENT_METADATA_KEY)
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.trim().is_empty())
+                    {
+                        obj.insert("reasoning_content".to_string(), json!(rc));
+                    }
+                    out.push(Value::Object(obj));
                 }
             }
             MessageRole::Tool => {
@@ -829,8 +855,7 @@ fn parse_tool_calls_from_zai(msg: &ZaiMessageContent) -> Result<Vec<ToolCall>, C
         let input: Value = if tc.function.arguments.trim().is_empty() {
             json!({})
         } else {
-            serde_json::from_str(&tc.function.arguments)
-                .unwrap_or_else(|_| json!({ "raw": tc.function.arguments.clone() }))
+            crate::tool_call_normalizer::parse_arguments_value(&tc.function.arguments)
         };
         let _ = tc.call_type.as_deref(); // OpenAI uses "function"
         out.push(ToolCall {
@@ -842,7 +867,10 @@ fn parse_tool_calls_from_zai(msg: &ZaiMessageContent) -> Result<Vec<ToolCall>, C
     Ok(out)
 }
 
-fn convert_response(zai_response: ZaiResponse) -> Result<LLMResponse, CoreError> {
+fn convert_response(
+    zai_response: ZaiResponse,
+    tools: &[ToolSchema],
+) -> Result<LLMResponse, CoreError> {
     let choice = zai_response
         .choices
         .first()
@@ -861,17 +889,29 @@ fn convert_response(zai_response: ZaiResponse) -> Result<LLMResponse, CoreError>
             "z.ai: merged assistant visible text is empty"
         );
     }
-    let tool_calls = parse_tool_calls_from_zai(&choice.message)?;
+    let native = parse_tool_calls_from_zai(&choice.message)?;
+    let normalized =
+        crate::tool_call_normalizer::normalize_assistant_output(native, &content_str, tools);
+
+    let mut metadata = std::collections::HashMap::new();
+    let reasoning_passback =
+        zai_collect_reasoning_parts(&choice.message, choice.reasoning_content.as_deref());
+    if !reasoning_passback.trim().is_empty() {
+        metadata.insert(
+            ANYCODE_REASONING_CONTENT_METADATA_KEY.to_string(),
+            json!(reasoning_passback),
+        );
+    }
 
     Ok(LLMResponse {
         message: Message {
             id: Uuid::new_v4(),
             role: MessageRole::Assistant,
-            content: MessageContent::Text(content_str),
+            content: MessageContent::Text(normalized.visible_content),
             timestamp: chrono::Utc::now(),
-            metadata: std::collections::HashMap::new(),
+            metadata,
         },
-        tool_calls,
+        tool_calls: normalized.tool_calls,
         usage: Usage {
             input_tokens: zai_response.usage.prompt_tokens,
             output_tokens: zai_response.usage.completion_tokens,
@@ -883,10 +923,13 @@ fn convert_response(zai_response: ZaiResponse) -> Result<LLMResponse, CoreError>
 
 /// OpenAI Chat Completions 与 z.ai 兼容响应体共用反序列化与 [`convert_response`]。
 #[cfg(feature = "openai")]
-pub(crate) fn llm_response_from_openai_compatible_str(s: &str) -> Result<LLMResponse, CoreError> {
+pub(crate) fn llm_response_from_openai_compatible_str(
+    s: &str,
+    tools: &[ToolSchema],
+) -> Result<LLMResponse, CoreError> {
     let zai_response: ZaiResponse =
         serde_json::from_str(s).map_err(|e| CoreError::LLMError(e.to_string()))?;
-    convert_response(zai_response)
+    convert_response(zai_response, tools)
 }
 
 #[async_trait]
@@ -897,8 +940,13 @@ impl LLMClient for ZaiClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<LLMResponse, CoreError> {
-        let tool_choice = zai_tool_choice(&messages, tools.is_empty(), self.tool_choice_first_turn);
-        let openai_messages = messages_to_openai_json(messages)?;
+        let tool_choice = zai_tool_choice(
+            &messages,
+            tools.is_empty(),
+            self.tool_choice_first_turn,
+            config,
+        );
+        let openai_messages = messages_to_openai_json_for_config(messages, config)?;
 
         let model = if config.model.trim().is_empty() {
             self.model.clone()
@@ -1061,7 +1109,7 @@ impl LLMClient for ZaiClient {
             .await
             .map_err(|e| CoreError::LLMError(e.to_string()))?;
 
-        convert_response(zai_response)
+        convert_response(zai_response, &tools)
     }
 
     async fn chat_stream(
@@ -1070,11 +1118,16 @@ impl LLMClient for ZaiClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<mpsc::Receiver<StreamEvent>, CoreError> {
-        use crate::openai_compat_stream::emit_openai_sse_json_chunk;
-        use std::collections::HashMap;
+        use crate::openai_compat_stream::{emit_openai_sse_with_state, flush_openai_sse_state};
+        use crate::tool_call_normalizer::OpenAiCompatStreamState;
 
-        let tool_choice = zai_tool_choice(&messages, tools.is_empty(), self.tool_choice_first_turn);
-        let openai_messages = messages_to_openai_json(messages)?;
+        let tool_choice = zai_tool_choice(
+            &messages,
+            tools.is_empty(),
+            self.tool_choice_first_turn,
+            config,
+        );
+        let openai_messages = messages_to_openai_json_for_config(messages, config)?;
 
         let model = if config.model.trim().is_empty() {
             self.model.clone()
@@ -1116,6 +1169,7 @@ impl LLMClient for ZaiClient {
 
         let client = self.client.clone();
         let (tx, rx) = mpsc::channel(128);
+        let stream_tools = tools.clone();
 
         tokio::spawn(async move {
             let response = match client
@@ -1148,8 +1202,7 @@ impl LLMClient for ZaiClient {
 
             let mut stream = response.bytes_stream();
             let mut sse_buf = SseLineBuffer::new();
-            let mut tool_builders: HashMap<u64, (Option<String>, Option<String>, String)> =
-                HashMap::new();
+            let mut stream_state = OpenAiCompatStreamState::new(stream_tools);
 
             'read: while let Some(chunk_res) = stream.next().await {
                 let chunk = match chunk_res {
@@ -1170,7 +1223,7 @@ impl LLMClient for ZaiClient {
                     let Ok(val) = serde_json::from_str::<Value>(&data) else {
                         continue;
                     };
-                    if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                    if emit_openai_sse_with_state(&val, &tx, &mut stream_state).await {
                         return;
                     }
                 }
@@ -1181,10 +1234,14 @@ impl LLMClient for ZaiClient {
                     break;
                 };
                 if let Ok(val) = serde_json::from_str::<Value>(&data) {
-                    if emit_openai_sse_json_chunk(&val, &tx, &mut tool_builders).await {
+                    if emit_openai_sse_with_state(&val, &tx, &mut stream_state).await {
                         return;
                     }
                 }
+            }
+
+            if flush_openai_sse_state(&tx, &mut stream_state).await {
+                return;
             }
 
             let _ = tx.send(StreamEvent::Done).await;
@@ -1211,6 +1268,10 @@ mod tests {
             ANYCODE_TOOL_CALLS_METADATA_KEY.to_string(),
             serde_json::to_value(vec![tc]).unwrap(),
         );
+        meta.insert(
+            ANYCODE_REASONING_CONTENT_METADATA_KEY.to_string(),
+            json!("think step"),
+        );
         let assistant = Message {
             id: Uuid::new_v4(),
             role: MessageRole::Assistant,
@@ -1222,6 +1283,10 @@ mod tests {
         let obj = out[0].as_object().unwrap();
         assert_eq!(obj.get("role").and_then(|v| v.as_str()), Some("assistant"));
         assert!(obj.get("tool_calls").is_some());
+        assert_eq!(
+            obj.get("reasoning_content").and_then(|v| v.as_str()),
+            Some("think step")
+        );
     }
 
     #[test]
@@ -1276,10 +1341,11 @@ mod tests {
     }
 
     #[test]
-    fn is_zai_first_agent_turn_only_system_user() {
+    fn is_zai_first_agent_turn_allows_context_users_but_no_assistant() {
         let ok = vec![
             test_msg(MessageRole::System, "s"),
-            test_msg(MessageRole::User, "u"),
+            test_msg(MessageRole::User, "runtime context"),
+            test_msg(MessageRole::User, "actual task"),
         ];
         assert!(is_zai_first_agent_turn(&ok));
         let bad = vec![
@@ -1296,7 +1362,10 @@ mod tests {
             test_msg(MessageRole::System, "s"),
             test_msg(MessageRole::User, "u"),
         ];
-        assert_eq!(zai_tool_choice(&m, true, false), None);
+        assert_eq!(
+            zai_tool_choice(&m, true, false, &ModelConfig::default()),
+            None
+        );
     }
 
     #[test]
@@ -1306,8 +1375,27 @@ mod tests {
             test_msg(MessageRole::User, "u"),
         ];
         assert_eq!(
-            zai_tool_choice(&m, false, true),
+            zai_tool_choice(&m, false, true, &ModelConfig::default()),
             Some("required".to_string())
+        );
+    }
+
+    #[test]
+    fn zai_openai_stack_forces_explicit_local_tool_task() {
+        let messages = vec![
+            test_msg(MessageRole::System, "s"),
+            test_msg(MessageRole::User, "runtime context"),
+            test_msg(MessageRole::User, "请读取 Cargo.toml"),
+        ];
+        let config = ModelConfig {
+            provider: LLMProvider::OpenAI,
+            model: "minicpm5-1b".into(),
+            base_url: Some("http://127.0.0.1:47100/v1/chat/completions".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            zai_tool_choice(&messages, false, false, &config).as_deref(),
+            Some("required")
         );
     }
 
@@ -1329,7 +1417,7 @@ mod tests {
             "usage": {"prompt_tokens": 1, "completion_tokens": 2}
         }"#;
         let z: ZaiResponse = serde_json::from_str(json_str).unwrap();
-        let r = convert_response(z).unwrap();
+        let r = convert_response(z, &[]).unwrap();
         assert_eq!(r.tool_calls.len(), 1);
         assert_eq!(r.tool_calls[0].name, "FileRead");
         assert!(r.tool_calls[0].input.get("file_path").is_some());
@@ -1349,7 +1437,7 @@ mod tests {
             "usage": {"prompt_tokens": 1, "completion_tokens": 2}
         }"#;
         let z: ZaiResponse = serde_json::from_str(json_str).unwrap();
-        let r = convert_response(z).unwrap();
+        let r = convert_response(z, &[]).unwrap();
         assert!(r.tool_calls.is_empty());
         match &r.message.content {
             MessageContent::Text(t) => assert!(t.contains("full project analysis")),
@@ -1370,7 +1458,7 @@ mod tests {
             "usage": {"prompt_tokens": 1, "completion_tokens": 2}
         }"#;
         let z: ZaiResponse = serde_json::from_str(json_str).unwrap();
-        let r = convert_response(z).unwrap();
+        let r = convert_response(z, &[]).unwrap();
         match &r.message.content {
             MessageContent::Text(t) => {
                 assert!(t.contains("Line A"));
@@ -1399,7 +1487,7 @@ mod tests {
             "usage": {"prompt_tokens": 1, "completion_tokens": 2}
         }"#;
         let z: ZaiResponse = serde_json::from_str(json_str).unwrap();
-        let r = convert_response(z).unwrap();
+        let r = convert_response(z, &[]).unwrap();
         match &r.message.content {
             MessageContent::Text(t) => {
                 assert_eq!(t, "short");
@@ -1407,6 +1495,13 @@ mod tests {
             }
             _ => panic!("expected text"),
         }
+        assert_eq!(
+            r.message
+                .metadata
+                .get(ANYCODE_REASONING_CONTENT_METADATA_KEY)
+                .and_then(|v| v.as_str()),
+            Some("LONG INTERNAL CHAIN")
+        );
     }
 
     #[test]
@@ -1428,7 +1523,7 @@ mod tests {
             "usage": {"prompt_tokens": 1, "completion_tokens": 2}
         }"#;
         let z: ZaiResponse = serde_json::from_str(json_str).unwrap();
-        let r = convert_response(z).unwrap();
+        let r = convert_response(z, &[]).unwrap();
         match &r.message.content {
             MessageContent::Text(t) => assert!(t.contains("Planner summary")),
             _ => panic!("expected text"),
@@ -1449,7 +1544,7 @@ mod tests {
             "usage": { "prompt_tokens": 1, "completion_tokens": 2 }
         });
         let z: ZaiResponse = serde_json::from_value(v).unwrap();
-        let r = convert_response(z).unwrap();
+        let r = convert_response(z, &[]).unwrap();
         match &r.message.content {
             MessageContent::Text(t) => {
                 assert!(t.contains("Hello user"));

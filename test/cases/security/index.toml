@@ -1,0 +1,354 @@
+suite = "security"
+description = "OWASP, resource leaks, error handling, and maintainability generation tasks"
+
+[[cases]]
+id = "sec-sqli-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-sqli-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-sqli-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-sqli-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-xss-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-xss-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-xss-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-xss-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secret-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secret-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secret-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secret-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-deser-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-deser-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-deser-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-path-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-path-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-path-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-path-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-ssrf-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-ssrf-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-ssrf-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-ssrf-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-cmd-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-cmd-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-cmd-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-cmd-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-auth-01"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-auth-02"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-auth-03"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-auth-04"
+risk = "P0"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-leak-01"
+risk = "P1"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-leak-02"
+risk = "P1"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-leak-03"
+risk = "P1"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-err-01"
+risk = "P1"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-err-02"
+risk = "P1"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-err-03"
+risk = "P1"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-maint-01"
+risk = "P2"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-maint-02"
+risk = "P2"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-maint-03"
+risk = "P2"
+runner = "security"
+tier = ['smoke', 'full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secure-01"
+risk = "P1"
+runner = "security"
+tier = ['full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secure-02"
+risk = "P1"
+runner = "security"
+tier = ['full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secure-03"
+risk = "P1"
+runner = "security"
+tier = ['full']
+timeout_seconds = 120
+requires = { llm = "fixture" }
+
+[[cases]]
+id = "sec-secure-04"
+risk = "P1"
+runner = "security"
+tier = ['full']
+timeout_seconds = 120
+requires = { llm = "fixture" }

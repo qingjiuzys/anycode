@@ -43,8 +43,21 @@ impl WorkbenchApprovalCallback {
         }
     }
 
+    /// Task-local chat turn context first (embedded chat / triggers); env var
+    /// only as legacy fallback for headless single-task CLI processes.
     fn session_id(&self) -> Option<String> {
-        std::env::var(SESSION_ENV).ok().filter(|s| !s.is_empty())
+        anycode_core::current_dashboard_session_id()
+            .or_else(|| std::env::var(SESSION_ENV).ok())
+            .filter(|s| !s.is_empty())
+    }
+
+    fn user_turn_id(&self) -> u32 {
+        anycode_core::current_user_turn_id().unwrap_or_else(|| {
+            std::env::var(anycode_dashboard_ipc::question_ipc::USER_TURN_ENV)
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0)
+        })
     }
 
     fn tool_allowed_for_project(&self, tool: &str) -> bool {
@@ -66,9 +79,21 @@ impl WorkbenchApprovalCallback {
 
     async fn wait_web(&self, approval_id: &str) -> Option<String> {
         let deadline = tokio::time::Instant::now() + WEB_TIMEOUT;
+        let session_id = self.session_id();
         loop {
             if let Some(decision) = approval_ipc::poll_response(approval_id) {
                 return Some(decision);
+            }
+            // Pending cleared by Stop / timeout without a response file.
+            if approval_ipc::get_pending(approval_id).is_none() {
+                return Some("deny".into());
+            }
+            if session_id
+                .as_deref()
+                .is_some_and(anycode_dashboard_ipc::cancel_ipc::poll_cancel_requested)
+            {
+                approval_ipc::clear_pending(approval_id);
+                return Some("deny".into());
             }
             if tokio::time::Instant::now() >= deadline {
                 approval_ipc::clear_pending(approval_id);
@@ -143,8 +168,9 @@ impl ApprovalCallback for WorkbenchApprovalCallback {
             }
         }
         let web_id = if approval_ipc::web_approvals_enabled() {
-            self.session_id()
-                .and_then(|sid| approval_ipc::register_pending(&sid, tool, &preview).ok())
+            self.session_id().and_then(|sid| {
+                approval_ipc::register_pending(&sid, self.user_turn_id(), tool, &preview).ok()
+            })
         } else {
             None
         };
@@ -230,5 +256,22 @@ mod tests {
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
         let cb = WorkbenchApprovalCallback::with_tui_channel(tx);
         assert!(cb.session_id().is_none());
+    }
+
+    #[tokio::test]
+    async fn session_id_prefers_task_local_chat_turn_context() {
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        let cb = WorkbenchApprovalCallback::with_tui_channel(tx);
+        let ctx = anycode_core::ChatTurnContext {
+            dashboard_session_id: Some("sess_ctx".into()),
+            user_turn_id: Some(7),
+            reply_language: None,
+            host_intent_hint: None,
+        };
+        anycode_core::scope_chat_turn(ctx, async {
+            assert_eq!(cb.session_id().as_deref(), Some("sess_ctx"));
+            assert_eq!(cb.user_turn_id(), 7);
+        })
+        .await;
     }
 }

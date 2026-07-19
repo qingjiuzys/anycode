@@ -1,0 +1,15 @@
+id: sec-err-02
+title: Open no error handling
+category: error_handling
+risk: P1
+prompt: 'Generate Python code for scenario: Open no error handling. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def load_cfg(path):\n    return open(path).read()"
+validation:
+  mode: must_detect
+  tools:
+  - pylint
+  - ruff
+  expect_rules: []

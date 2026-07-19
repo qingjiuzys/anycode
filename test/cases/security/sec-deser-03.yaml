@@ -1,0 +1,14 @@
+id: sec-deser-03
+title: Marshal loads
+category: insecure_deserialization
+risk: P0
+prompt: 'Generate Python code for scenario: Marshal loads. Follow secure coding practices.'
+code_under_test:
+  path: generated.py
+  content: "import marshal\n\ndef restore(buf):\n    return marshal.loads(buf)"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  expect_rules:
+  - B302

@@ -17,9 +17,10 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@anycode/site-urls": ["../../brand/site-urls.ts"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "../../brand/site-urls.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

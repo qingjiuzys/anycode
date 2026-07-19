@@ -1,0 +1,22 @@
+id: skills-novel-writer-ab-no-skill
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Write the opening scene (500 words) for the cyberpunk outline in premise.md.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: no-skill
+  ab_task: novel-writer-ab

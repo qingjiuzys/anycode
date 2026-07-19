@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "fixtures": {
+    "csv": "fixtures/sales_june.csv",
+    "md": "fixtures/report_table.md"
+  },
+  "scenarios": {
+    "01-office-xlsx": {
+      "artifact_type": "xlsx",
+      "agent": "office-writer",
+      "expected_artifacts": ["artifacts/june_sales.xlsx"],
+      "delivery_contract": [
+        "两个工作表：Raw Data（明细）+ Executive Summary（汇总）",
+        "Executive Summary 含：按区域汇总（销售额/订单/退款/退款率）、按日期汇总、总计行",
+        "必须标注华北退款率偏高或异常（与 report_table.md 一致）",
+        "冻结首行；销售额列使用数字/货币格式",
+        "数据与 fixtures/sales_june.csv 可复算一致"
+      ],
+      "acceptance_evidence": [
+        "artifacts/june_sales.xlsx 存在且可打开",
+        "区域总销售额：华东 393800、华南 304400、华北 211700",
+        "三日销售额合计 909900"
+      ]
+    },
+    "02-office-docx": {
+      "artifact_type": "docx",
+      "agent": "office-writer",
+      "expected_artifacts": ["artifacts/june_sales_report.docx"],
+      "delivery_contract": [
+        "标题 + 报告期间 + 一句话执行摘要",
+        "至少一个数据表 + 结论段 + 行动建议段",
+        "必须点出华北退款率异常或偏高（引用数据）",
+        "核心指标与 CSV/MD 可复算一致",
+        "语气面向业务负责人，非原始数据堆砌"
+      ],
+      "acceptance_evidence": [
+        "含「结论」或等效章节",
+        "含华北/退款率/异常相关表述",
+        "总销售额 909900 或等价表述"
+      ]
+    },
+    "03-office-pptx": {
+      "artifact_type": "pptx",
+      "agent": "office-writer",
+      "expected_artifacts": ["artifacts/june_sales_deck.pptx"],
+      "delivery_contract": [
+        "恰好 3 页：封面 / 数据洞察 / 结论与建议",
+        "每页一个核心观点，避免重复堆叠相同 KPI",
+        "结论页优先：含华北退款率风险与行动项",
+        "页脚或备注注明数据来源 fixtures/sales_june.csv",
+        "核心数字与 CSV 一致"
+      ],
+      "acceptance_evidence": [
+        "slide 数 >= 3",
+        "含总销售额 909900 或等价",
+        "含华北退款/异常洞察"
+      ]
+    },
+    "06-html-page": {
+      "artifact_type": "html",
+      "agent": "general-purpose",
+      "expected_artifacts": ["artifacts/landing.html"],
+      "delivery_contract": [
+        "有效 HTML5：DOCTYPE、title、viewport、语义结构（header/main/footer 或等效）",
+        "现代单页布局 + 内联或内嵌 CSS",
+        "真实 CTA（链接或按钮），禁止 alert() 测试交互",
+        "E2E_LANDING_MARKER 作为 data-testid 或隐藏属性，不得作为用户可见按钮文案",
+        "中英文文案一致、面向产品落地页"
+      ],
+      "acceptance_evidence": [
+        "landing.html 含指定 title",
+        "无 onclick=alert",
+        "含可访问性属性（aria-label 或 role）"
+      ],
+      "brief_snippet": "CTA 示例（marker 必须隐藏）：\n```html\n<a href=\"#start\" class=\"btn\" role=\"button\" aria-label=\"开始使用\">Get Started</a>\n<span data-testid=\"E2E_LANDING_MARKER\" aria-hidden=\"true\" style=\"display:none\">E2E_LANDING_MARKER</span>\n```"
+    },
+    "07-html-md-skill": {
+      "artifact_type": "pdf",
+      "agent": "general-purpose",
+      "expected_artifacts": ["artifacts/report_table.pdf", "artifacts/report_table.html"],
+      "delivery_contract": [
+        "将 fixtures/report_table.md 导出为 artifacts/report_table.pdf（优先）或 .html",
+        "优先使用 Skill 工具 md-to-pdf",
+        "若 Skill 失败，允许 fallback，但须在 artifacts/report_table.audit.json 记录 actual_path、fallback_reason、tool_chain",
+        "PDF 无 file:// 页脚、无临时路径泄露",
+        "正文含表格区域数据与源 MD 一致"
+      ],
+      "acceptance_evidence": [
+        "产物文件名含 report_table",
+        "含华东/华南/华北区域数据",
+        "若有降级，audit.json 存在且 honest"
+      ],
+      "brief_snippet": "过程审计由 harness 从任务日志自动生成 report_table.audit.json；你只需专注产出 PDF/HTML。"
+    },
+    "08-complex-delivery": {
+      "artifact_type": "complex_v2",
+      "agent": "general-purpose",
+      "expected_artifacts": [
+        "artifacts/executive_pack/june_ops.xlsx",
+        "artifacts/executive_pack/regional_scorecard.xlsx",
+        "artifacts/executive_pack/incident_brief.docx",
+        "artifacts/executive_pack/board_deck.pptx",
+        "artifacts/executive_pack/qa_signoff.md",
+        "artifacts/executive_dashboard.html",
+        "artifacts/DELIVERY_MANIFEST.json",
+        "fixtures/e2e-complex-repo/CHANGELOG.md"
+      ],
+      "delivery_contract": [
+        "【办公·Excel】executive_pack/june_ops.xlsx（Raw+Summary）+ regional_scorecard.xlsx（>=3 工作表：区域/渠道/汇总）",
+        "【办公·Word】incident_brief.docx 必须含章节：背景/发现/影响/根因/行动建议/负责人；正文显式写总销售额 909900、华北退款率 6.65%、行动项含负责人与时限",
+        "【办公·PPT】board_deck.pptx >=12 页，slide 须覆盖至少 8 类主题：封面/KPI/区域/华北/渠道/趋势/风险/行动/附录",
+        "【办公·QA】qa_signoff.md：checkbox 清单须覆盖 cargo test、git head、june_ops、board_deck、incident_brief、executive_dashboard、manifest，并显式写 909900 与 6.65%",
+        "【前端】executive_dashboard.html：单页看板含 KPI 卡片、华北风险区块；正文同时出现「华北」与「退款」；隐藏 `<span data-testid=\"E2E_EXEC_DASHBOARD_MARKER\" style=\"display:none\">`",
+        "【编码】修复 e2e-complex-repo 全部 sales-metrics bug（4 处），cargo test --workspace 全绿",
+        "【开源】本地 git commit（fix + CHANGELOG.md），不要 push",
+        "【集成】DELIVERY_MANIFEST.json 使用 code_repo（或 git_repo 别名）、slide_count>=12、region_leader=华东、north_refund_rate_pct=6.65、qa_signoff_path、dashboard_html_path、git_head、cargo_tests_passed、total_sales=909900"
+      ],
+      "acceptance_evidence": [
+        "PPT >=12 页且 >=8 类 slide 主题",
+        "Word 含 909900、6.65%、负责人/行动项",
+        "HTML 含华北+退款、隐藏 E2E_EXEC_DASHBOARD_MARKER",
+        "QA 含 909900 与全产物 checkbox",
+        "cargo test --workspace 通过（5 tests）",
+        "manifest 数字与 CSV 交叉一致"
+      ],
+      "brief_snippet": "v2 生产级：12 页 deck（8 主题）+ 双 Excel + Word 六段式 + HTML 华北风险区 + QA 全清单 + 4 bug + CHANGELOG + manifest(code_repo)。顺序：CSV→修 repo→cargo test→git→办公→HTML→QA→manifest→Glob 自检缺失项。"
+    }
+  }
+}

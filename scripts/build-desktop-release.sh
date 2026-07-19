@@ -6,6 +6,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export ROOT
 cd "$ROOT"
 
+# shellcheck source=scripts/lib/build-target.sh
+source "$ROOT/scripts/lib/build-target.sh"
+anycode_apply_build_target_exports
+anycode_print_build_target_summary
+
 if [[ "$(uname -s)" == "Darwin" ]]; then
   export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-10.15}"
   export CMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:-10.15}"
@@ -55,7 +60,9 @@ write_desktop_icon_fingerprint() {
 }
 
 expected_stage_fingerprint() {
-  printf 'ui=%s\n' "$(sha256_file "$ROOT/crates/dashboard-ui/dist/index.html")"
+  printf 'ui=%s\ntarget=%s\n' \
+    "$(sha256_file "$ROOT/crates/dashboard-ui/dist/index.html")" \
+    "${ANYCODE_BUILD_TARGET:-cloud}"
 }
 
 stage_cache_hit() {
@@ -81,6 +88,25 @@ chmod +x "$ROOT/scripts/build-apple-media-cli.sh"
 chmod +x "$ROOT/scripts/prepare-browser-mcp.sh"
 chmod +x "$ROOT/scripts/prepare-chromium.sh"
 chmod +x "$ROOT/scripts/prepare-desktop-icon-env.sh"
+chmod +x "$ROOT/scripts/codesign-mac-app-deep.sh"
+chmod +x "$ROOT/scripts/notarize-mac-app.sh"
+
+REL_ENV="${ANYCODE_RELEASE_ENV:-$HOME/.anycode/release.env}"
+SIGNING_RELEASE=0
+if [[ -f "$REL_ENV" ]]; then
+  # shellcheck source=/dev/null
+  source "$REL_ENV"
+fi
+if [[ "$(uname -s)" == "Darwin" && -n "${APPLE_SIGNING_IDENTITY:-}" && "${APPLE_SIGNING_IDENTITY}" != "-" && -n "${APPLE_ID:-}" ]]; then
+  SIGNING_RELEASE=1
+fi
+SKIP_BROWSER=0
+if [[ "${ANYCODE_DESKTOP_SKIP_BROWSER:-}" == "1" || "$SIGNING_RELEASE" -eq 1 ]]; then
+  SKIP_BROWSER=1
+fi
+if [[ "$SKIP_BROWSER" -eq 1 ]]; then
+  echo "==> skip bundled Chromium (notarized release; browser installs on first use)"
+fi
 
 step "sync workspace version to dashboard-ui / desktop manifests" \
   "$ROOT/scripts/sync-workspace-version.sh"
@@ -90,7 +116,9 @@ step "build dashboard UI (must run before desktop — embedded-ui bakes dist/)" 
 
 DASHBOARD_FEATURES="embedded-ui,tools-browser,knowledge-embeddings"
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  DASHBOARD_FEATURES="${DASHBOARD_FEATURES},media-local"
+  # macOS TTS is provided by anycode-apple-media. Avoid bundling Piper's
+  # espeak compiler/data while retaining local embeddings and STT.
+  DASHBOARD_FEATURES="${DASHBOARD_FEATURES},embedding-local,stt-local"
 fi
 
 PARALLEL_START=$SECONDS
@@ -100,14 +128,19 @@ ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --featur
 CARGO_PID=$!
 "$ROOT/scripts/build-apple-media-cli.sh" &
 APPLE_PID=$!
-"$ROOT/scripts/prepare-chromium.sh" &
-BROWSER_PID=$!
+BROWSER_PID=""
+if [[ "$SKIP_BROWSER" -eq 0 ]]; then
+  "$ROOT/scripts/prepare-chromium.sh" &
+  BROWSER_PID=$!
+fi
 CARGO_STATUS=0
 APPLE_STATUS=0
 BROWSER_STATUS=0
 wait "$CARGO_PID" || CARGO_STATUS=$?
 wait "$APPLE_PID" || APPLE_STATUS=$?
-wait "$BROWSER_PID" || BROWSER_STATUS=$?
+if [[ -n "$BROWSER_PID" ]]; then
+  wait "$BROWSER_PID" || BROWSER_STATUS=$?
+fi
 if [[ "$CARGO_STATUS" -ne 0 || "$APPLE_STATUS" -ne 0 || "$BROWSER_STATUS" -ne 0 ]]; then
   echo "parallel build failed (cargo=$CARGO_STATUS apple=$APPLE_STATUS browser=$BROWSER_STATUS)" >&2
   exit 1
@@ -123,7 +156,10 @@ else
   DESKTOP_TPL="$ROOT/apps/anycode-desktop/resources/project-templates"
   rm -rf "$DESKTOP_TPL"
   cp -R "$ROOT/project-templates" "$DESKTOP_TPL"
-DESKTOP_UI="$ROOT/apps/anycode-desktop/resources/dashboard-ui"
+  DESKTOP_STARTER="$ROOT/apps/anycode-desktop/resources/skills-starter"
+  rm -rf "$DESKTOP_STARTER"
+  cp -R "$ROOT/skills-starter" "$DESKTOP_STARTER"
+  DESKTOP_UI="$ROOT/apps/anycode-desktop/resources/dashboard-ui"
 rm -rf "$DESKTOP_UI"
 cp -R "$ROOT/crates/dashboard-ui/dist" "$DESKTOP_UI"
 test -f "$DESKTOP_UI/index.html" || {
@@ -133,6 +169,9 @@ test -f "$DESKTOP_UI/index.html" || {
 write_stage_fingerprint
 echo "    ($((SECONDS - STAGE_START))s)"
 fi
+
+anycode_write_account_endpoints_manifest \
+  "$ROOT/apps/anycode-desktop/resources/account-endpoints.json"
 
 if [[ "$TAURI_PROFILE" == "release-local" ]]; then
   echo "==> using release-local profile for desktop (faster local DMG; unset ANYCODE_DESKTOP_LOCAL_RELEASE for shipping LTO build)"
@@ -167,11 +206,46 @@ fi
 step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -ec '
   cd "$ROOT/apps/anycode-desktop"
   export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
-  if [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
+  NOTARIZE_LATER=0
+  if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+    NOTARIZE_LATER=1
+  fi
+  if [[ "$NOTARIZE_LATER" -eq 1 ]]; then
+    echo "Signing in Tauri; notarization deferred until after bundle"
+    unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+  elif [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
     unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
   fi
-  cargo tauri build -- --profile "'"$TAURI_PROFILE"'"
+  if [[ "'"$SKIP_BROWSER"'" -eq 1 ]]; then
+    rm -rf "$ROOT/apps/anycode-desktop/resources/browser/browsers"
+  fi
+  cargo tauri build --bundles app -- --profile "'"$TAURI_PROFILE"'"
 '
+
+DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_PROFILE}/bundle/macos/anyCode.app"
+if [[ ! -d "$DESKTOP_APP_BUNDLE" ]]; then
+  DESKTOP_APP_BUNDLE="$ROOT/target/release/bundle/macos/anyCode.app"
+fi
+if [[ -d "$DESKTOP_APP_BUNDLE" && "$DESKTOP_APP_BUNDLE" != "$ROOT/target/release/bundle/macos/anyCode.app" ]]; then
+  step "sync desktop .app into target/release/bundle for signing/DMG" bash -ec "
+    rm -rf '$ROOT/target/release/bundle/macos/anyCode.app'
+    mkdir -p '$ROOT/target/release/bundle/macos'
+    ditto '$DESKTOP_APP_BUNDLE' '$ROOT/target/release/bundle/macos/anyCode.app'
+  "
+fi
+
+if [[ "$(uname -s)" == "Darwin" && -n "${APPLE_SIGNING_IDENTITY:-}" && "${APPLE_SIGNING_IDENTITY}" != "-" ]]; then
+  APP_BUNDLE="$ROOT/target/release/bundle/macos/anyCode.app"
+  REL_ENV="${ANYCODE_RELEASE_ENV:-$HOME/.anycode/release.env}"
+  if [[ -f "$REL_ENV" ]]; then
+    # shellcheck source=/dev/null
+    source "$REL_ENV"
+  fi
+  if [[ -d "$APP_BUNDLE" && -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+    step "deep-sign bundled binaries (resources/bin, native modules)" "$ROOT/scripts/codesign-mac-app-deep.sh" "$APP_BUNDLE"
+    step "notarize + staple" "$ROOT/scripts/notarize-mac-app.sh" "$APP_BUNDLE"
+  fi
+fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   step "repackage DMG with Applications drag target" "$ROOT/scripts/package-desktop-dmg.sh"

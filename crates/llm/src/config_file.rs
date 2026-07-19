@@ -142,6 +142,12 @@ fn merge_models_section(existing: &mut Map<String, Value>, patch: &ModelsConfigF
         let section = existing.entry(key).or_insert(json!({}));
         if let Some(obj) = section.as_object_mut() {
             merge_profile(obj, profile);
+            if profile.provider.as_deref().is_some_and(|p| {
+                crate::provider_catalog::normalize_provider_id(p) == "anycode_cloud"
+            }) {
+                obj.remove("api_key");
+                obj.remove("api_key_ref");
+            }
         }
     }
 

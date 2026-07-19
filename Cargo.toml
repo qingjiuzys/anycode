@@ -19,6 +19,7 @@ members = [
     "crates/dashboard-ipc",
     "crates/relay-gateway",
 ]
+exclude = ["crates/account-service"]
 resolver = "2"
 
 [workspace.package]
@@ -78,6 +79,14 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# Local desktop/daemon iteration: skip LTO (release ~5min → ~1–2min link).
+[profile.release-local]
+inherits = "release"
+lto = false
+codegen-units = 16
+opt-level = 3
+strip = false
 
 # 工作区统一 Clippy：抑制噪声类规则，保持 `cargo clippy` 零告警（CI 与本地一致）。
 [workspace.lints.clippy]

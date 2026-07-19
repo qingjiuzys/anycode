@@ -73,7 +73,7 @@ pub(super) enum ToolCancelPolicy {
 
 pub(super) fn tool_cancel_policy(name: &str) -> ToolCancelPolicy {
     match name {
-        "Bash" | "PowerShell" | "Task" | "Agent" => ToolCancelPolicy::Cancel,
+        "Bash" | "PowerShell" | "Task" | "Agent" | "Sleep" => ToolCancelPolicy::Cancel,
         _ => ToolCancelPolicy::Block,
     }
 }
@@ -178,8 +178,15 @@ impl AgentRuntime {
         let mut planned: Vec<(ToolCall, usize)> = Vec::new();
         for tool_call in tool_calls {
             if cancel.cancelled() {
-                self.emit_synthetic_for_planned(logger, ctx, sink, &planned, "cooperative_cancel")
-                    .await;
+                self.emit_synthetic_for_planned(
+                    logger,
+                    ctx,
+                    state,
+                    sink,
+                    &planned,
+                    "cooperative_cancel",
+                )
+                .await;
                 return Ok(TurnToolBatchOutcome::Cancelled(cancel_outcome));
             }
             let outcome = self
@@ -443,6 +450,7 @@ impl AgentRuntime {
             tool_call,
             &tool_result,
             elapsed_ms,
+            &mut state.progress_seq,
         );
         let prepared = tool_result_injection::prepare_tool_result_message(
             ctx.task_id,
@@ -478,6 +486,7 @@ impl AgentRuntime {
         &self,
         logger: &RunLogger,
         ctx: &TurnToolCtx<'_>,
+        state: &mut TurnToolState,
         sink: &mut MessageAppendSink<'_>,
         planned: &[(ToolCall, usize)],
         reason: &str,
@@ -494,6 +503,7 @@ impl AgentRuntime {
                 tool_call,
                 &output,
                 0,
+                &mut state.progress_seq,
             );
             let prepared = tool_result_injection::prepare_tool_result_message(
                 ctx.task_id,

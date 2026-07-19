@@ -41,7 +41,7 @@ export function SkillsImportDialog({
               {t("settings.skillsGov.importTitle")}
             </h2>
             <p className="text-sm text-secondary m-0 mt-1">{t("settings.skillsGov.importHint")}</p>
-            <p className="text-[11px] font-code text-outline m-0 mt-2 break-all">
+            <p className="text-[13px] font-code text-outline m-0 mt-2 break-all">
               {t("agents.skillMarketImportExample")}
             </p>
           </div>

@@ -58,7 +58,7 @@ export function SkillSuggestionsPanel() {
           </div>
           <div className="dw-agents-banner__tags">
             {missing.map((id) => (
-              <code key={id} className="font-code text-[11px] px-2 py-0.5 rounded-md bg-surface-container-high">
+              <code key={id} className="font-code text-[13px] px-2 py-0.5 rounded-md bg-surface-container-high">
                 {id}
               </code>
             ))}
@@ -77,7 +77,7 @@ export function SkillSuggestionsPanel() {
 
       {usage.length > 0 && (
         <div className="dw-agents-banner__block dw-agents-banner__block--usage">
-          <span className="text-xs font-medium text-secondary shrink-0">
+          <span className="text-[13px] font-medium text-secondary shrink-0">
             {t("agents.recentSkillUsage")}
           </span>
           <div className="dw-agents-banner__usage">

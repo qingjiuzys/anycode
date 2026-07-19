@@ -1,0 +1,18 @@
+id: robustness-fuzzy-03
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- 'Conflicting requirements batch 03: deliver fast but also exhaustive audit; clarify
+  conflicts before acting.'
+expected:
+  assertions:
+  - validator: agent_asked_clarification
+    args:
+      min_questions: 1
+requires:
+  llm: live
+  network: false
+  tools: []
+timeout_seconds: 300

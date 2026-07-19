@@ -1,8 +1,9 @@
 //! Scan local SKILL.md trees into SQLite (`skills` + `project_skills`).
 
 use crate::db::DashboardDb;
-use crate::skill_meta::{parse_skill_md, SkillFrontmatter};
 use anyhow::Result;
+use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -11,7 +12,10 @@ pub struct ScannedSkill {
     pub name: String,
     pub description: String,
     pub description_zh: Option<String>,
+    pub name_zh: Option<String>,
+    pub version: String,
     pub category: Option<String>,
+    pub permissions: Value,
     pub source_path: String,
     pub project_roots: Vec<String>,
 }
@@ -42,8 +46,7 @@ fn skill_roots(workspace_paths: &[String]) -> Vec<PathBuf> {
 
 /// Discover skill directories containing `SKILL.md`.
 pub fn discover_skills(workspace_paths: &[String]) -> Vec<ScannedSkill> {
-    let mut out = Vec::new();
-    let mut seen_ids = std::collections::HashSet::new();
+    let mut found: HashMap<String, ScannedSkill> = HashMap::new();
     for root in skill_roots(workspace_paths) {
         if !root.is_dir() {
             continue;
@@ -65,13 +68,15 @@ pub fn discover_skills(workspace_paths: &[String]) -> Vec<ScannedSkill> {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if id.is_empty() || !seen_ids.insert(id.clone()) {
+            if id.is_empty() || !anycode_tools::SkillCatalog::is_valid_skill_id(&id) {
                 continue;
             }
-            let fm = parse_skill_md(&skill_md).unwrap_or_else(|| SkillFrontmatter {
-                name: id.clone(),
-                ..Default::default()
-            });
+            let Some(manifest) = anycode_tools::parse_skill_manifest_file(&skill_md) else {
+                continue;
+            };
+            if manifest.name.trim() != id {
+                continue;
+            }
             let mut project_roots = Vec::new();
             for wp in workspace_paths {
                 let wp_path = PathBuf::from(wp);
@@ -79,17 +84,26 @@ pub fn discover_skills(workspace_paths: &[String]) -> Vec<ScannedSkill> {
                     project_roots.push(wp.clone());
                 }
             }
-            out.push(ScannedSkill {
-                id,
-                name: fm.name,
-                description: fm.description,
-                description_zh: fm.description_zh,
-                category: Some(fm.category),
-                source_path: dir.to_string_lossy().to_string(),
-                project_roots,
-            });
+            found.insert(
+                id.clone(),
+                ScannedSkill {
+                    id,
+                    name: manifest.name,
+                    description: manifest.description,
+                    description_zh: manifest.description_zh,
+                    name_zh: manifest.name_zh,
+                    version: manifest.version.unwrap_or_default(),
+                    category: Some(crate::skill_meta::normalize_category(
+                        manifest.category.as_deref().unwrap_or("other"),
+                    )),
+                    permissions: manifest.permissions.unwrap_or_else(|| json!({})),
+                    source_path: dir.to_string_lossy().to_string(),
+                    project_roots,
+                },
+            );
         }
     }
+    let mut out: Vec<_> = found.into_values().collect();
     out.sort_by(|a, b| a.id.cmp(&b.id));
     out
 }
@@ -103,8 +117,11 @@ pub async fn sync_skills_to_db(db: &DashboardDb, workspace_paths: &[String]) -> 
             &s.name,
             &s.description,
             s.description_zh.as_deref(),
+            s.name_zh.as_deref(),
+            &s.version,
             &s.source_path,
             s.category.as_deref(),
+            &s.permissions,
         )
         .await?;
         n += 1;
@@ -132,7 +149,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let skill_dir = dir.path().join(".anycode/skills/flutter-prd");
         std::fs::create_dir_all(&skill_dir).unwrap();
-        std::fs::write(skill_dir.join("SKILL.md"), "# flutter-prd\n").unwrap();
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: flutter-prd\ndescription: Flutter PRD\n---\n",
+        )
+        .unwrap();
         let wp = dir.path().display().to_string();
         let found: Vec<_> = discover_skills(&[wp]).into_iter().map(|s| s.id).collect();
         assert!(found.contains(&"flutter-prd".to_string()));
@@ -156,5 +177,29 @@ mod tests {
         assert_eq!(fm.description_zh.as_deref(), Some("测试"));
         assert_eq!(fm.category, "business");
         let _ = found;
+    }
+
+    #[test]
+    fn later_workspace_root_overrides_same_skill_id() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        for (root, description) in [(&first, "first"), (&second, "second")] {
+            let skill = root.path().join("skills/demo-skill");
+            std::fs::create_dir_all(&skill).unwrap();
+            std::fs::write(
+                skill.join("SKILL.md"),
+                format!("---\nname: demo-skill\ndescription: {description}\nversion: 1.0.0\n---\n"),
+            )
+            .unwrap();
+        }
+        let found = discover_skills(&[
+            first.path().display().to_string(),
+            second.path().display().to_string(),
+        ]);
+        let skill = found.iter().find(|skill| skill.id == "demo-skill").unwrap();
+        assert_eq!(skill.description, "second");
+        assert!(skill
+            .source_path
+            .starts_with(&second.path().display().to_string()));
     }
 }

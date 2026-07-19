@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { DiscordChannelPanel } from "@/components/channels/DiscordChannelPanel";
 import { TelegramChannelPanel } from "@/components/channels/TelegramChannelPanel";
+import { WeChatChannelPanel } from "@/components/channels/WeChatChannelPanel";
+import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
 
 type ChannelCard = "telegram" | "discord" | "wechat";
@@ -22,11 +23,11 @@ export function SettingsChannelsSection() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold m-0">{t("settings.channels.title")}</h2>
+        <h2 className="text-base font-semibold m-0 text-on-surface">{t("settings.channels.title")}</h2>
         <p className="text-secondary text-sm mt-1 mb-0">{t("settings.channels.subtitle")}</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 sticky top-0 z-[1] py-1 bg-background">
         {(["telegram", "discord", "wechat"] as const).map((id) => {
           const configured =
             id === "telegram"
@@ -34,11 +35,13 @@ export function SettingsChannelsSection() {
               : id === "discord"
                 ? ch?.discord.configured
                 : ch?.wechat;
+          const selected = active === id;
           return (
             <button
               key={id}
               type="button"
-              className={`dw-btn dw-btn-secondary text-sm${active === id ? " dw-btn-primary" : ""}`}
+              className={selected ? "dw-btn-primary text-sm" : "dw-btn-secondary text-sm"}
+              aria-pressed={selected}
               onClick={() => setActive(id)}
             >
               {t(`settings.channels.card.${id}`)}
@@ -51,9 +54,9 @@ export function SettingsChannelsSection() {
       </div>
 
       {active === "telegram" && (
-        <div className="dw-card p-4">
+        <SectionCard>
           {ch?.telegram.configured && ch.telegram.chat_id && (
-            <p className="text-secondary text-sm mb-3">
+            <p className="text-secondary text-sm mb-3 m-0">
               {t("settings.channels.savedChatId").replace("{id}", ch.telegram.chat_id)}
             </p>
           )}
@@ -61,13 +64,13 @@ export function SettingsChannelsSection() {
             initialChatId={ch?.telegram.chat_id}
             startCommand={ch?.telegram_start_command ?? "anycode-daemon telegram-bridge"}
           />
-        </div>
+        </SectionCard>
       )}
 
       {active === "discord" && (
-        <div className="dw-card p-4">
+        <SectionCard>
           {ch?.discord.configured && ch.discord.channel_id && (
-            <p className="text-secondary text-sm mb-3">
+            <p className="text-secondary text-sm mb-3 m-0">
               {t("settings.channels.savedChannelId").replace("{id}", ch.discord.channel_id)}
             </p>
           )}
@@ -75,22 +78,17 @@ export function SettingsChannelsSection() {
             initialChannelId={ch?.discord.channel_id}
             startCommand={ch?.discord_start_command ?? "anycode-daemon discord-bridge"}
           />
-        </div>
+        </SectionCard>
       )}
 
       {active === "wechat" && (
-        <div className="dw-card p-4">
-          <p className="text-secondary text-sm mb-3">
-            {ch?.wechat ? t("settings.channels.wechatConfigured") : t("settings.channels.wechatHint")}
-          </p>
-          <Link
-            to="/setup"
-            search={{ review: "1", step: "channels", tab: "wechat" }}
-            className="dw-btn dw-btn-secondary text-sm"
-          >
-            {t("settings.channels.wechatSetup")}
-          </Link>
-        </div>
+        <SectionCard>
+          <WeChatChannelPanel
+            configured={Boolean(ch?.wechat)}
+            platform={ch?.platform}
+            startCommand="anycode-daemon wechat-bridge"
+          />
+        </SectionCard>
       )}
     </section>
   );

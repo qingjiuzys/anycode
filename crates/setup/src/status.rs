@@ -127,7 +127,7 @@ pub fn build_setup_status(
     ];
 
     SetupStatus {
-        ready: llm_ok,
+        ready: true,
         config_path: config_path.display().to_string(),
         platform: platform_label(),
         setup_completed_at: setup_completed_at.map(str::to_string),

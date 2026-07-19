@@ -6,8 +6,14 @@ import {
   type UpstreamAccount,
 } from "../api";
 
+const PROVIDERS = [
+  { id: "deepseek", label: "DeepSeek", placeholder: "https://api.deepseek.com" },
+  { id: "agnes", label: "Agnes", placeholder: "https://apihub.agnes-ai.com/v1/chat/completions" },
+] as const;
+
 export default function PoolPage() {
   const [accounts, setAccounts] = useState<UpstreamAccount[]>([]);
+  const [providerId, setProviderId] = useState<string>("deepseek");
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -22,11 +28,16 @@ export default function PoolPage() {
     reload().catch((e) => setError(String(e)));
   }, []);
 
+  const placeholder =
+    PROVIDERS.find((p) => p.id === providerId)?.placeholder ??
+    "https://api.deepseek.com";
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setError(null);
     try {
       await createAccount({
+        provider_id: providerId,
         name,
         api_key: apiKey,
         base_url: baseUrl || undefined,
@@ -42,9 +53,22 @@ export default function PoolPage() {
 
   return (
     <div>
-      <h1>Agnes 账号池</h1>
+      <h1>上游账号池</h1>
+      <p className="ops-hint">
+        平台代付用的厂商 Key（DeepSeek / Agnes）。用户 Cloud API Key 在官网控制台维护，勿混用。
+      </p>
       <form className="ops-card ops-form" onSubmit={onCreate}>
         <h2>新增账号</h2>
+        <label>
+          Provider
+          <select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+            {PROVIDERS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           名称
           <input value={name} onChange={(e) => setName(e.target.value)} required />
@@ -58,7 +82,7 @@ export default function PoolPage() {
           <input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://apihub.agnes-ai.com/v1/chat/completions"
+            placeholder={placeholder}
           />
         </label>
         <button type="submit">添加</button>
@@ -68,6 +92,7 @@ export default function PoolPage() {
         <table>
           <thead>
             <tr>
+              <th>Provider</th>
               <th>名称</th>
               <th>状态</th>
               <th>权重</th>
@@ -79,6 +104,7 @@ export default function PoolPage() {
           <tbody>
             {accounts.map((a) => (
               <tr key={a.id}>
+                <td>{a.provider_id}</td>
                 <td>{a.name}</td>
                 <td>{a.status}</td>
                 <td>{a.weight}</td>

@@ -35,8 +35,8 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 if [[ "$do_build" == "1" ]]; then
-  echo "==> building desktop bundle (local fast profile)..."
-  ANYCODE_DESKTOP_LOCAL_RELEASE=1 "$ROOT/scripts/build-desktop-release.sh"
+  echo "==> building desktop bundle (local target + fast profile)..."
+  ANYCODE_BUILD_TARGET=local ANYCODE_DESKTOP_LOCAL_RELEASE=1 "$ROOT/scripts/build-desktop-release.sh"
 fi
 
 if [[ ! -d "$BUNDLE_APP" ]]; then

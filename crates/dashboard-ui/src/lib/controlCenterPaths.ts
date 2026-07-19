@@ -41,7 +41,7 @@ export function shouldOpenControlCenterForLocation(pathname: string, _search = "
   if (pathname === "/" || pathname === "/conversations" || pathname.startsWith("/conversations/")) {
     return false;
   }
-  if (pathname === "/login" || pathname === "/setup") return false;
+  if (pathname === "/setup") return false;
   if (pathname.startsWith("/events/")) return false;
   if (pathname.startsWith("/sessions/")) return false;
   return isControlCenterPath(pathname);

@@ -272,7 +272,7 @@ mod tests {
         handle_gate_outcome(&db, &project.id, &session.id, "cargo test", "failed", true)
             .await
             .unwrap();
-        let audit = crate::audit::list_audit_events(&db, None, None, None, 20)
+        let (audit, _) = crate::audit::list_audit_events(&db, None, None, None, 20, 0)
             .await
             .unwrap();
         assert!(

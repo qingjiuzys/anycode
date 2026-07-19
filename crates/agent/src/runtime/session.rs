@@ -6,6 +6,80 @@ use anycode_core::prelude::*;
 use std::sync::Arc;
 
 impl AgentRuntime {
+    pub(crate) async fn maybe_auto_compact_messages(
+        &self,
+        task_id: TaskId,
+        agent_type: &AgentType,
+        working_directory: &str,
+        model: &ModelConfig,
+        messages: &mut Vec<Message>,
+        last_input_tokens: u32,
+        _turn: usize,
+    ) -> Result<bool, CoreError> {
+        // Overflow protection is unconditional: once the context threshold is
+        // reached compaction must run, including for weak local models during
+        // their warm-up turns (tool-schema reduction handles those separately).
+        let context_tokens = self.effective_context_window_tokens(model);
+        if !self.auto_compact
+            || !self
+                .auto_compact_policy
+                .should_compact(context_tokens, last_input_tokens)
+            || messages.len() < 3
+        {
+            return Ok(false);
+        }
+        self.log_task_line(
+            task_id,
+            &format!(
+                "[auto_compact] input_tokens={} context_tokens={} action=start",
+                last_input_tokens, context_tokens
+            ),
+        );
+        let snapshot = messages.clone();
+        let (compacted, _) = self
+            .compact_session_messages(
+                agent_type,
+                working_directory,
+                &snapshot,
+                None,
+                self.auto_compact_policy.suppress_follow_up_questions,
+                None,
+            )
+            .await?;
+        *messages = compacted;
+        self.log_task_line(task_id, "[auto_compact] action=completed");
+        Ok(true)
+    }
+
+    pub(crate) async fn maybe_auto_compact_shared(
+        &self,
+        task_id: TaskId,
+        agent_type: &AgentType,
+        working_directory: &str,
+        model: &ModelConfig,
+        messages: &Arc<tokio::sync::Mutex<Vec<Message>>>,
+        last_input_tokens: u32,
+        turn: usize,
+    ) -> Result<bool, CoreError> {
+        let mut snapshot = messages.lock().await.clone();
+        if !self
+            .maybe_auto_compact_messages(
+                task_id,
+                agent_type,
+                working_directory,
+                model,
+                &mut snapshot,
+                last_input_tokens,
+                turn,
+            )
+            .await?
+        {
+            return Ok(false);
+        }
+        *messages.lock().await = snapshot;
+        Ok(true)
+    }
+
     /// 会话压缩（Claude Code `/compact`）：折叠为 `[system, compact_summary_user]`。
     pub async fn compact_session_messages(
         &self,

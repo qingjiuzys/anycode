@@ -1,0 +1,14 @@
+{
+  "id": "weekly-review",
+  "icon": "bar_chart",
+  "name": { "en": "Weekly review", "zh": "每周回顾" },
+  "schedule_label": { "en": "Friday 16:00", "zh": "星期五 16:00" },
+  "description": {
+    "en": "Every Friday, organize your recent work into a concise status update",
+    "zh": "每周五将你最近的工作整理成简明的状态更新"
+  },
+  "schedule": "0 0 16 * * 5",
+  "schedule_timezone": "local",
+  "command": "Use the weekly-report skill: summarize this week's work from git log and notes into ./reports/weekly-report.md",
+  "tool_profile": "default"
+}

@@ -97,16 +97,7 @@ impl<'a> PromptAssembler<'a> {
             }
         }
 
-        // 通道特定提示词段（新增）
-        if let Some(channel_prompt) = self.config.channel_section.as_deref() {
-            let trimmed = channel_prompt.trim();
-            if !trimmed.is_empty() {
-                segments.push(SystemPromptSegment {
-                    id: "channel_specific",
-                    text: format!("# Channel Context\n\n{}", trimmed),
-                });
-            }
-        }
+        // channel_section is injected only via runtime context (build_context_sections).
 
         if let Some(a) = self.config.system_prompt_append.as_deref() {
             if !a.trim().is_empty() {
@@ -158,5 +149,50 @@ impl<'a> PromptAssembler<'a> {
 
     pub fn compose(&self) -> String {
         render_system_prompt_segments(self.build_segments())
+    }
+}
+
+/// Shared entry for runtime and dashboard prompt preview — same segment ids/order.
+pub fn compose_runtime_system_segments(
+    config: &RuntimePromptConfig,
+    agent: &dyn Agent,
+    cwd: &str,
+    task_append: Option<&str>,
+) -> Vec<SystemPromptSegment> {
+    PromptAssembler {
+        config,
+        agent,
+        cwd,
+        task_append,
+    }
+    .build_segments()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::GeneralPurposeAgent;
+    use anycode_core::{LLMProvider, ModelConfig};
+
+    #[test]
+    fn build_segments_omits_channel_specific() {
+        let mut config = crate::system_prompt::RuntimePromptConfig::default();
+        config.channel_section = Some("## Channel Mode\nchannel hint".into());
+        let agent = GeneralPurposeAgent::new(ModelConfig {
+            provider: LLMProvider::Custom("test".into()),
+            model: "test".into(),
+            ..Default::default()
+        });
+        let segments = PromptAssembler {
+            config: &config,
+            agent: &agent,
+            cwd: ".",
+            task_append: None,
+        }
+        .build_segments();
+        assert!(
+            !segments.iter().any(|s| s.id == "channel_specific"),
+            "channel_section belongs in context only"
+        );
     }
 }

@@ -1,0 +1,28 @@
+id: skills-file-organizer-ab-official
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Organize the messy downloads folder by extension into subfolders without deleting
+  files.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+  - validator: skill_invoked
+    args:
+      skill_id: file-organizer
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: official
+  ab_task: file-organizer-ab
+  skills:
+  - file-organizer

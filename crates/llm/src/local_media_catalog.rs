@@ -18,6 +18,8 @@ pub enum LocalMode {
     External,
     /// macOS platform APIs (Speech / Vision) via desktop shell only.
     PlatformNative,
+    /// Dashboard-managed download + sidecar process (MiniCPM5-1B).
+    Managed,
 }
 
 /// A one-click local media preset for the model registry.
@@ -204,6 +206,23 @@ pub const LOCAL_MEDIA_PRESETS: &[LocalMediaPreset] = &[
         required_feature: Some("tts-local"),
         desktop_only: false,
     },
+    LocalMediaPreset {
+        id: "managed-minicpm5-1b",
+        label: "MiniCPM5-1B (SGLang · native tools)",
+        description:
+            "Mac 本地原生 tool_calls（SGLang + minicpm5 parser + MLX）。安装需 GitHub 与 PyPI 镜像可达。Ollama 无原生 tools，仅 ANYCODE_MANAGED_OLLAMA=1 时可选。",
+        capabilities: &[ModelCapability::Chat],
+        mode: LocalMode::Managed,
+        provider: "sglang",
+        model: "minicpm5-1b",
+        base_url: None,
+        api_key: Some("local"),
+        voice: None,
+        docs_url: Some("https://docs.sglang.io/docs/hardware-platforms/apple_metal"),
+        model_download_hint: Some("~/.anycode/models/managed-minicpm5-1b/"),
+        required_feature: None,
+        desktop_only: true,
+    },
 ];
 
 /// Preset ids for the recommended lightweight local bundle (external-first).
@@ -237,6 +256,8 @@ pub fn local_media_provider_allows_placeholder_key(provider: &str) -> bool {
             | "ollama"
             | "whisper_cpp"
             | "piper"
+            | "managed_local"
+            | "sglang"
     )
 }
 
@@ -290,6 +311,7 @@ pub fn local_presets_json() -> Value {
                     LocalMode::Builtin => "builtin",
                     LocalMode::External => "external",
                     LocalMode::PlatformNative => "platform_native",
+                    LocalMode::Managed => "managed",
                 },
                 "provider": p.provider,
                 "model": p.model,

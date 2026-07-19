@@ -20,4 +20,4 @@ The `anycode` CLI crate aggregates configuration, TUI/stream REPL, `run`, channe
 ## Consequences
 
 - New global wiring (extra `Arc` services, MCP attach) should land under `bootstrap/` or a dedicated `cli` submodule, not in `core`.
-- Documentation for contributors references `bootstrap/runtime.rs` and the docs site page `docs-site/guide/contributing-extensions.md` (built as **Contributing extensions** / **扩展与贡献清单**).
+- Documentation for contributors references `bootstrap/runtime.rs` and the docs site page `https://anycode.work/docs/guide/contributing-extensions` (built as **Contributing extensions** / **扩展与贡献清单**).

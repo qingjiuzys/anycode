@@ -22,6 +22,7 @@ pub(super) struct TurnToolState {
     pub total_tool_calls: usize,
     pub artifacts: Vec<anycode_core::Artifact>,
     pub budget_state: Option<super::budget::RuntimeBudgetState>,
+    pub progress_seq: u32,
 }
 
 pub(super) enum TurnToolCancel<'a> {

@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { api } from "@/api/client";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useLocale, useT } from "@/i18n/context";
 import { sessionChatSearch } from "@/lib/sessionLinks";
-import { normalizeSkillCategory, skillDisplayDescription } from "@/lib/skillCatalog";
+import { normalizeSkillCategory, skillDisplayDescription, skillDisplayName } from "@/lib/skillCatalog";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 export function SkillDetailPage({ embedded, skillId: embeddedSkillId }: EmbeddedPageProps = {}) {
@@ -62,45 +63,50 @@ function SkillDetailInner({ skillId }: { skillId: string }) {
     network?: boolean;
   };
 
+  const displayName = skillDisplayName(s, locale);
+
   return (
-    <>
-      <PageHeader
-        title={s.name}
-        subtitle={s.source_path}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("agents.title"), to: "/agents" },
-          { label: s.name },
-        ]}
-        meta={
-          <>
-            <span>
-              {t("skillDetail.enabledCount").replace("{n}", String(s.projects_count))}
-            </span>
-            <span className="text-outline-variant">·</span>
-            <button
-              type="button"
-              className="dw-btn-ghost text-xs"
-              disabled={setAll.isPending}
-              onClick={() => setAll.mutate(true)}
-            >
-              {t("settings.skillsGov.enableAll")}
-            </button>
-            <button
-              type="button"
-              className="dw-btn-ghost text-xs"
-              disabled={setAll.isPending}
-              onClick={() => setAll.mutate(false)}
-            >
-              {t("settings.skillsGov.disableAll")}
-            </button>
-          </>
-        }
-      />
+    <CcPageShell
+      header={
+        <PageHeader
+          title={displayName}
+          subtitle={s.source_path}
+          breadcrumbs={[
+            { label: t("nav.home"), to: "/" },
+            { label: t("agents.title"), to: "/agents" },
+            { label: displayName },
+          ]}
+          meta={
+            <>
+              <span>
+                {t("skillDetail.enabledCount").replace("{n}", String(s.projects_count))}
+              </span>
+              <span className="text-outline-variant">·</span>
+              <button
+                type="button"
+                className="dw-btn-ghost text-[13px]"
+                disabled={setAll.isPending}
+                onClick={() => setAll.mutate(true)}
+              >
+                {t("settings.skillsGov.enableAll")}
+              </button>
+              <button
+                type="button"
+                className="dw-btn-ghost text-[13px]"
+                disabled={setAll.isPending}
+                onClick={() => setAll.mutate(false)}
+              >
+                {t("settings.skillsGov.disableAll")}
+              </button>
+            </>
+          }
+        />
+      }
+    >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title={t("skillDetail.descPerms")}>
           {s.category && (
-            <p className="text-xs text-secondary m-0 mb-2">
+            <p className="text-[13px] text-secondary m-0 mb-2">
               {t(`agents.skillCategory.${normalizeSkillCategory(s.category)}`)}
             </p>
           )}
@@ -127,7 +133,7 @@ function SkillDetailInner({ skillId }: { skillId: string }) {
                   <Link
                     to="/conversations"
                     search={sessionChatSearch(r.session_id)}
-                    className="text-xs no-underline hover:underline"
+                    className="text-[13px] no-underline hover:underline"
                   >
                     {t("audit.session")}
                   </Link>
@@ -188,6 +194,6 @@ function SkillDetailInner({ skillId }: { skillId: string }) {
           </div>
         )}
       </SectionCard>
-    </>
+    </CcPageShell>
   );
 }

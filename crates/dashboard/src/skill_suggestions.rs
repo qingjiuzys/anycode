@@ -1,9 +1,8 @@
-//! Skill install suggestions from starter pack gaps and recent conversation usage.
+//! Skill install suggestions from starter pack gaps and recorded Skill tool runs.
 
 use crate::db::DashboardDb;
 use anyhow::Result;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 
 pub const STARTER_SKILL_IDS: &[&str] = &[
     "daily-brief",
@@ -45,63 +44,22 @@ struct SkillUsageRow {
 }
 
 async fn recent_skill_usage(db: &DashboardDb) -> Result<Vec<SkillUsageRow>> {
-    let rows = sqlx::query_scalar::<_, String>(
+    let rows = sqlx::query_as::<_, (String, i64)>(
         r#"
-        SELECT body FROM project_events
-        WHERE event_type = 'user_prompt'
-          AND body LIKE '%[Use skills:%'
-        ORDER BY occurred_at DESC
-        LIMIT 400
+        SELECT skill_id, COUNT(*) AS run_count
+        FROM skill_runs
+        WHERE status = 'ok'
+        GROUP BY skill_id
+        ORDER BY run_count DESC
+        LIMIT 12
         "#,
     )
     .fetch_all(db.pool())
     .await?;
 
-    let mut counts: HashMap<String, i64> = HashMap::new();
-    for body in rows {
-        for id in parse_skill_hint_ids(&body) {
-            *counts.entry(id).or_insert(0) += 1;
-        }
-    }
-    let mut usage: Vec<SkillUsageRow> = counts
+    let usage: Vec<SkillUsageRow> = rows
         .into_iter()
         .map(|(skill_id, count)| SkillUsageRow { skill_id, count })
         .collect();
-    usage.sort_by(|a, b| b.count.cmp(&a.count));
-    usage.truncate(12);
     Ok(usage)
-}
-
-fn parse_skill_hint_ids(body: &str) -> Vec<String> {
-    let Some(rest) = body.split("[Use skills:").nth(1) else {
-        return vec![];
-    };
-    let Some(list) = rest.split(']').next() else {
-        return vec![];
-    };
-    list.split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty() && skill_catalogish::is_valid(s))
-        .collect()
-}
-
-mod skill_catalogish {
-    pub fn is_valid(id: &str) -> bool {
-        !id.is_empty()
-            && id.len() <= 64
-            && id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_skill_hint_line() {
-        let ids = parse_skill_hint_ids("[Use skills: daily-brief, md-to-pdf]\n\nhello");
-        assert_eq!(ids, vec!["daily-brief", "md-to-pdf"]);
-    }
 }

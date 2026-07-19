@@ -1,5 +1,10 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { isAppleSpeechProvider, isTauriDesktop, resetDesktopShellCache } from "./desktopShell";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+import {
+  isAppleSpeechProvider,
+  isTauriDesktop,
+  resetDesktopShellCache,
+  shouldUseNativeAppleSpeech,
+} from "./desktopShell";
 
 describe("desktopShell", () => {
   beforeEach(() => {
@@ -13,5 +18,19 @@ describe("desktopShell", () => {
 
   it("isTauriDesktop is false without globals", () => {
     expect(isTauriDesktop()).toBe(false);
+  });
+
+  it("shouldUseNativeAppleSpeech prefers apple media on desktop", () => {
+    expect(shouldUseNativeAppleSpeech("local_whisper", true)).toBe(false);
+    expect(shouldUseNativeAppleSpeech("apple_speech", false)).toBe(false);
+    expect(shouldUseNativeAppleSpeech("local_whisper", false)).toBe(false);
+
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    resetDesktopShellCache();
+    expect(shouldUseNativeAppleSpeech("local_whisper", true)).toBe(true);
+    expect(shouldUseNativeAppleSpeech("apple_speech", false)).toBe(true);
+    expect(shouldUseNativeAppleSpeech("local_whisper", false)).toBe(false);
+    vi.unstubAllGlobals();
+    resetDesktopShellCache();
   });
 });

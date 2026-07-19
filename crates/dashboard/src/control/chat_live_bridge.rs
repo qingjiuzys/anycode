@@ -2,11 +2,11 @@
 
 use crate::db::DashboardDb;
 use crate::events::EventBus;
-use crate::observability::chat_events::chat_event_from_live_trace;
+use crate::observability::chat_events::{chat_event_from_live_trace, turn_phase_event};
 use crate::observability::chat_turn_log::persist_and_enrich;
 use crate::schema::ChatStreamEvent;
 use anycode_core::LiveTraceEvent;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -14,17 +14,25 @@ use tokio::sync::mpsc::UnboundedReceiver;
 const DELTA_FLUSH: Duration = Duration::from_millis(50);
 
 struct BridgeState {
-    assistant_buffers: HashMap<u32, String>,
+    assistant_raw_buffers: HashMap<u32, String>,
+    assistant_display_buffers: HashMap<u32, String>,
     pending_delta_turn: Option<u32>,
     last_delta_flush: HashMap<u32, Instant>,
+    streaming_phases: HashSet<u32>,
+    tool_phases: HashSet<u32>,
+    narration_turns: HashSet<u32>,
 }
 
 impl BridgeState {
     fn new() -> Self {
         Self {
-            assistant_buffers: HashMap::new(),
+            assistant_raw_buffers: HashMap::new(),
+            assistant_display_buffers: HashMap::new(),
             pending_delta_turn: None,
             last_delta_flush: HashMap::new(),
+            streaming_phases: HashSet::new(),
+            tool_phases: HashSet::new(),
+            narration_turns: HashSet::new(),
         }
     }
 
@@ -51,7 +59,7 @@ impl BridgeState {
             return;
         };
         let full = self
-            .assistant_buffers
+            .assistant_display_buffers
             .get(&turn)
             .cloned()
             .unwrap_or_default();
@@ -65,8 +73,36 @@ impl BridgeState {
             turn,
             "",
             &full,
+            self.narration_turns.contains(&turn),
         );
         publish_persisted(db, events, chat_evt, user_turn_id).await;
+    }
+
+    fn phase_for_event(&mut self, evt: &LiveTraceEvent) -> Option<&'static str> {
+        match evt {
+            LiveTraceEvent::LlmRequestStart { .. } => Some("waiting_first_token"),
+            LiveTraceEvent::AssistantDelta { turn, .. } => {
+                if self.streaming_phases.insert(*turn) {
+                    Some("streaming")
+                } else {
+                    None
+                }
+            }
+            LiveTraceEvent::ToolCallStart { turn, .. } => {
+                if self.tool_phases.insert(*turn) {
+                    Some("running_tools")
+                } else {
+                    None
+                }
+            }
+            LiveTraceEvent::TurnDone { .. } => {
+                self.streaming_phases.clear();
+                self.tool_phases.clear();
+                self.narration_turns.clear();
+                None
+            }
+            _ => None,
+        }
     }
 }
 
@@ -82,6 +118,19 @@ async fn publish_persisted(
             tracing::warn!(%error, "chat turn event persist failed");
         }
     }
+}
+
+async fn publish_turn_phase(
+    db: &DashboardDb,
+    events: &EventBus,
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    turn: u32,
+    phase: &str,
+) {
+    let chat_evt = turn_phase_event(session_id, project_id, user_turn_id, turn, phase);
+    publish_persisted(db, events, chat_evt, user_turn_id).await;
 }
 
 /// Consume runtime live trace events, persist canonical events, then publish SSE.
@@ -102,14 +151,59 @@ pub fn spawn_live_bridge(
             tokio::select! {
                 msg = rx.recv() => {
                     let Some(evt) = msg else { break };
+                    let phase_turn = match &evt {
+                        LiveTraceEvent::LlmRequestStart { turn } => Some(*turn),
+                        LiveTraceEvent::AssistantDelta { turn, .. } => Some(*turn),
+                        LiveTraceEvent::ToolCallStart { turn, .. } => Some(*turn),
+                        _ => None,
+                    };
+                    if let Some(phase) = state.phase_for_event(&evt) {
+                        if let Some(turn) = phase_turn {
+                            publish_turn_phase(
+                                &db,
+                                &events,
+                                &session_id,
+                                &project_id,
+                                user_turn_id,
+                                turn,
+                                phase,
+                            ).await;
+                        }
+                    }
                     match &evt {
-                        LiveTraceEvent::AssistantDelta { turn, .. } => {
+                        LiveTraceEvent::AssistantNarrationMark { turn } => {
+                            state.narration_turns.insert(*turn);
+                            state.flush_pending_delta(
+                                &db,
+                                &events,
+                                &session_id,
+                                &project_id,
+                                user_turn_id,
+                            )
+                            .await;
                             if let Some(chat_evt) = chat_event_from_live_trace(
                                 &session_id,
                                 &project_id,
                                 user_turn_id,
                                 &evt,
-                                &mut state.assistant_buffers,
+                                &mut state.assistant_raw_buffers,
+                                &mut state.assistant_display_buffers,
+                            ) {
+                                publish_persisted(&db, &events, chat_evt, user_turn_id).await;
+                            }
+                            continue;
+                        }
+                        LiveTraceEvent::AssistantDelta { turn, narration, .. } => {
+                            if *narration {
+                                state.narration_turns.insert(*turn);
+                            }
+                            if let Some(chat_evt) = chat_event_from_live_trace(
+                                &session_id,
+                                &project_id,
+                                user_turn_id,
+                                &evt,
+                                &mut state.assistant_raw_buffers,
+                                &mut state.assistant_display_buffers,
                             ) {
                                 if state.should_flush_delta(*turn) {
                                     publish_persisted(&db, &events, chat_evt, user_turn_id).await;
@@ -130,7 +224,8 @@ pub fn spawn_live_bridge(
                         &project_id,
                         user_turn_id,
                         &evt,
-                        &mut state.assistant_buffers,
+                        &mut state.assistant_raw_buffers,
+                        &mut state.assistant_display_buffers,
                     ) {
                         publish_persisted(&db, &events, chat_evt, user_turn_id).await;
                     }

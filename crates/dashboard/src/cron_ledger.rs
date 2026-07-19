@@ -19,11 +19,21 @@ pub struct CronJobRecord {
     pub id: String,
     pub schedule: String,
     pub command: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default = "default_cron_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub schedule_timezone: Option<String>,
     pub session_id: Option<String>,
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
     #[serde(default)]
     pub project_id: Option<String>,
+}
+
+fn default_cron_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]

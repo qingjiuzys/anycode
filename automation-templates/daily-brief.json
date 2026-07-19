@@ -1,7 +1,13 @@
 {
   "id": "daily-brief",
-  "name": "Daily brief",
-  "schedule": "0 0 8 * * *",
+  "icon": "article",
+  "name": { "en": "Daily brief", "zh": "每日简报" },
+  "schedule_label": { "en": "Weekdays 8:00", "zh": "工作日 8:00" },
+  "description": {
+    "en": "Compile today's industry news brief as Markdown and save to ./reports/daily-brief.md",
+    "zh": "整理今日行业要闻简报，保存为 Markdown 到 ./reports/daily-brief.md"
+  },
+  "schedule": "0 0 8 * * 1-5",
   "schedule_timezone": "local",
   "command": "Use the daily-brief skill: compile today's industry news brief as Markdown and save to ./reports/daily-brief.md",
   "tool_profile": "observability"

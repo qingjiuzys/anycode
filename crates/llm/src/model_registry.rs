@@ -58,6 +58,11 @@ impl ResolvedModelRegistry {
     }
 
     pub fn resolve_api_key(&self, item: &ConfiguredModelFile) -> Option<String> {
+        let prov = normalize_provider(&item.provider);
+        if prov == "anycode_cloud" {
+            return crate::cloud_session::read_cloud_access_token()
+                .filter(|s| !s.trim().is_empty());
+        }
         if let Some(ref k) = item.api_key {
             if !k.trim().is_empty() {
                 return Some(k.trim().to_string());
@@ -102,6 +107,10 @@ impl ResolvedModelRegistry {
     }
 
     pub fn resolve_base_url(&self, item: &ConfiguredModelFile) -> Option<String> {
+        let prov = normalize_provider(&item.provider);
+        if prov == "anycode_cloud" {
+            return Some(crate::cloud_session::default_gateway_chat_url());
+        }
         item.base_url
             .as_deref()
             .or(self.global_base_url.as_deref())
@@ -416,15 +425,24 @@ pub fn sync_flat_chat_fields(cfg: &mut Value, registry: &ResolvedModelRegistry) 
     if let Some(item) = registry.active_item(ModelCapability::Chat) {
         obj.insert("provider".into(), Value::String(item.provider.clone()));
         obj.insert("model".into(), Value::String(item.model.clone()));
-        if let Some(ref p) = item.plan {
-            obj.insert("plan".into(), Value::String(p.clone()));
-        }
-        if let Some(ref u) = item.base_url {
-            obj.insert("base_url".into(), Value::String(u.clone()));
-        }
-        if let Some(ref k) = item.api_key {
-            if !k.trim().is_empty() {
-                obj.insert("api_key".into(), Value::String(k.trim().to_string()));
+        if normalize_provider(&item.provider) == "anycode_cloud" {
+            obj.insert(
+                "base_url".into(),
+                Value::String(crate::cloud_session::default_gateway_chat_url()),
+            );
+            obj.insert("api_key".into(), Value::String(String::new()));
+            obj.remove("api_key_ref");
+        } else {
+            if let Some(ref p) = item.plan {
+                obj.insert("plan".into(), Value::String(p.clone()));
+            }
+            if let Some(ref u) = item.base_url {
+                obj.insert("base_url".into(), Value::String(u.clone()));
+            }
+            if let Some(ref k) = item.api_key {
+                if !k.trim().is_empty() {
+                    obj.insert("api_key".into(), Value::String(k.trim().to_string()));
+                }
             }
         }
         obj.remove("llm");
@@ -444,11 +462,16 @@ pub fn sync_legacy_models_section(registry: &ResolvedModelRegistry) -> ModelsCon
     out.items = Some(registry.items.clone());
 
     fn to_profile(item: &ConfiguredModelFile, reg: &ResolvedModelRegistry) -> ModelProfileFile {
+        let is_cloud = normalize_provider(&item.provider) == "anycode_cloud";
         ModelProfileFile {
             provider: Some(item.provider.clone()),
             model: Some(item.model.clone()),
             plan: item.plan.clone().or(reg.global_plan.clone()),
-            api_key: reg.resolve_api_key(item),
+            api_key: if is_cloud {
+                None
+            } else {
+                reg.resolve_api_key(item)
+            },
             base_url: reg.resolve_base_url(item),
             temperature: item.temperature,
             max_tokens: item.max_tokens,
@@ -542,6 +565,7 @@ impl RegistryView {
             .items
             .iter()
             .map(|item| {
+                let resolved_key = registry.resolve_api_key(item);
                 serde_json::json!({
                     "id": item.id,
                     "display_name": item.display_name,
@@ -550,7 +574,7 @@ impl RegistryView {
                     "capabilities": item.capabilities.iter().map(|c| c.as_str()).collect::<Vec<_>>(),
                     "plan": item.plan,
                     "base_url": item.base_url,
-                    "api_key": crate::config_models::MaskedSecret::from_value(item.api_key.as_deref()),
+                    "api_key": crate::config_models::MaskedSecret::from_value(resolved_key.as_deref()),
                     "enabled": item.enabled,
                     "source": item.source,
                 })
@@ -615,5 +639,34 @@ mod tests {
         });
         let reg = ResolvedModelRegistry::from_config(&cfg);
         assert!(reg.active_item(ModelCapability::Stt).is_some());
+    }
+
+    #[test]
+    fn anycode_cloud_uses_gateway_not_global_deepseek_key() {
+        let cfg = json!({
+            "provider": "anycode_cloud",
+            "model": "auto",
+            "api_key_ref": "@secrets/default.txt",
+            "base_url": "https://api.deepseek.com/chat/completions",
+            "models": {
+                "active": { "chat": "cloud-auto" },
+                "items": [{
+                    "id": "cloud-auto",
+                    "provider": "anycode_cloud",
+                    "model": "auto",
+                    "capabilities": ["chat"],
+                    "enabled": true,
+                    "source": "cloud"
+                }]
+            }
+        });
+        let reg = ResolvedModelRegistry::from_config(&cfg);
+        let item = reg.item_by_id("cloud-auto").expect("cloud-auto");
+        let url = reg.resolve_base_url(item).unwrap_or_default();
+        assert!(url.contains("43210") || url.contains("chat/completions"));
+        assert!(!url.contains("deepseek.com"));
+        let key = reg.resolve_api_key(item).unwrap_or_default();
+        assert!(!key.contains("ollama"));
+        assert!(!key.contains("deepseek"));
     }
 }

@@ -25,6 +25,7 @@ export interface SkillRecord {
   name: string;
   description: string;
   description_zh?: string | null;
+  name_zh?: string | null;
   source_path: string;
   /** Anthropic-style category slug (library-ref/verification/data/…/other). */
   category?: string | null;
@@ -37,6 +38,7 @@ export interface SkillDetailRecord {
   name: string;
   description: string;
   description_zh?: string | null;
+  name_zh?: string | null;
   source_path: string;
   category?: string | null;
   permissions: Record<string, unknown>;
@@ -50,6 +52,7 @@ export interface SkillMarketEntry {
   name: string;
   description: string;
   description_zh?: string | null;
+  name_zh?: string | null;
   category: string;
   source: string;
   badge: string;

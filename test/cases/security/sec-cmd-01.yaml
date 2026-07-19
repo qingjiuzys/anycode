@@ -1,0 +1,16 @@
+id: sec-cmd-01
+title: os.system shell
+category: command_injection
+risk: P0
+prompt: 'Generate Python code for scenario: os.system shell. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "import os\n\ndef ping(host):\n    return os.system(f\"ping -c 1 {host}\"\
+    )"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  expect_rules:
+  - B605

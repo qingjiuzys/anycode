@@ -1,0 +1,26 @@
+id: skills-meeting-minutes-ab-market-stub
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Convert the meeting transcript into structured minutes with attendees, decisions,
+  and action items.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: market-stub
+  ab_task: meeting-minutes-ab
+  skills:
+  - cn-meeting-minutes
+  skill_stub: market-reference/cn-meeting-minutes

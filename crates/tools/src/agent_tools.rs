@@ -14,7 +14,7 @@ use anycode_core::DiskTaskOutput;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -62,11 +62,13 @@ fn normalize_subagent_type_name(raw: &str) -> String {
     if t.is_empty() {
         return String::new();
     }
-    match t.to_ascii_lowercase().as_str() {
-        "explore" => "explore".to_string(),
-        "plan" => "plan".to_string(),
-        "general-purpose" | "general_purpose" => "general-purpose".to_string(),
-        // Claude built-in we do not ship standalone — fall back so the run still works.
+    let lower = t.to_ascii_lowercase();
+    match lower.as_str() {
+        "explore" | "explorer" => "explore".to_string(),
+        "plan" | "planner" => "plan".to_string(),
+        "general-purpose" | "general_purpose" | "builder" => "general-purpose".to_string(),
+        "goal" | "goal-runner" => "goal".to_string(),
+        "workspace-assistant" | "channel-ops" | "channel" => "workspace-assistant".to_string(),
         "verification" | "claude-code-guide" | "statusline-setup" => "general-purpose".to_string(),
         _ => t.to_string(),
     }
@@ -405,6 +407,97 @@ struct SkillIn {
     args: Vec<String>,
 }
 
+#[derive(Deserialize)]
+struct SkillSearchIn {
+    #[serde(default)]
+    query: String,
+    #[serde(default)]
+    id: String,
+}
+
+pub struct SkillSearchTool {
+    services: Arc<ToolServices>,
+}
+
+impl SkillSearchTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self { services }
+    }
+}
+
+#[async_trait]
+impl Tool for SkillSearchTool {
+    fn name(&self) -> &str {
+        "SkillSearch"
+    }
+    fn description(&self) -> &str {
+        "Search discoverable skills allowed by project and agent governance. Pass `query` for substring match on id/description, or `id` for exact lookup."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "description": "Substring match on skill id or description" },
+                "id": { "type": "string", "description": "Exact skill id lookup" }
+            }
+        })
+    }
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Auto
+    }
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        None
+    }
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        let v: SkillSearchIn = serde_json::from_value(input.input).unwrap_or(SkillSearchIn {
+            query: String::new(),
+            id: String::new(),
+        });
+        let id_exact = v.id.trim();
+        let query = v.query.trim().to_ascii_lowercase();
+        if id_exact.is_empty() && query.is_empty() {
+            return Ok(ToolOutput {
+                result: serde_json::json!({ "error": "query or id required" }),
+                error: Some("query or id required".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        let cat = &self.services.skill_catalog;
+        let mut matches: Vec<serde_json::Value> = Vec::new();
+        for skill in cat.metas() {
+            if !self.services.is_skill_allowed(&skill.id) {
+                continue;
+            }
+            let hit = if !id_exact.is_empty() {
+                skill.id == id_exact
+            } else {
+                skill.id.to_ascii_lowercase().contains(&query)
+                    || skill.description.to_ascii_lowercase().contains(&query)
+            };
+            if !hit {
+                continue;
+            }
+            matches.push(serde_json::json!({
+                "id": skill.id,
+                "description": skill.description,
+                "has_run": skill.has_run,
+            }));
+        }
+        matches.sort_by(|a, b| {
+            a.get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .cmp(b.get("id").and_then(|v| v.as_str()).unwrap_or(""))
+        });
+        Ok(ToolOutput {
+            result: serde_json::json!({ "skills": matches, "count": matches.len() }),
+            error: None,
+            duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+}
+
 pub struct SkillTool {
     services: Arc<ToolServices>,
     policy: SecurityPolicy,
@@ -425,7 +518,7 @@ impl Tool for SkillTool {
         "Skill"
     }
     fn description(&self) -> &str {
-        "Run a skill from a discovered skill directory (see system prompt \"Available skills\"). With a `run` script: pass `name` and optional `args`. Documentation-only skills: pass `name` only to load `SKILL.md` instructions."
+        "Run a skill from a discovered skill directory. Use SkillSearch first when unsure. With a `run` script: pass `name` and optional `args`. Documentation-only skills: pass `name` only to load `SKILL.md` instructions."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -513,10 +606,29 @@ impl Tool for SkillTool {
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
-        let cwd = std::fs::canonicalize(&root).unwrap_or_else(|_| root.clone());
+        if v.args.is_empty() {
+            if let Some(body) = load_skill_instructions(&root) {
+                return Ok(ToolOutput {
+                    result: serde_json::json!({
+                        "skill": skill_name,
+                        "mode": "usage",
+                        "hint": "This skill has a run script; pass required paths in args (string array).",
+                        "instructions": body,
+                    }),
+                    error: None,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
+        let skill_root = std::fs::canonicalize(&root).unwrap_or_else(|_| root.clone());
+        let cwd = task_cwd
+            .map(|s| std::fs::canonicalize(s).unwrap_or_else(|_| PathBuf::from(s)))
+            .unwrap_or_else(|| skill_root.clone());
         let timeout = Duration::from_millis(cat.run_timeout_ms.max(1_000));
         let mut cmd = tokio::process::Command::new(&runner);
         cmd.current_dir(&cwd);
+        cmd.env("ANYCODE_SKILL_DIR", &skill_root);
+        cmd.env("ANYCODE_WORKING_DIR", &cwd);
         cmd.args(&v.args);
         cmd.kill_on_drop(true);
         if cat.minimal_env {
@@ -546,17 +658,40 @@ impl Tool for SkillTool {
         let mut stderr = String::from_utf8_lossy(&out.stderr).into_owned();
         stdout = truncate_skill_output(stdout, MAX_SKILL_OUTPUT_BYTES);
         stderr = truncate_skill_output(stderr, MAX_SKILL_OUTPUT_BYTES);
+        let exit_code = out.status.code();
+        let error = if ok {
+            None
+        } else {
+            let stderr_line = stderr
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .unwrap_or("");
+            let msg = if !stderr_line.is_empty() {
+                format!(
+                    "skill exited with code {}: {}",
+                    exit_code
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "?".into()),
+                    stderr_line
+                )
+            } else {
+                format!(
+                    "skill exited with code {}",
+                    exit_code
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "?".into())
+                )
+            };
+            Some(msg)
+        };
         Ok(ToolOutput {
             result: serde_json::json!({
                 "stdout": stdout,
                 "stderr": stderr,
-                "code": out.status.code()
+                "code": exit_code
             }),
-            error: if ok {
-                None
-            } else {
-                Some("skill exited non-zero".into())
-            },
+            error,
             duration_ms: start.elapsed().as_millis() as u64,
         })
     }
@@ -715,6 +850,7 @@ mod claude_compat_tests {
             normalize_subagent_type_name("general-purpose"),
             "general-purpose"
         );
+        assert_eq!(normalize_subagent_type_name("Builder"), "general-purpose");
         assert_eq!(
             normalize_subagent_type_name("Verification"),
             "general-purpose"

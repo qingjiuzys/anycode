@@ -21,51 +21,30 @@ pub struct SkillFrontmatter {
     pub name: String,
     pub description: String,
     pub description_zh: Option<String>,
+    pub name_zh: Option<String>,
     pub category: String,
 }
 
 /// Normalize legacy or unknown category slugs to the canonical 9+1 set.
 #[must_use]
 pub fn normalize_category(raw: &str) -> String {
-    let c = raw.trim().to_lowercase();
-    if SKILL_CATEGORIES.contains(&c.as_str()) {
-        return c;
-    }
-    match c.as_str() {
-        "office" | "docs" => "business".into(),
-        "dev" => "quality".into(),
-        "data" => "data".into(),
-        "other" | "" => "other".into(),
-        _ => "other".into(),
-    }
+    anycode_tools::normalize_skill_category(raw)
 }
 
 pub fn parse_frontmatter_text(raw: &str) -> SkillFrontmatter {
-    let mut out = SkillFrontmatter {
-        category: "other".into(),
-        ..Default::default()
-    };
-    if !raw.starts_with("---") {
-        return out;
-    }
-    let Some(end) = raw[3..].find("\n---") else {
-        return out;
-    };
-    for line in raw[3..3 + end].lines() {
-        let Some((k, v)) = line.split_once(':') else {
-            continue;
+    let Some(manifest) = anycode_tools::parse_skill_manifest_text(raw) else {
+        return SkillFrontmatter {
+            category: "other".into(),
+            ..Default::default()
         };
-        let key = k.trim();
-        let val = v.trim().trim_matches('"');
-        match key {
-            "name" => out.name = val.to_string(),
-            "description" => out.description = val.to_string(),
-            "description_zh" if !val.is_empty() => out.description_zh = Some(val.to_string()),
-            "category" if !val.is_empty() => out.category = normalize_category(val),
-            _ => {}
-        }
+    };
+    SkillFrontmatter {
+        name: manifest.name,
+        description: manifest.description,
+        description_zh: manifest.description_zh,
+        name_zh: manifest.name_zh,
+        category: normalize_category(manifest.category.as_deref().unwrap_or("other")),
     }
-    out
 }
 
 pub fn parse_skill_md(path: &Path) -> Option<SkillFrontmatter> {

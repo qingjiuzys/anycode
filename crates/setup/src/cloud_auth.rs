@@ -107,45 +107,53 @@ pub async fn start_device_link() -> Result<DeviceLinkStart> {
 }
 
 pub async fn poll_device_link(device_code: &str) -> Result<CloudSession> {
-    let client = reqwest::Client::new();
-    let url = format!(
-        "{}/api/v1/devices/link/poll",
-        account_api_url().trim_end_matches('/')
-    );
     let expires = std::time::Instant::now() + Duration::from_secs(120);
     loop {
         if std::time::Instant::now() >= expires {
             anyhow::bail!("device link timed out");
         }
-        let resp = client
-            .post(&url)
-            .json(&serde_json::json!({ "device_code": device_code }))
-            .send()
-            .await?;
-        if resp.status() == reqwest::StatusCode::ACCEPTED {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            continue;
+        if let Some(session) = try_poll_device_link(device_code).await? {
+            return Ok(session);
         }
-        let v: serde_json::Value = resp.error_for_status()?.json().await?;
-        let gw = v["gateway_url"]
-            .as_str()
-            .map(|s| s.to_string())
-            .unwrap_or_else(gateway_url);
-        let session = CloudSession {
-            access_token: v["access_token"]
-                .as_str()
-                .context("missing access_token")?
-                .to_string(),
-            refresh_token: v["refresh_token"]
-                .as_str()
-                .context("missing refresh_token")?
-                .to_string(),
-            user_email: v["user"]["email"].as_str().map(|s| s.to_string()),
-            gateway_url: Some(gw),
-        };
-        write_cloud_session(&session)?;
-        return Ok(session);
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
+}
+
+/// Single poll attempt; `Ok(None)` means still pending (HTTP 202).
+pub async fn try_poll_device_link(device_code: &str) -> Result<Option<CloudSession>> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{}/api/v1/devices/link/poll",
+        account_api_url().trim_end_matches('/')
+    );
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({ "device_code": device_code }))
+        .timeout(Duration::from_secs(30))
+        .send()
+        .await?;
+    if resp.status() == reqwest::StatusCode::ACCEPTED {
+        return Ok(None);
+    }
+    let v: serde_json::Value = resp.error_for_status()?.json().await?;
+    let gw = v["gateway_url"]
+        .as_str()
+        .map(|s| s.to_string())
+        .unwrap_or_else(gateway_url);
+    let session = CloudSession {
+        access_token: v["access_token"]
+            .as_str()
+            .context("missing access_token")?
+            .to_string(),
+        refresh_token: v["refresh_token"]
+            .as_str()
+            .context("missing refresh_token")?
+            .to_string(),
+        user_email: v["user"]["email"].as_str().map(|s| s.to_string()),
+        gateway_url: Some(gw),
+    };
+    write_cloud_session(&session)?;
+    Ok(Some(session))
 }
 
 pub async fn link_device(device_code: &str) -> Result<CloudSession> {

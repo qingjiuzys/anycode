@@ -87,7 +87,7 @@ export function DiscordChannelPanel({
 
       <button
         type="button"
-        className="dw-btn dw-btn-secondary text-sm mb-3"
+        className="dw-btn-secondary text-sm mb-3"
         disabled={verify.isPending || !token.trim()}
         onClick={() => verify.mutate()}
       >
@@ -130,7 +130,7 @@ export function DiscordChannelPanel({
 
           <button
             type="button"
-            className="dw-btn dw-btn-secondary text-sm mb-3"
+            className="dw-btn-secondary text-sm mb-3"
             disabled={test.isPending || !channelId.trim()}
             onClick={() => test.mutate()}
           >
@@ -163,7 +163,7 @@ export function DiscordChannelPanel({
 
       <button
         type="button"
-        className="dw-btn dw-btn-primary text-sm mb-2"
+        className="dw-btn-primary text-sm mb-2"
         disabled={save.isPending || !canSave}
         onClick={() => save.mutate()}
       >

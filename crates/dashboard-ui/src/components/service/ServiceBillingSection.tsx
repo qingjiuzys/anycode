@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ServiceEntitlements } from "@/api/types/service";
 import { PLAN_CATALOG } from "@/lib/planCatalog";
 import { EmptyState } from "@/components/EmptyState";
@@ -5,17 +6,19 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { useT } from "@/i18n/context";
+import { formatFen } from "@/lib/money";
 
 export function ServiceBillingSection() {
   const t = useT();
   const { entitlements, updateBillingContact } = useAccountCloud();
+  const [invoiceTipId, setInvoiceTipId] = useState<string | null>(null);
 
   if (!entitlements) return null;
-  const catalog = PLAN_CATALOG[entitlements.plan];
-  const estimatedAmount =
+  const catalog = PLAN_CATALOG[entitlements.plan] ?? PLAN_CATALOG.free;
+  const estimatedAmountFen =
     entitlements.billingCycle === "yearly"
-      ? catalog.yearlyPriceUsd
-      : catalog.monthlyPriceUsd;
+      ? catalog.yearlyPriceFen
+      : catalog.monthlyPriceFen;
 
   return (
     <div className="space-y-6">
@@ -29,7 +32,7 @@ export function ServiceBillingSection() {
               {entitlements.billingPeriod.start} — {entitlements.billingPeriod.end}
             </dd>
             <dt className="text-secondary m-0">{t("service.billing.estimatedAmount")}</dt>
-            <dd className="m-0 tabular-nums">${estimatedAmount.toFixed(2)}</dd>
+            <dd className="m-0 tabular-nums">{formatFen(estimatedAmountFen)}</dd>
             <dt className="text-secondary m-0">{t("common.status")}</dt>
             <dd className="m-0">
               <StatusBadge
@@ -78,7 +81,7 @@ export function ServiceBillingSection() {
                   <td className="text-secondary text-xs tabular-nums">
                     {inv.periodStart} — {inv.periodEnd}
                   </td>
-                  <td className="tabular-nums">${inv.amountUsd.toFixed(2)}</td>
+                  <td className="tabular-nums">{formatFen(inv.amountFen)}</td>
                   <td>
                     <StatusBadge
                       status={inv.status === "paid" ? "ok" : inv.status === "pending" ? "pending" : "warn"}
@@ -86,9 +89,20 @@ export function ServiceBillingSection() {
                     />
                   </td>
                   <td>
-                    <button type="button" className="dw-btn-ghost text-xs" disabled>
-                      {t("service.billing.download")}
-                    </button>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <button
+                        type="button"
+                        className="dw-btn-ghost text-xs"
+                        onClick={() => setInvoiceTipId(inv.id)}
+                      >
+                        {t("service.billing.download")}
+                      </button>
+                      {invoiceTipId === inv.id && (
+                        <span className="text-xs text-secondary">
+                          {t("service.billing.downloadUnavailable")}
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

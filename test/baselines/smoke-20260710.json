@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "product_version": "0.2.4",
+  "profile": "smoke",
+  "run_id": "20260710-043907-dc55cacb",
+  "created_at": "2026-07-09T20:40:38Z",
+  "environment": {
+    "os": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "arch": "arm64",
+    "cpu": "arm",
+    "ram_gb": 24.0,
+    "gpu": "unknown"
+  },
+  "models": [],
+  "summary": {
+    "total": 51,
+    "passed": 51,
+    "failed": 0,
+    "skipped": 0,
+    "pass_rate": 100.0,
+    "duration_seconds": 79.4
+  },
+  "risk_gate": {
+    "coverage_rate": 100.0,
+    "gate_pass": true,
+    "uncovered_count": 0,
+    "out_of_scope_count": 5
+  },
+  "notes": "Initial smoke baseline — 51 cases incl. 40 security static-analysis fixtures; no live LLM."
+}

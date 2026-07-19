@@ -209,6 +209,14 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         placeholder_only: false,
     },
     ProviderCatalogEntry {
+        id: "local_relay",
+        label: "Local Relay",
+        hint: Some("仅本地开发脚手架 (ANYCODE_RELAY_GATEWAY=1)；产品中转请用 anycode_cloud + 平台 model-gateway"),
+        transport: LlmTransport::OpenAiChatCompletions,
+        suggested_openai_base: Some("http://127.0.0.1:43210/v1/chat/completions"),
+        placeholder_only: false,
+    },
+    ProviderCatalogEntry {
         id: "minimax",
         label: "MiniMax",
         hint: Some("OpenAI 兼容"),
@@ -368,14 +376,6 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
         hint: Some("智谱 BigModel，OpenAI 兼容 + Coding/General"),
         transport: LlmTransport::OpenAiChatCompletions,
         suggested_openai_base: None,
-        placeholder_only: false,
-    },
-    ProviderCatalogEntry {
-        id: "local_relay",
-        label: "Local Relay",
-        hint: Some("仅本地开发脚手架 (ANYCODE_RELAY_GATEWAY=1)；产品中转请用 anycode_cloud + 平台 model-gateway"),
-        transport: LlmTransport::OpenAiChatCompletions,
-        suggested_openai_base: Some("http://127.0.0.1:43210/v1/chat/completions"),
         placeholder_only: false,
     },
     ProviderCatalogEntry {

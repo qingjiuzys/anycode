@@ -35,7 +35,7 @@ pub fn llm_doctor_checks() -> Vec<DoctorCheck> {
             format!("config.json found at {}", path.display())
         } else {
             format!(
-                "config.json not found at {} — complete Workbench /setup or create the file",
+                "config.json not found at {} — configure your model in Settings",
                 path.display()
             )
         },
@@ -361,14 +361,14 @@ pub fn doctor_next_steps(
         .iter()
         .any(|c| c.id == "llm_config_exists" && c.status == "warn")
     {
-        steps.push("Open Workbench Setup (/setup) to configure your model".into());
+        steps.push("Open Settings → Models to configure your LLM".into());
     }
     if report
         .checks
         .iter()
         .any(|c| c.id == "llm_api_key" && c.status == "warn")
     {
-        steps.push("Set your API key in Workbench Setup (/setup) or Settings → Models".into());
+        steps.push("Set your API key in Settings → Models".into());
     }
     if report
         .checks

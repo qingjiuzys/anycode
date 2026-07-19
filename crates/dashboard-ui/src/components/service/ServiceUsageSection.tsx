@@ -11,6 +11,7 @@ import { Icon } from "@/components/Icon";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { isQuotaNearLimit } from "@/lib/planCatalog";
 import { useT } from "@/i18n/context";
+import { formatMoney } from "@/lib/money";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -98,7 +99,7 @@ export function ServiceUsageSection() {
               { label: t("home.tokenTotal"), value: formatTokens(u.total_tokens), highlight: true },
               {
                 label: t("home.tokenCost"),
-                value: `$${u.estimated_cost_usd.toFixed(2)}`,
+                value: formatMoney(u.estimated_cost_cny),
                 highlight: true,
               },
             ]}

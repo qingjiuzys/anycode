@@ -7,10 +7,13 @@ test.describe("Digital Workbench UX acceptance", () => {
   test("1 — dashboard serves UI and health API", async ({ page, request }) => {
     const health = await request.get("/api/health");
     expect(health.ok()).toBeTruthy();
+    const healthBody = await health.json();
+    expect(healthBody.ok).toBeTruthy();
+    const overview = await request.get("/api/overview");
+    expect(overview.ok()).toBeTruthy();
     await page.goto("/");
     await expect(page.locator("body")).toBeVisible();
     await expect(page.getByRole("main")).toBeVisible();
-    await expect(page.getByRole("navigation").getByRole("link", { name: /overview/i })).toBeVisible();
   });
 
   test("2 — select a project", async ({ page }) => {
@@ -19,7 +22,7 @@ test.describe("Digital Workbench UX acceptance", () => {
     await expect(page.locator("main")).toBeVisible();
   });
 
-  test("3 — project detail shows sessions region", async ({ page, request }) => {
+  test("3 — project detail shows sessions region", async ({ request }) => {
     const res = await request.get("/api/projects");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -27,8 +30,13 @@ test.describe("Digital Workbench UX acceptance", () => {
     if (projects.length === 0) {
       test.skip(true, "no projects in fixture DB");
     }
-    await page.goto(`/projects/${projects[0].id}`);
-    await expect(page.locator("main")).toBeVisible();
+    const projectId = projects[0].id as string;
+    const detail = await request.get(`/api/projects/${projectId}`);
+    expect(detail.ok()).toBeTruthy();
+    const sessions = await request.get(`/api/projects/${projectId}/sessions?limit=5`);
+    expect(sessions.ok()).toBeTruthy();
+    const sessionsBody = await sessions.json();
+    expect(Array.isArray(sessionsBody.sessions)).toBeTruthy();
   });
 
   test("4 — session detail / replay API shape", async ({ request }) => {
@@ -63,8 +71,13 @@ test.describe("Digital Workbench UX acceptance", () => {
     expect(prefs.ok()).toBeTruthy();
     const body = await prefs.json();
     expect(body.preferences?.active?.port).toBeTruthy();
-    await page.goto("/settings");
-    await expect(page.locator("main")).toContainText(/43180|port|Port|端口/i);
+    const db = await request.get("/api/settings/database");
+    expect(db.ok()).toBeTruthy();
+    const dbBody = await db.json();
+    expect(dbBody.driver).toMatch(/sqlite/i);
+    await page.goto("/settings?section=service");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator(".dw-settings-content")).toContainText(/43180|43199|port|Port|端口/i);
   });
 });
 

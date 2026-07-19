@@ -1,0 +1,81 @@
+schema_version = 1
+suite = "browser"
+
+[[cases]]
+id = "browser-nav-home"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-login-form"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-form-validation"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-table-filter"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-table-sort"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-table-pagination"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-spa-state"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-multi-tab"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-download"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-dom-extract"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-screenshot"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-network-recovery"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+
+[[cases]]
+id = "browser-prompt-injection"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 480
+

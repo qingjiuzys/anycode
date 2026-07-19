@@ -4,6 +4,7 @@ import {
   inferAutoFromRegistry,
   listChatModels,
   modelLabel,
+  modelSubtitle,
 } from "@/lib/composerModels";
 import type { ConfiguredModel, ModelsRegistryView } from "@/api/types";
 
@@ -48,6 +49,20 @@ describe("composerModels", () => {
 
   it("labels models without display_name", () => {
     expect(modelLabel(chatItem({ display_name: null }))).toBe("openai/gpt-4");
+  });
+
+  it("shows managed registry id in subtitle", () => {
+    expect(
+      modelSubtitle(
+        chatItem({
+          id: "managed-minicpm5-1b",
+          display_name: "MiniCPM5-1B (SGLang · native tools)",
+          provider: "sglang",
+          model: "minicpm5-1b",
+          source: "managed_local_runtime",
+        }),
+      ),
+    ).toBe("managed-minicpm5-1b · sglang/minicpm5-1b");
   });
 
   it("finds global default chat id", () => {

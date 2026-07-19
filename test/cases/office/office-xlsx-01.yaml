@@ -1,0 +1,32 @@
+id: office-xlsx-01
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Complete office task xlsx #01 using templates in workspace; satisfy all structural
+  assertions.'
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/sheet-01.xlsx
+  - validator: xlsx_cell_equals
+    args:
+      path: output/sheet-01.xlsx
+      sheet: Summary
+      cell: B2
+      value_type: number
+  - validator: xlsx_formula_eval
+    args:
+      path: output/sheet-01.xlsx
+      sheet: Summary
+      cell: C10
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1200
+fixture: office/templates/xlsx
+complexity: complex

@@ -2,7 +2,7 @@
 
 面向维护者：分层、依赖方向与扩展点，避免「为抽象而抽象」。
 
-**文档站**（中英）：[`docs-site/guide/architecture.md`](../docs-site/guide/architecture.md)；扩展清单 [`contributing-extensions.md`](../docs-site/guide/contributing-extensions.md)。**ADR** 在 [`docs/adr/`](adr/)。运行流程见 [`ops/run-flow.md`](ops/run-flow.md)。
+**文档站**（中英）：[`https://anycode.work/docs/guide/architecture.md`](../docs/user/guide/architecture)；扩展清单 [`contributing-extensions.md`](../https://anycode.work/docs/guide/contributing-extensions)。**ADR** 在 [`docs/adr/`](adr/)。运行流程见 [`ops/run-flow.md`](ops/run-flow.md)。
 
 ## 分层与数据流
 
@@ -72,6 +72,6 @@ anycode-tools / llm / security / memory
 
 关键 crate：`crates/dashboard`（HTTP API + 录制）、`crates/dashboard-ui`（React 工作台 UI）。
 - **单实例**：**`~/.anycode/tasks/scheduler.lock`**（独占锁）保证同机只有一个调度循环。**WeChat / Telegram / Discord** 长驻桥与独立 **`anycode-daemon scheduler`** **抢同一把锁**；任一桥在启动时 **`tokio::spawn`** 内置调度器的尝试抢锁失败时静默退出嵌入（聊天仍可用，但须有**另一进程**持锁才能使 cron 落火）。
-- **通道 agent**：`workspace-assistant` 暴露上述 Cron 工具以便 IM 侧创建/删除任务；用户文档见文档站 [Cron & scheduler](../docs-site/guide/cli-scheduler.md)。
+- **通道 agent**：`workspace-assistant` 暴露上述 Cron 工具以便 IM 侧创建/删除任务；用户文档见文档站 [Cron & scheduler](../https://anycode.work/docs/guide/cli-scheduler)。
 
-迭代任务与决策状态见 **[`docs/roadmap.md`](roadmap.md)**（SSOT）；MVP 与工具矩阵见文档站 [Roadmap](../docs-site/guide/roadmap.md）。
+迭代任务与决策状态见 **[`docs/roadmap.md`](roadmap.md)**（SSOT）；MVP 与工具矩阵见文档站 [Roadmap](../https://anycode.work/docs/guide/roadmap）。

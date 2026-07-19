@@ -37,12 +37,12 @@ pub async fn put_browser_connector(Json(body): Json<BrowserConnectorBody>) -> im
                 .into_response();
         }
     };
-    if body.enabled && !browser_connector::resolve_browser_mcp_bundle_root().is_some() {
+    if body.enabled && !browser_connector::browser_automation_can_enable() {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({
-                "error": "browser_mcp_bundle_missing",
-                "message": "Bundled browser MCP not found. Reinstall the desktop app or set ANYCODE_BROWSER_MCP_ROOT."
+                "error": "browser_chromium_missing",
+                "message": browser_connector::browser_unavailable_message()
             })),
         )
             .into_response();

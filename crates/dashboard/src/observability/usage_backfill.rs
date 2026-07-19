@@ -38,14 +38,30 @@ pub async fn backfill_llm_usage(db: &DashboardDb, tasks_root: &Path) -> Result<u
             Ok(c) => c,
             Err(_) => continue,
         };
+        let mut last_model: Option<String> = None;
         for line in content.lines() {
             let Some(parsed) = parse_line(line) else {
                 continue;
             };
+            if parsed.event_type == "llm_request_start" {
+                if let Some(model) = parsed
+                    .payload
+                    .get("model")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    last_model = Some(model.to_string());
+                    let _ = db.update_session_model(&session_id, model).await;
+                }
+                continue;
+            }
             if parsed.event_type != "llm_response_end" {
                 continue;
             }
-            let Some(payload) = llm_usage::usage_payload_from_parsed(&parsed) else {
+            let Some(payload) =
+                llm_usage::usage_payload_from_parsed_with_model(&parsed, last_model.as_deref())
+            else {
                 continue;
             };
             let turn = payload.get("turn").and_then(|v| v.as_str()).unwrap_or("0");
@@ -108,7 +124,8 @@ mod tests {
         std::fs::create_dir_all(&log_dir).unwrap();
         std::fs::write(
             log_dir.join("output.log"),
-            "[llm_response_end] turn=1 elapsed_ms=100 input_tokens=42 output_tokens=7\n",
+            "[llm_request_start] turn=1 model=claude-sonnet-4 base_url=https://example.com\n\
+             [llm_response_end] turn=1 elapsed_ms=100 input_tokens=42 output_tokens=7\n",
         )
         .unwrap();
 
@@ -130,7 +147,7 @@ mod tests {
             title: "backfill".into(),
             prompt_preview: None,
             agent_type: None,
-            model: Some("claude-sonnet-4".into()),
+            model: None,
             metadata_json: None,
         })
         .await
@@ -145,6 +162,9 @@ mod tests {
         assert_eq!(usage.usage.llm_calls, 1);
         assert_eq!(usage.usage.input_tokens, 42);
         assert_eq!(usage.usage.output_tokens, 7);
+        assert_eq!(usage.by_model.len(), 1);
+        assert_eq!(usage.by_model[0].model, "claude-sonnet-4");
+        assert_eq!(usage.by_model[0].provider, "anthropic");
 
         let again = backfill_llm_usage(&db, &tasks_root).await.unwrap();
         assert_eq!(again, 0);

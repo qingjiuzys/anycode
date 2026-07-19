@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import type { AgentUsageStat } from "@/api/types";
 import type { AgentProfileRecord } from "@/api/types/agents";
 import { Icon } from "@/components/Icon";
-import { BUILTIN_AGENT_CATALOG, builtinAgentMeta } from "@/lib/agentCatalog";
+import { agentDisplayLabel, builtinAgentMeta } from "@/lib/agentCatalog";
 import { useT } from "@/i18n/context";
 
 function formatShortTime(iso: string | null): string {
@@ -65,10 +65,7 @@ export function AgentUsageDrawer({
   if (!agentId || !usage) return null;
 
   const meta = builtinAgentMeta(agentId);
-  const catalogRole = BUILTIN_AGENT_CATALOG.find((r) => r.id === agentId);
-  const displayName = catalogRole
-    ? t(`agents.builtin.${catalogRole.labelKey}`)
-    : agentId;
+  const displayName = agentDisplayLabel(agentId, t);
   const customProfile = profiles.find((p) => p.id === agentId && !p.builtin);
 
   return (
@@ -96,7 +93,7 @@ export function AgentUsageDrawer({
             </span>
             <div className="min-w-0">
               <div className="text-base font-semibold text-on-surface">{displayName}</div>
-              <div className="text-xs font-code text-secondary mt-0.5">{agentId}</div>
+              <div className="text-[13px] font-code text-secondary mt-0.5">{agentId}</div>
             </div>
           </div>
 
@@ -114,11 +111,11 @@ export function AgentUsageDrawer({
           </div>
 
           <div>
-            <div className="text-xs font-medium text-secondary mb-1">{t("agents.drawerLastUsed")}</div>
+            <div className="text-[13px] font-medium text-secondary mb-1">{t("agents.drawerLastUsed")}</div>
             <div className="text-sm font-code text-on-surface">{formatShortTime(usage.lastStarted)}</div>
           </div>
 
-          {catalogRole && (
+          {meta && (
             <p className="text-sm text-secondary m-0">{t("agents.drawerBuiltinHint")}</p>
           )}
         </div>

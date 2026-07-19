@@ -1,0 +1,20 @@
+id: browser-form-validation
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Submit the registration form with an invalid email and report the validation error.
+expected:
+  assertions:
+  - validator: dom_contains
+    args:
+      selector: '#email-error'
+      text: Invalid email
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

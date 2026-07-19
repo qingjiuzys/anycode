@@ -1,0 +1,27 @@
+id: skills-report-csv-ab-official
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Extract tabular metrics from report.txt into sales.csv with columns date,region,revenue.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+  - validator: skill_invoked
+    args:
+      skill_id: report-to-csv
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: official
+  ab_task: report-csv-ab
+  skills:
+  - report-to-csv

@@ -14,7 +14,7 @@ embedding-local = ["anycode-llm/embedding-local"]
 stt-local = ["anycode-llm/stt-local"]
 tts-local = ["anycode-llm/tts-local"]
 media-local = ["embedding-local", "stt-local", "tts-local"]
-tools-browser = ["anycode-tools/tools-browser"]
+tools-browser = ["anycode-tools/tools-browser", "anycode-bootstrap/tools-browser"]
 
 [lib]
 name = "anycode_dashboard"
@@ -57,7 +57,8 @@ base64 = "0.22"
 dirs = "5"
 walkdir = { workspace = true }
 pdf-extract = "0.7"
-reqwest = { workspace = true, features = ["json"] }
+libc = "0.2"
+reqwest = { workspace = true, features = ["json", "stream"] }
 rust-embed = { version = "8.9", optional = true }
 portable-pty = "0.8"
 ignore = { workspace = true }

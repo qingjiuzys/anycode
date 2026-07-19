@@ -10,6 +10,8 @@ type Props = {
   dismissOnBackdrop?: boolean;
   children: ReactNode;
   className?: string;
+  /** Stacking order for the portaled shell (default 200). Use 350+ above control center (300). */
+  zIndex?: number;
 };
 
 /** Viewport-centered modal shell portaled to document.body (avoids topbar backdrop-filter breaking fixed). */
@@ -20,6 +22,7 @@ export function ModalOverlay({
   dismissOnBackdrop = true,
   children,
   className = "w-full max-w-lg",
+  zIndex = 200,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -39,7 +42,8 @@ export function ModalOverlay({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] bg-on-surface/30 backdrop-blur-[2px]"
+      className="fixed inset-0 flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] bg-on-surface/30 backdrop-blur-[2px]"
+      style={{ zIndex }}
       role="dialog"
       aria-modal
       aria-labelledby={labelledBy}

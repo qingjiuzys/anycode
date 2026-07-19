@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ServiceCloudLogin } from "@/components/service/ServiceCloudLogin";
+import { Navigate } from "@tanstack/react-router";
 import { ServiceNotConfigured } from "@/components/service/ServiceNotConfigured";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { useT } from "@/i18n/context";
@@ -17,7 +17,8 @@ export function ServiceCloudShell({ children }: { children: ReactNode }) {
   }
 
   if (!authenticated) {
-    return <ServiceCloudLogin />;
+    // Prefer the dedicated frontmost gate over an embedded console card.
+    return <Navigate to="/cloud-login" replace />;
   }
 
   return <>{children}</>;

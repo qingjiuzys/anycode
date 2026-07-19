@@ -6,6 +6,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { InlineRename } from "@/components/InlineRename";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
+import { CcPageShell } from "@/components/ui/CcPageShell";
+import { ListPageToolbar } from "@/components/ui/ListPageToolbar";
+import { ListPaginationBar } from "@/components/ui/ListPaginationBar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge, TrustBar } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
@@ -97,70 +100,30 @@ export function ProjectsPage(_props: EmbeddedPageProps = {}) {
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
-  const pageInfoLabel = t("projects.pageInfo")
-    .replace("{page}", String(page + 1))
-    .replace("{pages}", String(pageCount))
-    .replace("{total}", String(total));
-
   const nameCounts = new Map<string, number>();
   for (const p of projects) {
     nameCounts.set(p.name, (nameCounts.get(p.name) ?? 0) + 1);
   }
 
-  return (
-    <>
-      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
-
-      <PageHeader
-        title={t("projects.title")}
-        subtitle={t("projects.subtitle")}
-        breadcrumbs={[{ label: t("breadcrumb.home"), to: "/" }, { label: t("projects.title") }]}
-        actions={
-          <>
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              onClick={() => setNewProjectOpen(true)}
-            >
-              <Icon name="add" size={16} />
-              {t("projects.newProject")}
-            </button>
-            <button
-              type="button"
-              className="dw-btn-primary"
-              disabled={scan.isPending}
-              onClick={() => scan.mutate()}
-            >
-              <Icon name="radar" size={16} />
-              {scan.isPending ? t("common.loading") : t("projects.scanNew")}
-            </button>
-          </>
-        }
-      />
-
-      {scanMessage && (
-        <p className="text-sm text-secondary m-0 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2">
-          {scanMessage}
-        </p>
-      )}
-
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-2 shadow-sm">
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
-          <div className="relative flex-1 sm:max-w-xs">
+  const filterToolbar = (
+    <ListPageToolbar
+      left={
+        <>
+          <div className="relative flex-1 sm:max-w-xs min-w-0">
             <Icon
               name="search"
               size={16}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-outline"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none"
             />
             <input
-              className="dw-input w-full pl-8"
+              className="dw-input dw-input--pill w-full pl-9"
               placeholder={t("projects.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <select
-            className="dw-input h-[34px] min-w-[120px]"
+            className="dw-input dw-input--pill h-[34px] min-w-[120px] shrink-0 pr-8"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           >
@@ -169,170 +132,174 @@ export function ProjectsPage(_props: EmbeddedPageProps = {}) {
             <option value="archived">{t("projects.statusArchived")}</option>
             <option value="error">{t("projects.statusError")}</option>
           </select>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-secondary px-1">{pageInfoLabel}</span>
-          <select
-            className="dw-input h-[34px] text-xs"
-            aria-label={t("projects.pageSizeLabel")}
-            title={t("projects.pageSizeLabel")}
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(0);
-            }}
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+        </>
+      }
+      actions={
+        <>
           <button
             type="button"
-            className="dw-btn-secondary text-xs"
-            disabled={page <= 0}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            className="dw-btn-secondary dw-btn--pill"
+            onClick={() => setNewProjectOpen(true)}
           >
-            {t("common.previous")}
+            <Icon name="add" size={16} />
+            {t("projects.newProject")}
           </button>
-          <span className="text-xs text-secondary tabular-nums">
-            {page + 1} / {pageCount}
-          </span>
           <button
             type="button"
-            className="dw-btn-secondary text-xs"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
+            className="dw-btn-primary dw-btn--pill"
+            disabled={scan.isPending}
+            onClick={() => scan.mutate()}
           >
-            {t("common.next")}
+            <Icon name="radar" size={16} />
+            {scan.isPending ? t("common.loading") : t("projects.scanNew")}
           </button>
-        </div>
-      </div>
+        </>
+      }
+    />
+  );
 
-      {isLoading && <p className="text-secondary text-sm">{t("common.loading")}</p>}
+  return (
+    <>
+      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
 
-      {!isLoading && projects.length === 0 && (
-        <EmptyState
-          title={t("projects.emptyTitle")}
-          description={t("projects.emptyDesc")}
-          icon="folder_off"
-        />
-      )}
+      <CcPageShell
+        header={
+          <>
+            <PageHeader
+              title={t("projects.title")}
+              subtitle={t("projects.subtitle")}
+              breadcrumbs={[{ label: t("nav.home"), to: "/" }, { label: t("projects.title") }]}
+            />
+            {scanMessage && (
+              <p className="text-sm text-secondary m-0 mt-3 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2">
+                {scanMessage}
+              </p>
+            )}
+          </>
+        }
+      >
+        {isLoading && <p className="text-secondary text-sm">{t("common.loading")}</p>}
 
-      {projects.length > 0 && (
-        <div className="dw-section-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("common.name")}</th>
-                  <th>{t("projects.rootPath")}</th>
-                  <th>{t("common.status")}</th>
-                  <th>{t("projects.trust")}</th>
-                  <th className="text-right">{t("projects.sessions")}</th>
-                  <th className="text-right">{t("nav.assets")}</th>
-                  <th className="text-right">{t("home.lastActivity")}</th>
-                  <th className="text-right">{t("common.actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((p) => (
-                  <tr key={p.id} className="group">
-                    <td>
-                      <InlineRename
-                        value={p.name}
-                        label={t("projects.rename")}
-                        disabled={rename.isPending}
-                        onSave={(name) => rename.mutate({ id: p.id, name })}
-                      >
-                        <ControlCenterLink
-                          to="/projects/$projectId"
-                          params={{ projectId: p.id }}
-                          className="flex items-center gap-2 font-medium no-underline hover:underline"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-                            <Icon name="folder" size={16} />
-                          </div>
-                          {p.name}
-                          {(nameCounts.get(p.name) ?? 0) > 1 && (
-                            <span className="text-[11px] text-outline font-code font-normal">
-                              · {rootPathSuffix(p.root_path)}
-                            </span>
-                          )}
-                        </ControlCenterLink>
-                      </InlineRename>
-                    </td>
-                    <td>
-                      <div className="flex flex-col gap-1 max-w-[240px]">
-                        <span className="font-code text-secondary truncate block">
-                          {p.root_path}
-                        </span>
-                        {p.root_exists === false && (
-                          <span className="text-[10px] text-warn">{t("projects.rootMissing")}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <StatusBadge status={p.status} />
-                    </td>
-                    <td>
-                      <TrustBar score={p.trust_score} />
-                    </td>
-                    <td className="text-right">{p.sessions_count}</td>
-                    <td className="text-right">{p.artifacts_count}</td>
-                    <td className="text-right text-secondary text-xs">{p.updated_at}</td>
-                    <td className="text-right">
-                      {p.status !== "archived" ? (
-                        <button
-                          type="button"
-                          className="dw-btn-secondary text-xs"
-                          disabled={archive.isPending}
-                          onClick={() => archive.mutate({ id: p.id, status: "archived" })}
-                        >
-                          {t("projects.archive")}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="dw-btn-secondary text-xs"
-                          disabled={archive.isPending}
-                          onClick={() => archive.mutate({ id: p.id, status: "active" })}
-                        >
-                          {t("projects.restore")}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant text-sm">
-              <button
-                type="button"
-                className="dw-btn-secondary text-xs"
-                disabled={page <= 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-              >
-                {t("common.previous")}
-              </button>
-              <span className="text-secondary">
-                {page + 1} / {pageCount}
-              </span>
-              <button
-                type="button"
-                className="dw-btn-secondary text-xs"
-                disabled={page + 1 >= pageCount}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t("common.next")}
-              </button>
+        {!isLoading && projects.length === 0 && (
+          <>
+            {filterToolbar}
+            <EmptyState
+              title={t("projects.emptyTitle")}
+              description={t("projects.emptyDesc")}
+              icon="folder_off"
+            />
+          </>
+        )}
+
+        {projects.length > 0 && (
+          <div className="dw-section-card dw-list-card">
+            <div className="dw-list-card__toolbar px-3 py-3 border-b border-outline-variant/40">
+              {filterToolbar}
             </div>
-          )}
-        </div>
-      )}
+            <div className="dw-list-card__scroll">
+              <table className="dw-table">
+                <thead>
+                  <tr>
+                    <th>{t("common.name")}</th>
+                    <th>{t("projects.rootPath")}</th>
+                    <th>{t("common.status")}</th>
+                    <th>{t("projects.trust")}</th>
+                    <th className="text-right">{t("projects.sessions")}</th>
+                    <th className="text-right">{t("nav.assets")}</th>
+                    <th className="text-right">{t("home.lastActivity")}</th>
+                    <th className="text-right">{t("common.actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((p) => (
+                    <tr key={p.id} className="group">
+                      <td>
+                        <InlineRename
+                          value={p.name}
+                          label={t("projects.rename")}
+                          disabled={rename.isPending}
+                          onSave={(name) => rename.mutate({ id: p.id, name })}
+                        >
+                          <ControlCenterLink
+                            to="/projects/$projectId"
+                            params={{ projectId: p.id }}
+                            className="flex items-center gap-2 font-medium no-underline hover:underline"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary shrink-0">
+                              <Icon name="folder" size={16} />
+                            </div>
+                            {p.name}
+                            {(nameCounts.get(p.name) ?? 0) > 1 && (
+                              <span className="text-[11px] text-outline font-code font-normal">
+                                · {rootPathSuffix(p.root_path)}
+                              </span>
+                            )}
+                          </ControlCenterLink>
+                        </InlineRename>
+                      </td>
+                      <td>
+                        <div className="flex flex-col gap-1 max-w-[240px]">
+                          <span className="font-code text-secondary truncate block">
+                            {p.root_path}
+                          </span>
+                          {p.root_exists === false && (
+                            <span className="text-[10px] text-warn">{t("projects.rootMissing")}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <StatusBadge status={p.status} />
+                      </td>
+                      <td>
+                        <TrustBar score={p.trust_score} />
+                      </td>
+                      <td className="text-right">{p.sessions_count}</td>
+                      <td className="text-right">{p.artifacts_count}</td>
+                      <td className="text-right text-secondary text-xs">{p.updated_at}</td>
+                      <td className="text-right">
+                        {p.status !== "archived" ? (
+                          <button
+                            type="button"
+                            className="dw-btn-secondary text-xs"
+                            disabled={archive.isPending}
+                            onClick={() => archive.mutate({ id: p.id, status: "archived" })}
+                          >
+                            {t("projects.archive")}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="dw-btn-secondary text-xs"
+                            disabled={archive.isPending}
+                            onClick={() => archive.mutate({ id: p.id, status: "active" })}
+                          >
+                            {t("projects.restore")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="dw-list-card__footer">
+              <ListPaginationBar
+                page={page}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                pageSizeOptions={[...PAGE_SIZE_OPTIONS]}
+                total={total}
+                pageSizeLabel={t("projects.pageSizeLabel")}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n);
+                  setPage(0);
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </CcPageShell>
     </>
   );
 }

@@ -16,8 +16,13 @@ export function modelLabel(item: ConfiguredModel): string {
 }
 
 export function modelSubtitle(item: ConfiguredModel): string {
+  const id = item.id?.trim();
+  const providerModel = `${item.provider}/${item.model}`;
+  if (item.source === "managed_local_runtime" && id) {
+    return `${id} · ${providerModel}`;
+  }
   if (item.display_name?.trim()) {
-    return `${item.provider}/${item.model}`;
+    return providerModel;
   }
   return item.provider;
 }

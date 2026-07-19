@@ -4,6 +4,7 @@ import { ModelUsageTable } from "@/components/ModelUsageTable";
 import { SessionTokenChart } from "@/components/SessionTokenChart";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { formatMoney } from "@/lib/money";
 
 export function SessionTokenUsage({ sessionId }: { sessionId: string }) {
   const t = useT();
@@ -23,7 +24,7 @@ export function SessionTokenUsage({ sessionId }: { sessionId: string }) {
         <Mini label={t("home.tokenTotal")} value={formatTokens(u.total_tokens)} highlight />
         <Mini
           label={t("home.tokenCost")}
-          value={`$${u.estimated_cost_usd.toFixed(2)}`}
+          value={formatMoney(u.estimated_cost_cny)}
           highlight
         />
       </div>

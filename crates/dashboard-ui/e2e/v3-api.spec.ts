@@ -17,7 +17,7 @@ test.describe("Digital Workbench V3 API", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(typeof body.kpi.estimated_saved_hours).toBe("number");
-    expect(typeof body.kpi.estimated_value_usd).toBe("number");
+    expect(typeof body.kpi.estimated_value_cny).toBe("number");
     expect(typeof body.kpi.sessions_completed).toBe("number");
   });
 

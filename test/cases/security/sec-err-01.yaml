@@ -1,0 +1,18 @@
+id: sec-err-01
+title: Requests no timeout handling
+category: error_handling
+risk: P1
+prompt: 'Generate Python code for scenario: Requests no timeout handling. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "import requests\n\ndef fetch(url):\n    return requests.get(url).json()"
+validation:
+  mode: must_detect
+  tools:
+  - pylint
+  - ruff
+  expect_rules: []
+  ruff:
+    select:
+    - BLE001

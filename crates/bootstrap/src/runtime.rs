@@ -19,6 +19,7 @@ use anycode_security::ApprovalCallback;
 use anycode_tools::AskUserQuestionHost;
 use std::collections::HashSet;
 use std::io::{stdin, stdout, IsTerminal};
+use std::path::Path;
 use std::sync::Arc;
 use tracing::info;
 
@@ -37,6 +38,7 @@ pub async fn initialize_runtime(
     hosts: RuntimeHosts,
     memory_attach: MemoryAttachMode,
     project_enabled: Option<HashSet<String>>,
+    skill_project_root: Option<&Path>,
 ) -> anyhow::Result<Arc<AgentRuntime>> {
     if std::env::var_os("ANYCODE_REPLY_LANG").is_none() {
         std::env::set_var(
@@ -63,10 +65,11 @@ pub async fn initialize_runtime(
         security_setup.mcp_defer_gate.clone(),
         security_setup.security.as_ref(),
         &security_setup.fw_policy,
+        skill_project_root,
     )
     .await?;
 
-    let (default_model_config, mut model_overrides) = build_model_routing_parts(config);
+    let (default_model_config, mut model_overrides) = build_model_routing_parts(config)?;
     crate::agents::merge_profile_routing(config, &mut model_overrides);
     let model_overrides_snapshot = model_overrides.clone();
     let failover_policy = build_failover_policy(config);
@@ -128,35 +131,49 @@ pub async fn initialize_runtime(
     };
 
     let default_model_for_profiles = default_model_config.clone();
-    let runtime = Arc::new(AgentRuntime::new(
-        RuntimeCoreDeps {
-            llm_client,
-            tools: tools_setup.tools,
-            memory_store,
-            default_model_config,
-            model_overrides,
-            failover_policy,
-            disk_output: Some(DiskTaskOutput::new_default()?),
-            security: security_setup.security.clone(),
-            sandbox_mode: config.security.sandbox_mode,
-            prompt_config: prompt_runtime,
-        },
-        RuntimeMemoryOptions {
-            memory_pipeline,
-            memory_pipeline_settings,
-            memory_project_autosave_enabled,
-            session_notifications,
-        },
-        RuntimeToolPolicy {
-            tool_name_deny,
-            claude_gating: AgentClaudeToolGating {
-                rules: Some(tools_setup.claude_rules),
-                defer_mcp_tools: config.security.defer_mcp_tools,
-                mcp_defer_allowlist: security_setup.mcp_defer_gate,
+    let runtime = Arc::new(
+        AgentRuntime::new(
+            RuntimeCoreDeps {
+                llm_client,
+                tools: tools_setup.tools,
+                memory_store,
+                default_model_config,
+                model_overrides,
+                failover_policy,
+                disk_output: Some(DiskTaskOutput::new_default()?),
+                security: security_setup.security.clone(),
+                sandbox_mode: config.security.sandbox_mode,
+                prompt_config: prompt_runtime,
             },
-            expose_skill_on_explore_plan: tools_setup.expose_skill_on_explore_plan,
-        },
-    ));
+            RuntimeMemoryOptions {
+                memory_pipeline,
+                memory_pipeline_settings,
+                memory_project_autosave_enabled,
+                session_notifications,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny,
+                claude_gating: AgentClaudeToolGating {
+                    rules: Some(tools_setup.claude_rules),
+                    defer_mcp_tools: config.security.defer_mcp_tools,
+                    mcp_defer_allowlist: security_setup.mcp_defer_gate,
+                },
+                expose_skill_on_explore_plan: tools_setup.expose_skill_on_explore_plan,
+            },
+        )
+        .with_auto_compact(
+            config.session.auto_compact,
+            anycode_agent::CompactPolicy {
+                trigger_ratio: config.session.auto_compact_ratio.clamp(0.01, 1.0),
+                hard_token_threshold: config.session.auto_compact_min_input_tokens,
+                suppress_follow_up_questions: true,
+            },
+        )
+        .with_session_context(
+            config.session.context_window_auto,
+            config.session.context_window_tokens,
+        ),
+    );
 
     tools_setup
         .tool_services
@@ -229,6 +246,7 @@ pub async fn initialize_runtime_legacy(
         },
         memory_attach,
         project_enabled,
+        None,
     )
     .await
 }

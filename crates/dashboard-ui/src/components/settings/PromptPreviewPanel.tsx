@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useT } from "@/i18n/context";
+import { agentDisplayLabel } from "@/lib/agentCatalog";
 
 const AGENTS = [
   "general-purpose",
@@ -64,7 +65,7 @@ export function PromptPreviewPanel() {
           >
             {AGENTS.map((id) => (
               <option key={id} value={id}>
-                {id}
+                {agentDisplayLabel(id, t)}
               </option>
             ))}
           </select>

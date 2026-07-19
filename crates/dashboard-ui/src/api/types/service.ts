@@ -1,4 +1,4 @@
-export type PlanTier = "free" | "pro" | "team";
+export type PlanTier = "free" | "cloud_5h" | "pro" | "team";
 
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
 
@@ -51,7 +51,8 @@ export interface ServiceInvoice {
   number: string;
   periodStart: string;
   periodEnd: string;
-  amountUsd: number;
+  amountFen: number;
+  currency: "CNY";
   status: InvoiceStatus;
 }
 
@@ -69,10 +70,12 @@ export interface ServiceEntitlements {
 
 export interface PlanCatalogEntry {
   tier: PlanTier;
-  monthlyPriceUsd: number;
-  yearlyPriceUsd: number;
+  monthlyPriceFen: number;
+  yearlyPriceFen: number;
   tokenLimit: number;
   apiKeyLimit: number;
   seatLimit: number;
+  featured?: boolean;
+  promoLabel?: string | null;
   featureKeys: readonly string[];
 }

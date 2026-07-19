@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CatalogProviderRow, LlmConfigView, ModelCatalog } from "@/api/types";
 import { api } from "@/api/client";
@@ -119,16 +118,7 @@ export function ModelSettingsPanel({ embedded = false }: { embedded?: boolean })
   const body = (
     <>
       {!cfg.config_present && (
-        <p className="text-sm text-secondary m-0 mb-3">
-          {t("settings.runtime.configMissing")}{" "}
-          <Link
-            to="/setup"
-            search={{ review: "1", step: undefined, tab: undefined }}
-            className="dw-link"
-          >
-            {t("setup.title")}
-          </Link>
-        </p>
+        <p className="text-sm text-secondary m-0 mb-3">{t("settings.runtime.configMissing")}</p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">

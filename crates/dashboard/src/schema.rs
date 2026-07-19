@@ -161,6 +161,8 @@ pub struct SkillRecord {
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description_zh: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_zh: Option<String>,
     pub source_path: String,
     /// Anthropic-style category slug (library-ref/verification/data/…/other).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -181,6 +183,20 @@ pub struct OverviewStats {
     pub skills_count: i64,
     pub gates_failed: i64,
     pub events_last_hour: i64,
+}
+
+/// Overview「汇报」panel result (LLM or template fallback).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OverviewBriefing {
+    pub markdown: String,
+    /// `llm` | `template`
+    pub generation_mode: String,
+    pub window_days: u32,
+    pub generated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -428,14 +444,14 @@ pub struct StartConversationRequest {
     /// UI language hint (`zh` / `en`) — propagated to the agent reply language.
     #[serde(default)]
     pub lang: Option<String>,
-    /// When true (default), reuse an idle web-chat REPL in the same project so harness
-    /// shared memory and transcript context carry forward.
+    /// When true, reuse an idle web-chat REPL in the same project. Home / new-task
+    /// starts omit this (default false) so each start is a fresh session.
     #[serde(default = "default_recycle_session")]
     pub recycle_session: bool,
 }
 
 fn default_recycle_session() -> bool {
-    true
+    false
 }
 
 fn default_start_kind() -> String {
@@ -456,6 +472,23 @@ pub struct SendConversationMessageRequest {
     /// UI language hint (`zh` / `en`) — propagated to the agent reply language.
     #[serde(default)]
     pub lang: Option<String>,
+    /// When true and the session turn is busy, enqueue instead of dispatching immediately.
+    #[serde(default)]
+    pub enqueue: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueuedMessageRecord {
+    pub id: String,
+    pub session_id: String,
+    pub seq: i64,
+    pub prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    pub status: String,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -871,6 +904,8 @@ pub struct SkillDetailRecord {
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description_zh: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_zh: Option<String>,
     pub source_path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
@@ -1128,7 +1163,8 @@ pub struct TokenUsageStats {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
-    pub estimated_cost_usd: f64,
+    #[serde(alias = "estimated_cost_usd")]
+    pub estimated_cost_cny: f64,
     pub generated_at: String,
 }
 
@@ -1140,7 +1176,8 @@ pub struct ModelUsageRow {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
-    pub estimated_cost_usd: f64,
+    #[serde(alias = "estimated_cost_usd")]
+    pub estimated_cost_cny: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1152,7 +1189,8 @@ pub struct ProjectUsageRow {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
-    pub estimated_cost_usd: f64,
+    #[serde(alias = "estimated_cost_usd")]
+    pub estimated_cost_cny: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1162,7 +1200,8 @@ pub struct TokenTimelinePoint {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
-    pub estimated_cost_usd: f64,
+    #[serde(alias = "estimated_cost_usd")]
+    pub estimated_cost_cny: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1181,8 +1220,10 @@ pub struct SavedHoursKpi {
     pub baseline_hours_per_session: f64,
     pub estimated_manual_hours: f64,
     pub estimated_saved_hours: f64,
-    pub hourly_rate_usd: f64,
-    pub estimated_value_usd: f64,
+    #[serde(alias = "hourly_rate_usd")]
+    pub hourly_rate_cny: f64,
+    #[serde(alias = "estimated_value_usd")]
+    pub estimated_value_cny: f64,
     pub generated_at: String,
 }
 
@@ -1233,4 +1274,23 @@ pub struct DashboardPreferencesView {
     pub restart_command: String,
     pub preferences_path: String,
     pub restart_required: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StartConversationRequest;
+
+    #[test]
+    fn start_conversation_defaults_recycle_session_false() {
+        let req: StartConversationRequest =
+            serde_json::from_str(r#"{"prompt":"分析下当前项目"}"#).unwrap();
+        assert!(!req.recycle_session);
+    }
+
+    #[test]
+    fn start_conversation_can_opt_in_recycle() {
+        let req: StartConversationRequest =
+            serde_json::from_str(r#"{"prompt":"hi","recycle_session":true}"#).unwrap();
+        assert!(req.recycle_session);
+    }
 }

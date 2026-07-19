@@ -1,0 +1,21 @@
+id: browser-spa-state
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'In the SPA demo, navigate to #/settings and toggle dark mode; confirm body has
+  class dark.'
+expected:
+  assertions:
+  - validator: dom_has_class
+    args:
+      selector: body
+      class: dark
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

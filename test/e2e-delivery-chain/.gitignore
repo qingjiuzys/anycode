@@ -1,0 +1,5 @@
+.venv/
+out/*.json
+out/project_id.txt
+out/workspace_path.txt
+out/python.txt

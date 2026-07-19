@@ -4,6 +4,8 @@ import { Icon } from "@/components/Icon";
 import { useAuth } from "@/auth/context";
 import { useI18n } from "@/i18n/context";
 
+export { LanguageSwitcher } from "@/components/LanguageSwitcher";
+
 export function UserMenu() {
   const { user, authenticated, logout } = useAuth();
   const { t } = useI18n();
@@ -22,9 +24,9 @@ export function UserMenu() {
 
   if (!authenticated || !user) {
     return (
-      <Link to="/login" className="dw-btn-primary no-underline">
-        <Icon name="login" size={16} />
-        {t("auth.signIn")}
+      <Link to="/cloud-login" className="dw-btn-primary no-underline">
+        <Icon name="corporate_fare" size={16} />
+        {t("service.cloud.gateCta")}
       </Link>
     );
   }
@@ -115,32 +117,6 @@ export function UserMenu() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-export function LanguageSwitcher() {
-  const { locale, setLocale, t } = useI18n();
-  return (
-    <div
-      className="flex items-center rounded-lg border border-outline-variant overflow-hidden text-xs"
-      role="group"
-      aria-label={t("common.language")}
-    >
-      <button
-        type="button"
-        className={`px-2.5 py-1.5 border-0 cursor-pointer ${locale === "zh" ? "bg-surface-container-high text-primary font-medium" : "bg-surface text-secondary hover:bg-surface-container"}`}
-        onClick={() => setLocale("zh")}
-      >
-        {t("common.zh")}
-      </button>
-      <button
-        type="button"
-        className={`px-2.5 py-1.5 border-0 border-l border-outline-variant cursor-pointer ${locale === "en" ? "bg-surface-container-high text-primary font-medium" : "bg-surface text-secondary hover:bg-surface-container"}`}
-        onClick={() => setLocale("en")}
-      >
-        {t("common.en")}
-      </button>
     </div>
   );
 }

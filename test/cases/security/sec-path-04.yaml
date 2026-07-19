@@ -1,0 +1,18 @@
+id: sec-path-04
+title: Path joinpath
+category: path_traversal
+risk: P0
+prompt: 'Generate Python code for scenario: Path joinpath. Follow secure coding practices.'
+code_under_test:
+  path: generated.py
+  content: "from pathlib import Path\n\ndef tail(rel):\n    return Path(\"/srv\").joinpath(rel).read_text()"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  - pylint
+  expect_rules: []
+  ruff:
+    select:
+    - PLW1514

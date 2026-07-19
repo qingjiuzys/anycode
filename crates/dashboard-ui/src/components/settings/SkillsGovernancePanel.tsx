@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RuntimeSettings } from "@/api/types";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { SkillsImportDialog } from "@/components/SkillsImportDialog";
+import { ListPaginationBar } from "@/components/ui/ListPaginationBar";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useLocale, useT } from "@/i18n/context";
 import {
@@ -12,8 +13,11 @@ import {
   filterSkillsByCategory,
   normalizeSkillCategory,
   skillDisplayDescription,
+  skillDisplayName,
   type SkillCategory,
 } from "@/lib/skillCatalog";
+
+const PAGE_SIZES = [10, 20, 50];
 
 export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }) {
   const t = useT();
@@ -21,6 +25,8 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
   const qc = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<SkillCategory | "all">("all");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]!);
   const skills = useQuery({ queryKey: ["skills"], queryFn: () => api.skills(100) });
 
   const rescan = useMutation({
@@ -48,6 +54,19 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
     () => filterSkillsByCategory(list, categoryFilter),
     [list, categoryFilter],
   );
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = useMemo(
+    () => filtered.slice(page * pageSize, page * pageSize + pageSize),
+    [filtered, page, pageSize],
+  );
+
+  useEffect(() => {
+    setPage(0);
+  }, [categoryFilter, pageSize]);
+
+  useEffect(() => {
+    if (page > 0 && page >= pageCount) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
 
   return (
     <>
@@ -56,7 +75,7 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
         action={
           <button
             type="button"
-            className="dw-btn-secondary text-xs"
+            className="dw-btn-secondary text-[13px]"
             onClick={() => setImportOpen(true)}
           >
             <Icon name="upload" size={14} className="inline mr-1" />
@@ -97,7 +116,7 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
 
       <SectionCard title={t("settings.skillsGov.globalTitle")} noPadding>
         {list.length > 0 && visibleCategories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-4 pt-4 pb-2">
+          <div className="flex flex-wrap gap-1.5 px-4 pt-4 pb-2 sticky top-0 z-[1] bg-surface-container-lowest border-b border-outline-variant/30">
             <FilterPill
               active={categoryFilter === "all"}
               label={t("agents.skillCategory.all")}
@@ -118,62 +137,73 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
         ) : filtered.length === 0 ? (
           <p className="text-sm text-secondary px-4 py-4 m-0">{t("agents.skillMarketEmpty")}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="dw-table">
-              <thead>
-                <tr>
-                  <th>{t("common.name")}</th>
-                  <th>{t("settings.skillsGov.categoryCol")}</th>
-                  <th className="text-right">{t("settings.skillsGov.enabledProjects")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((sk) => (
-                  <tr key={sk.id}>
-                    <td>
-                      <Link
-                        to="/agents/$skillId"
-                        params={{ skillId: sk.id }}
-                        className="font-medium no-underline hover:underline"
-                      >
-                        {sk.name}
-                      </Link>
-                      {skillDisplayDescription(sk, locale) && (
-                        <div className="text-xs text-secondary mt-0.5 line-clamp-1">
-                          {skillDisplayDescription(sk, locale)}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <span className="text-xs text-secondary">
-                        {t(`agents.skillCategory.${normalizeSkillCategory(sk.category)}`)}
-                      </span>
-                    </td>
-                    <td className="text-right tabular-nums">{sk.projects_count}</td>
-                    <td className="text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        className="dw-btn-ghost text-xs"
-                        disabled={setAll.isPending}
-                        onClick={() => setAll.mutate({ skillId: sk.id, enabled: true })}
-                      >
-                        {t("settings.skillsGov.enableAll")}
-                      </button>
-                      <button
-                        type="button"
-                        className="dw-btn-ghost text-xs"
-                        disabled={setAll.isPending}
-                        onClick={() => setAll.mutate({ skillId: sk.id, enabled: false })}
-                      >
-                        {t("settings.skillsGov.disableAll")}
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="dw-table">
+                <thead>
+                  <tr>
+                    <th>{t("common.name")}</th>
+                    <th>{t("settings.skillsGov.categoryCol")}</th>
+                    <th className="text-right">{t("settings.skillsGov.enabledProjects")}</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pageItems.map((sk) => (
+                    <tr key={sk.id}>
+                      <td>
+                        <Link
+                          to="/agents/$skillId"
+                          params={{ skillId: sk.id }}
+                          className="font-medium no-underline hover:underline text-on-surface"
+                        >
+                          {skillDisplayName(sk, locale)}
+                        </Link>
+                        {skillDisplayDescription(sk, locale) && (
+                          <div className="text-[13px] text-secondary mt-0.5 line-clamp-1">
+                            {skillDisplayDescription(sk, locale)}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span className="text-[13px] text-secondary">
+                          {t(`agents.skillCategory.${normalizeSkillCategory(sk.category)}`)}
+                        </span>
+                      </td>
+                      <td className="text-right tabular-nums">{sk.projects_count}</td>
+                      <td className="text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          className="dw-btn-ghost text-[13px]"
+                          disabled={setAll.isPending}
+                          onClick={() => setAll.mutate({ skillId: sk.id, enabled: true })}
+                        >
+                          {t("settings.skillsGov.enableAll")}
+                        </button>
+                        <button
+                          type="button"
+                          className="dw-btn-ghost text-[13px]"
+                          disabled={setAll.isPending}
+                          onClick={() => setAll.mutate({ skillId: sk.id, enabled: false })}
+                        >
+                          {t("settings.skillsGov.disableAll")}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPaginationBar
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZES}
+              total={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
       </SectionCard>
 
@@ -194,11 +224,7 @@ function FilterPill({
   return (
     <button
       type="button"
-      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-        active
-          ? "bg-primary/15 border-primary/40 text-primary font-medium"
-          : "border-outline-variant text-secondary hover:bg-surface-container-low"
-      }`}
+      className={`dw-chip text-[13px]${active ? " active" : ""}`}
       onClick={onClick}
     >
       {label}

@@ -130,14 +130,23 @@ pub struct TaskContext {
     /// Max LLM turns and cumulative tool calls for this task.
     #[serde(default)]
     pub loop_limits: AgentLoopLimits,
+    /// Structured dashboard chat turn context (session / user turn / reply
+    /// language). Replaces process-env plumbing for embedded chat and triggers;
+    /// `execute_task` scopes it task-locally when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_turn: Option<crate::chat_turn::ChatTurnContext>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct TaskBudget {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_budget_total: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cost_budget_usd: Option<f64>,
+    #[serde(
+        default,
+        alias = "cost_budget_usd",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cost_budget_cny: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_duration_secs: Option<u64>,
     #[serde(default = "TaskBudget::default_warn_ratio")]
@@ -152,7 +161,7 @@ impl Default for TaskBudget {
     fn default() -> Self {
         Self {
             token_budget_total: None,
-            cost_budget_usd: None,
+            cost_budget_cny: None,
             max_duration_secs: None,
             warn_ratio: Self::default_warn_ratio(),
             degrade_ratio: Self::default_degrade_ratio(),
@@ -165,7 +174,7 @@ impl TaskBudget {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.token_budget_total.is_none()
-            && self.cost_budget_usd.is_none()
+            && self.cost_budget_cny.is_none()
             && self.max_duration_secs.is_none()
     }
 
@@ -227,6 +236,37 @@ pub enum TaskResult {
     },
 }
 
+/// Canonical reason why an agent loop stopped. This is intentionally separate
+/// from transport errors so dashboard traces and evals share stable semantics.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminationReason {
+    Completed,
+    Partial,
+    MaxTurns,
+    MaxTools,
+    Budget,
+    RefusalNoTool,
+    Cancelled,
+    Error,
+}
+
+impl TerminationReason {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Completed => "completed",
+            Self::Partial => "partial",
+            Self::MaxTurns => "max_turns",
+            Self::MaxTools => "max_tools",
+            Self::Budget => "budget",
+            Self::RefusalNoTool => "refusal_no_tool",
+            Self::Cancelled => "cancelled",
+            Self::Error => "error",
+        }
+    }
+}
+
 /// 产物 (文件、数据等)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Artifact {
@@ -268,6 +308,7 @@ pub struct TurnOutput {
     pub final_text: String,
     pub artifacts: Vec<Artifact>,
     pub usage: TurnTokenUsage,
+    pub termination_reason: TerminationReason,
 }
 
 #[cfg(test)]
@@ -279,6 +320,15 @@ mod tests {
         let d = AgentLoopLimits::default();
         assert_eq!(d.max_agent_turns, DEFAULT_MAX_AGENT_TURNS);
         assert_eq!(d.max_tool_calls, DEFAULT_MAX_TOOL_CALLS);
+    }
+
+    #[test]
+    fn termination_reason_has_stable_wire_values() {
+        assert_eq!(
+            serde_json::to_string(&TerminationReason::RefusalNoTool).unwrap(),
+            "\"refusal_no_tool\""
+        );
+        assert_eq!(TerminationReason::MaxTools.as_str(), "max_tools");
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::limits::GLOB_MAX_FILES;
-use crate::paths::resolve_path_fields;
+use crate::paths::resolve_read_path_fields;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use globset::GlobBuilder;
@@ -79,7 +79,25 @@ impl Tool for GlobTool {
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
 
         let path_arg = g.path.unwrap_or_else(|| ".".to_string());
-        let root = resolve_path_fields(self.sandbox_mode, sandbox_in, wd, &path_arg)?;
+        let mut root = resolve_read_path_fields(self.sandbox_mode, sandbox_in, wd, &path_arg)?;
+
+        if !root.exists() {
+            if self.sandbox_mode && sandbox_in {
+                if let Some(workdir) = wd {
+                    let fallback =
+                        resolve_read_path_fields(self.sandbox_mode, sandbox_in, wd, ".")?;
+                    if fallback.exists() {
+                        tracing::warn!(
+                            target: "anycode_tools",
+                            requested = %root.display(),
+                            workdir,
+                            "Glob search root missing; using task working directory"
+                        );
+                        root = fallback;
+                    }
+                }
+            }
+        }
 
         if !root.exists() {
             return Ok(ToolOutput {

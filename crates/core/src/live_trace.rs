@@ -14,6 +14,24 @@ pub enum LiveTraceEvent {
     AssistantDelta {
         turn: u32,
         delta: String,
+        /// When true, this turn's assistant text is intermediate tool-round narration.
+        #[serde(default)]
+        narration: bool,
+    },
+    /// Re-tag a turn's assistant block as tool-round narration (after tool_calls are known).
+    AssistantNarrationMark {
+        turn: u32,
+    },
+    /// User-facing progress card (intent / execute / discovery / deliver).
+    ProgressUpdate {
+        turn: u32,
+        seq: u32,
+        phase: String,
+        work_stage: Option<String>,
+        summary: String,
+        next: Option<String>,
+        discovery: Option<String>,
+        evidence_refs: Vec<String>,
     },
     ToolCallStart {
         turn: u32,

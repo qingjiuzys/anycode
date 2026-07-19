@@ -19,7 +19,7 @@ pub(crate) fn im_channel_cron_scheduling_hint() -> String {
 pub(crate) fn im_channel_cron_scheduling_hint_for(locale: AppLocale) -> String {
     match locale {
         AppLocale::ZhHans => "## 定时任务\n\
-             - 工具：`CronCreate`、`CronDelete`、`CronList`。任务保存在 `~/.anycode/tasks/orchestration.json`。\n\
+             - 工具：`CronCreate`、`CronUpdate`、`CronDelete`、`CronList`。任务保存在 `~/.anycode/tasks/orchestration.json`。\n\
              - 只有持有 `~/.anycode/tasks/scheduler.lock` 的调度器才会触发：运行 **`anycode-daemon scheduler`**，或依赖长期运行的频道桥（微信/Telegram/Discord 内嵌同一调度器；**每台机器仅一个**在 tick）。\n\
              - **`CronCreate` 默认 `schedule_timezone`: `local`** — `schedule` 按**本机本地墙钟**理解（例如中国 12:15 = 表达式 hour 12）；存储时会转为 UTC。**不要**自己减 8 小时。仅当表达式已是 UTC 时用 **`utc`**。若机器时区与用户不一致，用 **IANA**（如 `Asia/Shanghai`）。\n\
              - 调度日志：`~/.anycode/logs/cron-runs.jsonl`（每次触发 `started` / `ok` / `error`）。\n\
@@ -28,7 +28,7 @@ pub(crate) fn im_channel_cron_scheduling_hint_for(locale: AppLocale) -> String {
              - `CronCreate` 只是登记；用户仅保存任务时不要暗示已经执行过。"
             .to_string(),
         AppLocale::En => "## Cron / scheduled tasks\n\
-             - Tools: `CronCreate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
+             - Tools: `CronCreate`, `CronUpdate`, `CronDelete`, `CronList`. Jobs persist in `~/.anycode/tasks/orchestration.json`.\n\
              - Jobs only fire when a scheduler holds `~/.anycode/tasks/scheduler.lock`: run **`anycode-daemon scheduler`**, or rely on this long-running bridge (WeChat/Telegram/Discord each tries to embed the same built-in scheduler; **only one** ticks per machine).\n\
              - **`CronCreate` default `schedule_timezone`: `local`** — `schedule` uses **this machine's local wall clock** (e.g. 12:15 in China = hour 12 in the expression); it is converted to UTC for storage. Do **not** subtract 8 hours yourself. Use **`utc`** only if the expression is already UTC. For a fixed region use **IANA** (e.g. `Asia/Shanghai`) when the machine timezone differs from the user's.\n\
              - Scheduler append-only log: `~/.anycode/logs/cron-runs.jsonl` (`started` / `ok` / `error` per fire).\n\

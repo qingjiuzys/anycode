@@ -1,0 +1,23 @@
+id: coding-long-python-09
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Implement the long python task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: pytest_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 1800
+fixture: coding/long-python
+complexity: long
+meta:
+  language: python

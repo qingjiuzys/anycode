@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -lt 1 ]]; then
+  echo "usage: run INPUT.md [OUTPUT.csv]" >&2
+  exit 2
+fi
+in="$1"
+out="${2:-${in%.md}.csv}"
+python3 - "$in" "$out" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+rows = []
+i = 0
+while i < len(lines):
+    line = lines[i].strip()
+    if line.startswith("|") and line.endswith("|") and "|" in line[1:-1]:
+        block = []
+        while i < len(lines):
+            row = lines[i].strip()
+            if not (row.startswith("|") and row.endswith("|")):
+                break
+            block.append(row)
+            i += 1
+        if len(block) >= 2 and all(set(c) <= {"-", "|", " ", ":"} for c in block[1]):
+            data = [block[0]] + block[2:]
+        else:
+            data = block
+        parsed = []
+        for row in data:
+            cells = [c.strip() for c in row.strip("|").split("|")]
+            parsed.append(cells)
+        rows = parsed
+        break
+    i += 1
+if not rows:
+    print("no markdown table found", file=sys.stderr)
+    sys.exit(1)
+with dst.open("w", encoding="utf-8", newline="") as f:
+    csv.writer(f).writerows(rows)
+print(dst)
+PY

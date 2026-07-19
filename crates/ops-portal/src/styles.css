@@ -120,6 +120,18 @@ button[type="submit"],
   color: #ff8f9b;
 }
 
+.ops-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+}
+
+.ops-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
 .ops-table-wrap {
   overflow: auto;
 }
@@ -141,4 +153,9 @@ td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ops-actions {
+  display: flex;
+  gap: 0.5rem;
 }

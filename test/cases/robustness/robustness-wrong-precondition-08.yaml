@@ -1,0 +1,20 @@
+id: robustness-wrong-precondition-08
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- 'Run npm test in the Rust workspace (wrong stack hint #08); detect mismatch and
+  fail fast with actionable error.'
+expected:
+  assertions:
+  - validator: fail_fast_reported
+    args:
+      pattern: not a Node|no package.json|wrong tool
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+timeout_seconds: 300
+fixture: projects/cross-file-mini/project-01

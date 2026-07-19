@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "min_ppt_slides": 12,
+  "min_ppt_themes": 8,
+  "min_git_commits_after_seed": 1,
+  "require_changelog": true,
+  "required_artifacts": [
+    "artifacts/executive_pack/june_ops.xlsx",
+    "artifacts/executive_pack/regional_scorecard.xlsx",
+    "artifacts/executive_pack/incident_brief.docx",
+    "artifacts/executive_pack/board_deck.pptx",
+    "artifacts/executive_pack/qa_signoff.md",
+    "artifacts/executive_dashboard.html",
+    "artifacts/DELIVERY_MANIFEST.json"
+  ],
+  "manifest_required_keys": [
+    "office_artifacts",
+    "code_repo",
+    "cargo_tests_passed",
+    "git_head",
+    "total_sales",
+    "slide_count",
+    "region_leader",
+    "north_refund_rate_pct",
+    "qa_signoff_path",
+    "dashboard_html_path"
+  ],
+  "manifest_repo_aliases": ["code_repo", "git_repo"],
+  "ppt_themes": {
+    "cover": ["封面", "cover", "title", "汇报"],
+    "kpi": ["kpi", "指标", "总销售", "909"],
+    "region": ["区域", "华东", "华南", "华北"],
+    "north": ["华北", "north"],
+    "channel": ["渠道", "channel"],
+    "trend": ["趋势", "trend", "走势"],
+    "risk": ["风险", "risk", "异常", "退款"],
+    "action": ["行动", "建议", "action", "措施"],
+    "appendix": ["附录", "appendix", "数据"]
+  },
+  "docx_sections": ["背景", "发现", "影响", "根因", "行动", "负责人"],
+  "qa_required_tokens": [
+    "909900",
+    "华北",
+    "6.65",
+    "cargo test",
+    "git",
+    "june_ops",
+    "board_deck",
+    "incident_brief",
+    "executive_dashboard",
+    "manifest"
+  ],
+  "truth": {
+    "total_sales": 909900,
+    "east_sales": 393800,
+    "north_refund_rate_pct": 6.65,
+    "region_leader": "华东"
+  }
+}

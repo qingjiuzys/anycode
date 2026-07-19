@@ -269,7 +269,7 @@ impl Tool for TaskStopTool {
         "TaskStop"
     }
     fn description(&self) -> &str {
-        "Remove a task record by id (same persistence rules as TaskCreate). If `id` is a UUID for a nested `Agent` started with `run_in_background: true`, best-effort aborts that background run (see `background_agent` in JSON)."
+        "Remove a task record by id (same persistence rules as TaskCreate). If `id` is a UUID for a nested `Agent` or Bash `run_in_background` job, best-effort aborts that background run (see `background_agent` in JSON)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -327,7 +327,7 @@ impl Tool for TaskOutputTool {
         "TaskOutput"
     }
     fn description(&self) -> &str {
-        "Returns the orchestration task record when `id` matches TaskCreate. If `id` is a runtime execution UUID (e.g. `nested_task_id` from the Agent tool), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists. For `run_in_background` nested agents, includes `background_status` / `background_summary` from the in-process registry while the process lives."
+        "Returns the orchestration task record when `id` matches TaskCreate. If `id` is a runtime execution UUID (e.g. `nested_task_id` from Agent, or `background_task_id` from Bash `run_in_background`), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists. For background jobs, includes `background_status` / `background_summary` from the in-process registry while the process lives."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
@@ -605,37 +605,10 @@ impl Tool for CronCreateTool {
                 });
             }
         };
-        let (stored_schedule, tz_note) = match resolved {
-            crate::cron_schedule::ScheduleTimezone::Utc => (
-                crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
-                "stored as UTC (no conversion)".to_string(),
-            ),
-            crate::cron_schedule::ScheduleTimezone::Local => {
-                match crate::cron_schedule::wall_clock_cron_to_utc_storage(&c.schedule) {
-                    Some(utc_expr) => (
-                        utc_expr,
-                        "converted local wall time → UTC for scheduler".to_string(),
-                    ),
-                    None => (
-                        crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
-                        "could not convert; stored verbatim (scheduler uses UTC)".to_string(),
-                    ),
-                }
-            }
-            crate::cron_schedule::ScheduleTimezone::Iana(tz) => {
-                match crate::cron_schedule::wall_clock_cron_to_utc_storage_in_iana(&c.schedule, tz)
-                {
-                    Some(utc_expr) => (
-                        utc_expr,
-                        format!("converted {tz} wall time → UTC for scheduler"),
-                    ),
-                    None => (
-                        crate::cron_schedule::normalize_cron_schedule_expr(&c.schedule),
-                        format!("could not convert {tz}; stored verbatim (scheduler uses UTC)"),
-                    ),
-                }
-            }
-        };
+        let prepared =
+            crate::cron_schedule::prepare_cron_schedule_for_storage(&c.schedule, resolved);
+        let stored_schedule = prepared.schedule;
+        let tz_note = prepared.note;
         if let Some(ref profile) = c.tool_profile {
             if !crate::catalog::is_known_cron_tool_profile(profile) {
                 return Ok(ToolOutput {
@@ -683,6 +656,9 @@ impl Tool for CronCreateTool {
             stored_schedule.clone(),
             c.command,
             crate::services::CronJobCreateOptions {
+                name: None,
+                enabled: None,
+                schedule_timezone: Some(c.schedule_timezone),
                 session_id: c.session_id,
                 failure_destination: c.failure_destination,
                 tool_profile: c.tool_profile,
@@ -756,6 +732,183 @@ impl Tool for CronDeleteTool {
         Ok(ToolOutput {
             result: json!({ "deleted": ok }),
             error: if ok { None } else { Some("not found".into()) },
+            duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct CronUpdateIn {
+    id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    schedule: Option<String>,
+    #[serde(default)]
+    command: Option<String>,
+    #[serde(default)]
+    schedule_timezone: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    failure_destination: Option<String>,
+    #[serde(default)]
+    tool_profile: Option<String>,
+    #[serde(default)]
+    project_id: Option<String>,
+}
+
+pub struct CronUpdateTool {
+    services: Arc<ToolServices>,
+    policy: SecurityPolicy,
+}
+
+impl CronUpdateTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self {
+            services,
+            policy: sens(),
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for CronUpdateTool {
+    fn name(&self) -> &str {
+        "CronUpdate"
+    }
+    fn description(&self) -> &str {
+        "Update fields on an existing cron job by id (persisted in ~/.anycode/tasks/orchestration.json). \
+         Provide `id` and any of: name, enabled, schedule, command, schedule_timezone, session_id, \
+         failure_destination, tool_profile, project_id. When updating `schedule`, the same timezone \
+         rules as CronCreate apply (`local` default)."
+    }
+    fn schema(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "enabled": { "type": "boolean" },
+                "schedule": { "type": "string" },
+                "command": { "type": "string" },
+                "schedule_timezone": { "type": "string" },
+                "session_id": { "type": "string" },
+                "failure_destination": { "type": "string" },
+                "tool_profile": { "type": "string" },
+                "project_id": { "type": "string" }
+            },
+            "required": ["id"]
+        })
+    }
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Default
+    }
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        Some(&self.policy)
+    }
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        let c: CronUpdateIn =
+            serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        if c.id.trim().is_empty() {
+            return Ok(ToolOutput {
+                result: json!({ "error": "id required" }),
+                error: Some("id required".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
+        let mut patch = crate::services::CronJobPatch {
+            name: c.name,
+            enabled: c.enabled,
+            schedule: None,
+            command: c.command,
+            schedule_timezone: c.schedule_timezone.clone(),
+            session_id: c.session_id,
+            failure_destination: c.failure_destination.clone(),
+            tool_profile: c.tool_profile.clone(),
+            project_id: c.project_id,
+        };
+
+        let mut schedule_note = None;
+        if let Some(ref schedule) = c.schedule {
+            if let Err(e) = crate::cron_schedule::validate_cron_schedule_expr(schedule) {
+                return Ok(ToolOutput {
+                    result: json!({ "error": format!("invalid cron schedule: {e}") }),
+                    error: Some(format!("invalid cron schedule: {e}")),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            let tz_raw = c.schedule_timezone.as_deref().unwrap_or("local").trim();
+            let resolved = match crate::cron_schedule::resolve_schedule_timezone(tz_raw) {
+                Ok(t) => t,
+                Err(e) => {
+                    return Ok(ToolOutput {
+                        result: json!({ "error": e }),
+                        error: Some("unsupported schedule_timezone".into()),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                }
+            };
+            let prepared =
+                crate::cron_schedule::prepare_cron_schedule_for_storage(schedule, resolved);
+            patch.schedule = Some(prepared.schedule);
+            schedule_note = Some(prepared.note);
+        }
+
+        if let Some(ref profile) = c.tool_profile {
+            if !crate::catalog::is_known_cron_tool_profile(profile) {
+                return Ok(ToolOutput {
+                    result: json!({
+                        "error": format!(
+                            "unsupported tool_profile: {profile}; use one of {}",
+                            crate::catalog::known_cron_tool_profiles().join(", ")
+                        )
+                    }),
+                    error: Some("unsupported tool_profile".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
+        if let Some(ref dest) = c.failure_destination {
+            if !crate::catalog::is_known_cron_failure_destination(dest) {
+                return Ok(ToolOutput {
+                    result: json!({
+                        "error": format!(
+                            "unsupported failure_destination: {dest}; use one of {}",
+                            crate::catalog::known_cron_failure_destinations().join(", ")
+                        )
+                    }),
+                    error: Some("unsupported failure_destination".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+        }
+
+        let Some(job) = self.services.update_cron(&c.id, patch) else {
+            return Ok(ToolOutput {
+                result: json!({ "error": "not found", "id": c.id }),
+                error: Some("not found".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        };
+
+        let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&job.schedule);
+        let (next_utc_s, next_local_s) = next_utc
+            .map(crate::cron_schedule::format_next_fire_human)
+            .unwrap_or_else(|| ("unknown".into(), "unknown".into()));
+
+        Ok(ToolOutput {
+            result: json!({
+                "job": job,
+                "schedule_timezone_applied": schedule_note,
+                "next_fire_utc": next_utc_s,
+                "next_fire_local": next_local_s,
+            }),
+            error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })
     }

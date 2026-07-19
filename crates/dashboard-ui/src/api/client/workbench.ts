@@ -56,6 +56,15 @@ export const workbenchClient = {
       `/api/workbench/browser/sessions/${encodeURIComponent(sessionId)}/stream`,
     ),
 
+  browserStatus: () =>
+    get<{
+      enabled: boolean;
+      ready: boolean;
+      bundled: boolean;
+      chromium_ready: boolean;
+      doctor_message?: string;
+    }>("/api/workbench/browser/status"),
+
   terminalWsUrl: (projectId: string) =>
     apiWebSocketUrl(`/api/projects/${encodeURIComponent(projectId)}/terminal/ws`),
 };

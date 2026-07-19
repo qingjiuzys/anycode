@@ -7,14 +7,13 @@ DB="${TMPDIR:-/tmp}/anycode-dashboard-e2e-${PORT}.db"
 BIN="${ROOT}/target/release/anycode-dashboard-serve"
 BASE="http://127.0.0.1:${PORT}"
 
-if [[ ! -x "$BIN" ]]; then
-  echo "release binary missing — building anycode-dashboard-serve (embedded-ui)…" >&2
-  (cd "$ROOT" && ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui --bin anycode-dashboard-serve)
-fi
+echo "ensuring current anycode-dashboard-serve (embedded-ui)…" >&2
+(cd "$ROOT" && ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui,tools-browser --bin anycode-dashboard-serve)
 
 rm -f "$DB" "${DB}-wal" "${DB}-shm"
 export ANYCODE_DASHBOARD_DB="$DB"
 export ANYCODE_DASHBOARD_RECORD=0
+export ANYCODE_DASHBOARD_TEST_AUTH_BYPASS=1
 
 seed_fixture() {
   PROJECT_JSON="$(curl -sf -X POST "${BASE}/api/projects" \
@@ -36,6 +35,12 @@ seed_fixture() {
 
 "$BIN" --host 127.0.0.1 --port "$PORT" --db "$DB" &
 PID=$!
+cleanup() {
+  trap - EXIT INT TERM
+  kill "$PID" 2>/dev/null || true
+  wait "$PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
 for _ in $(seq 1 90); do
   if curl -sf "${BASE}/api/health" >/dev/null 2>&1; then

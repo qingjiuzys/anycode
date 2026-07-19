@@ -1,0 +1,19 @@
+id: browser-screenshot
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Take a screenshot of the dashboard mock page and save as dashboard.png.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: dashboard.png
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

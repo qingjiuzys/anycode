@@ -1,0 +1,20 @@
+id: browser-table-filter
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Filter the products table to show only Electronics category rows.
+expected:
+  assertions:
+  - validator: dom_count
+    args:
+      selector: tbody tr[data-category='Electronics']
+      min: 2
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

@@ -1,0 +1,242 @@
+# P0/P1 risk requirements mapped to eval case ids (cargo / vitest / playwright).
+# Gate: >=95% of P0/P1 requirements have at least one linked case that passed in the run.
+
+[[requirements]]
+id = "auth-session-cookie"
+risk = "P0"
+title = "Dashboard session cookie auth and middleware"
+owner = "platform"
+cases = ["rust-workspace-test", "playwright-acceptance-health"]
+
+[[requirements]]
+id = "auth-test-bypass-loopback"
+risk = "P0"
+title = "Loopback-only test auth bypass for fixture seeding"
+owner = "platform"
+cases = ["playwright-conversation-streaming", "playwright-acceptance-health"]
+
+[[requirements]]
+id = "auth-cloud-device-link"
+risk = "P0"
+title = "Cloud device link session and identity gate"
+owner = "platform"
+cases = ["rust-workspace-test"]
+
+[[requirements]]
+id = "identity-real-name-gate"
+risk = "P0"
+title = "Real-name / identity approval before cloud usage"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "refresh-token-replay"
+risk = "P0"
+title = "Cloud refresh token rotation without replay"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "billing-cny-display"
+risk = "P0"
+title = "CNY billing amounts and usage display"
+owner = "account"
+cases = ["playwright-v3-api", "account-service-test"]
+
+[[requirements]]
+id = "billing-wechat-callback"
+risk = "P0"
+title = "WeChat Pay callback verification and idempotency"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "billing-stripe-webhook"
+risk = "P1"
+title = "Stripe webhook signature validation"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "audit-conversation-retention"
+risk = "P0"
+title = "Conversation audit encryption and retention policy"
+owner = "platform"
+cases = ["account-service-test", "rust-workspace-test"]
+
+[[requirements]]
+id = "audit-compliance-upload"
+risk = "P1"
+title = "Compliance audit upload for cloud sessions"
+owner = "platform"
+cases = ["rust-workspace-test"]
+
+[[requirements]]
+id = "model-download-sha256"
+risk = "P0"
+title = "Managed local model download SHA256 verification"
+owner = "platform"
+cases = ["rust-workspace-test", "model-probe-local-1b"]
+
+[[requirements]]
+id = "model-capability-manifest"
+risk = "P0"
+title = "Local model manifest capabilities (tools/chat/vision)"
+owner = "platform"
+cases = ["rust-workspace-test", "model-probe-local-1b"]
+
+[[requirements]]
+id = "approval-sensitive-tools"
+risk = "P0"
+title = "Sensitive tool approval workflow"
+owner = "platform"
+cases = ["playwright-v3-week3-cancel", "rust-workspace-test"]
+
+[[requirements]]
+id = "approval-pending-api"
+risk = "P1"
+title = "Pending approvals API shape and filters"
+owner = "platform"
+cases = ["playwright-e2e-core"]
+
+[[requirements]]
+id = "sandbox-shell-policy"
+risk = "P0"
+title = "Command execution policy and sandbox boundaries"
+owner = "platform"
+cases = ["rust-workspace-test", "rust-tools-browser"]
+
+[[requirements]]
+id = "sandbox-file-write"
+risk = "P0"
+title = "Workspace-scoped file write restrictions"
+owner = "platform"
+cases = ["rust-workspace-test"]
+
+[[requirements]]
+id = "session-cancel-cooperative"
+risk = "P0"
+title = "Cooperative session cancel at turn boundaries"
+owner = "platform"
+cases = ["playwright-v3-week3-cancel", "playwright-e2e-core"]
+
+[[requirements]]
+id = "session-sse-stream"
+risk = "P0"
+title = "SSE event stream for running sessions"
+owner = "platform"
+cases = ["playwright-conversation-streaming"]
+
+[[requirements]]
+id = "session-replay-trace"
+risk = "P0"
+title = "Session replay and execution trace APIs"
+owner = "platform"
+cases = ["playwright-acceptance-health", "playwright-conversation-streaming"]
+
+[[requirements]]
+id = "session-transcript-blocks"
+risk = "P1"
+title = "Transcript block schema and scoped tool keys"
+owner = "platform"
+cases = ["playwright-conversation-streaming"]
+
+[[requirements]]
+id = "usage-token-metrics"
+risk = "P0"
+title = "Per-session and per-model token usage metrics"
+owner = "platform"
+cases = ["playwright-v3-api", "dashboard-ui-vitest"]
+
+[[requirements]]
+id = "usage-saved-hours-kpi"
+risk = "P1"
+title = "Saved-hours KPI and CNY value estimation"
+owner = "platform"
+cases = ["playwright-v3-api"]
+
+[[requirements]]
+id = "quota-call-window"
+risk = "P0"
+title = "Cloud call quota window enforcement"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "browser-tool-registration"
+risk = "P1"
+title = "Browser tool registration and local navigation"
+owner = "platform"
+cases = ["rust-tools-browser"]
+
+[[requirements]]
+id = "skills-catalog-vet"
+risk = "P1"
+title = "Official skills discovery, vet, and permissions"
+owner = "platform"
+cases = ["rust-workspace-test", "playwright-e2e-core"]
+
+[[requirements]]
+id = "gate-prefs-persist"
+risk = "P1"
+title = "Security gate preferences persistence"
+owner = "platform"
+cases = ["playwright-e2e-core"]
+
+[[requirements]]
+id = "crypto-secrets-storage"
+risk = "P0"
+title = "Encrypted credential and token storage"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "upstream-account-pool"
+risk = "P1"
+title = "Upstream account pool rotation for cloud models"
+owner = "account"
+cases = ["account-service-test"]
+
+[[requirements]]
+id = "cloud-auto-routing"
+risk = "P1"
+title = "Cloud Auto model routing regression"
+owner = "platform"
+cases = ["model-probe-cloud-auto"]
+
+[[requirements]]
+id = "agnes-agent-matrix"
+risk = "P0"
+title = "Agnes full agent and tool execution matrix"
+owner = "platform"
+cases = ["model-probe-agnes"]
+
+[[requirements]]
+id = "dashboard-health-api"
+risk = "P0"
+title = "Dashboard health and bootstrap API"
+owner = "platform"
+cases = ["playwright-acceptance-health", "dashboard-ui-vitest"]
+
+[[requirements]]
+id = "release-build-artifacts"
+risk = "P1"
+title = "Release binary build integrity (daemon + dashboard)"
+owner = "platform"
+cases = ["rust-runtime-crates"]
+
+[[requirements]]
+id = "fmt-clippy-gate"
+risk = "P1"
+title = "Rust fmt and clippy regression gate"
+owner = "platform"
+cases = ["rust-fmt-check", "rust-clippy"]
+
+[[requirements]]
+id = "coverage-incremental"
+risk = "P1"
+title = "Workspace coverage snapshot without regression"
+owner = "platform"
+cases = ["coverage-snapshot"]
+reason = "Baseline establishment — gate applies after first snapshot"
+due_version = "0.3.0"

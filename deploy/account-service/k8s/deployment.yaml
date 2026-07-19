@@ -1,0 +1,77 @@
+# K8s — anycode account + portal
+#
+# - TLS: terminate at Ingress (cert managed by K8s / cert-manager); pod serves plain HTTP :8080
+# - DATABASE_URL + WECHAT_PAY_API_V3_KEY: runtime Secret (see k8s/secret.yaml)
+# - WeChat PEM certs: baked into image at /run/secrets/wechat/
+#
+# Private ACR pull: create pull secret and uncomment imagePullSecrets.
+#   kubectl create secret docker-registry aliyun-acr \
+#     --docker-server=registry.cn-zhangjiakou.aliyuncs.com \
+#     --docker-username=<acr-user> --docker-password=<acr-password> \
+#     -n dis-cloud
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: anycode-account
+spec:
+  selector:
+    app: anycode-account
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anycode-account
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: anycode-account
+  template:
+    metadata:
+      labels:
+        app: anycode-account
+    spec:
+      # imagePullSecrets:
+      #   - name: aliyun-acr
+      containers:
+        - name: anycode-account
+          image: registry.cn-zhangjiakou.aliyuncs.com/818cloud/anycode:0.2.4
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: DATABASE_URL
+            - name: WECHAT_PAY_API_V3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: WECHAT_PAY_API_V3_KEY
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

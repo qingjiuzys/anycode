@@ -10,9 +10,11 @@ import {
   groupSkillsByCategory,
   normalizeSkillCategory,
   skillDisplayDescription,
+  skillDisplayName,
   skillMatchesSearch,
   type SkillCategory,
 } from "@/lib/skillCatalog";
+import { skillIconMeta, skillIconToneClass } from "@/lib/skillIcons";
 
 type Props = {
   skills: SkillRecord[];
@@ -80,7 +82,7 @@ export function InstalledSkillsPanel({
           </h2>
         )}
         {!loading && (
-          <p className={`${embedded ? "text-xs" : "dw-agents-panel__sub"} text-secondary m-0`}>
+          <p className={`${embedded ? "text-[13px]" : "dw-agents-panel__sub"} text-secondary m-0`}>
             {skills.length > 0
               ? t("agents.skillsSyncedCount").replace("{n}", String(skills.length))
               : t("agents.skillsSyncedNone")}
@@ -138,7 +140,7 @@ export function InstalledSkillsPanel({
           />
         ))}
         {groups.length > 1 && (
-          <button type="button" className="dw-btn-ghost text-[10px] ml-auto" onClick={toggleAll}>
+          <button type="button" className="dw-btn-ghost text-[13px] ml-auto" onClick={toggleAll}>
             {allExpanded ? t("agents.skillsCollapseAll") : t("agents.skillsExpandAll")}
           </button>
         )}
@@ -272,7 +274,7 @@ function FilterPill({
   return (
     <button
       type="button"
-      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+      className={`text-[13px] px-2 py-0.5 rounded-full border transition-colors ${
         active
           ? "bg-primary/15 border-primary/40 text-primary font-medium"
           : "border-outline-variant text-secondary hover:bg-surface-container-low"
@@ -295,18 +297,20 @@ function SkillRow({
 }) {
   const t = useT();
   const desc = skillDisplayDescription(skill, locale);
+  const displayName = skillDisplayName(skill, locale);
   const cat = normalizeSkillCategory(skill.category);
+  const { icon, tone } = skillIconMeta(skill);
 
   return (
     <li>
       <ControlCenterLink to="/agents/$skillId" params={{ skillId: skill.id }} className="dw-agents-skill-row">
-        <span className="dw-agents-skill-row__icon">
-          <Icon name="extension" size={18} />
+        <span className={`dw-agents-skill-row__icon ${skillIconToneClass(tone)}`}>
+          <Icon name={icon} size={20} />
         </span>
         <span className="dw-agents-skill-row__body min-w-0">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <span className="dw-agents-skill-row__name">{skill.name}</span>
-            <span className="text-[10px] px-1 py-0 rounded bg-surface-container-high text-secondary">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="dw-agents-skill-row__name">{displayName}</span>
+            <span className="text-[13px] px-1.5 py-0.5 rounded-md bg-surface-container-high text-secondary">
               {t(`agents.skillCategory.${cat}`)}
             </span>
           </span>

@@ -1,6 +1,8 @@
 ---
 name: anycode-contributor
 description: Conventions for developing in the anyCode Rust monorepo (CLI, agent, dashboard).
+description_zh: anyCode Rust 工作区开发约定（CLI、Agent、工作台）。
+name_zh: anyCode 贡献者
 ---
 
 # anycode-contributor

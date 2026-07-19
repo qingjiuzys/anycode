@@ -229,6 +229,7 @@ pub async fn reindex_project(
             let skills = crate::skills_scan::sync_skills_to_db(&state.db, &paths)
                 .await
                 .unwrap_or(0);
+            state.chat_runtime.invalidate_runtime().await;
             let workflows = crate::assets::scan_project_workflows(&state.db, &project_id)
                 .await
                 .map(|r| r.registered)

@@ -1,6 +1,6 @@
 # OpenClaw 对标简报（2026-05）
 
-维护者用：记录 anyCode 相对上游 OpenClaw 的差距与取舍。产品 MVP 边界仍以 [docs-site/guide/roadmap.md](../docs-site/guide/roadmap.md) 为准；**可执行 backlog** 写在 [roadmap.md](../roadmap.md)。
+维护者用：记录 anyCode 相对上游 OpenClaw 的差距与取舍。产品 MVP 边界仍以 [https://anycode.work/docs/guide/roadmap.md](../docs/user/guide/roadmap) 为准；**可执行 backlog** 写在 [roadmap.md](../roadmap.md)。
 
 ## 同步基线
 

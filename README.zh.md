@@ -4,17 +4,17 @@
 
 **语言:** [English README](README.md)
 
-- 在线文档: [https://qingjiuzys.github.io/anycode/](https://qingjiuzys.github.io/anycode/)
+- 在线文档: [https://anycode.work/docs/](https://anycode.work/docs/)
 - 无头二进制: `anycode-daemon`
 - 许可: [MIT](LICENSE)
 
 ## 与其他工具的不同之处
 
 - **单一 Rust runtime** — 一个 `AgentRuntime` 编排 LLM + 工具（Bash、Edit、Grep、MCP、LSP、Skills、Cron、Knowledge 等）。Agent 在本机执行，不是云端托管 Gateway。
-- **个人微信桥** — iLink 扫码绑定；手机下发任务、微信内审批敏感工具、回传文件/图片。见 [微信与配置](docs-site/zh/guide/wechat.md)。
-- **本地 Digital Workbench** — 内嵌于 **anyCode.app** 或开发构建的 `http://127.0.0.1:43180`，管理项目、会话、资产、自动化、安全审批，并提供 REST API。见 [工作台导览](docs-site/zh/guide/workbench.md)。
-- **自动化** — 自然语言 cron、运行历史、项目 guardrails，可选微信通知。见 [定时任务](docs-site/zh/guide/cli-scheduler.md)。
-- **BYOK 模型目录** — 与 OpenClaw 对齐的 30+ provider（z.ai/GLM、DeepSeek、Anthropic、Bedrock、Copilot、OpenRouter、Ollama、自定义端点等）。见 [模型与端点](docs-site/zh/guide/models.md)。
+- **个人微信桥** — iLink 扫码绑定；手机下发任务、微信内审批敏感工具、回传文件/图片。见 [微信与配置](https://anycode.work/docs/zh/guide/wechat)。
+- **本地 Digital Workbench** — 内嵌于 **anyCode.app** 或开发构建的 `http://127.0.0.1:43180`，管理项目、会话、资产、自动化、安全审批，并提供 REST API。见 [工作台导览](https://anycode.work/docs/zh/guide/workbench)。
+- **自动化** — 自然语言 cron、运行历史、项目 guardrails，可选微信通知。见 [定时任务](https://anycode.work/docs/zh/guide/cli-scheduler)。
+- **BYOK 模型目录** — 与 OpenClaw 对齐的 30+ provider（z.ai/GLM、DeepSeek、Anthropic、Bedrock、Copilot、OpenRouter、Ollama、自定义端点等）。见 [模型与端点](https://anycode.work/docs/zh/guide/models)。
 - **企业二次开发更友好** — 本地 Workbench REST API、API Token、项目策略、eval/门禁 harness、权限模式文档化。SSO/RBAC 在路线图中，尚未生产就绪。
 - **macOS 体验更好** — **anyCode.app** Tauri 壳内置 Workbench，并提供 **Apple Speech**（原生语音识别，无需下载 Whisper）与 **Apple Vision OCR**（设备端提取文字）。仅浏览器访问 `127.0.0.1:43180` 时无法使用这些原生能力。
 
@@ -27,7 +27,7 @@ anyCode 集成了多家 LLM，但**维护者日常验证**主要集中在：
 
 **CI** 使用**本地 Mock OpenAI 兼容服务**覆盖 agent loop，**不调用**真实厂商 API。
 
-目录中其余 provider 均为**可配置支持**。配置凭据后，请用工作台模型探测或一次短对话自测。详见 [模型与端点](docs-site/zh/guide/models.md)。
+目录中其余 provider 均为**可配置支持**。配置凭据后，请用工作台模型探测或一次短对话自测。详见 [模型与端点](https://anycode.work/docs/zh/guide/models)。
 
 ## 3 步上手
 
@@ -54,15 +54,17 @@ irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps
 
 ## 文档
 
-- [快速开始](docs-site/zh/guide/getting-started.md)
-- [安装](docs-site/zh/guide/install.md)
-- [桌面应用](docs-site/zh/guide/desktop.md)
-- [无头守护进程](docs-site/zh/guide/daemon.md)
-- [模型与端点](docs-site/zh/guide/models.md)
-- [工作台导览](docs-site/zh/guide/workbench.md)
-- [微信与配置](docs-site/zh/guide/wechat.md)
-- [定时任务](docs-site/zh/guide/cli-scheduler.md)
-- [排错](docs-site/zh/guide/troubleshooting.md)
+用户文档发布在官网 **https://anycode.work/docs/**（源码：`docs/user/`）。
+
+- [快速开始](https://anycode.work/docs/zh/guide/getting-started)
+- [安装](https://anycode.work/docs/zh/guide/install)
+- [桌面应用](https://anycode.work/docs/zh/guide/desktop)
+- [无头守护进程](https://anycode.work/docs/zh/guide/daemon)
+- [模型与端点](https://anycode.work/docs/zh/guide/models)
+- [工作台导览](https://anycode.work/docs/zh/guide/workbench)
+- [微信与配置](https://anycode.work/docs/zh/guide/wechat)
+- [定时任务](https://anycode.work/docs/zh/guide/cli-scheduler)
+- [排错](https://anycode.work/docs/zh/guide/troubleshooting)
 
 ## 开发者
 
@@ -76,8 +78,10 @@ cargo build --release -p anycode-channel-bridge
 cargo build --release -p anycode-desktop
 ```
 
-本地预览文档站：
+本地预览文档（account-portal 开发服务器）：
 
 ```bash
-cd docs-site && npm install && npm run dev
+cd crates/account-portal && npm install && npm run dev
 ```
+
+打开 http://127.0.0.1:43201/docs

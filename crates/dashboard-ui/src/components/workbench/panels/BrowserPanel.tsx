@@ -19,10 +19,42 @@ export function BrowserPanel({ projectId, conversationSessionId, active }: Props
     unlockForUser,
     screenshot,
     createSession,
+    status,
   } = useWorkbenchBrowser(projectId, conversationSessionId, active);
+
+  if (status.isLoading) {
+    return (
+      <p className="text-xs text-secondary text-center py-8 m-0">{t("common.loading")}</p>
+    );
+  }
+
+  if (!status.chromiumReady) {
+    return (
+      <div className="px-3 py-4 text-xs text-secondary space-y-2">
+        <p className="m-0 font-medium text-on-surface">{t("workbench.browserUnavailableTitle")}</p>
+        <p className="m-0">{status.doctorMessage ?? t("settings.browserConnector.notBundled")}</p>
+        <ol className="m-0 pl-4 space-y-1">
+          <li>{t("workbench.browserSetupStepChrome")}</li>
+          <li>{t("workbench.browserSetupStepEnable")}</li>
+          <li>{t("workbench.browserSetupStepPanel")}</li>
+        </ol>
+        <Link to="/settings" search={{ section: "notify" }} className="text-primary">
+          {t("workbench.browserSetup")}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      {!status.browserEnabled && (
+        <div className="px-2 py-2 text-[10px] text-warn border-b border-outline-variant/60 shrink-0">
+          {t("workbench.browserDisabledHint")}{" "}
+          <Link to="/settings" search={{ section: "notify" }} className="text-primary">
+            {t("workbench.browserSetup")}
+          </Link>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-outline-variant/60 text-[10px] text-secondary shrink-0">
         <span>
           {lockState === "agent"
@@ -71,9 +103,14 @@ export function BrowserPanel({ projectId, conversationSessionId, active }: Props
             className="w-full h-auto rounded border border-outline-variant/40"
           />
         ) : (
-          <p className="text-xs text-secondary text-center py-8 m-0">
-            {createSession.isPending ? t("common.loading") : t("workbench.browserEmpty")}
-          </p>
+          <div className="text-xs text-secondary text-center py-8 m-0 space-y-2">
+            <p className="m-0">
+              {createSession.isPending ? t("common.loading") : t("workbench.browserEmpty")}
+            </p>
+            {!createSession.isPending && !createSession.isError && (
+              <p className="m-0 text-[10px] opacity-80">{t("workbench.browserAgentHint")}</p>
+            )}
+          </div>
         )}
       </div>
     </div>

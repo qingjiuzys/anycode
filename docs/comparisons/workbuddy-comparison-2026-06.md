@@ -2,7 +2,7 @@
 
 维护者用：记录 anyCode 相对腾讯 WorkBuddy 的差距与取舍。**IM 通道策略：仅个人微信**（不扩展飞书/钉钉/企微/QQ）。
 
-产品 MVP 边界仍以 [docs-site/guide/roadmap.md](../docs-site/guide/roadmap.md) 为准；可执行 backlog 见 [roadmap.md](../roadmap.md)。
+产品 MVP 边界仍以 [https://anycode.work/docs/guide/roadmap.md](../docs/user/guide/roadmap) 为准；可执行 backlog 见 [roadmap.md](../roadmap.md)。
 
 ## 同步基线
 
@@ -110,4 +110,4 @@
 - [openclaw-sync-brief-2026-05.md](../comparisons/openclaw-sync-brief-2026-05.md)
 - [weixin-plugin-parity.md](../comparisons/weixin-plugin-parity.md)
 - [digital-workbench-next-steps-zh.md](../workbench/digital-workbench-next-steps-zh.md)
-- [docs-site/guide/skills.md](../docs-site/guide/skills.md)
+- [https://anycode.work/docs/guide/skills.md](../docs/user/guide/skills)

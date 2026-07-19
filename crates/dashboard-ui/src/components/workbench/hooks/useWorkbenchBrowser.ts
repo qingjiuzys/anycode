@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+
+function parseApiError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const raw = err.message;
+  try {
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart >= 0) {
+      const body = JSON.parse(raw.slice(jsonStart)) as { error?: string; message?: string };
+      return body.error ?? body.message ?? raw;
+    }
+  } catch {
+    /* keep raw */
+  }
+  return raw;
+}
 
 export function useWorkbenchBrowser(
   projectId: string | null | undefined,
@@ -15,12 +31,27 @@ export function useWorkbenchBrowser(
   const [createError, setCreateError] = useState<Error | null>(null);
   const [navPending, setNavPending] = useState(false);
 
+  const status = useQuery({
+    queryKey: ["workbench-browser-status"],
+    queryFn: api.browserStatus,
+    enabled: active,
+    staleTime: 30_000,
+  });
+
+  const chromiumReady = status.data?.ready ?? status.data?.chromium_ready ?? false;
+  const browserEnabled = status.data?.enabled ?? false;
+  const canUseBrowser = chromiumReady;
+  const shouldCreateSession = active && Boolean(projectId) && canUseBrowser;
+
   useEffect(() => {
-    if (!active || !projectId) return;
+    if (!shouldCreateSession) {
+      setCreateError(null);
+      return;
+    }
     let cancelled = false;
     setCreateError(null);
     void api
-      .createBrowserSession(projectId, conversationSessionId ?? undefined)
+      .createBrowserSession(projectId!, conversationSessionId ?? undefined)
       .then(
         (data) => {
           if (cancelled) {
@@ -30,7 +61,7 @@ export function useWorkbenchBrowser(
           sessionRef.current = data.session.session_id;
           setSessionId(data.session.session_id);
         },
-        (e) => setCreateError(e instanceof Error ? e : new Error(String(e))),
+        (e) => setCreateError(new Error(parseApiError(e))),
       );
     return () => {
       cancelled = true;
@@ -43,7 +74,7 @@ export function useWorkbenchBrowser(
       }
       if (sid) void api.deleteBrowserSession(sid);
     };
-  }, [active, projectId, conversationSessionId]);
+  }, [shouldCreateSession, projectId, conversationSessionId]);
 
   useEffect(() => {
     if (!active || !sessionId) return;
@@ -124,10 +155,17 @@ export function useWorkbenchBrowser(
         : null,
     },
     createSession: {
-      isPending: active && Boolean(projectId) && !sessionId && !createError,
+      isPending: shouldCreateSession && !sessionId && !createError,
       isError: Boolean(createError),
       error: createError,
     },
     sessionReady: Boolean(sessionId),
+    status: {
+      isLoading: status.isLoading,
+      chromiumReady,
+      browserEnabled,
+      canUseBrowser,
+      doctorMessage: status.data?.doctor_message,
+    },
   };
 }

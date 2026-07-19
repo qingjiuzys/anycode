@@ -63,6 +63,7 @@ mod notebook_edit;
 mod orchestration;
 mod plan_write;
 mod platform_tools;
+mod shell_exec;
 mod todo_write;
 mod tool_input_coerce;
 mod web_fetch;
@@ -86,9 +87,11 @@ pub use catalog::{
 pub use claude_rules::CompiledClaudePermissionRules;
 pub use cron_schedule::{
     format_next_fire_human, next_fire_utc_from_stored_schedule, normalize_cron_schedule_expr,
-    parse_natural_cron_hint, resolve_schedule_timezone, validate_cron_schedule_expr,
-    wall_clock_cron_to_utc_storage, wall_clock_cron_to_utc_storage_for_timezone,
-    wall_clock_cron_to_utc_storage_in_iana, NaturalCronResult, ScheduleTimezone,
+    parse_natural_cron_hint, prepare_cron_schedule_for_storage, resolve_schedule_timezone,
+    validate_cron_schedule_expr, wall_clock_cron_to_utc_storage,
+    wall_clock_cron_to_utc_storage_for_timezone, wall_clock_cron_to_utc_storage_in_iana,
+    wall_clock_recurring_cron_to_utc_storage, wall_clock_recurring_cron_to_utc_storage_in_iana,
+    NaturalCronResult, PreparedCronSchedule, ScheduleTimezone,
 };
 pub use knowledge_scoring::score_knowledge_chunk;
 pub use knowledge_vectors::{
@@ -121,13 +124,14 @@ pub use runtime_tool_policy::{
 };
 pub use services::{
     append_cron_job_to_orchestration_file, read_cron_jobs_from_orchestration_file,
-    remove_cron_job_from_orchestration_file, CronJob, CronJobCreateOptions, LspConnectionConfig,
-    ToolRegistryDeps, ToolServices,
+    remove_cron_job_from_orchestration_file, update_cron_job_in_orchestration_file, CronJob,
+    CronJobCreateOptions, CronJobPatch, LspConnectionConfig, ToolRegistryDeps, ToolServices,
 };
 pub use skills::{
-    default_skill_roots, install_skill, install_starter_skills, resolve_skills_starter_dir,
+    default_skill_roots, install_skill, install_starter_skills, normalize_skill_category,
+    parse_skill_manifest_file, parse_skill_manifest_text, resolve_skills_starter_dir,
     truncate_skill_output, vet_skill_by_id, vet_skill_dir, SkillCatalog, SkillInstallResult,
-    SkillMeta, SkillVetReport, SkillsGovernance, MAX_SKILL_OUTPUT_BYTES,
+    SkillManifest, SkillMeta, SkillVetReport, SkillsGovernance, MAX_SKILL_OUTPUT_BYTES,
 };
 pub use tool_input_coerce::coerce_tool_input;
 pub use wechat_history_tool::QueryWeChatHistoryTool;

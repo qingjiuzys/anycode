@@ -1,0 +1,23 @@
+id: coding-simple-python-02
+tier:
+- full
+risk: P2
+runner: dashboard
+prompts:
+- Implement the simple python task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: pytest_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 600
+fixture: coding/simple-python
+complexity: simple
+meta:
+  language: python

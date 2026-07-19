@@ -52,7 +52,7 @@ pub(crate) async fn run_task(
     done_when: Option<String>,
     max_goal_attempts: Option<usize>,
     token_budget: Option<u32>,
-    cost_budget_usd: Option<f64>,
+    cost_budget_cny: Option<f64>,
     max_duration_secs: Option<u64>,
     prompt: String,
     working_dir: PathBuf,
@@ -81,7 +81,7 @@ pub(crate) async fn run_task(
     let run_options = RunTaskOptions {
         budget: TaskBudget {
             token_budget_total: token_budget,
-            cost_budget_usd,
+            cost_budget_cny,
             max_duration_secs,
             ..TaskBudget::default()
         },

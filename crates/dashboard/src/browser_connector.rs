@@ -32,6 +32,33 @@ pub fn native_chromium_ready() -> bool {
     resolve_chromium_executable().is_some()
 }
 
+/// True when the user can turn on built-in browser automation (bundled Chromium or system Chrome).
+pub fn browser_automation_can_enable() -> bool {
+    resolve_browser_mcp_bundle_root()
+        .as_ref()
+        .is_some_and(|p| is_browser_bundle(p) && browser_chromium_present(p))
+        || native_chromium_ready()
+}
+
+/// Actionable message when Chromium is missing (workbench panel + agent tools).
+pub fn browser_unavailable_message() -> String {
+    if native_chromium_ready() {
+        return chromium_doctor_message();
+    }
+    if let Some(root) = resolve_browser_mcp_bundle_root().filter(|p| is_browser_bundle(p)) {
+        if browser_chromium_present(&root) {
+            return format!(
+                "Chromium bundle at {} but executable not resolved. Set ANYCODE_CHROMIUM_PATH or run scripts/prepare-chromium.sh.",
+                root.display()
+            );
+        }
+    }
+    format!(
+        "{} Run scripts/prepare-browser-mcp.sh or install Google Chrome.",
+        chromium_doctor_message()
+    )
+}
+
 pub fn read_browser_enabled(cfg: &Value) -> bool {
     if let Some(v) = cfg
         .get("browser")
@@ -127,5 +154,12 @@ mod tests {
         assert!(read_browser_enabled(&cfg));
         set_browser_enabled(&mut cfg, false);
         assert!(!read_browser_enabled(&cfg));
+    }
+
+    #[test]
+    fn browser_automation_can_enable_with_native_chrome_only() {
+        if native_chromium_ready() {
+            assert!(browser_automation_can_enable());
+        }
     }
 }

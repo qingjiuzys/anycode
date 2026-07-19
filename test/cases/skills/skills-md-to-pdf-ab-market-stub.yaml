@@ -1,0 +1,25 @@
+id: skills-md-to-pdf-ab-market-stub
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Convert README.md to a PDF with title page and table of contents.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: market-stub
+  ab_task: md-to-pdf-ab
+  skills:
+  - md-to-pdf
+  skill_stub: market-reference/md-to-pdf

@@ -1,0 +1,21 @@
+id: browser-download
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Click download on the sample file and confirm download link targets sample.txt.
+expected:
+  assertions:
+  - validator: dom_attribute
+    args:
+      selector: '#download-link'
+      attr: href
+      contains: sample.txt
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

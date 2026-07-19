@@ -11,21 +11,22 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cargo build --release -p anycode-channel-bridge   # anycode-daemon binary
-ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop
+./scripts/sync-desktop-dev.sh              # UI-only (~15s)
+./scripts/sync-desktop-dev.sh --rust       # UI + Rust (release-local ~1–2min)
+# Shipping DMG: ./scripts/build-desktop-local.sh (LTO release)
 
 # Feature-specific testing
 cargo test -p anycode-tools --features tools-lsp
 cargo test -p anycode-tools --features tools-mcp
 
-# Docs site preview
-cd docs-site && npm install && npm run dev
+# Docs site preview (account-portal)
+cd crates/account-portal && npm install && npm run dev
 ```
 
 **Before committing:**
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets`
 - `cargo test --workspace`
-- If docs changed: `cd docs-site && npm ci && npm run build`
 
 ## Workspace Architecture
 
@@ -82,6 +83,6 @@ Implementations in `crates/channel-bridge/src/channels/`. Run via `anycode-daemo
 
 ### Documentation
 
-- User: `docs-site/`
+- User: `docs/user/` (published at https://anycode.work/docs/ via account-portal)
 - Maintainer: `docs/architecture.md`, `docs/ops/run-flow.md`
 - ADRs: `docs/adr/`

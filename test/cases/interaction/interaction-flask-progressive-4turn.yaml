@@ -1,0 +1,31 @@
+id: interaction-flask-progressive-4turn
+tier:
+- full
+risk: P0
+runner: dashboard
+prompts:
+- 'Add a /health endpoint returning JSON {status: ok} to the Flask starter app.'
+- Add input validation to /items POST; reject empty name with 400.
+- Add SQLite persistence for items with an items table migration.
+- Add pagination to GET /items with limit and offset query params.
+expected:
+  assertions:
+  - validator: pytest_pass
+    args:
+      path: .
+      markers: flask_progressive
+  - validator: http_get_json
+    args:
+      url: http://127.0.0.1:8765/health
+      field: status
+      equals: ok
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 2400
+fixture: projects/flask-starter
+meta:
+  turns: 4

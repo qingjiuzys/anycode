@@ -335,7 +335,7 @@ describe("mergeTranscriptBlocks", () => {
 });
 
 describe("resolveCanonicalTranscriptBlocks", () => {
-  it("appends only events newer than snapshot max_seq", () => {
+  it("overlays live tail on snapshot baseline while streaming", () => {
     const snapshot = [
       {
         id: "u1",
@@ -387,7 +387,61 @@ describe("resolveCanonicalTranscriptBlocks", () => {
     expect(
       resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 1, true)[1]?.body,
     ).toBe("Hello");
-    expect(resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 2, true)).toEqual(snapshot);
+    expect(
+      resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 2, true)[1]?.body,
+    ).toBe("Hello");
+    expect(
+      resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 2, true)[1]?.meta?.live,
+    ).toBe(true);
+  });
+
+  it("prefers live SSE body over persisted snapshot tail while streaming", () => {
+    const snapshot = [
+      {
+        id: "u1",
+        block_type: "user_message",
+        at: "t0",
+        title: "User",
+        body: "hi",
+      },
+      {
+        id: "assistant-live:u1:1",
+        block_type: "assistant_message",
+        at: "t2",
+        title: "Assistant",
+        body: "Hello full persisted text from REST",
+        meta: { live: false, turn: 1, user_turn_id: "1" },
+      },
+    ];
+    const liveEvents = [
+      {
+        session_id: "s1",
+        project_id: "p1",
+        kind: "assistant_delta",
+        turn: 1,
+        conversation_turn_id: 1,
+        seq: 2,
+        at: "t1",
+        text: "Hel",
+        block: {
+          id: "assistant-live:u1:1",
+          block_type: "assistant_message",
+          at: "t1",
+          title: "Assistant (turn 1)",
+          body: "Hel",
+          meta: { live: true, turn: 1, user_turn_id: "1" },
+        },
+      },
+    ];
+    const merged = resolveCanonicalTranscriptBlocks(snapshot, liveEvents, 2, true);
+    expect(merged).toHaveLength(2);
+    expect(merged[1]?.body).toBe("Hel");
+    expect(merged[1]?.meta?.live).toBe(true);
+  });
+
+  it("returns snapshot when not streaming", () => {
+    const snapshot = [{ id: "u1", block_type: "user_message", body: "hi" }] as TranscriptBlock[];
+    expect(resolveCanonicalTranscriptBlocks(snapshot, [], 0, false)).toEqual(snapshot);
   });
 });
 
@@ -467,5 +521,54 @@ describe("resolveTranscriptBlocks", () => {
     const resolved = resolveTranscriptBlocks(snapshot, live, true);
     expect(resolved.map((b) => b.id)).toEqual(["u-old", "a-old", "u-new", "tool-live:u3:1:1:call"]);
     expect(resolved[3]?.body).toBe("npm test");
+  });
+
+  it("merges narration meta from assistant_delta block", () => {
+    let blocks: TranscriptBlock[] = [];
+    blocks = applyChatStreamEvent(blocks, {
+      session_id: "s1",
+      project_id: "p1",
+      kind: "assistant_delta",
+      turn: 1,
+      conversation_turn_id: 1,
+      at: "t1",
+      text: "Now let me",
+      block: {
+        id: "assistant-live:u1:1",
+        block_type: "assistant_message",
+        at: "t1",
+        title: "Assistant (turn 1)",
+        body: "Now let me",
+        meta: {
+          live: true,
+          turn: 1,
+          user_turn_id: "1",
+          narration: true,
+          message_role: "status",
+        },
+      },
+    });
+    expect(blocks[0]?.meta?.narration).toBe(true);
+    expect(blocks[0]?.meta?.message_role).toBe("status");
+  });
+
+  it("upserts turn_phase system_notice blocks", () => {
+    let blocks: TranscriptBlock[] = [];
+    blocks = applyChatStreamEvent(blocks, {
+      session_id: "s1",
+      project_id: "p1",
+      kind: "turn_phase",
+      at: "2026-01-01T00:00:00Z",
+      block: {
+        id: "turn-phase:u1:1",
+        block_type: "system_notice",
+        at: "2026-01-01T00:00:00Z",
+        title: "Turn phase",
+        body: "",
+        meta: { source: "turn_phase", phase: "waiting_first_token", live: true },
+      },
+    });
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.meta?.phase).toBe("waiting_first_token");
   });
 });

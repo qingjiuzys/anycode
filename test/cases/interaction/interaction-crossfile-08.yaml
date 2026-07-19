@@ -1,0 +1,25 @@
+id: interaction-crossfile-08
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Fix the cross-file type error across all 5 modules without breaking existing tests.
+expected:
+  assertions:
+  - validator: pytest_pass
+    args:
+      path: .
+  - validator: file_exists
+    args:
+      path: src/index.py
+requires:
+  llm: live
+  network: false
+  tools:
+  - edit
+  - shell
+timeout_seconds: 1200
+fixture: projects/cross-file-mini/project-08
+meta:
+  file_count: 5

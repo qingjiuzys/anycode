@@ -1,0 +1,27 @@
+id: skills-report-to-csv-contract
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Validate the official skill ''report-to-csv'': read SKILL.md frontmatter, run vet
+  checks, and confirm required env contract.'
+expected:
+  assertions:
+  - validator: skill_frontmatter_valid
+    args:
+      skill_id: report-to-csv
+      source: official
+  - validator: skill_vet_pass
+    args:
+      skill_id: report-to-csv
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 300
+meta:
+  skill_id: report-to-csv
+  skills:
+  - report-to-csv

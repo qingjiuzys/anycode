@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 
-export type HomeOverviewPanelId = "recent" | "analytics" | "workbench";
+export type HomeOverviewPanelId = "recent" | "analytics" | "briefing";
 
 function panelIcon(id: HomeOverviewPanelId): string {
   switch (id) {
@@ -9,8 +9,8 @@ function panelIcon(id: HomeOverviewPanelId): string {
       return "history";
     case "analytics":
       return "analytics";
-    case "workbench":
-      return "dashboard_customize";
+    case "briefing":
+      return "description";
   }
 }
 
@@ -28,7 +28,7 @@ export function HomeOverviewPanelPills({
   const pills: { id: HomeOverviewPanelId; label: string }[] = [
     ...(showRecentPanel ? [{ id: "recent" as const, label: t("home.recentSessions") }] : []),
     { id: "analytics", label: t("home.analyticsSection") },
-    { id: "workbench", label: t("home.workbenchSection") },
+    { id: "briefing", label: t("home.briefingSection") },
   ];
 
   return (

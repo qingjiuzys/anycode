@@ -74,25 +74,45 @@ async function readJsonBody<T>(res: Response, path: string): Promise<T> {
   }
 }
 
+export function parseApiErrorBody(text: string): string {
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
+      return parsed.error;
+    }
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message;
+    }
+  } catch {
+    /* not JSON */
+  }
+  return text;
+}
+
 export async function get<T>(path: string, opts?: { timeoutMs?: number }): Promise<T> {
   const res = await fetchWithTimeout(path, fetchOpts, opts?.timeoutMs ?? READ_TIMEOUT_MS);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`${res.status} ${path}: ${body}`);
+    throw new Error(`${res.status} ${path}: ${parseApiErrorBody(body)}`);
   }
   return readJsonBody<T>(res, path);
 }
 
-export async function post<T>(path: string, body?: unknown): Promise<T> {
+export async function post<T>(
+  path: string,
+  body?: unknown,
+  opts?: { timeoutMs?: number; acceptStatuses?: number[] },
+): Promise<T> {
   const res = await fetchWithTimeout(path, {
     ...fetchOpts,
     method: "POST",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
-  }, WRITE_TIMEOUT_MS);
-  if (!res.ok) {
+  }, opts?.timeoutMs ?? WRITE_TIMEOUT_MS);
+  const accept = opts?.acceptStatuses ?? [];
+  if (!res.ok && !accept.includes(res.status)) {
     const text = await res.text();
-    throw new Error(`${res.status} ${path}: ${text}`);
+    throw new Error(`${res.status} ${path}: ${parseApiErrorBody(text)}`);
   }
   return readJsonBody<T>(res, path);
 }
@@ -106,7 +126,7 @@ export async function put<T>(path: string, body?: unknown): Promise<T> {
   }, WRITE_TIMEOUT_MS);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status} ${path}: ${text}`);
+    throw new Error(`${res.status} ${path}: ${parseApiErrorBody(text)}`);
   }
   return readJsonBody<T>(res, path);
 }
@@ -120,7 +140,7 @@ export async function patch<T>(path: string, body?: unknown): Promise<T> {
   }, WRITE_TIMEOUT_MS);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status} ${path}: ${text}`);
+    throw new Error(`${res.status} ${path}: ${parseApiErrorBody(text)}`);
   }
   return readJsonBody<T>(res, path);
 }
@@ -129,7 +149,7 @@ export async function del<T>(path: string): Promise<T> {
   const res = await fetchWithTimeout(path, { ...fetchOpts, method: "DELETE" }, READ_TIMEOUT_MS);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status} ${path}: ${text}`);
+    throw new Error(`${res.status} ${path}: ${parseApiErrorBody(text)}`);
   }
   return readJsonBody<T>(res, path);
 }

@@ -47,6 +47,50 @@ pub async fn list_skill_market() -> impl IntoResponse {
     Json(json!({ "market": market })).into_response()
 }
 
+#[derive(Deserialize)]
+pub struct InstallMarketSkillBody {
+    pub id: String,
+}
+
+pub async fn install_market_skill(
+    State(state): State<AppState>,
+    Json(body): Json<InstallMarketSkillBody>,
+) -> impl IntoResponse {
+    let id = body.id.trim();
+    if id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "id must not be empty" })),
+        )
+            .into_response();
+    }
+    let Some(home) = dirs::home_dir() else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "no home directory" })),
+        )
+            .into_response();
+    };
+    let dest = home.join(".anycode/skills");
+    match crate::skill_market::install_market_entry(id, &dest) {
+        Ok(r) => {
+            let _ = skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            state.chat_runtime.invalidate_runtime().await;
+            Json(json!({
+                "ok": true,
+                "id": r.id,
+                "path": r.dest.display().to_string(),
+            }))
+            .into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 pub async fn install_starter_skills(State(state): State<AppState>) -> impl IntoResponse {
     let Some(home) = dirs::home_dir() else {
         return (
@@ -60,6 +104,7 @@ pub async fn install_starter_skills(State(state): State<AppState>) -> impl IntoR
         Ok(installed) => {
             let ids: Vec<String> = installed.iter().map(|r| r.id.clone()).collect();
             let _ = skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            state.chat_runtime.invalidate_runtime().await;
             Json(json!({
                 "ok": true,
                 "installed": ids,
@@ -90,6 +135,7 @@ pub async fn rescan_skills(State(state): State<AppState>) -> impl IntoResponse {
     }
     match skills_scan::sync_skills_to_db(&state.db, &roots).await {
         Ok(n) => {
+            state.chat_runtime.invalidate_runtime().await;
             let _ = crate::audit::record_audit(
                 &state.db,
                 crate::audit::AuditEventInput::low(
@@ -115,6 +161,8 @@ pub struct AuditQuery {
     pub risk: Option<String>,
     #[serde(default = "default_limit")]
     pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
 }
 
 pub async fn get_security_activity(
@@ -313,6 +361,15 @@ pub async fn respond_to_approval(
         },
     )
     .await;
+    crate::control::approval_notify::publish_approval_resolved(
+        &state.db,
+        &state.events,
+        &pending.session_id,
+        pending.user_turn_id,
+        &approval_id,
+        &body.decision,
+    )
+    .await;
     Json(json!({
         "ok": true,
         "approval_id": approval_id,
@@ -395,6 +452,14 @@ pub async fn respond_to_question(
                 "source": "dashboard"
             }),
         },
+    )
+    .await;
+    crate::control::approval_notify::publish_question_resolved(
+        &state.db,
+        &state.events,
+        &pending.session_id,
+        pending.user_turn_id,
+        &question_id,
     )
     .await;
     Json(json!({

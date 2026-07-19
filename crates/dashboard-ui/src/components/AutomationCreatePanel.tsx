@@ -1,10 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/api/client";
+import type { CronJobRecord } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
-import { useT } from "@/i18n/context";
+import { useT, useLocale } from "@/i18n/context";
+import {
+  templateText,
+  type AutomationTemplate,
+} from "@/lib/automationTemplates";
 
 const TIMEZONES = [
   { id: "local", label: "Local" },
@@ -16,18 +21,76 @@ const TIMEZONES = [
 
 const TOOL_PROFILES = ["default", "read_only", "observability", "allowlist"] as const;
 
+function applyTemplate(
+  tpl: AutomationTemplate,
+  locale: "en" | "zh",
+  setters: {
+    setName: (v: string) => void;
+    setSchedule: (v: string) => void;
+    setCommand: (v: string) => void;
+    setScheduleTimezone: (v: string) => void;
+    setToolProfile: (v: (typeof TOOL_PROFILES)[number]) => void;
+  },
+) {
+  setters.setName(templateText(tpl.name, locale));
+  setters.setSchedule(tpl.schedule);
+  setters.setCommand(tpl.command);
+  if (tpl.schedule_timezone) setters.setScheduleTimezone(tpl.schedule_timezone);
+  if (
+    tpl.tool_profile &&
+    TOOL_PROFILES.includes(tpl.tool_profile as (typeof TOOL_PROFILES)[number])
+  ) {
+    setters.setToolProfile(tpl.tool_profile as (typeof TOOL_PROFILES)[number]);
+  }
+}
+
+function applyJob(
+  job: CronJobRecord,
+  setters: {
+    setName: (v: string) => void;
+    setSchedule: (v: string) => void;
+    setCommand: (v: string) => void;
+    setScheduleTimezone: (v: string) => void;
+    setToolProfile: (v: (typeof TOOL_PROFILES)[number]) => void;
+    setProjectId: (v: string) => void;
+    setSessionId: (v: string) => void;
+    setFailureDestination: (v: string) => void;
+  },
+) {
+  setters.setName(job.name?.trim() ?? "");
+  setters.setSchedule(job.schedule);
+  setters.setCommand(job.command);
+  setters.setScheduleTimezone(job.schedule_timezone?.trim() || "local");
+  setters.setProjectId(job.project_id?.trim() ?? "");
+  setters.setSessionId(job.session_id?.trim() ?? "");
+  setters.setFailureDestination(job.failure_destination?.trim() ?? "");
+  if (
+    job.tool_profile &&
+    TOOL_PROFILES.includes(job.tool_profile as (typeof TOOL_PROFILES)[number])
+  ) {
+    setters.setToolProfile(job.tool_profile as (typeof TOOL_PROFILES)[number]);
+  }
+}
+
 function AutomationCreateForm({
   defaultProjectId = "",
+  template = null,
+  initialJob = null,
   onCreated,
+  onSaved,
 }: {
-  /** Pre-selected project when opened from a project context; "" = whole workspace. */
   defaultProjectId?: string;
+  template?: AutomationTemplate | null;
+  initialJob?: CronJobRecord | null;
   onCreated?: () => void;
+  onSaved?: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const qc = useQueryClient();
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [schedule, setSchedule] = useState("0 0 8 * * *");
+  const [name, setName] = useState("");
+  const [schedule, setSchedule] = useState("0 0 8 * * 1-5");
   const [naturalSchedule, setNaturalSchedule] = useState("");
   const [command, setCommand] = useState("");
   const [scheduleTimezone, setScheduleTimezone] = useState("local");
@@ -36,11 +99,33 @@ function AutomationCreateForm({
   const [sessionId, setSessionId] = useState("");
   const [failureDestination, setFailureDestination] = useState("");
   const [msg, setMsg] = useState("");
+  const editing = initialJob != null;
 
-  const templates = useQuery({
-    queryKey: ["cron-templates"],
-    queryFn: api.cronTemplates,
-  });
+  useEffect(() => {
+    if (initialJob) {
+      applyJob(initialJob, {
+        setName,
+        setSchedule,
+        setCommand,
+        setScheduleTimezone,
+        setToolProfile,
+        setProjectId,
+        setSessionId,
+        setFailureDestination,
+      });
+      setMsg("");
+      return;
+    }
+    if (!template) return;
+    applyTemplate(template, locale, {
+      setName,
+      setSchedule,
+      setCommand,
+      setScheduleTimezone,
+      setToolProfile,
+    });
+    setMsg("");
+  }, [template, locale, initialJob]);
 
   const projects = useQuery({
     queryKey: ["projects"],
@@ -56,9 +141,10 @@ function AutomationCreateForm({
     onError: (e: Error) => setMsg(e.message),
   });
 
-  const create = useMutation({
-    mutationFn: () =>
-      api.createCronJob({
+  const save = useMutation({
+    mutationFn: () => {
+      const payload = {
+        name: name.trim() || undefined,
         schedule,
         command,
         schedule_timezone: scheduleTimezone,
@@ -66,50 +152,39 @@ function AutomationCreateForm({
         session_id: sessionId.trim() || undefined,
         failure_destination: failureDestination.trim() || undefined,
         project_id: projectId || undefined,
-      }),
+      };
+      if (editing && initialJob) {
+        return api.patchCronJob(initialJob.id, payload);
+      }
+      return api.createCronJob({ ...payload, enabled: true });
+    },
     onSuccess: () => {
-      setMsg(t("automations.createOk"));
+      setMsg(editing ? t("automations.editOk") : t("automations.createOk"));
       void qc.invalidateQueries({ queryKey: ["cron-jobs"] });
-      onCreated?.();
+      if (editing) {
+        onSaved?.();
+      } else {
+        onCreated?.();
+      }
     },
     onError: (e: Error) => setMsg(e.message),
   });
 
   return (
     <>
-      {(templates.data?.templates ?? []).length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {(templates.data?.templates ?? []).map((tpl) => {
-            const id = String((tpl as { id?: string }).id ?? "");
-            return (
-              <button
-                key={id}
-                type="button"
-                className="dw-btn-secondary text-xs"
-                onClick={() => {
-                  const tplRow = tpl as {
-                    schedule?: string;
-                    command?: string;
-                    schedule_timezone?: string;
-                    tool_profile?: string;
-                  };
-                  if (tplRow.schedule) setSchedule(tplRow.schedule);
-                  if (tplRow.command) setCommand(tplRow.command);
-                  if (tplRow.schedule_timezone) setScheduleTimezone(tplRow.schedule_timezone);
-                  if (
-                    tplRow.tool_profile &&
-                    TOOL_PROFILES.includes(tplRow.tool_profile as (typeof TOOL_PROFILES)[number])
-                  ) {
-                    setToolProfile(tplRow.tool_profile as (typeof TOOL_PROFILES)[number]);
-                  }
-                }}
-              >
-                {String((tpl as { name?: string }).name ?? id)}
-              </button>
-            );
-          })}
-        </div>
+      {template && (
+        <p className="text-sm text-secondary m-0 mb-4">
+          {t("automations.createFromTemplate")}:{" "}
+          <span className="text-on-surface font-medium">{templateText(template.name, locale)}</span>
+        </p>
       )}
+      <label className="block text-xs text-secondary mb-1">{t("automations.taskName")}</label>
+      <input
+        className="dw-input w-full mb-3"
+        placeholder={t("automations.taskNamePlaceholder")}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
       <label className="block text-xs text-secondary mb-1">{t("automations.naturalSchedule")}</label>
       <div className="flex flex-wrap gap-2 mb-3">
         <input
@@ -218,10 +293,10 @@ function AutomationCreateForm({
         <button
           type="button"
           className="dw-btn-primary shrink-0"
-          disabled={!command.trim() || create.isPending}
-          onClick={() => create.mutate()}
+          disabled={!command.trim() || save.isPending}
+          onClick={() => save.mutate()}
         >
-          {create.isPending ? "…" : t("automations.createBtn")}
+          {save.isPending ? "…" : editing ? t("automations.saveBtn") : t("automations.createBtn")}
         </button>
       </div>
       {msg && <p className="text-sm text-secondary mt-3 m-0">{msg}</p>}
@@ -257,15 +332,59 @@ export function AutomationCreatePanel({ defaultProjectId }: { defaultProjectId?:
   );
 }
 
+export function AutomationEditDialog({
+  open,
+  onClose,
+  job,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  job: CronJobRecord | null;
+  onSaved?: () => void;
+}) {
+  const t = useT();
+  if (!open || !job) return null;
+  return (
+    <ModalOverlay open={open} onClose={onClose} labelledBy="edit-automation-title" className="w-full max-w-lg">
+      <div className="glass-modal rounded-xl p-6 max-h-[min(90dvh,720px)] overflow-y-auto">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 id="edit-automation-title" className="text-lg font-semibold m-0 text-on-surface">
+            {t("automations.editTitle")}
+          </h2>
+          <button
+            type="button"
+            className="dw-btn-ghost p-1"
+            onClick={onClose}
+            aria-label={t("newProject.cancel")}
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+        <AutomationCreateForm
+          key={job.id}
+          initialJob={job}
+          onSaved={() => {
+            onSaved?.();
+            onClose();
+          }}
+        />
+      </div>
+    </ModalOverlay>
+  );
+}
+
 export function AutomationCreateDialog({
   open,
   onClose,
   defaultProjectId,
+  template,
   onCreated,
 }: {
   open: boolean;
   onClose: () => void;
   defaultProjectId?: string;
+  template?: AutomationTemplate | null;
   onCreated?: () => void;
 }) {
   const t = useT();
@@ -287,7 +406,9 @@ export function AutomationCreateDialog({
           </button>
         </div>
         <AutomationCreateForm
+          key={template?.id ?? "blank"}
           defaultProjectId={defaultProjectId}
+          template={template}
           onCreated={() => {
             onCreated?.();
             onClose();

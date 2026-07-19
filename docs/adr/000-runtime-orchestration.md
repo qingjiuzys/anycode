@@ -16,11 +16,11 @@ anyCode exposes an **`Agent`** trait in `anycode-core` with an **`execute`** met
 
 ## Consequences
 
-- Documentation and onboarding must point to **`AgentRuntime`** first; see `crates/agent/README.md` and the docs-site architecture pages.
+- Documentation and onboarding must point to **`AgentRuntime`** first; see `crates/agent/README.md` and [user architecture guide](https://anycode.work/docs/guide/architecture).
 - If a future mode truly needs **`Agent::execute`**, that should be a deliberate ADR amendment with call sites listed.
 
 ## Related
 
 - `anycode-core`: `Agent` trait rustdoc
 - `crates/agent/src/runtime/mod.rs`
-- `docs-site/guide/architecture.md`
+- `https://anycode.work/docs/guide/architecture`

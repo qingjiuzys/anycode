@@ -141,11 +141,37 @@ export const projectsClient = {
       vision_images?: { mime_type: string; data_base64: string }[];
       text_files?: { filename: string; content: string }[];
       lang?: string;
+      enqueue?: boolean;
     },
   ) =>
-    post<{ ok: boolean; session_id: string; chat: WebChatResult }>(
-      `/api/sessions/${encodeURIComponent(sessionId)}/message`,
-      { lang: currentUiLang(), ...body },
+    post<{
+      ok: boolean;
+      session_id: string;
+      queued?: boolean;
+      queue_id?: string;
+      position?: number;
+      chat?: WebChatResult;
+      session?: SessionDetail;
+    }>(`/api/sessions/${encodeURIComponent(sessionId)}/message`, { lang: currentUiLang(), ...body }, {
+      acceptStatuses: [202],
+    }),
+  sessionMessageQueue: (sessionId: string) =>
+    get<{
+      session_id: string;
+      items: {
+        id: string;
+        session_id: string;
+        seq: number;
+        prompt: string;
+        agent?: string;
+        status: string;
+        created_at: string;
+        error?: string;
+      }[];
+    }>(`/api/sessions/${encodeURIComponent(sessionId)}/message-queue`),
+  cancelQueuedMessage: (sessionId: string, queueId: string) =>
+    del<{ ok: boolean; session_id: string; queue_id: string }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/message-queue/${encodeURIComponent(queueId)}`,
     ),
   indexProjectAssets: (projectId: string) =>
     post<{ ok: boolean; result: IndexAssetsResult }>(

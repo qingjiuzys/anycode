@@ -1,4 +1,4 @@
-export type PlanTier = "free" | "pro" | "team";
+export type PlanTier = "free" | "cloud_5h" | "pro" | "team";
 
 export interface CloudAuthUser {
   id: string;
@@ -27,6 +27,7 @@ export interface CloudSubscription {
 
 export interface CloudEntitlements {
   token_limit: number;
+  tokens_used: number;
   api_key_limit: number;
   seat_limit: number;
   seat_used: number;
@@ -43,7 +44,10 @@ export interface CloudInvoice {
   number: string;
   period_start: string;
   period_end: string;
-  amount_usd: number;
+  amount_fen?: number;
+  currency?: "CNY";
+  /** Legacy account-service compatibility only. */
+  amount_cny?: number | null;
   status: string;
 }
 

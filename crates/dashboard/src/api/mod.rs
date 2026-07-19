@@ -31,11 +31,49 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(handlers::health))
         .route("/cloud/session", get(handlers::get_cloud_session))
         .route("/cloud/link/start", post(handlers::post_cloud_link_start))
+        .route("/cloud/link/poll", post(handlers::post_cloud_link_poll))
         .route(
             "/cloud/gateway-test",
             post(handlers::post_cloud_gateway_test),
         )
         .route("/cloud/sync-models", post(handlers::post_cloud_sync_models))
+        .route("/cloud/unlink", post(handlers::post_cloud_unlink))
+        .route("/local-models", get(handlers::list_local_models))
+        .route(
+            "/local-models/{model_id}",
+            get(handlers::get_local_model).delete(handlers::delete_local_model),
+        )
+        .route(
+            "/local-models/{model_id}/download",
+            post(handlers::post_local_model_download),
+        )
+        .route(
+            "/local-models/{model_id}/download/cancel",
+            post(handlers::post_local_model_cancel_download),
+        )
+        .route(
+            "/local-models/{model_id}/start",
+            post(handlers::post_local_model_start),
+        )
+        .route(
+            "/local-models/{model_id}/stop",
+            post(handlers::post_local_model_stop),
+        )
+        .route("/local-llm/status", get(handlers::get_managed_local_status))
+        .route(
+            "/local-llm/download",
+            post(handlers::post_managed_local_download),
+        )
+        .route(
+            "/local-llm/download/cancel",
+            post(handlers::post_managed_local_cancel_download),
+        )
+        .route("/local-llm/start", post(handlers::post_managed_local_start))
+        .route("/local-llm/stop", post(handlers::post_managed_local_stop))
+        .route(
+            "/local-llm/model",
+            delete(handlers::delete_managed_local_model),
+        )
         .route("/auth/me", get(handlers::get_auth_me))
         .route("/auth/login", post(handlers::post_auth_login))
         .route("/auth/logout", post(handlers::post_auth_logout))
@@ -81,6 +119,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/setup/complete", post(handlers::post_setup_complete))
         .route("/overview", get(handlers::get_overview))
+        .route("/overview/briefing", post(handlers::post_overview_briefing))
         .route("/reports/recent", get(handlers::list_recent_reports))
         .route("/metrics/readiness", get(handlers::get_delivery_readiness))
         .route("/metrics/timeline", get(handlers::get_timeline_metrics))
@@ -208,7 +247,10 @@ pub fn router(state: AppState) -> Router {
             "/cron/jobs",
             get(handlers::list_cron_jobs).post(handlers::create_cron_job),
         )
-        .route("/cron/jobs/{job_id}", delete(handlers::delete_cron_job))
+        .route(
+            "/cron/jobs/{job_id}",
+            delete(handlers::delete_cron_job).patch(handlers::patch_cron_job),
+        )
         .route("/cron/parse-schedule", post(handlers::parse_cron_schedule))
         .route("/cron/retry", post(handlers::retry_cron_job))
         .route("/cron/templates", get(handlers::list_automation_templates))
@@ -217,6 +259,10 @@ pub fn router(state: AppState) -> Router {
             get(handlers::list_orchestration_tasks),
         )
         .route("/skills/market", get(handlers::list_skill_market))
+        .route(
+            "/skills/market/install",
+            post(handlers::install_market_skill),
+        )
         .route("/skills/import", post(handlers::import_skill))
         .route(
             "/projects/{project_id}/knowledge",
@@ -249,6 +295,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/projects/{project_id}/terminal/ws",
             get(handlers::project_terminal_ws),
+        )
+        .route(
+            "/workbench/browser/status",
+            get(handlers::get_workbench_browser_status),
         )
         .route(
             "/workbench/browser/sessions",
@@ -380,6 +430,14 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/sessions/{session_id}/message",
             axum::routing::post(handlers::send_session_message),
+        )
+        .route(
+            "/sessions/{session_id}/message-queue",
+            get(handlers::list_session_message_queue),
+        )
+        .route(
+            "/sessions/{session_id}/message-queue/{queue_id}",
+            axum::routing::delete(handlers::cancel_session_message_queue_item),
         )
         .route(
             "/sessions/{session_id}/cancel",

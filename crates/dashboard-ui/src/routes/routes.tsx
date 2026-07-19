@@ -18,6 +18,8 @@ import {
   controlCenterRedirectTarget,
   shouldOpenControlCenterForLocation,
 } from "@/lib/controlCenterPaths";
+import { isOfflineWorkbenchAllowed } from "@/lib/offlineWorkbench";
+import { CloudLoginPage } from "@/pages/CloudLoginPage";
 import {
   AgentsPage,
   ArtifactDetailPage,
@@ -28,7 +30,6 @@ import {
   EventDetailPage,
   HomePage,
   OverviewPage,
-  LoginPage,
   Page,
   ProjectDetailPage,
   ProjectsPage,
@@ -36,7 +37,6 @@ import {
   SessionDetailPage,
   SettingsPage,
   ServicePage,
-  SetupWizardPage,
   SkillDetailPage,
 } from "@/routes/lazyPages";
 
@@ -44,31 +44,50 @@ export const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
 
+/** Dedicated frontmost gate — no workbench chrome. */
+export const cloudLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cloud-login",
+  component: CloudLoginPage,
+  beforeLoad: async () => {
+    try {
+      const cloud = await api.cloudSession();
+      if (cloud.linked) {
+        throw redirect({ to: "/conversations", replace: true });
+      }
+    } catch (e) {
+      if (e && typeof e === "object" && "to" in e) throw e;
+    }
+  },
+});
+
 export const shellRoute = createRoute({
   id: "_shell",
   getParentRoute: () => rootRoute,
   component: Layout,
   beforeLoad: async ({ location }) => {
+    // Cloud link preferred; offline workbench is an explicit local-first escape hatch.
     try {
-      const svc = await api.serviceStatus();
-      if (svc.service.loopback) {
-        const setup = await api.setupStatus();
-        const review = new URLSearchParams(location.search).get("review") === "1";
-        if (!setup.setup.ready && !review && location.pathname !== "/setup") {
-          throw redirect({
-            to: "/setup",
-            search: { review: undefined, step: undefined, tab: undefined },
-          });
-        }
-        return;
+      const cloud = await api.cloudSession();
+      if (!cloud.linked && !isOfflineWorkbenchAllowed()) {
+        throw redirect({ to: "/cloud-login" });
       }
     } catch (e) {
       if (e && typeof e === "object" && "to" in e) throw e;
-      return;
+      if (!isOfflineWorkbenchAllowed()) {
+        throw redirect({ to: "/cloud-login" });
+      }
     }
-    const me = await api.authMe();
-    if (!me.authenticated) {
-      throw redirect({ to: "/login" });
+    try {
+      const svc = await api.serviceStatus();
+      if (!svc.service.loopback) {
+        const me = await api.authMe();
+        if (!me.authenticated && !isOfflineWorkbenchAllowed()) {
+          throw redirect({ to: "/cloud-login" });
+        }
+      }
+    } catch (e) {
+      if (e && typeof e === "object" && "to" in e) throw e;
     }
     if (shouldOpenControlCenterForLocation(location.pathname, location.searchStr ?? "")) {
       throw redirect({
@@ -79,29 +98,66 @@ export const shellRoute = createRoute({
   },
 });
 
-export const loginRoute = createRoute({
+export const loginRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
-  component: () => (
-    <Page>
-      <LoginPage />
-    </Page>
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: "/cloud-login" });
+  },
 });
 
 export const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
-  validateSearch: (search: Record<string, unknown>) => ({
-    review: typeof search.review === "string" ? search.review : undefined,
-    step: typeof search.step === "string" ? search.step : undefined,
-    tab: typeof search.tab === "string" ? search.tab : undefined,
-  }),
-  component: () => (
-    <Page>
-      <SetupWizardPage />
-    </Page>
-  ),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { step?: string; tab?: string; section?: SettingsSection } => {
+    const sectionRaw = typeof search.section === "string" ? search.section.trim() : "";
+    const valid = [
+      "auth",
+      "prefs",
+      "data",
+      "service",
+      "model",
+      "agents",
+      "skills",
+      "security",
+      "notify",
+      "channels",
+      "gates",
+      "plugins",
+      "ops",
+      "about",
+    ] as const;
+    const section =
+      sectionRaw && (valid as readonly string[]).includes(sectionRaw)
+        ? (sectionRaw as SettingsSection)
+        : undefined;
+    return {
+      step: typeof search.step === "string" ? search.step : undefined,
+      tab: typeof search.tab === "string" ? search.tab : undefined,
+      section,
+    };
+  },
+  beforeLoad: ({ search }) => {
+    const step = search.step?.trim() ?? "";
+    const tab = search.tab?.trim() ?? "";
+    let section: SettingsSection = "model";
+    if (step === "channels" || tab === "telegram" || tab === "discord" || tab === "wechat") {
+      section = "channels";
+    } else if (step === "memory") {
+      section = "data";
+    } else if (step === "skills") {
+      section = "skills";
+    } else if (search.section) {
+      section = search.section;
+    }
+    throw redirect({
+      to: "/settings",
+      search: { section },
+      replace: true,
+    });
+  },
 });
 
 export const indexRoute = createRoute({
@@ -371,7 +427,6 @@ export const settingsRoute = createRoute({
   ): { section?: SettingsSection } => {
     const section = search.section;
     const valid = [
-      "auth",
       "prefs",
       "data",
       "service",
@@ -384,6 +439,7 @@ export const settingsRoute = createRoute({
       "gates",
       "plugins",
       "ops",
+      "about",
     ] as const;
     if (typeof section === "string" && (valid as readonly string[]).includes(section)) {
       return { section: section as SettingsSection };
@@ -398,7 +454,8 @@ export const settingsRoute = createRoute({
 });
 
 export const routeTree = rootRoute.addChildren([
-  loginRoute,
+  cloudLoginRoute,
+  loginRedirectRoute,
   setupRoute,
   shellRoute.addChildren([
     indexRoute,

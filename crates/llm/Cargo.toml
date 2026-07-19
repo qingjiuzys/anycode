@@ -14,7 +14,7 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-reqwest = { workspace = true, features = ["multipart"] }
+reqwest = { workspace = true, features = ["multipart", "blocking"] }
 uuid = { workspace = true }
 chrono = { workspace = true }
 

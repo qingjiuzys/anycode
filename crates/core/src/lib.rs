@@ -5,7 +5,9 @@
 
 mod agent_type;
 mod channel;
+mod chat_turn;
 mod error;
+mod eval;
 mod execution_trace;
 mod feature_flags;
 mod goal;
@@ -35,13 +37,19 @@ mod workflow;
 
 pub use agent_type::AgentType;
 pub use channel::{ChannelMessage, ChannelType};
+pub use chat_turn::{
+    current_chat_turn, current_dashboard_session_id, current_host_intent_hint,
+    current_reply_language, current_user_turn_id, scope_chat_turn, ChatTurnContext,
+};
 pub use error::{anyhow_error_is_cooperative_cancel, CoreError};
+pub use eval::{judge_eval_scenario, EvalExpectation, EvalResult, EvalScenario, EvalStatus};
 pub use execution_trace::{ExecutionTraceEvent, EXECUTION_TRACE_SCHEMA_VERSION};
 pub use feature_flags::{FeatureFlag, FeatureRegistry};
 pub use goal::{GoalProgress, GoalSpec};
 pub use ids::{
     AgentId, SessionId, TaskId, ToolName, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
-    ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
+    ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_REASONING_CONTENT_METADATA_KEY,
+    ANYCODE_TOOL_CALLS_METADATA_KEY,
 };
 pub use live_trace::LiveTraceEvent;
 pub use llm_retry_observer::LlmRetryObserver;
@@ -63,7 +71,10 @@ pub use plan_tree::{
     PLAN_TREE_CONTEXT_PREFIX, PLAN_TREE_MAX_DEPTH, PLAN_TREE_MAX_NODES,
 };
 pub use query_source::QuerySource;
-pub use reasoning::{strip_llm_reasoning_for_display, strip_llm_reasoning_xml_blocks};
+pub use reasoning::{
+    extract_unclosed_reasoning_content, strip_llm_reasoning_for_display,
+    strip_llm_reasoning_xml_blocks,
+};
 pub use runtime_profile::{RuntimeMode, RuntimeProfile};
 pub use secret_ref::{SecretRef, SecretResolver};
 pub use security_policy::SecurityPolicy;
@@ -71,8 +82,8 @@ pub use session_notification::SessionNotificationSettings;
 pub use slash_command::{SlashCommand, SlashCommandScope, BUILTIN_SLASH_COMMANDS};
 pub use task::{
     resolve_agent_loop_limits, AgentLoopLimits, Artifact, NestedTaskInvoke, NestedTaskRun, Task,
-    TaskBudget, TaskContext, TaskResult, TurnOutput, TurnTokenUsage, DEFAULT_MAX_AGENT_TURNS,
-    DEFAULT_MAX_TOOL_CALLS, MAX_AGENT_TURNS_CLAMP, MAX_TOOL_CALLS_CLAMP,
+    TaskBudget, TaskContext, TaskResult, TerminationReason, TurnOutput, TurnTokenUsage,
+    DEFAULT_MAX_AGENT_TURNS, DEFAULT_MAX_TOOL_CALLS, MAX_AGENT_TURNS_CLAMP, MAX_TOOL_CALLS_CLAMP,
     NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
 pub use task_gate_log::{
@@ -109,23 +120,26 @@ pub mod prelude {
     pub use super::anyhow_error_is_cooperative_cancel;
     pub use super::CoreError;
     pub use super::{
-        attach_vision_images, vision_images_from_metadata, Agent, AgentLoopLimits, AgentType,
-        ChannelHandler, ChannelMessage, ChannelType, DiskTaskOutput, EmbeddingProvider,
-        ExecutionTraceEvent, FeatureFlag, FeatureRegistry, GoalProgress, GoalSpec, LLMClient,
-        LLMProvider, LLMResponse, LiveTraceEvent, Memory, MemoryPipeline, MemoryPipelineSettings,
-        MemoryScope, MemoryStore, MemoryType, Message, MessageContent, MessageRole, ModelConfig,
-        ModelRouteProfile, NestedTaskInvoke, NestedTaskRun, PermissionMode, PlanLimits, PlanNode,
-        PlanNodeKind, PlanPatch, PlanStatus, PlanTree, PlanValidationError, PlanValidationIssue,
+        attach_vision_images, current_chat_turn, current_dashboard_session_id,
+        current_reply_language, current_user_turn_id, scope_chat_turn, vision_images_from_metadata,
+        Agent, AgentLoopLimits, AgentType, ChannelHandler, ChannelMessage, ChannelType,
+        ChatTurnContext, DiskTaskOutput, EmbeddingProvider, ExecutionTraceEvent, FeatureFlag,
+        FeatureRegistry, GoalProgress, GoalSpec, LLMClient, LLMProvider, LLMResponse,
+        LiveTraceEvent, Memory, MemoryPipeline, MemoryPipelineSettings, MemoryScope, MemoryStore,
+        MemoryType, Message, MessageContent, MessageRole, ModelConfig, ModelRouteProfile,
+        NestedTaskInvoke, NestedTaskRun, PermissionMode, PlanLimits, PlanNode, PlanNodeKind,
+        PlanPatch, PlanStatus, PlanTree, PlanValidationError, PlanValidationIssue,
         PlanValidationResult, PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef,
         SecretResolver, SecurityPolicy, SessionNotificationSettings, SlashCommand,
         SlashCommandScope, StreamEvent, SubAgentExecutor, Task, TaskBudget, TaskContext, TaskId,
-        TaskResult, Tool, ToolCall, ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput,
-        TurnTokenUsage, Usage, VectorMemoryBackend, VisionImage, WorkflowDefinition,
+        TaskResult, TerminationReason, Tool, ToolCall, ToolInput, ToolName, ToolOutput, ToolSchema,
+        TurnOutput, TurnTokenUsage, Usage, VectorMemoryBackend, VisionImage, WorkflowDefinition,
         WorkflowHandoff, WorkflowRetry, WorkflowStep, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
-        ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_TOOL_CALLS_METADATA_KEY,
-        ANYCODE_VISION_IMAGES_METADATA_KEY, BUILTIN_SLASH_COMMANDS, DEFAULT_MAX_AGENT_TURNS,
-        DEFAULT_MAX_TOOL_CALLS, EXECUTION_TRACE_SCHEMA_VERSION, MAX_AGENT_TURNS_CLAMP,
-        MAX_TOOL_CALLS_CLAMP, NESTED_TASK_COOPERATIVE_CANCEL_ERROR, PLAN_TREE_CONTEXT_PREFIX,
-        PLAN_TREE_MAX_DEPTH, PLAN_TREE_MAX_NODES,
+        ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_REASONING_CONTENT_METADATA_KEY,
+        ANYCODE_TOOL_CALLS_METADATA_KEY, ANYCODE_VISION_IMAGES_METADATA_KEY,
+        BUILTIN_SLASH_COMMANDS, DEFAULT_MAX_AGENT_TURNS, DEFAULT_MAX_TOOL_CALLS,
+        EXECUTION_TRACE_SCHEMA_VERSION, MAX_AGENT_TURNS_CLAMP, MAX_TOOL_CALLS_CLAMP,
+        NESTED_TASK_COOPERATIVE_CANCEL_ERROR, PLAN_TREE_CONTEXT_PREFIX, PLAN_TREE_MAX_DEPTH,
+        PLAN_TREE_MAX_NODES,
     };
 }

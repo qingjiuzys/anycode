@@ -6,8 +6,8 @@ mod user_config;
 pub mod workspace;
 
 pub use load::{
-    apply_channel_self_hosted_security, load_config, load_config_for_session, load_runtime_config,
-    security_wants_interactive_approval_callback, LoadOpts,
+    apply_channel_self_hosted_security, env_ignore_approval, load_config, load_config_for_session,
+    load_runtime_config, security_wants_interactive_approval_callback, LoadOpts,
 };
 pub use schema::*;
 pub use user_config::*;

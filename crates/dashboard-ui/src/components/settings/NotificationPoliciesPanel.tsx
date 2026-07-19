@@ -4,14 +4,12 @@ import { api } from "@/api/client";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
-
-const PRESET_EVENTS = [
-  "session_report_generated",
-  "project_report_generated",
-  "gate_failed",
-  "session_blocked",
-  "blocked_threshold_exceeded",
-] as const;
+import {
+  formatNotificationChannelLabel,
+  formatNotificationEventDesc,
+  formatNotificationEventLabel,
+  NOTIFICATION_PRESET_EVENTS,
+} from "@/lib/notificationFormat";
 
 export function NotificationPoliciesPanel() {
   const t = useT();
@@ -63,16 +61,22 @@ export function NotificationPoliciesPanel() {
       <div className="px-4 pt-4 pb-3 border-b border-outline-variant">
         <p className="text-sm text-secondary m-0 mb-3">{t("settings.notificationsHint")}</p>
         <div className="flex flex-wrap gap-2 mb-2">
-          {PRESET_EVENTS.map((ev) => (
-            <button
-              key={ev}
-              type="button"
-              className={`dw-chip${notifyEvent === ev ? " active" : ""}`}
-              onClick={() => setNotifyEvent(ev)}
-            >
-              {ev}
-            </button>
-          ))}
+          {NOTIFICATION_PRESET_EVENTS.map((ev) => {
+            const label = formatNotificationEventLabel(ev, t);
+            const desc = formatNotificationEventDesc(ev, t);
+            return (
+              <button
+                key={ev}
+                type="button"
+                className={`dw-chip${notifyEvent === ev ? " active" : ""}`}
+                onClick={() => setNotifyEvent(ev)}
+                title={desc}
+                aria-label={desc ? `${label} — ${desc}` : label}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -80,6 +84,7 @@ export function NotificationPoliciesPanel() {
             value={notifyEvent}
             onChange={(e) => setNotifyEvent(e.target.value)}
             placeholder={t("settings.prefs.eventTypePlaceholder")}
+            aria-label={t("settings.notifyEvent")}
           />
           <button
             type="button"
@@ -119,8 +124,13 @@ export function NotificationPoliciesPanel() {
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id}>
-                  <td className="font-code text-xs">{p.event_type}</td>
-                  <td>{p.channel}</td>
+                  <td>
+                    <div className="font-medium text-sm">
+                      {formatNotificationEventLabel(p.event_type, t)}
+                    </div>
+                    <div className="font-code text-[10px] text-secondary">{p.event_type}</div>
+                  </td>
+                  <td>{formatNotificationChannelLabel(p.channel, t)}</td>
                   <td>
                     <StatusBadge status={p.enabled ? "ok" : "cancelled"} />
                   </td>

@@ -1,0 +1,28 @@
+id: office-docx-02
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- 'Complete office task docx #02 using templates in workspace; satisfy all structural
+  assertions.'
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/report-02.docx
+  - validator: docx_paragraph_contains
+    args:
+      path: output/report-02.docx
+      text: Executive Summary
+  - validator: docx_styles_valid
+    args:
+      path: output/report-02.docx
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1200
+fixture: office/templates/docx
+complexity: complex

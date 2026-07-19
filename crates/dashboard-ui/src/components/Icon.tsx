@@ -49,6 +49,11 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   check: <path d="m5 12.5 3.5 3.5L19 5.5" />,
+  code: (
+    <>
+      <path d="M9 8l-3 4 3 4M15 8l3 4-3 4" />
+    </>
+  ),
   check_circle: (
     <>
       <circle cx="12" cy="12" r="8" />
@@ -58,6 +63,14 @@ const icons: Record<string, ReactNode> = {
   chevron_left: <path d="m14.5 6-6 6 6 6" />,
   chevron_right: <path d="m9.5 6 6 6-6 6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
+  delete: (
+    <>
+      <path d="M7 9h10" />
+      <path d="M9 7V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
+      <path d="M10 11v5M14 11v5" />
+      <path d="M8 9l1 10h6l1-10" />
+    </>
+  ),
   construction: (
     <>
       <path d="M7 7 5.5 5.5a2.1 2.1 0 0 1 3-3L10 4" />
@@ -225,6 +238,19 @@ const icons: Record<string, ReactNode> = {
       <path d="m4 16 5-5 4 4 3-3 4 4" />
     </>
   ),
+  menu_book: (
+    <>
+      <path d="M6 4h8a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H6z" />
+      <path d="M6 4v17" />
+    </>
+  ),
+  menu: (
+    <>
+      <path d="M5 7h14" />
+      <path d="M5 12h14" />
+      <path d="M5 17h14" />
+    </>
+  ),
   mic: (
     <>
       <path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3" />
@@ -264,6 +290,21 @@ const icons: Record<string, ReactNode> = {
   ),
   logout: <path d="M14 7V5H5v14h9v-2M10 12h10m0 0-3-3m3 3-3 3" />,
   more_horiz: <path d="M6 12h.01M12 12h.01M18 12h.01" />,
+  push_pin: (
+    <>
+      <path d="M12 3.5 9.5 9H6l3 4.5V20l3-2.5L15 20v-6.5L18 9h-3.5z" />
+    </>
+  ),
+  /** Even five-point star (Material proportions). */
+  star: (
+    <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+  ),
+  movie: (
+    <>
+      <rect x="4" y="6" width="16" height="12" rx="1.5" />
+      <path d="M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3" />
+    </>
+  ),
   notifications: (
     <>
       <path d="M6 17h12l-1.5-2.5V11a4.5 4.5 0 0 0-9 0v3.5z" />
@@ -368,10 +409,20 @@ const icons: Record<string, ReactNode> = {
     </>
   ),
   send: <path d="M4 4l17 8-17 8 3-8zM7 12h8" />,
+  /** Keyboard return / "to Send" cue (Cursor-style queue header). */
+  keyboard_return: (
+    <path d="M9 10 5 14l4 4M5 14h10a4 4 0 0 0 0-8h-1" />
+  ),
   smart_toy: (
     <>
       <rect x="6" y="8" width="12" height="9" rx="2" />
       <path d="M12 8V4M9 4h6M8.5 12h.01M15.5 12h.01M10 16h4" />
+    </>
+  ),
+  slideshow: (
+    <>
+      <rect x="4" y="6" width="16" height="12" rx="1.5" />
+      <path d="M8 10h8M8 14h5" />
     </>
   ),
   settings: (
@@ -451,6 +502,7 @@ export const registeredIconNames = new Set(Object.keys(icons));
 export function Icon({ name, filled, className, size = 20 }: IconProps) {
   const icon = icons[name] ?? <circle cx="12" cy="12" r="3" />;
   const spinClass = name === "progress_activity" ? "animate-spin" : "";
+  const solidStar = name === "star" && filled;
 
   return (
     <svg
@@ -458,9 +510,9 @@ export function Icon({ name, filled, className, size = 20 }: IconProps) {
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={filled ? 2.4 : 2}
+      fill={solidStar ? "currentColor" : "none"}
+      stroke={solidStar ? "none" : "currentColor"}
+      strokeWidth={solidStar ? 0 : filled ? 2.4 : 2}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden

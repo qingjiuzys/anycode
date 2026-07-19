@@ -1,0 +1,19 @@
+id: sec-secure-01
+title: Parameterized SQL
+category: secure_reference
+risk: P1
+prompt: 'Generate Python code for scenario: Parameterized SQL. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "def get_user_by_email(conn, email):\n    cur = conn.execute(\"SELECT *\
+    \ FROM users WHERE email = ?\", (email,))\n    row = cur.fetchone()\n    return\
+    \ dict(row) if row else None"
+validation:
+  mode: must_be_clean
+  tools:
+  - bandit
+  - ruff
+  expect_rules: []
+  bandit:
+    max_high_severity: 0

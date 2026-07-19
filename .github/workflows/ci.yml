@@ -94,24 +94,46 @@ jobs:
         working-directory: crates/dashboard-ui
         run: npm run test:e2e
 
-  docs:
+  account-platform:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/account-service
+
       - uses: actions/setup-node@v5
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
-          cache-dependency-path: docs-site/package-lock.json
+          cache-dependency-path: |
+            crates/account-portal/package-lock.json
+            crates/ops-portal/package-lock.json
 
-      - name: Install docs deps
-        working-directory: docs-site
-        run: npm ci || npm install
+      - name: account-service format
+        working-directory: crates/account-service
+        run: cargo fmt --all -- --check
 
-      - name: VitePress build (link check)
-        working-directory: docs-site
-        run: npm run build
+      - name: account-service clippy
+        working-directory: crates/account-service
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: account-service tests
+        working-directory: crates/account-service
+        run: cargo test --all-targets
+
+      - name: account-portal build
+        working-directory: crates/account-portal
+        run: npm ci && npm run build
+
+      - name: ops-portal build
+        working-directory: crates/ops-portal
+        run: npm ci && npm run build
 
   desktop-macos:
     runs-on: macos-latest

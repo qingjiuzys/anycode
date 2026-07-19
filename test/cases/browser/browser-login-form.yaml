@@ -1,0 +1,20 @@
+id: browser-login-form
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Log in with username demo and password secret123 on the login page.
+expected:
+  assertions:
+  - validator: dom_contains
+    args:
+      selector: '#login-success'
+      text: Welcome, demo
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

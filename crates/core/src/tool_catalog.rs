@@ -18,6 +18,7 @@ pub const TOOL_MCP_AUTH: &str = "McpAuth";
 pub const TOOL_LSP: &str = "LSP";
 pub const TOOL_AGENT: &str = "Agent";
 pub const TOOL_SKILL: &str = "Skill";
+pub const TOOL_SKILL_SEARCH: &str = "SkillSearch";
 pub const TOOL_SEND_MESSAGE: &str = "SendMessage";
 pub const TOOL_LEGACY_TASK_AGENT: &str = "Task";
 pub const TOOL_TASK_CREATE: &str = "TaskCreate";
@@ -29,6 +30,7 @@ pub const TOOL_TASK_OUTPUT: &str = "TaskOutput";
 pub const TOOL_TEAM_CREATE: &str = "TeamCreate";
 pub const TOOL_TEAM_DELETE: &str = "TeamDelete";
 pub const TOOL_CRON_CREATE: &str = "CronCreate";
+pub const TOOL_CRON_UPDATE: &str = "CronUpdate";
 pub const TOOL_CRON_DELETE: &str = "CronDelete";
 pub const TOOL_CRON_LIST: &str = "CronList";
 pub const TOOL_REMOTE_TRIGGER: &str = "RemoteTrigger";
@@ -82,6 +84,7 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_LSP,
     TOOL_AGENT,
     TOOL_SKILL,
+    TOOL_SKILL_SEARCH,
     TOOL_SEND_MESSAGE,
     TOOL_LEGACY_TASK_AGENT,
     TOOL_TASK_CREATE,
@@ -93,6 +96,7 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_TEAM_CREATE,
     TOOL_TEAM_DELETE,
     TOOL_CRON_CREATE,
+    TOOL_CRON_UPDATE,
     TOOL_CRON_DELETE,
     TOOL_CRON_LIST,
     TOOL_REMOTE_TRIGGER,
@@ -147,6 +151,7 @@ pub const SECURITY_SENSITIVE_TOOL_IDS: &[&str] = &[
     TOOL_TEAM_CREATE,
     TOOL_TEAM_DELETE,
     TOOL_CRON_CREATE,
+    TOOL_CRON_UPDATE,
     TOOL_CRON_DELETE,
     TOOL_REMOTE_TRIGGER,
     TOOL_ENTER_WORKTREE,
@@ -267,6 +272,14 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         "full",
     ),
     tool_entry(
+        TOOL_SKILL_SEARCH,
+        "read",
+        "low",
+        ALL_AGENTS,
+        true,
+        "standard",
+    ),
+    tool_entry(
         TOOL_SEND_MESSAGE,
         "ui",
         "medium",
@@ -348,6 +361,14 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
     ),
     tool_entry(
         TOOL_CRON_CREATE,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_CRON_UPDATE,
         "orchestration",
         "high",
         ORCHESTRATION_AGENTS,

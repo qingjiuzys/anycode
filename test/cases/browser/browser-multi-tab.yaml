@@ -1,0 +1,20 @@
+id: browser-multi-tab
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Open the help page in a new tab context and confirm FAQ section is visible.
+expected:
+  assertions:
+  - validator: dom_contains
+    args:
+      selector: '#faq'
+      text: Frequently Asked Questions
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

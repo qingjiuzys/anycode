@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "dimensions": {
+    "data_accuracy": {
+      "weight": 30,
+      "label": "数据准确性",
+      "description": "关键数字与 fixtures 可复算结果一致"
+    },
+    "task_completeness": {
+      "weight": 25,
+      "label": "任务完整性",
+      "description": "覆盖 delivery contract 硬性要求"
+    },
+    "business_expression": {
+      "weight": 20,
+      "label": "业务表达",
+      "description": "结论、洞察、风险/建议，非 raw dump"
+    },
+    "presentation": {
+      "weight": 15,
+      "label": "呈现质量",
+      "description": "结构、排版、命名、可读性"
+    },
+    "process_trust": {
+      "weight": 10,
+      "label": "过程可信度",
+      "description": "工具链透明、无未声明降级、产物路径正确"
+    }
+  },
+  "gates": {
+    "PASS": { "min_score": 85, "max_p0": 0, "max_p1": 0 },
+    "WARN": { "min_score": 70, "max_p0": 0 },
+    "FAIL": { "min_score": 0 }
+  },
+  "severity": {
+    "P0": "数据错误或硬性缺失，不可交付",
+    "P1": "缺 contract 关键项或脏产物",
+    "P2": "可读性/表达扣分",
+    "P3": "优化建议"
+  }
+}

@@ -84,12 +84,6 @@ export const SettingsPage = lazyWithChunkReload(() =>
 export const ServicePage = lazyWithChunkReload(() =>
   import("@/pages/ServicePage").then((m) => ({ default: m.ServicePage })),
 );
-export const SetupWizardPage = lazyWithChunkReload(() =>
-  import("@/pages/SetupWizardPage").then((m) => ({ default: m.SetupWizardPage })),
-);
-export const LoginPage = lazyWithChunkReload(() =>
-  import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })),
-);
 
 function PageLoadError({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : String(error);

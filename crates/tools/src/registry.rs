@@ -7,7 +7,9 @@
 //! 3. 运行 `cargo test -p anycode-tools`（含 `validate_default_registry`）；CI 对 workspace 执行 `cargo test`。
 //! 4. 若工具敏感：加入 `crate::catalog::SECURITY_SENSITIVE_TOOL_IDS`（单一事实来源）；CLI `bootstrap` 自动为该表注册 `SecurityLayer` 策略。
 
-use crate::agent_tools::{AgentTool, LegacyTaskAgentTool, SendMessageTool, SkillTool};
+use crate::agent_tools::{
+    AgentTool, LegacyTaskAgentTool, SendMessageTool, SkillSearchTool, SkillTool,
+};
 use crate::bash::BashTool;
 use crate::edit::EditTool;
 use crate::file_read::FileReadTool;
@@ -26,8 +28,9 @@ use crate::mode_tools::{
 };
 use crate::notebook_edit::NotebookEditTool;
 use crate::orchestration::{
-    CronCreateTool, CronDeleteTool, CronListTool, RemoteTriggerTool, TaskCreateTool, TaskGetTool,
-    TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool, TeamCreateTool, TeamDeleteTool,
+    CronCreateTool, CronDeleteTool, CronListTool, CronUpdateTool, RemoteTriggerTool,
+    TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool,
+    TeamCreateTool, TeamDeleteTool,
 };
 use crate::plan_write::PlanWriteTool;
 use crate::platform_tools::{
@@ -41,6 +44,20 @@ use crate::wechat_history_tool::QueryWeChatHistoryTool;
 use crate::wechat_tools::SendWeChatMessageTool;
 use anycode_core::prelude::*;
 use std::collections::HashMap;
+
+fn mcp_configured(deps: &ToolRegistryDeps) -> bool {
+    #[cfg(feature = "tools-mcp")]
+    {
+        if !deps.services.mcp_sessions().is_empty() {
+            return true;
+        }
+    }
+    #[cfg(not(feature = "tools-mcp"))]
+    let _ = deps;
+    std::env::var("ANYCODE_MCP_COMMAND")
+        .ok()
+        .is_some_and(|v| !v.trim().is_empty())
+}
 
 /// 构建与 Claude Code 工具名对齐的完整注册表。
 pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool>> {
@@ -57,7 +74,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
 
     ins!(FileReadTool::new(sm));
     ins!(FileWriteTool::new(sm));
-    ins!(BashTool::new(sm));
+    ins!(BashTool::new(sm, s.clone()));
     ins!(GlobTool::new(sm));
     ins!(GrepTool::new(sm));
     ins!(EditTool::new(sm));
@@ -66,12 +83,23 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(PlanWriteTool::new(s.clone()));
     ins!(WebFetchTool::new(s.clone()));
     ins!(WebSearchTool::new(s.clone()));
-    ins!(McpTool::new(s.clone()));
-    ins!(ListMcpResourcesTool::new(s.clone()));
-    ins!(ReadMcpResourceTool::new(s.clone()));
-    ins!(McpAuthTool::new(s.clone()));
+    #[cfg(feature = "tools-mcp")]
+    {
+        ins!(McpTool::new(s.clone()));
+        ins!(ListMcpResourcesTool::new(s.clone()));
+        ins!(ReadMcpResourceTool::new(s.clone()));
+        ins!(McpAuthTool::new(s.clone()));
+    }
+    #[cfg(not(feature = "tools-mcp"))]
+    if mcp_configured(deps) {
+        ins!(McpTool::new(s.clone()));
+        ins!(ListMcpResourcesTool::new(s.clone()));
+        ins!(ReadMcpResourceTool::new(s.clone()));
+        ins!(McpAuthTool::new(s.clone()));
+    }
     ins!(LspTool::new(s.clone()));
     ins!(AgentTool::new(s.clone()));
+    ins!(SkillSearchTool::new(s.clone()));
     ins!(SkillTool::new(s.clone()));
     ins!(SendMessageTool::new(s.clone()));
     ins!(LegacyTaskAgentTool::new(s.clone()));
@@ -84,6 +112,7 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(TeamCreateTool::new(s.clone()));
     ins!(TeamDeleteTool::new(s.clone()));
     ins!(CronCreateTool::new(s.clone()));
+    ins!(CronUpdateTool::new(s.clone()));
     ins!(CronDeleteTool::new(s.clone()));
     ins!(CronListTool::new(s.clone()));
     ins!(RemoteTriggerTool::new(s.clone()));

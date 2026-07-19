@@ -1,5 +1,7 @@
 use super::*;
-use anycode_agent::{profile_spec_for_builtin, AgentProfileSpec, BUILTIN_AGENT_SEED};
+use anycode_agent::{
+    profile_spec_for_builtin, AgentProfileSpec, BUILTIN_AGENT_SEED, DEPRECATED_AGENT_ALIASES,
+};
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -174,6 +176,7 @@ impl DashboardDb {
     }
 
     pub async fn seed_builtin_agent_profiles(&self) -> Result<usize> {
+        self.prune_deprecated_builtin_profiles().await?;
         let mut n = 0usize;
         for seed in BUILTIN_AGENT_SEED {
             let spec = profile_spec_for_builtin(seed.id).unwrap_or(AgentProfileSpec {
@@ -214,5 +217,15 @@ impl DashboardDb {
             n += 1;
         }
         Ok(n)
+    }
+
+    async fn prune_deprecated_builtin_profiles(&self) -> Result<()> {
+        for (alias, _) in DEPRECATED_AGENT_ALIASES {
+            sqlx::query("DELETE FROM agent_profiles WHERE id = ? AND builtin = 1")
+                .bind(alias)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(())
     }
 }

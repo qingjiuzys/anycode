@@ -1,0 +1,27 @@
+{
+  "name": "anycode-account-portal",
+  "private": true,
+  "version": "0.2.3",
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../scripts/prepare-user-docs.mjs && vite",
+    "build": "node ../../scripts/prepare-user-docs.mjs && tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@types/qrcode": "^1.5.6",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.7.3",
+    "vite": "^6.2.0"
+  }
+}

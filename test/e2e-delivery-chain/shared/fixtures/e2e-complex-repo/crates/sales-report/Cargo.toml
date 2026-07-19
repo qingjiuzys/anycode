@@ -1,0 +1,14 @@
+[package]
+name = "sales-report"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sales-report"
+path = "src/main.rs"
+
+[dependencies]
+sales-metrics = { path = "../sales-metrics" }
+
+[dev-dependencies]
+sales-metrics = { path = "../sales-metrics" }

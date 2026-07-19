@@ -29,7 +29,7 @@ Local pre-push verification (same commit):
 | Lint | `cargo clippy --workspace --all-targets` |
 | Tests | `cargo test --workspace` |
 | Release binary | `cargo build --release -p anycode-desktop-channel-bridge` |
-| Docs site | `cd docs-site && npm ci && npm run build` when `docs-site/` changed |
+| Docs site | `cd crates/account-portal && npm ci && npm run build` when `docs/user/` changed |
 | Eval smoke | ``cargo test --workspace`` |
 
 ## Production Gates

@@ -6,21 +6,19 @@ import { api } from "@/api/client";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { HomeInsightCards } from "@/components/HomeInsightCards";
 import { HomeWorkbenchPanel } from "@/components/HomeWorkbenchPanel";
-import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { HomeTokenUsage } from "@/components/HomeTokenUsage";
 import { HomeSavedHoursKpi } from "@/components/HomeSavedHoursKpi";
 import { HomeTimelineChart } from "@/components/HomeTimelineChart";
 import { SecurityActivityPanel } from "@/components/SecurityActivityPanel";
 import {
-  SecurityApprovalInbox,
   PendingApprovalBadge,
   usePendingApprovalCounts,
 } from "@/components/SecurityApprovalInbox";
 import { HomeOverviewPanelPills } from "@/components/HomeOverviewPanelPills";
 import { HomePanelOverlays, type HomePanelSection } from "@/components/HomePanelOverlays";
-import { WorkspacePathsPanel } from "@/components/WorkspacePathsPanel";
 import { MetricsChart } from "@/components/MetricsChart";
-import { WorkbenchStatusCard } from "@/components/WorkbenchStatusCard";
+import { OverviewBriefingPanel } from "@/components/OverviewBriefingPanel";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -28,7 +26,6 @@ import { TrustBar } from "@/components/ui/StatusBadge";
 import { useSseStatus } from "@/context/SseContext";
 import { SseStatusBadge } from "@/components/SseStatusBadge";
 import { useT } from "@/i18n/context";
-import { translateBootstrapStep } from "@/i18n/bootstrapTranslate";
 import { sessionChatSearch } from "@/lib/sessionLinks";
 import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
@@ -37,9 +34,8 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
   const t = useT();
   const sseStatus = useSseStatus();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const analyticsOpen = expandedSection === "analytics";
-  const workbenchOpen = expandedSection === "workbench";
+  const briefingOpen = expandedSection === "briefing";
   const health = useQuery({ queryKey: ["health"], queryFn: api.health });
   const overview = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const projects = useQuery({
@@ -62,11 +58,6 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
     queryFn: () => api.timelineMetrics(7),
     enabled: analyticsOpen,
   });
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: api.bootstrap,
-    enabled: workbenchOpen,
-  });
   const { counts: pendingCounts, pendingTotal } = usePendingApprovalCounts();
 
   if (health.isError) {
@@ -79,43 +70,30 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
 
   const list = projects.data?.projects ?? [];
   const ov = overview.data?.overview;
-  const steps = bootstrap.data?.bootstrap?.next_steps ?? [];
   const recentSessions = sessions.data?.sessions ?? [];
 
   const analyticsContent = (
     <div className="dw-analytics-stack">
-      <HomeTokenUsage />
+      <HomeTokenUsage
+        belowTrend={
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <SectionCard title={t("home.timeline7d")} noPadding className="dw-analytics-chart-card">
+              <HomeTimelineChart timeline={timeline.data?.timeline} tall />
+            </SectionCard>
+            <SectionCard title={t("home.projectMetrics")} noPadding className="dw-analytics-chart-card">
+              <div className="px-2 pb-2 pt-1">
+                <MetricsChart projects={list} tall />
+              </div>
+            </SectionCard>
+          </div>
+        }
+      />
       <HomeSavedHoursKpi />
       <SecurityActivityPanel variant="analytics" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SectionCard title={t("home.timeline7d")} noPadding className="dw-analytics-chart-card">
-          <HomeTimelineChart timeline={timeline.data?.timeline} tall />
-        </SectionCard>
-        <SectionCard title={t("home.projectMetrics")} noPadding className="dw-analytics-chart-card">
-          <div className="px-2 pb-2 pt-1">
-            <MetricsChart projects={list} tall />
-          </div>
-        </SectionCard>
-      </div>
     </div>
   );
 
-  const workbenchContent = (
-    <>
-      <WorkbenchStatusCard bootstrap={bootstrap.data?.bootstrap} />
-      <WorkspacePathsPanel bootstrap={bootstrap.data?.bootstrap} />
-      {steps.length > 0 && (
-        <SectionCard title={t("home.nextSteps")}>
-          <ul className="m-0 pl-5 text-sm text-secondary space-y-1">
-            {steps.map((step) => (
-              <li key={step}>{translateBootstrapStep(t, step)}</li>
-            ))}
-          </ul>
-        </SectionCard>
-      )}
-      <SecurityApprovalInbox />
-    </>
-  );
+  const briefingContent = <OverviewBriefingPanel active={briefingOpen} />;
 
   const moreSections: HomePanelSection[] = [
     ...(recentSessions.length > 0
@@ -169,37 +147,37 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
       content: analyticsContent,
     },
     {
-      id: "workbench",
-      title: t("home.workbenchSection"),
-      content: workbenchContent,
+      id: "briefing",
+      title: t("home.briefingSection"),
+      content: briefingContent,
     },
   ];
 
   return (
     <>
-      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
-
-      <PageHeader
-        title={t("nav.overview")}
-        subtitle={t("overview.subtitle")}
-        breadcrumbs={[{ label: t("breadcrumb.home"), to: "/" }, { label: t("nav.overview") }]}
-        actions={
-          <HomeOverviewPanelPills
-            activePanelId={expandedSection}
-            onPanelChange={setExpandedSection}
-            showRecentPanel={recentSessions.length > 0}
+      <CcPageShell
+        header={
+          <PageHeader
+            title={t("nav.overview")}
+            subtitle={t("overview.subtitle")}
+            breadcrumbs={[{ label: t("nav.home"), to: "/" }, { label: t("nav.overview") }]}
+            actions={
+              <HomeOverviewPanelPills
+                activePanelId={expandedSection}
+                onPanelChange={setExpandedSection}
+                showRecentPanel={recentSessions.length > 0}
+              />
+            }
           />
         }
-      />
-
-      <div className="mb-6">
-        <h2 className="text-base font-semibold text-on-surface m-0 mb-3">{t("overview.workbenchQuick")}</h2>
+      >
+      <div className="mb-2">
+        <h2 className="text-sm font-semibold text-on-surface m-0 mb-3">{t("overview.workbenchQuick")}</h2>
         <HomeWorkbenchPanel
           overview={ov}
           projects={list}
           loadingProjects={projects.isLoading}
           pendingApprovals={pendingTotal}
-          onNewProject={() => setNewProjectOpen(true)}
         />
       </div>
 
@@ -293,8 +271,6 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
           </div>
         </SectionCard>
       )}
-
-      {pendingTotal > 0 && <SecurityApprovalInbox compact hideWhenEmpty />}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
         <div className="lg:col-span-7">
@@ -414,6 +390,7 @@ export function OverviewPage(_props: EmbeddedPageProps = {}) {
         activeId={expandedSection}
         onActiveChange={setExpandedSection}
       />
+      </CcPageShell>
     </>
   );
 }

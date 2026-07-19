@@ -37,6 +37,7 @@ async function accountFetch<T>(
   base: string,
   path: string,
   init: RequestInit = {},
+  timeoutMs = 15_000,
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) {
@@ -45,12 +46,27 @@ async function accountFetch<T>(
   const token = getAccountToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(joinUrl(base, path), { ...init, headers });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`${res.status} ${path}: ${text}`);
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(joinUrl(base, path), {
+      ...init,
+      headers,
+      signal: init.signal ?? controller.signal,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`${res.status} ${path}: ${text}`);
+    }
+    return JSON.parse(text) as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s: ${path}`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
   }
-  return JSON.parse(text) as T;
 }
 
 export const accountCloud = {
@@ -69,7 +85,7 @@ export const accountCloud = {
     }),
 
   logout: (base: string) =>
-    accountFetch<{ ok: boolean }>(base, "/api/v1/auth/logout", { method: "POST" }),
+    accountFetch<{ ok: boolean }>(base, "/api/v1/auth/logout", { method: "POST" }, 5_000),
 
   me: (base: string) => accountFetch<CloudMeResponse>(base, "/api/v1/auth/me"),
 
@@ -104,6 +120,22 @@ export const accountCloud = {
 
   listMembers: (base: string) =>
     accountFetch<{ members: CloudOrgMember[] }>(base, "/api/v1/org/members"),
+
+  plansCatalog: (base: string) =>
+    accountFetch<{
+      plans: Array<{
+        id: string;
+        monthly_price_fen: number;
+        yearly_price_fen: number;
+        token_limit: number;
+        api_key_limit: number;
+        seat_limit: number;
+        promo_label: string | null;
+        featured: boolean;
+        enabled: boolean;
+        sort_order: number;
+      }>;
+    }>(base, "/api/v1/plans/catalog"),
 };
 
 import { CLOUD_PLATFORM } from "@/lib/cloudPlatform";

@@ -13,6 +13,7 @@
     "core:default",
     "core:window:allow-start-dragging",
     "shell:default",
+    "shell-helpers-default",
     "apple-media-default",
     "deep-link:default"
   ]

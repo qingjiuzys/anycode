@@ -45,6 +45,18 @@ pub fn resolve_secret_ref(reference: &str) -> Result<Option<String>> {
         .unwrap_or(reference);
     let path = if reference.starts_with('@') || reference.starts_with("secrets/") {
         secrets_dir().join(rel.strip_prefix("secrets/").unwrap_or(rel))
+    } else if !reference.contains('/') && !reference.contains('\\') {
+        let safe = reference
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        secrets_dir().join(format!("{safe}.txt"))
     } else {
         PathBuf::from(reference)
     };
@@ -71,6 +83,11 @@ mod tests {
         assert_eq!(
             resolve_secret_ref(&reference).unwrap().as_deref(),
             Some("sk-secret")
+        );
+        store_secret("agnes", "sk-test").unwrap();
+        assert_eq!(
+            resolve_secret_ref("agnes").unwrap().as_deref(),
+            Some("sk-test")
         );
     }
 }

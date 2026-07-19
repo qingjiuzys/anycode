@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConsoleShell } from "@/components/service/ConsoleShell";
 import type { ServiceSection } from "@/components/service/ServiceNav";
@@ -65,16 +66,18 @@ function ServicePageInner({
   };
 
   return (
-    <>
-      <PageHeader
-        title={t("service.console.pageTitle")}
-        subtitle={t("service.console.pageSubtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("service.console.pageTitle") },
-        ]}
-      />
-
+    <CcPageShell
+      header={
+        <PageHeader
+          title={t("service.console.pageTitle")}
+          subtitle={t("service.console.pageSubtitle")}
+          breadcrumbs={[
+            { label: t("nav.home"), to: "/" },
+            { label: t("service.console.pageTitle") },
+          ]}
+        />
+      }
+    >
       <ServiceCloudShell>
         <ConsoleShell active={section} onSectionChange={onSectionChange}>
           <ServiceMockBanner />
@@ -89,6 +92,6 @@ function ServicePageInner({
           </div>
         </ConsoleShell>
       </ServiceCloudShell>
-    </>
+    </CcPageShell>
   );
 }

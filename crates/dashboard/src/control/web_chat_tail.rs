@@ -131,6 +131,7 @@ async fn run_tail(
                         assistant_turn,
                         &delta,
                         &assistant_text,
+                        false,
                     ));
                     let _ = prev_len;
                 }
@@ -152,6 +153,7 @@ async fn run_tail(
                             assistant_turn,
                             &delta,
                             &assistant_text,
+                            false,
                         ));
                     }
                 }

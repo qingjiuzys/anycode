@@ -14,7 +14,7 @@ pub async fn get_skill_detail(
 ) -> Result<Option<SkillDetailRecord>> {
     let row = sqlx::query(
         r#"
-        SELECT s.id, s.name, s.description, s.description_zh, s.source_path, s.category, s.permissions_json,
+        SELECT s.id, s.name, s.description, s.description_zh, s.name_zh, s.source_path, s.category, s.permissions_json,
                (SELECT COUNT(*) FROM project_skills ps WHERE ps.skill_id = s.id AND ps.enabled = 1) AS projects_count
         FROM skills s WHERE s.id = ?
         "#,
@@ -38,6 +38,7 @@ pub async fn get_skill_detail(
         name: r.get("name"),
         description: r.get("description"),
         description_zh: r.get("description_zh"),
+        name_zh: r.get("name_zh"),
         source_path,
         category: r.get("category"),
         permissions,
@@ -156,12 +157,13 @@ pub async fn record_skill_run(
     project_id: Option<&str>,
     session_id: Option<&str>,
     status: &str,
+    detail: &Value,
 ) -> Result<SkillRunRecord> {
     let id = format!("sr_{}", Uuid::new_v4());
     sqlx::query(
         r#"
-        INSERT INTO skill_runs (id, skill_id, project_id, session_id, status, ended_at)
-        VALUES (?, ?, ?, ?, ?, CASE WHEN ? IN ('ok', 'failed') THEN datetime('now') ELSE NULL END)
+        INSERT INTO skill_runs (id, skill_id, project_id, session_id, status, detail_json, ended_at)
+        VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ? IN ('ok', 'failed') THEN datetime('now') ELSE NULL END)
         "#,
     )
     .bind(&id)
@@ -169,6 +171,7 @@ pub async fn record_skill_run(
     .bind(project_id)
     .bind(session_id)
     .bind(status)
+    .bind(detail.to_string())
     .bind(status)
     .execute(db.pool())
     .await?;

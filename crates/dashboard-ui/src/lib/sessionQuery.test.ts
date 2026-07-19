@@ -12,6 +12,16 @@ describe("sessionQuery", () => {
     expect(transcriptStaleTime(true)).toBe(3_000);
   });
 
+  it("suppresses transcript refetch while chat stream is live", () => {
+    expect(transcriptStaleTime(true, true)).toBe(Number.POSITIVE_INFINITY);
+    expect(transcriptStaleTime(false, true)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("suppresses transcript refetch while streamLive is active", () => {
+    expect(transcriptStaleTime(true, false, true)).toBe(Number.POSITIVE_INFINITY);
+    expect(transcriptStaleTime(false, false, true)).toBe(Number.POSITIVE_INFINITY);
+  });
+
   it("builds stable query keys for prefetch", () => {
     expect(transcriptQueryOptions("sess-1", false)).toMatchObject({
       queryKey: ["session-transcript", "sess-1"],

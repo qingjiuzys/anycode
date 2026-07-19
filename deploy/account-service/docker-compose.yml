@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: anycode
+      POSTGRES_PASSWORD: anycode
+      POSTGRES_DB: anycode_account
+    ports:
+      - "5432:5432"
+    volumes:
+      - account_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anycode -d anycode_account"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  account-service:
+    build:
+      context: ../..
+      dockerfile: deploy/account-service/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://anycode:anycode@postgres:5432/anycode_account}
+      ACCOUNT_SERVICE_HOST: 0.0.0.0
+      ACCOUNT_SERVICE_PORT: 8080
+    volumes:
+      - ./secrets:/run/secrets/wechat:ro
+    ports:
+      - "43200:8080"
+
+  model-gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/account-service/Dockerfile.gateway
+    depends_on:
+      - account-service
+    environment:
+      MODEL_GATEWAY_HOST: 0.0.0.0
+      MODEL_GATEWAY_PORT: 43210
+      ANYCODE_ACCOUNT_API_URL: http://account-service:43200
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "43210:43210"
+
+volumes:
+  account_pg_data:

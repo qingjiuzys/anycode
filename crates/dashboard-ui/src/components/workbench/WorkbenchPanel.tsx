@@ -30,8 +30,8 @@ export function WorkbenchPanel({
 
   return (
     <div
-      className="conv-workbench-panel relative flex flex-col min-h-0 shrink-0 border-l border-outline-variant bg-surface-container-lowest"
-      style={{ width }}
+      className="conv-workbench-panel relative flex flex-col min-h-0 border-l border-outline-variant bg-surface-container-lowest"
+      style={{ width, flex: "1 1 auto" }}
     >
       <div
         className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 z-10"
@@ -52,7 +52,9 @@ export function WorkbenchPanel({
           <Icon name="chevron_right" size={18} />
         </button>
       </div>
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">{children}</div>
+      <div className="flex-1 min-h-[12rem] flex flex-col overflow-y-auto overflow-x-hidden">
+        {children}
+      </div>
     </div>
   );
 }

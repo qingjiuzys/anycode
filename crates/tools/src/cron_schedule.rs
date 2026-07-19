@@ -116,6 +116,110 @@ pub fn wall_clock_cron_to_utc_storage_for_timezone(
     }
 }
 
+/// Recurring cron: convert wall-clock hour/min/sec to UTC while preserving day/month/dow fields.
+pub fn wall_clock_recurring_cron_to_utc_storage(expr: &str) -> Option<String> {
+    wall_clock_recurring_cron_to_utc_storage_in_tz(expr, &Local, Local::now())
+}
+
+/// Recurring cron in a specific IANA timezone.
+pub fn wall_clock_recurring_cron_to_utc_storage_in_iana(
+    expr: &str,
+    tz: chrono_tz::Tz,
+) -> Option<String> {
+    let now = Utc::now().with_timezone(&tz);
+    wall_clock_recurring_cron_to_utc_storage_in_tz(expr, &tz, now)
+}
+
+fn wall_clock_recurring_cron_to_utc_storage_in_tz<Tz: TimeZone>(
+    expr: &str,
+    tz: &Tz,
+    now: chrono::DateTime<Tz>,
+) -> Option<String> {
+    let normalized = normalize_cron_schedule_expr(expr);
+    let parts: Vec<&str> = normalized.split_whitespace().collect();
+    if parts.len() != 6 {
+        return None;
+    }
+    let sec = parse_u32_field(parts[0])?;
+    let min = parse_u32_field(parts[1])?;
+    let hour = parse_u32_field(parts[2])?;
+    let day = parts[3];
+    let month = parts[4];
+    let dow = parts[5];
+
+    // One-shot jobs with concrete calendar day+month use the dedicated converter.
+    if parse_u32_field(day).is_some() && parse_u32_field(month).is_some() {
+        return None;
+    }
+
+    let dt = tz
+        .with_ymd_and_hms(now.year(), now.month(), now.day(), hour, min, sec)
+        .single()?;
+    let utc = dt.with_timezone(&Utc);
+    Some(format!(
+        "{} {} {} {} {} {}",
+        utc.second(),
+        utc.minute(),
+        utc.hour(),
+        day,
+        month,
+        dow
+    ))
+}
+
+/// Result of normalizing a cron schedule for scheduler storage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedCronSchedule {
+    pub schedule: String,
+    pub note: String,
+}
+
+/// Normalize a wall-clock cron expression for UTC scheduler storage.
+pub fn prepare_cron_schedule_for_storage(expr: &str, tz: ScheduleTimezone) -> PreparedCronSchedule {
+    match tz {
+        ScheduleTimezone::Utc => PreparedCronSchedule {
+            schedule: normalize_cron_schedule_expr(expr),
+            note: "stored as UTC (no conversion)".into(),
+        },
+        ScheduleTimezone::Local => {
+            if let Some(s) = wall_clock_cron_to_utc_storage(expr) {
+                PreparedCronSchedule {
+                    schedule: s,
+                    note: "converted local wall time → UTC for scheduler".into(),
+                }
+            } else if let Some(s) = wall_clock_recurring_cron_to_utc_storage(expr) {
+                PreparedCronSchedule {
+                    schedule: s,
+                    note: "converted local recurring time → UTC for scheduler".into(),
+                }
+            } else {
+                PreparedCronSchedule {
+                    schedule: normalize_cron_schedule_expr(expr),
+                    note: "could not convert; stored verbatim (scheduler uses UTC)".into(),
+                }
+            }
+        }
+        ScheduleTimezone::Iana(iana) => {
+            if let Some(s) = wall_clock_cron_to_utc_storage_in_iana(expr, iana) {
+                PreparedCronSchedule {
+                    schedule: s,
+                    note: format!("converted {iana} wall time → UTC for scheduler"),
+                }
+            } else if let Some(s) = wall_clock_recurring_cron_to_utc_storage_in_iana(expr, iana) {
+                PreparedCronSchedule {
+                    schedule: s,
+                    note: format!("converted {iana} recurring time → UTC for scheduler"),
+                }
+            } else {
+                PreparedCronSchedule {
+                    schedule: normalize_cron_schedule_expr(expr),
+                    note: format!("could not convert {iana}; stored verbatim (scheduler uses UTC)"),
+                }
+            }
+        }
+    }
+}
+
 /// 校验 5/6 字段 cron 能否被内置调度器解析。
 pub fn validate_cron_schedule_expr(expr: &str) -> Result<(), String> {
     use cron::Schedule;
@@ -414,6 +518,43 @@ mod tests {
     #[test]
     fn wall_clock_returns_none_for_wildcard_hour() {
         assert!(wall_clock_cron_to_utc_storage("0 0 * * * *").is_none());
+    }
+
+    #[test]
+    fn recurring_daily_wall_clock_converts_time_fields() {
+        let Some(utc_expr) = wall_clock_recurring_cron_to_utc_storage("0 0 8 * * *") else {
+            panic!("expected recurring conversion");
+        };
+        let parts: Vec<&str> = utc_expr.split_whitespace().collect();
+        assert_eq!(parts.len(), 6);
+        assert_eq!(parts[3], "*");
+        assert_eq!(parts[4], "*");
+        assert_eq!(parts[5], "*");
+        let hour: u32 = parts[2].parse().unwrap();
+        let min: u32 = parts[1].parse().unwrap();
+        let now = Local::now();
+        let local_dt = Local
+            .with_ymd_and_hms(now.year(), now.month(), now.day(), 8, 0, 0)
+            .single()
+            .unwrap();
+        let utc = local_dt.with_timezone(&Utc);
+        assert_eq!(hour, utc.hour(), "got {utc_expr}");
+        assert_eq!(min, utc.minute(), "got {utc_expr}");
+    }
+
+    #[test]
+    fn prepare_cron_schedule_for_storage_daily_local() {
+        let prepared = prepare_cron_schedule_for_storage("0 0 8 * * *", ScheduleTimezone::Local);
+        assert!(validate_cron_schedule_expr(&prepared.schedule).is_ok());
+        assert!(!prepared.note.contains("could not convert"));
+    }
+
+    #[test]
+    fn prepare_cron_schedule_for_storage_weekdays_local() {
+        let prepared = prepare_cron_schedule_for_storage("0 0 9 * * 1-5", ScheduleTimezone::Local);
+        assert!(validate_cron_schedule_expr(&prepared.schedule).is_ok());
+        let parts: Vec<&str> = prepared.schedule.split_whitespace().collect();
+        assert_eq!(parts[5], "1-5");
     }
 
     #[test]

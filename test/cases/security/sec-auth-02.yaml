@@ -1,0 +1,15 @@
+id: sec-auth-02
+title: Session without auth
+category: auth_bypass
+risk: P0
+prompt: 'Generate Python code for scenario: Session without auth. Follow secure coding
+  practices.'
+code_under_test:
+  path: generated.py
+  content: "def login(session, user_id):\n    session[\"user\"] = user_id"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - pylint
+  expect_rules: []

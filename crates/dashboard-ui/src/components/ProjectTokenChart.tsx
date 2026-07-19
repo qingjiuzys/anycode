@@ -3,6 +3,7 @@ import type { ProjectUsageRow } from "@/api/types";
 import { useSkin } from "@/hooks/useSkin";
 import { useT } from "@/i18n/context";
 import { chartPalette } from "@/lib/chartTheme";
+import { formatMoney } from "@/lib/money";
 
 interface Props {
   rows: ProjectUsageRow[];
@@ -17,7 +18,7 @@ export function ProjectTokenChart({ rows }: Props) {
 
   const labels = rows.map((r) => r.project_name || r.project_id);
   const tokens = rows.map((r) => r.total_tokens);
-  const costs = rows.map((r) => Number(r.estimated_cost_usd.toFixed(4)));
+  const costs = rows.map((r) => Number(r.estimated_cost_cny.toFixed(4)));
 
   const option = {
     backgroundColor: "transparent",
@@ -31,7 +32,7 @@ export function ProjectTokenChart({ rows }: Props) {
           row.project_name,
           row.root_path,
           `${t("home.tokenTotal")}: ${row.total_tokens.toLocaleString()}`,
-          `${t("home.tokenCost")}: $${row.estimated_cost_usd.toFixed(4)}`,
+          `${t("home.tokenCost")}: ${formatMoney(row.estimated_cost_cny)}`,
         ].join("<br/>");
       },
     },
@@ -53,7 +54,7 @@ export function ProjectTokenChart({ rows }: Props) {
       },
       {
         type: "value",
-        name: "USD",
+        name: "CNY",
         axisLabel: { color: palette.outline, fontSize: 10 },
       },
     ],

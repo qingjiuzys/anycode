@@ -1,0 +1,25 @@
+id: skills-office-pptx-ab-market-stub
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Create a 5-slide deck from outline.md following the office-pptx skill layout rules.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/result.md
+requires:
+  llm: live
+  network: false
+  tools:
+  - skills
+timeout_seconds: 900
+fixture: skills/ab-fixtures
+meta:
+  ab_variant: market-stub
+  ab_task: office-pptx-ab
+  skills:
+  - office-pptx
+  skill_stub: market-reference/office-pptx

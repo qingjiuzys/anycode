@@ -31,6 +31,10 @@ const EVENT_TYPE_KEYS: Record<string, string> = {
   assistant_response: "assistant_response",
   gate: "gate",
   gate_executed: "gate_executed",
+  gate_failed: "gate_failed",
+  session_report_generated: "session_report_generated",
+  project_report_generated: "project_report_generated",
+  blocked_threshold_exceeded: "blocked_threshold_exceeded",
   session_created: "session_created",
   session_completed: "session_completed",
   session_blocked: "session_blocked",
@@ -149,7 +153,15 @@ export function localizeLogTitle(
   if (m) {
     return interpolate(t("eventTitles.toolStarted"), { tool: m[1].trim() });
   }
+  m = raw.match(/^(.+?) start$/i);
+  if (m) {
+    return interpolate(t("eventTitles.toolStarted"), { tool: m[1].trim() });
+  }
   m = raw.match(/^(.+?) finished$/i);
+  if (m) {
+    return interpolate(t("eventTitles.toolFinished"), { tool: m[1].trim() });
+  }
+  m = raw.match(/^(.+?) end$/i);
   if (m) {
     return interpolate(t("eventTitles.toolFinished"), { tool: m[1].trim() });
   }
@@ -304,6 +316,35 @@ export function formatTrustedStatusLabel(status: string, t: (key: string) => str
 
 export function formatLiveToolLabel(toolName: string, t: (key: string) => string): string {
   return interpolate(t("conversations.liveToolRunning"), { tool: toolName });
+}
+
+/** Localize tool_call_* phase suffix (start / end / input) for trace panels. */
+export function formatToolCallPhaseLabel(
+  eventType: string,
+  t: (key: string) => string,
+): string {
+  const suffix = eventType.replace(/^tool_call_/, "").trim().toLowerCase();
+  const key = `conversations.tracePhase.${suffix}`;
+  const label = t(key);
+  return label !== key ? label : suffix;
+}
+
+/** Localize transcript block meta.phase (start / end). */
+export function formatToolPhaseLabel(
+  phase: string | undefined,
+  t: (key: string) => string,
+): string {
+  const p = phase?.trim().toLowerCase() ?? "";
+  if (p === "start") {
+    return t("conversations.tracePhase.start");
+  }
+  if (p === "end") {
+    return t("conversations.tracePhase.end");
+  }
+  if (p === "input") {
+    return t("conversations.tracePhase.input");
+  }
+  return phase ?? "";
 }
 
 function looksLikeInternalSlug(s: string): boolean {

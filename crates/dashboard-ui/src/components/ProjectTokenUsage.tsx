@@ -5,6 +5,7 @@ import { AnalyticsBlock, KpiMetricGrid } from "@/components/KpiMetricGrid";
 import { ModelUsageTable } from "@/components/ModelUsageTable";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
+import { formatMoney } from "@/lib/money";
 
 export function ProjectTokenUsage({ projectId }: { projectId: string }) {
   const t = useT();
@@ -20,7 +21,7 @@ export function ProjectTokenUsage({ projectId }: { projectId: string }) {
   if (!u) return null;
 
   const hasUsage =
-    u.llm_calls > 0 || u.total_tokens > 0 || u.estimated_cost_usd > 0 || modelRows.length > 0;
+    u.llm_calls > 0 || u.total_tokens > 0 || u.estimated_cost_cny > 0 || modelRows.length > 0;
   if (!hasUsage) return null;
 
   return (
@@ -50,7 +51,7 @@ export function ProjectTokenUsage({ projectId }: { projectId: string }) {
           { label: t("home.tokenTotal"), value: formatTokens(u.total_tokens), highlight: true },
           {
             label: t("home.tokenCost"),
-            value: `$${u.estimated_cost_usd.toFixed(2)}`,
+            value: formatMoney(u.estimated_cost_cny),
             highlight: true,
           },
         ]}

@@ -1,7 +1,7 @@
 # Claude Code 参考简报（2026-06）
 
 维护者用：记录 anyCode 相对 **Claude Code TS 暴露归档** 与 **社区 claude-code-rust** 的差距与可借鉴点。  
-**不**直接移植 TS 源码实现；产品 MVP 仍以 [docs-site/guide/roadmap.md](../docs-site/guide/roadmap.md) 为准。**0.3 产品**（网页控制台）见 [roadmap.md](../roadmap.md) §3.5；**技术 hardening（0.4）** 见 §4。
+**不**直接移植 TS 源码实现；产品 MVP 仍以 [https://anycode.work/docs/guide/roadmap.md](../docs/user/guide/roadmap) 为准。**0.3 产品**（网页控制台）见 [roadmap.md](../roadmap.md) §3.5；**技术 hardening（0.4）** 见 §4。
 
 ## 同步基线
 

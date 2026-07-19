@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
 import { api } from "@/api/client";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -69,78 +70,81 @@ function ArtifactDetailInner({ artifactId }: { artifactId: string }) {
   const canPromote = isArtifact && asset.asset_kind !== "skill" && asset.asset_kind !== "workflow";
 
   return (
-    <>
-      <PageHeader
-        title={asset.title}
-        subtitle={`${asset.subtitle} · ${t(`assets.kinds.${asset.asset_kind}`)}`}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("assets.title"), to: "/assets" },
-          { label: asset.title },
-        ]}
-        actions={
-          <>
-            {asset.path && (
-              <CopyButton text={asset.path} label={t("artifactDetail.copyPath")} />
+    <CcPageShell
+      header={
+        <>
+          <PageHeader
+            title={asset.title}
+            subtitle={`${asset.subtitle} · ${t(`assets.kinds.${asset.asset_kind}`)}`}
+            breadcrumbs={[
+              { label: t("nav.home"), to: "/" },
+              { label: t("assets.title"), to: "/assets" },
+              { label: asset.title },
+            ]}
+            actions={
+              <>
+                {asset.path && (
+                  <CopyButton text={asset.path} label={t("artifactDetail.copyPath")} />
+                )}
+                {isArtifact && asset.project_id && asset.session_id && (
+                  <CopyButton
+                    text={`# project=${asset.project_id} session=${asset.session_id}\n${asset.path ?? ""}`}
+                    label={t("artifactDetail.copyProvenance")}
+                  />
+                )}
+              </>
+            }
+          />
+          <div className="dw-cc-page-toolbar flex flex-wrap gap-2 mt-3">
+            {isArtifact && asset.reuse_state !== "reusable" && (
+              <button
+                type="button"
+                className="dw-btn-secondary"
+                disabled={markReusable.isPending}
+                onClick={() => markReusable.mutate()}
+              >
+                {t("assets.actions.markReusable")}
+              </button>
             )}
-            {isArtifact && asset.project_id && asset.session_id && (
-              <CopyButton
-                text={`# project=${asset.project_id} session=${asset.session_id}\n${asset.path ?? ""}`}
-                label={t("artifactDetail.copyProvenance")}
-              />
+            {isArtifact && asset.reuse_state !== "archived" && (
+              <button
+                type="button"
+                className="dw-btn-secondary"
+                disabled={archive.isPending}
+                onClick={() => archive.mutate()}
+              >
+                {t("assets.actions.archive")}
+              </button>
             )}
-          </>
-        }
-      />
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        {isArtifact && asset.reuse_state !== "reusable" && (
-          <button
-            type="button"
-            className="dw-btn-secondary"
-            disabled={markReusable.isPending}
-            onClick={() => markReusable.mutate()}
-          >
-            {t("assets.actions.markReusable")}
-          </button>
-        )}
-        {isArtifact && asset.reuse_state !== "archived" && (
-          <button
-            type="button"
-            className="dw-btn-secondary"
-            disabled={archive.isPending}
-            onClick={() => archive.mutate()}
-          >
-            {t("assets.actions.archive")}
-          </button>
-        )}
-        {canPromote && (
-          <>
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              disabled={promoteSkill.isPending}
-              onClick={() => promoteSkill.mutate()}
-            >
-              {t("assets.actions.promoteSkill")}
-            </button>
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              disabled={promoteWorkflow.isPending}
-              onClick={() => promoteWorkflow.mutate()}
-            >
-              {t("assets.actions.promoteWorkflow")}
-            </button>
-          </>
-        )}
-        {asset.backend_type === "skill" && (
-          <Link to="/agents/$skillId" params={{ skillId: asset.backend_id }} className="dw-btn-secondary no-underline">
-            {t("assets.actions.openSkill")}
-          </Link>
-        )}
-      </div>
-
+            {canPromote && (
+              <>
+                <button
+                  type="button"
+                  className="dw-btn-secondary"
+                  disabled={promoteSkill.isPending}
+                  onClick={() => promoteSkill.mutate()}
+                >
+                  {t("assets.actions.promoteSkill")}
+                </button>
+                <button
+                  type="button"
+                  className="dw-btn-secondary"
+                  disabled={promoteWorkflow.isPending}
+                  onClick={() => promoteWorkflow.mutate()}
+                >
+                  {t("assets.actions.promoteWorkflow")}
+                </button>
+              </>
+            )}
+            {asset.backend_type === "skill" && (
+              <Link to="/agents/$skillId" params={{ skillId: asset.backend_id }} className="dw-btn-secondary no-underline">
+                {t("assets.actions.openSkill")}
+              </Link>
+            )}
+          </div>
+        </>
+      }
+    >
       {a.promotion_draft_path && (
         <div className="dw-alert-info mb-4 text-sm">
           {t("assets.draftCreated")}: <code className="font-code">{a.promotion_draft_path}</code>
@@ -272,6 +276,6 @@ function ArtifactDetailInner({ artifactId }: { artifactId: string }) {
           </pre>
         </SectionCard>
       )}
-    </>
+    </CcPageShell>
   );
 }

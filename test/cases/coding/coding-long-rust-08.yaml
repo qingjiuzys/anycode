@@ -1,0 +1,23 @@
+id: coding-long-rust-08
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Implement the long rust task in this workspace; all tests must pass.
+expected:
+  assertions:
+  - validator: cargo_test_pass
+    args:
+      path: .
+requires:
+  llm: live
+  network: false
+  tools:
+  - shell
+  - edit
+timeout_seconds: 1800
+fixture: coding/long-rust
+complexity: long
+meta:
+  language: rust

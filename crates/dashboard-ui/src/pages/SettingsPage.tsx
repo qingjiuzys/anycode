@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { SettingsNav, type SettingsSection } from "@/components/settings/SettingsNav";
+import {
+  SettingsNav,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+} from "@/components/settings/SettingsNav";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
+import { SettingsAboutSection } from "@/pages/settings/SettingsAboutSection";
 import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
-import { SettingsAuthSection } from "@/pages/settings/SettingsAuthSection";
 import { SettingsChannelsSection } from "@/pages/settings/SettingsChannelsSection";
 import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
 import { SettingsGatesSection } from "@/pages/settings/SettingsGatesSection";
@@ -20,7 +24,6 @@ import { SettingsSkillsSection } from "@/pages/settings/SettingsSkillsSection";
 import { SettingsPluginsSection } from "@/pages/settings/SettingsPluginsSection";
 
 const VALID_SECTIONS = new Set<SettingsSection>([
-  "auth",
   "prefs",
   "data",
   "service",
@@ -33,6 +36,7 @@ const VALID_SECTIONS = new Set<SettingsSection>([
   "gates",
   "plugins",
   "ops",
+  "about",
 ]);
 
 function parseSettingsSection(raw: unknown): SettingsSection {
@@ -86,34 +90,56 @@ function SettingsPageInner({
   };
 
   return (
-    <>
-      <PageHeader
-        title={t("settings.title")}
-        subtitle={t("settings.subtitle")}
-        breadcrumbs={[{ label: t("settings.title") }]}
-      />
-
-      <SettingsOverviewBanner />
+    <div className="dw-settings-page">
+      <div className="dw-settings-page-header">
+        <PageHeader
+          title={t("settings.title")}
+          subtitle={t("settings.subtitle")}
+          breadcrumbs={[{ label: t("settings.title") }]}
+        />
+        <SettingsOverviewBanner />
+      </div>
 
       <div className="dw-settings">
         <SettingsNav active={section} onChange={onSectionChange} />
 
-        <div className="dw-settings-content space-y-6">
-          {section === "auth" && <SettingsAuthSection />}
-          {section === "prefs" && <SettingsPreferencesSection />}
-          {section === "data" && <SettingsDataSection />}
-          {section === "service" && <SettingsServiceSection />}
-          {section === "model" && <SettingsModelSection />}
-          {section === "agents" && <SettingsAgentsSection />}
-          {section === "skills" && <SettingsSkillsSection />}
-          {section === "security" && <SettingsSecuritySection />}
-          {section === "notify" && <SettingsNotifySection />}
-          {section === "channels" && <SettingsChannelsSection />}
-          {section === "gates" && <SettingsGatesSection />}
-          {section === "plugins" && <SettingsPluginsSection />}
-          {section === "ops" && <SettingsOpsSection />}
+        <div className="dw-settings-content">
+          {/* Mobile only — desktop uses left SettingsNav. */}
+          <div className="dw-settings-content-toolbar lg:hidden">
+            <label className="dw-settings-section-picker">
+              <span className="dw-settings-section-picker-label">{t("settings.sectionSelect")}</span>
+              <select
+                className="dw-input dw-settings-section-select"
+                value={section}
+                onChange={(e) => onSectionChange(e.target.value as SettingsSection)}
+                aria-label={t("settings.sectionSelect")}
+              >
+                {SETTINGS_SECTIONS.map((id) => (
+                  <option key={id} value={id}>
+                    {t(`settings.tabs.${id}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="dw-settings-content-body space-y-6">
+            {section === "prefs" && <SettingsPreferencesSection />}
+            {section === "data" && <SettingsDataSection />}
+            {section === "service" && <SettingsServiceSection />}
+            {section === "model" && <SettingsModelSection />}
+            {section === "agents" && <SettingsAgentsSection />}
+            {section === "skills" && <SettingsSkillsSection />}
+            {section === "security" && <SettingsSecuritySection />}
+            {section === "notify" && <SettingsNotifySection />}
+            {section === "channels" && <SettingsChannelsSection />}
+            {section === "gates" && <SettingsGatesSection />}
+            {section === "plugins" && <SettingsPluginsSection />}
+            {section === "ops" && <SettingsOpsSection />}
+            {section === "about" && <SettingsAboutSection />}
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

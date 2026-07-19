@@ -1,7 +1,9 @@
 //! Curated skill market entries (anyCode starter pack + official catalog metadata).
 
 use crate::skill_meta::parse_frontmatter_text;
+use anycode_tools::skills::install::ANYCODE_STARTER_SOURCE_PREFIX;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillMarketEntry {
@@ -10,6 +12,8 @@ pub struct SkillMarketEntry {
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description_zh: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_zh: Option<String>,
     pub category: String,
     pub source: String,
     /// `anycode` | `official`
@@ -21,7 +25,7 @@ pub struct SkillMarketResponse {
     pub entries: Vec<SkillMarketEntry>,
 }
 
-/// Built-in market catalog (install via `POST /api/skills/import`).
+/// Built-in market catalog (install via `POST /api/skills/market/install`).
 #[must_use]
 pub fn list_market_entries() -> SkillMarketResponse {
     let mut entries = official_catalog_entries();
@@ -30,62 +34,91 @@ pub fn list_market_entries() -> SkillMarketResponse {
     SkillMarketResponse { entries }
 }
 
-/// Curated official skills (metadata-only; install source is a GitHub subpath or skills.sh slug).
+#[must_use]
+pub fn find_market_entry(id: &str) -> Option<SkillMarketEntry> {
+    let id = id.trim();
+    if id.is_empty() {
+        return None;
+    }
+    list_market_entries()
+        .entries
+        .into_iter()
+        .find(|entry| entry.id == id)
+}
+
+pub fn install_market_entry(
+    id: &str,
+    dest_root: &Path,
+) -> anyhow::Result<anycode_tools::SkillInstallResult> {
+    let entry = find_market_entry(id)
+        .ok_or_else(|| anyhow::anyhow!("skill store entry not found: {id}"))?;
+    anycode_tools::install_skill(entry.source.trim(), dest_root)
+}
+
+/// Curated official skills from `anthropics/skills` (install via GitHub subpath).
 fn official_catalog_entries() -> Vec<SkillMarketEntry> {
     vec![
         SkillMarketEntry {
-            id: "web-research".into(),
-            name: "Web research".into(),
-            description: "Structured web search, source triage, and citation-ready summaries for agent tasks.".into(),
-            description_zh: Some(
-                "结构化网页检索、来源筛选与可引用摘要，适用于调研与事实核查类任务。".into(),
-            ),
-            category: "data".into(),
-            source: "anthropics/skills:skills/web-research".into(),
+            id: "pdf".into(),
+            name: "PDF".into(),
+            description: "Create, edit, and analyze PDF documents with structured workflows."
+                .into(),
+            description_zh: Some("创建、编辑与分析 PDF 文档的结构化工作流。".into()),
+            name_zh: Some("PDF 文档".into()),
+            category: "business".into(),
+            source: "anthropics/skills:skills/pdf".into(),
             badge: "official".into(),
         },
         SkillMarketEntry {
-            id: "code-review".into(),
-            name: "Code review".into(),
-            description: "Review diffs for correctness, security, and maintainability with actionable feedback.".into(),
-            description_zh: Some(
-                "审查代码变更的正确性、安全性与可维护性，输出可执行的改进建议。".into(),
-            ),
-            category: "quality".into(),
-            source: "anthropics/skills:skills/code-review".into(),
-            badge: "official".into(),
-        },
-        SkillMarketEntry {
-            id: "git-workflow".into(),
-            name: "Git workflow".into(),
-            description: "Branch hygiene, commit messages, PR prep, and safe git operations for coding agents.".into(),
-            description_zh: Some(
-                "分支规范、提交信息、PR 准备与安全 git 操作，适合编码 Agent 日常协作。".into(),
-            ),
-            category: "quality".into(),
-            source: "anthropics/skills:skills/git-workflow".into(),
-            badge: "official".into(),
-        },
-        SkillMarketEntry {
-            id: "office-docx".into(),
-            name: "Office DOCX".into(),
+            id: "docx".into(),
+            name: "DOCX".into(),
             description: "Create and edit Word documents with structured sections, tables, and export-ready formatting.".into(),
             description_zh: Some(
                 "创建与编辑 Word 文档，支持章节结构、表格与可导出排版。".into(),
             ),
+            name_zh: Some("Word 文档".into()),
             category: "business".into(),
             source: "anthropics/skills:skills/docx".into(),
             badge: "official".into(),
         },
         SkillMarketEntry {
-            id: "readonly-db".into(),
-            name: "Read-only DB".into(),
-            description: "Inspect schemas and run read-only SQL against snapshots — no live destructive writes.".into(),
-            description_zh: Some(
-                "查看数据库 schema 并对快照执行只读 SQL，禁止对 live 库做破坏性写入。".into(),
-            ),
+            id: "pptx".into(),
+            name: "PPTX".into(),
+            description: "Build and edit slide decks with consistent layout and speaker-ready structure.".into(),
+            description_zh: Some("制作与编辑演示文稿，保持版式一致并便于演讲使用。".into()),
+            name_zh: Some("PPT 演示".into()),
+            category: "business".into(),
+            source: "anthropics/skills:skills/pptx".into(),
+            badge: "official".into(),
+        },
+        SkillMarketEntry {
+            id: "xlsx".into(),
+            name: "XLSX".into(),
+            description: "Work with spreadsheets: tables, formulas, and analysis-ready exports.".into(),
+            description_zh: Some("处理电子表格：表格、公式与分析导出。".into()),
+            name_zh: Some("Excel 表格".into()),
             category: "data".into(),
-            source: "anthropics/skills:skills/readonly-db".into(),
+            source: "anthropics/skills:skills/xlsx".into(),
+            badge: "official".into(),
+        },
+        SkillMarketEntry {
+            id: "frontend-design".into(),
+            name: "Frontend design".into(),
+            description: "Design and implement polished UI with layout, typography, and component guidance.".into(),
+            description_zh: Some("设计并实现精致 UI，涵盖布局、排版与组件指导。".into()),
+            name_zh: Some("前端设计".into()),
+            category: "quality".into(),
+            source: "anthropics/skills:skills/frontend-design".into(),
+            badge: "official".into(),
+        },
+        SkillMarketEntry {
+            id: "webapp-testing".into(),
+            name: "Webapp testing".into(),
+            description: "Plan and run browser-based tests for web apps with reproducible checks.".into(),
+            description_zh: Some("为 Web 应用规划并执行可复现的浏览器测试。".into()),
+            name_zh: Some("Web 测试".into()),
+            category: "quality".into(),
+            source: "anthropics/skills:skills/webapp-testing".into(),
             badge: "official".into(),
         },
     ]
@@ -112,12 +145,13 @@ fn anycode_starter_entries() -> Vec<SkillMarketEntry> {
         };
         let fm = parse_frontmatter_text(&raw);
         let id = ent.file_name().to_string_lossy().to_string();
-        let source = ent.path().display().to_string();
+        let source = format!("{ANYCODE_STARTER_SOURCE_PREFIX}{id}");
         out.push(SkillMarketEntry {
             id: id.clone(),
             name: if fm.name.is_empty() { id } else { fm.name },
             description: fm.description,
             description_zh: fm.description_zh,
+            name_zh: fm.name_zh,
             category: fm.category,
             source,
             badge: "anycode".into(),
@@ -135,8 +169,7 @@ mod tests {
     fn market_lists_official_and_anycode_entries() {
         let m = list_market_entries();
         assert!(m.entries.iter().any(|e| e.badge == "official"));
-        assert!(m.entries.iter().any(|e| e.id == "web-research"));
-        assert!(m.entries.iter().any(|e| e.id == "code-review"));
+        assert!(m.entries.iter().any(|e| e.id == "pdf"));
         assert!(m
             .entries
             .iter()
@@ -151,5 +184,23 @@ mod tests {
             assert_eq!(entry.badge, "official");
             assert!(entry.description_zh.as_ref().is_some_and(|s| !s.is_empty()));
         }
+    }
+
+    #[test]
+    fn anycode_entries_use_starter_source_token() {
+        let starter = anycode_starter_entries();
+        if starter.is_empty() {
+            return;
+        }
+        assert!(starter
+            .iter()
+            .all(|e| e.source.starts_with(ANYCODE_STARTER_SOURCE_PREFIX)));
+        assert!(!starter[0].source.starts_with('/'));
+    }
+
+    #[test]
+    fn find_market_entry_by_id() {
+        let entry = find_market_entry("pdf").expect("pdf");
+        assert_eq!(entry.badge, "official");
     }
 }

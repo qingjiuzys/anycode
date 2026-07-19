@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sync official skill catalog table into docs-site guide pages.
+ * Sync official skill catalog table into docs/user guide pages.
  * Source of truth: crates/dashboard/src/skill_market.rs (official_catalog_entries).
  */
 import fs from "node:fs";
@@ -44,5 +44,5 @@ function patchPage(file, lang) {
   console.log(`updated ${path.relative(root, file)} (${entries.length} rows)`);
 }
 
-patchPage(path.join(root, "docs-site/guide/skills/index.md"), "en");
-patchPage(path.join(root, "docs-site/zh/guide/skills/index.md"), "zh");
+patchPage(path.join(root, "docs/user/en/guide/skills/index.md"), "en");
+patchPage(path.join(root, "docs/user/zh/guide/skills/index.md"), "zh");

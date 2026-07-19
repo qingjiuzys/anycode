@@ -1,0 +1,21 @@
+id: browser-table-sort
+tier:
+- full
+risk: P1
+runner: dashboard
+prompts:
+- Sort the products table by price descending and confirm the first row price is highest.
+expected:
+  assertions:
+  - validator: dom_attribute
+    args:
+      selector: tbody tr:first-child
+      attr: data-price
+      equals: '999'
+requires:
+  llm: live
+  network: false
+  tools:
+  - browser
+timeout_seconds: 480
+fixture: browser/site

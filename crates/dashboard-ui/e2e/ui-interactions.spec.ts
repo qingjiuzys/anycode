@@ -34,14 +34,18 @@ test.describe("UI shell navigation", () => {
     await expect(page.locator(".dw-home-hero")).toBeVisible();
   });
 
-  test("control center fab visible on conversations", async ({ page }) => {
+  test("sidebar settings button visible on conversations", async ({ page }) => {
     await page.goto("/conversations");
-    await expect(page.locator(".dw-control-fab")).toBeVisible();
+    await expect(
+      page
+        .locator(".dw-session-sidebar-footer")
+        .getByRole("button", { name: /settings|设置/i }),
+    ).toBeVisible();
   });
 
   test("topbar new menu opens", async ({ page }) => {
-    await page.goto("/projects");
-    const newBtn = page.getByRole("button", { name: /new/i });
+    await page.goto("/conversations");
+    const newBtn = page.getByRole("button", { name: /^(new|新建)$/i });
     if (await newBtn.isVisible()) {
       await newBtn.click();
       await expect(page.getByRole("menu")).toBeVisible();
@@ -85,10 +89,10 @@ test.describe("Page primary actions", () => {
     await expect(page.getByRole("button", { name: /export|导出/i })).toBeVisible();
   });
 
-  test("setup wizard loads", async ({ page }) => {
-    await page.goto("/setup?review=1");
+  test("legacy /setup redirects to settings", async ({ page }) => {
+    await page.goto("/setup?step=channels&tab=wechat");
+    await expect(page).toHaveURL(/\/settings\?section=channels/);
     await expect(page.getByRole("main")).toBeVisible();
-    await expect(page.getByRole("button", { name: /start|开始/i })).toBeVisible();
   });
 });
 

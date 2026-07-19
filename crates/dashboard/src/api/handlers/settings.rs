@@ -381,6 +381,7 @@ pub async fn patch_llm_config(
                 },
             )
             .await;
+            state.chat_runtime.invalidate_runtime().await;
             Json(json!({
                 "ok": true,
                 "config_path": path.display().to_string(),

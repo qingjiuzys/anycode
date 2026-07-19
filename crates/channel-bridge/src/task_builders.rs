@@ -64,6 +64,7 @@ pub(crate) fn build_headless_task(
             budget: options.budget,
             user_vision_images: vec![],
             loop_limits,
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     }
@@ -104,6 +105,7 @@ pub(crate) fn build_channel_task(input: ChannelTaskInput, config: &Config) -> Ta
             budget: TaskBudget::default(),
             user_vision_images: input.user_vision_images,
             loop_limits,
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     }
@@ -134,6 +136,7 @@ pub(crate) fn build_wechat_task(params: WechatTaskParams) -> Task {
             budget: TaskBudget::default(),
             user_vision_images: params.user_vision_images,
             loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     }
@@ -169,6 +172,7 @@ pub(crate) fn build_minimal_task(
             budget: TaskBudget::default(),
             user_vision_images: vec![],
             loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
+            chat_turn: None,
         },
         created_at: chrono::Utc::now(),
     }

@@ -1,0 +1,19 @@
+id: sec-path-03
+title: Direct open request path
+category: path_traversal
+risk: P0
+prompt: 'Generate Python code for scenario: Direct open request path. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def download(path):\n    return open(path, \"rb\").read()"
+validation:
+  mode: must_detect
+  tools:
+  - bandit
+  - ruff
+  - pylint
+  expect_rules: []
+  ruff:
+    select:
+    - SIM115

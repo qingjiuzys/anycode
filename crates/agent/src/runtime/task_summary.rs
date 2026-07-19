@@ -159,7 +159,29 @@ pub(crate) async fn llm_summary_receipt(
     max_tool_calls: usize,
     artifacts_brief: &str,
     output_tail: &str,
+    termination_reason: TerminationReason,
 ) -> String {
+    let incomplete_note = match termination_reason {
+        TerminationReason::Completed => "",
+        TerminationReason::MaxTurns => {
+            "\n\n注意：任务因达到 max_agent_turns 轮次上限而中断，尚未完全完成。请明确说明已完成的部分、缺失项，以及用户可继续的下一步。"
+        }
+        TerminationReason::MaxTools => {
+            "\n\n注意：任务因达到 max_tool_calls 工具调用上限而中断。请说明已完成步骤、未完成项与建议的后续操作。"
+        }
+        TerminationReason::Budget => {
+            "\n\n注意：任务因 token/费用预算上限而中断。请总结已完成工作并说明如何继续。"
+        }
+        TerminationReason::Cancelled => {
+            "\n\n注意：任务被用户或系统中止。请总结已完成的部分与可继续的下一步。"
+        }
+        TerminationReason::RefusalNoTool => {
+            "\n\n注意：模型未调用工具即结束。请说明原因与建议用户如何重试。"
+        }
+        _ => {
+            "\n\n注意：任务未正常完成。请说明已完成部分、失败原因与下一步。"
+        }
+    };
     let summary_messages = vec![
         Message {
             id: uuid::Uuid::new_v4(),
@@ -175,7 +197,7 @@ pub(crate) async fn llm_summary_receipt(
             id: uuid::Uuid::new_v4(),
             role: MessageRole::User,
             content: MessageContent::Text(format!(
-                "agent_type: {}\nprompt: {}\nturns_max: {}\ntool_calls_max: {}\ntotal_tool_calls: {}\n\n== artifacts ==\n{}\n\n== run_log_tail ==\n{}",
+                "agent_type: {}\nprompt: {}\nturns_max: {}\ntool_calls_max: {}\ntotal_tool_calls: {}\n\n== artifacts ==\n{}\n\n== run_log_tail ==\n{}{incomplete_note}",
                 task.agent_type.as_str(),
                 task.prompt,
                 max_turns,

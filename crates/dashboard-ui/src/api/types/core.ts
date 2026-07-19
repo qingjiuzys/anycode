@@ -21,6 +21,15 @@ export interface OverviewStats {
   events_last_hour: number;
 }
 
+export interface OverviewBriefing {
+  markdown: string;
+  generation_mode: "llm" | "template" | string;
+  window_days: number;
+  generated_at: string;
+  model?: string | null;
+  fallback_reason?: string | null;
+}
+
 export interface BootstrapSummary {
   has_data: boolean;
   projects_count: number;
@@ -62,10 +71,14 @@ export interface CronJobRecord {
   id: string;
   schedule: string;
   command: string;
+  name?: string | null;
+  enabled?: boolean;
+  schedule_timezone?: string | null;
   session_id: string | null;
   failure_destination: string | null;
   tool_profile: string | null;
   project_id?: string | null;
+  next_run_at?: string | null;
 }
 
 export interface AgentUsageStat {

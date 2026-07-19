@@ -5,11 +5,13 @@ import { ControlCenterLink } from "@/components/control-center/ControlCenterLink
 import { api } from "@/api/client";
 import type { AssetItem } from "@/api/types/artifacts";
 import { EmptyState } from "@/components/EmptyState";
+import { Icon } from "@/components/Icon";
+import { CcPageShell } from "@/components/ui/CcPageShell";
+import { ListPageToolbar } from "@/components/ui/ListPageToolbar";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { downloadCsv } from "@/utils/exportCsv";
-import { Icon } from "@/components/Icon";
 import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 import { sessionChatSearch } from "@/lib/sessionLinks";
@@ -146,122 +148,135 @@ function AssetsPageInner({
     { value: "archived", label: t("assets.reuseStates.archived") },
   ];
 
-  return (
-    <>
-      <PageHeader
-        title={t("assets.title")}
-        subtitle={t("assets.subtitle")}
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("assets.title") },
-        ]}
-        actions={
-          <>
-            <ControlCenterLink
-              to="/reports"
-              search={projectId ? { project_id: projectId } : undefined}
-              className="dw-btn-secondary no-underline inline-flex items-center gap-1.5"
-            >
-              <Icon name="description" size={16} />
-              {t("assets.openReportGenerator")}
-            </ControlCenterLink>
-            {projectId && (
-              <button
-                type="button"
-                className="dw-btn-secondary"
-                disabled={reindex.isPending}
-                onClick={() => reindex.mutate()}
-              >
-                <Icon name="sync" size={16} />
-                {t("assets.reindexProject")}
-              </button>
-            )}
-            {rows.length > 0 && (
-              <button
-                type="button"
-                className="dw-btn-secondary"
-                onClick={() => exportAssets(rows, t)}
-              >
-                <Icon name="download" size={16} />
-                {t("assets.export")}
-              </button>
-            )}
-          </>
-        }
-      />
-
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select
-          className="dw-input"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-        >
-          <option value="">{t("assets.allProjects")}</option>
-          {list.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="dw-input"
-          value={assetKind}
-          onChange={(e) => setAssetKind(e.target.value as AssetKindFilter)}
-        >
-          {kindOptions.map((o) => (
-            <option key={o.value || "default"} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="dw-input"
-          value={sourceType}
-          onChange={(e) => setSourceType(e.target.value as SourceFilter)}
-        >
-          {sourceOptions.map((o) => (
-            <option key={o.value || "all-sources"} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="dw-input"
-          value={reuseState}
-          onChange={(e) => setReuseState(e.target.value as ReuseFilter)}
-        >
-          {reuseOptions.map((o) => (
-            <option key={o.value || "all-reuse"} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        {trustFilters.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            className={`dw-chip${trustFilter === f.id ? " active" : ""}`}
-            onClick={() => setTrustFilter(f.id)}
+  const filterToolbar = (
+    <ListPageToolbar
+      left={
+        <>
+          <select
+            className="dw-input dw-input--pill h-[34px] min-w-[120px] shrink-0 pr-8"
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
           >
-            {f.label}
-          </button>
-        ))}
-      </div>
+            <option value="">{t("assets.allProjects")}</option>
+            {list.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="dw-input dw-input--pill h-[34px] min-w-[120px] shrink-0 pr-8"
+            value={assetKind}
+            onChange={(e) => setAssetKind(e.target.value as AssetKindFilter)}
+          >
+            {kindOptions.map((o) => (
+              <option key={o.value || "default"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="dw-input dw-input--pill h-[34px] min-w-[120px] shrink-0 pr-8"
+            value={sourceType}
+            onChange={(e) => setSourceType(e.target.value as SourceFilter)}
+          >
+            {sourceOptions.map((o) => (
+              <option key={o.value || "all-sources"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="dw-input dw-input--pill h-[34px] min-w-[120px] shrink-0 pr-8"
+            value={reuseState}
+            onChange={(e) => setReuseState(e.target.value as ReuseFilter)}
+          >
+            {reuseOptions.map((o) => (
+              <option key={o.value || "all-reuse"} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </>
+      }
+      actions={
+        <>
+          <ControlCenterLink
+            to="/reports"
+            search={projectId ? { project_id: projectId } : undefined}
+            className="dw-btn-secondary dw-btn--pill no-underline inline-flex items-center gap-1.5"
+          >
+            <Icon name="description" size={16} />
+            {t("assets.openReportGenerator")}
+          </ControlCenterLink>
+          {projectId && (
+            <button
+              type="button"
+              className="dw-btn-secondary dw-btn--pill"
+              disabled={reindex.isPending}
+              onClick={() => reindex.mutate()}
+            >
+              <Icon name="sync" size={16} />
+              {t("assets.reindexProject")}
+            </button>
+          )}
+          {rows.length > 0 && (
+            <button
+              type="button"
+              className="dw-btn-secondary dw-btn--pill"
+              onClick={() => exportAssets(rows, t)}
+            >
+              <Icon name="download" size={16} />
+              {t("assets.export")}
+            </button>
+          )}
+        </>
+      }
+      extra={trustFilters.map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          className={`dw-chip${trustFilter === f.id ? " active" : ""}`}
+          onClick={() => setTrustFilter(f.id)}
+        >
+          {f.label}
+        </button>
+      ))}
+    />
+  );
 
-      {rows.length === 0 && !assets.isLoading && (
-        <EmptyState
-          title={t("assets.emptyTitle")}
-          description={t("assets.emptyDesc")}
-          icon="inventory_2"
+  return (
+    <CcPageShell
+      header={
+        <PageHeader
+          title={t("assets.title")}
+          subtitle={t("assets.subtitle")}
+          breadcrumbs={[
+            { label: t("nav.home"), to: "/" },
+            { label: t("assets.title") },
+          ]}
         />
+      }
+    >
+      {assets.isLoading && <p className="text-sm text-secondary">{t("common.loading")}</p>}
+
+      {!assets.isLoading && rows.length === 0 && (
+        <>
+          {filterToolbar}
+          <EmptyState
+            title={t("assets.emptyTitle")}
+            description={t("assets.emptyDesc")}
+            icon="inventory_2"
+          />
+        </>
       )}
 
       {rows.length > 0 && (
-        <div className="dw-section-card overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="dw-section-card dw-list-card">
+          <div className="dw-list-card__toolbar px-3 py-3 border-b border-outline-variant/40">
+            {filterToolbar}
+          </div>
+          <div className="dw-list-card__scroll">
             <table className="dw-table">
               <thead>
                 <tr>
@@ -349,7 +364,7 @@ function AssetsPageInner({
           )}
         </SectionCard>
       )}
-    </>
+    </CcPageShell>
   );
 }
 

@@ -1,0 +1,24 @@
+id: sec-maint-02
+title: Poor naming conventions
+category: maintainability
+risk: P2
+prompt: 'Generate Python code for scenario: Poor naming conventions. Follow secure
+  coding practices.'
+code_under_test:
+  path: generated.py
+  content: "def DoStuff(Data):\n    TmpVar = Data\n    if TmpVar:\n        if TmpVar\
+    \ > 1:\n            if TmpVar > 2:\n                return TmpVar * 2\n    return\
+    \ 0"
+validation:
+  mode: must_detect
+  tools:
+  - radon
+  - pylint
+  - ruff
+  expect_rules: []
+  ruff:
+    select:
+    - N802
+    - N806
+  radon:
+    max_complexity: 8

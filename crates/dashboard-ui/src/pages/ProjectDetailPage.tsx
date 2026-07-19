@@ -12,6 +12,7 @@ import { ProjectInsightCharts } from "@/components/ProjectInsightCharts";
 import { ProjectKnowledgeSummary } from "@/components/project/ProjectKnowledgeSummary";
 import { ProjectTokenUsage } from "@/components/ProjectTokenUsage";
 import { SessionFlow } from "@/components/SessionFlow";
+import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, DataTableEmpty } from "@/components/ui/DataTable";
 import { KpiMetricGrid } from "@/components/KpiMetricGrid";
@@ -22,7 +23,7 @@ import { useProjectViewPrefs } from "@/hooks/useProjectViewPrefs";
 import { formatEventTitle, formatEventTypeLabel } from "@/lib/eventFormat";
 import { useLocale, useT } from "@/i18n/context";
 import { sessionChatSearch } from "@/lib/sessionLinks";
-import { skillDisplayDescription } from "@/lib/skillCatalog";
+import { skillDisplayDescription, skillDisplayName } from "@/lib/skillCatalog";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 
 const SEVERITIES = ["info", "warn", "error"] as const;
@@ -159,101 +160,94 @@ function ProjectDetailInner({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <PageHeader
-        breadcrumbs={[
-          { label: t("breadcrumb.home"), to: "/" },
-          { label: t("nav.projects"), to: "/projects" },
-          { label: p?.name ?? projectId },
-        ]}
-        title={
-          p ? (
-            <span className="group inline-flex items-center gap-1">
-              <InlineRename
-                value={p.name}
-                label={t("projects.rename")}
-                disabled={rename.isPending}
-                inputClassName="dw-input text-xl font-bold"
-                onSave={(name) => rename.mutate(name)}
-              >
-                {p.name}
-              </InlineRename>
-            </span>
-          ) : (
-            projectId
-          )
-        }
-        subtitle={p?.root_path}
-        meta={
-          p ? (
-            <>
-              {p.description && <span className="line-clamp-1">{p.description}</span>}
-              {p.business_goal && (
+      <CcPageShell
+        header={
+          <PageHeader
+            breadcrumbs={[
+              { label: t("nav.home"), to: "/" },
+              { label: t("nav.projects"), to: "/projects" },
+              { label: p?.name ?? projectId },
+            ]}
+            title={
+              p ? (
+                <span className="group inline-flex items-center gap-1">
+                  <InlineRename
+                    value={p.name}
+                    label={t("projects.rename")}
+                    disabled={rename.isPending}
+                    inputClassName="dw-input text-xl font-bold"
+                    onSave={(name) => rename.mutate(name)}
+                  >
+                    {p.name}
+                  </InlineRename>
+                </span>
+              ) : (
+                projectId
+              )
+            }
+            subtitle={p?.root_path}
+            meta={
+              p ? (
                 <>
-                  <span className="text-outline-variant">·</span>
-                  <span className="text-secondary">{p.business_goal}</span>
+                  {p.description && <span className="line-clamp-1">{p.description}</span>}
+                  {p.business_goal && (
+                    <>
+                      <span className="text-outline-variant">·</span>
+                      <span className="text-secondary">{p.business_goal}</span>
+                    </>
+                  )}
+                  {p.automation_level > 0 && (
+                    <>
+                      <span className="text-outline-variant">·</span>
+                      <span>
+                        {t("projectDetail.automationLevel")}: {p.automation_level}
+                      </span>
+                    </>
+                  )}
                 </>
-              )}
-              {p.automation_level > 0 && (
-                <>
-                  <span className="text-outline-variant">·</span>
-                  <span>
-                    {t("projectDetail.automationLevel")}: {p.automation_level}
-                  </span>
-                </>
-              )}
-            </>
-          ) : undefined
+              ) : undefined
+            }
+            actions={
+              <>
+                <button
+                  type="button"
+                  className="dw-btn-primary"
+                  onClick={() => openConfig()}
+                >
+                  <Icon name="settings" size={16} />
+                  {t("projectDetail.config.button")}
+                </button>
+                <button
+                  type="button"
+                  className="dw-btn-secondary"
+                  disabled={reindex.isPending}
+                  onClick={() => reindex.mutate()}
+                >
+                  <Icon name="sync" size={16} />
+                  {reindex.isPending ? t("projectDetail.reindexing") : t("projectDetail.reindex")}
+                </button>
+                <button
+                  type="button"
+                  className="dw-btn-secondary"
+                  disabled={indexAssets.isPending}
+                  onClick={() => indexAssets.mutate()}
+                >
+                  <Icon name="inventory" size={16} />
+                  {indexAssets.isPending ? t("projectDetail.indexing") : t("projectDetail.indexAssets")}
+                </button>
+                <Link
+                  to="/reports"
+                  search={{ project_id: projectId }}
+                  className="dw-btn-secondary no-underline"
+                >
+                  <Icon name="description" size={16} />
+                  {t("projectDetail.generateReport")}
+                </Link>
+              </>
+            }
+          />
         }
-        actions={
-          <>
-            <button
-              type="button"
-              className="dw-btn-primary"
-              onClick={() => openConfig()}
-            >
-              <Icon name="settings" size={16} />
-              {t("projectDetail.config.button")}
-            </button>
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              disabled={reindex.isPending}
-              onClick={() => reindex.mutate()}
-            >
-              <Icon name="sync" size={16} />
-              {reindex.isPending ? t("projectDetail.reindexing") : t("projectDetail.reindex")}
-            </button>
-            <button
-              type="button"
-              className="dw-btn-secondary"
-              disabled={indexAssets.isPending}
-              onClick={() => indexAssets.mutate()}
-            >
-              <Icon name="inventory" size={16} />
-              {indexAssets.isPending ? t("projectDetail.indexing") : t("projectDetail.indexAssets")}
-            </button>
-            <Link
-              to="/reports"
-              search={{ project_id: projectId }}
-              className="dw-btn-secondary no-underline"
-            >
-              <Icon name="description" size={16} />
-              {t("projectDetail.generateReport")}
-            </Link>
-          </>
-        }
-      />
-
-      <ProjectConfigDialog
-        projectId={projectId}
-        open={configOpen}
-        initialTab={configTab}
-        onClose={() => {
-          setConfigOpen(false);
-          setConfigTab(undefined);
-        }}
-      />
-
+      >
       {reindex.isSuccess && (
         <p className="text-sm text-secondary m-0">
           {t("projectDetail.reindexResult")
@@ -553,7 +547,7 @@ function ProjectDetailInner({ projectId }: { projectId: string }) {
                           params={{ skillId: sk.id }}
                           className="font-medium no-underline hover:underline"
                         >
-                          {sk.name}
+                          {skillDisplayName(sk, locale)}
                         </ControlCenterLink>
                         {skillDisplayDescription(sk, locale) && (
                           <div className="text-xs text-secondary mt-0.5 line-clamp-1">
@@ -662,6 +656,17 @@ function ProjectDetailInner({ projectId }: { projectId: string }) {
           <EventTimeline events={eventRows} compact={!eventsExpanded} />
         </SectionCard>
       </div>
+      </CcPageShell>
+
+      <ProjectConfigDialog
+        projectId={projectId}
+        open={configOpen}
+        initialTab={configTab}
+        onClose={() => {
+          setConfigOpen(false);
+          setConfigTab(undefined);
+        }}
+      />
     </>
   );
 }

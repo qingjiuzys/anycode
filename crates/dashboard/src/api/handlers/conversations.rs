@@ -65,8 +65,24 @@ pub async fn start_project_conversation(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string);
+    let resolved_agent =
+        crate::control::agent_resolve::resolve_web_chat_agent(agent_type.as_deref());
 
     let root_path = std::path::PathBuf::from(&project.root_path);
+    if let Err(e) = crate::task_trigger::validate_trigger_skills_for_project(
+        body.skills.as_deref(),
+        body.agent.as_deref(),
+        &root_path,
+    )
+    .await
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response();
+    }
+
     let (root, _created_root) = match super::chat_util::ensure_chat_project_root(
         &state.db,
         &project_id,
@@ -125,7 +141,7 @@ pub async fn start_project_conversation(
                 &project_id,
                 &session_id,
                 &root,
-                agent_type.as_deref(),
+                Some(resolved_agent.as_str()),
                 prompt,
                 &prompt_for_chat,
                 body.vision_images.as_deref(),
@@ -185,7 +201,7 @@ pub async fn start_project_conversation(
         &project_id,
         &session.id,
         &root,
-        agent_type.as_deref(),
+        Some(resolved_agent.as_str()),
         prompt,
         &prompt_for_chat,
         body.vision_images.as_deref(),

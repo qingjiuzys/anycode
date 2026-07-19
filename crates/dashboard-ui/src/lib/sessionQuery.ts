@@ -4,15 +4,27 @@ import { api } from "@/api/client";
 export const SESSION_QUERY_GC_MS = 30 * 60_000;
 export const TRANSCRIPT_STALE_RUNNING_MS = 3_000;
 
-export function transcriptStaleTime(isRunning: boolean): number {
+export function transcriptStaleTime(
+  isRunning: boolean,
+  chatStreamLive = false,
+  streamLive = false,
+): number {
+  if (chatStreamLive || streamLive) {
+    return Number.POSITIVE_INFINITY;
+  }
   return isRunning ? TRANSCRIPT_STALE_RUNNING_MS : Number.POSITIVE_INFINITY;
 }
 
-export function transcriptQueryOptions(sessionId: string, isRunning = false) {
+export function transcriptQueryOptions(
+  sessionId: string,
+  isRunning = false,
+  chatStreamLive = false,
+  streamLive = false,
+) {
   return {
     queryKey: ["session-transcript", sessionId] as const,
     queryFn: () => api.sessionTranscript(sessionId),
-    staleTime: transcriptStaleTime(isRunning),
+    staleTime: transcriptStaleTime(isRunning, chatStreamLive, streamLive),
     gcTime: SESSION_QUERY_GC_MS,
   };
 }

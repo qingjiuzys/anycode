@@ -22,6 +22,18 @@ impl FileWriteTool {
     }
 }
 
+fn strip_cdata_wrappers(content: &str) -> String {
+    let mut v = content.trim().to_string();
+    if let Some(inner) = v.strip_prefix("<![CDATA[") {
+        v = inner
+            .strip_suffix("]]>")
+            .unwrap_or(inner)
+            .trim()
+            .to_string();
+    }
+    v
+}
+
 #[async_trait]
 impl Tool for FileWriteTool {
     fn name(&self) -> &str {
@@ -62,6 +74,7 @@ impl Tool for FileWriteTool {
 
         #[derive(Deserialize)]
         struct WriteInput {
+            #[serde(alias = "path")]
             file_path: String,
             content: String,
         }
@@ -70,6 +83,8 @@ impl Tool for FileWriteTool {
         let sandbox_in = input.sandbox_mode;
         let write_input: WriteInput =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+
+        let content = strip_cdata_wrappers(&write_input.content);
 
         let target = resolve_path_fields(
             self.security_policy.sandbox_mode,
@@ -81,7 +96,7 @@ impl Tool for FileWriteTool {
         if let Some(parent) = target.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        tokio::fs::write(&target, &write_input.content).await?;
+        tokio::fs::write(&target, &content).await?;
 
         let result = serde_json::json!({
             "success": true,

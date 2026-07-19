@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { SessionWithProject } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import {
@@ -10,13 +11,21 @@ import {
   SessionStatusBadges,
 } from "@/components/ui/StatusBadge";
 import { useT } from "@/i18n/context";
-import { groupSessionsByProject } from "@/lib/groupSessionsByProject";
+import {
+  groupSessionsByProject,
+  type ProjectGroupOption,
+} from "@/lib/groupSessionsByProject";
+import { revealInFileManager } from "@/lib/openExternal";
+import {
+  readPinnedProjectIds,
+  togglePinnedProjectId,
+} from "@/lib/pinnedProjects";
 import { formatRelativeTime } from "@/utils/formatTime";
 
 const DEFAULT_EXPANDED_COUNT = 2;
 
 type Props = {
-  projectOptions: Array<{ id: string; name: string; updated_at?: string }>;
+  projectOptions: ProjectGroupOption[];
   sessions: SessionWithProject[];
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -27,7 +36,15 @@ type Props = {
   activeProjectId?: string;
   onSelectProject?: (projectId: string) => void;
   onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameProject?: (projectId: string, name: string) => void;
+  onRemoveProject?: (projectId: string) => void;
   optimisticStreamingSessionId?: string | null;
+};
+
+type ProjectMenuState = {
+  projectId: string;
+  x: number;
+  y: number;
 };
 
 function statusDotClass(status: string, trusted: string, runningVisual: boolean): string {
@@ -57,14 +74,27 @@ export function ProjectGroupedSessionList({
   activeProjectId,
   onSelectProject,
   onRenameSession,
+  onRenameProject,
+  onRemoveProject,
   optimisticStreamingSessionId = null,
 }: Props) {
   const t = useT();
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() => readPinnedProjectIds());
+  const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
+  const [menu, setMenu] = useState<ProjectMenuState | null>(null);
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const groups = useMemo(() => {
-    const grouped = groupSessionsByProject(projectOptions, sessions);
+    const grouped = groupSessionsByProject(projectOptions, sessions, pinnedSet);
     if (!hideEmptyProjects) return grouped;
     return grouped.filter((group) => group.sessions.length > 0);
-  }, [hideEmptyProjects, projectOptions, sessions]);
+  }, [hideEmptyProjects, pinnedSet, projectOptions, sessions]);
+
+  const projectById = useMemo(() => {
+    const map = new Map(projectOptions.map((project) => [project.id, project]));
+    return map;
+  }, [projectOptions]);
 
   const [collapsedOverride, setCollapsedOverride] = useState<Set<string>>(() => new Set());
   const [expandedOverride, setExpandedOverride] = useState<Set<string>>(() => new Set());
@@ -92,6 +122,24 @@ export function ProjectGroupedSessionList({
       return next;
     });
   }, [selectedId, sessions]);
+
+  useEffect(() => {
+    if (!menu) return;
+    // Use click (not mousedown) so menu item handlers can run before dismiss.
+    const onClick = (event: MouseEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setMenu(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("click", onClick, true);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("click", onClick, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menu]);
 
   if (groups.length === 0) {
     return (
@@ -132,6 +180,27 @@ export function ProjectGroupedSessionList({
     onNewSession?.(projectId);
   }
 
+  function openProjectMenu(projectId: string, event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const menuWidth = 220;
+    const menuHeight = 280;
+    // Anchor under the "…" button, left-aligned (match product mock).
+    let x = rect.left;
+    let y = rect.bottom + 4;
+    if (x + menuWidth > window.innerWidth - 8) {
+      x = Math.max(8, window.innerWidth - menuWidth - 8);
+    }
+    if (x < 8) x = 8;
+    if (y + menuHeight > window.innerHeight - 8) {
+      y = Math.max(8, rect.top - menuHeight - 4);
+    }
+    setMenu({ projectId, x, y });
+  }
+
+  const menuProject = menu ? projectById.get(menu.projectId) : undefined;
+
   const renderGroups = (
     ctx?: {
       onContextMenu: (sessionId: string, event: React.MouseEvent) => void;
@@ -143,52 +212,73 @@ export function ProjectGroupedSessionList({
     <div className="py-1">
       {groups.map((group, index) => {
         const collapsed = isCollapsed(group.id, index);
-        const countLabel = t("conversations.projectSessionCount").replace(
-          "{n}",
-          String(group.sessions.length),
-        );
         const projectActive = activeProjectId === group.id;
+        const projectMeta = projectById.get(group.id);
+        const renaming = renamingProjectId === group.id;
         return (
           <section key={group.id} className="dw-project-session-group">
             <div className="dw-project-session-group__head">
               <div className="dw-project-session-group__toggle">
-                <button
-                  type="button"
-                  className="dw-project-session-group__chevron"
-                  aria-expanded={!collapsed}
-                  aria-label={group.name}
-                  onClick={() => toggleProject(group.id, index)}
-                >
-                  <Icon
-                    name={collapsed ? "chevron_right" : "expand_more"}
-                    size={16}
-                    className="text-secondary shrink-0"
+                {renaming && onRenameProject ? (
+                  <SessionRenameInput
+                    initialTitle={group.name}
+                    label={t("conversations.renameProject")}
+                    onSave={(name) => {
+                      onRenameProject(group.id, name);
+                      setRenamingProjectId(null);
+                    }}
+                    onCancel={() => setRenamingProjectId(null)}
                   />
-                </button>
-                <button
-                  type="button"
-                  className={`dw-project-session-group__name-btn truncate${projectActive ? " dw-project-session-group__name-btn--active" : ""}`}
-                  title={group.name}
-                  onClick={() => {
-                    expandProject(group.id);
-                    onSelectProject?.(group.id);
-                  }}
-                >
-                  {group.name}
-                </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`dw-project-session-group__name-btn truncate${projectActive ? " dw-project-session-group__name-btn--active" : ""}`}
+                    title={projectMeta?.root_path || group.name}
+                    aria-expanded={!collapsed}
+                    onClick={() => {
+                      toggleProject(group.id, index);
+                      onSelectProject?.(group.id);
+                    }}
+                  >
+                    <Icon name="folder" size={16} className="shrink-0 text-secondary" />
+                    {pinnedSet.has(group.id) && (
+                      <Icon name="star" size={14} className="shrink-0 text-primary" filled />
+                    )}
+                    <span className="truncate">{group.name}</span>
+                  </button>
+                )}
               </div>
-              <span className="dw-project-session-group__count">{countLabel}</span>
-              {onNewSession && (
-                <button
-                  type="button"
-                  className="dw-project-session-group__add"
-                  aria-label={t("conversations.newSession")}
-                  title={t("conversations.newSession")}
-                  onClick={() => openNewSession(group.id)}
-                >
-                  <Icon name="add" size={16} />
-                </button>
-              )}
+              <button
+                type="button"
+                className="dw-project-session-group__chevron"
+                aria-expanded={!collapsed}
+                aria-label={
+                  collapsed
+                    ? t("common.expand")
+                    : t("common.collapse")
+                }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleProject(group.id, index);
+                  // Avoid focus-within leaving the chevron permanently visible after click.
+                  (event.currentTarget as HTMLButtonElement).blur();
+                }}
+              >
+                <Icon
+                  name={collapsed ? "chevron_right" : "expand_more"}
+                  size={16}
+                  className="text-secondary shrink-0"
+                />
+              </button>
+              <button
+                type="button"
+                className="dw-project-session-group__menu"
+                aria-label={t("conversations.projectMenu")}
+                title={t("conversations.projectMenu")}
+                onClick={(event) => openProjectMenu(group.id, event)}
+              >
+                <Icon name="more_horiz" size={16} />
+              </button>
             </div>
             {!collapsed && (
               <SessionRows
@@ -208,6 +298,129 @@ export function ProjectGroupedSessionList({
           </section>
         );
       })}
+
+      {menu &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="dw-project-menu"
+            style={{ left: menu.x, top: menu.y }}
+            role="menu"
+          >
+            {onNewSession && (
+              <button
+                type="button"
+                role="menuitem"
+                className="dw-project-menu__item"
+                onClick={() => {
+                  openNewSession(menu.projectId);
+                  setMenu(null);
+                }}
+              >
+                <Icon name="add" size={16} />
+                <span className="dw-project-menu__label">{t("conversations.newSession")}</span>
+              </button>
+            )}
+            {onRenameProject && (
+              <button
+                type="button"
+                role="menuitem"
+                className="dw-project-menu__item"
+                onClick={() => {
+                  setRenamingProjectId(menu.projectId);
+                  setMenu(null);
+                }}
+              >
+                <Icon name="edit" size={16} />
+                <span className="dw-project-menu__label">{t("conversations.renameProject")}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              className="dw-project-menu__item"
+              onClick={() => {
+                setPinnedIds(togglePinnedProjectId(menu.projectId));
+                setMenu(null);
+              }}
+            >
+              <Icon
+                name="star"
+                size={16}
+                filled={pinnedSet.has(menu.projectId)}
+              />
+              <span className="dw-project-menu__label">
+                {pinnedSet.has(menu.projectId)
+                  ? t("conversations.unpinProject")
+                  : t("conversations.pinProject")}
+              </span>
+            </button>
+            {onRemoveProject && (
+              <button
+                type="button"
+                role="menuitem"
+                className="dw-project-menu__item"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const id = menu.projectId;
+                const name = menuProject?.name ?? id;
+                setMenu(null);
+                if (
+                  window.confirm(
+                    t("conversations.removeProjectConfirm").replace("{name}", name),
+                  )
+                ) {
+                  onRemoveProject(id);
+                }
+              }}
+              >
+                <Icon name="close" size={16} />
+                <span className="dw-project-menu__label">{t("conversations.removeProject")}</span>
+              </button>
+            )}
+            {menuProject?.root_path && (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="dw-project-menu__item"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const path = menuProject.root_path!;
+                  setMenu(null);
+                  void revealInFileManager(path).catch((err) => {
+                    window.alert(
+                      err instanceof Error
+                        ? err.message
+                        : t("conversations.openInFinderFailed"),
+                    );
+                  });
+                }}
+                >
+                  <Icon name="folder_open" size={16} />
+                  <span className="dw-project-menu__label">{t("conversations.openInFinder")}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="dw-project-menu__item"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(menuProject.root_path!);
+                    setMenu(null);
+                  }}
+                >
+                  <Icon name="content_copy" size={16} />
+                  <span className="dw-project-menu__label">
+                    {t("conversations.copyProjectPath")}
+                  </span>
+                </button>
+              </>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 
@@ -252,7 +465,7 @@ function SessionRows({
   if (sessions.length === 0) {
     return (
       <ul className="m-0 p-0 list-none">
-        <li className="px-3 py-2 pl-7 text-xs text-secondary">{t("conversations.noSessions")}</li>
+        <li className="px-3 py-2 pl-7 text-sm text-secondary">{t("conversations.noSessions")}</li>
       </ul>
     );
   }
@@ -300,12 +513,12 @@ function SessionRows({
                     onCancel={onRenameCancel}
                   />
                 ) : (
-                  <span className="text-sm font-medium truncate block">
+                  <span className="text-[14px] font-medium truncate block leading-snug">
                     {session.title || session.id}
                   </span>
                 )}
                 {pending > 0 && (
-                  <span className="text-[11px] text-warn truncate block mt-0.5">
+                  <span className="text-xs text-warn truncate block mt-0.5">
                     {t("home.securityPendingBadge").replace("{n}", String(pending))}
                   </span>
                 )}
@@ -314,7 +527,7 @@ function SessionRows({
                 {runningVisual ? (
                   <SessionRunningDots />
                 ) : (
-                  <span className="text-[11px] text-secondary tabular-nums">
+                  <span className="text-xs text-secondary tabular-nums">
                     {formatRelativeTime(session.started_at)}
                   </span>
                 )}

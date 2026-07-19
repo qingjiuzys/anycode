@@ -1,0 +1,14 @@
+{
+  "id": "follow-up-monitor",
+  "icon": "search",
+  "name": { "en": "Follow-up monitor", "zh": "跟进监控" },
+  "schedule_label": { "en": "Weekdays 9:00", "zh": "工作日 9:00" },
+  "description": {
+    "en": "Review recent email and calendar activity, and flag items that need your attention",
+    "zh": "查看最近的电子邮箱和日历活动，并标记需要你关注的事项"
+  },
+  "schedule": "0 0 9 * * 1-5",
+  "schedule_timezone": "local",
+  "command": "Review recent email and calendar activity in this workspace. Summarize what needs follow-up and save a short action list to ./reports/follow-up.md",
+  "tool_profile": "observability"
+}

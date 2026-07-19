@@ -1,0 +1,19 @@
+# Local dev: API binary only — mount crates/account-portal/dist at runtime.
+FROM rust:1-bookworm AS rust
+WORKDIR /build
+COPY crates/account-service/Cargo.toml crates/account-service/Cargo.lock* ./
+COPY crates/account-service/src ./src
+COPY crates/account-service/migrations ./migrations
+RUN sed -i '/^\[workspace\]/d' Cargo.toml \
+    && cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=rust /build/target/release/anycode-account /usr/local/bin/anycode-account
+ENV ACCOUNT_SERVICE_HOST=0.0.0.0 \
+    ACCOUNT_SERVICE_PORT=8080 \
+    ACCOUNT_PORTAL_DIR=/app/portal
+EXPOSE 8080
+CMD ["anycode-account"]

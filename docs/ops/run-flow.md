@@ -5,7 +5,7 @@
 **相关文档**
 
 - 分层与扩展点：[`architecture.md`](../architecture.md)
-- 用户向工作台说明：[`docs-site/guide/workbench.md`](../docs-site/guide/workbench.md)
+- 用户向工作台说明：[`https://anycode.work/docs/guide/workbench.md`](../docs/user/guide/workbench)
 - ADR 000（编排权威）：[`adr/000-agent-runtime-orchestration.md`](adr/000-agent-runtime-orchestration.md)
 
 ## 核心结论

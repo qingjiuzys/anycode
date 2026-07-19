@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/Icon";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
-import { AutomationCreateDialog } from "@/components/AutomationCreatePanel";
+import { useControlCenter } from "@/context/ControlCenterContext";
 import { useT } from "@/i18n/context";
+import { buildCreateViaChatPrompt } from "@/lib/automationChatPrompts";
+import { setComposerSeed } from "@/lib/composerSeed";
 
-/** Topbar "+ New" dropdown: new project / new scheduled cron job. */
+/** Topbar "+ New" dropdown: new project / new scheduled cron job via chat. */
 export function TopbarNewMenu() {
   const t = useT();
+  const navigate = useNavigate();
+  const { closeControlCenter } = useControlCenter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
-  const [automationOpen, setAutomationOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,11 +26,18 @@ export function TopbarNewMenu() {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
+  const openCronViaChat = () => {
+    setMenuOpen(false);
+    setComposerSeed(buildCreateViaChatPrompt(t));
+    closeControlCenter();
+    void navigate({ to: "/" });
+  };
+
   return (
     <div className="relative hidden sm:block" ref={ref}>
       <button
         type="button"
-        className="dw-btn-primary"
+        className="dw-topbar-control dw-topbar-control--primary"
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
@@ -56,10 +67,7 @@ export function TopbarNewMenu() {
             type="button"
             role="menuitem"
             className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:bg-surface-container text-on-surface border-0 bg-transparent cursor-pointer"
-            onClick={() => {
-              setMenuOpen(false);
-              setAutomationOpen(true);
-            }}
+            onClick={openCronViaChat}
           >
             <Icon name="settings_suggest" size={18} />
             {t("layout.newCronJob")}
@@ -67,7 +75,6 @@ export function TopbarNewMenu() {
         </div>
       )}
       <NewProjectDialog open={projectOpen} onClose={() => setProjectOpen(false)} />
-      <AutomationCreateDialog open={automationOpen} onClose={() => setAutomationOpen(false)} />
     </div>
   );
 }

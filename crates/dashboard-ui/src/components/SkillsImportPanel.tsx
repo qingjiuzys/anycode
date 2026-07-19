@@ -45,7 +45,7 @@ export function SkillsImportPanel() {
             <Icon name="open_in_new" size={14} />
           </ExternalNavLink>
         </div>
-        <p className="m-0 mt-2 font-code text-[11px] text-outline break-all">
+        <p className="m-0 mt-2 font-code text-[13px] text-outline break-all">
           {t("agents.skillMarketImportExample")}
         </p>
       </div>

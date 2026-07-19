@@ -16,6 +16,30 @@ pub async fn persist_and_enrich(
     conversation_turn_id: u32,
 ) -> Result<ChatStreamEvent> {
     let record = persist_chat_event(db, &evt, conversation_turn_id).await?;
+    if evt.kind == "user_message" || evt.kind == "assistant_message" {
+        let role = if evt.kind == "user_message" {
+            "user"
+        } else {
+            "assistant"
+        };
+        let body = evt
+            .text
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .or_else(|| evt.block.as_ref().map(|b| b.body.as_str()))
+            .unwrap_or("");
+        if !body.is_empty() {
+            let _ = crate::compliance_audit_upload::enqueue_chat_message(
+                db,
+                &evt.session_id,
+                role,
+                body,
+                &evt.at,
+            )
+            .await;
+            let _ = crate::compliance_audit_upload::flush_pending(db).await;
+        }
+    }
     enrich_stream_event(&mut evt, &record);
     crate::session_transcript::invalidate_transcript_cache(&evt.session_id);
     Ok(evt)
@@ -181,6 +205,60 @@ fn merge_json(a: &Value, b: &Value) -> Value {
     }
 }
 
+fn turn_done_notice_block(evt: &ChatStreamEvent) -> Option<TranscriptBlock> {
+    let status = evt
+        .payload
+        .get("status")
+        .and_then(|v| v.as_str())
+        .or(evt.text.as_deref())
+        .unwrap_or("completed");
+    if status == "completed" {
+        return None;
+    }
+    let user_turn_id = evt.conversation_turn_id.unwrap_or(1);
+    let (title, body) = match status {
+        "max_turns" => (
+            "已达模型轮次上限",
+            "任务在未完全完成时中断；下方为部分进度总结。可在 config.json 的 runtime.max_agent_turns 提高上限。",
+        ),
+        "max_tools" => (
+            "已达工具调用上限",
+            "任务因 max_tool_calls 限制中断；下方为部分进度总结。可在 config.json 的 runtime.max_tool_calls 提高上限。",
+        ),
+        "budget" => (
+            "已达预算上限",
+            "任务因 token/费用预算限制中断；下方为部分进度总结。",
+        ),
+        "refusal_no_tool" => (
+            "模型未调用工具",
+            "首轮未触发工具调用即结束；可换模型或调整 prompt 后重试。",
+        ),
+        "cancelled" => ("任务已取消", "本轮执行被用户或系统中止；下方为已完成部分的总结（如有）。"),
+        other => ("任务结束", other),
+    };
+    let severity = match status {
+        "max_turns" | "max_tools" | "budget" | "refusal_no_tool" => "warning",
+        "cancelled" => "info",
+        _ => "info",
+    };
+    Some(TranscriptBlock {
+        id: format!("turn-done:u{user_turn_id}:{status}"),
+        block_type: "system_notice".into(),
+        at: evt.at.clone(),
+        title: title.to_string(),
+        body: body.to_string(),
+        meta: json!({
+            "source": "turn_done",
+            "status": status,
+            "severity": severity,
+            "user_turn_id": user_turn_id.to_string(),
+        }),
+        collapsible: false,
+        default_collapsed: false,
+        event_id: None,
+    })
+}
+
 fn apply_chat_stream_event(
     blocks: Vec<TranscriptBlock>,
     evt: &ChatStreamEvent,
@@ -257,14 +335,22 @@ fn apply_chat_stream_event(
                 blocks
             }
         }
-        "tool_start" | "tool_result" | "tool_progress" | "llm_start" | "session_error" => {
+        "tool_start" | "tool_result" | "tool_progress" | "llm_start" | "thinking_delta"
+        | "session_error" | "approval_request" | "approval_resolved" | "question_request"
+        | "question_resolved" | "turn_phase" => {
             if let Some(block) = evt.block.as_ref() {
                 upsert_block(blocks, block.clone())
             } else {
                 blocks
             }
         }
-        "turn_done" => blocks,
+        "turn_done" => {
+            if let Some(block) = turn_done_notice_block(evt) {
+                upsert_block(blocks, block)
+            } else {
+                blocks
+            }
+        }
         _ => blocks,
     }
 }

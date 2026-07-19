@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { api } from "@/api/client";
@@ -9,6 +9,7 @@ import { useConversationShell } from "@/context/ConversationShellContext";
 import { useSseStatus } from "@/context/SseContext";
 import { useT } from "@/i18n/context";
 import { apiConnectionMessage } from "@/lib/apiConnectionMessage";
+import { consumeComposerSeed } from "@/lib/composerSeed";
 import { isTauriDesktop } from "@/lib/desktopShell";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 
@@ -20,7 +21,8 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
   const homeSearch = useSearch({ from: "/_shell/", shouldThrow: false }) as
     | { project?: string }
     | undefined;
-  const { projectOptions, projectId, goHome } = useConversationShell();
+  const { projectOptions, projectId, goHome, beginPendingSession, markSessionStreaming } =
+    useConversationShell();
   const health = useQuery({
     queryKey: ["health"],
     queryFn: api.health,
@@ -29,6 +31,11 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
   });
   const overview = useQuery({ queryKey: ["overview"], queryFn: api.overview });
   const { pendingTotal } = usePendingApprovalCounts();
+
+  useEffect(() => {
+    const seed = consumeComposerSeed();
+    if (seed) setPrompt(seed);
+  }, []);
 
   if (health.isLoading || (health.isError && health.isFetching)) {
     const msg = apiConnectionMessage(t, "loading");
@@ -59,7 +66,14 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
 
   return (
     <>
-      <NewProjectDialog open={newProjectOpen} onClose={() => setNewProjectOpen(false)} />
+      <NewProjectDialog
+        open={newProjectOpen}
+        onClose={() => setNewProjectOpen(false)}
+        navigateOnSuccess={false}
+        onCreated={(project) => {
+          goHome(project.id);
+        }}
+      />
 
       <div className="dw-home-stage">
         <section className="dw-home-hero">
@@ -83,6 +97,11 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
             budgetExceededCount={ov?.sessions_budget_exceeded ?? 0}
             prompt={prompt}
             onPromptChange={setPrompt}
+            onSelectDirectory={() => setNewProjectOpen(true)}
+            onSessionStarted={({ session, projectId: pid, projectName }) => {
+              beginPendingSession(session, { id: pid, name: projectName });
+              markSessionStreaming(session.id);
+            }}
           />
         </section>
       </div>
