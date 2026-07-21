@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { I18nProvider } from "./i18n/context";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { BillingPage } from "./pages/BillingPage";
+import { DownloadsPage } from "./pages/DownloadsPage";
 import { FeaturesPage } from "./pages/FeaturesPage";
 import { HomePage } from "./pages/HomePage";
 import { HomePageDemo } from "./pages/HomePageDemo";
@@ -60,6 +61,7 @@ function AppRoutes() {
           <Route path={SITE_PATHS.features} element={<FeaturesPage />} />
           <Route path={SITE_PATHS.product} element={<ProductPage />} />
           <Route path={SITE_PATHS.plans} element={<MarketingPlansPage />} />
+          <Route path={SITE_PATHS.downloads} element={<DownloadsPage />} />
           <Route path="/home-classic" element={<HomePage />} />
           <Route path={SITE_PATHS.login} element={<LoginPage />} />
           <Route path={SITE_PATHS.register} element={<RegisterPage />} />

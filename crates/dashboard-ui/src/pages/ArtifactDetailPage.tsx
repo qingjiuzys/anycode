@@ -7,9 +7,11 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { DeliverableCard } from "@/components/deliverables/DeliverableCard";
 import { useT } from "@/i18n/context";
 import { sessionChatSearch } from "@/lib/sessionLinks";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
+import { kindForPath } from "@/lib/artifactKind";
 
 export function ArtifactDetailPage({ embedded, artifactId: embeddedArtifactId }: EmbeddedPageProps = {}) {
   if (embedded) {
@@ -150,6 +152,20 @@ function ArtifactDetailInner({ artifactId }: { artifactId: string }) {
           {t("assets.draftCreated")}: <code className="font-code">{a.promotion_draft_path}</code>
         </div>
       )}
+
+      {isArtifact && (artifact?.artifact?.path || asset.path) && asset.project_id ? (
+        <SectionCard title={t("conversations.deliverable.preview")} className="mb-6">
+          <DeliverableCard
+            path={artifact?.artifact?.path || asset.path || ""}
+            title={artifact?.artifact?.title || asset.title}
+            kind={
+              artifact?.artifact?.kind ||
+              kindForPath(artifact?.artifact?.path || asset.path || "")
+            }
+            projectId={asset.project_id}
+          />
+        </SectionCard>
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title={t("artifactDetail.evidence")}>

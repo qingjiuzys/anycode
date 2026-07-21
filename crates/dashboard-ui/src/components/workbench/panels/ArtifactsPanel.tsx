@@ -27,7 +27,7 @@ export function ArtifactsPanel({ sessionId, live, isRunning = false }: Props) {
   const { locale } = useI18n();
   const queryClient = useQueryClient();
   const running = Boolean(isRunning);
-  const [showScanned, setShowScanned] = useState(true);
+  const [showScanned, setShowScanned] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryReport, setSummaryReport] = useState<ReportDocument | null>(null);
   const autoScanKey = useRef<string | null>(null);
@@ -247,7 +247,17 @@ function isDeliverableArtifact(row: ArtifactRecord): boolean {
   if (["pdf", "pptx", "ppt", "docx", "doc", "xlsx", "xls", "md", "txt", "ipynb", "png", "jpg", "jpeg", "webp", "gif", "mp4", "mov", "webm", "csv"].includes(ext)) {
     return true;
   }
-  return row.kind === "presentation" || row.kind === "document" || row.kind === "media" || row.kind === "report";
+  return (
+    row.kind === "presentation" ||
+    row.kind === "document" ||
+    row.kind === "media" ||
+    row.kind === "image" ||
+    row.kind === "video" ||
+    row.kind === "audio" ||
+    row.kind === "pdf" ||
+    row.kind === "mindmap" ||
+    row.kind === "report"
+  );
 }
 
 function groupArtifacts(rows: ArtifactRecord[], t: ReturnType<typeof useT>): ArtifactGroup[] {
@@ -267,7 +277,15 @@ function groupArtifacts(rows: ArtifactRecord[], t: ReturnType<typeof useT>): Art
       document.push(row);
     } else if (kind.includes("report")) {
       report.push(row);
-    } else if (kind.includes("media") || kind.includes("image")) {
+    } else if (
+      kind.includes("media") ||
+      kind.includes("image") ||
+      kind.includes("video") ||
+      kind.includes("audio") ||
+      kind === "pdf" ||
+      kind === "mindmap" ||
+      ["png", "jpg", "jpeg", "webp", "gif", "mp4", "mov", "webm", "pdf"].includes(ext)
+    ) {
       media.push(row);
     } else if (kind.includes("file") || kind === "output" || kind === "artifact" || kind === "notebook") {
       file.push(row);

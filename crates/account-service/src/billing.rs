@@ -16,6 +16,8 @@ pub struct PaymentOrderView {
     pub amount_fen: i32,
     pub currency: String,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub out_trade_no: Option<String>,
     pub code_url: Option<String>,
     pub expires_at: String,
     pub paid_at: Option<String>,
@@ -263,7 +265,7 @@ pub async fn get_payment_order(
     let row = sqlx::query(
         r#"
         SELECT id, provider, plan, billing_cycle, COALESCE(amount_fen, amount_cents) AS amount_fen,
-          currency, status,
+          currency, status, out_trade_no,
           code_url, expires_at, paid_at
         FROM payment_orders
         WHERE id = ? AND organization_id = ?
@@ -284,6 +286,7 @@ pub async fn get_payment_order(
             amount_fen: r.get("amount_fen"),
             currency: r.get("currency"),
             status: r.get("status"),
+            out_trade_no: r.get("out_trade_no"),
             code_url: r.get("code_url"),
             expires_at: expires.to_rfc3339(),
             paid_at: paid.map(|t| t.to_rfc3339()),
@@ -328,6 +331,28 @@ pub async fn insert_pending_order(db: &AccountDb, input: &PendingOrderInput) -> 
     .execute(db.pool())
     .await?;
     Ok(id)
+}
+
+/// Amount/currency for a pending order (WeChat notify validation).
+pub async fn pending_order_amount_by_out_trade_no(
+    db: &AccountDb,
+    out_trade_no: &str,
+) -> Result<Option<(i32, String)>> {
+    let row = sqlx::query(
+        r#"
+        SELECT COALESCE(amount_fen, amount_cents) AS amount_fen, currency
+        FROM payment_orders
+        WHERE out_trade_no = ? AND status = 'pending'
+        "#,
+    )
+    .bind(out_trade_no)
+    .fetch_optional(db.pool())
+    .await?;
+    Ok(row.map(|r| {
+        let amount_fen: i32 = r.get("amount_fen");
+        let currency: String = r.get("currency");
+        (amount_fen, currency)
+    }))
 }
 
 pub async fn mark_order_paid_by_out_trade_no(

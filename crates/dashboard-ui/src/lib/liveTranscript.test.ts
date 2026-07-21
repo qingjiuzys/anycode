@@ -571,4 +571,29 @@ describe("resolveTranscriptBlocks", () => {
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.meta?.phase).toBe("waiting_first_token");
   });
+
+  it("upserts deliverable blocks from chat stream", () => {
+    const block: TranscriptBlock = {
+      id: "deliv-1",
+      block_type: "deliverable",
+      at: "2026-01-01T00:00:00Z",
+      title: "Report.pdf",
+      body: "",
+      meta: {
+        path: "outputs/report.pdf",
+        kind: "pdf",
+        project_id: "p1",
+      },
+    };
+    const blocks = applyChatStreamEvent([], {
+      session_id: "s1",
+      project_id: "p1",
+      kind: "deliverable",
+      at: "2026-01-01T00:00:00Z",
+      block,
+    });
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.block_type).toBe("deliverable");
+    expect(blocks[0]?.meta?.path).toBe("outputs/report.pdf");
+  });
 });

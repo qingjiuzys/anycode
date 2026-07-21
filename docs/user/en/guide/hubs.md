@@ -14,6 +14,8 @@ English **`/guide/`** routes:
 - [Getting started](./getting-started)  
 - [Install](./install)  
 - [Open the Workbench](./dashboard)  
+- [Workbench tour](./workbench)  
+- [Conversation deliverables](./deliverables)  
 - [Desktop app (macOS)](./desktop)  
 - [Headless daemon](./daemon)  
 - [Terminal CLI (removed)](./cli)  

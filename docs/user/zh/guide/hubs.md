@@ -14,6 +14,8 @@ read_when:
 - [快速开始](./getting-started)  
 - [安装](./install)  
 - [打开工作台](./dashboard)  
+- [工作台导览](./workbench)  
+- [会话交付物](./deliverables)  
 - [桌面应用](./desktop)  
 - [无头守护进程](./daemon)  
 - [终端 CLI（已移除）](./cli)  

@@ -131,6 +131,33 @@ pub(crate) fn emit_tool_call_end(
     );
 }
 
+pub(crate) fn emit_artifacts_ready(
+    tx: &Option<UnboundedSender<LiveTraceEvent>>,
+    turn: usize,
+    tool_idx: usize,
+    tool_call: &ToolCall,
+    artifacts: &[anycode_core::Artifact],
+) {
+    for art in artifacts {
+        if art.path.is_none() {
+            continue;
+        }
+        // Conversation cards + final artifact index: only structured inline deliverables.
+        if !art.should_inline() {
+            continue;
+        }
+        try_emit(
+            tx,
+            LiveTraceEvent::ArtifactReady {
+                turn: turn as u32,
+                idx: tool_idx as u32,
+                tool_name: tool_call.name.clone(),
+                artifact: art.clone(),
+            },
+        );
+    }
+}
+
 fn tool_output_preview(tool_result: &ToolOutput) -> String {
     const MAX: usize = 4_000;
     if let Some(err) = tool_result.error.as_ref() {

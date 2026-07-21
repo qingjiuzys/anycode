@@ -7,6 +7,15 @@ use anycode_dashboard_ipc::question_ipc::PendingQuestionRecord;
 use chrono::Utc;
 use serde_json::{json, Value};
 
+fn artifact_title_for_path_fallback(path: &str, kind: &str) -> String {
+    let title = anycode_core::artifact_title_for_path(path);
+    if title.is_empty() {
+        kind.to_string()
+    } else {
+        title
+    }
+}
+
 fn turn_from_payload(payload: &Value) -> Option<u32> {
     payload
         .get("turn")
@@ -548,6 +557,68 @@ pub fn chat_event_from_live_trace(
             payload: json!({ "status": status, "user_turn_id": user_turn_id }),
             at,
         }),
+        anycode_core::LiveTraceEvent::ArtifactReady {
+            turn,
+            idx,
+            tool_name,
+            artifact,
+        } => {
+            let path = artifact.path.clone().unwrap_or_default();
+            let kind = artifact.resolved_kind().to_string();
+            let title = artifact
+                .title
+                .clone()
+                .unwrap_or_else(|| artifact_title_for_path_fallback(&path, &kind));
+            let id = format!(
+                "deliverable:u{user_turn_id}:{turn}:{idx}:{}",
+                path.replace('/', "_")
+            );
+            let mime = artifact
+                .mime
+                .clone()
+                .unwrap_or_else(|| anycode_core::mime_for_path(&path).to_string());
+            Some(ChatStreamEvent {
+                session_id: session_id.to_string(),
+                project_id: project_id.to_string(),
+                kind: "deliverable".into(),
+                turn: Some(*turn),
+                conversation_turn_id: Some(user_turn_id),
+                seq: None,
+                event_id: None,
+                tool_key: Some(live_tool_key(user_turn_id, *turn, *idx)),
+                tool_name: Some(tool_name.clone()),
+                text: Some(title.clone()),
+                block: Some(TranscriptBlock {
+                    id,
+                    block_type: "deliverable".into(),
+                    at: at.clone(),
+                    title: title.clone(),
+                    body: path.clone(),
+                    meta: json!({
+                        "path": path,
+                        "kind": kind,
+                        "mime": mime,
+                        "title": title,
+                        "project_id": project_id,
+                        "preview_path": artifact.preview_path,
+                        "bytes": artifact.bytes,
+                        "inline": artifact.should_inline(),
+                        "tool_name": tool_name,
+                        "user_turn_id": user_turn_id.to_string(),
+                        "turn": turn.to_string(),
+                        "idx": idx.to_string(),
+                    }),
+                    collapsible: false,
+                    default_collapsed: false,
+                    event_id: None,
+                }),
+                payload: json!({
+                    "artifact": artifact,
+                    "user_turn_id": user_turn_id,
+                }),
+                at,
+            })
+        }
         anycode_core::LiveTraceEvent::TurnStart { .. } => None,
         anycode_core::LiveTraceEvent::LlmRequestStart { turn } => Some(ChatStreamEvent {
             session_id: session_id.to_string(),

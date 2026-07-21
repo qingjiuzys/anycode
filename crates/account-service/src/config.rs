@@ -84,7 +84,17 @@ impl ServiceConfig {
         let wechat_pay_private_key_path = env::var("WECHAT_PAY_PRIVATE_KEY_PATH")
             .ok()
             .map(PathBuf::from)
-            .filter(|p| p.is_file());
+            .filter(|p| p.is_file())
+            .or_else(|| {
+                // Fallbacks when ACK mounts over /run/secrets and hides image PEMs.
+                [
+                    "/app/wechat-certs/apiclient_key.pem",
+                    "/run/secrets/wechat/apiclient_key.pem",
+                ]
+                .into_iter()
+                .map(PathBuf::from)
+                .find(|p| p.is_file())
+            });
         let wechat_pay_api_v3_key = env::var("WECHAT_PAY_API_V3_KEY")
             .ok()
             .filter(|s| !s.is_empty());
@@ -109,7 +119,16 @@ impl ServiceConfig {
         let wechat_pay_public_key_path = env::var("WECHAT_PAY_PUBLIC_KEY_PATH")
             .ok()
             .map(PathBuf::from)
-            .filter(|p| p.is_file());
+            .filter(|p| p.is_file())
+            .or_else(|| {
+                [
+                    "/app/wechat-certs/pub_key.pem",
+                    "/run/secrets/wechat/pub_key.pem",
+                ]
+                .into_iter()
+                .map(PathBuf::from)
+                .find(|p| p.is_file())
+            });
         let wechat_pay_skip_verify = env::var("WECHAT_PAY_SKIP_VERIFY")
             .ok()
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))

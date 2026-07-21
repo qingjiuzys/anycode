@@ -124,6 +124,22 @@
         "manifest 数字与 CSV 交叉一致"
       ],
       "brief_snippet": "v2 生产级：12 页 deck（8 主题）+ 双 Excel + Word 六段式 + HTML 华北风险区 + QA 全清单 + 4 bug + CHANGELOG + manifest(code_repo)。顺序：CSV→修 repo→cargo test→git→办公→HTML→QA→manifest→Glob 自检缺失项。"
+    },
+    "rich-deliverable-emit": {
+      "artifact_type": "contract",
+      "agent": "general-purpose",
+      "expected_artifacts": [],
+      "delivery_contract": [
+        "工具/Skill 优先写 artifacts[] 或 sidecar *.anycode-artifact.json 或 stdout ANYCODE_ARTIFACT:{json}",
+        "Workbench SSE kind=deliverable + transcript block_type=deliverable；刷新后仍可从 chat_turn_events 重建",
+        "对话内图片/视频/PDF/mindmap 卡片；侧栏 Artifacts 默认 final_only",
+        "二进制预览走 GET /api/projects/{id}/fs/raw?path=（项目根内）"
+      ],
+      "acceptance_evidence": [
+        "extract_artifacts 单测覆盖 structured + footer",
+        "liveTranscript deliverable upsert 单测",
+        "Playwright/API：项目 fs/raw 可读已知图片字节"
+      ]
     }
   }
 }

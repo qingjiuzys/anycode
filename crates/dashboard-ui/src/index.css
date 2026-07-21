@@ -1891,22 +1891,6 @@
     @apply flex flex-col gap-3 w-full;
   }
 
-  .dw-hero-composer__scenarios {
-    @apply flex flex-col gap-2;
-  }
-
-  .dw-hero-composer__scenarios-label {
-    @apply text-xs font-medium text-secondary uppercase tracking-wide;
-  }
-
-  .dw-hero-composer__scenario-row {
-    @apply flex flex-wrap gap-2;
-  }
-
-  .dw-hero-composer__scenario-chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container-low px-3 py-1.5 text-sm text-on-surface transition-colors hover:border-primary/40 hover:bg-surface-container disabled:opacity-50;
-  }
-
   .dw-hero-composer__card {
     @apply rounded-3xl overflow-hidden;
     border: 1px solid var(--border, var(--color-outline-variant));

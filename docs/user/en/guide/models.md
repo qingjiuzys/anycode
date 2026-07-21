@@ -172,6 +172,18 @@ Capabilities: **`chat`**, **`vision`** (multimodal input), **`embedding`**, **`s
 
 Each entry uses the same shape as a routing agent profile (`provider`, `model`, `api_key`, `base_url`, …). Video generation may use **`endpoint_overrides.submit`** for custom POST URLs.
 
+## Relay / OpenAI-compatible gateway (API key)
+
+In **Settings → Models & routing**:
+
+1. Provider: `custom` (or `openrouter` / `litellm`)
+2. Base URL: gateway root, e.g. `https://your-relay.example.com/v1`
+3. API key: gateway token
+4. Model id: upstream id from the gateway docs
+5. Enable capabilities (`chat` / `vision` / `image` / `video` / `stt`) and set **Active**
+
+Image → `GenerateImage`; video → `GenerateVideo`; speech recognition → `stt` / voice button (or Apple Speech on macOS).
+
 ## Local presets (vision / embedding / STT / TTS)
 
 The workbench **Settings → Model & routing** panel includes **Local presets**: one-click registry entries for on-device or local-HTTP models. Model weights are **not** bundled in the anycode binary; they download on first use (e.g. FastEmbed → `~/.cache/fastembed`, Whisper/Piper → `~/.anycode/models/`).

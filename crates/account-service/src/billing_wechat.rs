@@ -15,17 +15,48 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 const WECHAT_API_BASE: &str = "https://api.mch.weixin.qq.com";
+/// WeChat Pay rejects requests without Accept + User-Agent (reqwest default-features=false sends neither UA).
+const WECHAT_HTTP_USER_AGENT: &str = concat!("anycode-account/", env!("CARGO_PKG_VERSION"));
+
+fn wechat_http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(WECHAT_HTTP_USER_AGENT)
+        .build()
+        .context("build wechat http client")
+}
 
 pub fn wechat_pay_configured(config: &ServiceConfig) -> bool {
-    config.wechat_pay_app_id.is_some()
-        && config.wechat_pay_mch_id.is_some()
-        && config.wechat_pay_serial_no.is_some()
-        && config.wechat_private_key_pem().is_ok()
-        && config.wechat_pay_api_v3_key.is_some()
-        && config.wechat_pay_notify_url.is_some()
-        && (config.wechat_pay_skip_verify
-            || config.wechat_notify_verify_pem().ok().flatten().is_some())
+    wechat_pay_missing(config).is_empty()
 }
+
+/// Names of env/config pieces still missing for Native 扫码支付 (safe to expose in /health).
+pub fn wechat_pay_missing(config: &ServiceConfig) -> Vec<&'static str> {
+    let mut missing = Vec::new();
+    if config.wechat_pay_app_id.is_none() {
+        missing.push("WECHAT_PAY_APP_ID");
+    }
+    if config.wechat_pay_mch_id.is_none() {
+        missing.push("WECHAT_PAY_MCH_ID");
+    }
+    if config.wechat_pay_serial_no.is_none() {
+        missing.push("WECHAT_PAY_SERIAL_NO");
+    }
+    if config.wechat_private_key_pem().is_err() {
+        missing.push("WECHAT_PAY_PRIVATE_KEY_PATH");
+    }
+    if config.wechat_pay_api_v3_key.is_none() {
+        missing.push("WECHAT_PAY_API_V3_KEY");
+    }
+    if config.wechat_pay_notify_url.is_none() {
+        missing.push("WECHAT_PAY_NOTIFY_URL");
+    }
+    if !config.wechat_pay_skip_verify && config.wechat_notify_verify_pem().ok().flatten().is_none()
+    {
+        missing.push("WECHAT_PAY_PUBLIC_KEY_PATH");
+    }
+    missing
+}
+
 
 pub async fn plan_amount_fen(
     db: &AccountDb,
@@ -111,7 +142,7 @@ pub async fn create_native_order(
 
     let path = "/v3/pay/transactions/native";
     let auth = build_authorization(config, "POST", path, &body_str)?;
-    let client = reqwest::Client::new();
+    let client = wechat_http_client()?;
     let resp = client
         .post(format!("{WECHAT_API_BASE}{path}"))
         .header("Authorization", auth)
@@ -140,7 +171,7 @@ pub async fn create_native_order(
             billing_cycle: billing_cycle.into(),
             amount_fen,
             currency: "CNY".into(),
-            out_trade_no,
+            out_trade_no: out_trade_no.clone(),
             code_url: Some(parsed.code_url.clone()),
             expires_at,
         },
@@ -155,6 +186,7 @@ pub async fn create_native_order(
         amount_fen,
         currency: "CNY".into(),
         status: "pending".into(),
+        out_trade_no: Some(out_trade_no),
         code_url: Some(parsed.code_url),
         expires_at: expires_at.to_rfc3339(),
         paid_at: None,
@@ -181,10 +213,65 @@ pub struct WechatNotifyResource {
 }
 
 #[derive(Debug, Deserialize)]
+struct WechatAmount {
+    #[serde(default)]
+    total: Option<i32>,
+    #[serde(default)]
+    currency: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct WechatTransaction {
     out_trade_no: String,
     transaction_id: String,
     trade_state: String,
+    #[serde(default)]
+    mchid: Option<String>,
+    #[serde(default)]
+    appid: Option<String>,
+    #[serde(default)]
+    amount: Option<WechatAmount>,
+}
+
+/// Return error message when notify trade does not match local order / merchant config.
+fn validate_wechat_trade(
+    config: &ServiceConfig,
+    expected_amount_fen: i32,
+    expected_currency: &str,
+    txn: &WechatTransaction,
+) -> Result<()> {
+    if let Some(mch) = txn.mchid.as_deref() {
+        if let Some(cfg_mch) = config.wechat_pay_mch_id.as_deref() {
+            if mch != cfg_mch {
+                return Err(anyhow!("wechat notify mchid mismatch"));
+            }
+        }
+    }
+    if let Some(app) = txn.appid.as_deref() {
+        if let Some(cfg_app) = config.wechat_pay_app_id.as_deref() {
+            if app != cfg_app {
+                return Err(anyhow!("wechat notify appid mismatch"));
+            }
+        }
+    }
+    if let Some(amount) = txn.amount.as_ref() {
+        if let Some(total) = amount.total {
+            if total != expected_amount_fen {
+                return Err(anyhow!(
+                    "wechat notify amount mismatch: {total} != {expected_amount_fen}"
+                ));
+            }
+        }
+        let paid_currency = amount
+            .currency
+            .as_deref()
+            .unwrap_or("CNY")
+            .to_ascii_uppercase();
+        if paid_currency != expected_currency.to_ascii_uppercase() {
+            return Err(anyhow!("wechat notify currency mismatch"));
+        }
+    }
+    Ok(())
 }
 
 pub async fn handle_wechat_notify(
@@ -195,8 +282,18 @@ pub async fn handle_wechat_notify(
 ) -> Result<()> {
     if config.wechat_pay_skip_verify {
         tracing::warn!("WECHAT_PAY_SKIP_VERIFY=1: skipping notify signature verification");
-    } else if wechat_pay_configured(config) {
+    } else {
         verify_notify_signature(config, headers, body)?;
+    }
+
+    // Reject stale timestamps (>5 min skew) when header present.
+    if let Ok(ts) = header_str(headers, "Wechatpay-Timestamp") {
+        if let Ok(ts_i) = ts.parse::<i64>() {
+            let now = Utc::now().timestamp();
+            if (now - ts_i).abs() > 300 {
+                return Err(anyhow!("wechat notify timestamp skew too large"));
+            }
+        }
     }
 
     let envelope: WechatNotifyEnvelope =
@@ -216,9 +313,63 @@ pub async fn handle_wechat_notify(
         return Ok(());
     }
 
+    let Some((amount_fen, currency)) =
+        crate::billing::pending_order_amount_by_out_trade_no(db, &txn.out_trade_no).await?
+    else {
+        tracing::warn!(
+            out_trade_no = %txn.out_trade_no,
+            "wechat notify for unknown/non-pending order"
+        );
+        return Ok(());
+    };
+    validate_wechat_trade(config, amount_fen, &currency, &txn)?;
+
     crate::billing::mark_order_paid_by_out_trade_no(db, &txn.out_trade_no, &txn.transaction_id)
         .await?;
     Ok(())
+}
+
+/// Query WeChat Pay for an out_trade_no and fulfill if SUCCESS (callback fallback).
+pub async fn sync_order_by_out_trade_no(
+    config: &ServiceConfig,
+    db: &AccountDb,
+    out_trade_no: &str,
+) -> Result<bool> {
+    if !wechat_pay_configured(config) {
+        return Err(anyhow!("WeChat Pay is not configured"));
+    }
+    let mch_id = config
+        .wechat_pay_mch_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("WECHAT_PAY_MCH_ID missing"))?;
+    let path = format!("/v3/pay/transactions/out-trade-no/{out_trade_no}?mchid={mch_id}");
+    let auth = build_authorization(config, "GET", &path, "")?;
+    let client = wechat_http_client()?;
+    let resp = client
+        .get(format!("{WECHAT_API_BASE}{path}"))
+        .header("Authorization", auth)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .context("wechat query order")?;
+    let status = resp.status();
+    let text = resp.text().await.context("wechat query body")?;
+    if !status.is_success() {
+        return Err(anyhow!("wechat query error {status}: {text}"));
+    }
+    let txn: WechatTransaction =
+        serde_json::from_str(&text).with_context(|| format!("wechat query parse: {text}"))?;
+    if txn.trade_state != "SUCCESS" {
+        return Ok(false);
+    }
+    let Some((amount_fen, currency)) =
+        crate::billing::pending_order_amount_by_out_trade_no(db, out_trade_no).await?
+    else {
+        return Ok(false);
+    };
+    validate_wechat_trade(config, amount_fen, &currency, &txn)?;
+    crate::billing::mark_order_paid_by_out_trade_no(db, out_trade_no, &txn.transaction_id).await?;
+    Ok(true)
 }
 
 fn verify_notify_signature(
@@ -327,7 +478,7 @@ fn build_authorization(
 
 #[cfg(test)]
 mod tests {
-    use super::build_authorization;
+    use super::*;
     use crate::config::ServiceConfig;
 
     fn test_config_with_key(pem: &str) -> ServiceConfig {
@@ -387,5 +538,38 @@ mod tests {
             .expect("auth");
         assert!(auth.starts_with("WECHATPAY2-SHA256-RSA2048 "));
         assert!(auth.contains("mchid=\"1900000109\""));
+    }
+
+    #[test]
+    fn validate_rejects_amount_mismatch() {
+        let pem = {
+            let mut rng = rand::thread_rng();
+            RsaPrivateKey::new(&mut rng, 2048)
+                .unwrap()
+                .to_pkcs8_pem(LineEnding::LF)
+                .unwrap()
+                .to_string()
+        };
+        let config = test_config_with_key(&pem);
+        let txn = WechatTransaction {
+            out_trade_no: "o1".into(),
+            transaction_id: "t1".into(),
+            trade_state: "SUCCESS".into(),
+            mchid: Some("1900000109".into()),
+            appid: Some("wxtest".into()),
+            amount: Some(WechatAmount {
+                total: Some(1),
+                currency: Some("CNY".into()),
+            }),
+        };
+        assert!(validate_wechat_trade(&config, 19900, "CNY", &txn).is_err());
+        let ok = WechatTransaction {
+            amount: Some(WechatAmount {
+                total: Some(19900),
+                currency: Some("CNY".into()),
+            }),
+            ..txn
+        };
+        assert!(validate_wechat_trade(&config, 19900, "CNY", &ok).is_ok());
     }
 }

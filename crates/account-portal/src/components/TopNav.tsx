@@ -16,6 +16,7 @@ export function TopNav() {
   const isFeatures = loc.pathname === SITE_PATHS.features;
   const isProduct = loc.pathname === SITE_PATHS.product;
   const isPlans = loc.pathname === SITE_PATHS.plans;
+  const isDownloads = loc.pathname === SITE_PATHS.downloads;
   const isDocs = loc.pathname.startsWith(SITE_PATHS.docs);
   const isConsole = loc.pathname.startsWith("/console");
   const scrolled = useHomeHeaderScroll(true);
@@ -44,6 +45,12 @@ export function TopNav() {
           </Link>
           <Link className={`lx-header__link${isPlans ? " active" : ""}`} to={SITE_PATHS.plans}>
             {t("nav.plans")}
+          </Link>
+          <Link
+            className={`lx-header__link${isDownloads ? " active" : ""}`}
+            to={SITE_PATHS.downloads}
+          >
+            {t("nav.downloads")}
           </Link>
           <Link className={`lx-header__link${isDocs ? " active" : ""}`} to={SITE_PATHS.docs}>
             {t("nav.docs")}

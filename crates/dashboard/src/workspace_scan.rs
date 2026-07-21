@@ -288,60 +288,20 @@ fn system_time_from_secs(secs: i64, nanos: u32) -> SystemTime {
 }
 
 fn artifact_kind_for_path(path: &Path) -> &'static str {
-    match path
+    let path_str = path.to_string_lossy();
+    let ext = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_lowercase())
+        .map(|s| s.to_lowercase());
+    if matches!(ext.as_deref(), Some("yml") | Some("yaml"))
+        && path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .is_some_and(|n| n.starts_with("workflow"))
     {
-        Some(ext) if ext == "ipynb" => "notebook",
-        Some(ext) if ext == "yml" || ext == "yaml" => {
-            if path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .is_some_and(|n| n.starts_with("workflow"))
-            {
-                "workflow"
-            } else {
-                "file"
-            }
-        }
-        Some(ext)
-            if matches!(
-                ext.as_str(),
-                "png"
-                    | "jpg"
-                    | "jpeg"
-                    | "gif"
-                    | "webp"
-                    | "svg"
-                    | "bmp"
-                    | "ico"
-                    | "mp4"
-                    | "mov"
-                    | "avi"
-                    | "webm"
-                    | "mkv"
-                    | "mp3"
-                    | "wav"
-                    | "ogg"
-                    | "flac"
-                    | "aac"
-                    | "m4a"
-            ) =>
-        {
-            "media"
-        }
-        Some(ext) if ext == "pdf" => "media",
-        Some(ext) if matches!(ext.as_str(), "pptx" | "ppt") => "presentation",
-        Some(ext) if matches!(ext.as_str(), "docx" | "doc" | "xlsx" | "xls") => "document",
-        Some(ext)
-            if matches!(ext.as_str(), "md" | "txt")
-                && path.to_string_lossy().contains("report") =>
-        {
-            "report"
-        }
-        _ => "file",
+        return "workflow";
     }
+    anycode_core::artifact_kind_for_path(&path_str)
 }
 
 #[cfg(test)]

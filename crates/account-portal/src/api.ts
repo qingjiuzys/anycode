@@ -181,6 +181,12 @@ export const api = {
   getPaymentOrder: (orderId: string) =>
     apiFetch<{ order: PaymentOrder }>(`/api/v1/billing/orders/${orderId}`),
 
+  syncPaymentOrder: (orderId: string) =>
+    apiFetch<{ order: PaymentOrder; synced: boolean }>(
+      `/api/v1/billing/orders/${orderId}/sync`,
+      { method: "POST" },
+    ),
+
   models: () =>
     apiFetch<{
       models: Array<{

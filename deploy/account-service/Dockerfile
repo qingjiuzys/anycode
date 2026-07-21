@@ -6,8 +6,14 @@
 # (copied by Vite public/ → dist/downloads/ → /app/portal/downloads/)
 
 FROM node:22-bookworm AS portal
-WORKDIR /portal
-COPY crates/account-portal/package.json crates/account-portal/package-lock.json ./
+# Layout mirrors repo so prepare-user-docs + @anycode/site-urls resolve.
+WORKDIR /src
+COPY scripts/prepare-user-docs.mjs /src/scripts/prepare-user-docs.mjs
+COPY docs/user /src/docs/user
+COPY brand /src/brand
+RUN test -f /src/brand/anycode-mark.svg && test -f /src/brand/site-urls.ts
+COPY crates/account-portal/package.json crates/account-portal/package-lock.json /src/crates/account-portal/
+WORKDIR /src/crates/account-portal
 RUN npm ci
 COPY crates/account-portal/ ./
 # public/downloads/*.dmg → dist/downloads/ (served at https://anycode.work/downloads/)
@@ -16,12 +22,13 @@ RUN npm run build \
     && ls -lh dist/downloads/
 
 FROM rust:1-bookworm AS rust
-WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
-# account-service is not in the public workspace; inject for container build only.
-RUN sed -i '/"crates\/cli",/a\    "crates/account-service",' Cargo.toml \
-    && cargo build --release -p anycode-account-service
+WORKDIR /build
+# account-service is a standalone crate (excluded from the public workspace).
+COPY crates/account-service/Cargo.toml crates/account-service/Cargo.lock* ./
+COPY crates/account-service/src ./src
+COPY crates/account-service/migrations ./migrations
+RUN sed -i '/^\[workspace\]/d' Cargo.toml \
+    && cargo build --release
 
 FROM debian:bookworm-slim
 
@@ -35,15 +42,16 @@ ARG ACCOUNT_PORTAL_URL=https://anycode.work
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/secrets/wechat \
-    && chmod 755 /run/secrets/wechat
+    && mkdir -p /app/wechat-certs \
+    && chmod 755 /app/wechat-certs
 
-COPY deploy/account-service/secrets/apiclient_key.pem /run/secrets/wechat/apiclient_key.pem
-COPY deploy/account-service/secrets/pub_key.pem /run/secrets/wechat/pub_key.pem
-RUN chmod 644 /run/secrets/wechat/*.pem
+# Keep PEMs under /app — NOT /run/secrets (ACK/K8s often mounts volumes there and hides image files).
+COPY deploy/account-service/secrets/apiclient_key.pem /app/wechat-certs/apiclient_key.pem
+COPY deploy/account-service/secrets/pub_key.pem /app/wechat-certs/pub_key.pem
+RUN chmod 644 /app/wechat-certs/*.pem && chmod a+rX /app/wechat-certs
 
-COPY --from=rust /app/target/release/anycode-account /usr/local/bin/anycode-account
-COPY --from=portal /portal/dist /app/portal
+COPY --from=rust /build/target/release/anycode-account /usr/local/bin/anycode-account
+COPY --from=portal /src/crates/account-portal/dist /app/portal
 RUN chmod -R a+rX /app/portal
 
 ENV ACCOUNT_SERVICE_HOST=0.0.0.0 \
@@ -57,8 +65,8 @@ ENV ACCOUNT_SERVICE_HOST=0.0.0.0 \
     WECHAT_PAY_MCH_ID=${WECHAT_PAY_MCH_ID} \
     WECHAT_PAY_SERIAL_NO=${WECHAT_PAY_SERIAL_NO} \
     WECHAT_PAY_NOTIFY_URL=${WECHAT_PAY_NOTIFY_URL} \
-    WECHAT_PAY_PRIVATE_KEY_PATH=/run/secrets/wechat/apiclient_key.pem \
-    WECHAT_PAY_PUBLIC_KEY_PATH=/run/secrets/wechat/pub_key.pem \
+    WECHAT_PAY_PRIVATE_KEY_PATH=/app/wechat-certs/apiclient_key.pem \
+    WECHAT_PAY_PUBLIC_KEY_PATH=/app/wechat-certs/pub_key.pem \
     WECHAT_PRICE_CLOUD_5H_CENTS=9900 \
     WECHAT_PRICE_PRO_MONTHLY_CENTS=59900 \
     WECHAT_PRICE_TEAM_MONTHLY_CENTS=199900

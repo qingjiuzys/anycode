@@ -814,7 +814,7 @@ async fn run_agent_pipeline_with_media_note(
                 }
                 let history_reply = assistant_history_with_paths(&cleaned, &outbound_media_paths);
                 add_chat_message(&mut session, "assistant", &history_reply);
-                with_deliverable_hint(cleaned, &output)
+                with_deliverable_hint(cleaned, &output, &artifacts)
             }
             Ok(TaskResult::Failure { error, details }) => {
                 let mut ea = FluentArgs::new();

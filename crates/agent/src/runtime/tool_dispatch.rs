@@ -7,7 +7,7 @@ use super::agentic_turn::{
 use super::artifacts::extract_artifacts;
 use super::budget::{tick_budget, tool_blocked_under_degrade};
 use super::evidence;
-use super::live_trace_emit::emit_tool_call_progress;
+use super::live_trace_emit::{emit_artifacts_ready, emit_tool_call_progress};
 use super::logging::RunLogger;
 use super::session_activity::{ActivityReason, SessionActivityGuard};
 use super::tool_result_injection;
@@ -477,9 +477,15 @@ impl AgentRuntime {
             &prepared.for_hook,
             Some(ctx.working_directory),
         );
-        state
-            .artifacts
-            .extend(extract_artifacts(tool_call, &tool_result));
+        let extracted = extract_artifacts(tool_call, &tool_result);
+        emit_artifacts_ready(
+            &ctx.live_trace_tx,
+            ctx.turn,
+            tool_idx,
+            tool_call,
+            &extracted,
+        );
+        state.artifacts.extend(extracted);
     }
 
     async fn emit_synthetic_for_planned(

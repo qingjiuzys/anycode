@@ -313,8 +313,11 @@ pub async fn resolve_outbound_media_paths(
     paths
 }
 
-pub fn with_deliverable_hint(reply: String, raw_output: &str) -> String {
-    let paths = extract_deliverable_paths(raw_output);
+pub fn with_deliverable_hint(reply: String, raw_output: &str, artifacts: &[Artifact]) -> String {
+    let mut paths: Vec<String> = artifacts.iter().filter_map(|a| a.path.clone()).collect();
+    if paths.is_empty() {
+        paths = extract_deliverable_paths(raw_output);
+    }
     if paths.is_empty() {
         return reply;
     }
@@ -485,6 +488,7 @@ mod tests {
             path: Some(file.display().to_string()),
             content: None,
             metadata: HashMap::new(),
+            ..Default::default()
         };
         let got = collect_outbound_media_paths(&[artifact], "", Some(dir.as_path()));
         assert_eq!(got.len(), 1);

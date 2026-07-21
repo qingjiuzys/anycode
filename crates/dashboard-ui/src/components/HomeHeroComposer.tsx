@@ -7,8 +7,7 @@ import { Icon } from "@/components/Icon";
 import { ProjectPicker } from "@/components/ProjectPicker";
 import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
-import { useT, useLocale } from "@/i18n/context";
-import { SCENARIO_CARDS, scenarioPrompt, type ScenarioCard } from "@/lib/scenarioCards";
+import { useT } from "@/i18n/context";
 
 type Sse = "live" | "connecting" | "reconnecting" | "offline";
 
@@ -46,7 +45,6 @@ export function HomeHeroComposer({
   onSelectDirectory?: () => void;
 }) {
   const t = useT();
-  const locale = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [internalPrompt, setInternalPrompt] = useState("");
@@ -168,35 +166,8 @@ export function HomeHeroComposer({
       ? t("home.hero.statusConnecting")
       : t("home.hero.statusOffline");
 
-  function applyScenario(card: ScenarioCard) {
-    const text = scenarioPrompt(card, locale);
-    setPrompt(text);
-    requestAnimationFrame(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(text.length, text.length);
-    });
-  }
-
   return (
     <div className="dw-hero-composer">
-      <div className="dw-hero-composer__scenarios">
-        <span className="dw-hero-composer__scenarios-label">{t("home.hero.scenariosLabel")}</span>
-        <div className="dw-hero-composer__scenario-row">
-          {SCENARIO_CARDS.map((card) => (
-            <button
-              key={card.id}
-              type="button"
-              className="dw-hero-composer__scenario-chip"
-              onClick={() => applyScenario(card)}
-            >
-              <Icon name={card.icon} size={16} />
-              <span>{t(`home.scenarios.${card.id}`)}</span>
-            </button>
-          ))}
-        </div>
-      </div>
       <div className="dw-hero-composer__card glass-panel">
         <textarea
           ref={textareaRef}

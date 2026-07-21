@@ -1,0 +1,6 @@
+{
+  "target": "cloud",
+  "account_api_url": "https://anycode.work",
+  "account_portal_url": "https://anycode.work",
+  "model_gateway_url": "https://anycode.work"
+}

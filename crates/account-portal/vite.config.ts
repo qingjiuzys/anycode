@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@anycode/site-urls": path.resolve(__dirname, "../../brand/site-urls.ts"),
+      "@anycode/brand-mark": path.resolve(__dirname, "../../brand/anycode-mark.svg"),
     },
   },
   server: {

@@ -416,7 +416,7 @@ pub fn plan_tree_is_empty(tree: &PlanTree) -> bool {
 }
 
 pub fn plan_tree_all_completed(tree: &PlanTree) -> bool {
-    !tree.roots.is_empty() && tree.roots.iter().all(|n| subtree_all_completed(n))
+    !tree.roots.is_empty() && tree.roots.iter().all(subtree_all_completed)
 }
 
 fn subtree_all_completed(node: &PlanNode) -> bool {

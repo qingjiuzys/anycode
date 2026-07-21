@@ -19,13 +19,31 @@ pub fn resolve_project_root(root_path: &str) -> Result<PathBuf> {
 }
 
 /// Resolve `rel` under `root` and ensure the result stays inside `root`.
+/// Accepts project-relative paths, or absolute paths that canonicalize under `root`.
 pub fn resolve_under_root(root: &Path, rel: &str) -> Result<PathBuf> {
     let root_canon = if root.is_dir() {
         std::fs::canonicalize(root).context("canonicalize project root")?
     } else {
         bail!("project root not found");
     };
-    let rel = rel.trim().trim_start_matches(['/', '\\']);
+    let raw = rel.trim();
+    if raw.is_empty() {
+        return Ok(root_canon);
+    }
+    let candidate = Path::new(raw);
+    if candidate.is_absolute() {
+        let canon = if candidate.exists() {
+            std::fs::canonicalize(candidate)
+                .with_context(|| format!("resolve path {}", candidate.display()))?
+        } else {
+            candidate.to_path_buf()
+        };
+        if !canon.starts_with(&root_canon) {
+            bail!("path escapes project root");
+        }
+        return Ok(canon);
+    }
+    let rel = raw.trim_start_matches(['/', '\\']);
     if rel.is_empty() {
         return Ok(root_canon);
     }

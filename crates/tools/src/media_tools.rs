@@ -8,8 +8,9 @@ use anycode_llm::{
 };
 use async_trait::async_trait;
 use serde_json::json;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn resolve_registry(services: &ToolServices) -> Result<MediaClientRegistry, CoreError> {
     services
@@ -155,7 +156,13 @@ impl Tool for GenerateImageTool {
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
-            "properties": { "prompt": { "type": "string" } },
+            "properties": {
+                "prompt": { "type": "string" },
+                "path": {
+                    "type": "string",
+                    "description": "Optional output path (relative to cwd or absolute). Defaults to generated/image-<ts>.png"
+                }
+            },
             "required": ["prompt"]
         })
     }
@@ -175,8 +182,24 @@ impl Tool for GenerateImageTool {
             .ok_or_else(|| CoreError::ConfigError("models.image not configured".into()))?;
         let client = ImageGenClient::new(prof.profile.clone());
         let out = client.generate(prompt).await?;
+        let wd = input.working_directory.as_deref().unwrap_or(".");
+        let path_hint = input.input.get("path").and_then(|v| v.as_str());
+        let (path, bytes) = persist_image_bytes(wd, path_hint, &out.url, &out.b64_json).await?;
+        let path_str = path.display().to_string();
         Ok(ToolOutput {
-            result: json!({ "url": out.url, "b64_json": out.b64_json }),
+            result: json!({
+                "path": path_str,
+                "url": out.url,
+                "bytes": bytes,
+                "artifacts": [{
+                    "path": path_str,
+                    "kind": "image",
+                    "mime": "image/png",
+                    "title": path.file_name().and_then(|s| s.to_str()).unwrap_or("image.png"),
+                    "inline": true,
+                    "bytes": bytes
+                }]
+            }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })
@@ -196,7 +219,13 @@ impl Tool for GenerateVideoTool {
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
-            "properties": { "prompt": { "type": "string" } },
+            "properties": {
+                "prompt": { "type": "string" },
+                "path": {
+                    "type": "string",
+                    "description": "Optional local output path when a downloadable URL is returned"
+                }
+            },
             "required": ["prompt"]
         })
     }
@@ -216,6 +245,25 @@ impl Tool for GenerateVideoTool {
             .ok_or_else(|| CoreError::ConfigError("models.video not configured".into()))?;
         let client = VideoGenClient::new(prof.profile.clone());
         let out = client.generate(prompt).await?;
+        let wd = input.working_directory.as_deref().unwrap_or(".");
+        let path_hint = input.input.get("path").and_then(|v| v.as_str());
+        let mut path_str: Option<String> = None;
+        let mut bytes: Option<u64> = None;
+        let mut artifacts = Vec::new();
+        if let Some(url) = out.url.as_deref() {
+            if let Ok((path, len)) = persist_remote_media(wd, path_hint, url, "mp4").await {
+                path_str = Some(path.display().to_string());
+                bytes = Some(len);
+                artifacts.push(json!({
+                    "path": path.display().to_string(),
+                    "kind": "video",
+                    "mime": "video/mp4",
+                    "title": path.file_name().and_then(|s| s.to_str()).unwrap_or("video.mp4"),
+                    "inline": true,
+                    "bytes": len
+                }));
+            }
+        }
         let hint = out
             .url
             .as_ref()
@@ -227,15 +275,105 @@ impl Tool for GenerateVideoTool {
             });
         Ok(ToolOutput {
             result: json!({
+                "path": path_str,
                 "url": out.url,
                 "job_id": out.job_id,
+                "bytes": bytes,
                 "hint": hint,
+                "artifacts": artifacts,
                 "raw": out.raw
             }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })
     }
+}
+
+fn millis_stamp() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
+fn resolve_output_path(wd: &str, hint: Option<&str>, default_name: &str) -> PathBuf {
+    if let Some(h) = hint.map(str::trim).filter(|s| !s.is_empty()) {
+        let p = Path::new(h);
+        if p.is_absolute() {
+            return p.to_path_buf();
+        }
+        return Path::new(wd).join(p);
+    }
+    Path::new(wd).join("generated").join(default_name)
+}
+
+async fn persist_image_bytes(
+    wd: &str,
+    path_hint: Option<&str>,
+    url: &Option<String>,
+    b64_json: &Option<String>,
+) -> Result<(PathBuf, u64), CoreError> {
+    let path = resolve_output_path(wd, path_hint, &format!("image-{}.png", millis_stamp()));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            CoreError::IoError(std::io::Error::new(
+                e.kind(),
+                format!("create image dir: {e}"),
+            ))
+        })?;
+    }
+    let bytes = if let Some(b64) = b64_json.as_deref() {
+        base64_decode(b64)?
+    } else if let Some(u) = url.as_deref() {
+        download_bytes(u).await?
+    } else {
+        return Err(CoreError::LLMError(
+            "image gen returned neither b64_json nor url".into(),
+        ));
+    };
+    let len = bytes.len() as u64;
+    std::fs::write(&path, &bytes).map_err(CoreError::IoError)?;
+    Ok((path, len))
+}
+
+async fn persist_remote_media(
+    wd: &str,
+    path_hint: Option<&str>,
+    url: &str,
+    ext: &str,
+) -> Result<(PathBuf, u64), CoreError> {
+    let path = resolve_output_path(wd, path_hint, &format!("video-{}.{ext}", millis_stamp()));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            CoreError::IoError(std::io::Error::new(
+                e.kind(),
+                format!("create media dir: {e}"),
+            ))
+        })?;
+    }
+    let bytes = download_bytes(url).await?;
+    let len = bytes.len() as u64;
+    std::fs::write(&path, &bytes).map_err(CoreError::IoError)?;
+    Ok((path, len))
+}
+
+async fn download_bytes(url: &str) -> Result<Vec<u8>, CoreError> {
+    let resp = reqwest::Client::new()
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| CoreError::LLMError(format!("download media: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(CoreError::LLMError(format!(
+            "download media status={}",
+            resp.status()
+        )));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| CoreError::LLMError(format!("download media body: {e}")))?;
+    Ok(bytes.to_vec())
 }
 
 fn base64_decode(s: &str) -> Result<Vec<u8>, CoreError> {

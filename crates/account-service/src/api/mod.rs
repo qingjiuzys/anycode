@@ -143,6 +143,10 @@ pub fn router(state: AppState) -> Router {
             "/billing/orders/{order_id}",
             get(handlers::get_payment_order),
         )
+        .route(
+            "/billing/orders/{order_id}/sync",
+            post(handlers::sync_payment_order),
+        )
         .route("/models/catalog", get(handlers::models_catalog))
         .route("/usage/summary", get(handlers::usage_summary))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));

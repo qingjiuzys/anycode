@@ -8,11 +8,15 @@ use serde::Deserialize;
 pub mod admin;
 
 pub async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    let wechat_missing = crate::billing_wechat::wechat_pay_missing(&state.config);
     Json(serde_json::json!({
         "ok": true,
         "service": "anycode-account",
         "version": state.version,
         "portal_url": state.config.portal_url,
+        "wechat_pay_configured": wechat_missing.is_empty(),
+        "wechat_pay_missing": wechat_missing,
+        "default_payment_provider": state.config.default_payment_provider,
     }))
 }
 
@@ -604,6 +608,57 @@ pub async fn get_payment_order(
         Ok(Some(order)) => Json(serde_json::json!({ "order": order })).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "order not found").into_response(),
         Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response(),
+    }
+}
+
+/// Ask WeChat for payment status and fulfill if already paid (callback miss recovery).
+pub async fn sync_payment_order(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+    Path(order_id): Path<String>,
+) -> impl IntoResponse {
+    let order = match crate::billing::get_payment_order(
+        &state.db,
+        &ctx.user.organization_id,
+        &order_id,
+    )
+    .await
+    {
+        Ok(Some(o)) => o,
+        Ok(None) => return json_error(StatusCode::NOT_FOUND, "order not found").into_response(),
+        Err(e) => {
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response()
+        }
+    };
+    if order.status == "paid" {
+        return Json(serde_json::json!({ "order": order, "synced": false })).into_response();
+    }
+    if order.provider != "wechat" {
+        return json_error(StatusCode::BAD_REQUEST, "only wechat orders can sync").into_response();
+    }
+    let Some(out_trade_no) = order.out_trade_no.as_deref() else {
+        return json_error(StatusCode::BAD_REQUEST, "order missing out_trade_no").into_response();
+    };
+    match crate::billing_wechat::sync_order_by_out_trade_no(
+        &state.config,
+        &state.db,
+        out_trade_no,
+    )
+    .await
+    {
+        Ok(synced) => {
+            let refreshed = crate::billing::get_payment_order(
+                &state.db,
+                &ctx.user.organization_id,
+                &order_id,
+            )
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(order);
+            Json(serde_json::json!({ "order": refreshed, "synced": synced })).into_response()
+        }
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
     }
 }
 

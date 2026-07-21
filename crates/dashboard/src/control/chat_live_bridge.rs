@@ -227,6 +227,24 @@ pub fn spawn_live_bridge(
                         &mut state.assistant_raw_buffers,
                         &mut state.assistant_display_buffers,
                     ) {
+                        if let LiveTraceEvent::ArtifactReady { artifact, .. } = &evt {
+                            if let Some(path) = artifact.path.as_deref() {
+                                let kind = artifact.resolved_kind();
+                                let title = artifact
+                                    .title
+                                    .clone()
+                                    .unwrap_or_else(|| anycode_core::artifact_title_for_path(path));
+                                let _ = db
+                                    .upsert_artifact(
+                                        &project_id,
+                                        &session_id,
+                                        path,
+                                        kind,
+                                        &title,
+                                    )
+                                    .await;
+                            }
+                        }
                         publish_persisted(&db, &events, chat_evt, user_turn_id).await;
                     }
                 }

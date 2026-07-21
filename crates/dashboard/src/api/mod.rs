@@ -289,6 +289,10 @@ pub fn router(state: AppState) -> Router {
             get(handlers::read_project_fs),
         )
         .route(
+            "/projects/{project_id}/fs/raw",
+            get(handlers::raw_project_fs),
+        )
+        .route(
             "/projects/{project_id}/fs/stat",
             get(handlers::stat_project_fs),
         )

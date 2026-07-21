@@ -10,6 +10,20 @@ if [[ ! -f "$in" ]]; then
   echo "file not found: $in" >&2
   exit 1
 fi
+
+emit_artifact() {
+  local path="$1"
+  local kind="$2"
+  local abs
+  abs="$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
+  echo "$abs"
+  local title
+  title="$(basename "$abs")"
+  echo "ANYCODE_ARTIFACT:{\"path\":\"$abs\",\"kind\":\"$kind\",\"title\":\"$title\",\"inline\":true}"
+  printf '{"path":"%s","kind":"%s","title":"%s","inline":true}\n' "$abs" "$kind" "$title" \
+    >"${abs}.anycode-artifact.json"
+}
+
 if ! command -v pandoc >/dev/null 2>&1; then
   echo "pandoc not installed (brew install pandoc or your distro package)" >&2
   exit 1
@@ -17,7 +31,7 @@ fi
 
 if [[ "$out" != *.pdf ]]; then
   pandoc "$in" -o "$out"
-  echo "$out"
+  emit_artifact "$out" "file"
   exit 0
 fi
 
@@ -40,7 +54,7 @@ done
 for engine in xelatex lualatex pdflatex tectonic wkhtmltopdf weasyprint prince; do
   if command -v "$engine" >/dev/null 2>&1; then
     pandoc "$in" --pdf-engine="$engine" -o "$out"
-    echo "$out"
+    emit_artifact "$out" "pdf"
     exit 0
   fi
 done
@@ -64,7 +78,7 @@ if [[ -n "$chrome_bin" ]]; then
     --print-to-pdf="$out" \
     "file://$html" >/dev/null 2>&1
   if [[ -s "$out" ]]; then
-    echo "$out"
+    emit_artifact "$out" "pdf"
     exit 0
   fi
 fi
@@ -75,4 +89,4 @@ pandoc "$in" \
   --metadata title="$(basename "${in%.*}")" \
   -o "$fallback"
 echo "pdf engine not installed; wrote HTML fallback: $fallback" >&2
-echo "$fallback"
+emit_artifact "$fallback" "file"

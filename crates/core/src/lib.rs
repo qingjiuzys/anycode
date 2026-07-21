@@ -4,6 +4,7 @@
 //! 实现按子模块拆分；本文件仅做聚合与 `prelude` 导出。
 
 mod agent_type;
+mod artifact_kind;
 mod channel;
 mod chat_turn;
 mod error;
@@ -36,6 +37,9 @@ mod vision;
 mod workflow;
 
 pub use agent_type::AgentType;
+pub use artifact_kind::{
+    artifact_kind_for_path, artifact_kind_is_inline, artifact_title_for_path, mime_for_path,
+};
 pub use channel::{ChannelMessage, ChannelType};
 pub use chat_turn::{
     current_chat_turn, current_dashboard_session_id, current_host_intent_hint,

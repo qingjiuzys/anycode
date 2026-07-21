@@ -19,6 +19,7 @@ export function LandingFooter() {
           <div>
             <div className="lx-footer__col-title">{t("footer.colProduct")}</div>
             <div className="lx-footer__col-links">
+              <Link to={SITE_PATHS.downloads}>{t("nav.downloads")}</Link>
               <a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noreferrer">
                 {t("hero.ctaDownload")}
               </a>

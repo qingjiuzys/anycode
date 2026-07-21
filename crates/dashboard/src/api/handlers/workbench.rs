@@ -1,11 +1,12 @@
 use super::*;
 use crate::workbench::{
-    list_dir, read_file, shared_manager, stat_path, BrowserSessionManager,
+    list_dir, read_file, read_raw_file, shared_manager, stat_path, BrowserSessionManager,
     CreateBrowserSessionBody, PtySession, TerminalClientMessage, TerminalServerMessage,
-    DEFAULT_MAX_READ_BYTES,
+    DEFAULT_MAX_RAW_BYTES, DEFAULT_MAX_READ_BYTES,
 };
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
+use axum::http::{header, HeaderMap, HeaderValue};
 use futures::{SinkExt, StreamExt};
 use std::path::Path as StdPath;
 
@@ -96,6 +97,55 @@ pub async fn read_project_fs(
             let msg = e.to_string();
             let code = if msg.contains("binary") || msg.contains("UTF-8") {
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (code, Json(json!({ "error": msg }))).into_response()
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct FsRawQuery {
+    pub path: String,
+    #[serde(default = "default_max_raw_bytes")]
+    pub max_bytes: u64,
+}
+
+fn default_max_raw_bytes() -> u64 {
+    DEFAULT_MAX_RAW_BYTES
+}
+
+/// Binary file preview/download for deliverable cards (images, PDF, video).
+pub async fn raw_project_fs(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Query(q): Query<FsRawQuery>,
+) -> impl IntoResponse {
+    let root = match project_root_path(&state, &project_id).await {
+        Ok(r) => r,
+        Err(resp) => {
+            return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
+        }
+    };
+    match read_raw_file(&root, &q.path, q.max_bytes) {
+        Ok((bytes, mime, _rel)) => {
+            let mut headers = HeaderMap::new();
+            if let Ok(val) = HeaderValue::from_str(&mime) {
+                headers.insert(header::CONTENT_TYPE, val);
+            }
+            headers.insert(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("private, max-age=60"),
+            );
+            (StatusCode::OK, headers, bytes).into_response()
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            let code = if msg.contains("too large") {
+                StatusCode::PAYLOAD_TOO_LARGE
+            } else if msg.contains("not found") || msg.contains("No such") {
+                StatusCode::NOT_FOUND
             } else {
                 StatusCode::BAD_REQUEST
             };

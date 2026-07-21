@@ -56,6 +56,42 @@ spec:
                 secretKeyRef:
                   name: anycode-account-secrets
                   key: WECHAT_PAY_API_V3_KEY
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: SMTP_HOST
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: SMTP_PORT
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: SMTP_USERNAME
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: SMTP_PASSWORD
+                  optional: true
+            - name: IDENTITY_ENCRYPTION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: IDENTITY_ENCRYPTION_SECRET
+                  optional: true
+            - name: AUDIT_ENCRYPTION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: anycode-account-secrets
+                  key: AUDIT_ENCRYPTION_SECRET
+                  optional: true
           readinessProbe:
             httpGet:
               path: /health

@@ -113,6 +113,88 @@ anyCode 对以下情况做指数退避重试：
 
 不重试：鉴权类错误（例如 401/403）以及其他非 retryable 状态码。
 
+## 中转站 / OpenAI 兼容网关（api-key）
+
+工作台 **设置 → 模型与路由** 添加模型时：
+
+1. **Provider** 选 `custom`（或 `openrouter` / `litellm` / 你的网关 id）
+2. **Base URL** 填中转站的 OpenAI 兼容根路径，例如：
+   - `https://your-relay.example.com/v1`
+   - 最终请求一般为 `{base_url}/chat/completions`
+3. **API Key** 填中转站发放的密钥
+4. **Model** 填上游真实模型 id（以中转站文档为准）
+5. 在能力矩阵里为该模型勾选需要的能力：`chat` / `vision` / `image` / `video` / `stt` / `tts` 等，并设为对应能力的 **Active**
+
+`~/.anycode/config.json` 等价示例：
+
+```json
+{
+  "provider": "custom",
+  "model": "gpt-4o",
+  "base_url": "https://your-relay.example.com/v1",
+  "api_key": "sk-xxxx",
+  "models": {
+    "items": [
+      {
+        "id": "relay-chat",
+        "provider": "custom",
+        "model": "gpt-4o",
+        "base_url": "https://your-relay.example.com/v1",
+        "api_key": "sk-xxxx",
+        "capabilities": ["chat", "vision"],
+        "enabled": true
+      },
+      {
+        "id": "relay-image",
+        "provider": "custom",
+        "model": "dall-e-3",
+        "base_url": "https://your-relay.example.com/v1",
+        "api_key": "sk-xxxx",
+        "capabilities": ["image"],
+        "enabled": true
+      },
+      {
+        "id": "relay-video",
+        "provider": "custom",
+        "model": "your-video-model",
+        "base_url": "https://your-relay.example.com/v1",
+        "api_key": "sk-xxxx",
+        "capabilities": ["video"],
+        "enabled": true
+      },
+      {
+        "id": "relay-stt",
+        "provider": "custom",
+        "model": "whisper-1",
+        "base_url": "https://your-relay.example.com/v1",
+        "api_key": "sk-xxxx",
+        "capabilities": ["stt"],
+        "enabled": true
+      }
+    ],
+    "active": {
+      "chat": "relay-chat",
+      "vision": "relay-chat",
+      "image": "relay-image",
+      "video": "relay-video",
+      "stt": "relay-stt"
+    }
+  }
+}
+```
+
+说明：
+
+| 能力 | 工具 / 用法 | 备注 |
+|------|-------------|------|
+| **chat** | 对话 | OpenAI Chat Completions |
+| **vision** | 图片附件理解 | 需模型支持多模态；与 chat 可同一条目 |
+| **image** | `GenerateImage` | 走 `images/generations`（或兼容路径）；结果落盘为交付物 |
+| **video** | `GenerateVideo` | 需中转提供视频提交/轮询接口（见 `models.video` / endpoint_overrides） |
+| **stt（识别）** | 语音输入 / `SpeechToText` | 兼容 Whisper 风格；macOS 也可选 Apple Speech |
+
+产品云端路径：登录 anyCode Cloud 后用 `anycode_cloud`（设备令牌），无需自填中转 key。
+
 ## 本地预设（视觉 / 嵌入 / STT / TTS）
 
 工作台 **设置 → 模型与路由** 中的 **本地预设** 可一键启用本地或 HTTP 模型。权重**不会**打进 anycode 二进制，首次使用时下载（例如 FastEmbed → `~/.cache/fastembed`，Whisper/Piper → `~/.anycode/models/`）。

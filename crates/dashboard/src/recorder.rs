@@ -781,22 +781,7 @@ fn extract_artifact_paths_from_text(text: &str) -> Vec<String> {
 }
 
 fn skill_artifact_kind(rel: &str) -> &'static str {
-    let lower = rel.to_lowercase();
-    if lower.ends_with(".pptx") || lower.ends_with(".ppt") {
-        "presentation"
-    } else if lower.ends_with(".pdf") {
-        "media"
-    } else if lower.ends_with(".png")
-        || lower.ends_with(".jpg")
-        || lower.ends_with(".jpeg")
-        || lower.ends_with(".webp")
-    {
-        "media"
-    } else if lower.ends_with(".md") && lower.contains("report") {
-        "report"
-    } else {
-        "file"
-    }
+    anycode_core::artifact_kind_for_path(rel)
 }
 
 fn extract_bash_output_paths(json: &str) -> Vec<String> {

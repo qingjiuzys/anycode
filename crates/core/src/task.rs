@@ -267,13 +267,74 @@ impl TerminationReason {
     }
 }
 
-/// 产物 (文件、数据等)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 产物 (文件、数据等) — rich deliverable fields optional for back-compat.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Artifact {
+    /// Legacy role label (`file` / `bash` / …) or kind alias.
     pub name: String,
     pub path: Option<String>,
     pub content: Option<String>,
     pub metadata: HashMap<String, serde_json::Value>,
+    /// Canonical kind: image|video|pdf|presentation|document|mindmap|file|…
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview_path: Option<String>,
+    /// When true, surface as an inline conversation card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inline: Option<bool>,
+}
+
+impl Artifact {
+    /// Build a file deliverable from an absolute or project-relative path.
+    #[must_use]
+    pub fn from_path(path: impl Into<String>) -> Self {
+        let path = path.into();
+        let kind = crate::artifact_kind_for_path(&path).to_string();
+        let mime = crate::mime_for_path(&path).to_string();
+        let title = crate::artifact_title_for_path(&path);
+        let bytes = std::fs::metadata(&path).ok().map(|m| m.len());
+        let inline = crate::artifact_kind_is_inline(&kind);
+        Self {
+            name: kind.clone(),
+            path: Some(path),
+            content: None,
+            metadata: HashMap::new(),
+            kind: Some(kind),
+            mime: Some(mime),
+            title: Some(title),
+            bytes,
+            preview_path: None,
+            inline: Some(inline),
+        }
+    }
+
+    #[must_use]
+    pub fn resolved_kind(&self) -> &str {
+        if let Some(k) = self.kind.as_deref() {
+            if !k.is_empty() {
+                return k;
+            }
+        }
+        if let Some(path) = self.path.as_deref() {
+            return crate::artifact_kind_for_path(path);
+        }
+        self.name.as_str()
+    }
+
+    #[must_use]
+    pub fn should_inline(&self) -> bool {
+        if let Some(v) = self.inline {
+            return v;
+        }
+        crate::artifact_kind_is_inline(self.resolved_kind())
+    }
 }
 
 /// 单轮 `execute_turn_from_messages` 内各次 LLM 调用的 token 聚合（供 HUD / 脚标 / status line）。

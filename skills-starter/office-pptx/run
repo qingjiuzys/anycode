@@ -66,6 +66,17 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     prs.save(str(out_path))
     print(out_path)
+    # Structured deliverable for anyCode conversation cards / artifacts index.
+    print(
+        'ANYCODE_ARTIFACT:{"path":"%s","kind":"presentation","title":"%s","inline":true}'
+        % (out_path, out_path.name.replace('"', ""))
+    )
+    sidecar = Path(str(out_path) + ".anycode-artifact.json")
+    sidecar.write_text(
+        '{"path":"%s","kind":"presentation","title":"%s","inline":true}\n'
+        % (out_path, out_path.name.replace('"', "")),
+        encoding="utf-8",
+    )
     return 0
 
 

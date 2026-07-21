@@ -26,9 +26,14 @@ export function WeChatPayModal({ order, onClose, onPaid }: Props) {
 
   useEffect(() => {
     if (status === "paid") return;
+    let ticks = 0;
     const timer = window.setInterval(() => {
-      void api
-        .getPaymentOrder(order.id)
+      ticks += 1;
+      const poll =
+        ticks % 4 === 0
+          ? api.syncPaymentOrder(order.id)
+          : api.getPaymentOrder(order.id);
+      void poll
         .then((res) => {
           setStatus(res.order.status);
           if (res.order.status === "paid") {

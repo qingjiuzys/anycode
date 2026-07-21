@@ -29,6 +29,7 @@ anyCode desktop app or http://127.0.0.1:43180
 ## 对话与多模态
 
 - **网页对话**：在项目会话中可直接粘贴或选择图片发送（需 Vision 模型）。
+- **会话交付物**：Skill / 工具落盘的图片、视频、PDF、Office、思维导图会以卡片出现在对话中，详见 [会话交付物](./deliverables.md)。
 - **渠道**：微信、Telegram、Discord 支持图片；Telegram/Discord 语音消息在配置了 `models.speech.stt` 时会自动转写。
 - 详见仓库内 [运行流说明](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/run-flow.md)。
 

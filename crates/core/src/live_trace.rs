@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Runtime → dashboard live trace (SSE-first; log is audit/replay).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum LiveTraceEvent {
     TurnStart {
         turn: u32,
@@ -59,5 +59,12 @@ pub enum LiveTraceEvent {
     },
     TurnDone {
         status: String,
+    },
+    /// Structured file deliverable ready for conversation card + artifacts index.
+    ArtifactReady {
+        turn: u32,
+        idx: u32,
+        tool_name: String,
+        artifact: crate::Artifact,
     },
 }

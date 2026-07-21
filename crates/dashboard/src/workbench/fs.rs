@@ -8,6 +8,7 @@ use serde::Serialize;
 use std::path::Path;
 
 pub const DEFAULT_MAX_READ_BYTES: usize = 512 * 1024;
+pub const DEFAULT_MAX_RAW_BYTES: u64 = 200 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -136,6 +137,29 @@ pub fn read_file(root_path: &str, rel: &str, max_bytes: usize) -> Result<FsReadR
         size,
         mime_hint: mime_hint_for_path(&path),
     })
+}
+
+/// Read raw bytes for binary preview (images, PDF, video). Enforces size cap.
+pub fn read_raw_file(
+    root_path: &str,
+    rel: &str,
+    max_bytes: u64,
+) -> Result<(Vec<u8>, String, String)> {
+    let root = resolve_project_root(root_path)?;
+    let path = resolve_under_root(&root, rel)?;
+    if path.is_dir() {
+        bail!("cannot read directory as file");
+    }
+    let meta = std::fs::metadata(&path)?;
+    let size = meta.len();
+    let cap = max_bytes.max(1024).min(DEFAULT_MAX_RAW_BYTES);
+    if size > cap {
+        bail!("file too large for preview ({size} > {cap} bytes)");
+    }
+    let bytes = std::fs::read(&path).with_context(|| format!("read {}", path.display()))?;
+    let mime = anycode_core::mime_for_path(&path.to_string_lossy()).to_string();
+    let rel_out = relative_path(&root, &path);
+    Ok((bytes, mime, rel_out))
 }
 
 fn read_prefix(path: &Path, max: usize) -> Result<Vec<u8>> {

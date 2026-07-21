@@ -21,7 +21,10 @@ const enSections: DocsNavSection[] = [
   },
   {
     text: "Digital Workbench",
-    items: [{ text: "Workbench tour", slug: "guide/workbench" }],
+    items: [
+      { text: "Workbench tour", slug: "guide/workbench" },
+      { text: "Conversation deliverables", slug: "guide/deliverables" },
+    ],
   },
   {
     text: "Desktop & headless",
@@ -62,7 +65,10 @@ const zhSections: DocsNavSection[] = [
   },
   {
     text: "数字工作台",
-    items: [{ text: "工作台导览", slug: "guide/workbench" }],
+    items: [
+      { text: "工作台导览", slug: "guide/workbench" },
+      { text: "会话交付物", slug: "guide/deliverables" },
+    ],
   },
   {
     text: "桌面与无头服务",

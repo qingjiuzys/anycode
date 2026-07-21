@@ -65,6 +65,10 @@ import {
   isInteractiveToolCluster,
   shouldHideInteractiveCluster,
 } from "@/lib/interactiveTools";
+import {
+  DeliverableCard,
+  type DeliverableCardProps,
+} from "@/components/deliverables/DeliverableCard";
 import { useLocale, useT } from "@/i18n/context";
 import type { SseStatus } from "@/hooks/useEventSource";
 import type { SessionLiveState } from "@/lib/sessionLiveStore";
@@ -668,6 +672,15 @@ function ConversationTurnView({
             </MessageRow>
           );
         }
+        if (block.block_type === "deliverable") {
+          const deliverable = deliverablePropsFromBlock(block);
+          if (!deliverable) return null;
+          return (
+            <MessageRow key={block.id} align="left">
+              <DeliverableCard {...deliverable} />
+            </MessageRow>
+          );
+        }
         if (block.block_type === "assistant_message") {
           if (!block.body.trim() && !block.meta?.live) return null;
           const isFinal =
@@ -1180,7 +1193,24 @@ function isReplyBlock(blockType: string): boolean {
     "tool_call",
     "tool_result",
     "system_notice",
+    "deliverable",
   ].includes(blockType);
+}
+
+function deliverablePropsFromBlock(block: TranscriptBlock): DeliverableCardProps | null {
+  const meta = block.meta ?? {};
+  const path = typeof meta.path === "string" ? meta.path.trim() : "";
+  if (!path) return null;
+  const bytesRaw = meta.bytes;
+  return {
+    path,
+    title: typeof meta.title === "string" ? meta.title : block.title || undefined,
+    kind: typeof meta.kind === "string" ? meta.kind : undefined,
+    mime: typeof meta.mime === "string" ? meta.mime : undefined,
+    projectId: typeof meta.project_id === "string" ? meta.project_id : undefined,
+    previewPath: typeof meta.preview_path === "string" ? meta.preview_path : undefined,
+    bytes: typeof bytesRaw === "number" ? bytesRaw : undefined,
+  };
 }
 
 function isGeoProviderError(text: string): boolean {

@@ -11,7 +11,8 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@anycode/site-urls": ["../../brand/site-urls.ts"]
+      "@anycode/site-urls": ["../../brand/site-urls.ts"],
+      "@anycode/brand-mark": ["../../brand/anycode-mark.svg"]
     }
   },
   "include": ["src", "../../brand/site-urls.ts"]

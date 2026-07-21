@@ -40,6 +40,7 @@ mod tests {
             path: None,
             content: None,
             metadata: HashMap::new(),
+            ..Default::default()
         }
     }
 
@@ -56,6 +57,7 @@ mod tests {
             path: Some("/tmp/x".into()),
             content: None,
             metadata: HashMap::new(),
+            ..Default::default()
         }];
         assert_eq!(
             claude_turn_written_lines(&v),
@@ -72,6 +74,7 @@ mod tests {
                 path: Some("src/lib.rs".into()),
                 content: None,
                 metadata: HashMap::new(),
+                ..Default::default()
             },
             bash(),
         ];
@@ -89,12 +92,14 @@ mod tests {
                 path: Some("src/lib.rs".into()),
                 content: None,
                 metadata: HashMap::new(),
+                ..Default::default()
             },
             Artifact {
                 name: "file".into(),
                 path: Some("src/lib.rs".into()),
                 content: None,
                 metadata: HashMap::new(),
+                ..Default::default()
             },
         ];
         assert_eq!(

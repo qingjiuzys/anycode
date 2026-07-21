@@ -20,6 +20,7 @@ export const SITE_PATHS = {
   legalPrivacy: "/legal/privacy",
   legalAlgorithmDisclosure: "/legal/algorithm-disclosure",
   desktopDownloadDmg: "/downloads/anyCode_latest_aarch64.dmg",
+  downloads: "/downloads",
 } as const;
 
 export type SitePathKey = keyof typeof SITE_PATHS;

@@ -1,6 +1,6 @@
 [package]
 name = "anycode-account-service"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "Central cloud account, subscription, and billing API for anyCode"
 license = "MIT"

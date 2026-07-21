@@ -24,10 +24,15 @@ echo "Desktop DMG baked into portal image:"
 ls -lh "$DOWNLOAD_DIR"/*.dmg 2>/dev/null | sed 's/^/  /'
 
 echo "Building $REGISTRY:$IMMUTABLE_TAG (linux/amd64, immutable tag + latest alias)"
+# ACR: NEVER enable provenance/sbom — they push an OCI attestation index that
+# shows as "正常" with empty 大小/镜像ID in the console and breaks pulls.
+# Also: do NOT store WeChat PEMs under /run/secrets in the image — ACK/K8s
+# volume mounts on /run/secrets hide baked-in certs and make wechat_pay_configured=false
+# even when WECHAT_PAY_API_V3_KEY is set. Use /app/wechat-certs instead.
 docker buildx build \
   --platform linux/amd64 \
-  --provenance=true \
-  --sbom=true \
+  --provenance=false \
+  --sbom=false \
   -f "$ROOT/deploy/account-service/Dockerfile" \
   -t "$REGISTRY:$IMMUTABLE_TAG" \
   -t "$REGISTRY:$TAG" \
@@ -38,3 +43,10 @@ docker buildx build \
 echo "Done: $REGISTRY:$IMMUTABLE_TAG (pushed)"
 echo "Rollback: kubectl set image deployment/anycode-account anycode-account=$REGISTRY:<previous-tag>"
 echo "Verify:   docker pull --platform linux/amd64 $REGISTRY:$IMMUTABLE_TAG"
+# Fail closed if ACR got an empty attestation index again
+if ! docker manifest inspect "$REGISTRY:$TAG" 2>/dev/null | grep -q '"layers"'; then
+  echo "ERROR: $REGISTRY:$TAG has no layers (likely attestation index). Re-push with --provenance=false --sbom=false." >&2
+  exit 1
+fi
+SIZE="$(docker manifest inspect "$REGISTRY:$TAG" 2>/dev/null | python3 -c 'import json,sys; m=json.load(sys.stdin); print(sum(l["size"] for l in m.get("layers",[])))' 2>/dev/null || echo 0)"
+echo "Verified layers OK (approx uncompressed layer bytes: $SIZE)"

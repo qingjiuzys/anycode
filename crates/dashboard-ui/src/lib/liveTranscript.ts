@@ -216,6 +216,10 @@ export function applyChatStreamEvent(
       const notice = turnDoneNoticeBlock(evt);
       return notice ? upsertBlock(blocks, notice) : blocks;
     }
+    case "deliverable": {
+      if (!evt.block) return blocks;
+      return upsertBlock(blocks, evt.block);
+    }
     default:
       return blocks;
   }
