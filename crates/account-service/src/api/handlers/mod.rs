@@ -952,3 +952,24 @@ pub async fn gateway_upstream_failure(
         Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response(),
     }
 }
+
+pub async fn memory_sync_push(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+    Json(body): Json<crate::memory_sync::PushBody>,
+) -> impl IntoResponse {
+    match crate::memory_sync::push_envelopes(&state.db, &auth.user.id, body).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
+    }
+}
+
+pub async fn memory_sync_pull(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+) -> impl IntoResponse {
+    match crate::memory_sync::pull_envelopes(&state.db, &auth.user.id).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
+    }
+}

@@ -1,0 +1,19 @@
+[package]
+name = "anycode-experience"
+version.workspace = true
+edition.workspace = true
+description = "Offline teacher-lab experience distillation (not shipped with runtime secrets)"
+license = "MIT"
+
+[dependencies]
+anycode-core = { path = "../core" }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[lints]
+workspace = true

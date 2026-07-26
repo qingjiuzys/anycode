@@ -168,7 +168,7 @@ pub fn scan_skill_catalog_for_root(project_root: &Path) -> SkillCatalog {
     if let Some(h) = dirs::home_dir() {
         roots.push(h.join(".anycode/skills"));
     }
-    SkillCatalog::scan(&roots, None, 120_000, false)
+    SkillCatalog::scan_cached(&roots, 120_000, false)
 }
 
 pub fn skills_governance_from_config(

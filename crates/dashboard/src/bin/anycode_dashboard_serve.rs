@@ -40,6 +40,7 @@ async fn main() -> anyhow::Result<()> {
         static_dir: args.static_dir,
         serve_ui: true,
         version: env!("CARGO_PKG_VERSION").into(),
+        desktop_bootstrap_token: None,
     };
     let paths = load_workspace_paths();
     let (_tx, rx) = tokio::sync::oneshot::channel();

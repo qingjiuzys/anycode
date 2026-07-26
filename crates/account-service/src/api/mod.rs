@@ -149,6 +149,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/models/catalog", get(handlers::models_catalog))
         .route("/usage/summary", get(handlers::usage_summary))
+        .route("/memory-sync/push", post(handlers::memory_sync_push))
+        .route("/memory-sync/pull", get(handlers::memory_sync_pull))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let api = Router::new()

@@ -15,6 +15,7 @@ mod prompt_catalog;
 mod reply_language;
 mod runtime;
 mod system_prompt;
+pub mod task_compiler;
 mod workspace_assistant;
 
 pub use agent_profiles::{
@@ -44,6 +45,10 @@ pub use runtime::{
     AgentClaudeToolGating, AgentRuntime, RuntimeCoreDeps, RuntimeMemoryOptions, RuntimeToolPolicy,
 };
 pub use system_prompt::RuntimePromptConfig;
+pub use task_compiler::{
+    attributed_memories_sections, CompileArmFlags, CompiledPromptParts, MemoryRecallBudgets,
+    TaskCompiler,
+};
 pub use workspace_assistant::{GoalAgent, WorkspaceAssistantAgent};
 
 #[cfg(test)]

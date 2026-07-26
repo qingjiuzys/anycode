@@ -1,0 +1,57 @@
+```rust
+/// Converts a string into a URL-friendly slug.
+///
+/// The transformation:
+/// - lowercase the input
+/// - convert any run of whitespace into a single `-`
+/// - keep only characters `a-z`, `0-9`, and `-`
+/// - collapse consecutive `-` into one
+/// - strip leading and trailing `-`
+pub fn slugify(input: &str) -> String {
+    let mut result = String::new();
+    let mut last_was_dash = false;
+
+    for ch in input.chars() {
+        if ch.is_whitespace() || ch == '-' {
+            // Convert whitespace to '-', and keep input '-', but collapse consecutive ones
+            if !last_was_dash {
+                result.push('-');
+                last_was_dash = true;
+            }
+        } else if ch.is_ascii_alphanumeric() {
+            // Keep only ASCII letters and digits, lowercased
+            result.push(ch.to_ascii_lowercase());
+            last_was_dash = false;
+        }
+        // Other characters (punctuation, non-ascii, etc.) are discarded
+    }
+
+    // Trim leading and trailing dashes
+    result.trim_matches('-').to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_phrase() {
+        assert_eq!(slugify("Hello World"), "hello-world");
+    }
+
+    #[test]
+    fn punctuation() {
+        assert_eq!(slugify("Don't stop! (maybe)"), "dont-stop-maybe");
+    }
+
+    #[test]
+    fn multiple_spaces() {
+        assert_eq!(slugify("  far   out  "), "far-out");
+    }
+
+    #[test]
+    fn leading_trailing_junk() {
+        assert_eq!(slugify("--_junk_123--"), "junk-123");
+    }
+}
+```

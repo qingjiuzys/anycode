@@ -210,7 +210,7 @@ pub async fn search(
     for r in rows {
         let source: String = r.get("source_file");
         let content: String = r.get("content");
-        let score = anycode_tools::score_knowledge_chunk(&q, &content);
+        let score = anycode_tools::score_knowledge_chunk(q, &content);
         if score > 0.0 {
             let snippet: String = content.chars().take(400).collect();
             hits.push(KnowledgeSearchHit {

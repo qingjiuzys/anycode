@@ -1,0 +1,31 @@
+id: scenario-product-launch
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  为产品发布准备一份产品发布 deck（product launch / pitch）：
+  产品名「云雀文档助手」，面向中小团队的 AI 写作协作工具，内测 3 个月、周活 2400、付费转化 6%。
+  要求覆盖 problem、solution、traction、roadmap、ask 五个部分，含关键指标页。
+  使用 office-pptx 或 presentation skill，最终文件保存为 output/deck.pptx。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/deck.pptx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck.pptx
+      min: 8
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1800
+complexity: complex
+meta:
+  suite: scenarios
+  family: product-launch

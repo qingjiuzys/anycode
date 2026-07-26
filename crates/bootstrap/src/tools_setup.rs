@@ -58,7 +58,7 @@ pub async fn build_tools_setup(
     });
 
     let tool_services: Arc<ToolServices> = {
-        let mut ts = if let Some(h) = dirs::home_dir() {
+        let ts = if let Some(h) = dirs::home_dir() {
             let path = h.join(".anycode/tasks/orchestration.json");
             ToolServices::load_or_new_with_mcp_defer(
                 path,
@@ -209,7 +209,6 @@ pub async fn build_tools_setup(
         workspace_root: config.lsp.workspace_root.clone(),
         read_timeout: std::time::Duration::from_millis(config.lsp.read_timeout_ms),
     });
-    tool_services.set_wechat_history_config(config.wechat_history.config.clone());
 
     let tools = build_registry_with_services(config.security.sandbox_mode, tool_services.clone());
     validate_default_registry(&tools)?;

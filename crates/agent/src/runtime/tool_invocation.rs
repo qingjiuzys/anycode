@@ -14,6 +14,20 @@ impl AgentRuntime {
         working_directory: &str,
         tool_call: &ToolCall,
     ) -> Result<ToolOutput, CoreError> {
+        // Eval arm: when skills are disabled, block Skill tools at execution time too
+        // (schema filtering alone is insufficient if the model still emits the call).
+        let arm = crate::task_compiler::CompileArmFlags::from_eval_env();
+        if !arm.production_skills_enabled
+            && (tool_call.name == "Skill" || tool_call.name == "SkillSearch")
+        {
+            return self.tool_invocation_deny(
+                task_id,
+                working_directory,
+                tool_call,
+                "eval_arm",
+                "production skills disabled for this eval arm (ANYCODE_EVAL_SKILLS=0)",
+            );
+        }
         tool_audit::append_tool_audit(
             task_id,
             "pre_check",

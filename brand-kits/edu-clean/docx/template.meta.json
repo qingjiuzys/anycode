@@ -1,0 +1,9 @@
+{
+  "brand_kit": "edu-clean",
+  "path": "/Users/qingjiu/workspace/research/llm-cli/anycode/brand-kits/edu-clean/docx/template.dotx",
+  "styles": [
+    "Heading 1",
+    "Heading 2",
+    "Heading 3"
+  ]
+}

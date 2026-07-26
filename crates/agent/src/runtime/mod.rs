@@ -4,6 +4,8 @@ mod agentic_loop;
 mod agentic_turn;
 mod artifacts;
 mod budget;
+mod compile_context;
+mod completion_guard;
 mod evidence;
 mod execute_eval;
 mod execute_goal;
@@ -91,6 +93,7 @@ pub struct AgentRuntime {
     session_context_window_auto: bool,
     session_context_window_tokens: u32,
     tool_services: StdMutex<Option<Arc<anycode_tools::ToolServices>>>,
+    completion_guard: Arc<completion_guard::CompletionGuard>,
 }
 
 fn canonical_agent_type(agent_type: &AgentType) -> AgentType {
@@ -101,11 +104,15 @@ fn canonical_agent_type(agent_type: &AgentType) -> AgentType {
 
 pub(super) struct ParentToolSurfaceGuard {
     services: Arc<anycode_tools::ToolServices>,
+    previous: Option<(Vec<String>, Vec<String>)>,
 }
 
 impl Drop for ParentToolSurfaceGuard {
     fn drop(&mut self) {
-        self.services.clear_parent_task_tool_deny();
+        // Restore the caller's surface instead of clearing: nested/concurrent
+        // tasks must not wipe the parent's deny propagation.
+        self.services
+            .restore_parent_task_tool_deny(self.previous.take());
     }
 }
 
@@ -263,6 +270,10 @@ impl AgentRuntime {
             session_context_window_auto: true,
             session_context_window_tokens: 0,
             tool_services: StdMutex::new(None),
+            completion_guard: Arc::new(completion_guard::CompletionGuard::new(
+                Arc::new(anycode_tools::ValidatorRegistry::new()),
+                completion_guard::CompletionGuardPolicy::default(),
+            )),
         }
     }
 
@@ -300,13 +311,17 @@ impl AgentRuntime {
 
     pub(super) async fn chat_with_failover(
         &self,
-        messages: Vec<Message>,
+        messages: &[Message],
         tools: Vec<ToolSchema>,
         primary: &ModelConfig,
         task_id: TaskId,
         logger: &RunLogger,
     ) -> Result<LLMResponse, CoreError> {
         let messages = crate::reply_language::inject_ephemeral_reply_language_reminder(messages);
+        let Some(policy) = self.failover_policy.as_ref() else {
+            // No failover configured: hand the snapshot over without cloning.
+            return self.llm_client.chat(messages, tools, primary).await;
+        };
         match self
             .llm_client
             .chat(messages.clone(), tools.clone(), primary)
@@ -314,9 +329,6 @@ impl AgentRuntime {
         {
             Ok(r) => Ok(r),
             Err(e) => {
-                let Some(policy) = self.failover_policy.as_ref() else {
-                    return Err(e);
-                };
                 if !failover::error_triggers_failover(&e, policy.trigger) {
                     return Err(e);
                 }
@@ -340,7 +352,7 @@ impl AgentRuntime {
 
     pub(super) async fn try_failover_on_provider_body_error(
         &self,
-        messages: Vec<Message>,
+        messages: &[Message],
         tools: Vec<ToolSchema>,
         primary: &ModelConfig,
         task_id: TaskId,
@@ -365,7 +377,7 @@ impl AgentRuntime {
             ),
         );
         self.llm_client
-            .chat(messages, tools, &policy.fallback)
+            .chat(messages.to_vec(), tools, &policy.fallback)
             .await
             .map(Some)
     }

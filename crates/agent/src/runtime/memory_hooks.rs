@@ -4,25 +4,61 @@ use super::artifacts::truncate_text;
 use super::session_notify::{build_notification_value, spawn_dispatch};
 use super::AgentRuntime;
 use anycode_core::prelude::*;
+use anycode_core::{looks_like_secret, EpisodeEvent, EpisodeRecord};
 use tracing::warn;
 
 const MEMORY_AUTOSAVE_TITLE_MAX_CHARS: usize = 200;
 const MEMORY_AUTOSAVE_CONTENT_MAX_BYTES: usize = 64 * 1024;
+const STRUCTURED_OUTCOME_MAX: usize = 480;
 
 pub(super) fn last_user_plain_text_for_autosave(msgs: &[Message]) -> String {
     msgs.iter()
         .rev()
         .find_map(|m| {
-            if m.role == MessageRole::User {
-                match &m.content {
-                    MessageContent::Text(t) if !t.trim().is_empty() => Some(t.clone()),
-                    _ => None,
-                }
-            } else {
-                None
+            if m.role != MessageRole::User {
+                return None;
+            }
+            // Skip compiler-injected context (Task Spec / Gate Plan / repair
+            // diagnostics) — autosave must use the real user turn as its title.
+            let injected = m
+                .metadata
+                .get(ANYCODE_CONTEXT_USER_METADATA_KEY)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if injected {
+                return None;
+            }
+            match &m.content {
+                MessageContent::Text(t) if !t.trim().is_empty() => Some(t.clone()),
+                _ => None,
             }
         })
         .unwrap_or_default()
+}
+
+fn memory_root() -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|h| h.join(".anycode/memory"))
+}
+
+fn record_episode_event(session_label: &str, task_id: TaskId, event: EpisodeEvent) {
+    if looks_like_secret(&event.to_structured_text()) {
+        return;
+    }
+    let Some(root) = memory_root() else {
+        return;
+    };
+    let mut record = EpisodeRecord {
+        id: format!("ep_{}", uuid::Uuid::new_v4()),
+        session_id: session_label.to_string(),
+        task_id: task_id.to_string(),
+        events: vec![event],
+        created_at: chrono::Utc::now(),
+        evidence_hash: String::new(),
+    };
+    record.recompute_hash();
+    if let Err(e) = anycode_memory::append_episode(&root, record) {
+        warn!(target: "anycode_agent", "episode append failed: {}", e);
+    }
 }
 
 impl AgentRuntime {
@@ -48,8 +84,21 @@ impl AgentRuntime {
         {
             return;
         }
-        let (body, _) = truncate_text(tool_text.to_string(), s.hook_max_bytes);
-        let text = format!("[tool:{}]\n{}", tool_name, body);
+        if looks_like_secret(tool_text) {
+            return;
+        }
+        let (body, _) = truncate_text(
+            tool_text.to_string(),
+            STRUCTURED_OUTCOME_MAX.min(s.hook_max_bytes),
+        );
+        let ok = !body.to_ascii_lowercase().contains("error");
+        let event = EpisodeEvent::ToolTrace {
+            tool: tool_name.to_string(),
+            outcome: body.clone(),
+            ok,
+        };
+        record_episode_event(session_label, task_id, event.clone());
+        let text = event.to_structured_text();
         let sess = format!("{}:{}", session_label, task_id);
         if let Err(e) = pipe
             .ingest_fragment(&sess, &text, MemoryType::Project)
@@ -76,11 +125,16 @@ impl AgentRuntime {
             return;
         }
         let t = assistant_excerpt.trim();
-        if t.is_empty() {
+        if t.is_empty() || looks_like_secret(t) {
             return;
         }
-        let (body, _) = truncate_text(t.to_string(), s.hook_max_bytes);
-        let text = format!("[turn {}]\n{}", turn, body);
+        let (body, _) = truncate_text(t.to_string(), STRUCTURED_OUTCOME_MAX.min(s.hook_max_bytes));
+        let event = EpisodeEvent::KeyDecision {
+            decision: format!("turn {turn} summary"),
+            rationale: body,
+        };
+        record_episode_event(session_label, task_id, event.clone());
+        let text = event.to_structured_text();
         let sess = format!("{}:{}", session_label, task_id);
         if let Err(e) = pipe
             .ingest_fragment(&sess, &text, MemoryType::Project)
@@ -160,6 +214,9 @@ impl AgentRuntime {
         if !self.memory_project_autosave_enabled {
             return;
         }
+        if looks_like_secret(prompt) || looks_like_secret(output) {
+            return;
+        }
         let line0 = prompt.lines().next().unwrap_or("").trim();
         let title = if line0.chars().count() > MEMORY_AUTOSAVE_TITLE_MAX_CHARS {
             line0
@@ -175,6 +232,22 @@ impl AgentRuntime {
             title
         };
         let (content, _) = truncate_text(output.to_string(), MEMORY_AUTOSAVE_CONTENT_MAX_BYTES);
+        record_episode_event(
+            "autosave",
+            task_id,
+            EpisodeEvent::TaskIntent {
+                summary: title.clone(),
+                family: String::new(),
+            },
+        );
+        record_episode_event(
+            "autosave",
+            task_id,
+            EpisodeEvent::Deliverable {
+                path_or_title: title.clone(),
+                summary: content.chars().take(STRUCTURED_OUTCOME_MAX).collect(),
+            },
+        );
         if let Some(ref pipe) = self.memory_pipeline {
             let session = task_id.to_string();
             let text = format!("{}\n\n{}", title, content);
@@ -200,6 +273,7 @@ impl AgentRuntime {
             scope: MemoryScope::Project,
             created_at: now,
             updated_at: now,
+            meta: None,
         };
         if let Err(e) = self.memory_store.save(memory).await {
             warn!(target: "anycode_agent", "memory auto_save failed: {}", e);

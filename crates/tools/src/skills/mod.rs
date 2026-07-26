@@ -2,10 +2,14 @@
 
 mod effective;
 pub mod install;
+pub mod router;
 pub mod vet;
 pub use effective::SkillsGovernance;
 pub use install::{
     install_skill, install_starter_skills, resolve_skills_starter_dir, SkillInstallResult,
+};
+pub use router::{
+    resolve_capabilities, SelectedSkill, SkillMatchStatus, SkillResolution, SkillResolutionContext,
 };
 pub use vet::{vet_skill_by_id, vet_skill_dir, SkillVetReport};
 
@@ -13,6 +17,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tracing::warn;
 
 const SKILL_FILE: &str = "SKILL.md";
@@ -48,6 +54,15 @@ pub struct SkillManifest {
     pub approval: Option<String>,
     #[serde(default)]
     pub permissions: Option<serde_json::Value>,
+    /// Capabilities this skill provides (e.g. web.implement).
+    #[serde(default)]
+    pub provides_capabilities: Vec<String>,
+    /// Higher wins when multiple skills provide the same capability.
+    #[serde(default)]
+    pub priority: Option<i32>,
+    /// Empty = all platforms; otherwise e.g. darwin, linux.
+    #[serde(default)]
+    pub platforms: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +80,9 @@ pub struct SkillMeta {
     pub channel_capabilities: Vec<String>,
     pub approval: Option<String>,
     pub permissions: Option<serde_json::Value>,
+    pub provides_capabilities: Vec<String>,
+    pub priority: i32,
+    pub platforms: Vec<String>,
 }
 
 /// Snapshot of discovered skills (startup scan + optional cwd resolution at tool run).
@@ -77,6 +95,19 @@ pub struct SkillCatalog {
     /// Roots used for the last scan (low → high precedence when merging).
     pub roots_scanned: Vec<PathBuf>,
 }
+
+/// How long [`SkillCatalog::scan_cached`] results stay fresh.
+const SCAN_CACHE_TTL: Duration = Duration::from_secs(30);
+
+struct ScanCacheEntry {
+    roots: Vec<PathBuf>,
+    run_timeout_ms: u64,
+    minimal_env: bool,
+    at: Instant,
+    catalog: SkillCatalog,
+}
+
+static SCAN_CACHE: Mutex<Option<ScanCacheEntry>> = Mutex::new(None);
 
 impl SkillCatalog {
     pub fn empty() -> Self {
@@ -202,6 +233,19 @@ impl SkillCatalog {
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
                         permissions: fm.permissions,
+                        provides_capabilities: fm
+                            .provides_capabilities
+                            .into_iter()
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect(),
+                        priority: fm.priority.unwrap_or(0),
+                        platforms: fm
+                            .platforms
+                            .into_iter()
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect(),
                     },
                 );
             }
@@ -223,6 +267,46 @@ impl SkillCatalog {
             run_timeout_ms,
             minimal_env,
             roots_scanned,
+        }
+    }
+
+    /// Like [`Self::scan`], but shares the result across calls for a short TTL.
+    ///
+    /// Task triggers re-scan the catalog on every conversation turn; with ~20
+    /// installed skills that is 20+ `SKILL.md` reads and YAML parses per
+    /// message. Caching for [`SCAN_CACHE_TTL`] turns that into one scan per
+    /// 30 s per process while still picking up newly installed skills
+    /// promptly. Only applies when no allowlist filter is requested.
+    pub fn scan_cached(roots: &[PathBuf], run_timeout_ms: u64, minimal_env: bool) -> Self {
+        if let Ok(guard) = SCAN_CACHE.lock() {
+            if let Some(entry) = guard.as_ref() {
+                if entry.roots == roots
+                    && entry.run_timeout_ms == run_timeout_ms
+                    && entry.minimal_env == minimal_env
+                    && entry.at.elapsed() < SCAN_CACHE_TTL
+                {
+                    return entry.catalog.clone();
+                }
+            }
+        }
+        let catalog = Self::scan(roots, None, run_timeout_ms, minimal_env);
+        if let Ok(mut guard) = SCAN_CACHE.lock() {
+            *guard = Some(ScanCacheEntry {
+                roots: roots.to_vec(),
+                run_timeout_ms,
+                minimal_env,
+                at: Instant::now(),
+                catalog: catalog.clone(),
+            });
+        }
+        catalog
+    }
+
+    /// Drop the result cached by [`Self::scan_cached`] (call after skill
+    /// install/uninstall so subsequent turns see the change immediately).
+    pub fn invalidate_scan_cache() {
+        if let Ok(mut guard) = SCAN_CACHE.lock() {
+            *guard = None;
         }
     }
 
@@ -406,12 +490,26 @@ pub fn default_skill_roots(extra_dirs: &[PathBuf], home: Option<&Path>) -> Vec<P
     roots
 }
 
+/// Largest index `<= i` that lies on a UTF-8 char boundary (Rust 1.85-compatible
+/// stand-in for `str::floor_char_boundary`).
+pub fn floor_char_boundary(s: &str, i: usize) -> usize {
+    if i >= s.len() {
+        return s.len();
+    }
+    let mut b = i;
+    while !s.is_char_boundary(b) {
+        b -= 1;
+    }
+    b
+}
+
 /// Truncate combined stdout+stderr style output for tool results.
 pub fn truncate_skill_output(mut s: String, max: usize) -> String {
     if s.len() <= max {
         return s;
     }
-    let mut t = s.drain(..max).collect::<String>();
+    let boundary = floor_char_boundary(&s, max);
+    let mut t = s.drain(..boundary).collect::<String>();
     t.push_str("\n… [truncated]");
     t
 }

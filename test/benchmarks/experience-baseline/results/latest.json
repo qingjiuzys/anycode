@@ -1,0 +1,299 @@
+{
+  "suite_id": "experience-baseline-v2-deepseek",
+  "models": {
+    "low_model": "deepseek-v4-flash",
+    "codex_reference": "deepseek-v4-pro",
+    "low_model_enhanced": "deepseek-v4-flash+experience@0.2.0"
+  },
+  "per_arm_pass_rate": {
+    "low_model": 1.0,
+    "codex_reference": 1.0,
+    "low_model_enhanced": 1.0
+  },
+  "per_arm_avg_checklist_score": {
+    "low_model": 0.9821428571428571,
+    "codex_reference": 0.9821428571428571,
+    "low_model_enhanced": 0.9404761904761905
+  },
+  "per_arm_avg_tokens": {
+    "low_model": 1630.625,
+    "codex_reference": 4558.75,
+    "low_model_enhanced": 1540.5
+  },
+  "per_arm_avg_latency_ms": {
+    "low_model": 15704.75,
+    "codex_reference": 56733.125,
+    "low_model_enhanced": 14356.375
+  },
+  "enhanced_vs_low_delta": 0.0,
+  "enhanced_vs_codex_delta": 0.0,
+  "enhanced_vs_low_score_delta": -0.04166666666666663,
+  "enhanced_vs_codex_score_delta": -0.04166666666666663,
+  "meets_promotion_gate": false,
+  "rows": [
+    {
+      "scenario_id": "baseline.web.landing_dark",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 2596,
+      "latency_ms": 20027,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:Y",
+      "output_preview": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n    <title>Emerald — Dark Landing</title>\n    <style>\n        /* ---------- RESET & BASE ---------- */\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n\n        body {\n            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\n            background-color: #0b0b14;\n            color: #e8e8f0;\n            line-height: 1.6;\n            min-height: 100vh;\n            display: flex;\n            flex-direction: column;\n            align-items: center;\n            justify-content: center;\n            padding: 1.5rem;\n        }\n\n        /* ---------- CARD CONTAINER ---------- */\n        .landing {\n            max-width: 1200px;\n            width: 100%;\n            background: #13131f;\n            border-radius: 2rem;\n            padding: 4rem 3rem;\n            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);\n            border: 1px solid #22223a;\n            transition: all 0.2s;\n        }\n\n        /* ---------- TYPOGRAPHY ------"
+    },
+    {
+      "scenario_id": "baseline.web.landing_dark",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 13317,
+      "latency_ms": 154715,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:Y",
+      "output_preview": "This is a self-contained HTML document that builds a dark-themed landing page for \"Nexus,\" featuring emerald green call-to-action buttons and a built-in contrast verification tool to ensure WCAG AA compliance.\n```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Nexus — AI-Powered Design Platform</title>\n    <style>\n        :root {\n            --bg-deep: #0b0b13;\n            --bg-surface: #15151f;\n            --bg-card: #1c1c2a;\n            --bg-elevated: #222233;\n            --text-primary: #f2f2f7;\n            --text-secondary: #b8b8cc;\n            --text-muted: #7e7e96;\n            --emerald-200: #a7f3d0;\n            --emerald-400: #34d399;\n            --emerald-500: #10b981;\n            --emerald-600: #059669;\n            --emerald-700: #047857;\n            --emerald-900: #064e3b;\n            --emerald-glow: rgba(16, 185, 129, 0.25);\n            --emerald-glow-strong: rgba(16, 185, 129, 0.5);\n            --border-subtle: rgba(255, 255, 255, 0.06);\n            --border-card: rgba(255, 255, 255, 0.08);\n            --radius-sm: 8px;\n            --radius-md: 12px;\n           "
+    },
+    {
+      "scenario_id": "baseline.web.landing_dark",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8333333333333334,
+      "total_tokens": 4231,
+      "latency_ms": 33423,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:N",
+      "output_preview": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n  <title>Emerald Dark | Landing</title>\n  <style>\n    /* --- Reset & Base --- */\n    *,\n    *::before,\n    *::after {\n      box-sizing: border-box;\n      margin: 0;\n      padding: 0;\n    }\n\n    html {\n      scroll-behavior: smooth;\n    }\n\n    body {\n      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;\n      background-color: #0c0e12;\n      color: #cbd5e1;\n      line-height: 1.6;\n      -webkit-font-smoothing: antialiased;\n      -moz-osx-font-smoothing: grayscale;\n    }\n\n    /* --- Design Tokens --- */\n    :root {\n      --color-bg: #0c0e12;\n      --color-surface: #1e293b;\n      --color-border: #334155;\n      --color-text-primary: #f8fafc;\n      --color-text-secondary: #cbd5e1;\n      --color-emerald: #10b981;\n      --color-emerald-hover: #34d399;\n      --color-emerald-ring: #6ee7b7;\n      --radius: 0.75rem;\n      --container-max: 1280px;\n    }\n\n    /* --- Typography --- */\n    h1,\n    h2,\n    h3 {\n      color: var(--color-text-primary);\n      font-weight: 800;\n      line-height: 1.1;\n    }\n\n    a"
+    },
+    {
+      "scenario_id": "baseline.code.rust_helper",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 797,
+      "latency_ms": 14913,
+      "message": "fn slugify:Y; to_lowercase/lowercase:Y; space→dash:Y; #[test] or #[cfg(test)]:Y; assert:Y",
+      "output_preview": "```rust\npub fn slugify(input: &str) -> String {\n    input\n        .to_lowercase()\n        .chars()\n        .map(|c| if c == ' ' { '-' } else { c })\n        .filter(|&c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')\n        .collect()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_simple_space() {\n        assert_eq!(slugify(\"Hello World\"), \"hello-world\");\n    }\n\n    #[test]\n    fn test_punctuation_removed() {\n        assert_eq!(slugify(\"Hello, World!\"), \"hello-world\");\n    }\n\n    #[test]\n    fn test_special_chars_and_uppercase() {\n        assert_eq!(slugify(\"Rust is *great*!\"), \"rust-is-great\");\n    }\n}\n```"
+    },
+    {
+      "scenario_id": "baseline.code.rust_helper",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1394,
+      "latency_ms": 19634,
+      "message": "fn slugify:Y; to_lowercase/lowercase:Y; space→dash:Y; #[test] or #[cfg(test)]:Y; assert:Y",
+      "output_preview": "```rust\n/// Converts `input` to a URL‑friendly slug by:\n/// - lowercasing\n/// - replacing spaces with `-`\n/// - keeping only `[a-z0-9-]`\nfn slugify(input: &str) -> String {\n    input\n        .to_lowercase()\n        .chars()\n        .filter_map(|c| {\n            if c == ' ' {\n                Some('-')\n            } else if c.is_ascii_alphanumeric() || c == '-' {\n                Some(c)\n            } else {\n                None\n            }\n        })\n        .collect()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn basic_hello_world() {\n        assert_eq!(slugify(\"Hello World\"), \"hello-world\");\n    }\n\n    #[test]\n    fn strips_special_characters() {\n        assert_eq!(slugify(\"Foo Bar! Baz\"), \"foo-bar-baz\");\n    }\n\n    #[test]\n    fn keeps_numbers_and_existing_dashes() {\n        assert_eq!(slugify(\"123-Go Now\"), \"123-go-now\");\n    }\n}\n```"
+    },
+    {
+      "scenario_id": "baseline.code.rust_helper",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 995,
+      "latency_ms": 10570,
+      "message": "fn slugify:Y; to_lowercase/lowercase:Y; space→dash:Y; #[test] or #[cfg(test)]:Y; assert:Y",
+      "output_preview": "```rust\n/// Converts the input string into a URL-friendly slug.\n///\n/// * Lowercases all characters.\n/// * Replaces spaces with hyphens (`-`).\n/// * Removes all characters except lowercase letters `a-z`, digits `0-9`, and hyphens.\npub fn slugify(input: &str) -> String {\n    input\n        .chars()\n        .map(|c| c.to_ascii_lowercase())\n        .filter_map(|c| {\n            if c.is_ascii_alphanumeric() || c == '-' {\n                Some(c)\n            } else if c == ' ' {\n                Some('-')\n            } else {\n                None\n            }\n        })\n        .collect()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_basic() {\n        assert_eq!(slugify(\"Hello World\"), \"hello-world\");\n    }\n\n    #[test]\n    fn test_numbers_and_dashes() {\n        assert_eq!(slugify(\"ABC-123 xYz\"), \"abc-123-xyz\");\n    }\n\n    #[test]\n    fn test_special_chars() {\n        // Spaces and special characters: space becomes '-', others removed.\n        assert_eq!(slugify(\"Test!@# Space\"), \"test--space\");\n    }\n}\n```"
+    },
+    {
+      "scenario_id": "baseline.office.brief_pptx",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 731,
+      "latency_ms": 8800,
+      "message": "valid json deck:Y; 5-7 slides:Y; bullets sized:Y; has problem/plan/risk or ask:Y; no placeholder:Y",
+      "output_preview": "{\n  \"title\": \"Q3 Product Briefing: Accelerating Growth\",\n  \"slides\": [\n    {\n      \"title\": \"Overview\",\n      \"bullets\": [\n        \"Q3 priorities to drive user engagement and revenue\",\n        \"Key focus: improve onboarding retention by 15%\"\n      ]\n    },\n    {\n      \"title\": \"Problem\",\n      \"bullets\": [\n        \"User drop-off during first-week onboarding is 40%\",\n        \"Low activation leads to reduced lifetime value\",\n        \"Competitors offer smoother setup experiences\"\n      ]\n    },\n    {\n      \"title\": \"Key Metric\",\n      \"bullets\": [\n        \"D7 retention rate (primary OKR)\",\n        \"Current baseline: 55% → Target: 70% by end of Q3\",\n        \"Secondary metric: time-to-first-value < 2 days\"\n      ]\n    },\n    {\n      \"title\": \"Plan\",\n      \"bullets\": [\n        \"Implement guided product tour and checklist (weeks 1-4)\",\n        \"Add in-app messaging for personalized recommendations (weeks 3-6)\",\n        \"A/B test simplified signup flow (weeks 5-8)\",\n        \"Launch referral incentive for early users (week 9)\"\n      ]\n    },\n    {\n      \"title\": \"Risks\",\n      \"bullets\": [\n        \"Engineering bandwidth constrained by parallel feature work\",\n        \"User resistance to new "
+    },
+    {
+      "scenario_id": "baseline.office.brief_pptx",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 2154,
+      "latency_ms": 30960,
+      "message": "valid json deck:Y; 5-7 slides:Y; bullets sized:Y; has problem/plan/risk or ask:Y; no placeholder:Y",
+      "output_preview": "{\n  \"title\": \"Q3 Product Briefing: Boosting New User Activation\",\n  \"slides\": [\n    {\n      \"title\": \"Executive Summary\",\n      \"bullets\": [\n        \"Onboarding activation is the top lever for improving trial-to-paid conversion\",\n        \"Current rate of 45% puts $2.3M in annual recurring revenue at risk\",\n        \"Proposing a focused initiative to reach 65% activation by end of Q3\"\n      ]\n    },\n    {\n      \"title\": \"Problem\",\n      \"bullets\": [\n        \"New user activation rate has stagnated at ~45% for 3 quarters\",\n        \"Time-to-value exceeds 7 days for 55% of new sign-ups\",\n        \"Competitor benchmarks show 60%+ activation reduces churn by 30%\",\n        \"Lost activation directly correlates with 15% lower 90-day retention\"\n      ]\n    },\n    {\n      \"title\": \"Key Metric\",\n      \"bullets\": [\n        \"Primary metric: % of new users completing a core action within 7 days\",\n        \"Current: 45% (Q2 average)\",\n        \"Q3 target: 65% (aligned with industry leading products)\",\n        \"Will be tracked weekly via product analytics dashboard\"\n      ]\n    },\n    {\n      \"title\": \"Q3 Plan\",\n      \"bullets\": [\n        \"Redesign onboarding flow with role-based personalization\",\n     "
+    },
+    {
+      "scenario_id": "baseline.office.brief_pptx",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 977,
+      "latency_ms": 16006,
+      "message": "valid json deck:Y; 5-7 slides:Y; bullets sized:Y; has problem/plan/risk or ask:Y; no placeholder:Y",
+      "output_preview": "{\n  \"title\": \"Q3 Product Briefing: Reversing Engagement Decline\",\n  \"slides\": [\n    {\n      \"title\": \"Problem\",\n      \"bullets\": [\n        \"Q2 DAU/MAU ratio dropped 15% from 0.40 to 0.34\",\n        \"Feature adoption for new releases stalled at <20%\",\n        \"Churn among mid-tier customers increased 8% quarter-over-quarter\"\n      ]\n    },\n    {\n      \"title\": \"Metric – Primary KPI: Weekly Active Users (WAU)\",\n      \"bullets\": [\n        \"Current WAU: 48,000 (target: 55,000 by end of Q3)\",\n        \"Engagement score (sessions/user/week) fell from 4.2 to 3.1 in Q2\",\n        \"Goal: restore WAU to Q1 levels and increase sessions/user to 4.0\"\n      ]\n    },\n    {\n      \"title\": \"Plan – Three Levers\",\n      \"bullets\": [\n        \"Fix onboarding: redesign first-run experience – expected +10% activation rate\",\n        \"Ship intelligent notifications: re-engage dormant users – projected +5% weekly return\",\n        \"Launch two high-demand features (inline comments + advanced filters) – target +8% feature adoption\",\n        \"Iterate in bi-weekly releases; A/B test each change\"\n      ]\n    },\n    {\n      \"title\": \"Risks\",\n      \"bullets\": [\n        \"Engineering capacity: only 60% of plan can be st"
+    },
+    {
+      "scenario_id": "baseline.office.docx_report",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 644,
+      "latency_ms": 7171,
+      "message": "valid json outline:Y; has H1:Y; has H2:Y; summary section:Y; next steps:Y; enough sections:Y",
+      "output_preview": "{\n  \"title\": \"Weekly Operations Report\",\n  \"sections\": [\n    {\n      \"heading\": \"Executive Summary\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"This week’s operations were largely stable with minor incidents in production. Overall system uptime remained above 99.9%.\"\n      ]\n    },\n    {\n      \"heading\": \"Key Metrics\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"Below are the primary KPIs tracked this week compared to last week:\"\n      ]\n    },\n    {\n      \"heading\": \"System Uptime\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Uptime: 99.96% (vs 99.93% last week). No major outages.\"\n      ]\n    },\n    {\n      \"heading\": \"Incident Count\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Total incidents: 12 (vs 15 last week). Critical: 1, High: 3, Medium: 5, Low: 3.\"\n      ]\n    },\n    {\n      \"heading\": \"Deployment Frequency\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Deployments: 8 (vs 10 last week). Rollbacks: 1 due to failed integration test.\"\n      ]\n    },\n    {\n      \"heading\": \"Highlights & Achievements\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"Database migration completed successfully ahead of schedule.\",\n        \"Customer support resolved 98%"
+    },
+    {
+      "scenario_id": "baseline.office.docx_report",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 2639,
+      "latency_ms": 34125,
+      "message": "valid json outline:Y; has H1:Y; has H2:Y; summary section:Y; next steps:Y; enough sections:Y",
+      "output_preview": "{\n  \"title\": \"Weekly Operations Report – Week 28, 2025\",\n  \"sections\": [\n    {\n      \"heading\": \"Executive Summary\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"This week overall system stability remained high with 99.9% uptime across critical services. A minor incident (INC-2025-07-15) occurred on the payment gateway, causing 20 minutes of degraded performance during peak hours. The issue was promptly resolved with no data loss. Team completed scheduled maintenance on database clusters with no service interruption. Key achievements include deployment of auto-scaling for the inventory service and finalization of the incident response runbook.\"\n      ]\n    },\n    {\n      \"heading\": \"Key Metrics\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Uptime: 99.9% (target: 99.95%)\",\n        \"Incidents: 1 major, 3 minor\",\n        \"Average response time: 15 minutes (target: 30 minutes)\",\n        \"Deployment success rate: 100%\",\n        \"Customer service tickets: 450 (+2% vs last week)\"\n      ]\n    },\n    {\n      \"heading\": \"Highlights & Lowlights\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Highlights: Successful auto-scaling rollout; database maintenance without downtime; update"
+    },
+    {
+      "scenario_id": "baseline.office.docx_report",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 745,
+      "latency_ms": 8151,
+      "message": "valid json outline:Y; has H1:Y; has H2:Y; summary section:Y; next steps:Y; enough sections:Y",
+      "output_preview": "{\n  \"title\": \"Weekly Operations Report\",\n  \"sections\": [\n    {\n      \"heading\": \"Summary\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"This week saw steady progress across all major initiatives. On-time delivery rate improved by 3% compared to last week. Budget utilization remained within acceptable thresholds. Two key risks were identified and mitigation plans are in place.\"\n      ]\n    },\n    {\n      \"heading\": \"Highlights\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"The team successfully completed the Q3 planning session ahead of schedule. Customer satisfaction score rose to 4.6 (target 4.5). The deployment pipeline upgrade was completed without incident.\",\n        \"Decision: Proceed with the revised sprint cadence starting next Monday.\"\n      ]\n    },\n    {\n      \"heading\": \"Key Metrics\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Sprint velocity: 42 story points (target 40). Incident response time: 12 minutes average (target 15 min). Open critical bugs: 2 (down from 5).\",\n        \"Action: Schedule a review of the bug triage process to further reduce open critical count.\"\n      ]\n    },\n    {\n      \"heading\": \"Challenges\",\n      \"level\": 2,\n      \"paragraphs\": "
+    },
+    {
+      "scenario_id": "baseline.db.saas_schema",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1514,
+      "latency_ms": 14973,
+      "message": "create table:Y; primary key:Y; foreign key or references:Y; index:Y; orgs/users/subscriptions/invoices:Y; not null:Y",
+      "output_preview": "```sql\n-- SaaS Billing Schema for PostgreSQL\n\n-- Organizations\nCREATE TABLE orgs (\n    id          BIGSERIAL PRIMARY KEY,\n    name        TEXT      NOT NULL,\n    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\n-- Users (unique email across system)\nCREATE TABLE users (\n    id          BIGSERIAL PRIMARY KEY,\n    email       TEXT      NOT NULL UNIQUE,\n    name        TEXT      NOT NULL,\n    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\n-- Many-to-many relationship: users belong to organizations with a role\nCREATE TABLE org_members (\n    org_id      BIGINT  NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,\n    user_id     BIGINT  NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n    role        TEXT    NOT NULL DEFAULT 'member',  -- e.g. 'owner', 'admin', 'member'\n    joined_at   TIMESTAMPTZ NOT NULL DEFAULT now(),\n    PRIMARY KEY (org_id, user_id)\n);\n\n-- Subscriptions (one active per org at a time; history preserved via multiple rows)\nCREATE TABLE subscriptions (\n    id              BIGSERIAL PRIMARY KEY,\n    org_id          BIGINT       NOT NULL REFERENCES orgs(id) ON DELETE C"
+    },
+    {
+      "scenario_id": "baseline.db.saas_schema",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1632,
+      "latency_ms": 21755,
+      "message": "create table:Y; primary key:Y; foreign key or references:Y; index:Y; orgs/users/subscriptions/invoices:Y; not null:Y",
+      "output_preview": "```sql\n-- Organizations table: represents a customer/tenant\nCREATE TABLE organizations (\n    id BIGSERIAL PRIMARY KEY,\n    name TEXT NOT NULL,\n    slug TEXT UNIQUE NOT NULL,          -- for URL paths\n    email TEXT,                         -- billing contact email\n    phone TEXT,\n    address_line1 TEXT,\n    address_line2 TEXT,\n    city TEXT,\n    state TEXT,\n    postal_code TEXT,\n    country TEXT,\n    tax_id TEXT,                        -- VAT/GST number\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\n-- Users table: members of an organization\nCREATE TABLE users (\n    id BIGSERIAL PRIMARY KEY,\n    org_id BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,\n    email TEXT NOT NULL,\n    password_hash TEXT,                 -- nullable if SSO only\n    full_name TEXT NOT NULL,\n    role TEXT NOT NULL DEFAULT 'member', -- owner, admin, member, billing\n    is_active BOOLEAN NOT NULL DEFAULT true,\n    last_login_at TIMESTAMPTZ,\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n    UNIQUE (org_id, email)             -- email unique per org\n);\n\n-- Plans table: available subsc"
+    },
+    {
+      "scenario_id": "baseline.db.saas_schema",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1186,
+      "latency_ms": 10128,
+      "message": "create table:Y; primary key:Y; foreign key or references:Y; index:Y; orgs/users/subscriptions/invoices:Y; not null:Y",
+      "output_preview": "```sql\n-- Organizations\nCREATE TABLE orgs (\n    id          BIGSERIAL    PRIMARY KEY,\n    name        VARCHAR(255) NOT NULL,\n    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),\n    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()\n);\n\n-- Users (each user belongs to one organization)\nCREATE TABLE users (\n    id            BIGSERIAL    PRIMARY KEY,\n    org_id        BIGINT       NOT NULL,\n    email         VARCHAR(255) NOT NULL,\n    name          VARCHAR(255) NOT NULL,\n    role          VARCHAR(50)  NOT NULL DEFAULT 'member',\n    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),\n    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),\n    CONSTRAINT fk_users_org FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE\n);\nCREATE INDEX idx_users_org_id ON users(org_id);\nCREATE INDEX idx_users_email ON users(email);\n\n-- Subscriptions (one per organization; could support multiple plans if needed)\nCREATE TABLE subscriptions (\n    id            BIGSERIAL    PRIMARY KEY,\n    org_id        BIGINT       NOT NULL,\n    plan          VARCHAR(100) NOT NULL,\n    status        VARCHAR(50)  NOT NULL DEFAULT 'active',\n    start_date    DATE         NOT NULL,\n    end_date      DATE,\n    created_at    "
+    },
+    {
+      "scenario_id": "baseline.sql.unpaid_invoices",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 802,
+      "latency_ms": 10448,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:Y",
+      "output_preview": "```sql\nSELECT\n    o.name AS org_name,\n    i.id AS invoice_id,\n    i.amount,\n    i.due_date\nFROM invoices i\nJOIN organizations o ON i.org_id = o.id\nWHERE i.is_paid = false\n  AND i.due_date >= CURRENT_DATE - INTERVAL '30 days'\nORDER BY i.amount DESC\nLIMIT 10;\n```"
+    },
+    {
+      "scenario_id": "baseline.sql.unpaid_invoices",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1176,
+      "latency_ms": 17270,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:Y",
+      "output_preview": "```sql\nSELECT\n    o.org_name,\n    i.invoice_id,\n    i.amount,\n    i.due_date\nFROM\n    invoices i\n    JOIN organizations o ON i.organization_id = o.organization_id\nWHERE\n    i.due_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE\n    AND i.status = 'unpaid'\nORDER BY\n    i.amount DESC\nLIMIT 10;\n```\n\n*Assumptions:*\n- `status = 'unpaid'` identifies unpaid invoices (alternatively, `paid_date IS NULL` works if no explicit status column).\n- \"Top 10\" is interpreted as the 10 largest unpaid amounts within the last 30 days.\n- \"Last 30 days\" refers to the `due_date` falling between 30 days ago and today (inclusive)."
+    },
+    {
+      "scenario_id": "baseline.sql.unpaid_invoices",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 551,
+      "latency_ms": 5009,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:Y",
+      "output_preview": "```sql\nSELECT\n    org.name AS organization_name,\n    inv.id AS invoice_id,\n    inv.amount,\n    inv.due_date\nFROM\n    invoices inv\n    INNER JOIN organizations org ON inv.organization_id = org.id\nWHERE\n    inv.paid_date IS NULL\n    AND inv.due_date >= (CURRENT_DATE - INTERVAL '30 days')\nORDER BY\n    inv.amount DESC\nLIMIT 10;\n```"
+    },
+    {
+      "scenario_id": "baseline.web.anti_slop_landing",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 13573,
+      "latency_ms": 167657,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:Y",
+      "output_preview": "This is a single, self-contained HTML landing page for a developer tool called \"DevForge.\" It features a dark theme with emerald-green CTAs, strictly avoids purple/violet accents, and includes HTML comments that document the text and button contrast ratios.\n```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>DevForge — The Developer Toolkit for Modern Teams</title>\n    <style>\n        :root {\n            --bg-deep: #090b0f;\n            --bg-surface: #11151a;\n            --bg-elevated: #161a21;\n            --bg-card: #13171e;\n            --text-primary: #f1f5f9;\n            --text-secondary: #94a3b8;\n            --text-muted: #64748b;\n            --border-subtle: #1e2530;\n            --border-medium: #263040;\n            --emerald-400: #34d399;\n            --emerald-500: #10b981;\n            --emerald-600: #059669;\n            --emerald-700: #047857;\n            --emerald-800: #065f46;\n            --emerald-glow: rgba(5, 150, 105, 0.25);\n            --emerald-glow-strong: rgba(5, 150, 105, 0.45);\n            --white: #ffffff;\n            --font-sans: 'Inter', 'SF Pro Display'"
+    },
+    {
+      "scenario_id": "baseline.web.anti_slop_landing",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8333333333333334,
+      "total_tokens": 2930,
+      "latency_ms": 24602,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:N",
+      "output_preview": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Nexus · developer tool</title>\n    <style>\n        /* -------- DESIGN TOKENS (based on visual preferences) --------\n           Dark bg: #0b0c0e  |  text primary: #e8eaed  |  text muted: #9aa0a6\n           Emerald accent: #10b981  |  CTA hover: #059669\n           No purple/violet allowed anywhere.\n           Font system: Inter (modern, readable on dark).\n           ------------------------------------------------------------ */\n\n        /* -------- CONTRAST RATIO DOCUMENTATION --------\n           H1 text (#e8eaed) on bg (#0b0c0e):\n               relative luminance of #0b0c0e ≈ 0.0030\n               relative luminance of #e8eaed ≈ 0.8224\n               contrast ratio = (0.8224 + 0.05) / (0.0030 + 0.05) = 0.8724 / 0.0530 ≈ 16.5 : 1\n               ✅ AAA (7:1) — excellent readability.\n\n           Body text (#c4c7ca) on bg (#0b0c0e):\n               #c4c7ca luminance ≈ 0.5802\n               ratio = (0.5802 + 0.05) / (0.0030 + 0.05) = 0.6302 / 0.0530 ≈ 11.9 : 1\n               ✅ AAA (7:1) — excellent.\n\n           CTA text (#0b0c0e) "
+    },
+    {
+      "scenario_id": "baseline.sql.cohort_metrics",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8571428571428571,
+      "total_tokens": 610,
+      "latency_ms": 5668,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:N",
+      "output_preview": "SELECT u.org_id, COUNT(DISTINCT u.id) AS count\nFROM users u\nJOIN events e ON u.id = e.user_id\nWHERE e.event_name = 'activate'\n  AND e.created_at >= u.created_at\n  AND e.created_at < u.created_at + INTERVAL '7 days'\nGROUP BY u.org_id\nORDER BY count DESC\nLIMIT 20;"
+    },
+    {
+      "scenario_id": "baseline.sql.cohort_metrics",
+      "arm": "codex_reference",
+      "model": "deepseek-v4-pro",
+      "passed": true,
+      "human_preference_score": 0.8571428571428571,
+      "total_tokens": 585,
+      "latency_ms": 7749,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:N",
+      "output_preview": "```sql\nSELECT\n    u.org_id,\n    COUNT(DISTINCT u.id) AS activate_within_7d_users\nFROM users u\nJOIN events e ON u.id = e.user_id\nWHERE e.event_name = 'activate'\n  AND e.created_at >= u.created_at\n  AND e.created_at <= u.created_at + INTERVAL '7 days'\nGROUP BY u.org_id\nORDER BY activate_within_7d_users DESC\nLIMIT 20;\n```"
+    },
+    {
+      "scenario_id": "baseline.sql.cohort_metrics",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8571428571428571,
+      "total_tokens": 709,
+      "latency_ms": 6962,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:N",
+      "output_preview": "```sql\nSELECT\n    u.org_id,\n    COUNT(DISTINCT u.id) AS user_count\nFROM users u\nINNER JOIN events e ON u.id = e.user_id\nWHERE e.event_name = 'activate'\n  AND e.created_at >= u.created_at\n  AND e.created_at <= u.created_at + INTERVAL '7 days'\nGROUP BY u.org_id\nORDER BY user_count DESC\nLIMIT 20;\n```"
+    },
+    {
+      "scenario_id": "baseline.web.anti_slop_landing",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 5351,
+      "latency_ms": 43638,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:Y",
+      "output_preview": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>Nexus – Developer Tool</title>\n    <style>\n        /* ── RESET & BASE ─────────────────────────────────────────── */\n        *,\n        *::before,\n        *::after {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n\n        body {\n            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;\n            background-color: #0d1117;\n            /* dark background */\n            color: #e6edf3;\n            /* primary text on #0d1117 – see contrast note below */\n            line-height: 1.6;\n            -webkit-font-smoothing: antialiased;\n        }\n\n        /*\n         * ── CONTRAST RATIOS ────────────────────────────────────────\n         *\n         *  BACKGROUND: #0d1117  (relative luminance ≈ 0.014)\n         *\n         *  PRIMARY TEXT   → #e6edf3  (L ≈ 0.88)\n         *     ratio = (0.88+0.05)/(0.014+0.05) = 0.93/0.064 ≈ 14.5:1\n         *     ✓ WCAG AAA (normal text)  – exceeds 7:1\n         *\n         *  SECONDARY TEXT → #8b949e  (L ≈ 0.33)\n"
+    }
+  ]
+}

@@ -35,12 +35,13 @@ impl AgentRuntime {
         let _parent_tool_surface = {
             let guard = self.tool_services.lock().ok();
             if let Some(svc) = guard.as_ref().and_then(|g| g.as_ref()) {
-                svc.set_parent_task_tool_deny(
+                let previous = svc.set_parent_task_tool_deny(
                     task.context.tool_deny_names.clone(),
                     task.context.tool_deny_prefixes.clone(),
                 );
                 Some(ParentToolSurfaceGuard {
                     services: Arc::clone(svc),
+                    previous,
                 })
             } else {
                 None
@@ -74,11 +75,56 @@ impl AgentRuntime {
             .or_else(|| agents.get(&task.agent_type))
             .ok_or_else(|| CoreError::AgentNotFound(task.id))?;
 
-        // 2. 加载相关记忆
-        let memories = self
-            .memory_store
-            .recall(&task.prompt, MemoryType::Project)
-            .await?;
+        // 2. 加载相关记忆（分类型预算）+ TaskCompiler + Skill routing
+        let compiled = super::compile_context::compile_for_prompt(
+            self.memory_store.as_ref(),
+            &self.tool_services,
+            &task.prompt,
+            task.agent_type.as_str(),
+            task.context.working_directory.as_str(),
+            true,
+        )
+        .await?;
+        let arm = compiled.arm;
+        let memories: Vec<Memory> = compiled
+            .recalled
+            .iter()
+            .flat_map(|(_, v)| v.iter().cloned())
+            .collect();
+        let compiler_sections = compiled.sections.clone();
+        let gate_plan = compiled.gate_plan.clone();
+        let expected_artifacts = compiled.expected_artifacts.clone();
+        let task_family = compiled.family;
+        let skill_denies = compiled.skill_denies.clone();
+        if let Some(plan) = &gate_plan {
+            logger.line(
+                task.id,
+                &super::compile_context::gate_plan_marker(
+                    task_family,
+                    plan.requirements.len(),
+                    arm,
+                ),
+            );
+        }
+        if !compiled.parts.selected_skill_ids.is_empty() {
+            logger.line(
+                task.id,
+                &super::compile_context::skill_resolved_marker(
+                    &compiled.parts.selected_skill_ids,
+                ),
+            );
+        }
+        // Prefer attributed sections over the flat legacy blob when we have typed recall.
+        let memories_for_legacy = if compiler_sections
+            .iter()
+            .any(|s| s.starts_with("## Memories ("))
+        {
+            &[][..]
+        } else {
+            memories.as_slice()
+        };
+        let mut context_injections = task.context.context_injections.clone();
+        context_injections.extend(compiler_sections);
 
         let mut model_config = self.model_for_task(&task.agent_type).clone();
         if let Some(ref hint) = task.context.nested_model_override {
@@ -118,8 +164,8 @@ impl AgentRuntime {
         messages.extend(
             self.context_messages_from_sections(self.build_context_sections(
                 mode,
-                &memories,
-                &task.context.context_injections,
+                memories_for_legacy,
+                &context_injections,
             )),
         );
 
@@ -140,10 +186,11 @@ impl AgentRuntime {
         let tools = self.tools.read().await;
         let raw =
             tool_surface::resolve_agent_tool_names(task.agent_type.as_str(), agent.tools(), &tools);
-        let merged_denies = anycode_tools::merge_agent_type_tool_denies(
+        let mut merged_denies = anycode_tools::merge_agent_type_tool_denies(
             task.agent_type.as_str(),
             &task.context.tool_deny_names,
         );
+        merged_denies.extend(skill_denies);
         let names = tool_surface::prepare_tool_names_for_llm(
             raw,
             &self.tool_name_deny,
@@ -159,6 +206,8 @@ impl AgentRuntime {
         let mut total_tool_calls: usize = 0;
         let mut artifacts: Vec<Artifact> = vec![];
         let mut budget_state = RuntimeBudgetState::new(task.context.budget);
+        let mut repairs_used: u32 = 0;
+        let mut last_repair_diagnostics: Option<String> = None;
         let loop_limits = task.context.loop_limits;
 
         for turn in 1..=loop_limits.max_agent_turns {
@@ -209,7 +258,7 @@ impl AgentRuntime {
                             return Ok(task_cancelled_failure());
                         }
                         res = self.chat_with_failover(
-                            messages.clone(),
+                            &messages,
                             turn_tool_schemas.clone(),
                             &llm_config,
                             task.id,
@@ -219,7 +268,7 @@ impl AgentRuntime {
                 }
                 None => {
                     self.chat_with_failover(
-                        messages.clone(),
+                        &messages,
                         turn_tool_schemas.clone(),
                         &llm_config,
                         task.id,
@@ -289,7 +338,7 @@ impl AgentRuntime {
                     });
                     response = match self
                         .chat_with_failover(
-                            messages.clone(),
+                            &messages,
                             turn_tool_schemas.clone(),
                             &llm_config,
                             task.id,
@@ -370,19 +419,93 @@ impl AgentRuntime {
                 logger.assistant_response(task.id, turn, &turn_plain);
             }
 
-            let mut turn_tool_calls = response.tool_calls.clone();
+            let turn_tool_calls = response.tool_calls.clone();
             if turn_tool_calls.is_empty() {
-                self.pipeline_memory_hook_agent_turn(&session_label, task.id, turn, &turn_plain)
+                let guard_out = self
+                    .completion_guard
+                    .evaluate(
+                        &task.id.to_string(),
+                        task_family,
+                        gate_plan.as_ref(),
+                        &expected_artifacts,
+                        &artifacts,
+                        std::path::Path::new(task.context.working_directory.as_str()),
+                        repairs_used,
+                        last_repair_diagnostics.as_deref(),
+                    )
                     .await;
-                self.maybe_session_notify_agent_turn(
-                    &session_label,
-                    task.id,
-                    turn,
-                    &turn_plain,
-                    Some(task.context.working_directory.as_str()),
-                );
-                logger.line(task.id, &format!("[turn_end] turn={} tool_calls=0", turn));
-                break;
+                match guard_out.decision {
+                    super::completion_guard::GuardDecision::Complete => {
+                        self.pipeline_memory_hook_agent_turn(
+                            &session_label,
+                            task.id,
+                            turn,
+                            &turn_plain,
+                        )
+                        .await;
+                        self.maybe_session_notify_agent_turn(
+                            &session_label,
+                            task.id,
+                            turn,
+                            &turn_plain,
+                            Some(task.context.working_directory.as_str()),
+                        );
+                        logger.line(task.id, &format!("[turn_end] turn={} tool_calls=0", turn));
+                        break;
+                    }
+                    super::completion_guard::GuardDecision::Repair => {
+                        let msg = guard_out.repair_message.unwrap_or_default();
+                        last_repair_diagnostics = Some(msg.clone());
+                        repairs_used += 1;
+                        logger.line(
+                            task.id,
+                            &format!(
+                                "[repair_requested] repairs_used={repairs_used} verification_started=1"
+                            ),
+                        );
+                        if let Some(report) = &guard_out.report {
+                            logger.line(
+                                task.id,
+                                &format!(
+                                    "[verification_finished] passed={} results={}",
+                                    report.all_passed(),
+                                    report.results.len()
+                                ),
+                            );
+                        }
+                        messages.push(Message {
+                            id: Uuid::new_v4(),
+                            role: MessageRole::User,
+                            content: MessageContent::Text(msg),
+                            timestamp: chrono::Utc::now(),
+                            metadata: {
+                                let mut m = HashMap::new();
+                                m.insert(
+                                    ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+                                    serde_json::Value::Bool(true),
+                                );
+                                m
+                            },
+                        });
+                        continue;
+                    }
+                    super::completion_guard::GuardDecision::Partial => {
+                        logger.line(task.id, "[task_end] status=partial reason=verification");
+                        return Ok(TaskResult::Partial {
+                            success: turn_plain,
+                            remaining: guard_out
+                                .repair_message
+                                .unwrap_or_else(|| "verification incomplete".into()),
+                        });
+                    }
+                    super::completion_guard::GuardDecision::Failed => {
+                        logger.line(task.id, "[task_end] status=failed reason=verification");
+                        return Ok(TaskResult::Failure {
+                            error: "verification gates failed".into(),
+                            details: guard_out.repair_message,
+                        });
+                    }
+                }
             }
 
             logger.line(
@@ -497,6 +620,15 @@ impl AgentRuntime {
             }
         }
 
+        // A repair request consumed the final turn: the true cause is the
+        // failed verification, not the turn budget — surface the diagnostics.
+        if let Some(diag) = last_repair_diagnostics {
+            logger.line(task.id, "[task_end] status=failed reason=verification");
+            return Ok(TaskResult::Failure {
+                error: "验证未通过且修复轮次已用尽".to_string(),
+                details: Some(diag),
+            });
+        }
         logger.line(task.id, "[task_end] status=failed reason=max_turns");
         Ok(TaskResult::Failure {
             error: "达到最大模型轮次，任务未完成".to_string(),

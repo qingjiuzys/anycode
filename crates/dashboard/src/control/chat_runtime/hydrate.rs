@@ -27,9 +27,14 @@ pub struct HydratedHistory {
 /// Load prior user/assistant turns for `session_id` from the canonical event log.
 pub async fn load_prior_history(db: &DashboardDb, session_id: &str) -> Result<HydratedHistory> {
     let records = db
-        .list_chat_turn_events(session_id, None, HYDRATE_EVENT_LIMIT)
+        .list_recent_chat_turn_events(session_id, HYDRATE_EVENT_LIMIT)
         .await?;
-    Ok(history_from_records(&records))
+    // The next user turn id must come from the global max, not the truncated
+    // window — otherwise long sessions collide with existing turn ids.
+    let max_user_turn_id = db.max_conversation_turn_id(session_id).await.unwrap_or(0) as u32;
+    let mut history = history_from_records(&records);
+    history.max_user_turn_id = max_user_turn_id;
+    Ok(history)
 }
 
 /// Map persisted events → LLM messages (user + assistant bodies only).

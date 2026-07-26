@@ -74,7 +74,8 @@ pub async fn install_market_skill(
     let dest = home.join(".anycode/skills");
     match crate::skill_market::install_market_entry(id, &dest) {
         Ok(r) => {
-            let _ = skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            anycode_tools::SkillCatalog::invalidate_scan_cache();
+            let _ = skills_scan::sync_skills_to_db_force(&state.db, &state.workspace_paths).await;
             state.chat_runtime.invalidate_runtime().await;
             Json(json!({
                 "ok": true,
@@ -103,7 +104,7 @@ pub async fn install_starter_skills(State(state): State<AppState>) -> impl IntoR
     match anycode_tools::install_starter_skills(&dest) {
         Ok(installed) => {
             let ids: Vec<String> = installed.iter().map(|r| r.id.clone()).collect();
-            let _ = skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            let _ = skills_scan::sync_skills_to_db_force(&state.db, &state.workspace_paths).await;
             state.chat_runtime.invalidate_runtime().await;
             Json(json!({
                 "ok": true,
@@ -133,7 +134,8 @@ pub async fn rescan_skills(State(state): State<AppState>) -> impl IntoResponse {
             }
         }
     }
-    match skills_scan::sync_skills_to_db(&state.db, &roots).await {
+    anycode_tools::SkillCatalog::invalidate_scan_cache();
+    match skills_scan::sync_skills_to_db_force(&state.db, &roots).await {
         Ok(n) => {
             state.chat_runtime.invalidate_runtime().await;
             let _ = crate::audit::record_audit(

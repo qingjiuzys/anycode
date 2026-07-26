@@ -107,6 +107,12 @@ impl EmbeddedSession {
     }
 }
 
+impl Default for ChatRuntimeHost {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChatRuntimeHost {
     #[must_use]
     pub fn enabled() -> bool {

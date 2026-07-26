@@ -18,18 +18,15 @@ use anycode_llm::ModelRouter;
 use anycode_security::ApprovalCallback;
 use anycode_tools::AskUserQuestionHost;
 use std::collections::HashSet;
-use std::io::{stdin, stdout, IsTerminal};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::info;
 
-/// Injectable hosts for approval, ask-user, and optional TTY dialoguer fallback.
+/// Injectable hosts for approval and ask-user.
 #[derive(Default)]
 pub struct RuntimeHosts {
     pub approval_override: Option<Box<dyn ApprovalCallback>>,
     pub ask_user_question_host: Option<Arc<dyn AskUserQuestionHost>>,
-    /// When true and no ask host is set, use dialoguer on TTY (`dialoguer-host` feature).
-    pub dialoguer_on_tty: bool,
 }
 
 /// Shared composition root for dashboard, daemon, and legacy CLI paths.
@@ -46,6 +43,10 @@ pub async fn initialize_runtime(
             anycode_locale::resolve_locale().as_str(),
         );
     }
+    // Managed python/node under ~/.anycode/runtimes win over system PATH for
+    // every spawned tool/skill; provisioning (if missing) runs in background.
+    crate::runtimes::prepend_runtime_paths();
+    crate::runtimes::spawn_runtime_provision();
     let llm_client = build_llm_stack(config).await?;
 
     let (memory_store, memory_pipeline) = build_memory_layer(config, memory_attach)?;
@@ -192,18 +193,6 @@ pub async fn initialize_runtime(
                     Arc::new(crate::workbench::workbench_ask::WorkbenchAskUserQuestionHost::new())
                         as Arc<dyn AskUserQuestionHost>,
                 )
-            } else if hosts.dialoguer_on_tty && stdin().is_terminal() && stdout().is_terminal() {
-                #[cfg(feature = "dialoguer-host")]
-                {
-                    Some(
-                        Arc::new(crate::hosts::dialoguer::DialoguerAskUserQuestionHost)
-                            as Arc<dyn AskUserQuestionHost>,
-                    )
-                }
-                #[cfg(not(feature = "dialoguer-host"))]
-                {
-                    None
-                }
             } else {
                 None
             }
@@ -211,11 +200,6 @@ pub async fn initialize_runtime(
     if let Some(h) = ask_host {
         tools_setup.tool_services.attach_ask_user_question_host(h);
     }
-    tools_setup
-        .tool_services
-        .attach_wechat_outbound_host(Arc::new(
-            crate::workbench::wechat_outbound_host::CliWeChatOutboundHost,
-        ));
 
     build_agents_setup(
         &runtime,
@@ -242,7 +226,6 @@ pub async fn initialize_runtime_legacy(
         RuntimeHosts {
             approval_override,
             ask_user_question_host: ask_user_question_host_override,
-            dialoguer_on_tty: true,
         },
         memory_attach,
         project_enabled,

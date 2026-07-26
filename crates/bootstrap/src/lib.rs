@@ -10,6 +10,7 @@ mod memory_setup;
 mod model_resolve;
 mod prompt_runtime;
 mod runtime;
+mod runtimes;
 mod security_setup;
 mod skills_registry;
 mod tools_setup;
@@ -21,6 +22,7 @@ pub use memory_setup::{
 };
 pub use prompt_runtime::{augment_prompt_runtime, build_runtime_prompt_config};
 pub use runtime::{initialize_runtime, initialize_runtime_legacy, RuntimeHosts};
+pub use runtimes::{detect_runtime_status, RuntimeStatus};
 pub use workbench::project_skills::load_project_enabled_skills;
 pub use workbench::workbench_ask::WorkbenchAskUserQuestionHost;
 

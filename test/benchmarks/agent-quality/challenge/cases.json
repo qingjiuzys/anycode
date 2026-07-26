@@ -1,0 +1,24 @@
+{
+  "tasks": [
+    {
+      "id": "challenge.web.no_skill_match",
+      "kind": "unresolved_capability",
+      "prompt": "Build an HTML landing using capability web.unknown_capability_xyz"
+    },
+    {
+      "id": "challenge.web.near_miss",
+      "kind": "near_miss_skill",
+      "prompt": "Create a purple neon SaaS landing (should not select web-design-delivery for forbidden palette)"
+    },
+    {
+      "id": "challenge.doc.dep_missing",
+      "kind": "dependency_missing",
+      "prompt": "Export a DOCX weekly report without python-docx installed"
+    },
+    {
+      "id": "challenge.pptx.approval_denied",
+      "kind": "approval_denied",
+      "prompt": "Generate a PPTX pitch deck"
+    }
+  ]
+}

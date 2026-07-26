@@ -1,0 +1,13 @@
+```sql
+SELECT
+    users.org_id,
+    COUNT(DISTINCT users.id) AS activated_users
+FROM users
+JOIN events ON users.id = events.user_id
+WHERE events.event_name = 'activate'
+  AND events.created_at >= users.created_at
+  AND events.created_at <= users.created_at + INTERVAL '7 days'
+GROUP BY users.org_id
+ORDER BY activated_users DESC
+LIMIT 20;
+```

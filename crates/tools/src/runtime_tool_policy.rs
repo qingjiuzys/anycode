@@ -14,7 +14,7 @@ pub enum ToolExecutionSurface {
     Headless,
     /// CI / automation hosts (`CI=true`, `GITHUB_ACTIONS=true`, or explicit surface).
     Ci,
-    /// Channel bridges (WeChat, Telegram, Discord).
+    /// Legacy third-party channel surface (bridges removed; kept for config compatibility).
     Channel,
 }
 

@@ -1,0 +1,45 @@
+{
+  "title": "Weekly Operations Report",
+  "sections": [
+    {
+      "heading": "Summary",
+      "level": 1,
+      "paragraphs": [
+        "This week's operations remained stable with a 2% increase in incident volume compared to last week. System uptime was 99.95%, and response times were within target. Critical issues were resolved within SLA. Planned changes were executed without major disruptions.",
+        "Decision: Continue current monitoring thresholds and schedule a review of incident response procedures for next week."
+      ]
+    },
+    {
+      "heading": "Key Metrics",
+      "level": 2,
+      "paragraphs": [
+        "Average response time: 340 ms (target ≤ 400 ms). Uptime: 99.95%. Incidents logged: 12 (10 resolved, 2 pending). Change requests completed: 3 of 4 planned. Customer satisfaction score: 4.7/5.",
+        "Action: Track incident resolution time improvements and report findings in next weekly review."
+      ]
+    },
+    {
+      "heading": "Incidents",
+      "level": 2,
+      "paragraphs": [
+        "Major incidents: One P1 incident due to database replication lag, resolved in 45 minutes. Two P2 incidents related to authentication timeout. All others were minor. Post-mortem for P1 incident is scheduled for Thursday.",
+        "Action: Implement database replication monitoring alarm and schedule a root cause analysis session for authentication timeout issues."
+      ]
+    },
+    {
+      "heading": "Changes",
+      "level": 2,
+      "paragraphs": [
+        "Four changes were approved: three completed (load balancer update, cache layer upgrade, log retention policy adjustment). One rolled back due to compatibility issues. No customer-facing impact from completed changes.",
+        "Decision: Approve resubmission of the rolled-back change after additional compatibility testing next week."
+      ]
+    },
+    {
+      "heading": "Next Steps",
+      "level": 2,
+      "paragraphs": [
+        "Prepare for quarterly capacity review. Finalize the post-mortem for the P1 incident. Update runbooks for authentication timeouts. Coordinate with network team on planned firewall update.",
+        "Action: Send meeting invites for capacity review and post-mortem by end of day Friday."
+      ]
+    }
+  ]
+}

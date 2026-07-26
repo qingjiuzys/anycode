@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Content Slide</title>
+  <style>
+    body{margin:0;width:1920px;height:1080px;font-family:"Calibri","PingFang SC",sans-serif;background:#fff;color:#404040;overflow:hidden}
+    .slide{position:relative;padding:72px 80px 64px;height:100%;box-sizing:border-box}
+    .accent-bar{position:absolute;top:0;left:0;width:10px;height:1080px;background:#00B050}
+    .accent-bar-bottom{position:absolute;bottom:0;left:0;width:1920px;height:4px;background:#1B3A5C}
+    h1{font-size:40px;font-weight:700;color:#1B3A5C;margin:0 0 28px;padding-left:18px;border-left:5px solid #00B050}
+    .cols{display:flex;gap:32px;height:760px}
+    .main{flex:1.3}
+    .side{flex:0.9;display:flex;flex-direction:column;gap:16px}
+    ul{list-style:none;padding:0;margin:0}
+    li{font-size:21px;line-height:1.45;padding:14px 0 14px 36px;position:relative;border-bottom:1px solid #E8F0FA}
+    li::before{content:"◆";color:#C00000;position:absolute;left:0;top:16px;font-size:14px}
+    .stat{font-weight:800;color:#1B3A5C;font-size:23px}
+    .source{font-size:14px;color:#7B4F00;display:block;margin-top:4px}
+    .panel{background:#EEF3F8;border-radius:12px;padding:20px;border-left:6px solid #1B3A5C}
+    .panel h2{font-size:17px;color:#1B3A5C;margin:0 0 10px}
+    .panel p{font-size:15px;line-height:1.5;margin:0}
+    .quote{background:#1B3A5C;color:#fff;border-radius:12px;padding:20px;font-size:16px;line-height:1.5}
+    .footer{position:absolute;bottom:18px;left:80px;right:80px;display:flex;justify-content:space-between;font-size:12px;color:#7B4F00;opacity:0.55}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="accent-bar"></div>
+    <div class="accent-bar-bottom"></div>
+    <h1>章节标题（双栏 · 至少 5 条要点）</h1>
+    <div class="cols">
+      <div class="main">
+        <ul>
+          <li><span class="stat">37%</span> 要点一：数字 + 解释 + 来源<span class="source">来源 · 年份 · n=</span></li>
+          <li><span class="stat">62%</span> 要点二：负责人或日期<span class="source">Owner · ISO date</span></li>
+          <li><span class="stat">18天</span> 要点三：业务影响<span class="source">Telemetry</span></li>
+          <li><span class="stat">$1.2M</span> 要点四：财务口径<span class="source">Finance</span></li>
+          <li><span class="stat">4.7</span> 要点五：补充维度<span class="source">Internal</span></li>
+        </ul>
+      </div>
+      <div class="side">
+        <div class="panel"><h2>影响摘要</h2><p>3 条量化影响 + 标签（Cost / Velocity / Quality）</p></div>
+        <div class="quote">「客户引用语或洞察 — 必须填满侧栏，避免大片空白。」</div>
+      </div>
+    </div>
+    <div class="footer"><span>品牌名 · Confidential</span><span>02</span></div>
+  </div>
+</body>
+</html>

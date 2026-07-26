@@ -2,8 +2,8 @@
 
 use super::*;
 use anycode_setup::{
-    apply_memory_preset, ensure_layout, fetch_wechat_qr, load_setup_status,
-    memory_preset_from_label, poll_wechat_qr_status, quick_auth_presets,
+    apply_memory_preset, ensure_layout, load_setup_status, memory_preset_from_label,
+    quick_auth_presets,
 };
 use axum::Json;
 use serde::Deserialize;
@@ -97,42 +97,6 @@ pub async fn patch_setup_memory(Json(body): Json<SetupMemoryBody>) -> impl IntoR
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "ok": false, "error": e.to_string() })),
-        )
-            .into_response(),
-    }
-}
-
-pub async fn get_setup_channels_wechat_qr() -> impl IntoResponse {
-    match fetch_wechat_qr().await {
-        Ok(qr) => Json(json!({ "ok": true, "qr": qr })).into_response(),
-        Err(e) => (
-            StatusCode::BAD_GATEWAY,
-            Json(json!({ "ok": false, "error": e.to_string() })),
-        )
-            .into_response(),
-    }
-}
-
-#[derive(Deserialize)]
-pub struct WechatPollQuery {
-    pub qrcode_id: String,
-}
-
-pub async fn get_setup_channels_wechat_status(
-    Query(q): Query<WechatPollQuery>,
-) -> impl IntoResponse {
-    if q.qrcode_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "ok": false, "error": "qrcode_id required" })),
-        )
-            .into_response();
-    }
-    match poll_wechat_qr_status(q.qrcode_id.trim()).await {
-        Ok(result) => Json(json!({ "ok": true, "result": result })).into_response(),
-        Err(e) => (
-            StatusCode::BAD_GATEWAY,
             Json(json!({ "ok": false, "error": e.to_string() })),
         )
             .into_response(),

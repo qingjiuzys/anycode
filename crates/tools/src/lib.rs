@@ -14,6 +14,7 @@ mod sandbox;
 pub mod services;
 pub mod shell_rule_match;
 pub mod skills;
+pub mod verification;
 pub mod workflows;
 
 mod agent_tools;
@@ -68,9 +69,6 @@ mod todo_write;
 mod tool_input_coerce;
 mod web_fetch;
 mod web_search;
-mod wechat_history_tool;
-mod wechat_outbound_host;
-mod wechat_tools;
 
 pub use ask_user_question_host::{
     AskUserQuestionHost, AskUserQuestionHostArc, AskUserQuestionHostError, AskUserQuestionOption,
@@ -129,14 +127,11 @@ pub use services::{
 };
 pub use skills::{
     default_skill_roots, install_skill, install_starter_skills, normalize_skill_category,
-    parse_skill_manifest_file, parse_skill_manifest_text, resolve_skills_starter_dir,
-    truncate_skill_output, vet_skill_by_id, vet_skill_dir, SkillCatalog, SkillInstallResult,
-    SkillManifest, SkillMeta, SkillVetReport, SkillsGovernance, MAX_SKILL_OUTPUT_BYTES,
+    parse_skill_manifest_file, parse_skill_manifest_text, resolve_capabilities,
+    resolve_skills_starter_dir, truncate_skill_output, vet_skill_by_id, vet_skill_dir,
+    SelectedSkill, SkillCatalog, SkillInstallResult, SkillManifest, SkillMatchStatus, SkillMeta,
+    SkillResolution, SkillResolutionContext, SkillVetReport, SkillsGovernance,
+    MAX_SKILL_OUTPUT_BYTES,
 };
 pub use tool_input_coerce::coerce_tool_input;
-pub use wechat_history_tool::QueryWeChatHistoryTool;
-pub use wechat_outbound_host::{
-    WeChatMediaDelivery, WeChatMediaSendResult, WeChatOutboundHost, WeChatOutboundHostArc,
-    WeChatOutboundHostError, WeChatSendResult,
-};
-pub use wechat_tools::SendWeChatMessageTool;
+pub use verification::{discover_candidates, ValidationContext, ValidatorRegistry};

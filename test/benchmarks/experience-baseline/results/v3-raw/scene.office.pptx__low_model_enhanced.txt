@@ -1,0 +1,49 @@
+{
+  "title": "anyCode Desktop Q3 2025 Executive Briefing",
+  "slides": [
+    {
+      "title": "Title",
+      "bullets": []
+    },
+    {
+      "title": "Problem",
+      "bullets": [
+        "User churn rate increased 15% since Q1 2025 (Product Analytics report 2025-06-30)",
+        "Average launch time exceeds 8 seconds for 40% of enterprise users (Support Lead Alice Chen, ticket data 2025-06-15)",
+        "Competitor X captured 12% of our potential market in Q2 (Competitive Intel team analysis 2025-07-01)"
+      ]
+    },
+    {
+      "title": "Metric",
+      "bullets": [
+        "Daily Active Users: 45,000 as of Q2 end, target 55,000 by Q4 (VP Product Mark Johnson, Q2 review 2025-06-30)",
+        "Net Promoter Score dropped from 42 to 38 (CX Lead Sarah Lee, survey 2025-06-30)",
+        "Desktop segment revenue: $2.3M in Q2, projected $3.1M in Q3 (Finance Director Tom Brown, forecast 2025-07-10)"
+      ]
+    },
+    {
+      "title": "Plan",
+      "bullets": [
+        "Launch performance optimization v2.5 by August 15, 2025 (Engineering Lead David Kim, code freeze Aug 1)",
+        "Deploy onboarding tutorial series by September 1, 2025 (Product Designer Emily Davis, beta Aug 20)",
+        "Expand enterprise outreach to 50 new accounts by Q3 end (Sales Director Rachel Green, target 20 closed-won)"
+      ]
+    },
+    {
+      "title": "Risks",
+      "bullets": [
+        "Third-party library 'XYZ' critical update requires migration by Aug 30, 2025 (Engineer Jane Doe, owner)",
+        "Key engineer paternity leave in September may delay bug fixes — coverage plan due Aug 10, 2025 (HR contact Maria Lopez)",
+        "Possible 10% budget cut if August revenue target missed (CFO warning memo 2025-07-12)"
+      ]
+    },
+    {
+      "title": "Ask",
+      "bullets": [
+        "Approve hiring of two senior engineers by August 1, 2025 (cost $180K annual, req submitted by Engineering VP)",
+        "Authorize $50K marketing budget increase for Q3 campaign (ROI expected 3x, Marketing Director Amy Wu)",
+        "Direct sales team to prioritize Desktop upselling to existing enterprise accounts starting July 20, 2025 (target 15% conversion, VP Sales Peter Grant)"
+      ]
+    }
+  ]
+}

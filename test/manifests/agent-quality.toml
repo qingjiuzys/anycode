@@ -1,0 +1,5 @@
+[profile]
+id = "agent-quality"
+max_duration_minutes = 180
+tier = ["agent-quality", "full"]
+suites = ["agent-quality", "scenarios"]

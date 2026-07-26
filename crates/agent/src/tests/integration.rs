@@ -1644,14 +1644,16 @@ async fn execute_task_pipeline_hooks_ingest_tool_and_turn_fragments() {
     let _ = runtime.execute_task(task).await.unwrap();
     let ingested = pipeline.ingested.lock().unwrap().clone();
     assert!(
-        ingested.iter().any(|s| s.contains("[tool:Echo]")),
+        ingested
+            .iter()
+            .any(|s| s.contains("[tool Echo") && s.contains("hi")),
         "tool-result hook should ingest Echo result: {:?}",
         ingested
     );
     assert!(
         ingested
             .iter()
-            .any(|s| s.contains("[turn 2]") && s.contains("final done")),
+            .any(|s| s.contains("[decision] turn 2") && s.contains("final done")),
         "assistant-turn hook should ingest final turn summary: {:?}",
         ingested
     );
@@ -2195,4 +2197,222 @@ async fn continuous_turn_reports_same_max_turns_reason() {
         .unwrap();
     assert_eq!(output.termination_reason, TerminationReason::MaxTurns);
     assert_eq!(output.final_text, "PARTIAL_SUMMARY");
+}
+
+struct WorkspaceHtmlWriteTool {
+    root: std::path::PathBuf,
+}
+
+#[async_trait]
+impl Tool for WorkspaceHtmlWriteTool {
+    fn name(&self) -> &str {
+        "FileWrite"
+    }
+    fn description(&self) -> &str {
+        "Write a file under the workspace"
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "file_path": { "type": "string" },
+                "content": { "type": "string" }
+            },
+            "required": ["file_path", "content"]
+        })
+    }
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Auto
+    }
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        None
+    }
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let path = input
+            .input
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| CoreError::ConfigError("file_path required".into()))?;
+        let content = input
+            .input
+            .get("content")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let dest = if std::path::Path::new(path).is_absolute() {
+            std::path::PathBuf::from(path)
+        } else {
+            self.root.join(path)
+        };
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&dest, content)?;
+        Ok(ToolOutput {
+            result: serde_json::json!({
+                "success": true,
+                "artifact": { "path": dest.display().to_string(), "kind": "html" }
+            }),
+            error: None,
+            duration_ms: 1,
+        })
+    }
+}
+
+const GOOD_LANDING_HTML: &str = r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>anyCode</title>
+<style>
+body{margin:0;background:#0B0F14;color:#E5E7EB;font-family:"IBM Plex Sans",system-ui,sans-serif}
+.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:2rem;padding:3rem}
+h1{font-size:2.4rem}
+.cta{background:#10B981;color:#042F2E;padding:.75rem 1.25rem;border-radius:8px;text-decoration:none}
+.terminal{background:#111827;border:1px solid #1F2937;border-radius:12px;padding:1rem;font-family:ui-monospace,monospace}
+@media (max-width:768px){.hero{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<!-- contrast: body ~12:1 on #0B0F14; CTA text ~7:1 on #10B981 -->
+<main class="hero">
+  <section>
+    <h1>anyCode workbench</h1>
+    <p>Ship docs, web, and agents from one desktop runtime.</p>
+    <p><a class="cta" href="#get">Get started</a> · <a href="#docs">Docs</a></p>
+  </section>
+  <aside class="terminal" aria-label="terminal preview">$ anycode run --web</aside>
+</main>
+</body>
+</html>
+"##;
+
+#[tokio::test]
+async fn completion_guard_repairs_then_passes_web_landing() {
+    let temp = TempDir::new().unwrap();
+    let workspace = temp.path().to_path_buf();
+    let disk = DiskTaskOutput::new(workspace.join("disk-out"));
+
+    let first = LLMResponse {
+        message: msg_text(MessageRole::Assistant, "done without files"),
+        tool_calls: vec![],
+        usage: Usage {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_creation_tokens: None,
+            cache_read_tokens: None,
+        },
+    };
+    let second = LLMResponse {
+        message: msg_text(MessageRole::Assistant, "writing html"),
+        tool_calls: vec![ToolCall {
+            id: "tooluse_fw".into(),
+            name: "FileWrite".into(),
+            input: serde_json::json!({
+                "file_path": "index.html",
+                "content": GOOD_LANDING_HTML,
+            }),
+        }],
+        usage: Usage {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_creation_tokens: None,
+            cache_read_tokens: None,
+        },
+    };
+    let third = LLMResponse {
+        message: msg_text(MessageRole::Assistant, "landing delivered"),
+        tool_calls: vec![],
+        usage: Usage {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_creation_tokens: None,
+            cache_read_tokens: None,
+        },
+    };
+
+    let llm = Arc::new(MockLLM::new(vec![first, second, third]));
+    let mut tools: HashMap<ToolName, Box<dyn Tool>> = HashMap::new();
+    tools.insert(
+        "FileWrite".into(),
+        Box::new(WorkspaceHtmlWriteTool {
+            root: workspace.clone(),
+        }),
+    );
+
+    let runtime = AgentRuntime::new(
+        RuntimeCoreDeps {
+            llm_client: llm.clone(),
+            tools,
+            memory_store: Arc::new(DummyMemoryStore),
+            default_model_config: ModelConfig {
+                provider: LLMProvider::Custom("mock".into()),
+                model: "mock".into(),
+                base_url: None,
+                temperature: None,
+                max_tokens: None,
+                api_key: None,
+                ..Default::default()
+            },
+            model_overrides: HashMap::new(),
+            failover_policy: None,
+            disk_output: Some(disk.clone()),
+            security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+            sandbox_mode: false,
+            prompt_config: RuntimePromptConfig::default(),
+        },
+        RuntimeMemoryOptions {
+            memory_pipeline: None,
+            memory_pipeline_settings: None,
+            memory_project_autosave_enabled: false,
+            session_notifications: None,
+        },
+        RuntimeToolPolicy {
+            tool_name_deny: vec![],
+            claude_gating: AgentClaudeToolGating::default(),
+            expose_skill_on_explore_plan: false,
+        },
+    );
+
+    let task = Task {
+        id: Uuid::new_v4(),
+        agent_type: AgentType::new("general-purpose"),
+        prompt: "Build a self-contained HTML landing page with dark theme and emerald CTA.".into(),
+        context: TaskContext {
+            session_id: Uuid::new_v4(),
+            working_directory: workspace.display().to_string(),
+            environment: HashMap::new(),
+            user_id: None,
+            system_prompt_append: None,
+            context_injections: vec![],
+            nested_model_override: None,
+            nested_worktree_path: None,
+            nested_worktree_repo_root: None,
+            nested_cancel: None,
+            channel_progress_tx: None,
+            live_trace_tx: None,
+            tool_deny_names: vec![],
+            tool_deny_prefixes: vec![],
+            user_vision_images: vec![],
+            budget: TaskBudget::default(),
+            loop_limits: AgentLoopLimits {
+                max_agent_turns: 6,
+                max_tool_calls: 8,
+            },
+            chat_turn: None,
+        },
+        created_at: chrono::Utc::now(),
+    };
+
+    let result = runtime.execute_task(task.clone()).await.unwrap();
+    match result {
+        TaskResult::Success { .. } => {}
+        other => panic!("expected success after repair, got {other:?}"),
+    }
+    assert!(workspace.join("index.html").is_file());
+    let log = disk.tail(task.id, 64 * 1024).unwrap();
+    assert!(
+        log.contains("[repair_requested]") || log.contains("[gate_plan_created]"),
+        "expected gate/repair trace markers, got:\n{log}"
+    );
 }

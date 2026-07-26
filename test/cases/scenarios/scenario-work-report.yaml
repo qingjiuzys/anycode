@@ -1,0 +1,34 @@
+id: scenario-work-report
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  写一份工作汇报（周报 / weekly report，ops report）：本周完成监控告警收敛（告警量 -63%）、
+  发布流程自动化两项，遇到依赖升级阻塞一个，下周计划 3 项。
+  产出 Word 版 output/report.docx，包含 Summary、Progress、Metrics、Issues、Next Steps、Decision/Action 段落。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/report.docx
+  - validator: docx_paragraph_contains
+    args:
+      path: output/report.docx
+      text: Summary
+  - validator: docx_paragraph_contains
+    args:
+      path: output/report.docx
+      text: Next Steps
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1500
+complexity: complex
+meta:
+  suite: scenarios
+  family: work-report

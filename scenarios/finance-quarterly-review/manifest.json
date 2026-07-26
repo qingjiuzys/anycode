@@ -1,0 +1,37 @@
+{
+  "id": "finance-quarterly-review",
+  "title": "Finance quarterly review",
+  "brand_kit_default": "fde-editorial",
+  "keywords": [
+    "财务",
+    "预算",
+    "quarterly review",
+    "损益",
+    "p&l",
+    "cashflow"
+  ],
+  "min_slides": 8,
+  "outline": [
+    "cover",
+    "section",
+    "metrics",
+    "content",
+    "content",
+    "metrics",
+    "content",
+    "closing"
+  ],
+  "required_sections": [
+    "revenue",
+    "costs",
+    "variance",
+    "forecast",
+    "disclaimer"
+  ],
+  "xlsx_sheets": [
+    "Summary",
+    "Detail",
+    "P&L",
+    "Pricing"
+  ]
+}

@@ -1,6 +1,5 @@
-//! Dashboard Web + optional TUI tool approval callback.
+//! Dashboard Web tool approval callback.
 
-use crate::workbench::approval_types::{ApprovalDecision, PendingApproval};
 use anycode_dashboard_ipc::approval_ipc::{self, SESSION_ENV};
 use anycode_security::{
     find_project_root, ApprovalCallback, InteractiveApprovalCallback, ProjectApprovalStore,
@@ -10,26 +9,16 @@ use async_trait::async_trait;
 use std::io::IsTerminal;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
 
 const WEB_POLL_MS: u64 = 400;
 const WEB_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 pub struct WorkbenchApprovalCallback {
-    tui_tx: Option<mpsc::Sender<PendingApproval>>,
     fallback: Option<InteractiveApprovalCallback>,
     project_allow: Arc<std::sync::Mutex<ProjectApprovalStore>>,
 }
 
 impl WorkbenchApprovalCallback {
-    pub fn with_tui_channel(tx: mpsc::Sender<PendingApproval>) -> Self {
-        Self {
-            tui_tx: Some(tx),
-            fallback: None,
-            project_allow: Arc::new(std::sync::Mutex::new(ProjectApprovalStore::load_or_new())),
-        }
-    }
-
     pub fn web_and_cli() -> Self {
         let fmt = if std::io::stdout().is_terminal() {
             PromptFormat::CLI
@@ -37,7 +26,6 @@ impl WorkbenchApprovalCallback {
             PromptFormat::Silent
         };
         Self {
-            tui_tx: None,
             fallback: Some(InteractiveApprovalCallback::new(fmt)),
             project_allow: Arc::new(std::sync::Mutex::new(ProjectApprovalStore::load_or_new())),
         }
@@ -103,29 +91,6 @@ impl WorkbenchApprovalCallback {
         }
     }
 
-    async fn wait_tui(
-        &self,
-        tool: &str,
-        input: &serde_json::Value,
-    ) -> anyhow::Result<Option<ApprovalDecision>> {
-        let Some(tx) = &self.tui_tx else {
-            return Ok(None);
-        };
-        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-        let pending = PendingApproval {
-            tool: tool.to_string(),
-            input_preview: serde_json::to_string_pretty(input).unwrap_or_else(|_| "{}".to_string()),
-            reply: reply_tx,
-        };
-        tx.send(pending)
-            .await
-            .map_err(|_| anyhow::anyhow!("approval UI channel closed"))?;
-        match reply_rx.await {
-            Ok(d) => Ok(Some(d)),
-            Err(_) => Ok(Some(ApprovalDecision::Deny)),
-        }
-    }
-
     fn apply_web_decision(&self, tool: &str, decision: &str) -> bool {
         match decision {
             "allow_once" => true,
@@ -183,52 +148,13 @@ impl ApprovalCallback for WorkbenchApprovalCallback {
                 tool = %tool,
                 "tool approval pending — respond in dashboard Security inbox"
             );
-            #[cfg(target_os = "macos")]
-            {
-                let _tool_name = tool.to_string();
-                // Desktop may notify via Tauri; bootstrap has no apple-media dependency.
-            }
         }
 
         if let Some(id) = web_id.clone() {
-            if self.tui_tx.is_some() {
-                tokio::select! {
-                    tui = self.wait_tui(tool, input) => {
-                        approval_ipc::clear_pending(&id);
-                        if let Ok(Some(decision)) = tui {
-                            return Ok(match decision {
-                                ApprovalDecision::AllowOnce => true,
-                                ApprovalDecision::AllowToolForProject => {
-                                    self.allow_tool_for_project(tool);
-                                    true
-                                }
-                                ApprovalDecision::Deny => false,
-                            });
-                        }
-                    }
-                    web = self.wait_web(&id) => {
-                        if let Some(d) = web {
-                            return Ok(self.apply_web_decision(tool, &d));
-                        }
-                    }
-                }
-                approval_ipc::clear_pending(&id);
-            } else {
-                if let Some(d) = self.wait_web(&id).await {
-                    return Ok(self.apply_web_decision(tool, &d));
-                }
+            if let Some(d) = self.wait_web(&id).await {
+                return Ok(self.apply_web_decision(tool, &d));
             }
-        }
-
-        if let Ok(Some(decision)) = self.wait_tui(tool, input).await {
-            return Ok(match decision {
-                ApprovalDecision::AllowOnce => true,
-                ApprovalDecision::AllowToolForProject => {
-                    self.allow_tool_for_project(tool);
-                    true
-                }
-                ApprovalDecision::Deny => false,
-            });
+            approval_ipc::clear_pending(&id);
         }
 
         if let Some(ref fb) = self.fallback {
@@ -252,16 +178,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tui_channel_does_not_require_session_env() {
-        let (tx, _rx) = tokio::sync::mpsc::channel(1);
-        let cb = WorkbenchApprovalCallback::with_tui_channel(tx);
-        assert!(cb.session_id().is_none());
-    }
-
-    #[tokio::test]
     async fn session_id_prefers_task_local_chat_turn_context() {
-        let (tx, _rx) = tokio::sync::mpsc::channel(1);
-        let cb = WorkbenchApprovalCallback::with_tui_channel(tx);
+        let cb = WorkbenchApprovalCallback::web_and_cli();
         let ctx = anycode_core::ChatTurnContext {
             dashboard_session_id: Some("sess_ctx".into()),
             user_turn_id: Some(7),

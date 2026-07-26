@@ -1,0 +1,30 @@
+id: scenario-finance-quarterly-review
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  做一份财务季度复盘（quarterly review）材料：Q2 营收 1280 万（同比 +18%）、成本 760 万、毛利 520 万，
+  预算偏差 +4.2%，下季度预测营收 1400 万。要求覆盖 revenue、costs、variance、forecast、disclaimer，
+  含指标页与明细。最终 PPT 保存为 output/deck.pptx。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/deck.pptx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck.pptx
+      min: 8
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1800
+complexity: complex
+meta:
+  suite: scenarios
+  family: finance-quarterly-review

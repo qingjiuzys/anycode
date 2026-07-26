@@ -69,6 +69,11 @@ impl AccountDb {
             include_str!("../migrations/014_cloud_plans.sql"),
         )
         .await?;
+        self.apply_migration(
+            "015_memory_sync",
+            include_str!("../migrations/015_memory_sync.sql"),
+        )
+        .await?;
         Ok(())
     }
 

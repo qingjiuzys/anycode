@@ -1,0 +1,30 @@
+{
+  "corroborator": "cursor-agent",
+  "checked": [
+    {
+      "scene": "scene.code.slugify",
+      "claim": "low_model test expects junk-123 for --_junk_123-- but impl yields junk123",
+      "verified": true
+    },
+    {
+      "scene": "scene.office.pptx",
+      "claim": "low_model Plan has duplicate bullets key → invalid/ambiguous JSON",
+      "verified": true
+    },
+    {
+      "scene": "scene.sql.cohort",
+      "claim": "both arms semantically near gold",
+      "verified": true
+    }
+  ],
+  "agreement_with_gpt_judge": "agree on direction: pack helps hard defects, mixed on creative/simple tasks",
+  "averages_accepted": {
+    "teacher_reference": 5.0,
+    "low_model": 4.0833,
+    "low_model_enhanced": 4.3,
+    "enhanced_vs_low_delta": 0.2167,
+    "low_gap_to_teacher": 0.9167,
+    "enhanced_gap_to_teacher": 0.7,
+    "gap_closed_fraction": 0.2364
+  }
+}

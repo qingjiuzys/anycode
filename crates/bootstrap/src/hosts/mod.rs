@@ -1,2 +1,1 @@
-#[cfg(feature = "dialoguer-host")]
-pub mod dialoguer;
+//! Injectable host implementations.

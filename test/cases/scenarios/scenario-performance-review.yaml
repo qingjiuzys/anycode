@@ -1,0 +1,38 @@
+id: scenario-performance-review
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  帮我写一份述职 / performance review 材料（年度考核，OKR 述职）：
+  角色为后端工程师，完成 3 个核心项目（API 网关重构 P99 降 42%、成本审计平台上线、值班自动化），
+  覆盖 achievements、gaps、plan、support_needed。产出 PPT output/deck.pptx（不少于 6 页）
+  和 Word 版 output/report.docx（含 Summary、OKR Results、Highlights、Gaps、Next Quarter Plan、Decision/Action）。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/deck.pptx
+  - validator: file_exists
+    args:
+      path: output/report.docx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck.pptx
+      min: 6
+  - validator: docx_paragraph_contains
+    args:
+      path: output/report.docx
+      text: Summary
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1500
+complexity: complex
+meta:
+  suite: scenarios
+  family: performance-review

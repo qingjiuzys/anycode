@@ -506,6 +506,10 @@ struct CronIn {
     /// Required when `tool_profile` is `allowlist`.
     #[serde(default)]
     tool_allowlist: Option<Vec<String>>,
+    /// Optional workflow definition file: the scheduler runs the DAG (ADR 014 §6)
+    /// instead of a single-prompt task; `command` becomes the workflow user prompt.
+    #[serde(default)]
+    workflow: Option<String>,
 }
 
 fn default_cron_tz() -> String {
@@ -542,8 +546,8 @@ impl Tool for CronCreateTool {
          Default `schedule_timezone` is `local` (wall clock on this machine, stored as UTC for the built-in scheduler). \
          Use `utc` only if you already converted to UTC, or an IANA name (e.g. `Asia/Shanghai`) for wall clock in that zone. \
          `command` runs as one agent task when the scheduler holds ~/.anycode/tasks/scheduler.lock \
-         (WeChat bridge embeds it). For WeChat reminders, say in `command` that the assistant must notify the user clearly. \
-         Optional `session_id`, `failure_destination` (`log`|`same_channel`|`shell`|`http`), \
+         (`anycode-daemon scheduler`). Results are recorded in the Workbench session and cron-runs.jsonl. \
+         Optional `session_id`, `failure_destination` (`log`|`shell`|`http`), \
          `tool_profile` (`default`|`read_only`|`observability`|`allowlist`), and `tool_allowlist` when using allowlist."
     }
     fn schema(&self) -> serde_json::Value {
@@ -664,6 +668,7 @@ impl Tool for CronCreateTool {
                 tool_profile: c.tool_profile,
                 tool_allowlist: c.tool_allowlist,
                 project_id: None,
+                workflow: c.workflow,
             },
         );
         let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&stored_schedule);
@@ -681,7 +686,7 @@ impl Tool for CronCreateTool {
                 "schedule_timezone_applied": tz_note,
                 "next_fire_utc": next_utc_s,
                 "next_fire_local": next_local_s,
-                "hint": "Requires scheduler (embedded in WeChat bridge or `anycode-daemon scheduler`). Cron output is pushed to the last WeChat chat when fired from the bridge."
+                "hint": "Requires the scheduler (`anycode-daemon scheduler`). Cron output is recorded in the Workbench session and ~/.anycode/logs/cron-runs.jsonl."
             }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
@@ -758,6 +763,8 @@ struct CronUpdateIn {
     tool_profile: Option<String>,
     #[serde(default)]
     project_id: Option<String>,
+    #[serde(default)]
+    workflow: Option<String>,
 }
 
 pub struct CronUpdateTool {
@@ -831,6 +838,7 @@ impl Tool for CronUpdateTool {
             failure_destination: c.failure_destination.clone(),
             tool_profile: c.tool_profile.clone(),
             project_id: c.project_id,
+            workflow: c.workflow.clone(),
         };
 
         let mut schedule_note = None;

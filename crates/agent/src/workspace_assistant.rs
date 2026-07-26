@@ -3,7 +3,7 @@
 //! **Channel separation:** [`WorkspaceAssistantAgent`] uses
 //! [`anycode_tools::workspace_assistant_tool_names`] (includes `CronCreate` / `CronDelete` / `CronList`). [`GoalAgent`] still exposes
 //! [`anycode_tools::general_purpose_tool_names`] so long-running goal loops can mutate the tree;
-//! keep Telegram/Discord/WeChat entrypoints on **`RuntimeMode::Channel`** + workspace assistant unless
+//! keep headless entrypoints on **`RuntimeMode::Channel`** + workspace assistant unless
 //! you intentionally spawn a coding agent.
 
 use crate::agents::agent_execute_delegated_to_runtime;

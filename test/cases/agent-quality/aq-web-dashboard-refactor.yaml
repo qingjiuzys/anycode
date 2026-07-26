@@ -1,0 +1,23 @@
+id: aq-web-dashboard-refactor
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  Improve the existing landing.html visual hierarchy in FDE Editorial style (light canvas #f2f5f0, ink #231f20, accent #1400ff, serif display + mono labels); keep one H1 and contrast comments; no gradients or shadows.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: landing.html
+requires:
+  llm: live
+  network: false
+timeout_seconds: 900
+fixture: agent-quality/web-landing-flat
+meta:
+  suite: agent-quality
+  family: web_design
+  capabilities: [web.implement, web.preview]

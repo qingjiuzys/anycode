@@ -2,7 +2,6 @@
 
 use crate::ask_user_question_host::AskUserQuestionHostArc;
 use crate::skills::{SkillCatalog, SkillsGovernance};
-use crate::wechat_outbound_host::WeChatOutboundHostArc;
 use anycode_core::{
     plan_tree_all_completed, CoreError, NestedTaskRun, PlanTree, SubAgentExecutor, TaskResult,
     NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
@@ -149,6 +148,11 @@ pub struct CronJob {
     /// Dashboard project scope. `None` (incl. legacy entries) = whole workspace.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    /// Optional workflow definition file (YAML/JSON). When set, the scheduler
+    /// executes the DAG (depends_on layers + checkpoints, ADR 014 §6) instead
+    /// of a single-prompt task; `command` becomes the workflow's user prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<String>,
 }
 
 /// Optional production fields when creating cron jobs via `CronCreate` or scheduler APIs.
@@ -162,6 +166,7 @@ pub struct CronJobCreateOptions {
     pub tool_profile: Option<String>,
     pub tool_allowlist: Option<Vec<String>>,
     pub project_id: Option<String>,
+    pub workflow: Option<String>,
 }
 
 /// Partial update for an existing cron job in orchestration.json.
@@ -176,6 +181,7 @@ pub struct CronJobPatch {
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
     pub project_id: Option<String>,
+    pub workflow: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -235,8 +241,6 @@ pub struct ToolServices {
     sub_agent_executor: Mutex<Option<Arc<dyn SubAgentExecutor>>>,
     /// REPL/TUI 注入：`AskUserQuestion` 主机侧选题。
     ask_user_question_host: Mutex<Option<AskUserQuestionHostArc>>,
-    /// CLI 注入：`SendWeChatMessage` 真实 iLink 出站。
-    wechat_outbound_host: Mutex<Option<WeChatOutboundHostArc>>,
     /// `LSP` 工具：`tools-lsp` 下读此配置（CLI bootstrap 写入）。
     lsp: Mutex<LspConnectionConfig>,
     sub_agent_depth: AtomicU32,
@@ -257,8 +261,6 @@ pub struct ToolServices {
     parent_task_tool_deny: Mutex<Option<(Vec<String>, Vec<String>)>>,
     /// Injected at bootstrap; avoids per-execute disk reads in media tools.
     media_registry: Mutex<Option<Arc<anycode_llm::media::MediaClientRegistry>>>,
-    /// Local WeChat chat history query settings (`wechatHistory` in config.json).
-    wechat_history_config: Mutex<anycode_wechat_history::WechatHistoryConfig>,
     /// Native CDP browser (`tools-browser`).
     #[cfg(feature = "tools-browser")]
     browser_service: Mutex<Option<Arc<anycode_browser::BrowserService>>>,
@@ -287,7 +289,6 @@ impl Default for ToolServices {
             config_overrides: Mutex::new(HashMap::new()),
             sub_agent_executor: Mutex::new(None),
             ask_user_question_host: Mutex::new(None),
-            wechat_outbound_host: Mutex::new(None),
             lsp: Mutex::new(LspConnectionConfig::default()),
             sub_agent_depth: AtomicU32::new(0),
             background_agents: Mutex::new(HashMap::new()),
@@ -299,9 +300,6 @@ impl Default for ToolServices {
             active_agent_type: Mutex::new(None),
             parent_task_tool_deny: Mutex::new(None),
             media_registry: Mutex::new(None),
-            wechat_history_config: Mutex::new(
-                anycode_wechat_history::WechatHistoryConfig::default(),
-            ),
             #[cfg(feature = "tools-browser")]
             browser_service: Mutex::new(None),
         }
@@ -411,11 +409,27 @@ impl ToolServices {
     }
 
     /// Set while a parent [`anycode_core::Task`] is executing so nested agents inherit tool denies.
-    pub fn set_parent_task_tool_deny(&self, names: Vec<String>, prefixes: Vec<String>) {
+    /// Returns the previous value so the caller can restore it (see
+    /// [`Self::restore_parent_task_tool_deny`]) instead of clearing.
+    pub fn set_parent_task_tool_deny(
+        &self,
+        names: Vec<String>,
+        prefixes: Vec<String>,
+    ) -> Option<(Vec<String>, Vec<String>)> {
+        std::mem::replace(
+            &mut *self
+                .parent_task_tool_deny
+                .lock()
+                .expect("parent_task_tool_deny"),
+            Some((names, prefixes)),
+        )
+    }
+
+    pub fn restore_parent_task_tool_deny(&self, previous: Option<(Vec<String>, Vec<String>)>) {
         *self
             .parent_task_tool_deny
             .lock()
-            .expect("parent_task_tool_deny") = Some((names, prefixes));
+            .expect("parent_task_tool_deny") = previous;
     }
 
     pub fn clear_parent_task_tool_deny(&self) {
@@ -451,20 +465,6 @@ impl ToolServices {
         self.browser_service
             .lock()
             .expect("browser_service")
-            .clone()
-    }
-
-    pub fn set_wechat_history_config(&self, config: anycode_wechat_history::WechatHistoryConfig) {
-        *self
-            .wechat_history_config
-            .lock()
-            .expect("wechat_history_config") = config;
-    }
-
-    pub fn wechat_history_config(&self) -> anycode_wechat_history::WechatHistoryConfig {
-        self.wechat_history_config
-            .lock()
-            .expect("wechat_history_config")
             .clone()
     }
 
@@ -508,20 +508,6 @@ impl ToolServices {
         self.ask_user_question_host
             .lock()
             .expect("ask_user_question_host")
-            .clone()
-    }
-
-    pub fn attach_wechat_outbound_host(&self, host: WeChatOutboundHostArc) {
-        *self
-            .wechat_outbound_host
-            .lock()
-            .expect("wechat_outbound_host") = Some(host);
-    }
-
-    pub fn wechat_outbound_host(&self) -> Option<WeChatOutboundHostArc> {
-        self.wechat_outbound_host
-            .lock()
-            .expect("wechat_outbound_host")
             .clone()
     }
 
@@ -957,6 +943,7 @@ impl ToolServices {
                         .collect()
                 }),
             project_id: opts.project_id.filter(|s| !s.trim().is_empty()),
+            workflow: opts.workflow.filter(|s| !s.trim().is_empty()),
         };
         self.crons.lock().expect("crons mutex").push(job.clone());
         self.try_persist();
@@ -1150,6 +1137,7 @@ pub fn append_cron_job_to_orchestration_file(
         ),
         tool_allowlist: opts.tool_allowlist.filter(|list| !list.is_empty()),
         project_id: opts.project_id.filter(|s| !s.trim().is_empty()),
+        workflow: opts.workflow.filter(|s| !s.trim().is_empty()),
     };
     snap.crons.push(job.clone());
     let text = serde_json::to_string_pretty(&snap)?;
@@ -1277,6 +1265,7 @@ mod orchestration_persist_tests {
                 tool_profile: Some("allowlist".into()),
                 tool_allowlist: Some(vec!["FileRead".into(), "Glob".into()]),
                 project_id: None,
+                workflow: None,
             },
         );
         assert_eq!(job.session_id.as_deref(), Some("sess-abc"));

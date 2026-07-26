@@ -1,0 +1,61 @@
+{
+  "title": "Executive Q3 Briefing: anyCode Desktop",
+  "slides": [
+    {
+      "title": "Title",
+      "bullets": []
+    },
+    {
+      "title": "Problem",
+      "bullets": [
+        "Desktop app MAU dropped 12% to 48,000 from Q2 to Q3 (July 2024).",
+        "User retention at 30 days is 22%, below target of 35% (owned by Sarah Chen).",
+        "Average session duration decreased 18% to 9.2 minutes (data as of Aug 20, 2024).",
+        "Onboarding completion rate is 41%, missing the 60% threshold set by team lead Mark Rivera."
+      ]
+    },
+    {
+      "title": "Metric",
+      "bullets": [
+        "Target Q3 MAU: 55,000 (current 48,000, gap of 7,000).",
+        "Goal for 30-day retention: 35% by Sept 30, 2024 (owned by Sarah Chen).",
+        "NPS target of 45 (current 38, measured in Aug 2024 survey).",
+        "Number of active code repositories per user: target 4.5, actual 3.8."
+      ]
+    },
+    {
+      "title": "Plan",
+      "bullets": [
+        "Launch simplified onboarding wizard v2 by Sept 10, 2024 (owner: Mark Rivera).",
+        "Implement in-app guidance tooltips and tutorials by Sept 20, 2024 (owner: Lisa Park).",
+        "Deploy performance optimization patch (reducing load time by 25%) by Sept 15, 2024 (owner: Dev team lead Tom Hicks).",
+        "Run A/B test on new navigation bar (2 variants) from Sept 1 to Sept 21, 2024 (owner: Product manager Jenna Lee).",
+        "Customer success outreach to top 200 churned users by Sept 7, 2024 (owner: Support team Kate Brown)."
+      ],
+      "bullets": [
+        "Launch simplified onboarding wizard v2 by Sept 10, 2024 (owner: Mark Rivera).",
+        "Implement in-app guidance tooltips and tutorials by Sept 20, 2024 (owner: Lisa Park).",
+        "Deploy performance optimization patch (reducing load time by 25%) by Sept 15, 2024 (owner: Dev team lead Tom Hicks).",
+        "Run A/B test on new navigation bar (2 variants) from Sept 1 to Sept 21, 2024 (owner: Product manager Jenna Lee).",
+        "Customer success outreach to top 200 churned users by Sept 7, 2024 (owner: Support team Kate Brown)."
+      ]
+    },
+    {
+      "title": "Risks",
+      "bullets": [
+        "Competitor 'CodeFlow 3.0' launches on Sept 12, 2024, risk of 10% user loss (mitigation: fast‑track feature parity).",
+        "Onboarding wizard may slip by 2 weeks due to QA backlog (impact: retention target missed by Sept 30).",
+        "Server migration scheduled for Sept 5–7 could cause 6‑hour downtime risk (owner: IT director Amy Ng).",
+        "Budget overrun of 8% for Q3 marketing spend (approved amount $240k, current spend $259k as of Aug 25)."
+      ]
+    },
+    {
+      "title": "Ask",
+      "bullets": [
+        "Approve $50,000 additional budget for performance testing infrastructure (Sept 1, 2024 decision).",
+        "Authorize 2 temporary UX contractors for onboarding redesign (Sept–Oct 2024, cost $30k).",
+        "Extend Q3 deadline for retention goal to Oct 10, 2024 to accommodate onboarding slip (owner: VP of Product Alex Kim)."
+      ]
+    }
+  ]
+}

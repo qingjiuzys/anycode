@@ -1,0 +1,37 @@
+{
+  "brand_kit": "lingqi",
+  "header": {
+    "fill": "1B3A5C",
+    "font_color": "FFFFFF",
+    "bold": true,
+    "font_name": "Arial"
+  },
+  "subheader": {
+    "fill": "EEF3F8",
+    "font_color": "1B3A5C",
+    "bold": true
+  },
+  "pricing_header": {
+    "fill": "2D5F8A",
+    "font_color": "FFFFFF",
+    "bold": true
+  },
+  "highlight_row": {
+    "fill": "FFF2CC"
+  },
+  "status": {
+    "ok": { "font_color": "00B050" },
+    "warn": { "font_color": "C00000" },
+    "info": { "font_color": "0000FF" }
+  },
+  "number_formats": {
+    "currency_usd": "$#,##0.00",
+    "integer": "#,##0",
+    "percent": "0.0%"
+  },
+  "defaults": {
+    "freeze_header": true,
+    "min_sheets": 3,
+    "sheet_names": ["Summary", "Detail", "Pricing"]
+  }
+}

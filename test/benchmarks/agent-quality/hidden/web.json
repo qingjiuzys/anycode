@@ -1,0 +1,60 @@
+{
+  "frozen": true,
+  "family": "web_design",
+  "n_tasks_target_min": 10,
+  "n_tasks_target_max": 30,
+  "reps_per_arm": 3,
+  "note": "Hidden prompts must not enter Experience/Skill/judge prompts. Seed list is structural only.",
+  "tasks": [
+    {
+      "id": "hidden.web.01",
+      "family": "web_design",
+      "prompt_ref": "sealed/01.txt"
+    },
+    {
+      "id": "hidden.web.02",
+      "family": "web_design",
+      "prompt_ref": "sealed/02.txt"
+    },
+    {
+      "id": "hidden.web.03",
+      "family": "web_design",
+      "prompt_ref": "sealed/03.txt"
+    },
+    {
+      "id": "hidden.web.04",
+      "family": "web_design",
+      "prompt_ref": "sealed/04.txt"
+    },
+    {
+      "id": "hidden.web.05",
+      "family": "web_design",
+      "prompt_ref": "sealed/05.txt"
+    },
+    {
+      "id": "hidden.web.06",
+      "family": "web_design",
+      "prompt_ref": "sealed/06.txt"
+    },
+    {
+      "id": "hidden.web.07",
+      "family": "web_design",
+      "prompt_ref": "sealed/07.txt"
+    },
+    {
+      "id": "hidden.web.08",
+      "family": "web_design",
+      "prompt_ref": "sealed/08.txt"
+    },
+    {
+      "id": "hidden.web.09",
+      "family": "web_design",
+      "prompt_ref": "sealed/09.txt"
+    },
+    {
+      "id": "hidden.web.10",
+      "family": "web_design",
+      "prompt_ref": "sealed/10.txt"
+    }
+  ]
+}

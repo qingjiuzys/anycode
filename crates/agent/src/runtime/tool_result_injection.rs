@@ -122,7 +122,10 @@ pub(super) fn log_tool_call_start(
 
 fn preview_from_call(tool_call: &ToolCall) -> String {
     let json = serde_json::to_string(&tool_call.input).unwrap_or_default();
-    let (preview, _) = truncate_text(json, 120);
+    // Keep enough of the input for trajectory evidence to distinguish calls —
+    // 120 chars collapses `cd <workspace> && A` and `cd <workspace> && B` into
+    // false "identical tool call" verdicts in the eval trajectory gate.
+    let (preview, _) = truncate_text(json, 2048);
     preview
 }
 

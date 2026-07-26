@@ -1,0 +1,34 @@
+{
+  "id": "performance-review",
+  "title": "Performance review (述职)",
+  "brand_kit_default": "fde-editorial",
+  "keywords": [
+    "述职",
+    "performance review",
+    "okr",
+    "年度考核"
+  ],
+  "min_slides": 6,
+  "outline": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "content",
+    "closing"
+  ],
+  "required_sections": [
+    "achievements",
+    "gaps",
+    "plan",
+    "support_needed"
+  ],
+  "docx_sections": [
+    "Summary",
+    "OKR Results",
+    "Highlights",
+    "Gaps",
+    "Next Quarter Plan",
+    "Decision/Action"
+  ]
+}

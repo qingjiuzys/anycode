@@ -4,7 +4,7 @@
 
 | Layer | What | Language |
 |-------|------|----------|
-| **core** | System, Tone, Agent loop, Browser, Plan, … | English only (one protocol source of truth) |
+| **core** | Tone (identity + style), Agent loop, Browser, Plan, … | English only (one protocol source of truth) |
 | **locale** | Reply-language section + ephemeral reminder | One directory per language tag (`zh`, `en`, …) |
 | **dynamic** | cwd / OS / date, tool list, skills, agent description | Placeholders in files; filled by Rust |
 
@@ -36,4 +36,4 @@ Fluent (`crates/locale`) owns **UI / channel copy**, not this agent system stack
 
 ## Follow-ups (out of this directory for now)
 
-WeChat bridge copy, overview briefing templates, and compact-body prompts should migrate under the same pattern later (per-crate `prompts/` or extensions here).
+Overview briefing templates and compact-body prompts should migrate under the same pattern later (per-crate `prompts/` or extensions here).

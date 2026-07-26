@@ -135,6 +135,42 @@ impl DashboardDb {
         .await?;
         Ok(max)
     }
+
+    /// Newest `limit` events in ascending seq order (for hydrate: recent
+    /// context matters, not the session's first 10k events).
+    pub async fn list_recent_chat_turn_events(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<ChatTurnEventRecord>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, session_id, project_id, conversation_turn_id, agent_turn, seq, kind,
+                   tool_key, tool_name, body, block_json, payload_json, occurred_at
+            FROM chat_turn_events
+            WHERE session_id = ?
+            ORDER BY seq DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(session_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut records: Vec<_> = rows.into_iter().map(row_to_chat_turn_event).collect();
+        records.reverse();
+        Ok(records)
+    }
+
+    pub async fn max_conversation_turn_id(&self, session_id: &str) -> Result<i64> {
+        let max: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(conversation_turn_id), 0) FROM chat_turn_events WHERE session_id = ?",
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(max)
+    }
 }
 
 fn row_to_chat_turn_event(r: sqlx::sqlite::SqliteRow) -> ChatTurnEventRecord {

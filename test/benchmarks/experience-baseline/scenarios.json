@@ -1,0 +1,82 @@
+[
+  {
+    "id": "baseline.web.landing_dark",
+    "prompt": "Build a dark-themed landing page with emerald CTA; verify contrast. Output a single self-contained HTML document.",
+    "agent": "general-purpose",
+    "mode": "code",
+    "category": "web_design_implement",
+    "verifier": "html_dark_emerald",
+    "requires_screenshot": true,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.code.rust_helper",
+    "prompt": "Implement a Rust helper `fn slugify(input: &str) -> String` that lowercases, replaces spaces with '-', and keeps [a-z0-9-]. Include 3 unit tests.",
+    "agent": "general-purpose",
+    "mode": "code",
+    "category": "cross_file_coding",
+    "verifier": "rust_slugify",
+    "requires_screenshot": false,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.office.brief_pptx",
+    "prompt": "Create a short Q3 product briefing deck (5–7 slides) for executives: problem, metric, plan, risks, ask. Return JSON {title, slides:[{title, bullets:[]}]} only.",
+    "agent": "office-writer",
+    "mode": "code",
+    "category": "office_delivery",
+    "verifier": "pptx_json_deck",
+    "requires_screenshot": false,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.office.docx_report",
+    "prompt": "Write a weekly ops report as a structured DOCX outline. Return JSON {title, sections:[{heading, level, paragraphs:[]}]} with H1 + H2 hierarchy, summary, and next steps.",
+    "agent": "office-writer",
+    "mode": "code",
+    "category": "office_delivery",
+    "verifier": "docx_json_outline",
+    "requires_screenshot": false,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.db.saas_schema",
+    "prompt": "Design a SaaS billing schema (orgs, users, subscriptions, invoices) as PostgreSQL DDL with primary keys, foreign keys, and useful indexes.",
+    "agent": "general-purpose",
+    "mode": "code",
+    "category": "database_sql",
+    "verifier": "sql_ddl_schema",
+    "requires_screenshot": false,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.sql.unpaid_invoices",
+    "prompt": "Write a PostgreSQL query: top 10 unpaid invoices in the last 30 days by organization, with org name, invoice id, amount, due_date. Use explicit columns, JOIN, WHERE, ORDER BY, LIMIT.",
+    "agent": "general-purpose",
+    "mode": "code",
+    "category": "database_sql",
+    "verifier": "sql_select_join",
+    "requires_screenshot": false,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.web.anti_slop_landing",
+    "prompt": "Build a dark landing page for a developer tool. Requirements: (1) emerald CTA only, (2) NEVER use purple/violet gradients or purple accents, (3) one H1, (4) include HTML comments documenting contrast ratios for text and CTA. Single self-contained HTML file.",
+    "agent": "general-purpose",
+    "mode": "code",
+    "category": "web_design_implement",
+    "verifier": "html_dark_emerald",
+    "requires_screenshot": true,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  },
+  {
+    "id": "baseline.sql.cohort_metrics",
+    "prompt": "Given tables users(id, org_id, created_at) and events(id, user_id, event_name, created_at), write PostgreSQL that returns each org's count of users who triggered event_name='activate' within 7 days of signup. Explicit columns only (no SELECT *), JOIN, WHERE, GROUP BY, ORDER BY count DESC, LIMIT 20.",
+    "agent": "general-purpose",
+    "mode": "code",
+    "category": "database_sql",
+    "verifier": "sql_select_join",
+    "requires_screenshot": false,
+    "arms": ["low_model", "codex_reference", "low_model_enhanced"]
+  }
+]

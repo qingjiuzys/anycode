@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Closing · FDE Editorial</title>
+  <style>
+    :root{
+      --bg:#f2f5f0; --ink:#231f20; --accent:#1400ff; --accent-soft:#7d8cff;
+      --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+      --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    }
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--ink);color:var(--bg);overflow:hidden}
+    .slide{position:relative;padding:110px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:rgba(242,245,240,.55);display:flex;align-items:center;gap:18px}
+    .sec-label::after{content:"";flex:1;height:8px;background:var(--bg);margin-left:10px}
+    .sec-label .num{color:var(--accent-soft);font-weight:700;font-size:20px}
+    h2{font-family:var(--serif);font-weight:900;font-size:84px;line-height:1.25;margin:80px 0 0;max-width:1500px}
+    h2 em{font-style:normal;color:var(--accent-soft)}
+    .actions{position:absolute;left:110px;right:110px;bottom:170px;display:flex;border:1px solid rgba(242,245,240,.3)}
+    .act{flex:1;padding:24px 28px;border-right:1px solid rgba(242,245,240,.3);font-family:var(--mono)}
+    .act:last-child{border-right:none}
+    .act small{display:block;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(242,245,240,.45);margin-bottom:8px}
+    .act b{font-size:20px;font-weight:700;font-family:var(--sans)}
+    .foot-meta{position:absolute;left:110px;right:110px;bottom:70px;padding-top:22px;border-top:1px solid rgba(242,245,240,.2);display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(242,245,240,.45)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="closing">
+    <div class="sec-label"><span class="num">05</span>行动 · NEXT STEPS</div>
+    <h2>结束语一句话，<br><em>让观众记住一件事。</em></h2>
+    <div class="actions">
+      <div class="act"><small>行动 01 · 本周</small><b>具体动作 + 负责人</b></div>
+      <div class="act"><small>行动 02 · 下周</small><b>具体动作 + 负责人</b></div>
+      <div class="act"><small>行动 03 · 30 天</small><b>具体动作 + 负责人</b></div>
+      <div class="act"><small>行动 04 · 季度</small><b>具体动作 + 负责人</b></div>
+    </div>
+    <div class="foot-meta">
+      <span>品牌 · 演示文稿 V1.0</span>
+      <span>联系人 · name@example.com</span>
+      <span>2026-07-24</span>
+    </div>
+  </div>
+</body>
+</html>

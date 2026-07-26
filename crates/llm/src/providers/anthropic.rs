@@ -181,7 +181,15 @@ impl LLMClient for AnthropicClient {
             };
 
             if !response.status().is_success() {
-                error!("Stream API error: {}", response.status());
+                let status = response.status();
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_default()
+                    .chars()
+                    .take(600)
+                    .collect::<String>();
+                error!("Stream API error: {status} body={body}");
                 let _ = tx.send(StreamEvent::Done).await;
                 return;
             }
@@ -275,27 +283,65 @@ pub(crate) struct AnthropicImageBlock {
     source: AnthropicImageSource,
 }
 
+/// The Anthropic messages API requires a `type` tag on every content block;
+/// strict gateways (e.g. Kimi `/coding`) 400 on `{"text": ...}` without it.
 #[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub(crate) enum AnthropicContent {
-    Text { text: String },
-    Image(AnthropicImageBlock),
-    ToolUse { tool_use: AnthropicToolUse },
-    ToolResult { tool_result: AnthropicToolResult },
+pub(crate) struct AnthropicTextBlock {
+    #[serde(rename = "type")]
+    block_type: &'static str,
+    text: String,
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct AnthropicToolUse {
+pub(crate) struct AnthropicToolUseBlock {
+    #[serde(rename = "type")]
+    block_type: &'static str,
     id: String,
     name: String,
     input: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct AnthropicToolResult {
+pub(crate) struct AnthropicToolResultBlock {
+    #[serde(rename = "type")]
+    block_type: &'static str,
     tool_use_id: String,
     content: String,
     is_error: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub(crate) enum AnthropicContent {
+    Text(AnthropicTextBlock),
+    Image(AnthropicImageBlock),
+    ToolUse(AnthropicToolUseBlock),
+    ToolResult(AnthropicToolResultBlock),
+}
+
+impl AnthropicContent {
+    fn text(text: String) -> Self {
+        Self::Text(AnthropicTextBlock {
+            block_type: "text",
+            text,
+        })
+    }
+    fn tool_use(id: String, name: String, input: serde_json::Value) -> Self {
+        Self::ToolUse(AnthropicToolUseBlock {
+            block_type: "tool_use",
+            id,
+            name,
+            input,
+        })
+    }
+    fn tool_result(tool_use_id: String, content: String, is_error: Option<bool>) -> Self {
+        Self::ToolResult(AnthropicToolResultBlock {
+            block_type: "tool_result",
+            tool_use_id,
+            content,
+            is_error,
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -318,17 +364,27 @@ pub(crate) struct AnthropicResponse {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum AnthropicResponseContent {
-    Text { text: String },
-    ToolUse { tool_use: AnthropicToolUseResponse },
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct AnthropicToolUseResponse {
-    id: String,
-    name: String,
-    input: serde_json::Value,
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        #[serde(default)]
+        input: serde_json::Value,
+    },
+    /// Extended thinking / Token Plan reasoning blocks — ignored for text output.
+    Thinking {
+        #[serde(default)]
+        thinking: String,
+        #[serde(default)]
+        signature: String,
+    },
+    /// Forward-compatible catch-all for unknown content block types.
+    #[serde(other)]
+    Other,
 }
 
 #[derive(Debug, Deserialize)]
@@ -348,9 +404,7 @@ fn user_message_content(msg: &Message) -> Vec<AnthropicContent> {
     };
     let mut parts = Vec::new();
     if !text.is_empty() {
-        parts.push(AnthropicContent::Text {
-            text: text.to_string(),
-        });
+        parts.push(AnthropicContent::text(text.to_string()));
     }
     for img in anycode_core::vision_images_from_metadata(&msg.metadata) {
         parts.push(AnthropicContent::Image(AnthropicImageBlock {
@@ -363,9 +417,7 @@ fn user_message_content(msg: &Message) -> Vec<AnthropicContent> {
         }));
     }
     if parts.is_empty() {
-        parts.push(AnthropicContent::Text {
-            text: text.to_string(),
-        });
+        parts.push(AnthropicContent::text(text.to_string()));
     }
     parts
 }
@@ -378,26 +430,18 @@ pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> 
                 let mut parts: Vec<AnthropicContent> = vec![];
                 if let MessageContent::Text(t) = &msg.content {
                     if !t.is_empty() {
-                        parts.push(AnthropicContent::Text { text: t.clone() });
+                        parts.push(AnthropicContent::text(t.clone()));
                     }
                 }
                 if let Some(v) = msg.metadata.get(ANYCODE_TOOL_CALLS_METADATA_KEY) {
                     if let Ok(calls) = serde_json::from_value::<Vec<ToolCall>>(v.clone()) {
                         for c in calls {
-                            parts.push(AnthropicContent::ToolUse {
-                                tool_use: AnthropicToolUse {
-                                    id: c.id,
-                                    name: c.name,
-                                    input: c.input,
-                                },
-                            });
+                            parts.push(AnthropicContent::tool_use(c.id, c.name, c.input));
                         }
                     }
                 }
                 if parts.is_empty() {
-                    parts.push(AnthropicContent::Text {
-                        text: String::new(),
-                    });
+                    parts.push(AnthropicContent::text(String::new()));
                 }
                 return AnthropicMessage {
                     role: "assistant".to_string(),
@@ -418,25 +462,19 @@ pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> 
                     MessageContent::Text(_) if msg.role == MessageRole::User => {
                         user_message_content(&msg)
                     }
-                    MessageContent::Text(text) => vec![AnthropicContent::Text { text }],
-                    MessageContent::ToolUse { name, input } => vec![AnthropicContent::ToolUse {
-                        tool_use: AnthropicToolUse {
-                            id: Uuid::new_v4().to_string(),
-                            name,
-                            input,
-                        },
-                    }],
+                    MessageContent::Text(text) => vec![AnthropicContent::text(text)],
+                    MessageContent::ToolUse { name, input } => {
+                        vec![AnthropicContent::tool_use(Uuid::new_v4().to_string(), name, input)]
+                    }
                     MessageContent::ToolResult {
                         tool_use_id,
                         content,
                         is_error,
-                    } => vec![AnthropicContent::ToolResult {
-                        tool_result: AnthropicToolResult {
-                            tool_use_id,
-                            content,
-                            is_error: Some(is_error),
-                        },
-                    }],
+                    } => vec![AnthropicContent::tool_result(
+                        tool_use_id,
+                        content,
+                        Some(is_error),
+                    )],
                 },
             }
         })
@@ -462,12 +500,11 @@ pub(crate) fn convert_response(response: AnthropicResponse) -> LLMResponse {
                 text.push_str(&t);
                 (text, tool_calls)
             }
-            AnthropicResponseContent::ToolUse { tool_use } => {
-                tool_calls.push(ToolCall {
-                    id: tool_use.id,
-                    name: tool_use.name,
-                    input: tool_use.input,
-                });
+            AnthropicResponseContent::ToolUse { id, name, input } => {
+                tool_calls.push(ToolCall { id, name, input });
+                (text, tool_calls)
+            }
+            AnthropicResponseContent::Thinking { .. } | AnthropicResponseContent::Other => {
                 (text, tool_calls)
             }
         },
@@ -488,5 +525,77 @@ pub(crate) fn convert_response(response: AnthropicResponse) -> LLMResponse {
             cache_creation_tokens: None,
             cache_read_tokens: None,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_thinking_and_text_blocks_from_token_plan() {
+        let json = r#"{
+            "id": "msg_1",
+            "role": "assistant",
+            "content": [
+                {"type": "thinking", "thinking": "plan…", "signature": ""},
+                {"type": "text", "text": "你好"}
+            ],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 3, "output_tokens": 5}
+        }"#;
+        let parsed: AnthropicResponse = serde_json::from_str(json).expect("deserialize");
+        let out = convert_response(parsed);
+        match out.message.content {
+            MessageContent::Text(t) => assert_eq!(t, "你好"),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(out.tool_calls.is_empty());
+    }
+
+    #[test]
+    fn parses_flat_tool_use_block() {
+        let json = r#"{
+            "id": "msg_2",
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "tu1", "name": "Bash", "input": {"command": "ls"}}
+            ],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 1, "output_tokens": 2}
+        }"#;
+        let parsed: AnthropicResponse = serde_json::from_str(json).expect("deserialize");
+        let out = convert_response(parsed);
+        assert_eq!(out.tool_calls.len(), 1);
+        assert_eq!(out.tool_calls[0].name, "Bash");
+    }
+
+    #[test]
+    fn request_content_blocks_carry_type_tags() {
+        // Strict Anthropic-compatible gateways (Kimi /coding) 400 without `type`.
+        let msgs = vec![
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text("hi".into()),
+                timestamp: chrono::Utc::now(),
+                metadata: Default::default(),
+            },
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::Tool,
+                content: MessageContent::ToolResult {
+                    tool_use_id: "tu1".into(),
+                    content: "done".into(),
+                    is_error: false,
+                },
+                timestamp: chrono::Utc::now(),
+                metadata: Default::default(),
+            },
+        ];
+        let v = serde_json::to_value(convert_messages(msgs)).unwrap();
+        assert_eq!(v[0]["content"][0]["type"], "text");
+        assert_eq!(v[1]["content"][0]["type"], "tool_result");
+        assert_eq!(v[1]["content"][0]["tool_use_id"], "tu1");
     }
 }

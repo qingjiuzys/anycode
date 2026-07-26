@@ -44,8 +44,6 @@ pub const TOOL_STRUCTURED_OUTPUT: &str = "StructuredOutput";
 pub const TOOL_POWERSHELL: &str = "PowerShell";
 pub const TOOL_CONFIG: &str = "Config";
 pub const TOOL_SEND_USER_MESSAGE: &str = "SendUserMessage";
-pub const TOOL_SEND_WECHAT_MESSAGE: &str = "SendWeChatMessage";
-pub const TOOL_QUERY_WECHAT_HISTORY: &str = "QueryWeChatHistory";
 pub const TOOL_BRIEF: &str = "Brief";
 pub const TOOL_ASK_USER_QUESTION: &str = "AskUserQuestion";
 pub const TOOL_REPL: &str = "REPL";
@@ -110,8 +108,6 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_POWERSHELL,
     TOOL_CONFIG,
     TOOL_SEND_USER_MESSAGE,
-    TOOL_SEND_WECHAT_MESSAGE,
-    TOOL_QUERY_WECHAT_HISTORY,
     TOOL_BRIEF,
     TOOL_ASK_USER_QUESTION,
     TOOL_REPL,
@@ -160,8 +156,6 @@ pub const SECURITY_SENSITIVE_TOOL_IDS: &[&str] = &[
     TOOL_CONFIG,
     TOOL_ASK_USER_QUESTION,
     TOOL_REPL,
-    TOOL_SEND_WECHAT_MESSAGE,
-    TOOL_QUERY_WECHAT_HISTORY,
     TOOL_BROWSER_NAVIGATE,
     TOOL_BROWSER_CLICK,
     TOOL_BROWSER_TYPE,
@@ -464,22 +458,6 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         ALL_AGENTS,
         false,
         "minimal",
-    ),
-    tool_entry(
-        TOOL_SEND_WECHAT_MESSAGE,
-        "channel",
-        "high",
-        ALL_AGENTS,
-        true,
-        "full",
-    ),
-    tool_entry(
-        TOOL_QUERY_WECHAT_HISTORY,
-        "read",
-        "critical",
-        ALL_AGENTS,
-        true,
-        "full",
     ),
     tool_entry(TOOL_BRIEF, "ui", "low", ALL_AGENTS, false, "minimal"),
     tool_entry(

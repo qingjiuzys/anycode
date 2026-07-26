@@ -21,7 +21,6 @@ pub async fn build_embedded_runtime(
     anycode_config::apply_project_overlays(&mut config, project_root);
     let project_enabled = load_project_enabled_skills(project_root).await;
     let hosts = RuntimeHosts {
-        dialoguer_on_tty: false,
         ask_user_question_host: Some(
             Arc::new(WorkbenchAskUserQuestionHost::new()) as Arc<dyn AskUserQuestionHost>
         ),

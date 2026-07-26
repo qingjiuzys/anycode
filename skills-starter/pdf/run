@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""anyCode pdf skill runner: info/text/tables/merge/split/rotate/fields/fill/gen.
+
+Dependencies: pypdf (core), pdfplumber (tables, optional), reportlab (gen, optional).
+Usage examples:
+  run info report.pdf
+  run text report.pdf --pages 1-3
+  run tables report.pdf --pages 2
+  run merge a.pdf b.pdf -o out.pdf
+  run split report.pdf --pages 2-5 -o part.pdf
+  rotate: run rotate in.pdf --pages 1,3 --angle 90 -o out.pdf
+  run fields form.pdf
+  run fill form.pdf --json data.json -o filled.pdf
+  run gen -o hello.pdf --title 标题 --lines "第一行" "第二行"
+"""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def page_specs(spec: str, total: int):
+    """Parse '1-3,5' into 0-based page indices."""
+    out = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-", 1)
+            a, b = int(a), int(b)
+            out.extend(range(max(a, 1) - 1, min(b, total)))
+        else:
+            i = int(part)
+            if 1 <= i <= total:
+                out.append(i - 1)
+    return sorted(set(out))
+
+
+def open_pdf(path: str):
+    from pypdf import PdfReader
+
+    reader = PdfReader(path)
+    if reader.is_encrypted:
+        try:
+            reader.decrypt("")
+        except Exception:
+            print(f"ERROR: {path} is encrypted; password required", file=sys.stderr)
+            sys.exit(2)
+    return reader
+
+
+def cmd_info(args):
+    reader = open_pdf(args.file)
+    fields = []
+    try:
+        fields = list(reader.get_fields() or {})
+    except Exception:
+        pass
+    text_sample = ""
+    if len(reader.pages) > 0:
+        try:
+            text_sample = (reader.pages[0].extract_text() or "")[:200]
+        except Exception:
+            pass
+    print(json.dumps({
+        "file": args.file,
+        "pages": len(reader.pages),
+        "encrypted": reader.is_encrypted,
+        "form_fields": len(fields),
+        "has_text_layer": bool(text_sample.strip()),
+        "first_page_sample": text_sample,
+    }, ensure_ascii=False, indent=2))
+
+
+def cmd_text(args):
+    reader = open_pdf(args.file)
+    total = len(reader.pages)
+    idxs = page_specs(args.pages, total) if args.pages else range(total)
+    for i in idxs:
+        text = reader.pages[i].extract_text() or ""
+        print(f"\n===== page {i + 1} =====\n{text.rstrip()}")
+
+
+def cmd_tables(args):
+    try:
+        import pdfplumber
+    except ImportError:
+        print("ERROR: pdfplumber not installed (pip install pdfplumber)", file=sys.stderr)
+        sys.exit(3)
+    reader_len = len(open_pdf(args.file).pages)
+    idxs = page_specs(args.pages, reader_len) if args.pages else range(reader_len)
+    with pdfplumber.open(args.file) as pdf:
+        for i in idxs:
+            page = pdf.pages[i]
+            tables = page.extract_tables() or []
+            print(f"\n===== page {i + 1}: {len(tables)} table(s) =====")
+            for t_i, table in enumerate(tables):
+                print(f"--- table {t_i + 1} ---")
+                for row in table:
+                    print("\t".join("" if c is None else str(c) for c in row))
+
+
+def cmd_merge(args):
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    total = 0
+    for f in args.files:
+        reader = open_pdf(f)
+        total += len(reader.pages)
+        for p in reader.pages:
+            writer.add_page(p)
+    out = Path(args.output or "merged.pdf")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "wb") as fh:
+        writer.write(fh)
+    check = len(open_pdf(str(out)).pages)
+    assert check == total, f"page count mismatch: expected {total}, got {check}"
+    print(f"merged {len(args.files)} files -> {out} ({check} pages)")
+
+
+def cmd_split(args):
+    from pypdf import PdfWriter
+
+    reader = open_pdf(args.file)
+    idxs = page_specs(args.pages, len(reader.pages)) if args.pages else list(range(len(reader.pages)))
+    writer = PdfWriter()
+    for i in idxs:
+        writer.add_page(reader.pages[i])
+    out = Path(args.output or "split.pdf")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "wb") as fh:
+        writer.write(fh)
+    print(f"extracted {len(idxs)} page(s) -> {out}")
+
+
+def cmd_rotate(args):
+    from pypdf import PdfWriter
+
+    reader = open_pdf(args.file)
+    idxs = set(page_specs(args.pages, len(reader.pages)))
+    writer = PdfWriter()
+    for i, page in enumerate(reader.pages):
+        if i in idxs:
+            page = page.rotate(args.angle)
+        writer.add_page(page)
+    out = Path(args.output or "rotated.pdf")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "wb") as fh:
+        writer.write(fh)
+    print(f"rotated {len(idxs)} page(s) by {args.angle}° -> {out}")
+
+
+def cmd_fields(args):
+    reader = open_pdf(args.file)
+    fields = reader.get_fields() or {}
+    for name, field in fields.items():
+        ftype = field.get("/FT", "?")
+        value = field.get("/V", "")
+        print(f"{name}\ttype={ftype}\tcurrent={value!r}")
+    if not fields:
+        print("(no AcroForm fields found)")
+
+
+def cmd_fill(args):
+    from pypdf import PdfReader, PdfWriter
+
+    data = json.loads(Path(args.json).read_text(encoding="utf-8"))
+    reader = PdfReader(args.file)
+    writer = PdfWriter()
+    writer.append(reader)
+    for page in writer.pages:
+        writer.update_page_form_field_values(page, data)
+    try:
+        writer.set_need_appearances_writer(True)
+    except Exception:
+        pass
+    out = Path(args.output or "filled.pdf")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "wb") as fh:
+        writer.write(fh)
+    print(f"filled {len(data)} field(s) -> {out}")
+
+
+def cmd_gen(args):
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        from reportlab.pdfgen import canvas
+    except ImportError:
+        print("ERROR: reportlab not installed (pip install reportlab)", file=sys.stderr)
+        sys.exit(3)
+    out = Path(args.output or "generated.pdf")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    c = canvas.Canvas(str(out), pagesize=A4)
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        font = "STSong-Light"
+    except Exception:
+        font = "Helvetica"
+    width, height = A4
+    y = height - 72
+    if args.title:
+        c.setFont(font, 18)
+        c.drawString(72, y, args.title)
+        y -= 36
+    c.setFont(font, 11)
+    for line in args.lines or []:
+        if y < 72:
+            c.showPage()
+            c.setFont(font, 11)
+            y = height - 72
+        c.drawString(72, y, line)
+        y -= 18
+    c.save()
+    print(f"generated -> {out}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="anyCode pdf skill runner")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("info"); p.add_argument("file"); p.set_defaults(fn=cmd_info)
+    p = sub.add_parser("text"); p.add_argument("file"); p.add_argument("--pages"); p.set_defaults(fn=cmd_text)
+    p = sub.add_parser("tables"); p.add_argument("file"); p.add_argument("--pages"); p.set_defaults(fn=cmd_tables)
+    p = sub.add_parser("merge"); p.add_argument("files", nargs="+"); p.add_argument("-o", "--output"); p.set_defaults(fn=cmd_merge)
+    p = sub.add_parser("split"); p.add_argument("file"); p.add_argument("--pages"); p.add_argument("-o", "--output"); p.set_defaults(fn=cmd_split)
+    p = sub.add_parser("rotate"); p.add_argument("file"); p.add_argument("--pages"); p.add_argument("--angle", type=int, default=90); p.add_argument("-o", "--output"); p.set_defaults(fn=cmd_rotate)
+    p = sub.add_parser("fields"); p.add_argument("file"); p.set_defaults(fn=cmd_fields)
+    p = sub.add_parser("fill"); p.add_argument("file"); p.add_argument("--json", required=True); p.add_argument("-o", "--output"); p.set_defaults(fn=cmd_fill)
+    p = sub.add_parser("gen"); p.add_argument("-o", "--output"); p.add_argument("--title"); p.add_argument("--lines", nargs="*"); p.set_defaults(fn=cmd_gen)
+
+    args = parser.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()

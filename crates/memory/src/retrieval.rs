@@ -53,6 +53,7 @@ mod tests {
             scope: MemoryScope::Project,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            meta: None,
         }
     }
 

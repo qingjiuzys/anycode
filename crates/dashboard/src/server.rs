@@ -20,6 +20,8 @@ pub struct DashboardConfig {
     /// When false, only `/api/*` (and WS/SSE) are served — no SPA at `/`.
     pub serve_ui: bool,
     pub version: String,
+    /// Optional one-shot Desktop bootstrap token (embedded desktop only).
+    pub desktop_bootstrap_token: Option<String>,
 }
 
 impl Default for DashboardConfig {
@@ -31,15 +33,15 @@ impl Default for DashboardConfig {
             static_dir: None,
             serve_ui: true,
             version: env!("CARGO_PKG_VERSION").into(),
+            desktop_bootstrap_token: None,
         }
     }
 }
 
 #[must_use]
 pub fn default_db_path() -> PathBuf {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."))
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
         .join(".anycode")
         .join("projects.db")
 }
@@ -70,9 +72,9 @@ async fn run_inner(
     let db = DashboardDb::open(&config.db_path)
         .await
         .context("open dashboard database")?;
-    let tasks_root = std::env::var("HOME")
-        .map(|h| std::path::PathBuf::from(h).join(".anycode").join("tasks"))
-        .unwrap_or_else(|_| std::path::PathBuf::from(".anycode/tasks"));
+    let tasks_root = dirs::home_dir()
+        .map(|h| h.join(".anycode").join("tasks"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".anycode/tasks"));
     if !workspace_paths.is_empty() {
         let n = db.sync_workspace_paths(&workspace_paths).await?;
         info!(count = n, "synced workspace projects");
@@ -81,14 +83,21 @@ async fn run_inner(
         if stats.projects_count == 0 && !workspace_paths.is_empty() {
             info!("empty database — auto-scanning workspace projects");
             let _ = db.sync_workspace_paths(&workspace_paths).await;
-            let _ = sync_skills_to_db(&db, &workspace_paths).await;
         }
     }
-    match sync_skills_to_db(&db, &workspace_paths).await {
-        Ok(n) if n > 0 => info!(count = n, "synced local skills"),
-        Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "skills scan skipped"),
-    }
+    // Skill discovery walks every workspace root; keep it off the startup
+    // critical path so HTTP binds while the catalog populates in background.
+    // Read handlers that need fresh skills call sync_skills_to_db themselves
+    // (TTL-cached), so nothing blocks on this spawn.
+    let db_skills = db.clone();
+    let paths_skills = workspace_paths.clone();
+    tokio::spawn(async move {
+        match sync_skills_to_db(&db_skills, &paths_skills).await {
+            Ok(n) if n > 0 => info!(count = n, "synced local skills"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!(error = %e, "skills scan skipped"),
+        }
+    });
     let swept =
         crate::approval_ipc::sweep_stale_pending(crate::approval_ipc::STALE_PENDING_MAX_AGE_SECS);
     if swept > 0 {
@@ -104,14 +113,13 @@ async fn run_inner(
     if let Ok(running) = db.list_running_sessions(500).await {
         let mut reconciled = 0usize;
         for session in running {
-            if !crate::cancel_ipc::is_active(&session.id) {
-                if db
+            if !crate::cancel_ipc::is_active(&session.id)
+                && db
                     .cancel_running_session(&session.id)
                     .await
                     .unwrap_or(false)
-                {
-                    reconciled += 1;
-                }
+            {
+                reconciled += 1;
             }
         }
         if reconciled > 0 {
@@ -157,7 +165,7 @@ async fn run_inner(
         db,
         events: Arc::clone(&events),
         sessions: SessionStore::default(),
-        web_chat: crate::control::web_chat::WebChatHub::default(),
+        web_chat: crate::control::web_chat::WebChatHub,
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
         chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new(),
         version: config.version.clone(),
@@ -170,6 +178,12 @@ async fn run_inner(
         started_at: started_at.clone(),
         pid: std::process::id(),
         managed_local_llm: crate::managed_local_llm::ManagedLocalLlm::new(),
+        desktop_bootstrap_token: Arc::new(tokio::sync::Mutex::new(
+            config.desktop_bootstrap_token.clone(),
+        )),
+        test_auth_bypass: std::env::var("ANYCODE_DASHBOARD_TEST_AUTH_BYPASS")
+            .ok()
+            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
     };
     crate::control::question_notify::install(events, db_for_state.clone());
     crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
@@ -306,8 +320,41 @@ pub async fn app_for_test_api_only(db_path: &Path) -> Result<Router> {
     app_for_test_with_options(db_path, "127.0.0.1", false).await
 }
 
-async fn app_for_test_with_options(db_path: &Path, host: &str, serve_ui: bool) -> Result<Router> {
-    std::env::set_var("ANYCODE_DASHBOARD_TEST_AUTH_BYPASS", "1");
+pub struct TestAppOptions {
+    pub host: String,
+    pub serve_ui: bool,
+    pub auth_bypass: bool,
+    pub desktop_bootstrap_token: Option<String>,
+}
+
+impl Default for TestAppOptions {
+    fn default() -> Self {
+        Self {
+            host: "127.0.0.1".into(),
+            serve_ui: true,
+            auth_bypass: true,
+            desktop_bootstrap_token: None,
+        }
+    }
+}
+
+pub async fn app_for_test_with_options(
+    db_path: &Path,
+    host: &str,
+    serve_ui: bool,
+) -> Result<Router> {
+    app_for_test_custom(
+        db_path,
+        TestAppOptions {
+            host: host.into(),
+            serve_ui,
+            ..TestAppOptions::default()
+        },
+    )
+    .await
+}
+
+pub async fn app_for_test_custom(db_path: &Path, opts: TestAppOptions) -> Result<Router> {
     let db = DashboardDb::open(db_path).await?;
     let events = Arc::new(EventBus::new());
     crate::notify::register_inprocess_bus(Arc::clone(&events));
@@ -316,19 +363,21 @@ async fn app_for_test_with_options(db_path: &Path, host: &str, serve_ui: bool) -
         db,
         events: Arc::clone(&events),
         sessions: SessionStore::default(),
-        web_chat: crate::control::web_chat::WebChatHub::default(),
+        web_chat: crate::control::web_chat::WebChatHub,
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
         chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new(),
         version: "test".into(),
         static_dir: None,
-        serve_ui,
+        serve_ui: opts.serve_ui,
         workspace_paths: vec![],
         tasks_root: PathBuf::from(".anycode/tasks"),
-        host: host.into(),
+        host: opts.host,
         port: 43180,
         started_at: chrono::Utc::now().to_rfc3339(),
         pid: std::process::id(),
         managed_local_llm: crate::managed_local_llm::ManagedLocalLlm::new(),
+        desktop_bootstrap_token: Arc::new(tokio::sync::Mutex::new(opts.desktop_bootstrap_token)),
+        test_auth_bypass: opts.auth_bypass,
     };
     crate::control::question_notify::install(events, db_for_state.clone());
     crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
@@ -340,7 +389,10 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use http_body_util::BodyExt;
+    use std::sync::Mutex;
     use tower::ServiceExt;
+
+    static AUTH_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[tokio::test]
     async fn api_only_root_is_not_spa() {
@@ -383,5 +435,158 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["models"][0]["id"], "managed-minicpm5-1b");
         assert_eq!(json["models"][0]["sha256"].as_str().unwrap().len(), 64);
+    }
+
+    #[tokio::test]
+    async fn desktop_bootstrap_mints_one_shot_local_session() {
+        let _guard = AUTH_ENV_LOCK.lock().unwrap();
+        std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP", "1");
+        let token = crate::api::auth::generate_desktop_bootstrap_token();
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test_custom(
+            &dir.path().join("bootstrap.db"),
+            TestAppOptions {
+                auth_bypass: false,
+                desktop_bootstrap_token: Some(token.clone()),
+                ..TestAppOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let denied = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/projects")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), axum::http::StatusCode::UNAUTHORIZED);
+
+        let boot = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/auth/desktop-bootstrap?token={token}"))
+                    .header("host", "127.0.0.1:43180")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(boot.status(), axum::http::StatusCode::SEE_OTHER);
+        let set_cookie = boot
+            .headers()
+            .get_all(axum::http::header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find(|v| v.starts_with("dw_session="))
+            .expect("dw_session cookie")
+            .to_string();
+        assert!(set_cookie.contains("HttpOnly"));
+        assert!(set_cookie.contains("SameSite=Strict"));
+        let session_cookie = set_cookie.split(';').next().unwrap().to_string();
+
+        let allowed = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/projects")
+                    .header(axum::http::header::COOKIE, &session_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(allowed.status(), axum::http::StatusCode::OK);
+
+        let replay = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/auth/desktop-bootstrap?token={token}"))
+                    .header("host", "127.0.0.1:43180")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.status(), axum::http::StatusCode::UNAUTHORIZED);
+        std::env::remove_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP");
+    }
+
+    #[tokio::test]
+    async fn desktop_bootstrap_rejects_without_embedded_flag() {
+        let _guard = AUTH_ENV_LOCK.lock().unwrap();
+        std::env::remove_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP");
+        let token = crate::api::auth::generate_desktop_bootstrap_token();
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test_custom(
+            &dir.path().join("bootstrap-noembed.db"),
+            TestAppOptions {
+                auth_bypass: false,
+                desktop_bootstrap_token: Some(token.clone()),
+                ..TestAppOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/auth/desktop-bootstrap?token={token}"))
+                    .header("host", "127.0.0.1:43180")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), axum::http::StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn mutating_api_rejects_disallowed_origin() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test(&dir.path().join("origin.db")).await.unwrap();
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/logout")
+                    .header("origin", "https://evil.example")
+                    .header("host", "127.0.0.1:43180")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), axum::http::StatusCode::FORBIDDEN);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"], "origin not allowed");
+    }
+
+    #[tokio::test]
+    async fn mutating_api_rejects_non_loopback_host_on_loopback_bind() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test(&dir.path().join("host.db")).await.unwrap();
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/logout")
+                    .header("origin", "http://127.0.0.1:43180")
+                    .header("host", "evil.example")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), axum::http::StatusCode::FORBIDDEN);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"], "host not allowed");
     }
 }

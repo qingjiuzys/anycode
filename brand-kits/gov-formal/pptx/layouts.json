@@ -1,0 +1,20 @@
+{
+  "brand_kit": "gov-formal",
+  "slide_types": {
+    "cover": {"background": "primary", "title_color": "header_text", "accent_bar": true, "min_value_chips": 3},
+    "section": {"background": "surface", "title_color": "primary", "left_accent_bar": true, "min_agenda_items": 4},
+    "content": {"background": "FFFFFF", "title_color": "primary", "footer": true, "min_bullets": 5},
+    "metrics": {"background": "surface_alt", "stat_cards": 6, "min_stat_cards": 6},
+    "closing": {"background": "primary", "title_color": "header_text", "cta": true, "min_action_items": 4}
+  },
+  "content_density": {
+    "cover": {"min_list_items": 0, "min_stat_spans": 3, "min_side_panels": 1},
+    "section": {"min_list_items": 4, "min_stat_spans": 0, "min_side_panels": 1},
+    "content": {"min_list_items": 5, "min_stat_spans": 5, "min_side_panels": 2},
+    "metrics": {"min_list_items": 6, "min_stat_spans": 6, "min_side_panels": 0},
+    "closing": {"min_list_items": 4, "min_stat_spans": 0, "min_side_panels": 2}
+  },
+  "min_shapes_per_slide": 5,
+  "footer_text": "内部资料 · 注意保密",
+  "requires_classification": true
+}

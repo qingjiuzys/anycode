@@ -4,7 +4,7 @@
 //! - **Swift helper** (`apps/anycode-desktop/native/anycode-apple-media/`): Vision, Speech, AVFoundation, etc.
 //! - **This crate**: JSON stdin/stdout IPC, helper resolution, temp files — shared by CLI, `anycode-llm`, dashboard.
 //! - **Tauri** (`apps/anycode-desktop/src/apple_media.rs`): base64 UI boundary + resource-path helper lookup.
-//! - **WeChat** (`crates/channel-bridge/src/channels/wx/`): inbound image OCR + voice STT via this crate / `SttClient`.
+//! - Headless daemons: inbound image OCR + voice STT via this crate / `SttClient`.
 //! - **Media registry** (`crates/llm/src/media/`): `apple_speech` / `apple_tts` providers route here on macOS.
 
 use serde::{Deserialize, Serialize};
@@ -514,6 +514,24 @@ pub fn keychain_set(
     _secret: &str,
 ) -> Result<(), String> {
     Err("Keychain requires macOS".into())
+}
+
+/// Store memory E2EE master key (base64) — service/account match anycode_memory constants.
+pub fn memory_e2ee_keychain_set(
+    extra_paths: &[PathBuf],
+    master_key_b64: &str,
+) -> Result<(), String> {
+    keychain_set(
+        extra_paths,
+        "anycode.memory.e2ee",
+        "user_master_key",
+        master_key_b64,
+    )
+}
+
+/// Read memory E2EE master key from Keychain when present.
+pub fn memory_e2ee_keychain_get(extra_paths: &[PathBuf]) -> Result<Option<String>, String> {
+    keychain_get(extra_paths, "anycode.memory.e2ee", "user_master_key")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

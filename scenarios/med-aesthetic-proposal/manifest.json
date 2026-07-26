@@ -1,0 +1,27 @@
+{
+  "id": "med-aesthetic-proposal",
+  "title": "Medical aesthetic proposal",
+  "brand_kit_default": "fde-editorial",
+  "keywords": [
+    "医美",
+    "med aesthetic",
+    "美容",
+    "诊所方案"
+  ],
+  "min_slides": 7,
+  "outline": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "content",
+    "closing",
+    "closing"
+  ],
+  "required_sections": [
+    "program",
+    "pricing",
+    "timeline",
+    "disclaimer"
+  ]
+}

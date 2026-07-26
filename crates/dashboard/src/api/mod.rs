@@ -1,4 +1,4 @@
-mod auth;
+pub mod auth;
 mod handlers;
 pub mod state;
 
@@ -77,6 +77,10 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/me", get(handlers::get_auth_me))
         .route("/auth/login", post(handlers::post_auth_login))
         .route("/auth/logout", post(handlers::post_auth_logout))
+        .route(
+            "/auth/desktop-bootstrap",
+            get(handlers::get_desktop_bootstrap),
+        )
         .route("/bootstrap", get(handlers::get_bootstrap))
         .route("/setup/status", get(handlers::get_setup_status))
         .route("/setup/quick-auth", get(handlers::get_setup_quick_auth))
@@ -85,38 +89,6 @@ pub fn router(state: AppState) -> Router {
             post(handlers::post_setup_workspace_ensure),
         )
         .route("/setup/memory", patch(handlers::patch_setup_memory))
-        .route(
-            "/setup/channels/telegram",
-            post(handlers::post_setup_channels_telegram),
-        )
-        .route(
-            "/setup/channels/telegram/verify",
-            post(handlers::post_setup_channels_telegram_verify),
-        )
-        .route(
-            "/setup/channels/telegram/chats",
-            post(handlers::post_setup_channels_telegram_chats),
-        )
-        .route(
-            "/setup/channels/discord",
-            post(handlers::post_setup_channels_discord),
-        )
-        .route(
-            "/setup/channels/discord/verify",
-            post(handlers::post_setup_channels_discord_verify),
-        )
-        .route(
-            "/setup/channels/discord/test",
-            post(handlers::post_setup_channels_discord_test),
-        )
-        .route(
-            "/setup/channels/wechat/qr",
-            get(handlers::get_setup_channels_wechat_qr),
-        )
-        .route(
-            "/setup/channels/wechat/status",
-            get(handlers::get_setup_channels_wechat_status),
-        )
         .route("/setup/complete", post(handlers::post_setup_complete))
         .route("/overview", get(handlers::get_overview))
         .route("/overview/briefing", post(handlers::post_overview_briefing))
@@ -507,7 +479,6 @@ pub fn router(state: AppState) -> Router {
             get(handlers::get_service_status),
         )
         .route("/settings/doctor", get(handlers::get_doctor))
-        .route("/settings/channels", get(handlers::get_settings_channels))
         .route("/settings/runtime", get(handlers::get_runtime_settings))
         .route("/settings/model-catalog", get(handlers::get_model_catalog))
         .route(
@@ -550,6 +521,8 @@ pub fn router(state: AppState) -> Router {
             "/settings/memory/retention",
             get(handlers::get_memory_retention_preview).post(handlers::post_memory_retention_apply),
         )
+        .route("/settings/memory/center", get(handlers::get_memory_center))
+        .route("/settings/memory/dream", post(handlers::post_memory_dream))
         .route("/settings/policies", get(handlers::get_policy_summary))
         .route("/settings/data-health", get(handlers::get_data_health))
         .route(
@@ -624,6 +597,10 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            auth::mutate_origin_guard,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             auth::auth_middleware,
         ))
         .with_state(state.clone());
@@ -673,16 +650,10 @@ pub fn router(state: AppState) -> Router {
 }
 
 fn cors_layer() -> CorsLayer {
-    let origins = [
-        "http://127.0.0.1:43180",
-        "http://localhost:43180",
-        "http://127.0.0.1:43199",
-        "http://localhost:43199",
-        "tauri://localhost",
-        "https://tauri.localhost",
-    ];
-    let list: Vec<axum::http::HeaderValue> =
-        origins.iter().filter_map(|o| o.parse().ok()).collect();
+    let list: Vec<axum::http::HeaderValue> = auth::ALLOWED_BROWSER_ORIGINS
+        .iter()
+        .filter_map(|o| o.parse().ok())
+        .collect();
     CorsLayer::new()
         .allow_origin(AllowOrigin::list(list))
         .allow_methods(Any)

@@ -6,15 +6,6 @@ use crate::schema::InsertEventRequest;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
-#[must_use]
-pub fn dashboard_loopback_url(host: &str, port: u16) -> String {
-    let host = match host {
-        "0.0.0.0" | "::" => "127.0.0.1",
-        other => other,
-    };
-    format!("http://{host}:{port}")
-}
-
 pub async fn ensure_chat_project_root(
     db: &DashboardDb,
     project_id: &str,

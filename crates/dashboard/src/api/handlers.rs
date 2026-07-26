@@ -1,8 +1,8 @@
 use crate::api::state::AppState;
 use crate::cron_ledger;
 use crate::schema::{
-    CreateSessionRequest, CronJobRecord, CronRunRecord, HealthResponse, InsertEventRequest,
-    LocalServiceRecord, UpsertProjectRequest,
+    CreateSessionRequest, CronRunRecord, HealthResponse, InsertEventRequest, LocalServiceRecord,
+    UpsertProjectRequest,
 };
 use crate::skills_scan;
 use async_stream::stream;
@@ -17,7 +17,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::convert::Infallible;
-use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Deserialize)]
@@ -119,7 +118,6 @@ mod agents;
 mod assets;
 mod auth;
 mod browser_connector;
-mod channels;
 mod chat_util;
 mod cloud;
 mod connectors;
@@ -149,7 +147,6 @@ pub use agents::*;
 pub use assets::*;
 pub use auth::*;
 pub use browser_connector::*;
-pub use channels::*;
 pub use cloud::*;
 pub use connectors::*;
 pub use conversations::*;

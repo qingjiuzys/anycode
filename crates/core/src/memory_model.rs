@@ -3,6 +3,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::memory_episode::MemoryMetaV2;
+
 /// 记忆类型
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MemoryType {
@@ -63,6 +65,9 @@ pub struct Memory {
     pub scope: MemoryScope,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Optional V2 metadata; absent on legacy rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<MemoryMetaV2>,
 }
 
 /// 记忆范围

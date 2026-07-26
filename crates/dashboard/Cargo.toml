@@ -33,6 +33,7 @@ anycode-config = { path = "../config" }
 anycode-core = { path = "../core" }
 anycode-dashboard-ipc = { path = "../dashboard-ipc" }
 anycode-llm = { path = "../llm" }
+anycode-memory = { path = "../memory" }
 anycode-relay-gateway = { path = "../relay-gateway" }
 anycode-setup = { path = "../setup" }
 anycode-tools = { path = "../tools" }

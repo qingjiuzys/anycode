@@ -82,6 +82,7 @@ fn synthetic_memory_from_fragment(frag: &PreSemanticFragment) -> Memory {
         scope: MemoryScope::Project,
         created_at: frag.created_at,
         updated_at: frag.last_touched_at,
+        meta: None,
     }
 }
 
@@ -188,6 +189,7 @@ impl RootReturnMemoryPipeline {
             scope: MemoryScope::Project,
             created_at: frag.created_at,
             updated_at: chrono::Utc::now(),
+            meta: None,
         };
         self.hot.save(memory.clone()).await?;
         self.try_embed_upsert(&memory).await;

@@ -183,7 +183,7 @@ pub async fn upsert_project(
     };
     match state.db.upsert_project(upsert).await {
         Ok(p) => {
-            let _ = skills_scan::sync_skills_to_db(&state.db, &[root_display]).await;
+            let _ = skills_scan::sync_skills_to_db_force(&state.db, &[root_display]).await;
             Json(json!({ "project": p })).into_response()
         }
         Err(e) => {
@@ -201,7 +201,7 @@ pub async fn upsert_project(
 pub async fn scan_projects(State(state): State<AppState>) -> impl IntoResponse {
     let paths = crate::workspace_index::collect_scan_workspace_paths();
     let registered = state.db.sync_workspace_paths(&paths).await.unwrap_or(0);
-    let skills = skills_scan::sync_skills_to_db(&state.db, &paths)
+    let skills = skills_scan::sync_skills_to_db_force(&state.db, &paths)
         .await
         .unwrap_or(0);
     let _ = crate::audit::record_audit(

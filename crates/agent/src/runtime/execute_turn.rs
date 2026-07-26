@@ -73,17 +73,162 @@ impl AgentRuntime {
 
         let tools = self.tools.read().await;
         let raw = tool_surface::resolve_agent_tool_names(agent_type.as_str(), agent_tools, &tools);
-        let merged_denies =
+        let mut merged_denies =
             anycode_tools::merge_agent_type_tool_denies(agent_type.as_str(), tool_deny_names);
+        // Placeholder; skill arm denies applied after compile below.
         let names = tool_surface::prepare_tool_names_for_llm(
-            raw,
+            raw.clone(),
             &self.tool_name_deny,
             &self.claude_gating,
             &merged_denies,
             tool_deny_prefixes,
         );
-        let tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
+        let mut tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
         drop(tools);
+
+        // Inject TaskCompiler / Experience / Skill routing once per turn (latest user prompt).
+        let (gate_plan, expected_artifacts, task_family) = {
+            let prompt = {
+                let g = messages.lock().await;
+                g.iter()
+                    .rev()
+                    .find(|m| {
+                        m.role == MessageRole::User
+                            && !m
+                                .metadata
+                                .get(ANYCODE_CONTEXT_USER_METADATA_KEY)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false)
+                    })
+                    .and_then(|m| match &m.content {
+                        MessageContent::Text(t) => Some(t.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default()
+            };
+            if prompt.trim().is_empty() {
+                (None, Vec::new(), None)
+            } else {
+                let compiled = super::compile_context::compile_for_prompt(
+                    self.memory_store.as_ref(),
+                    &self.tool_services,
+                    &prompt,
+                    agent_type.as_str(),
+                    working_directory,
+                    false,
+                )
+                .await
+                // non-strict mode swallows recall errors internally — infallible here
+                .unwrap_or_else(|e| unreachable!("non-strict compile must not fail: {e}"));
+                let arm = compiled.arm;
+                if !compiled.skill_denies.is_empty() {
+                    logger.line(
+                        task_id,
+                        &format!(
+                            "[skill_tools_denied] tools={} arm=exp:{}:skills:{}",
+                            compiled.skill_denies.join(","),
+                            arm.experience_enabled as u8,
+                            arm.production_skills_enabled as u8
+                        ),
+                    );
+                    merged_denies.extend(compiled.skill_denies.iter().cloned());
+                    let tools = self.tools.read().await;
+                    let names = tool_surface::prepare_tool_names_for_llm(
+                        raw,
+                        &self.tool_name_deny,
+                        &self.claude_gating,
+                        &merged_denies,
+                        tool_deny_prefixes,
+                    );
+                    tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
+                    drop(tools);
+                }
+                let sections = compiled.sections.clone();
+                if let Some(plan) = &compiled.gate_plan {
+                    let marker = super::compile_context::gate_plan_marker(
+                        compiled.family,
+                        plan.requirements.len(),
+                        arm,
+                    );
+                    logger.line(task_id, &marker);
+                    live_trace_emit::try_emit(
+                        &live_trace_tx,
+                        LiveTraceEvent::ProgressUpdate {
+                            turn: 0,
+                            seq: 0,
+                            phase: "gate".into(),
+                            work_stage: Some("compile".into()),
+                            summary: marker,
+                            next: None,
+                            discovery: None,
+                            evidence_refs: vec![],
+                        },
+                    );
+                }
+                if !compiled.parts.selected_skill_ids.is_empty() {
+                    let marker = super::compile_context::skill_resolved_marker(
+                        &compiled.parts.selected_skill_ids,
+                    );
+                    logger.line(task_id, &marker);
+                    live_trace_emit::try_emit(
+                        &live_trace_tx,
+                        LiveTraceEvent::ProgressUpdate {
+                            turn: 0,
+                            seq: 1,
+                            phase: "skill".into(),
+                            work_stage: Some("compile".into()),
+                            summary: marker,
+                            next: None,
+                            discovery: None,
+                            evidence_refs: compiled.parts.selected_skill_ids.clone(),
+                        },
+                    );
+                }
+                {
+                    let mut g = messages.lock().await;
+                    // Drop prior compiler context injections for this turn boundary.
+                    g.retain(|m| {
+                        !(m.role == MessageRole::User
+                            && m.metadata
+                                .get(ANYCODE_CONTEXT_USER_METADATA_KEY)
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false)
+                            && match &m.content {
+                                MessageContent::Text(t) => {
+                                    t.starts_with("## Task Spec")
+                                        || t.starts_with("## Experience Pack")
+                                        || t.starts_with("## Selected Skills")
+                                        || t.starts_with("## Gate Plan")
+                                        || t.starts_with("## Preferences")
+                                        || t.starts_with("## Memories (")
+                                }
+                                _ => false,
+                            })
+                    });
+                    for section in sections {
+                        let mut metadata = HashMap::new();
+                        metadata.insert(
+                            ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+                            serde_json::Value::Bool(true),
+                        );
+                        g.push(Message {
+                            id: Uuid::new_v4(),
+                            role: MessageRole::User,
+                            content: MessageContent::Text(section),
+                            timestamp: chrono::Utc::now(),
+                            metadata,
+                        });
+                    }
+                }
+                (
+                    compiled.gate_plan,
+                    compiled.expected_artifacts,
+                    compiled.family,
+                )
+            }
+        };
+        let mut repairs_used: u32 = 0;
+        let mut last_repair_diagnostics: Option<String> = None;
 
         // 2) agentic loop：保持与 execute_task 的语义一致
         let model_config = self.model_for_task(agent_type).clone();
@@ -96,7 +241,7 @@ impl AgentRuntime {
         let mut budget_state = RuntimeBudgetState::new(budget);
         let mut termination_reason = TerminationReason::MaxTurns;
         let mut progress_seq: u32 = 0;
-        let mut stream_progress_seq: Option<u32> = None;
+        let mut stream_progress_seq: Option<u32>;
 
         for turn in 1..=loop_limits.max_agent_turns {
             last_model_turn = turn;
@@ -167,7 +312,7 @@ impl AgentRuntime {
             let (mut response, mut llm_streamed) = 'llm_attempt: loop {
                 let messages_snapshot = {
                     let g = messages.lock().await;
-                    crate::reply_language::inject_ephemeral_reply_language_reminder(g.clone())
+                    crate::reply_language::inject_ephemeral_reply_language_reminder(&g)
                 };
                 // Prefer streaming: TUI can render deltas incrementally via shared `messages`.
                 // Fallback to non-stream chat if streaming is not supported / fails.
@@ -349,7 +494,7 @@ impl AgentRuntime {
                     // chat so we never leave a stale assistant row (OpenClaw 5.19 failover parity).
                     pop_assistant_placeholder(&messages, assistant_id).await;
                     let chat_fut = self.chat_with_failover(
-                        messages_snapshot.clone(),
+                        &messages_snapshot,
                         turn_tool_schemas.clone(),
                         &llm_config,
                         task_id,
@@ -438,7 +583,7 @@ impl AgentRuntime {
                         );
                         if let Ok(Some(fb)) = self
                             .try_failover_on_provider_body_error(
-                                messages_snapshot.clone(),
+                                &messages_snapshot,
                                 turn_tool_schemas.clone(),
                                 &llm_config,
                                 task_id,
@@ -526,7 +671,7 @@ impl AgentRuntime {
                     let snapshot = messages.lock().await.clone();
                     response = self
                         .chat_with_failover(
-                            snapshot,
+                            &snapshot,
                             turn_tool_schemas.clone(),
                             &llm_config,
                             task_id,
@@ -649,25 +794,119 @@ impl AgentRuntime {
 
             let session_label = format!("tui_{}", task_id);
 
-            let mut turn_tool_calls = response.tool_calls.clone();
+            let turn_tool_calls = response.tool_calls.clone();
             if turn_tool_calls.is_empty() {
-                termination_reason = TerminationReason::Completed;
-                self.pipeline_memory_hook_agent_turn(
-                    &session_label,
-                    task_id,
-                    turn,
-                    &last_assistant_text,
-                )
-                .await;
-                self.maybe_session_notify_agent_turn(
-                    &session_label,
-                    task_id,
-                    turn,
-                    &last_assistant_text,
-                    Some(working_directory),
-                );
-                logger.line(task_id, &format!("[turn_end] turn={} tool_calls=0", turn));
-                break;
+                let guard_out = self
+                    .completion_guard
+                    .evaluate(
+                        &task_id.to_string(),
+                        task_family,
+                        gate_plan.as_ref(),
+                        &expected_artifacts,
+                        &artifacts,
+                        std::path::Path::new(working_directory),
+                        repairs_used,
+                        last_repair_diagnostics.as_deref(),
+                    )
+                    .await;
+                match guard_out.decision {
+                    super::completion_guard::GuardDecision::Complete => {
+                        let marker = format!(
+                            "[verification_finished] passed=1 results={}",
+                            guard_out
+                                .report
+                                .as_ref()
+                                .map(|r| r.results.len())
+                                .unwrap_or(0)
+                        );
+                        logger.line(task_id, &marker);
+                        live_trace_emit::try_emit(
+                            &live_trace_tx,
+                            LiveTraceEvent::ProgressUpdate {
+                                turn: turn as u32,
+                                seq: progress_seq.saturating_add(1),
+                                phase: "verify".into(),
+                                work_stage: Some("complete".into()),
+                                summary: marker,
+                                next: None,
+                                discovery: None,
+                                evidence_refs: vec![],
+                            },
+                        );
+                        termination_reason = TerminationReason::Completed;
+                        self.pipeline_memory_hook_agent_turn(
+                            &session_label,
+                            task_id,
+                            turn,
+                            &last_assistant_text,
+                        )
+                        .await;
+                        self.maybe_session_notify_agent_turn(
+                            &session_label,
+                            task_id,
+                            turn,
+                            &last_assistant_text,
+                            Some(working_directory),
+                        );
+                        logger.line(task_id, &format!("[turn_end] turn={} tool_calls=0", turn));
+                        break;
+                    }
+                    super::completion_guard::GuardDecision::Repair => {
+                        let msg = guard_out.repair_message.unwrap_or_default();
+                        last_repair_diagnostics = Some(msg.clone());
+                        repairs_used += 1;
+                        let marker = format!(
+                            "[repair_requested] repairs_used={repairs_used} verification_started=1"
+                        );
+                        logger.line(task_id, &marker);
+                        live_trace_emit::try_emit(
+                            &live_trace_tx,
+                            LiveTraceEvent::ProgressUpdate {
+                                turn: turn as u32,
+                                seq: progress_seq.saturating_add(1),
+                                phase: "verify".into(),
+                                work_stage: Some("repair".into()),
+                                summary: marker,
+                                next: Some("fix gate failures then re-check".into()),
+                                discovery: None,
+                                evidence_refs: vec![],
+                            },
+                        );
+                        let mut g = messages.lock().await;
+                        let mut metadata = HashMap::new();
+                        metadata.insert(
+                            ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+                            serde_json::Value::Bool(true),
+                        );
+                        g.push(Message {
+                            id: Uuid::new_v4(),
+                            role: MessageRole::User,
+                            content: MessageContent::Text(msg),
+                            timestamp: chrono::Utc::now(),
+                            metadata,
+                        });
+                        continue;
+                    }
+                    super::completion_guard::GuardDecision::Partial
+                    | super::completion_guard::GuardDecision::Failed => {
+                        termination_reason = TerminationReason::Partial;
+                        if let Some(msg) = guard_out.repair_message {
+                            last_assistant_text = format!("{last_assistant_text}\n\n{msg}");
+                        }
+                        logger.line(
+                            task_id,
+                            &format!(
+                                "[turn_end] turn={} tool_calls=0 verification={}",
+                                turn,
+                                match guard_out.decision {
+                                    super::completion_guard::GuardDecision::Partial => "partial",
+                                    _ => "failed",
+                                }
+                            ),
+                        );
+                        break;
+                    }
+                }
             }
 
             logger.line(

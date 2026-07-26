@@ -15,6 +15,8 @@ const WEAK_LOCAL_CORE_TOOLS: &[&str] = &[
     "Bash",
     "ToolSearch",
     "AskUserQuestion",
+    "SkillSearch",
+    "Skill",
 ];
 
 /// Sort tool names: builtins (sorted), then other non-MCP (sorted), then `mcp__*` (sorted).

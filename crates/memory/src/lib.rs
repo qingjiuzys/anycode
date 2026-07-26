@@ -3,6 +3,8 @@
 //! 四类记忆（Project / User / Session 等）与存储后端
 
 mod buffer_wal;
+pub mod dream;
+pub mod e2ee_sync;
 #[cfg(feature = "embedding-local")]
 pub mod embedding_fastembed;
 pub mod embedding_http;
@@ -10,6 +12,15 @@ pub mod pipeline;
 pub mod retrieval;
 pub mod vector_sled;
 
+pub use dream::{
+    append_dream_report, append_episode, consolidate_episodes, dream_log_path, episodes_dir,
+    load_pending_episodes, DreamConflict, DreamEngineSettings, DreamReport,
+};
+pub use e2ee_sync::{
+    decrypt_memory_blob, encrypt_memory_blob, load_or_create_master_key, load_sync_state,
+    merge_envelopes, recommend_keychain_mirror, save_sync_state, wrap_envelope, LocalSyncState,
+    MemoryEnvelope, SyncPullResponse, SyncPushRequest, KEYCHAIN_ACCOUNT_MASTER, KEYCHAIN_SERVICE,
+};
 #[cfg(feature = "embedding-local")]
 pub use embedding_fastembed::FastEmbedEmbeddingProvider;
 pub use embedding_http::OpenAiCompatibleEmbeddingProvider;
@@ -184,6 +195,7 @@ impl FileMemoryStore {
             scope,
             created_at,
             updated_at,
+            meta: None,
         })
     }
 }

@@ -1,0 +1,11 @@
+{
+  "brand_kit": "fde-editorial",
+  "layouts": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "closing"
+  ],
+  "path": "/Users/qingjiu/workspace/research/llm-cli/anycode/brand-kits/fde-editorial/pptx/template.potx"
+}

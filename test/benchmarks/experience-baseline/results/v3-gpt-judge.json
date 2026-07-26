@@ -1,0 +1,274 @@
+{
+  "suite_id": "experience-baseline-v3-gpt-judge",
+  "judge": "gpt-5.6",
+  "method": {
+    "teacher_reference": "GPT-5.6 gold fixtures",
+    "low_model": "deepseek-v4-flash",
+    "low_model_enhanced": "deepseek-v4-flash + experience@0.2.0",
+    "why_not_v4_pro": "Same-family V4 Flash vs Pro does not create a useful external quality gap; Pro is same checklist ceiling, just slower/costlier.",
+    "scoring": "relative 0-5 dimensional judge vs gold; defects penalized"
+  },
+  "averages": {
+    "teacher_reference": 5.0,
+    "low_model": 4.0833,
+    "low_model_enhanced": 4.3,
+    "enhanced_vs_low_delta": 0.2167,
+    "low_gap_to_teacher": 0.9167,
+    "enhanced_gap_to_teacher": 0.7,
+    "gap_closed_fraction": 0.2364
+  },
+  "rows": [
+    {
+      "scenario_id": "scene.web.landing",
+      "family": "web_design",
+      "notes": "Low model 的终端展示、排版层次和交互细节明显强于 enhanced；enhanced 退化为较通用的居中 hero。两者都用外链 Google Fonts，严格说并非完全自包含，且 Markdown 围栏违背 HTML-only，gold 则同时满足约束与视觉辨识度。",
+      "arms": {
+        "teacher_reference": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "visual_specificity": 5.0,
+            "anti_slop": 5.0,
+            "structure_clarity": 5.0,
+            "actionability": 5.0
+          },
+          "total": 5.0
+        },
+        "low_model": {
+          "dimensions": {
+            "requirement_coverage": 4.5,
+            "visual_specificity": 4.5,
+            "anti_slop": 4.0,
+            "structure_clarity": 4.5,
+            "actionability": 4.0
+          },
+          "total": 4.3
+        },
+        "low_model_enhanced": {
+          "dimensions": {
+            "requirement_coverage": 4.0,
+            "visual_specificity": 3.5,
+            "anti_slop": 3.5,
+            "structure_clarity": 4.5,
+            "actionability": 4.0
+          },
+          "total": 3.9
+        }
+      },
+      "gap_closed_vs_teacher": {
+        "low": 0.7,
+        "enhanced": 1.1,
+        "improved_by_experience": -0.4
+      }
+    },
+    {
+      "scenario_id": "scene.code.slugify",
+      "family": "cross_file_coding",
+      "notes": "Low model 的函数主体基本正确，但第 4 个断言期望 `--_junk_123--` 产生 `junk-123`；按题意下划线应直接删除，实际结果是 `junk123`，因此测试套件必失败。Enhanced 的实现与恰好 4 个测试一致且可通过，虽有冗余状态处理和 Markdown 围栏。",
+      "arms": {
+        "teacher_reference": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "correctness_edge_cases": 5.0,
+            "test_quality": 5.0,
+            "structure_clarity": 5.0,
+            "actionability": 5.0
+          },
+          "total": 5.0
+        },
+        "low_model": {
+          "dimensions": {
+            "requirement_coverage": 4.0,
+            "correctness_edge_cases": 4.0,
+            "test_quality": 2.0,
+            "structure_clarity": 4.5,
+            "actionability": 3.0
+          },
+          "total": 3.5
+        },
+        "low_model_enhanced": {
+          "dimensions": {
+            "requirement_coverage": 4.5,
+            "correctness_edge_cases": 5.0,
+            "test_quality": 4.5,
+            "structure_clarity": 4.0,
+            "actionability": 4.0
+          },
+          "total": 4.4
+        }
+      },
+      "gap_closed_vs_teacher": {
+        "low": 1.5,
+        "enhanced": 0.6,
+        "improved_by_experience": 0.9
+      }
+    },
+    {
+      "scenario_id": "scene.office.pptx",
+      "family": "office_delivery",
+      "notes": "Low model 的 Plan 对象含两个同名 `bullets` 键，造成无唯一语义的 JSON，消费者可能拒绝或静默覆盖，必须重罚；其内容本身较具体。Enhanced JSON 有效、顺序和数量约束完整，但若干内容（如 Competitor X、XYZ）较模板化，叙事闭环弱于 gold。",
+      "arms": {
+        "teacher_reference": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "narrative_arc": 5.0,
+            "specificity": 5.0,
+            "executive_fit": 5.0,
+            "actionability": 5.0
+          },
+          "total": 5.0
+        },
+        "low_model": {
+          "dimensions": {
+            "requirement_coverage": 1.5,
+            "narrative_arc": 4.0,
+            "specificity": 4.5,
+            "executive_fit": 4.0,
+            "actionability": 4.0
+          },
+          "total": 3.6
+        },
+        "low_model_enhanced": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "narrative_arc": 4.0,
+            "specificity": 4.0,
+            "executive_fit": 4.0,
+            "actionability": 4.5
+          },
+          "total": 4.3
+        }
+      },
+      "gap_closed_vs_teacher": {
+        "low": 1.4,
+        "enhanced": 0.7,
+        "improved_by_experience": 0.7
+      }
+    },
+    {
+      "scenario_id": "scene.office.docx",
+      "family": "office_delivery",
+      "notes": "两份输出均为有效 JSON，层级完整，并以 Decision/Action 收束每节。Enhanced 信息密度和指标覆盖略好；但两者的末句普遍缺少 gold 中清晰的具名 owner 与日期，因此仍有小幅执行性差距。",
+      "arms": {
+        "teacher_reference": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "hierarchy": 5.0,
+            "decision_orientation": 5.0,
+            "specificity": 5.0,
+            "actionability": 5.0
+          },
+          "total": 5.0
+        },
+        "low_model": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "hierarchy": 5.0,
+            "decision_orientation": 4.0,
+            "specificity": 4.0,
+            "actionability": 4.0
+          },
+          "total": 4.4
+        },
+        "low_model_enhanced": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "hierarchy": 5.0,
+            "decision_orientation": 4.0,
+            "specificity": 4.5,
+            "actionability": 4.0
+          },
+          "total": 4.5
+        }
+      },
+      "gap_closed_vs_teacher": {
+        "low": 0.6,
+        "enhanced": 0.5,
+        "improved_by_experience": 0.1
+      }
+    },
+    {
+      "scenario_id": "scene.db.schema",
+      "family": "database_sql",
+      "notes": "两份学生 DDL 都覆盖实体、UUID、FK 删除策略、索引、金额与表注释，但都缺少金额非负、状态枚举和周期一致性约束。Enhanced 的金额命名、发票组织归属及订阅 SET NULL 语义略清楚；两者仍有级联删除账务历史、全局 email 唯一或查询索引不足等设计差距，并带有 SQL-only 不应出现的围栏。",
+      "arms": {
+        "teacher_reference": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "constraint_quality": 5.0,
+            "index_quality": 5.0,
+            "normalization": 5.0,
+            "actionability": 5.0
+          },
+          "total": 5.0
+        },
+        "low_model": {
+          "dimensions": {
+            "requirement_coverage": 4.5,
+            "constraint_quality": 3.0,
+            "index_quality": 4.0,
+            "normalization": 3.5,
+            "actionability": 4.0
+          },
+          "total": 3.8
+        },
+        "low_model_enhanced": {
+          "dimensions": {
+            "requirement_coverage": 4.5,
+            "constraint_quality": 3.5,
+            "index_quality": 3.5,
+            "normalization": 4.0,
+            "actionability": 4.0
+          },
+          "total": 3.9
+        }
+      },
+      "gap_closed_vs_teacher": {
+        "low": 1.2,
+        "enhanced": 1.1,
+        "improved_by_experience": 0.1
+      }
+    },
+    {
+      "scenario_id": "scene.sql.cohort",
+      "family": "database_sql",
+      "notes": "两份查询都正确使用 DISTINCT、注册后闭合 7 天窗口、分组排序与 LIMIT，实质上接近 gold。Low model 的别名更易读且直接输出 SQL；enhanced 使用冗长全名并加 Markdown 围栏，因输出契约和可读性小幅落后。",
+      "arms": {
+        "teacher_reference": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "semantic_correctness": 5.0,
+            "sql_safety": 5.0,
+            "structure_clarity": 5.0,
+            "actionability": 5.0
+          },
+          "total": 5.0
+        },
+        "low_model": {
+          "dimensions": {
+            "requirement_coverage": 5.0,
+            "semantic_correctness": 5.0,
+            "sql_safety": 5.0,
+            "structure_clarity": 4.5,
+            "actionability": 5.0
+          },
+          "total": 4.9
+        },
+        "low_model_enhanced": {
+          "dimensions": {
+            "requirement_coverage": 4.5,
+            "semantic_correctness": 5.0,
+            "sql_safety": 5.0,
+            "structure_clarity": 4.5,
+            "actionability": 5.0
+          },
+          "total": 4.8
+        }
+      },
+      "gap_closed_vs_teacher": {
+        "low": 0.1,
+        "enhanced": 0.2,
+        "improved_by_experience": -0.1
+      }
+    }
+  ]
+}

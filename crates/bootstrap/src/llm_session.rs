@@ -109,7 +109,13 @@ pub fn resolve_anthropic_primary_config(config: &Config) -> anyhow::Result<Provi
     Ok(ProviderConfig {
         provider: "anthropic".to_string(),
         api_key,
-        base_url: config.llm.base_url.clone(),
+        // Only inherit the global base_url when the global provider IS Anthropic;
+        // otherwise it points at a different gateway (e.g. z.ai) and breaks.
+        base_url: if transport_for_provider_id(&g) == LlmTransport::AnthropicMessages {
+            config.llm.base_url.clone()
+        } else {
+            None
+        },
         model: config.llm.model.clone(),
         temperature: Some(config.llm.temperature),
         max_tokens: Some(config.llm.max_tokens),
@@ -118,10 +124,15 @@ pub fn resolve_anthropic_primary_config(config: &Config) -> anyhow::Result<Provi
 }
 
 pub fn resolve_bedrock_primary_config(config: &Config) -> ProviderConfig {
+    let g = normalize_provider_id(&config.llm.provider);
     ProviderConfig {
         provider: "amazon_bedrock".to_string(),
         api_key: String::new(),
-        base_url: config.llm.base_url.clone(),
+        base_url: if transport_for_provider_id(&g) == LlmTransport::BedrockConverse {
+            config.llm.base_url.clone()
+        } else {
+            None
+        },
         model: config.llm.model.clone(),
         temperature: Some(config.llm.temperature),
         max_tokens: Some(config.llm.max_tokens),
@@ -156,7 +167,11 @@ pub fn resolve_github_copilot_primary_config(config: &Config) -> anyhow::Result<
     Ok(ProviderConfig {
         provider: "github_copilot".to_string(),
         api_key,
-        base_url: config.llm.base_url.clone(),
+        base_url: if transport_for_provider_id(&g) == LlmTransport::GithubCopilot {
+            config.llm.base_url.clone()
+        } else {
+            None
+        },
         model: config.llm.model.clone(),
         temperature: Some(config.llm.temperature),
         max_tokens: Some(config.llm.max_tokens),
@@ -200,14 +215,20 @@ pub fn resolve_agent_base_url(
         let plan = profile.plan.as_deref().unwrap_or(config.llm.plan.as_str());
         return Some(default_base_url_for(plan).to_string());
     }
+    let global_transport = transport_for_provider_id(&normalize_provider_id(&config.llm.provider));
+    let en_transport = transport_for_provider_id(&en);
     if matches!(
-        transport_for_provider_id(&en),
-        LlmTransport::AnthropicMessages | LlmTransport::GithubCopilot
+        en_transport,
+        LlmTransport::AnthropicMessages
+            | LlmTransport::GithubCopilot
+            | LlmTransport::BedrockConverse
     ) {
-        return config.llm.base_url.clone();
-    }
-    if transport_for_provider_id(&en) == LlmTransport::BedrockConverse {
-        return config.llm.base_url.clone();
+        // The global base_url belongs to the global provider — only inherit it
+        // when both speak the same transport, never across providers.
+        if en_transport == global_transport {
+            return config.llm.base_url.clone();
+        }
+        return None;
     }
     config
         .llm
@@ -221,9 +242,9 @@ mod tests {
     use super::*;
     use anycode_agent::RuntimePromptConfig;
     use anycode_config::{
-        AgentsConfig, ChannelsConfig, LLMConfig, LspRuntime, McpRuntime, MemoryConfig,
-        RoutingConfig, RuntimeSettings, SecurityConfig, SessionConfig, SkillsConfig,
-        StatusLineRuntime, TerminalRuntime,
+        AgentsConfig, LLMConfig, LspRuntime, McpRuntime, MemoryConfig, RoutingConfig,
+        RuntimeSettings, SecurityConfig, SessionConfig, SkillsConfig, StatusLineRuntime,
+        TerminalRuntime,
     };
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
     use std::collections::HashMap;
@@ -289,11 +310,9 @@ mod tests {
             session: SessionConfig::default(),
             status_line: StatusLineRuntime::default(),
             terminal: TerminalRuntime::default(),
-            channels: ChannelsConfig::default(),
             lsp: LspRuntime::default(),
             mcp: McpRuntime::default(),
             notifications: anycode_core::SessionNotificationSettings::default(),
-            wechat_history: Default::default(),
         }
     }
 
@@ -363,5 +382,37 @@ mod tests {
         };
         let u = resolve_agent_base_url(&c, &p, &None).expect("url");
         assert!(u.contains("z.ai"));
+    }
+
+    #[test]
+    fn anthropic_profile_does_not_inherit_zai_base_url() {
+        // Global provider is z.ai with a custom gateway URL; a routing profile
+        // pointing at anthropic must NOT send Anthropic traffic to that gateway.
+        let mut c = base_config();
+        c.llm.base_url = Some("https://open.bigmodel.cn/api/paas/v4/chat/completions".into());
+        c.llm
+            .provider_credentials
+            .insert("anthropic".into(), "ak-test".into());
+        let p = ModelProfile {
+            provider: Some("anthropic".to_string()),
+            plan: None,
+            model: None,
+            temperature: None,
+            max_tokens: None,
+            base_url: None,
+            api_key: None,
+        };
+        assert_eq!(resolve_agent_base_url(&c, &p, &None), None);
+        let cfg = resolve_anthropic_primary_config(&c).unwrap();
+        assert_eq!(cfg.base_url, None);
+    }
+
+    #[test]
+    fn anthropic_global_keeps_its_own_base_url() {
+        let mut c = base_config();
+        c.llm.provider = "anthropic".into();
+        c.llm.base_url = Some("https://api.anthropic.com".into());
+        let cfg = resolve_anthropic_primary_config(&c).unwrap();
+        assert_eq!(cfg.base_url.as_deref(), Some("https://api.anthropic.com"));
     }
 }

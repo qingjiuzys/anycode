@@ -7,17 +7,17 @@ fn is_user_visible_session_model(model: &str) -> bool {
 impl DashboardDb {
     pub async fn session_facets(&self) -> Result<SessionFacetsResponse> {
         let status = label_counts(
-            &self,
+            self,
             "SELECT status AS label, COUNT(*) AS cnt FROM sessions GROUP BY status ORDER BY cnt DESC",
         )
         .await?;
         let trusted_status = label_counts(
-            &self,
+            self,
             "SELECT trusted_status AS label, COUNT(*) AS cnt FROM sessions GROUP BY trusted_status ORDER BY cnt DESC",
         )
         .await?;
         let kind = label_counts(
-            &self,
+            self,
             "SELECT kind AS label, COUNT(*) AS cnt FROM sessions GROUP BY kind ORDER BY cnt DESC",
         )
         .await?;

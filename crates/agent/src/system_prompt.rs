@@ -467,7 +467,7 @@ mod tests {
             .expect("reply language section");
         let pos_tone = out.find("# Tone").expect("tone section");
         assert!(pos_lang < pos_tone, "Reply language must precede Tone");
-        assert!(out.contains("User-visible assistant text during tool rounds"));
+        assert!(out.contains("zero visible text"));
     }
 
     #[test]

@@ -8,17 +8,9 @@ use crate::report::snapshot::ReportSnapshot;
 use crate::schema::ReportDocument;
 use tracing::debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ComposeOptions {
     pub force_template: bool,
-}
-
-impl Default for ComposeOptions {
-    fn default() -> Self {
-        Self {
-            force_template: false,
-        }
-    }
 }
 
 pub fn report_prefs() -> (String, String) {

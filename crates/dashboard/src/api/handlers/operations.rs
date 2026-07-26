@@ -124,6 +124,8 @@ pub struct PatchCronJobBody {
     pub failure_destination: Option<String>,
     pub tool_profile: Option<String>,
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub workflow: Option<String>,
 }
 
 pub async fn patch_cron_job(
@@ -176,6 +178,7 @@ pub async fn patch_cron_job(
         failure_destination: body.failure_destination,
         tool_profile: body.tool_profile,
         project_id: body.project_id,
+        workflow: body.workflow,
     };
     match anycode_tools::update_cron_job_in_orchestration_file(&path, job_id, patch) {
         Ok(Some(job)) => {
@@ -455,18 +458,6 @@ pub async fn get_timeline_metrics(
         )
             .into_response(),
     }
-}
-
-#[derive(Deserialize)]
-pub struct PatchLlmConfigBody {
-    #[serde(default)]
-    pub provider: Option<String>,
-    #[serde(default)]
-    pub model: Option<String>,
-    #[serde(default)]
-    pub fallback_provider: Option<String>,
-    #[serde(default)]
-    pub fallback_model: Option<String>,
 }
 
 #[derive(Deserialize)]

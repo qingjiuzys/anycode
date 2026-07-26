@@ -1,0 +1,21 @@
+{
+  "id": "work-report",
+  "title": "Work report (weekly/monthly)",
+  "brand_kit_default": "fde-editorial",
+  "keywords": [
+    "工作汇报",
+    "weekly report",
+    "周报",
+    "月报",
+    "ops report"
+  ],
+  "min_slides": 0,
+  "docx_sections": [
+    "Summary",
+    "Progress",
+    "Metrics",
+    "Issues",
+    "Next Steps",
+    "Decision/Action"
+  ]
+}

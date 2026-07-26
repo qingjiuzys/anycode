@@ -239,13 +239,15 @@ impl DashboardRecorder {
     }
 
     pub async fn ingest_full_log(&mut self, disk: &DiskTaskOutput, task_id: TaskId) {
-        let path = disk.output_path(task_id);
-        let Ok(content) = std::fs::read_to_string(&path) else {
-            return;
-        };
-        self.log_offset = content.len() as u64;
-        if let Err(e) = self.ingest_text(&content).await {
-            tracing::debug!(error = %e, "dashboard ingest_full_log");
+        // Drain whatever is left after the last delta — do NOT re-read from
+        // offset 0: `ingest_text`'s dedup set is per-call, so re-reading the
+        // whole log would insert every earlier event a second time.
+        loop {
+            let before = self.log_offset;
+            self.ingest_delta(disk, task_id).await;
+            if self.log_offset == before {
+                break;
+            }
         }
     }
 

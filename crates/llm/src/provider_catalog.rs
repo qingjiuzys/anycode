@@ -75,10 +75,12 @@ pub const PROVIDER_CATALOG: &[ProviderCatalogEntry] = &[
     ProviderCatalogEntry {
         id: "alibaba",
         label: "Alibaba Model Studio",
-        hint: Some("阿里云百炼等 OpenAI 兼容 URL（与 qwen 并存，按账号选）"),
+        hint: Some(
+            "阿里云百炼 / Token Plan；OpenAI 兼容。Token Plan 用 sk-sp- Key + token-plan.*.maas 端点",
+        ),
         transport: LlmTransport::OpenAiChatCompletions,
         suggested_openai_base: Some(
-            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+            "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions",
         ),
         placeholder_only: false,
     },

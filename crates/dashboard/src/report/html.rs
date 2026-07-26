@@ -56,7 +56,7 @@ pub fn wrap_fragment(body: &str, title: &str) -> String {
 fn render_body(snap: &ReportSnapshot) -> String {
     let s = strings(snap.lang);
     let mut out = String::new();
-    out.push_str(&format!("<h1>{}</h1>\n", escape_html(&s.doc_title)));
+    out.push_str(&format!("<h1>{}</h1>\n", escape_html(s.doc_title)));
     out.push_str("<div class=\"meta\">");
     if snap.scope == "project" {
         out.push_str(&format!(
@@ -99,19 +99,19 @@ fn render_body(snap: &ReportSnapshot) -> String {
     ));
     out.push_str("<div class=\"kpi-row\">");
     out.push_str(&kpi_cell(
-        &s.summary_sessions,
+        s.summary_sessions,
         snap.summary.sessions.to_string(),
     ));
     out.push_str(&kpi_cell(
-        &s.summary_events_sampled,
+        s.summary_events_sampled,
         format!("{} / {}", snap.summary.events, snap.events_sample_limit),
     ));
     out.push_str(&kpi_cell(
-        &s.summary_failed_gates,
+        s.summary_failed_gates,
         snap.summary.failed_gates.to_string(),
     ));
     out.push_str(&kpi_cell(
-        &s.summary_artifacts,
+        s.summary_artifacts,
         snap.summary.artifacts.to_string(),
     ));
     out.push_str("</div>\n");

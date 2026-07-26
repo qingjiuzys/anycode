@@ -435,7 +435,7 @@ pub fn patch_llm_config(path: Option<&Path>, patch: &LlmConfigPatch) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config_models::{FailoverTrigger, ModelProfileFile, ModelsConfigFile};
+    use crate::config_models::{ModelProfileFile, ModelsConfigFile};
 
     #[test]
     fn sync_memory_embedding_local_fastembed() {

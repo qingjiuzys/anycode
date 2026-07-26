@@ -12,7 +12,6 @@ tools-lsp = ["anycode-tools/tools-lsp"]
 tools-browser = ["anycode-tools/tools-browser", "dep:anycode-browser"]
 embedding-local = ["anycode-memory/embedding-local", "anycode-llm/embedding-local"]
 knowledge-embeddings = ["anycode-tools/knowledge-embeddings"]
-dialoguer-host = ["dep:dialoguer", "dep:console"]
 
 [lib]
 name = "anycode_bootstrap"
@@ -31,8 +30,6 @@ anycode-memory = { path = "../memory" }
 anycode-security = { path = "../security" }
 anycode-tools = { path = "../tools" }
 async-trait = { workspace = true }
-console = { version = "0.16", optional = true }
-dialoguer = { version = "0.12", optional = true }
 dirs = "5"
 regex = "1.10"
 serde = { workspace = true, features = ["derive"] }

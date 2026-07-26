@@ -1,0 +1,11 @@
+{
+  "brand_kit": "gov-formal",
+  "layouts": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "closing"
+  ],
+  "path": "/Users/qingjiu/workspace/research/llm-cli/anycode/brand-kits/gov-formal/pptx/template.potx"
+}

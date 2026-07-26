@@ -1,0 +1,29 @@
+{
+  "id": "product-launch",
+  "title": "Product launch deck",
+  "brand_kit_default": "fde-editorial",
+  "keywords": [
+    "产品发布",
+    "product launch",
+    "launch deck",
+    "pitch"
+  ],
+  "min_slides": 8,
+  "outline": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "content",
+    "content",
+    "content",
+    "closing"
+  ],
+  "required_sections": [
+    "problem",
+    "solution",
+    "traction",
+    "roadmap",
+    "ask"
+  ]
+}

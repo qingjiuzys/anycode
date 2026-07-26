@@ -1,0 +1,74 @@
+[
+  {
+    "id": "scene.web.landing",
+    "family": "web_design",
+    "prompt": "Build ONE self-contained HTML landing page for a CLI developer tool named anyCode. Hard requirements: dark background (#0B0F14-ish), emerald CTA (#10B981), exactly one H1, no purple/violet anywhere, include HTML comments with approximate contrast ratios for body text and CTA, hero must have one short lede + primary CTA + secondary text link. Prefer distinctive typography (not Inter/Roboto). Output HTML only.",
+    "dimensions": [
+      "requirement_coverage",
+      "visual_specificity",
+      "anti_slop",
+      "structure_clarity",
+      "actionability"
+    ]
+  },
+  {
+    "id": "scene.code.slugify",
+    "family": "cross_file_coding",
+    "prompt": "Implement Rust `pub fn slugify(input: &str) -> String`: lowercase; convert whitespace runs to a single '-'; keep [a-z0-9-]; strip other chars; collapse consecutive '-'; trim leading/trailing '-'. Include exactly 4 unit tests covering: basic phrase, punctuation, multiple spaces, leading/trailing junk. Output Rust only.",
+    "dimensions": [
+      "requirement_coverage",
+      "correctness_edge_cases",
+      "test_quality",
+      "structure_clarity",
+      "actionability"
+    ]
+  },
+  {
+    "id": "scene.office.pptx",
+    "family": "office_delivery",
+    "prompt": "Executive Q3 briefing for anyCode Desktop. Return JSON ONLY: {title, slides:[{title, bullets: string[]}]}. Exactly 6 slides in order: Title, Problem, Metric, Plan, Risks, Ask. Each non-title slide: 3–5 bullets, every bullet must contain a concrete number or named owner/date. No lorem/TBD/placeholders.",
+    "dimensions": [
+      "requirement_coverage",
+      "narrative_arc",
+      "specificity",
+      "executive_fit",
+      "actionability"
+    ]
+  },
+  {
+    "id": "scene.office.docx",
+    "family": "office_delivery",
+    "prompt": "Weekly ops report outline as JSON ONLY: {title, sections:[{heading, level, paragraphs: string[]}]}. Constraints: first section heading Summary at level 1; then at least Key Metrics, Incidents, Changes, Next Steps as level 2; every section ends with an explicit Decision or Action sentence; no empty paragraphs arrays.",
+    "dimensions": [
+      "requirement_coverage",
+      "hierarchy",
+      "decision_orientation",
+      "specificity",
+      "actionability"
+    ]
+  },
+  {
+    "id": "scene.db.schema",
+    "family": "database_sql",
+    "prompt": "PostgreSQL DDL for SaaS billing: organizations, users (belong to one org), plans, subscriptions, invoices. Requirements: UUID PKs, FKs with ON DELETE behavior stated, useful indexes, NOT NULL on money/status fields, amounts in integer cents, brief COMMENT ON TABLE for each table. Output SQL only.",
+    "dimensions": [
+      "requirement_coverage",
+      "constraint_quality",
+      "index_quality",
+      "normalization",
+      "actionability"
+    ]
+  },
+  {
+    "id": "scene.sql.cohort",
+    "family": "database_sql",
+    "prompt": "Tables: users(id, org_id, created_at), events(id, user_id, event_name, created_at). Write PostgreSQL returning org_id, activated_users for users who fired event_name='activate' within 7 days of signup. Explicit columns (no SELECT *), JOIN, date window correct, GROUP BY org_id, ORDER BY activated_users DESC, LIMIT 20. SQL only.",
+    "dimensions": [
+      "requirement_coverage",
+      "semantic_correctness",
+      "sql_safety",
+      "structure_clarity",
+      "actionability"
+    ]
+  }
+]

@@ -1,0 +1,136 @@
+{
+  "rows": [
+    {
+      "scenario_id": "scene.web.landing",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 10740,
+      "latency_ms": 80979,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:Y",
+      "output_preview": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>anyCode – CLI for every stack</title>\n\n    <!--\n    ============================================================\n    ACCESSIBILITY: CONTRAST RATIOS (WCAG 2.1 AA)\n    ============================================================\n    Body text (#E2E8F0) on Background (#0B0F14):\n        Foreground Luminance: 0.905\n        Background Luminance: 0.004\n        Contrast Ratio: 17.56:1\n        Result: PASSES WCAG AAA\n\n    CTA Text (#000000) on CTA Background (#10B981):\n        Foreground Luminance: 0.000\n        Background Luminance: 0.369\n        Contrast Ratio: 8.38:1\n        Result: PASSES WCAG AAA\n    ============================================================\n    -->\n\n    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />\n    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />\n    <link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap\" rel=\"stylesheet\" />\n\n    <style>\n        * {\n            margin: 0;\n            padding:"
+    },
+    {
+      "scenario_id": "scene.web.landing",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 3334,
+      "latency_ms": 25082,
+      "message": "has html:Y; dark bg:Y; emerald/green cta:Y; h1:Y; button/cta:Y; no purple slop:Y",
+      "output_preview": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>anyCode CLI – Developer Tool</title>\n    <!-- Font: Space Grotesk (distinctive, not Inter/Roboto) -->\n    <link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap\" rel=\"stylesheet\">\n    <style>\n        /* --- Reset & Base --- */\n        *, *::before, *::after {\n            box-sizing: border-box;\n            margin: 0;\n            padding: 0;\n        }\n        body {\n            background-color: #0B0F14;       /* dark background */\n            color: #e0e0e0;                  /* light gray body text */\n            font-family: 'Space Grotesk', sans-serif;\n            line-height: 1.6;\n            min-height: 100vh;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            padding: 2rem;\n        }\n\n        /* --- Hero Section --- */\n        .hero {\n            max-width: 720px;\n            margin: 0 auto;\n            text-align: center;\n        }\n        h1 {\n            font-size: clamp(2.5rem, 8vw, 4.5rem);\n            font-weight: "
+    },
+    {
+      "scenario_id": "scene.code.slugify",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8,
+      "total_tokens": 1705,
+      "latency_ms": 17465,
+      "message": "fn slugify:Y; to_lowercase/lowercase:Y; space→dash:N; #[test] or #[cfg(test)]:Y; assert:Y",
+      "output_preview": "```rust\n/// Converts a string into a URL-friendly slug.\n///\n/// The transformation:\n/// - lowercase the input\n/// - convert any run of whitespace into a single `-`\n/// - keep only characters `a-z`, `0-9`, and `-`\n/// - collapse consecutive `-` into one\n/// - strip leading and trailing `-`\npub fn slugify(input: &str) -> String {\n    let mut result = String::new();\n    let mut last_was_dash = false;\n\n    for ch in input.chars() {\n        if ch.is_whitespace() || ch == '-' {\n            // Convert whitespace to '-', and keep input '-', but collapse consecutive ones\n            if !last_was_dash {\n                result.push('-');\n                last_was_dash = true;\n            }\n        } else if ch.is_ascii_alphanumeric() {\n            // Keep only ASCII letters and digits, lowercased\n            result.push(ch.to_ascii_lowercase());\n            last_was_dash = false;\n        }\n        // Other characters (punctuation, non-ascii, etc.) are discarded\n    }\n\n    // Trim leading and trailing dashes\n    result.trim_matches('-').to_string()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn basic_phrase() {\n        assert_eq!(slugify(\"Hello World\"), \"hello-world\");\n    }\n"
+    },
+    {
+      "scenario_id": "scene.code.slugify",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 2422,
+      "latency_ms": 24099,
+      "message": "fn slugify:Y; to_lowercase/lowercase:Y; space→dash:Y; #[test] or #[cfg(test)]:Y; assert:Y",
+      "output_preview": "```rust\npub fn slugify(input: &str) -> String {\n    let lower = input.to_lowercase();\n    let mut result = String::new();\n    let mut in_space = false;\n\n    for ch in lower.chars() {\n        if ch.is_whitespace() {\n            if !in_space {\n                in_space = true;\n            }\n        } else if ch.is_ascii_alphanumeric() || ch == '-' {\n            if in_space {\n                // add a dash only if result is not empty and last char is not already a dash\n                if !result.is_empty() && result.chars().last() != Some('-') {\n                    result.push('-');\n                }\n                in_space = false;\n            }\n            if ch == '-' {\n                // collapse consecutive dashes\n                if result.chars().last() == Some('-') {\n                    continue;\n                }\n            }\n            result.push(ch);\n        } else {\n            // invalid character: remove it; still need to close any open space run?\n            // If we are in a space run, the invalid char does NOT break it.\n            // That's fine: we keep in_space as is and continue.\n            // However, if we never close the space run (e.g., trailing invalid char"
+    },
+    {
+      "scenario_id": "scene.office.pptx",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8,
+      "total_tokens": 1402,
+      "latency_ms": 14951,
+      "message": "valid json deck:Y; 5-7 slides:Y; bullets sized:N; has problem/plan/risk or ask:Y; no placeholder:Y",
+      "output_preview": "{\n  \"title\": \"Executive Q3 Briefing: anyCode Desktop\",\n  \"slides\": [\n    {\n      \"title\": \"Title\",\n      \"bullets\": []\n    },\n    {\n      \"title\": \"Problem\",\n      \"bullets\": [\n        \"Desktop app MAU dropped 12% to 48,000 from Q2 to Q3 (July 2024).\",\n        \"User retention at 30 days is 22%, below target of 35% (owned by Sarah Chen).\",\n        \"Average session duration decreased 18% to 9.2 minutes (data as of Aug 20, 2024).\",\n        \"Onboarding completion rate is 41%, missing the 60% threshold set by team lead Mark Rivera.\"\n      ]\n    },\n    {\n      \"title\": \"Metric\",\n      \"bullets\": [\n        \"Target Q3 MAU: 55,000 (current 48,000, gap of 7,000).\",\n        \"Goal for 30-day retention: 35% by Sept 30, 2024 (owned by Sarah Chen).\",\n        \"NPS target of 45 (current 38, measured in Aug 2024 survey).\",\n        \"Number of active code repositories per user: target 4.5, actual 3.8.\"\n      ]\n    },\n    {\n      \"title\": \"Plan\",\n      \"bullets\": [\n        \"Launch simplified onboarding wizard v2 by Sept 10, 2024 (owner: Mark Rivera).\",\n        \"Implement in-app guidance tooltips and tutorials by Sept 20, 2024 (owner: Lisa Park).\",\n        \"Deploy performance optimization patch (reducin"
+    },
+    {
+      "scenario_id": "scene.office.pptx",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8,
+      "total_tokens": 1652,
+      "latency_ms": 14778,
+      "message": "valid json deck:Y; 5-7 slides:Y; bullets sized:N; has problem/plan/risk or ask:Y; no placeholder:Y",
+      "output_preview": "{\n  \"title\": \"anyCode Desktop Q3 2025 Executive Briefing\",\n  \"slides\": [\n    {\n      \"title\": \"Title\",\n      \"bullets\": []\n    },\n    {\n      \"title\": \"Problem\",\n      \"bullets\": [\n        \"User churn rate increased 15% since Q1 2025 (Product Analytics report 2025-06-30)\",\n        \"Average launch time exceeds 8 seconds for 40% of enterprise users (Support Lead Alice Chen, ticket data 2025-06-15)\",\n        \"Competitor X captured 12% of our potential market in Q2 (Competitive Intel team analysis 2025-07-01)\"\n      ]\n    },\n    {\n      \"title\": \"Metric\",\n      \"bullets\": [\n        \"Daily Active Users: 45,000 as of Q2 end, target 55,000 by Q4 (VP Product Mark Johnson, Q2 review 2025-06-30)\",\n        \"Net Promoter Score dropped from 42 to 38 (CX Lead Sarah Lee, survey 2025-06-30)\",\n        \"Desktop segment revenue: $2.3M in Q2, projected $3.1M in Q3 (Finance Director Tom Brown, forecast 2025-07-10)\"\n      ]\n    },\n    {\n      \"title\": \"Plan\",\n      \"bullets\": [\n        \"Launch performance optimization v2.5 by August 15, 2025 (Engineering Lead David Kim, code freeze Aug 1)\",\n        \"Deploy onboarding tutorial series by September 1, 2025 (Product Designer Emily Davis, beta Aug 20)\",\n    "
+    },
+    {
+      "scenario_id": "scene.office.docx",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1164,
+      "latency_ms": 11347,
+      "message": "valid json outline:Y; has H1:Y; has H2:Y; summary section:Y; next steps:Y; enough sections:Y",
+      "output_preview": "{\n  \"title\": \"Weekly Operations Report - Week 42, 2024\",\n  \"sections\": [\n    {\n      \"heading\": \"Summary\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"This week saw stable operations with no major incidents across all services.\",\n        \"Ticket volume decreased by 15% compared to last week.\",\n        \"Decision: Continue current monitoring posture and schedule a review of alert thresholds.\"\n      ]\n    },\n    {\n      \"heading\": \"Key Metrics\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Average response time: 120ms (target <200ms).\",\n        \"System uptime: 99.98%.\",\n        \"Number of active users: 12,450 (+5% week-over-week).\",\n        \"Action: Investigate the slight increase in response time during peak hours.\"\n      ]\n    },\n    {\n      \"heading\": \"Incidents\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Two minor incidents occurred: both resolved within SLA boundaries.\",\n        \"Incident #1012: Brief database connectivity issue due to network latency.\",\n        \"Decision: Schedule a post-mortem for incident #1012 to identify root cause and preventive measures.\"\n      ]\n    },\n    {\n      \"heading\": \"Changes\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Deplo"
+    },
+    {
+      "scenario_id": "scene.office.docx",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 789,
+      "latency_ms": 7529,
+      "message": "valid json outline:Y; has H1:Y; has H2:Y; summary section:Y; next steps:Y; enough sections:Y",
+      "output_preview": "{\n  \"title\": \"Weekly Operations Report\",\n  \"sections\": [\n    {\n      \"heading\": \"Summary\",\n      \"level\": 1,\n      \"paragraphs\": [\n        \"This week's operations remained stable with a 2% increase in incident volume compared to last week. System uptime was 99.95%, and response times were within target. Critical issues were resolved within SLA. Planned changes were executed without major disruptions.\",\n        \"Decision: Continue current monitoring thresholds and schedule a review of incident response procedures for next week.\"\n      ]\n    },\n    {\n      \"heading\": \"Key Metrics\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Average response time: 340 ms (target ≤ 400 ms). Uptime: 99.95%. Incidents logged: 12 (10 resolved, 2 pending). Change requests completed: 3 of 4 planned. Customer satisfaction score: 4.7/5.\",\n        \"Action: Track incident resolution time improvements and report findings in next weekly review.\"\n      ]\n    },\n    {\n      \"heading\": \"Incidents\",\n      \"level\": 2,\n      \"paragraphs\": [\n        \"Major incidents: One P1 incident due to database replication lag, resolved in 45 minutes. Two P2 incidents related to authentication timeout. All others were minor. P"
+    },
+    {
+      "scenario_id": "scene.db.schema",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1281,
+      "latency_ms": 12514,
+      "message": "create table:Y; primary key:Y; foreign key or references:Y; index:Y; orgs/users/subscriptions/invoices:Y; not null:Y",
+      "output_preview": "```sql\nCREATE EXTENSION IF NOT EXISTS \"pgcrypto\";\n\n-- Organizations: top-level entities that own subscriptions and users.\nCREATE TABLE organizations (\n    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    name VARCHAR(255) NOT NULL,\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\nCOMMENT ON TABLE organizations IS 'SaaS customer organizations';\n\n-- Users: belong to one organization. When an organization is deleted, cascade delete its users.\nCREATE TABLE users (\n    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,\n    email VARCHAR(255) NOT NULL UNIQUE,\n    name VARCHAR(255),\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\nCREATE INDEX idx_users_org_id ON users(org_id);\nCOMMENT ON TABLE users IS 'Users belonging to an organization';\n\n-- Plans: pricing plans with amount in integer cents (e.g., 1999 = $19.99)\nCREATE TABLE plans (\n    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    name VARCHAR(255) NOT NULL,\n    amount INTEGER NOT NULL,          -- in cents\n    interval TEXT NOT NULL,           -- e.g., 'month', 'year'\n    active BOOLEAN NOT NULL DEFAULT true,\n    created_at TIMESTAMPTZ NOT NULL DEFAUL"
+    },
+    {
+      "scenario_id": "scene.db.schema",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 1.0,
+      "total_tokens": 1579,
+      "latency_ms": 12238,
+      "message": "create table:Y; primary key:Y; foreign key or references:Y; index:Y; orgs/users/subscriptions/invoices:Y; not null:Y",
+      "output_preview": "```sql\nCREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n\nCOMMENT ON EXTENSION \"uuid-ossp\" IS 'Extension for generating UUIDs';\n\nCREATE TABLE organizations (\n    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),\n    name VARCHAR(255) NOT NULL,\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\nCOMMENT ON TABLE organizations IS 'SaaS customer organizations';\n\nCREATE TABLE users (\n    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),\n    org_id UUID NOT NULL,\n    email VARCHAR(255) NOT NULL,\n    name VARCHAR(255) NOT NULL,\n    role VARCHAR(50) NOT NULL DEFAULT 'member',\n    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n    CONSTRAINT fk_users_org FOREIGN KEY (org_id)\n        REFERENCES organizations(id) ON DELETE CASCADE,\n    CONSTRAINT uq_users_email UNIQUE (email)\n);\n\nCOMMENT ON TABLE users IS 'Users belonging to organizations';\n\nCREATE INDEX idx_users_org_id ON users(org_id);\n\nCREATE TABLE plans (\n    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),\n    name VARCHAR(255) NOT NULL,\n    description TEXT,\n    amount_cents INTEGER NOT NULL,\n    currency VARCHAR(3) NOT NULL DEFAULT 'USD',\n   "
+    },
+    {
+      "scenario_id": "scene.sql.cohort",
+      "arm": "low_model",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8571428571428571,
+      "total_tokens": 644,
+      "latency_ms": 11194,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:N",
+      "output_preview": "SELECT u.org_id, COUNT(DISTINCT u.id) AS activated_users\nFROM users u\nJOIN events e ON u.id = e.user_id\nWHERE e.event_name = 'activate'\n  AND e.created_at >= u.created_at\n  AND e.created_at <= u.created_at + INTERVAL '7 days'\nGROUP BY u.org_id\nORDER BY activated_users DESC\nLIMIT 20;"
+    },
+    {
+      "scenario_id": "scene.sql.cohort",
+      "arm": "low_model_enhanced",
+      "model": "deepseek-v4-flash",
+      "passed": true,
+      "human_preference_score": 0.8571428571428571,
+      "total_tokens": 617,
+      "latency_ms": 4676,
+      "message": "select:Y; join:Y; where:Y; order by:Y; limit:Y; no select *:Y; invoice+org:N",
+      "output_preview": "```sql\nSELECT\n    users.org_id,\n    COUNT(DISTINCT users.id) AS activated_users\nFROM users\nJOIN events ON users.id = events.user_id\nWHERE events.event_name = 'activate'\n  AND events.created_at >= users.created_at\n  AND events.created_at <= users.created_at + INTERVAL '7 days'\nGROUP BY users.org_id\nORDER BY activated_users DESC\nLIMIT 20;\n```"
+    }
+  ]
+}

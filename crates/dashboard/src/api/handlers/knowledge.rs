@@ -139,7 +139,8 @@ pub async fn import_skill(
     let dest = home.join(".anycode/skills");
     match anycode_tools::install_skill(body.source.trim(), &dest) {
         Ok(r) => {
-            let _ = crate::skills_scan::sync_skills_to_db(&state.db, &state.workspace_paths).await;
+            let _ = crate::skills_scan::sync_skills_to_db_force(&state.db, &state.workspace_paths)
+                .await;
             state.chat_runtime.invalidate_runtime().await;
             Json(json!({
                 "ok": true,
@@ -171,6 +172,8 @@ pub struct CreateCronJobBody {
     pub tool_profile: Option<String>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub workflow: Option<String>,
 }
 
 fn default_cron_tz() -> String {
@@ -211,6 +214,7 @@ pub async fn create_cron_job(Json(body): Json<CreateCronJobBody>) -> impl IntoRe
         tool_profile: body.tool_profile,
         tool_allowlist: None,
         project_id: body.project_id,
+        workflow: body.workflow,
     };
     match anycode_tools::append_cron_job_to_orchestration_file(
         &path,

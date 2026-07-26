@@ -240,7 +240,7 @@ impl Tool for SendUserMessageTool {
     }
 
     fn description(&self) -> &str {
-        "In-session user-visible message (Claude Code Brief). Does NOT send to WeChat; use SendWeChatMessage for WeChat outbound."
+        "In-session user-visible message (Claude Code Brief)."
     }
 
     fn schema(&self) -> serde_json::Value {

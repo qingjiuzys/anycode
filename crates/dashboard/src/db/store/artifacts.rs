@@ -56,10 +56,10 @@ impl DashboardDb {
             .and_then(|n| n.as_u64())
             .map(|n| n + 1)
             .unwrap_or(1);
-        if !meta
+        if meta
             .get("source_type")
             .and_then(|v| v.as_str())
-            .is_some_and(|s| !s.is_empty())
+            .is_none_or(|s| s.is_empty())
         {
             meta["source_type"] = serde_json::Value::String(if is_final {
                 "agent_created".into()
@@ -72,10 +72,10 @@ impl DashboardDb {
         if let Some(sid) = session_id.as_ref() {
             meta["updated_session_id"] = serde_json::Value::String(sid.to_string());
         }
-        if !meta
+        if meta
             .get("reuse_state")
             .and_then(|v| v.as_str())
-            .is_some_and(|s| !s.is_empty())
+            .is_none_or(|s| s.is_empty())
         {
             meta["reuse_state"] = serde_json::Value::String("candidate".into());
         }

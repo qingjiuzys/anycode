@@ -13,6 +13,7 @@ pub mod db;
 pub mod devices;
 pub mod email_verification;
 pub mod identity;
+pub mod memory_sync;
 pub mod models;
 pub mod models_catalog;
 pub mod plan;

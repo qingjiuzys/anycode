@@ -157,6 +157,11 @@ async fn send_chat_with_retries(
                     }
                 ));
 
+                if crate::providers::zai::is_quota_exhausted(&error_text) {
+                    error!("OpenAI-compatible quota exhausted — failing fast without retries");
+                    break;
+                }
+
                 let out = evaluate_http_retry(
                     &provider_cfg,
                     source,

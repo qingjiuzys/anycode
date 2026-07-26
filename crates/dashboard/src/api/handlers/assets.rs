@@ -226,7 +226,7 @@ pub async fn reindex_project(
             if !paths.iter().any(|r| r == &p.root_path) {
                 paths.push(p.root_path.clone());
             }
-            let skills = crate::skills_scan::sync_skills_to_db(&state.db, &paths)
+            let skills = crate::skills_scan::sync_skills_to_db_force(&state.db, &paths)
                 .await
                 .unwrap_or(0);
             state.chat_runtime.invalidate_runtime().await;

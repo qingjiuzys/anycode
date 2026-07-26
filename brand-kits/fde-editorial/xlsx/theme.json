@@ -1,0 +1,47 @@
+{
+  "brand_kit": "fde-editorial",
+  "header": {
+    "fill": "231F20",
+    "font_color": "F2F5F0",
+    "bold": true,
+    "font_name": "Arial"
+  },
+  "subheader": {
+    "fill": "E8EAE6",
+    "font_color": "231F20",
+    "bold": true
+  },
+  "pricing_header": {
+    "fill": "1400FF",
+    "font_color": "FFFFFF",
+    "bold": true
+  },
+  "highlight_row": {
+    "fill": "E8EAE6"
+  },
+  "status": {
+    "ok": {
+      "font_color": "2F9E44"
+    },
+    "warn": {
+      "font_color": "F24E54"
+    },
+    "info": {
+      "font_color": "1400FF"
+    }
+  },
+  "number_formats": {
+    "currency_usd": "$#,##0.00",
+    "integer": "#,##0",
+    "percent": "0.0%"
+  },
+  "defaults": {
+    "freeze_header": true,
+    "min_sheets": 3,
+    "sheet_names": [
+      "Summary",
+      "Detail",
+      "Pricing"
+    ]
+  }
+}

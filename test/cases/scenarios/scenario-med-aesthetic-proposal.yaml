@@ -1,0 +1,30 @@
+id: scenario-med-aesthetic-proposal
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  为医美机构准备一份诊所方案（med aesthetic proposal）：项目「夏季皮肤管理套餐」，
+  覆盖 program（项目内容）、pricing（价格表）、timeline（疗程安排）、disclaimer（医疗免责提示），
+  产出 PPT output/deck.pptx（不少于 7 页）。价格须标注「以面诊为准」类免责声明。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/deck.pptx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck.pptx
+      min: 7
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1500
+complexity: complex
+meta:
+  suite: scenarios
+  family: med-aesthetic-proposal

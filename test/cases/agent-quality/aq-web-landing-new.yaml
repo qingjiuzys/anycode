@@ -1,0 +1,22 @@
+id: aq-web-landing-new
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  Build a self-contained HTML landing page for anyCode CLI in FDE Editorial style: light canvas #f2f5f0, ink #231f20, electric-blue accent #1400ff, one H1 in serif 900 (Songti SC), mono uppercase meta labels, 6px ink rule, hairline grid section, lede, primary CTA, secondary link, contrast comments, no gradients/shadows/rounded cards. Write index.html.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: index.html
+requires:
+  llm: live
+  network: false
+timeout_seconds: 900
+meta:
+  suite: agent-quality
+  family: web_design
+  capabilities: [web.implement, web.preview]

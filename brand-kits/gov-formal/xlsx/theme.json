@@ -1,0 +1,9 @@
+{
+  "brand_kit": "gov-formal",
+  "header": {"fill": "8B0000", "font_color": "FFFFFF", "bold": true, "font_name": "FangSong"},
+  "subheader": {"fill": "FFF8F0", "font_color": "8B0000", "bold": true},
+  "pricing_header": {"fill": "B22222", "font_color": "FFFFFF", "bold": true},
+  "highlight_row": {"fill": "FFE4E1"},
+  "status": {"ok": {"font_color": "006400"}, "warn": {"font_color": "8B0000"}, "info": {"font_color": "0000CD"}},
+  "defaults": {"freeze_header": true, "min_sheets": 3, "sheet_names": ["Summary", "Detail", "Budget"]}
+}

@@ -791,6 +791,49 @@ pub async fn post_memory_retention_apply(
     }
 }
 
+pub async fn get_memory_center() -> impl IntoResponse {
+    match crate::memory_ops::memory_center_snapshot().await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct MemoryDreamBody {
+    #[serde(default)]
+    pub apply: bool,
+}
+
+pub async fn post_memory_dream(
+    State(state): State<AppState>,
+    Json(body): Json<MemoryDreamBody>,
+) -> impl IntoResponse {
+    match crate::memory_ops::memory_dream_run(body.apply).await {
+        Ok(v) => {
+            if body.apply {
+                let _ = crate::audit::record_audit(
+                    &state.db,
+                    crate::audit::AuditEventInput::low(
+                        "memory_dream_run",
+                        json!({ "run_id": v.get("run_id"), "promoted": v.get("promoted") }),
+                    ),
+                )
+                .await;
+            }
+            Json(v).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct GatePreferencesBody {
     pub acceptance_gates_default: bool,

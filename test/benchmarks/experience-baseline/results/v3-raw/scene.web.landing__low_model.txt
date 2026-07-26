@@ -1,0 +1,308 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>anyCode – CLI for every stack</title>
+
+    <!--
+    ============================================================
+    ACCESSIBILITY: CONTRAST RATIOS (WCAG 2.1 AA)
+    ============================================================
+    Body text (#E2E8F0) on Background (#0B0F14):
+        Foreground Luminance: 0.905
+        Background Luminance: 0.004
+        Contrast Ratio: 17.56:1
+        Result: PASSES WCAG AAA
+
+    CTA Text (#000000) on CTA Background (#10B981):
+        Foreground Luminance: 0.000
+        Background Luminance: 0.369
+        Contrast Ratio: 8.38:1
+        Result: PASSES WCAG AAA
+    ============================================================
+    -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        ::selection {
+            background-color: #10B981;
+            color: #000000;
+        }
+
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background-color: #0B0F14;
+            color: #E2E8F0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #10B981;
+            letter-spacing: -0.02em;
+        }
+
+        /* ----- Hero Section ----- */
+        .hero {
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+            padding: 4rem 0;
+        }
+
+        .hero * {
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Soft emerald glow behind the hero */
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            width: 700px;
+            height: 700px;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.07) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Subtle grid pattern */
+        .hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2.8rem, 10vw, 5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            color: #F1F5F9;
+            max-width: 800px;
+            margin: 0 auto;
+            letter-spacing: -0.03em;
+        }
+
+        .highlight {
+            color: #10B981;
+        }
+
+        .lede {
+            font-size: 1.25rem;
+            color: #94A3B8;
+            max-width: 600px;
+            margin: 1.5rem auto 2.5rem;
+            line-height: 1.7;
+            font-weight: 400;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 1.25rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .cta-primary {
+            background-color: #10B981;
+            color: #000000;
+            padding: 1rem 2.75rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.15rem;
+            transition: box-shadow 0.25s ease, transform 0.2s ease;
+            display: inline-block;
+        }
+
+        .cta-primary:hover {
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.35);
+            transform: translateY(-3px);
+        }
+
+        .cta-primary:focus-visible {
+            outline: 2px solid #E2E8F0;
+            outline-offset: 4px;
+        }
+
+        .cta-secondary {
+            color: #94A3B8;
+            text-decoration: none;
+            font-size: 1.1rem;
+            padding: 0.5rem 0.5rem;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.25s ease, color 0.25s ease;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .cta-secondary:hover {
+            color: #E2E8F0;
+            border-bottom-color: #10B981;
+        }
+
+        .cta-secondary:focus-visible {
+            outline: 2px solid #10B981;
+            outline-offset: 4px;
+        }
+
+        /* ----- CLI Mockup Window ----- */
+        .cli-window {
+            background: #11181C;
+            border: 1px solid #1E293B;
+            border-radius: 12px;
+            padding: 1.5rem 1.75rem;
+            text-align: left;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.9rem;
+            max-width: 680px;
+            margin: 4rem auto 0;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+        }
+
+        .cli-dots {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .cli-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .cli-dots .red { background: #EF4444; }
+        .cli-dots .yellow { background: #EAB308; }
+        .cli-dots .green { background: #22C55E; }
+
+        .cli-line {
+            margin-bottom: 0.75rem;
+            line-height: 1.7;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .prompt {
+            color: #10B981;
+            margin-right: 0.5rem;
+        }
+
+        .cmd {
+            color: #E2E8F0;
+        }
+
+        .output {
+            color: #64748B;
+            padding-left: 1.5rem;
+            width: 100%;
+        }
+
+        .output .emerald {
+            color: #10B981;
+        }
+
+        /* ----- Responsive tweaks ----- */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1.5rem;
+            }
+            .cli-window {
+                padding: 1rem;
+                font-size: 0.8rem;
+            }
+            .cta-primary {
+                padding: 0.85rem 2rem;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">anyCode</div>
+
+        <section class="hero">
+            <h1>
+                Your stack. One CLI.
+                <span class="highlight">anyCode.</span>
+            </h1>
+
+            <p class="lede">
+                A lightweight, extensible CLI for generating, testing, and deploying
+                projects across every framework and language.
+            </p>
+
+            <div class="cta-group">
+                <a href="#" class="cta-primary">Get Started</a>
+                <a href="#" class="cta-secondary">View documentation &rarr;</a>
+            </div>
+
+            <!-- CLI Terminal Mockup -->
+            <div class="cli-window" aria-hidden="true">
+                <div class="cli-dots">
+                    <span class="red"></span>
+                    <span class="yellow"></span>
+                    <span class="green"></span>
+                </div>
+
+                <div class="cli-line">
+                    <span class="prompt">$</span>
+                    <span class="cmd">npm create anycode@latest</span>
+                </div>
+                <div class="cli-line">
+                    <span class="output">
+                        &gt; npx create-anycode<br />
+                        &gt; ✔ Project name: my-app<br />
+                        &gt; ✔ Select template: TypeScript / React<br />
+                        &gt; ✨ Scaffolding project in ./my-app...
+                    </span>
+                </div>
+                <div class="cli-line">
+                    <span class="prompt">$</span>
+                    <span class="cmd">cd my-app && anycode dev</span>
+                </div>
+                <div class="cli-line">
+                    <span class="output">
+                        <span class="emerald">⚡ anyCode Dev Server</span> running on http://localhost:5173
+                    </span>
+                </div>
+            </div>
+            <!-- End CLI Mockup -->
+        </section>
+    </div>
+</body>
+</html>
+```

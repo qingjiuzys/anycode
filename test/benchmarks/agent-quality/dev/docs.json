@@ -1,0 +1,34 @@
+{
+  "tasks": [
+    {
+      "id": "dev.doc.weekly",
+      "family": "office_delivery",
+      "prompt": "Write a weekly ops report as Markdown then export report.docx with Decision/Action owners.",
+      "capabilities": [
+        "document.author",
+        "document.export.docx"
+      ]
+    },
+    {
+      "id": "dev.doc.incident",
+      "family": "office_delivery",
+      "prompt": "Author an incident postmortem DOCX with timeline and owners.",
+      "capabilities": [
+        "document.author",
+        "document.export.docx"
+      ]
+    },
+    {
+      "id": "dev.doc.performance",
+      "family": "office_delivery",
+      "prompt": "Write a performance review (述职) DOCX with OKR highlights, gaps, and next-quarter plan; Decision/Action per section.",
+      "capabilities": ["document.author", "document.export.docx"]
+    },
+    {
+      "id": "dev.doc.gov",
+      "family": "office_delivery",
+      "prompt": "Author a gov briefing DOCX with 密级：内部, Summary, Background, Recommendations using gov-formal brand-kit.",
+      "capabilities": ["document.author", "document.export.docx"]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Metrics Slide</title>
+  <style>
+    body{margin:0;width:1920px;height:1080px;font-family:"Calibri","PingFang SC",sans-serif;background:#EEF3F8;color:#404040;overflow:hidden}
+    .slide{position:relative;padding:64px 80px 72px;height:100%;box-sizing:border-box}
+    .accent-bar{position:absolute;top:0;left:0;width:10px;height:1080px;background:#00B050}
+    .accent-bar-bottom{position:absolute;bottom:0;left:0;width:1920px;height:4px;background:#1B3A5C}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px}
+    h1{font-size:40px;font-weight:700;color:#1B3A5C;margin:0}
+    .head-note{font-size:16px;color:#7B4F00;max-width:520px;text-align:right;line-height:1.4}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:20px;height:720px}
+    .card{background:#fff;border-radius:12px;padding:24px 22px;box-shadow:0 4px 14px rgba(27,58,92,0.08);border-top:5px solid #00B050;display:flex;flex-direction:column;justify-content:space-between}
+    .card:nth-child(2),.card:nth-child(5){border-top-color:#1B3A5C}
+    .card:nth-child(3),.card:nth-child(6){border-top-color:#C00000}
+    .number{font-size:52px;font-weight:800;color:#1B3A5C;line-height:1;margin-bottom:8px}
+    .label{font-size:20px;font-weight:600;color:#404040;line-height:1.35;margin-bottom:10px}
+    .detail{font-size:15px;color:#666;line-height:1.45}
+    .source{font-size:13px;color:#7B4F00;margin-top:8px}
+    .trend{display:inline-block;background:#E8F5E9;color:#00B050;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:8px}
+    .footer{position:absolute;bottom:18px;left:80px;right:80px;display:flex;justify-content:space-between;font-size:12px;color:#7B4F00;opacity:0.55}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="metrics">
+    <div class="accent-bar"></div>
+    <div class="accent-bar-bottom"></div>
+    <div class="head">
+      <h1>核心指标与业务影响</h1>
+      <p class="head-note">每页至少 6 张指标卡 · 每张含数字 + 解释 + 来源 + 趋势</p>
+    </div>
+    <div class="grid">
+      <div class="card"><div><div class="number">42%<span class="trend">↑ YoY</span></div><div class="label">CI 合并周期缩短</div><div class="detail">试点团队从 4.2 天降至 2.4 天，Release 频率提升。</div></div><div class="source">Telemetry · 2026-Q2 · n=23</div></div>
+      <div class="card"><div><div class="number">3.1×</div><div class="label">新人上手加速</div><div class="detail">首次有效 PR 从 18 天缩短至 5.8 天。</div></div><div class="source">Pilot · n=47 engineers</div></div>
+      <div class="card"><div><div class="number">89%</div><div class="label">工具切换减少</div><div class="detail">DAU 报告日均少切换 ≥2 个工具。</div></div><div class="source">NPS · 2026-06 · n=312</div></div>
+      <div class="card"><div><div class="number">$380K</div><div class="label">百人团队年节省</div><div class="detail">按 $200K 全负荷成本保守估算。</div></div><div class="source">Finance model · 2026</div></div>
+      <div class="card"><div><div class="number">99.92%</div><div class="label">平台可用性</div><div class="detail">Workbench + Agent 联合 SLA 达标。</div></div><div class="source">Ops weekly · W29</div></div>
+      <div class="card"><div><div class="number">12min</div><div class="label">平均任务完成</div><div class="detail">文档/表格类交付中位时长。</div></div><div class="source">Agent quality bench</div></div>
+    </div>
+    <div class="footer"><span>品牌名 · Confidential</span><span>03</span></div>
+  </div>
+</body>
+</html>

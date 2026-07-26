@@ -1,0 +1,17 @@
+[[cases]]
+id = "aq-web-landing-new"
+risk = "P1"
+runner = "dashboard"
+timeout_seconds = 900
+
+[[cases]]
+id = "aq-web-dashboard-refactor"
+risk = "P1"
+runner = "dashboard"
+timeout_seconds = 900
+
+[[cases]]
+id = "aq-web-form-responsive"
+risk = "P1"
+runner = "dashboard"
+timeout_seconds = 900

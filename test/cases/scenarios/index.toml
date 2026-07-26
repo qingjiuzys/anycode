@@ -1,0 +1,44 @@
+schema_version = 1
+suite = "scenarios"
+
+[[cases]]
+id = "scenario-product-launch"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1800
+
+[[cases]]
+id = "scenario-finance-quarterly-review"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1800
+
+[[cases]]
+id = "scenario-gov-briefing"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1800
+
+[[cases]]
+id = "scenario-education-lesson-plan"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1500
+
+[[cases]]
+id = "scenario-med-aesthetic-proposal"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1500
+
+[[cases]]
+id = "scenario-performance-review"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1500
+
+[[cases]]
+id = "scenario-work-report"
+runner = "dashboard"
+risk = "P1"
+timeout_seconds = 1500

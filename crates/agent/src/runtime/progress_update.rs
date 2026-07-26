@@ -139,7 +139,7 @@ pub(crate) fn build_tool_round_progress(
             evidence_refs,
         };
     }
-    build_execute_update(turn, seq, text, tool_names, 0, tool_turn, tool_indices)
+    build_execute_update(turn, seq, text, tool_names, tool_turn, tool_indices)
 }
 
 pub(crate) fn build_execute_update(
@@ -147,7 +147,6 @@ pub(crate) fn build_execute_update(
     seq: u32,
     text: &str,
     tool_names: &[String],
-    user_turn: u32,
     tool_turn: u32,
     tool_indices: &[u32],
 ) -> LiveTraceEvent {
@@ -249,7 +248,7 @@ mod tests {
 
     #[test]
     fn build_execute_update_uses_summary() {
-        let evt = build_execute_update(2, 1, "先检查测试。", &["Glob".into()], 3, 2, &[1]);
+        let evt = build_execute_update(2, 1, "先检查测试。", &["Glob".into()], 2, &[1]);
         match evt {
             LiveTraceEvent::ProgressUpdate { summary, phase, .. } => {
                 assert_eq!(phase, "execute");

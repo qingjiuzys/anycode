@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 
-const CORE_SYSTEM: &str = include_str!("../prompts/core/system.md");
 const CORE_TONE: &str = include_str!("../prompts/core/tone.md");
 const CORE_ENVIRONMENT: &str = include_str!("../prompts/core/environment.md");
 const CORE_AGENT_LOOP: &str = include_str!("../prompts/core/agent_loop.md");
@@ -49,7 +48,6 @@ fn fill_template(template: &str, vars: &HashMap<&str, String>) -> String {
 
 fn core(name: &str) -> &'static str {
     match name {
-        "system" => CORE_SYSTEM,
         "tone" => CORE_TONE,
         "environment" => CORE_ENVIRONMENT,
         "agent_loop" => CORE_AGENT_LOOP,
@@ -107,7 +105,6 @@ pub(crate) fn default_stack_sections(
     loop_vars.insert("tools", tools_joined);
 
     let mut parts = Vec::new();
-    parts.push(core("system").trim().to_string());
     if let Some(lang) = reply_language_section() {
         parts.push(lang);
     }
@@ -129,7 +126,8 @@ mod tests {
 
     #[test]
     fn core_and_locale_files_are_nonempty() {
-        assert!(CORE_SYSTEM.contains("# System"));
+        assert!(CORE_TONE.contains("# Tone"));
+        assert!(CORE_TONE.contains("coding agent"));
         assert!(CORE_AGENT_LOOP.contains("{tools}"));
         assert!(LOCALE_ZH_REPLY_LANGUAGE.contains("中文"));
         assert!(LOCALE_EN_REPLY_LANGUAGE.contains("English"));

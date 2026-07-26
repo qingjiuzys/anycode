@@ -1,0 +1,10 @@
+{
+  "id": "gov-briefing",
+  "title": "Government briefing document",
+  "brand_kit_default": "gov-formal",
+  "keywords": ["政府", "政务", "gov briefing", "公文", "汇报材料"],
+  "min_slides": 6,
+  "outline": ["cover", "section", "content", "metrics", "content", "closing"],
+  "required_sections": ["classification", "background", "findings", "recommendations"],
+  "docx_sections": ["密级", "Summary", "Background", "Analysis", "Recommendations", "Decision/Action"]
+}

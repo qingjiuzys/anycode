@@ -1,0 +1,9 @@
+{
+  "brand_kit": "edu-clean",
+  "header": {"fill": "1565C0", "font_color": "FFFFFF", "bold": true, "font_name": "Arial"},
+  "subheader": {"fill": "E3F2FD", "font_color": "1565C0", "bold": true},
+  "pricing_header": {"fill": "42A5F5", "font_color": "FFFFFF", "bold": true},
+  "highlight_row": {"fill": "FFF9C4"},
+  "status": {"ok": {"font_color": "2E7D32"}, "warn": {"font_color": "E65100"}, "info": {"font_color": "1565C0"}},
+  "defaults": {"freeze_header": true, "min_sheets": 3, "sheet_names": ["Overview", "Activities", "Assessment"]}
+}

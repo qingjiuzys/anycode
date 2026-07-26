@@ -1,0 +1,9 @@
+{
+  "brand_kit": "gov-formal",
+  "path": "/Users/qingjiu/workspace/research/llm-cli/anycode/brand-kits/gov-formal/docx/template.dotx",
+  "styles": [
+    "Heading 1",
+    "Heading 2",
+    "Heading 3"
+  ]
+}

@@ -254,53 +254,6 @@ async fn fixture_api_smoke() {
     let quick = get_json(app.clone(), "/api/setup/quick-auth").await;
     assert!(quick["presets"].is_array());
 
-    let channels_settings = get_json(app.clone(), "/api/settings/channels").await;
-    assert!(channels_settings["channels"]["telegram"]["configured"].is_boolean());
-    assert!(channels_settings["channels"]["discord"]["configured"].is_boolean());
-    assert!(channels_settings["channels"]["platform"].is_string());
-    assert!(channels_settings["channels"]["telegram_start_command"].is_string());
-
-    for (path, body) in [
-        (
-            "/api/setup/channels/telegram/verify",
-            json!({ "bot_token": "not-a-valid-token" }),
-        ),
-        (
-            "/api/setup/channels/telegram/chats",
-            json!({ "bot_token": "not-a-valid-token" }),
-        ),
-        (
-            "/api/setup/channels/discord/verify",
-            json!({ "bot_token": "not-a-valid-token" }),
-        ),
-        (
-            "/api/setup/channels/discord/test",
-            json!({ "bot_token": "not-a-valid-token", "channel_id": "123" }),
-        ),
-    ] {
-        let res = app
-            .clone()
-            .oneshot(
-                axum::http::Request::builder()
-                    .method("POST")
-                    .uri(path)
-                    .header("content-type", "application/json")
-                    .body(Body::from(body.to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(
-            res.status(),
-            axum::http::StatusCode::BAD_REQUEST,
-            "POST {path}"
-        );
-        let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        let v: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(v["ok"], false);
-        assert!(v["error"].is_string());
-    }
-
     let pending = get_json(app.clone(), "/api/security/approvals/pending?limit=5").await;
     assert!(pending["pending"].is_array());
     assert!(pending["web_enabled"].is_boolean());

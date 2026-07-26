@@ -1,0 +1,10 @@
+{
+  "layouts": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "closing"
+  ],
+  "path": "/Users/qingjiu/workspace/research/llm-cli/anycode/brand-kits/lingqi/pptx/template.potx"
+}

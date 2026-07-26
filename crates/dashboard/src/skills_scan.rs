@@ -5,6 +5,48 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+/// Many read-only API handlers call [`sync_skills_to_db`] defensively. Cache
+/// recent results so repeated calls within the TTL skip both the disk walk
+/// and the SQLite upserts.
+const SKILLS_SYNC_TTL: Duration = Duration::from_secs(30);
+
+struct CachedSync {
+    key: Vec<String>,
+    at: Instant,
+    count: usize,
+}
+
+static SKILLS_SYNC_CACHE: Mutex<Option<CachedSync>> = Mutex::new(None);
+
+fn sync_cache_get(workspace_paths: &[String]) -> Option<usize> {
+    let guard = SKILLS_SYNC_CACHE.lock().ok()?;
+    let entry = guard.as_ref()?;
+    if entry.key == workspace_paths && entry.at.elapsed() < SKILLS_SYNC_TTL {
+        Some(entry.count)
+    } else {
+        None
+    }
+}
+
+fn sync_cache_put(workspace_paths: &[String], count: usize) {
+    if let Ok(mut guard) = SKILLS_SYNC_CACHE.lock() {
+        *guard = Some(CachedSync {
+            key: workspace_paths.to_vec(),
+            at: Instant::now(),
+            count,
+        });
+    }
+}
+
+/// Drop the cached scan so the next [`sync_skills_to_db`] re-reads disk.
+pub fn invalidate_skills_sync_cache() {
+    if let Ok(mut guard) = SKILLS_SYNC_CACHE.lock() {
+        *guard = None;
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ScannedSkill {
@@ -109,6 +151,18 @@ pub fn discover_skills(workspace_paths: &[String]) -> Vec<ScannedSkill> {
 }
 
 pub async fn sync_skills_to_db(db: &DashboardDb, workspace_paths: &[String]) -> Result<usize> {
+    if let Some(cached) = sync_cache_get(workspace_paths) {
+        return Ok(cached);
+    }
+    sync_skills_to_db_force(db, workspace_paths).await
+}
+
+/// Always re-scan skill directories and refresh the cache. Use on mutation
+/// paths (project create/reindex, explicit sync endpoints, skill install).
+pub async fn sync_skills_to_db_force(
+    db: &DashboardDb,
+    workspace_paths: &[String],
+) -> Result<usize> {
     let skills = discover_skills(workspace_paths);
     let mut n = 0usize;
     for s in &skills {
@@ -137,6 +191,7 @@ pub async fn sync_skills_to_db(db: &DashboardDb, workspace_paths: &[String]) -> 
             }
         }
     }
+    sync_cache_put(workspace_paths, n);
     Ok(n)
 }
 

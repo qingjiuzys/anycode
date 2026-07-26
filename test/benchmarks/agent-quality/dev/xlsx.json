@@ -1,0 +1,31 @@
+{
+  "tasks": [
+    {
+      "id": "dev.xlsx.sales",
+      "family": "office_delivery",
+      "prompt": "Create a June sales .xlsx workbook with Region, Product, Units, Revenue rows (header + concrete data).",
+      "capabilities": [
+        "spreadsheet.author",
+        "spreadsheet.export.xlsx"
+      ]
+    },
+    {
+      "id": "dev.xlsx.pipeline",
+      "family": "office_delivery",
+      "prompt": "Export a hiring pipeline spreadsheet as .xlsx with Stage, Count, Owner columns.",
+      "capabilities": [
+        "spreadsheet.author",
+        "spreadsheet.export.xlsx"
+      ]
+    },
+    {
+      "id": "dev.xlsx.finance",
+      "family": "office_delivery",
+      "prompt": "Create a Q2 finance workbook xlsx with Summary, Detail, Pricing sheets; include revenue trend chart data.",
+      "capabilities": [
+        "spreadsheet.author",
+        "spreadsheet.export.xlsx"
+      ]
+    }
+  ]
+}

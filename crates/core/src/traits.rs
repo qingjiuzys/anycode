@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 
 use crate::agent_type::AgentType;
-use crate::channel::{ChannelMessage, ChannelType};
 use crate::error::CoreError;
 use crate::ids::ToolName;
 use crate::llm_types::{
@@ -97,17 +96,4 @@ pub trait LLMClient: Send + Sync {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<tokio::sync::mpsc::Receiver<StreamEvent>, CoreError>;
-}
-
-/// 通道处理器
-#[async_trait]
-pub trait ChannelHandler: Send + Sync {
-    fn channel_type(&self) -> ChannelType;
-    async fn send_message(&self, msg: ChannelMessage) -> Result<(), CoreError>;
-    async fn message_stream(
-        &self,
-    ) -> Result<tokio::sync::mpsc::Receiver<ChannelMessage>, CoreError>;
-    fn supports_streaming(&self) -> bool {
-        false
-    }
 }

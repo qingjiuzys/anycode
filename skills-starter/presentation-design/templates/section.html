@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Section · FDE Editorial</title>
+  <style>
+    :root{
+      --bg:#f2f5f0; --ink:#231f20; --accent:#1400ff;
+      --ink-60:rgba(35,31,32,.6); --ink-40:rgba(35,31,32,.4); --ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+      --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    }
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{position:relative;padding:110px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);display:flex;align-items:center;gap:18px}
+    .sec-label::after{content:"";flex:1;height:8px;background:var(--ink);margin-left:10px}
+    .sec-label .num{color:var(--accent);font-weight:700;font-size:20px}
+    h2{font-family:var(--serif);font-weight:900;font-size:76px;line-height:1.22;margin:60px 0 40px;max-width:1400px}
+    .lede{font-size:20px;color:var(--ink-60);max-width:900px;line-height:1.75}
+    .agenda{position:absolute;left:110px;right:110px;bottom:96px;border-top:1px solid var(--ink)}
+    .item{display:grid;grid-template-columns:120px 1fr auto;gap:36px;align-items:baseline;padding:26px 8px;border-bottom:1px solid var(--ink-08)}
+    .item .no{font-family:var(--mono);font-weight:700;font-size:26px;color:var(--accent);letter-spacing:-.02em}
+    .item .t{font-family:var(--serif);font-size:26px;font-weight:900}
+    .item .t small{display:block;font-family:var(--sans);font-weight:400;font-size:15px;color:var(--ink-60);margin-top:4px}
+    .item .pg{font-family:var(--mono);font-size:14px;color:var(--ink-60)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="section">
+    <div class="sec-label"><span class="num">01</span>章节标题 · SECTION TITLE</div>
+    <h2>章节核心论点，一句话讲透</h2>
+    <p class="lede">章节导读：这一章回答什么问题、为什么重要、和上一章的关系。两到三句，不堆术语。</p>
+    <div class="agenda">
+      <div class="item"><span class="no">1.1</span><div class="t">议程项一<small>一句话说明这一项交付什么认知</small></div><span class="pg">P.03</span></div>
+      <div class="item"><span class="no">1.2</span><div class="t">议程项二<small>一句话说明这一项交付什么认知</small></div><span class="pg">P.05</span></div>
+      <div class="item"><span class="no">1.3</span><div class="t">议程项三<small>一句话说明这一项交付什么认知</small></div><span class="pg">P.08</span></div>
+      <div class="item"><span class="no">1.4</span><div class="t">议程项四<small>一句话说明这一项交付什么认知</small></div><span class="pg">P.11</span></div>
+    </div>
+  </div>
+</body>
+</html>

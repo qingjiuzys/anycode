@@ -1,0 +1,65 @@
+```rust
+pub fn slugify(input: &str) -> String {
+    let lower = input.to_lowercase();
+    let mut result = String::new();
+    let mut in_space = false;
+
+    for ch in lower.chars() {
+        if ch.is_whitespace() {
+            if !in_space {
+                in_space = true;
+            }
+        } else if ch.is_ascii_alphanumeric() || ch == '-' {
+            if in_space {
+                // add a dash only if result is not empty and last char is not already a dash
+                if !result.is_empty() && result.chars().last() != Some('-') {
+                    result.push('-');
+                }
+                in_space = false;
+            }
+            if ch == '-' {
+                // collapse consecutive dashes
+                if result.chars().last() == Some('-') {
+                    continue;
+                }
+            }
+            result.push(ch);
+        } else {
+            // invalid character: remove it; still need to close any open space run?
+            // If we are in a space run, the invalid char does NOT break it.
+            // That's fine: we keep in_space as is and continue.
+            // However, if we never close the space run (e.g., trailing invalid chars),
+            // we should not add a trailing dash. So we don't close here.
+        }
+    }
+
+    // Trim leading/trailing dashes
+    let trimmed = result.trim_matches('-');
+    trimmed.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_phrase() {
+        assert_eq!(slugify("Hello World"), "hello-world");
+    }
+
+    #[test]
+    fn punctuation() {
+        assert_eq!(slugify("Hello, World!"), "hello-world");
+    }
+
+    #[test]
+    fn multiple_spaces() {
+        assert_eq!(slugify("Hello   World"), "hello-world");
+    }
+
+    #[test]
+    fn leading_trailing_junk() {
+        assert_eq!(slugify("  Hello World!  "), "hello-world");
+    }
+}
+```

@@ -52,6 +52,7 @@ pub fn resolve_skills_starter_dir() -> Option<PathBuf> {
 
 /// Install all skills under the starter pack into `dest_root` (typically `~/.anycode/skills`).
 pub fn install_starter_skills(dest_root: &Path) -> anyhow::Result<Vec<SkillInstallResult>> {
+    SkillCatalog::invalidate_scan_cache();
     let starter = resolve_skills_starter_dir()
         .ok_or_else(|| anyhow::anyhow!("skills-starter directory not found"))?;
     fs::create_dir_all(dest_root)?;
@@ -83,6 +84,7 @@ pub fn install_starter_skills(dest_root: &Path) -> anyhow::Result<Vec<SkillInsta
 
 /// Copy a skill directory or install from git (single skill or skill bundle layout).
 pub fn install_skill(source: &str, dest_root: &Path) -> anyhow::Result<SkillInstallResult> {
+    SkillCatalog::invalidate_scan_cache();
     let source = source.trim();
     if source.is_empty() {
         anyhow::bail!("source must not be empty");
@@ -288,6 +290,25 @@ fn install_from_zip(archive: &Path, dest_root: &Path) -> anyhow::Result<SkillIns
     let file = fs::File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file)?;
     zip.extract(tmp.path())?;
+    // A zip may carry SKILL.md at its root; the random tempdir name is not a
+    // valid skill id, so wrap the content in a directory named after the manifest.
+    if tmp.path().join("SKILL.md").is_file() {
+        let text = fs::read_to_string(tmp.path().join("SKILL.md"))?;
+        let name = crate::skills::parse_skill_manifest_text(&text)
+            .map(|m| m.name)
+            .filter(|n| !n.trim().is_empty())
+            .ok_or_else(|| anyhow::anyhow!("zip root SKILL.md has no manifest name"))?;
+        let named = tmp.path().join(&name);
+        fs::create_dir_all(&named)?;
+        for ent in fs::read_dir(tmp.path())?.flatten() {
+            let p = ent.path();
+            if p == named {
+                continue;
+            }
+            let target = named.join(ent.file_name());
+            fs::rename(&p, &target)?;
+        }
+    }
     install_from_local(tmp.path(), dest_root)
 }
 
@@ -302,8 +323,11 @@ fn install_from_git(git: &GitSkillSource, dest_root: &Path) -> anyhow::Result<Sk
                 return install_from_local(&skill_src, dest_root);
             }
         }
-        git_clone_depth_1(&git.repo_clone_url, tmp_path)?;
-        return install_from_local(&tmp_path.join(sub), dest_root);
+        // Fall back to a full clone in a FRESH directory — cloning into the
+        // sparse-checkout dir would fail with "not an empty directory".
+        let full = tempfile::tempdir()?;
+        git_clone_depth_1(&git.repo_clone_url, full.path())?;
+        return install_from_local(&full.path().join(sub), dest_root);
     }
 
     git_clone_depth_1(&git.repo_clone_url, tmp_path)?;
@@ -354,7 +378,11 @@ fn copy_skill_tree(src: &Path, dest: &Path) -> anyhow::Result<()> {
     let nonce = uuid::Uuid::new_v4();
     let staging = parent.join(format!(".{name}.install-{nonce}"));
     let backup = parent.join(format!(".{name}.backup-{nonce}"));
-    copy_dir_recursive(src, &staging)?;
+    if let Err(error) = copy_dir_recursive(src, &staging) {
+        // Never leave a half-copied staging dir behind.
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error);
+    }
 
     if dest.exists() {
         fs::rename(dest, &backup)?;

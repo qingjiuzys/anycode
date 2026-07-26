@@ -213,7 +213,7 @@ pub async fn send_session_message(
         .map(str::trim)
         .filter(|s| !s.is_empty());
     let session_agent = session.agent_type.trim();
-    let effective_agent = requested_agent.or_else(|| {
+    let effective_agent = requested_agent.or({
         if session_agent.is_empty() {
             None
         } else {

@@ -1,0 +1,34 @@
+{
+  "tasks": [
+    {
+      "id": "dev.pptx.pitch",
+      "family": "office_delivery",
+      "prompt": "Create a 6-slide pitch PPTX: Title, Problem, Metric, Plan, Risks, Ask.",
+      "capabilities": [
+        "presentation.author",
+        "presentation.export.pptx"
+      ]
+    },
+    {
+      "id": "dev.pptx.roadmap",
+      "family": "office_delivery",
+      "prompt": "Create a roadmap PPTX with owners and dates on each slide.",
+      "capabilities": [
+        "presentation.author",
+        "presentation.export.pptx"
+      ]
+    },
+    {
+      "id": "dev.pptx.edu-lesson",
+      "family": "office_delivery",
+      "prompt": "Create a 6-slide lesson plan PPT for a high-school physics unit using edu-clean brand-kit and education-lesson-plan scenario.",
+      "capabilities": ["presentation.author", "presentation.export.pptx"]
+    },
+    {
+      "id": "dev.pptx.gov-brief",
+      "family": "office_delivery",
+      "prompt": "Create a government briefing PPTX with gov-formal brand-kit; include classification footer.",
+      "capabilities": ["presentation.author", "presentation.export.pptx"]
+    }
+  ]
+}

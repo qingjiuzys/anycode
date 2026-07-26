@@ -31,7 +31,7 @@ pub async fn dispatch_web_chat_prompt(
     recycled: bool,
     audit_action: &str,
 ) -> Result<(SessionDetail, WebChatSendResult), (StatusCode, String)> {
-    if let Some(ref imgs) = vision_images {
+    if let Some(imgs) = vision_images {
         if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
             return Err((StatusCode::BAD_REQUEST, e.to_string()));
         }
@@ -55,7 +55,7 @@ pub async fn dispatch_web_chat_prompt(
             }
         }
     }
-    if let Some(ref files) = text_files {
+    if let Some(files) = text_files {
         if let Err(e) = crate::control::text_upload::validate_text_payloads(files) {
             return Err((StatusCode::BAD_REQUEST, e.to_string()));
         }

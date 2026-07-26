@@ -1,0 +1,22 @@
+id: aq-web-form-responsive
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  Create a responsive signup form page (HTML) in FDE Editorial style (light canvas #f2f5f0, ink #231f20, accent #1400ff, serif headline, mono labels) with loading/empty/error friendly copy and keyboard focus styles.
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: index.html
+requires:
+  llm: live
+  network: false
+timeout_seconds: 1500
+meta:
+  suite: agent-quality
+  family: web_design
+  capabilities: [web.implement, web.preview]

@@ -42,7 +42,17 @@ pub fn vet_skill_dir(skill_dir: &Path) -> anyhow::Result<SkillVetReport> {
     let mut findings = Vec::new();
     let run_path = skill_dir.join("run");
     if run_path.is_file() {
-        let text = fs::read_to_string(&run_path).unwrap_or_default();
+        let text = match fs::read_to_string(&run_path) {
+            Ok(t) => t,
+            Err(e) => {
+                // An unreadable run script must not silently pass vetting.
+                findings.push(SkillVetFinding {
+                    severity: "critical".into(),
+                    message: format!("run script unreadable: {e}"),
+                });
+                String::new()
+            }
+        };
         for (pat, msg) in DANGEROUS_PATTERNS {
             if text.contains(pat) {
                 findings.push(SkillVetFinding {

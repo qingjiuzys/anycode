@@ -1,0 +1,77 @@
+{
+  "suite_id": "agent-quality-v1",
+  "arms": [
+    "baseline",
+    "experience_only",
+    "skill_only",
+    "experience_skill"
+  ],
+  "shared": {
+    "compiler": true,
+    "gate_policy": true,
+    "completion_guard": true,
+    "eval_mode_env": "ANYCODE_EVAL_MODE"
+  },
+  "factors": {
+    "experience_enabled": "ANYCODE_EVAL_EXPERIENCE",
+    "production_skills_enabled": "ANYCODE_EVAL_SKILLS"
+  },
+  "splits": {
+    "train": "test/benchmarks/agent-quality/train",
+    "dev": "test/benchmarks/agent-quality/dev",
+    "hidden": "test/benchmarks/agent-quality/hidden",
+    "challenge": "test/benchmarks/agent-quality/challenge"
+  },
+  "dev_tasks": [
+    {
+      "id": "dev.web.landing_new",
+      "family": "web_design",
+      "split": "dev",
+      "prompt": "Build a self-contained HTML landing page for anyCode CLI in FDE Editorial style: light canvas #f2f5f0, ink #231f20, electric-blue accent #1400ff, one H1 in serif 900 (Songti SC), mono uppercase meta labels, 6px ink rule, hairline grid section, lede, primary CTA, secondary link, contrast comments, no gradients/shadows/rounded cards. Write index.html.",
+      "fixture": null,
+      "capabilities": [
+        "web.implement",
+        "web.preview"
+      ]
+    },
+    {
+      "id": "dev.web.dashboard_refactor",
+      "family": "web_design",
+      "split": "dev",
+      "prompt": "Improve the existing landing.html visual hierarchy in FDE Editorial style (light canvas #f2f5f0, ink #231f20, accent #1400ff, serif display + mono labels); keep one H1 and contrast comments; no gradients or shadows.",
+      "fixture": "agent-quality/web-landing-flat",
+      "capabilities": [
+        "web.implement",
+        "web.preview"
+      ]
+    },
+    {
+      "id": "dev.web.form_responsive",
+      "family": "web_design",
+      "split": "dev",
+      "prompt": "Create a responsive signup form page (HTML) in FDE Editorial style (light canvas, ink text, #1400ff accent, serif headline, mono labels) with loading/empty/error friendly copy and keyboard focus styles.",
+      "fixture": null,
+      "capabilities": [
+        "web.implement",
+        "web.preview"
+      ]
+    }
+  ],
+  "scoring": {
+    "delivery_quality_score": {
+      "machine_weight": 0.6,
+      "blind_judge_weight": 0.4,
+      "p0_fail_cap": 59
+    },
+    "promotion": {
+      "vs_experience_only_min_delta": 8,
+      "vs_skill_only_min_delta": 3,
+      "ci_lower_bound_gt": 0,
+      "family_success_noninferior_pp": -5,
+      "visual_win_rate_min": 0.6,
+      "judge_agreement_min": 0.7,
+      "cost_success_max_vs_baseline": 1.8,
+      "latency_success_max_vs_baseline": 2.0
+    }
+  }
+}

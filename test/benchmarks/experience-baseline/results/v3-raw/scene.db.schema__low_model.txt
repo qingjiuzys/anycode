@@ -1,0 +1,62 @@
+```sql
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Organizations: top-level entities that own subscriptions and users.
+CREATE TABLE organizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE organizations IS 'SaaS customer organizations';
+
+-- Users: belong to one organization. When an organization is deleted, cascade delete its users.
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_users_org_id ON users(org_id);
+COMMENT ON TABLE users IS 'Users belonging to an organization';
+
+-- Plans: pricing plans with amount in integer cents (e.g., 1999 = $19.99)
+CREATE TABLE plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    amount INTEGER NOT NULL,          -- in cents
+    interval TEXT NOT NULL,           -- e.g., 'month', 'year'
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE plans IS 'Pricing plans (amount in cents)';
+
+-- Subscriptions: links an organization to a plan with current status.
+CREATE TABLE subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE RESTRICT,  -- prevent deleting a plan if active subs exist
+    status TEXT NOT NULL,             -- e.g., 'active', 'past_due', 'canceled'
+    current_period_start DATE,
+    current_period_end DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_subscriptions_org_id ON subscriptions(org_id);
+CREATE INDEX idx_subscriptions_plan_id ON subscriptions(plan_id);
+CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+COMMENT ON TABLE subscriptions IS 'Active or past subscriptions linking orgs to plans';
+
+-- Invoices: generated for subscriptions, amount in integer cents, status non-null.
+CREATE TABLE invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,          -- in cents
+    status TEXT NOT NULL,             -- e.g., 'pending', 'paid', 'void'
+    due_date DATE,
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_invoices_subscription_id ON invoices(subscription_id);
+CREATE INDEX idx_invoices_status ON invoices(status);
+COMMENT ON TABLE invoices IS 'Invoiced charges for subscriptions (amount in cents)';
+```

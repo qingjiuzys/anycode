@@ -2,7 +2,7 @@ use crate::proxy::{chat_completions, list_models, ProxyState};
 use anyhow::{Context, Result};
 use axum::{
     extract::DefaultBodyLimit,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     routing::{get, post},
     Router,
 };
@@ -99,7 +99,6 @@ pub fn spawn_gateway(config: GatewayConfig) -> tokio::task::JoinHandle<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::{save_relay_store, RelayAccount, RelayConfig, RelayStore};
     use reqwest::Client;
     use std::sync::atomic::AtomicUsize;
 

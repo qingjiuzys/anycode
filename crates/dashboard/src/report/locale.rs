@@ -18,8 +18,6 @@ impl Lang {
 
 pub struct ReportStrings {
     pub doc_title: &'static str,
-    pub scope_project: &'static str,
-    pub scope_session: &'static str,
     pub label_project: &'static str,
     pub label_session: &'static str,
     pub label_root: &'static str,
@@ -40,9 +38,7 @@ pub struct ReportStrings {
     pub summary_artifacts: &'static str,
     pub summary_trusted: &'static str,
     pub no_sessions: &'static str,
-    pub no_gates: &'static str,
     pub no_failures: &'static str,
-    pub no_artifacts: &'static str,
     pub no_events: &'static str,
     pub imported_collapsed: &'static str,
     pub reproduce_hint: &'static str,
@@ -54,8 +50,6 @@ pub fn strings(lang: Lang) -> ReportStrings {
     match lang {
         Lang::Zh => ReportStrings {
             doc_title: "anycode 数字工作台报告",
-            scope_project: "项目",
-            scope_session: "会话",
             label_project: "项目",
             label_session: "会话",
             label_root: "根目录",
@@ -76,9 +70,7 @@ pub fn strings(lang: Lang) -> ReportStrings {
             summary_artifacts: "交付物",
             summary_trusted: "会话信任状态",
             no_sessions: "暂无会话记录。",
-            no_gates: "暂无门禁记录。",
             no_failures: "近期无失败或告警事件。",
-            no_artifacts: "暂无登记交付物。",
             no_events: "暂无事件。",
             imported_collapsed: "另有 {n} 条导入的历史会话（已从主列表折叠）",
             reproduce_hint: "在本地打开工作台查看详情",
@@ -87,8 +79,6 @@ pub fn strings(lang: Lang) -> ReportStrings {
         },
         Lang::En => ReportStrings {
             doc_title: "anycode Digital Workbench Report",
-            scope_project: "project",
-            scope_session: "session",
             label_project: "Project",
             label_session: "Session",
             label_root: "Root",
@@ -109,9 +99,7 @@ pub fn strings(lang: Lang) -> ReportStrings {
             summary_artifacts: "Deliverables",
             summary_trusted: "Session trust",
             no_sessions: "No sessions recorded.",
-            no_gates: "No gate records.",
             no_failures: "No recent failures or warnings.",
-            no_artifacts: "No deliverables tracked.",
             no_events: "No events.",
             imported_collapsed: "{n} imported historical session(s) collapsed from the main list",
             reproduce_hint: "Open the workbench locally for details",

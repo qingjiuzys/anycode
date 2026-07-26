@@ -1,0 +1,36 @@
+{
+  "frozen": true,
+  "n_tasks": 10,
+  "tasks": [
+    {
+      "id": "hidden.doc.01"
+    },
+    {
+      "id": "hidden.doc.02"
+    },
+    {
+      "id": "hidden.doc.03"
+    },
+    {
+      "id": "hidden.doc.04"
+    },
+    {
+      "id": "hidden.doc.05"
+    },
+    {
+      "id": "hidden.doc.06"
+    },
+    {
+      "id": "hidden.doc.07"
+    },
+    {
+      "id": "hidden.doc.08"
+    },
+    {
+      "id": "hidden.doc.09"
+    },
+    {
+      "id": "hidden.doc.10"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "brand_kit": "edu-clean",
+  "layouts": [
+    "cover",
+    "section",
+    "content",
+    "metrics",
+    "closing"
+  ],
+  "path": "/Users/qingjiu/workspace/research/llm-cli/anycode/brand-kits/edu-clean/pptx/template.potx"
+}

@@ -13,7 +13,6 @@ pub enum SetupStepId {
     LlmTest,
     Memory,
     Skills,
-    Channels,
     Projects,
     Done,
 }
@@ -80,7 +79,6 @@ pub fn build_setup_status(
     let ws_ok = workspace_ready();
     let mem_ok = memory_configured(&cfg);
     let skills_ok = starter_skills_installed();
-    let channels_ok = crate::channels::channel_credentials_status().any_configured;
     let projects_ok = projects_count > 0;
 
     let steps = vec![
@@ -107,11 +105,6 @@ pub fn build_setup_status(
         SetupStepStatus {
             id: SetupStepId::Skills,
             complete: skills_ok,
-            optional: true,
-        },
-        SetupStepStatus {
-            id: SetupStepId::Channels,
-            complete: channels_ok,
             optional: true,
         },
         SetupStepStatus {

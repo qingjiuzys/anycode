@@ -46,7 +46,6 @@ pub async fn flush_openai_sse_state(
 mod tests {
     use super::*;
     use crate::tool_call_normalizer::OpenAiCompatStreamState;
-    use anycode_core::prelude::*;
     use serde_json::json;
     use tokio::sync::mpsc;
 

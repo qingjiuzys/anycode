@@ -1,0 +1,30 @@
+id: scenario-education-lesson-plan
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  为初中二年级物理课准备一份教案/课纲（lesson plan / 教学设计）：主题「光的折射」，45 分钟。
+  覆盖 objectives（教学目标）、activities（课堂活动）、assessment（评估）、homework（作业）四部分，
+  产出 PPT 课件 output/deck.pptx（不少于 6 页）。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/deck.pptx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck.pptx
+      min: 6
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1500
+complexity: complex
+meta:
+  suite: scenarios
+  family: education-lesson-plan

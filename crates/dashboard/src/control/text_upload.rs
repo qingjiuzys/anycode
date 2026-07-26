@@ -36,7 +36,7 @@ pub fn validate_text_payloads(files: &[TextFilePayload]) -> Result<()> {
         if text.trim().is_empty() {
             bail!("text file {i}: content is empty");
         }
-        if text.as_bytes().len() > MAX_FILE_BYTES {
+        if text.len() > MAX_FILE_BYTES {
             bail!("text file {i}: exceeds 1 MB limit");
         }
     }

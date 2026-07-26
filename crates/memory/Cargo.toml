@@ -16,6 +16,10 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 reqwest = { workspace = true }
+dirs = "5"
+aes-gcm = "0.10"
+base64 = "0.22"
+sha2 = "0.10"
 fastembed = { version = "5", optional = true }
 
 # Database

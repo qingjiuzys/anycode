@@ -53,7 +53,6 @@ pub fn coerce_tool_input(tool_name: &str, input: Value) -> Value {
     let array_fields: &[&str] = match tool_name {
         "TodoWrite" => &["todos"],
         "PlanWrite" => &["tree", "updates"],
-        "QueryWeChatHistory" => &["attachment_types"],
         "Grep" => &["paths", "glob"],
         "Skill" => &["args"],
         _ => &[],

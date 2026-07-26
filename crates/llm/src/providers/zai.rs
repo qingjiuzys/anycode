@@ -19,6 +19,17 @@ pub(crate) fn is_retryable_status(status: reqwest::StatusCode) -> bool {
     status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
 }
 
+/// A 429 whose body signals quota exhaustion (not transient throttling) can
+/// never succeed inside the retry window — fail fast instead of burning the
+/// whole retry budget (10 × 180 s ≈ 30 min of dead waiting).
+pub(crate) fn is_quota_exhausted(error_body: &str) -> bool {
+    let lower = error_body.to_ascii_lowercase();
+    lower.contains("insufficient_quota")
+        || lower.contains("quota has been exhausted")
+        || lower.contains("quota_exceeded")
+        || lower.contains("exceeded your current quota")
+}
+
 pub(crate) fn retry_delay_ms(attempt: u32) -> u64 {
     const BASE: u64 = 500;
     const CAP: u64 = 10_000;
@@ -309,7 +320,7 @@ fn normalize_zai_base_url(raw: &str) -> String {
         return trimmed.to_string();
     }
     let mut s = trimmed.trim_end_matches('/').to_string();
-    if s.ends_with("/v4") {
+    if s.ends_with("/v4") || s.ends_with("/v1") || s.ends_with("/compatible-mode/v1") {
         s.push_str("/chat/completions");
         return s;
     }
@@ -1040,6 +1051,12 @@ impl LLMClient for ZaiClient {
                         }
                     ));
 
+                    if is_quota_exhausted(&error_text) {
+                        error!(
+                            "{provider_label} quota exhausted — failing fast without retries"
+                        );
+                        break;
+                    }
                     if attempt <= max_retries && is_retryable_status(status) {
                         let delay = retry_after_ms.unwrap_or_else(|| retry_delay_ms(attempt));
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
@@ -1325,9 +1342,21 @@ mod tests {
     }
 
     #[test]
-    fn normalize_zai_base_url_keeps_full_endpoint() {
-        let got = normalize_zai_base_url("https://api.z.ai/api/coding/paas/v4/chat/completions");
-        assert_eq!(got, "https://api.z.ai/api/coding/paas/v4/chat/completions");
+    fn normalize_openai_compatible_appends_chat_completions_for_v1() {
+        assert_eq!(
+            normalize_openai_compatible_base_url(
+                "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+                "alibaba"
+            ),
+            "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions"
+        );
+        assert_eq!(
+            normalize_openai_compatible_base_url(
+                "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+                "qwen"
+            ),
+            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        );
     }
 
     fn test_msg(role: MessageRole, text: &str) -> Message {
@@ -1584,5 +1613,17 @@ mod tests {
             zai_default_chat_url_for_plan("  coding_cn  "),
             ZAI_CN_CODING_URL
         );
+    }
+
+    #[test]
+    fn quota_exhaustion_detected_from_error_body() {
+        assert!(is_quota_exhausted(
+            r#"{"error":{"message":"Your token-plan 1-week quota has been exhausted.","type":"insufficient_quota"}}"#
+        ));
+        assert!(is_quota_exhausted(
+            "You exceeded your current quota, please check your plan"
+        ));
+        assert!(!is_quota_exhausted("rate limit reached, slow down"));
+        assert!(!is_quota_exhausted(""));
     }
 }

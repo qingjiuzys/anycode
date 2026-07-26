@@ -11,7 +11,6 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
 pub const MINICPM5_PRESET_ID: &str = "managed-minicpm5-1b";
-pub const MINICPM5_MODEL_FILE: &str = "MiniCPM5-1B-Q4_K_M.gguf";
 const SGLANG_WEIGHTS_DIR: &str = "weights";
 const SGLANG_HF_REPO_APPLE: &str = "mlx-community/MiniCPM5-1B-4bit";
 const SGLANG_HF_REPO_CUDA: &str = "openbmb/MiniCPM5-1B";
@@ -486,16 +485,16 @@ impl ManagedRuntimeManager {
         root: &Path,
         descriptor: &ManagedModelDescriptor,
     ) -> Result<()> {
-        let dir = model_version_dir(&root, &descriptor);
+        let dir = model_version_dir(root, descriptor);
         tokio::fs::create_dir_all(&dir).await?;
-        let partial = partial_download_path_for(&root, &descriptor);
+        let partial = partial_download_path_for(root, descriptor);
         let mut offset = partial.metadata().map(|m| m.len()).unwrap_or(0);
         if offset > descriptor.size_bytes {
             tokio::fs::remove_file(&partial).await?;
             offset = 0;
         }
         let remaining = descriptor.size_bytes.saturating_sub(offset);
-        if disk_free_bytes(&root).is_some_and(|free| free < remaining + 128 * 1024 * 1024) {
+        if disk_free_bytes(root).is_some_and(|free| free < remaining + 128 * 1024 * 1024) {
             return Err(anyhow!("insufficient disk space"));
         }
         let client = reqwest::Client::builder()
@@ -547,7 +546,7 @@ impl ManagedRuntimeManager {
             ));
         }
         verify_sha256(&partial, &descriptor.sha256).await?;
-        tokio::fs::rename(&partial, model_file_path_for(&root, &descriptor)).await?;
+        tokio::fs::rename(&partial, model_file_path_for(root, descriptor)).await?;
         let mut inner = self.inner.lock().await;
         let state = inner.states.get_mut(id).expect("descriptor state");
         state.phase = ManagedLocalPhase::Ready;
@@ -995,26 +994,6 @@ fn sglang_python_path() -> PathBuf {
     sglang_venv_path().join("bin/python")
 }
 
-async fn dir_size_bytes(path: &Path) -> u64 {
-    let mut total = 0_u64;
-    let Ok(mut stack) =
-        std::fs::read_dir(path).map(|rd| rd.filter_map(Result::ok).collect::<Vec<_>>())
-    else {
-        return 0;
-    };
-    while let Some(entry) = stack.pop() {
-        let path = entry.path();
-        if path.is_dir() {
-            if let Ok(rd) = std::fs::read_dir(&path) {
-                stack.extend(rd.filter_map(Result::ok));
-            }
-        } else if let Ok(meta) = entry.metadata() {
-            total = total.saturating_add(meta.len());
-        }
-    }
-    total
-}
-
 fn partial_download_path_for(root: &Path, descriptor: &ManagedModelDescriptor) -> PathBuf {
     model_version_dir(root, descriptor).join(format!("{}.partial", descriptor.file_name))
 }
@@ -1068,42 +1047,6 @@ async fn verify_sha256(path: &Path, expected: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn render_runtime_args(
-    descriptor: &ManagedModelDescriptor,
-    model: &Path,
-    port: u16,
-) -> Vec<String> {
-    descriptor
-        .runtime_args
-        .iter()
-        .map(|arg| {
-            arg.replace("{model}", &model.to_string_lossy())
-                .replace("{host}", "127.0.0.1")
-                .replace("{port}", &port.to_string())
-                .replace("{context}", &descriptor.context_tokens.to_string())
-        })
-        .collect()
-}
-
-fn resolve_runtime_path(runtime: &str) -> Option<PathBuf> {
-    let env_name = format!(
-        "ANYCODE_{}_PATH",
-        runtime.replace('-', "_").to_ascii_uppercase()
-    );
-    let candidates = [
-        std::env::var(env_name).ok().map(PathBuf::from),
-        std::env::current_exe().ok().and_then(|exe| {
-            exe.parent()
-                .map(|parent| parent.join(format!("../Resources/resources/bin/{runtime}")))
-        }),
-        Some(PathBuf::from(format!("resources/bin/{runtime}"))),
-    ];
-    candidates.into_iter().flatten().find_map(|candidate| {
-        let path = candidate.canonicalize().unwrap_or(candidate);
-        path.is_file().then_some(path)
-    })
 }
 
 fn sync_registry(descriptor: &ManagedModelDescriptor, port: u16) -> Result<()> {
@@ -1309,7 +1252,6 @@ fn install_sglang_venv_cuda(pip: &Path) -> Result<()> {
             "pip",
             "wheel",
             "huggingface_hub[cli]",
-            "mlx-lm",
         ],
     )?;
     pip_install(pip, &["install", "-q", "sglang[srt]"])?;
@@ -1497,7 +1439,7 @@ fn disk_free_bytes(root: &Path) -> Option<u64> {
             return None;
         }
         let stat = unsafe { stat.assume_init() };
-        Some(stat.f_bavail as u64 * stat.f_bsize as u64)
+        Some(stat.f_bavail * stat.f_bsize as u64)
     }
     #[cfg(not(unix))]
     {

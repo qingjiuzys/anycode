@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 anycode-core = { path = "../core" }
 anycode-llm = { path = "../llm" }
+anycode-memory = { path = "../memory" }
 anycode-security = { path = "../security" }
 anycode-tools = { path = "../tools" }
 tokio = { workspace = true }
@@ -17,6 +18,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+dirs = "5"
 regex = "1.10"
 reqwest = { workspace = true }
 futures = "0.3"

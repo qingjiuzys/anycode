@@ -33,17 +33,17 @@ impl DashboardDb {
         let skills_json = input
             .skills
             .as_ref()
-            .map(|s| serde_json::to_string(s))
+            .map(serde_json::to_string)
             .transpose()?;
         let vision_json = input
             .vision_images
             .as_ref()
-            .map(|v| serde_json::to_string(v))
+            .map(serde_json::to_string)
             .transpose()?;
         let text_files_json = input
             .text_files
             .as_ref()
-            .map(|f| serde_json::to_string(f))
+            .map(serde_json::to_string)
             .transpose()?;
 
         sqlx::query(

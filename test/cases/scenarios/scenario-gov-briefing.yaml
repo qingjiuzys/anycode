@@ -1,0 +1,38 @@
+id: scenario-gov-briefing
+tier:
+- full
+- agent-quality
+risk: P1
+runner: dashboard
+prompts:
+- |
+  起草一份政务汇报材料（gov briefing / 公文式汇报）：主题为「辖区老旧小区改造专项进展」，
+  含分类（classification）、背景（background）、发现（findings）、建议（recommendations）。
+  同时产出 Word 版正式文稿 output/report.docx（含 Summary、Background、Analysis、Recommendations、Decision/Action 段落），
+  PPT 版 output/deck.pptx（不少于 6 页）。
+expected:
+  assertions:
+  - validator: file_exists
+    args:
+      path: output/report.docx
+  - validator: file_exists
+    args:
+      path: output/deck.pptx
+  - validator: pptx_slide_count
+    args:
+      path: output/deck.pptx
+      min: 6
+  - validator: docx_paragraph_contains
+    args:
+      path: output/report.docx
+      text: Recommendations
+requires:
+  llm: live
+  network: false
+  tools:
+  - office
+timeout_seconds: 1800
+complexity: complex
+meta:
+  suite: scenarios
+  family: gov-briefing

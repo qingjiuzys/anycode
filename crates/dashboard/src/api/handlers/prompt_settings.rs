@@ -50,7 +50,7 @@ pub async fn get_prompt_preview(Query(q): Query<PromptPreviewQuery>) -> impl Int
     if let Some(h) = dirs::home_dir() {
         roots.push(h.join(".anycode/skills"));
     }
-    let catalog = SkillCatalog::scan(&roots, None, 120_000, false);
+    let catalog = SkillCatalog::scan_cached(&roots, 120_000, false);
     let prompt_config = build_runtime_prompt_config(&config, &catalog, None);
 
     let agent_id = q

@@ -1,0 +1,115 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>anyCode CLI – Developer Tool</title>
+    <!-- Font: Space Grotesk (distinctive, not Inter/Roboto) -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Reset & Base --- */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #0B0F14;       /* dark background */
+            color: #e0e0e0;                  /* light gray body text */
+            font-family: 'Space Grotesk', sans-serif;
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        /* --- Hero Section --- */
+        .hero {
+            max-width: 720px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        h1 {
+            font-size: clamp(2.5rem, 8vw, 4.5rem);
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+        .lede {
+            font-size: clamp(1.1rem, 3vw, 1.4rem);
+            color: #cfd4da;
+            margin-bottom: 2.5rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* --- Primary CTA (emerald) --- */
+        .cta {
+            display: inline-block;
+            background-color: #10B981;        /* emerald accent */
+            color: #0B0F14;                   /* dark text for good contrast on emerald */
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding: 0.9rem 2.2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: opacity 0.2s;
+            margin-bottom: 1.2rem;
+        }
+        .cta:hover {
+            opacity: 0.9;
+        }
+
+        /* --- Secondary text link --- */
+        .secondary-link {
+            display: inline-block;
+            color: #10B981;
+            font-size: 1.05rem;
+            font-weight: 500;
+            text-decoration: none;
+            margin-left: 1.5rem;
+        }
+        .secondary-link:hover {
+            text-decoration: underline;
+        }
+        .secondary-link::after {
+            content: " →";
+        }
+
+        /* --- Responsive: stack on narrow screens --- */
+        @media (max-width: 480px) {
+            .cta, .secondary-link {
+                display: block;
+                margin: 0.5rem auto;
+                width: fit-content;
+            }
+            .secondary-link {
+                margin-left: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="hero">
+        <h1>anyCode</h1>
+        <p class="lede">
+            Ship code to any environment from a single CLI. No config, no friction.
+        </p>
+        <a href="#" class="cta">Get Started</a>
+        <a href="#" class="secondary-link">Read the docs</a>
+
+        <!-- 
+        Approximate contrast ratios (WCAG 2.1):
+        - Body text (#e0e0e0) on background (#0B0F14) → 9.7 : 1
+        - CTA text (#0B0F14) on button background (#10B981) → 5.3 : 1
+        (both exceed WCAG AA requirements)
+        -->
+    </main>
+</body>
+</html>
+```

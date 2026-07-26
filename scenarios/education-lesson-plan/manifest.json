@@ -1,0 +1,9 @@
+{
+  "id": "education-lesson-plan",
+  "title": "Education lesson plan",
+  "brand_kit_default": "edu-clean",
+  "keywords": ["课纲", "教案", "lesson plan", "教学设计", "教学课件"],
+  "min_slides": 6,
+  "outline": ["cover", "section", "content", "content", "metrics", "closing"],
+  "required_sections": ["objectives", "activities", "assessment", "homework"]
+}
