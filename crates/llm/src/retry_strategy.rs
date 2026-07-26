@@ -178,7 +178,16 @@ impl RetryStrategy {
         // 应用最大延迟限制
         let delay_ms = exponential_delay.min(self.config.max_delay_ms);
 
-        Duration::from_millis(delay_ms)
+        // Deterministic ±20% jitter (no RNG — avoids thundering-herd retries
+        // across concurrent tasks while staying reproducible in tests).
+        let jitter_pct = ((attempt.wrapping_mul(2_654_435_761u32)) % 41) as i64 - 20;
+        let jittered = delay_ms as i64 + (delay_ms as i64 * jitter_pct / 100);
+        let final_ms = jittered.clamp(
+            self.config.base_delay_ms as i64,
+            self.config.max_delay_ms as i64,
+        ) as u64;
+
+        Duration::from_millis(final_ms)
     }
 
     /// 判断 HTTP 状态码是否可重试（向后兼容接口）
@@ -256,9 +265,11 @@ impl ProviderRetryConfig {
         Self {
             provider_id: "anthropic".to_string(),
             base_config: RetryConfig {
-                max_retries: 8,
-                base_delay_ms: 500,
-                max_delay_ms: 10000,
+                max_retries: 10,
+                base_delay_ms: 1_000,
+                // Engine-overload windows (rate_limit_error) last minutes, not
+                // seconds — 10 s caps turn every 429 burst into a turn failure.
+                max_delay_ms: 30_000,
                 exponential_base: 2,
                 respect_retry_after: true,
             },
@@ -427,7 +438,7 @@ mod tests {
     fn test_provider_specific_configs() {
         let anthropic = ProviderRetryConfig::anthropic();
         assert_eq!(anthropic.provider_id, "anthropic");
-        assert_eq!(anthropic.base_config.max_retries, 8);
+        assert_eq!(anthropic.base_config.max_retries, 10);
 
         let openai = ProviderRetryConfig::openai();
         assert_eq!(openai.provider_id, "openai");
