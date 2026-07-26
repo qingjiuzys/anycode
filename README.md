@@ -1,6 +1,6 @@
 # anyCode
 
-Self-hosted **BYOK** AI assistant with a local **Digital Workbench**: chat and run tasks in the browser or **anyCode.app** (macOS), bridge the same runtime to **personal WeChat**, Telegram, or Discord via **`anycode-daemon`**, and manage projects, sessions, and scheduled jobs.
+Self-hosted **BYOK** AI assistant with a local **Digital Workbench**: chat and run tasks in the browser or **anyCode.app** (macOS), schedule jobs via the built-in **`anycode-daemon scheduler`**, and manage projects, sessions, and automations.
 
 **Languages:** [简体中文](README.zh.md)
 
@@ -11,9 +11,8 @@ Self-hosted **BYOK** AI assistant with a local **Digital Workbench**: chat and r
 ## What makes anyCode different
 
 - **Single Rust runtime** — one `AgentRuntime` orchestrates LLM + tools (Bash, Edit, Grep, MCP, LSP, Skills, Cron, Knowledge, and more). Execution stays on your machine; not a cloud-hosted agent gateway.
-- **Personal WeChat bridge** — scan QR to bind iLink; send tasks from your phone, approve sensitive tools in chat, and receive files/images back. See [WeChat guide](https://anycode.work/docs/guide/wechat).
 - **Local Digital Workbench** — embedded in **anyCode.app** or dev builds at `http://127.0.0.1:43180` for projects, sessions, assets, automations, security approvals, and REST API integration. See [Workbench tour](https://anycode.work/docs/guide/workbench).
-- **Automations** — natural-language cron jobs with run history, guardrails, and optional WeChat notifications. See [Scheduled jobs](https://anycode.work/docs/guide/cli-scheduler).
+- **Built-in cron scheduler** — natural-language cron jobs with run history, guardrails, and Workbench session output. See [Scheduled jobs](https://anycode.work/docs/guide/cli-scheduler).
 - **BYOK model catalog** — 30+ providers aligned with OpenClaw (z.ai/GLM, DeepSeek, Anthropic, Bedrock, Copilot, OpenRouter, Ollama, custom endpoints, and more). See [Models & endpoints](https://anycode.work/docs/guide/models).
 - **Enterprise-friendly integration** — local Workbench REST API, API tokens, project policies, eval/gate harness, and documented permission modes for secondary development. SSO/RBAC is on the roadmap, not production-ready yet.
 - **macOS-first desktop experience** — the **anyCode.app** Tauri shell bundles the Workbench and adds **Apple Speech** (native STT, no Whisper download) and **Apple Vision OCR** (on-device text extraction). Browser-only Workbench at `127.0.0.1` does not include these native features.
@@ -32,7 +31,7 @@ All other catalog providers are **configuration-supported**. After you add crede
 ## Quick start (3 steps)
 
 1. Install **anyCode.app** (macOS) or **`anycode-daemon`** (Linux/Windows headless)
-2. Open Workbench **`/setup`** to configure the model and optional channels
+2. Open Workbench **`/setup`** to configure the model
 3. Send a test message in the Workbench composer
 
 **macOS (recommended):** download **`anyCode_<version>_aarch64.dmg`** from [Releases](https://github.com/qingjiuzys/anycode/releases), open it, and drag **anyCode** to Applications. The desktop app embeds the Workbench automatically.
@@ -62,7 +61,6 @@ User guides live on the official site at **https://anycode.work/docs/** (source:
 - [Headless daemon](https://anycode.work/docs/guide/daemon)
 - [Models & endpoints](https://anycode.work/docs/guide/models)
 - [Digital Workbench](https://anycode.work/docs/guide/workbench)
-- [WeChat & setup](https://anycode.work/docs/guide/wechat)
 - [Scheduled jobs](https://anycode.work/docs/guide/cli-scheduler)
 - [Troubleshooting](https://anycode.work/docs/guide/troubleshooting)
 
@@ -70,13 +68,12 @@ User guides live on the official site at **https://anycode.work/docs/** (source:
 
 ## For developers
 
-**Implementation stack:** Rust workspace (`cargo`); async runtime **Tokio**; Markdown **pulldown-cmark**; i18n **Fluent** (`fluent-bundle`). Runtime is split across crates such as `anycode-core`, `anycode-agent`, `anycode-llm`, `anycode-channel-bridge`, and `anycode-tools` (MCP/LSP).
+**Implementation stack:** Rust workspace (`cargo`); async runtime **Tokio**; Markdown **pulldown-cmark**; i18n **Fluent** (`fluent-bundle`). Runtime is split across crates such as `anycode-core`, `anycode-agent`, `anycode-llm`, and `anycode-tools` (MCP/LSP).
 
 ```bash
 cargo fmt
 cargo clippy
 cargo test --workspace
-cargo build --release -p anycode-channel-bridge
 cargo build --release -p anycode-desktop
 ```
 

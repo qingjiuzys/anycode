@@ -1,6 +1,6 @@
 # anyCode
 
-**自托管 BYOK** AI 助手，配套本地 **Digital Workbench**：在浏览器或 **anyCode.app**（macOS）中对话与执行任务，通过 **`anycode-daemon`** 桥接到**个人微信**、Telegram 或 Discord，并管理项目、会话与定时任务。
+**自托管 BYOK** AI 助手，配套本地 **Digital Workbench**：在浏览器或 **anyCode.app**（macOS）中对话与执行任务，通过内置 **`anycode-daemon scheduler`** 调度定时任务，并管理项目、会话与自动化。
 
 **语言:** [English README](README.md)
 
@@ -68,13 +68,12 @@ irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps
 
 ## 开发者
 
-**技术栈：** Rust workspace（`cargo`）；异步运行时 **Tokio**；Markdown **pulldown-cmark**；i18n **Fluent**。Runtime 分布在 `anycode-core`、`anycode-agent`、`anycode-llm`、`anycode-channel-bridge`、`anycode-tools` 等 crate。
+**技术栈：** Rust workspace（`cargo`）；异步运行时 **Tokio**；Markdown **pulldown-cmark**；i18n **Fluent**。Runtime 分布在 `anycode-core`、`anycode-agent`、`anycode-llm`、`anycode-tools` 等 crate。
 
 ```bash
 cargo fmt
 cargo clippy
 cargo test --workspace
-cargo build --release -p anycode-channel-bridge
 cargo build --release -p anycode-desktop
 ```
 

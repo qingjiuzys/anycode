@@ -26,6 +26,7 @@ export function SessionSidebar() {
     pendingCounts,
     listBusy,
     projectOptions,
+    projectsError,
     projectId,
     prefetchSession,
     startSessionForProject,
@@ -111,6 +112,13 @@ export function SessionSidebar() {
         <div className="dw-sidebar-section-label px-3 pt-2 pb-1">
           {t("sidebar.sectionProjects")}
         </div>
+        {projectsError ? (
+          <p className="px-3 text-xs text-warn m-0 mb-2">
+            {/\b401\b/.test(projectsError.message)
+              ? t("projects.authError")
+              : projectsError.message || t("projects.loadError")}
+          </p>
+        ) : null}
         <ProjectGroupedSessionList
           projectOptions={projectOptions}
           sessions={sidebarFilteredRows}

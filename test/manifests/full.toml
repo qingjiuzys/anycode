@@ -2,7 +2,7 @@
 id = "full"
 max_duration_minutes = 720
 tier = ["full"]
-suites = ["office", "coding", "skills", "browser", "interaction", "robustness"]
+suites = ["office", "coding", "skills", "browser", "interaction", "robustness", "scenarios"]
 
 [[profile.cases]]
 id = "rust-fmt-check"

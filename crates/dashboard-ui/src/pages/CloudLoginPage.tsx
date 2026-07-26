@@ -1,13 +1,12 @@
 import { useEffect, useMemo } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { BrandMark } from "@/components/BrandMark";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { useI18n } from "@/i18n/context";
-import { setOfflineWorkbenchAllowed } from "@/lib/offlineWorkbench";
 
 /**
- * Frontmost cloud sign-in gate — outside the workbench shell.
- * Unlinked sessions land here; users may continue offline (local-first).
+ * Cloud account connect page — additive to the local workbench.
+ * Does not gate projects, sessions, tools, or local models.
  */
 export function CloudLoginPage() {
   const { t, locale, setLocale } = useI18n();
@@ -21,14 +20,12 @@ export function CloudLoginPage() {
 
   useEffect(() => {
     if (!cloudLinked) return;
-    setOfflineWorkbenchAllowed(false);
-    void navigate({ to: "/conversations", replace: true });
+    void navigate({ to: "/account", replace: true });
   }, [cloudLinked, navigate]);
 
   useEffect(() => {
     const onLinked = () => {
-      setOfflineWorkbenchAllowed(false);
-      void navigate({ to: "/conversations", replace: true });
+      void navigate({ to: "/account", replace: true });
     };
     window.addEventListener("anycode-cloud-linked", onLinked);
     return () => window.removeEventListener("anycode-cloud-linked", onLinked);
@@ -37,15 +34,9 @@ export function CloudLoginPage() {
   const onContinue = () => {
     void linkCloudAccount()
       .then(() => {
-        setOfflineWorkbenchAllowed(false);
-        void navigate({ to: "/conversations", replace: true });
+        void navigate({ to: "/account", replace: true });
       })
       .catch(() => undefined);
-  };
-
-  const onOfflineEnter = () => {
-    setOfflineWorkbenchAllowed(true);
-    void navigate({ to: "/conversations", replace: true });
   };
 
   return (
@@ -85,14 +76,9 @@ export function CloudLoginPage() {
           ) : null}
         </button>
 
-        <button
-          type="button"
-          className="dw-cloud-gate__offline"
-          disabled={linking}
-          onClick={onOfflineEnter}
-        >
-          {t("service.cloud.gateOffline")}
-        </button>
+        <Link to="/conversations" className="dw-cloud-gate__offline">
+          {t("service.cloud.gateBackToWorkbench")}
+        </Link>
 
         {isLocalPortal ? (
           <p className="dw-cloud-gate__status" role="note">

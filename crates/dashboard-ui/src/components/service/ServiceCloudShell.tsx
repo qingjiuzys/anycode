@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
-import { Navigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
+import { EmptyState } from "@/components/EmptyState";
 import { ServiceNotConfigured } from "@/components/service/ServiceNotConfigured";
 import { useAccountCloud } from "@/hooks/useAccountCloud";
 import { useT } from "@/i18n/context";
 
 export function ServiceCloudShell({ children }: { children: ReactNode }) {
   const t = useT();
-  const { configured, authenticated, loading } = useAccountCloud();
+  const { configured, cloudLinked, loading } = useAccountCloud();
 
   if (!configured) {
     return <ServiceNotConfigured />;
@@ -16,9 +17,19 @@ export function ServiceCloudShell({ children }: { children: ReactNode }) {
     return <p className="text-sm text-secondary">{t("common.loading")}</p>;
   }
 
-  if (!authenticated) {
-    // Prefer the dedicated frontmost gate over an embedded console card.
-    return <Navigate to="/cloud-login" replace />;
+  if (!cloudLinked) {
+    return (
+      <EmptyState
+        icon="cloud_off"
+        title={t("service.cloud.connectTitle")}
+        description={t("service.cloud.connectBody")}
+        actions={
+          <Link to="/cloud-login" className="dw-btn-primary no-underline">
+            {t("service.cloud.linkAccount")}
+          </Link>
+        }
+      />
+    );
   }
 
   return <>{children}</>;

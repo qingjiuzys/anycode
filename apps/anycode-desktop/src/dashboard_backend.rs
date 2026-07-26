@@ -1,7 +1,8 @@
 //! In-process Digital Workbench server (replaces `anycode dashboard` sidecar).
 
-use anycode_dashboard::server::{run_with_shutdown, DashboardConfig, default_db_path};
+use anycode_dashboard::generate_desktop_bootstrap_token;
 use anycode_dashboard::load_workspace_paths;
+use anycode_dashboard::server::{default_db_path, run_with_shutdown, DashboardConfig};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -12,35 +13,46 @@ const DASHBOARD_PORT: u16 = 43_180;
 
 /// True when loopback `/api/health` returns `{"ok":true}`.
 pub fn dashboard_http_ready() -> bool {
+    dashboard_health_body().is_some_and(|body| body.contains("\"ok\":true"))
+}
+
+/// GET /api/health response when something HTTP answers on the dashboard port.
+fn dashboard_health_body() -> Option<String> {
     use std::io::{Read, Write};
     use std::net::TcpStream;
-    let Ok(mut stream) = TcpStream::connect((DASHBOARD_HOST, DASHBOARD_PORT)) else {
-        return false;
-    };
+    let mut stream = TcpStream::connect((DASHBOARD_HOST, DASHBOARD_PORT)).ok()?;
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
     let req = format!(
         "GET /api/health HTTP/1.1\r\nHost: {DASHBOARD_HOST}:{DASHBOARD_PORT}\r\nConnection: close\r\n\r\n"
     );
-    if stream.write_all(req.as_bytes()).is_err() {
-        return false;
-    }
-    let mut buf = [0u8; 512];
-    let Ok(n) = stream.read(&mut buf) else {
-        return false;
-    };
-    let resp = String::from_utf8_lossy(&buf[..n]);
-    resp.contains("200") && resp.contains("\"ok\":true")
+    stream.write_all(req.as_bytes()).ok()?;
+    let mut buf = [0u8; 2048];
+    let n = stream.read(&mut buf).ok()?;
+    let resp = String::from_utf8_lossy(&buf[..n]).to_string();
+    resp.contains("200").then_some(resp)
+}
+
+/// True only when the port serves OUR dashboard health payload — the stale-peer
+/// kill must never hit an unrelated service on the same port.
+fn port_serves_anycode_dashboard() -> bool {
+    dashboard_health_body().is_some_and(|body| {
+        body.contains("\"ok\":true") && body.contains("\"db_path\"") && body.contains("anycode")
+    })
 }
 
 pub struct DashboardServerState {
     shutdown_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    /// One-shot copy for the first Workbench navigation; server holds the
+    /// authoritative token in AppState and consumes it on bootstrap.
+    bootstrap_token: Mutex<Option<String>>,
 }
 
 impl DashboardServerState {
     pub fn new() -> Self {
         Self {
             shutdown_tx: Mutex::new(None),
+            bootstrap_token: Mutex::new(None),
         }
     }
 
@@ -50,6 +62,11 @@ impl DashboardServerState {
                 let _ = tx.send(());
             }
         }
+    }
+
+    /// Take the navigation bootstrap token (first load only).
+    pub fn take_bootstrap_token(&self) -> Option<String> {
+        self.bootstrap_token.lock().ok()?.take()
     }
 }
 
@@ -77,9 +94,7 @@ pub fn apply_dashboard_env(app: &AppHandle) {
             std::env::set_var("ANYCODE_DASHBOARD_STATIC", ui);
         }
     }
-    std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_CHAT", "1");
     std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP", "1");
-    std::env::set_var("ANYCODE_DASHBOARD_INPROCESS_TRIGGERS", "1");
     std::env::set_var("ANYCODE_DASHBOARD_INPROCESS_EVENTS", "1");
     if let Some(browser) = resolve_resource_path(
         app,
@@ -115,6 +130,12 @@ pub fn apply_dashboard_env(app: &AppHandle) {
 pub fn start_in_process(app: AppHandle) {
     apply_dashboard_env(&app);
     if dashboard_http_ready() {
+        if !port_serves_anycode_dashboard() {
+            eprintln!(
+                "anycode-desktop: port {DASHBOARD_PORT} is held by a non-anycode service; refusing to kill it. Free the port and restart."
+            );
+            return;
+        }
         eprintln!(
             "anycode-desktop: stopping stale Workbench on http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/ before restart"
         );
@@ -134,8 +155,11 @@ pub fn start_in_process(app: AppHandle) {
         .map(PathBuf::from)
         .filter(|p| p.join("index.html").is_file());
     let serve_ui = static_dir.is_some();
-    if serve_ui {
-        std::env::remove_var("ANYCODE_DASHBOARD_API_ONLY");
+    let bootstrap_token = generate_desktop_bootstrap_token();
+    if let Some(state) = app.try_state::<DashboardServerState>() {
+        if let Ok(mut guard) = state.bootstrap_token.lock() {
+            *guard = Some(bootstrap_token.clone());
+        }
     }
     let config = DashboardConfig {
         host: "127.0.0.1".into(),
@@ -144,6 +168,7 @@ pub fn start_in_process(app: AppHandle) {
         static_dir,
         serve_ui,
         version: env!("CARGO_PKG_VERSION").into(),
+        desktop_bootstrap_token: Some(bootstrap_token),
     };
     let paths = load_workspace_paths();
     let (tx, rx) = tokio::sync::oneshot::channel();

@@ -20,14 +20,13 @@ read_when:
 
 1. **安装** — 见 [安装](./install)：macOS 推荐 **anyCode.app**，Linux/Windows 安装 **`anycode-daemon`**。  
 2. **打开工作台** — 启动桌面应用，或访问 `http://127.0.0.1:43180`。  
-3. **完成 `/setup`** — 选择模型、记忆 / 向量（见 [记忆](./memory)），可选通道。  
+3. **完成 `/setup`** — 选择模型、记忆 / 向量（见 [记忆](./memory)）。
 4. **验证** — 在工作台会话中发送一条短消息。
 
 ## 环境要求
 
 - **预编译安装**：不需要 Rust。
-- **源码构建**：需要 Rust + Cargo（`cargo build --release -p anycode-desktop-desktop-channel-bridge` 或 desktop crate）。
-- **微信扫码**：在可打开浏览器/GUI 的机器上运行 `anycode-daemon wechat-bridge`。
+- **源码构建**：需要 Rust + Cargo（`cargo build --release` 或 desktop crate）。
 
 ## 首次配置（Workbench）
 
@@ -35,7 +34,6 @@ read_when:
 
 1. 模型 / provider（BYOK）
 2. 记忆与可选向量
-3. 可选通道说明
 
 配置保存在 `~/.anycode/config.json`，无终端 `Workbench /setup` 命令。
 
@@ -53,16 +51,14 @@ read_when:
 |------|------|------|
 | **macOS 日常使用** | **anyCode.app** | [桌面应用](./desktop) |
 | **工作台** | 项目、会话、资产、审批 | [工作台导览](./workbench) |
-| **个人微信** | `anycode-daemon wechat-bridge` | [微信与配置](./wechat) |
 | **定时任务** | 工作台 **Automations** + `anycode-daemon scheduler` | [定时提醒](./cli-scheduler) |
-| **无头服务器** | `anycode-daemon` 通道与调度 | [无头守护进程](./daemon) |
+| **无头服务器** | `anycode-daemon` 调度 | [无头守护进程](./daemon) |
 | **模型 / BYOK** | 工作台 **设置** | [模型与端点](./models) |
 
 ## 失败时下一步
 
 - 工作台打不开 → 确认桌面应用已启动，或端口 **43180** 可访问
 - `anycode-daemon: command not found` → 见 [安装](./install) PATH 说明
-- 微信扫码失败 → 在 GUI 机器运行 `anycode-daemon wechat-bridge`
 
 ## 界面语言
 
@@ -74,6 +70,6 @@ export ANYCODE_LANG=zh
 
 ## 下一步
 
-- [安装](./install) · [模型](./models) · [工作台](./workbench) · [微信](./wechat) · [排错](./troubleshooting)
+- [安装](./install) · [模型](./models) · [工作台](./workbench) · [排错](./troubleshooting)
 
 English: [Getting started](/guide/getting-started).

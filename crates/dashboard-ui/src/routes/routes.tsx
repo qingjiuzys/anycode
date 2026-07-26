@@ -18,7 +18,6 @@ import {
   controlCenterRedirectTarget,
   shouldOpenControlCenterForLocation,
 } from "@/lib/controlCenterPaths";
-import { isOfflineWorkbenchAllowed } from "@/lib/offlineWorkbench";
 import { CloudLoginPage } from "@/pages/CloudLoginPage";
 import {
   AgentsPage,
@@ -44,7 +43,7 @@ export const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
 
-/** Dedicated frontmost gate — no workbench chrome. */
+/** Cloud account connect page — not a workbench gate. */
 export const cloudLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/cloud-login",
@@ -53,7 +52,7 @@ export const cloudLoginRoute = createRoute({
     try {
       const cloud = await api.cloudSession();
       if (cloud.linked) {
-        throw redirect({ to: "/conversations", replace: true });
+        throw redirect({ to: "/account", replace: true });
       }
     } catch (e) {
       if (e && typeof e === "object" && "to" in e) throw e;
@@ -66,29 +65,8 @@ export const shellRoute = createRoute({
   getParentRoute: () => rootRoute,
   component: Layout,
   beforeLoad: async ({ location }) => {
-    // Cloud link preferred; offline workbench is an explicit local-first escape hatch.
-    try {
-      const cloud = await api.cloudSession();
-      if (!cloud.linked && !isOfflineWorkbenchAllowed()) {
-        throw redirect({ to: "/cloud-login" });
-      }
-    } catch (e) {
-      if (e && typeof e === "object" && "to" in e) throw e;
-      if (!isOfflineWorkbenchAllowed()) {
-        throw redirect({ to: "/cloud-login" });
-      }
-    }
-    try {
-      const svc = await api.serviceStatus();
-      if (!svc.service.loopback) {
-        const me = await api.authMe();
-        if (!me.authenticated && !isOfflineWorkbenchAllowed()) {
-          throw redirect({ to: "/cloud-login" });
-        }
-      }
-    } catch (e) {
-      if (e && typeof e === "object" && "to" in e) throw e;
-    }
+    // Local-first: open the workbench without requiring a cloud session.
+    // Cloud features are gated inside account/billing pages only.
     if (shouldOpenControlCenterForLocation(location.pathname, location.searchStr ?? "")) {
       throw redirect({
         ...controlCenterRedirectTarget(location.pathname, location.searchStr ?? ""),
@@ -123,7 +101,6 @@ export const setupRoute = createRoute({
       "skills",
       "security",
       "notify",
-      "channels",
       "gates",
       "plugins",
       "ops",
@@ -141,11 +118,8 @@ export const setupRoute = createRoute({
   },
   beforeLoad: ({ search }) => {
     const step = search.step?.trim() ?? "";
-    const tab = search.tab?.trim() ?? "";
     let section: SettingsSection = "model";
-    if (step === "channels" || tab === "telegram" || tab === "discord" || tab === "wechat") {
-      section = "channels";
-    } else if (step === "memory") {
+    if (step === "memory") {
       section = "data";
     } else if (step === "skills") {
       section = "skills";
@@ -435,7 +409,6 @@ export const settingsRoute = createRoute({
       "skills",
       "security",
       "notify",
-      "channels",
       "gates",
       "plugins",
       "ops",

@@ -210,7 +210,11 @@ def _run_dashboard(case: CaseSpec, started: float, ctx: RunContext) -> CaseResul
         )
         if status_code >= 400:
             raise RuntimeError(f"message turn {turn} failed ({status_code}): {payload}")
-        final = client.wait_session_done(session_id, timeout=per_turn_timeout)
+        try:
+            final = client.wait_session_done(session_id, timeout=per_turn_timeout)
+        except TimeoutError:
+            client.cancel_session(session_id)
+            raise
         turn_statuses.append(final)
         if final != "completed":
             break
@@ -308,6 +312,22 @@ def _run_dashboard(case: CaseSpec, started: float, ctx: RunContext) -> CaseResul
             "eval_mode": "live-model",
             "attempt": ctx.attempt,
             "repetitions": ctx.repetitions,
+            "eval_arm": os.environ.get("ANYCODE_EVAL_ARM")
+            or {
+                ("1", "1"): "experience_skill",
+                ("1", "0"): "experience_only",
+                ("0", "1"): "skill_only",
+                ("0", "0"): "baseline",
+            }.get(
+                (
+                    os.environ.get("ANYCODE_EVAL_EXPERIENCE", "1"),
+                    os.environ.get("ANYCODE_EVAL_SKILLS", "1"),
+                ),
+                "production",
+            ),
+            "eval_experience": os.environ.get("ANYCODE_EVAL_EXPERIENCE"),
+            "eval_skills": os.environ.get("ANYCODE_EVAL_SKILLS"),
+            "eval_mode_flag": os.environ.get("ANYCODE_EVAL_MODE"),
             "session_status": turn_statuses[-1] if turn_statuses else "not_started",
             "prompt_turns": len(normalized_prompts),
             "completed_turns": sum(status == "completed" for status in turn_statuses),

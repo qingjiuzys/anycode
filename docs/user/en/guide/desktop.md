@@ -22,11 +22,11 @@ On macOS, use the **anyCode.app** window for Workbench. `http://127.0.0.1:43180`
 
 ## First-time setup
 
-Open **Settings** or visit **`/setup`** in the Workbench to configure your model (BYOK), memory, and optional channels.
+Open **Settings** or visit **`/setup`** in the Workbench to configure your model (BYOK) and memory.
 
-## Headless channels & cron
+## Headless scheduler
 
-Keep the desktop app running for Workbench chat and automations. For WeChat/Telegram/Discord bridges or a dedicated scheduler process on a server, install **`anycode-daemon`** — see [Headless daemon](./daemon).
+Keep the desktop app running for Workbench chat and automations. For a dedicated scheduler process on a server, install **`anycode-daemon`** — see [Headless daemon](./daemon).
 
 ## Related
 

@@ -25,7 +25,6 @@ English **`/guide/`** routes:
 - [Model commands (removed)](./cli-model)  
 - [Discovery & test-security (removed)](./cli-diagnostics)  
 - [Agent skills](./skills)  
-- [WeChat & setup](./wechat)  
 - [Models](./models)  
 - [Architecture](./architecture)  
 - [Config & security](./config-security)  

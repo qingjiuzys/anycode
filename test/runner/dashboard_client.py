@@ -88,6 +88,13 @@ class DashboardClient:
             body["skills"] = skills
         return self._request("POST", f"/api/sessions/{session_id}/message", body, timeout=timeout)
 
+    def cancel_session(self, session_id: str) -> None:
+        # Best-effort: timed-out eval cases must not leak "running" sessions.
+        try:
+            self._request("POST", f"/api/sessions/{session_id}/cancel", timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+
     def get_trace(self, session_id: str) -> Any:
         status, payload = self._request("GET", f"/api/sessions/{session_id}/trace")
         if status != 200:
@@ -114,8 +121,35 @@ class DashboardClient:
                 state = payload.get("session", {}).get("status", "")
                 if state in {"completed", "failed", "cancelled"}:
                     return state
+            # Unblock headless evals stuck on AskUserQuestion.
+            self._auto_answer_pending_questions(session_id)
             time.sleep(2)
         raise TimeoutError(f"session {session_id} did not finish within {timeout}s")
+
+    def _auto_answer_pending_questions(self, session_id: str) -> None:
+        status, payload = self._request(
+            "GET",
+            f"/api/security/questions/pending?session_id={session_id}&limit=10",
+        )
+        if status != 200 or not isinstance(payload, dict):
+            return
+        for q in payload.get("pending") or []:
+            qid = q.get("question_id")
+            if not qid:
+                continue
+            options = q.get("options") or []
+            label = None
+            if options and isinstance(options[0], dict):
+                label = options[0].get("label") or options[0].get("id")
+            elif options and isinstance(options[0], str):
+                label = options[0]
+            if not label:
+                label = "ok"
+            self._request(
+                "POST",
+                f"/api/security/questions/{qid}/respond",
+                {"selected_labels": [label]},
+            )
 
     def probe_local_models(self) -> Any:
         status, payload = self._request("GET", "/api/local-models")

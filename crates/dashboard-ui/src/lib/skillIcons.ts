@@ -30,7 +30,6 @@ const SKILL_ICON_BY_ID: Record<string, string> = {
   "novel-writer": "menu_book",
   "office-pptx": "slideshow",
   "video-script": "movie",
-  "wechat-daily-history": "forum",
   "weekly-report": "analytics",
   "anycode-contributor": "code",
   "anycode-release": "build",
@@ -137,7 +136,7 @@ function iconFromHeuristics(id: string): string | null {
   if (lower.includes("pdf")) return "description";
   if (lower.includes("ppt") || lower.includes("slide")) return "slideshow";
   if (lower.includes("video") || lower.includes("movie")) return "movie";
-  if (lower.includes("wechat") || lower.includes("chat")) return "forum";
+  if (lower.includes("chat")) return "forum";
   if (lower.includes("report") || lower.includes("brief")) return "article";
   if (lower.includes("summary") || lower.includes("doc")) return "document_scanner";
   if (lower.includes("file") || lower.includes("organ")) return "folder_open";

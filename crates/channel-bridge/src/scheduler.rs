@@ -2,13 +2,11 @@
 //! `command` 作为单次 agent 提示（与 `embedded runtime task` 单次任务一致）。
 
 use crate::app_config::Config;
-use crate::channels::wx::cron_notify::deliver_cron_to_wechat;
-use crate::channels::wx::WxSender;
 use crate::tasks::{run_single_task_with_tail, ReplSink, RunTaskOptions};
 use anycode_bootstrap::{self as bootstrap, MemoryAttachMode};
 use anycode_dashboard::RunSessionKind;
 use anycode_tools::{read_cron_jobs_from_orchestration_file, CronJob};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use cron::Schedule;
 use fs4::fs_std::FileExt;
 use std::collections::HashMap;
@@ -52,13 +50,6 @@ fn append_cron_run_log_with_session(
     }
 }
 
-/// 微信桥内嵌调度器：到点后把任务结果推回最近会话。
-#[derive(Clone)]
-pub(crate) struct SchedulerWechatHooks {
-    pub data_root: PathBuf,
-    pub sender: Arc<WxSender>,
-}
-
 struct ParsedJob {
     job: CronJob,
     schedule: Schedule,
@@ -68,7 +59,7 @@ fn orchestration_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".anycode/tasks/orchestration.json"))
 }
 
-/// 单实例互斥：与内嵌于微信桥的调度器或另一 `anycode-daemon scheduler` 进程共享，避免重复触发 cron。
+/// 单实例互斥：多台/多进程共享一把锁，避免重复触发 cron。
 pub(crate) fn scheduler_lock_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".anycode/tasks/scheduler.lock"))
 }
@@ -141,16 +132,14 @@ fn duration_until_next_tick(
     wait.max(Duration::from_millis(50))
 }
 
-/// When `shared_runtime` is set (IM bridge), reuse that runtime instead of a second
+/// When `shared_runtime` is set, reuse that runtime instead of a second
 /// `initialize_runtime`. Standalone scheduler uses `MemoryAttachMode::Shared` (file on same path).
 pub(crate) async fn run_builtin_scheduler(
     config: Config,
     working_dir: PathBuf,
     reload_interval: Duration,
     shared_runtime: Option<Arc<RwLock<Arc<anycode_agent::AgentRuntime>>>>,
-    delivery: CronDelivery,
 ) -> anyhow::Result<()> {
-    let wechat_hooks = delivery.wechat_hooks();
     let lock_path =
         scheduler_lock_path().ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
     if let Some(parent) = lock_path.parent() {
@@ -218,9 +207,73 @@ pub(crate) async fn run_builtin_scheduler(
         .to_string();
 
     let mut last_fire: HashMap<String, DateTime<Utc>> = HashMap::new();
+    let mut last_dream_day: Option<chrono::NaiveDate> = None;
 
     loop {
         let now = Utc::now();
+        // Nightly local dream consolidation (03:00–03:59 UTC, once per day).
+        let today = now.date_naive();
+        if now.hour() == 3 && last_dream_day != Some(today) {
+            last_dream_day = Some(today);
+            if let Some(home) = dirs::home_dir() {
+                let base = home.join(".anycode/memory");
+                match (
+                    anycode_memory::load_pending_episodes(&base),
+                    anycode_bootstrap::build_memory_layer(&config, MemoryAttachMode::Shared),
+                ) {
+                    (Ok(episodes), Ok((store, _))) => {
+                        let mut existing = Vec::new();
+                        for mt in anycode_core::MemoryType::ALL {
+                            if let Ok(m) = store.recall("", mt).await {
+                                existing.extend(m);
+                            }
+                        }
+                        let report = anycode_memory::consolidate_episodes(
+                            &episodes,
+                            &existing,
+                            &anycode_memory::DreamEngineSettings::default(),
+                        );
+                        let mut save_errors = 0usize;
+                        for mem in &report.promoted {
+                            if let Err(e) = store.save(mem.clone()).await {
+                                save_errors += 1;
+                                warn!(target: "anycode_scheduler", "dream save {}: {e}", mem.id);
+                            }
+                        }
+                        // Apply decay-forgetting: the report already names the ids.
+                        for id in &report.forgotten_ids {
+                            if let Err(e) = store.delete(id).await {
+                                warn!(target: "anycode_scheduler", "dream forget {id}: {e}");
+                            }
+                        }
+                        let _ = anycode_memory::append_dream_report(&base, &report);
+                        // Archive processed episodes so they are not re-ingested nightly.
+                        let arch = base.join("episodes_done");
+                        let _ = std::fs::create_dir_all(&arch);
+                        for ep in &episodes {
+                            let src =
+                                anycode_memory::episodes_dir(&base).join(format!("{}.json", ep.id));
+                            let dst = arch.join(format!("{}.json", ep.id));
+                            let _ = std::fs::rename(src, dst);
+                        }
+                        info!(
+                            target: "anycode_scheduler",
+                            "dream consolidation run_id={} promoted={} forgotten={} save_errors={}",
+                            report.run_id,
+                            report.promoted.len(),
+                            report.forgotten_ids.len(),
+                            save_errors
+                        );
+                    }
+                    (Err(e), _) => {
+                        warn!(target: "anycode_scheduler", "dream load episodes: {e}");
+                    }
+                    (_, Err(e)) => {
+                        warn!(target: "anycode_scheduler", "dream memory layer: {e}");
+                    }
+                }
+            }
+        }
         let parsed = match load_parsed_jobs(&orch_path) {
             Ok(p) => p,
             Err(e) => {
@@ -267,15 +320,6 @@ pub(crate) async fn run_builtin_scheduler(
                     "started",
                     None,
                 );
-                if let Some(hooks) = &wechat_hooks {
-                    deliver_cron_to_wechat(
-                        &hooks.data_root,
-                        &hooks.sender,
-                        pj.job.command.as_str(),
-                        "",
-                    )
-                    .await;
-                }
                 let runtime = match &shared_runtime {
                     Some(sr) => sr.read().await.clone(),
                     None => owned_runtime
@@ -285,11 +329,15 @@ pub(crate) async fn run_builtin_scheduler(
                 };
                 let mut sink = ReplSink::Stdio;
                 let mut captured = String::new();
+                let cron_lang = std::env::var("ANYCODE_CRON_LANG")
+                    .ok()
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| "the language of the reminder content".to_string());
                 let cron_prompt = format!(
                     "Cron {}\n{}\n\n\
                      [Scheduled cron — deliver to the user]\n\
-                     Execute the reminder above in concise Chinese. \
-                     Your final answer will be pushed to the user's WeChat chat automatically.",
+                     Execute the reminder above and reply concisely in {cron_lang}. \
+                     Your final answer is recorded in the Workbench session and the cron run log.",
                     pj.job.id, pj.job.command
                 );
                 let cron_session_id = pj
@@ -324,22 +372,41 @@ pub(crate) async fn run_builtin_scheduler(
                     dashboard_title: Some(format!("Cron {}", pj.job.id)),
                     ..RunTaskOptions::default()
                 };
-                if let Err(e) = run_single_task_with_tail(
-                    runtime.as_ref(),
-                    &disk,
-                    default_agent.clone(),
-                    cron_prompt,
-                    job_workdir,
-                    &mut sink,
-                    if wechat_hooks.is_some() {
-                        Some(&mut captured)
-                    } else {
-                        None
-                    },
-                    run_options,
-                    Some(&config),
-                )
-                .await
+                // Workflow jobs (ADR 014 §6): execute the DAG definition instead
+                // of a single-prompt task; `command` becomes the user prompt.
+                let run_result = if let Some(ref wf) = pj.job.workflow {
+                    let wf_path = {
+                        let p = std::path::PathBuf::from(wf);
+                        if p.is_absolute() {
+                            p
+                        } else {
+                            job_workdir.join(p)
+                        }
+                    };
+                    crate::tasks::run_workflow_path(
+                        runtime.as_ref(),
+                        &disk,
+                        &job_workdir,
+                        &wf_path,
+                        Some(cron_prompt.clone()),
+                    )
+                    .await
+                } else {
+                    run_single_task_with_tail(
+                        runtime.as_ref(),
+                        &disk,
+                        default_agent.clone(),
+                        cron_prompt,
+                        job_workdir,
+                        &mut sink,
+                        Some(&mut captured),
+                        run_options,
+                        Some(&config),
+                    )
+                    .await
+                    .map(|_| ())
+                };
+                if let Err(e) = run_result
                 {
                     let msg = e.to_string();
                     warn!(
@@ -356,11 +423,6 @@ pub(crate) async fn run_builtin_scheduler(
                     );
                     let failure_detail = crate::cron_failure::sanitize_failure_detail(&msg);
                     match pj.job.failure_destination.as_deref() {
-                        Some("same_channel") => {
-                            delivery
-                                .route_same_channel_failure(&pj.job, &failure_detail)
-                                .await;
-                        }
                         Some("shell") => {
                             crate::cron_failure::route_cron_failure_shell(&pj.job, &failure_detail)
                                 .await;
@@ -380,18 +442,6 @@ pub(crate) async fn run_builtin_scheduler(
                         captured.trim().get(..200),
                     );
                 }
-                if let Some(hooks) = &wechat_hooks {
-                    let body = captured.trim();
-                    if body.len() > 80 {
-                        deliver_cron_to_wechat(
-                            &hooks.data_root,
-                            &hooks.sender,
-                            pj.job.command.as_str(),
-                            body,
-                        )
-                        .await;
-                    }
-                }
                 runtime.sync_memory_durability();
                 last = next;
             }
@@ -401,70 +451,6 @@ pub(crate) async fn run_builtin_scheduler(
         let sleep_d = duration_until_next_tick(&parsed, &last_fire, Utc::now(), reload_interval);
         tokio::time::sleep(sleep_d).await;
     }
-}
-
-/// How cron jobs deliver success/failure notifications.
-#[derive(Clone)]
-pub(crate) enum CronDelivery {
-    None,
-    Wechat(SchedulerWechatHooks),
-}
-
-impl CronDelivery {
-    pub(crate) fn wechat_hooks(&self) -> Option<SchedulerWechatHooks> {
-        match self {
-            CronDelivery::None => None,
-            CronDelivery::Wechat(h) => Some(h.clone()),
-        }
-    }
-
-    /// `failure_destination == "same_channel"` routes through the active delivery adapter.
-    pub(crate) async fn route_same_channel_failure(&self, job: &CronJob, detail: &str) {
-        match self {
-            CronDelivery::Wechat(hooks) => {
-                deliver_cron_to_wechat(
-                    &hooks.data_root,
-                    &hooks.sender,
-                    job.command.as_str(),
-                    &format!("❌ 定时任务失败\n\n{detail}"),
-                )
-                .await;
-            }
-            CronDelivery::None => {}
-        }
-    }
-}
-
-/// Embed the built-in scheduler beside a long-running channel bridge (single lock per machine).
-pub(crate) fn spawn_embedded_scheduler(
-    config: Config,
-    working_dir: PathBuf,
-    shared_runtime: Arc<RwLock<Arc<anycode_agent::AgentRuntime>>>,
-    delivery: CronDelivery,
-    reload_secs: u64,
-) {
-    tracing::info!(
-        target: "anycode_scheduler",
-        cwd = %working_dir.display(),
-        delivery = ?matches!(delivery, CronDelivery::Wechat(_)),
-        "embedding built-in scheduler beside channel bridge (or exit if lock held)"
-    );
-    tokio::spawn(async move {
-        if let Err(e) = run_builtin_scheduler(
-            config,
-            working_dir,
-            Duration::from_secs(reload_secs),
-            Some(shared_runtime),
-            delivery,
-        )
-        .await
-        {
-            tracing::error!(
-                target: "anycode_scheduler",
-                "built-in scheduler exited: {e:#}"
-            );
-        }
-    });
 }
 
 #[cfg(test)]
@@ -495,6 +481,7 @@ mod tests {
                 tool_profile: None,
                 tool_allowlist: None,
                 project_id: None,
+                workflow: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -522,6 +509,7 @@ mod tests {
                 tool_profile: None,
                 tool_allowlist: None,
                 project_id: None,
+                workflow: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -554,6 +542,7 @@ mod tests {
                 tool_profile: None,
                 tool_allowlist: None,
                 project_id: None,
+                workflow: None,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -597,6 +586,7 @@ mod tests {
                 tool_profile: None,
                 tool_allowlist: None,
                 project_id: None,
+                workflow: None,
             },
             schedule: Schedule::from_str("0 */15 * * * *").unwrap(),
         };

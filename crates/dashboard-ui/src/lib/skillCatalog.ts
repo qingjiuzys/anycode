@@ -51,7 +51,6 @@ export const SKILL_NAMES_ZH: Record<string, string> = {
   "report-to-csv": "报表转 CSV",
   "video-script": "视频脚本",
   "webapp-testing": "Web 测试",
-  "wechat-daily-history": "微信聊天记录",
   "weekly-report": "周报生成",
   xlsx: "Excel 表格",
   "anycode-contributor": "anyCode 贡献者",

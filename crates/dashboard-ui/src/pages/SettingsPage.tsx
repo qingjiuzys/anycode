@@ -10,7 +10,6 @@ import { useT } from "@/i18n/context";
 import type { EmbeddedPageProps } from "@/lib/pageProps";
 import { SettingsAboutSection } from "@/pages/settings/SettingsAboutSection";
 import { SettingsAgentsSection } from "@/pages/settings/SettingsAgentsSection";
-import { SettingsChannelsSection } from "@/pages/settings/SettingsChannelsSection";
 import { SettingsDataSection } from "@/pages/settings/SettingsDataSection";
 import { SettingsGatesSection } from "@/pages/settings/SettingsGatesSection";
 import { SettingsModelSection } from "@/pages/settings/SettingsModelSection";
@@ -32,7 +31,6 @@ const VALID_SECTIONS = new Set<SettingsSection>([
   "skills",
   "security",
   "notify",
-  "channels",
   "gates",
   "plugins",
   "ops",
@@ -132,7 +130,6 @@ function SettingsPageInner({
             {section === "skills" && <SettingsSkillsSection />}
             {section === "security" && <SettingsSecuritySection />}
             {section === "notify" && <SettingsNotifySection />}
-            {section === "channels" && <SettingsChannelsSection />}
             {section === "gates" && <SettingsGatesSection />}
             {section === "plugins" && <SettingsPluginsSection />}
             {section === "ops" && <SettingsOpsSection />}

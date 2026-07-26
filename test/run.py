@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", nargs="?", choices=["doctor"], help="environment checks")
     parser.add_argument(
         "--profile",
-        choices=["smoke", "release-candidate", "full", "fixture-ci", "live-model"],
+        choices=["smoke", "release-candidate", "full", "fixture-ci", "live-model", "agent-quality"],
     )
     parser.add_argument("--models", help="comma-separated model aliases (local-1b,agnes,cloud-auto)")
     parser.add_argument("--coverage", action="store_true", help="collect llvm-cov + vitest coverage")
@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.profile:
         parser.error(
-            "provide --profile smoke|release-candidate|full|fixture-ci|live-model or command doctor"
+            "provide --profile smoke|release-candidate|full|fixture-ci|live-model|agent-quality or command doctor"
         )
 
     repetitions = (

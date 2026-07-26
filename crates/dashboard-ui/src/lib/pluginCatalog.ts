@@ -1,7 +1,5 @@
 /** Built-in plugin ids with localized display keys in settings.plugins.builtin.* */
-export const PLUGIN_LABEL_KEYS: Record<string, string> = {
-  "channel-wechat": "channelWechat",
-};
+export const PLUGIN_LABEL_KEYS: Record<string, string> = {};
 
 export function pluginLabelKey(id: string): string | null {
   return PLUGIN_LABEL_KEYS[id.trim()] ?? null;

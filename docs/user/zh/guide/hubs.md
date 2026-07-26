@@ -25,7 +25,6 @@ read_when:
 - [模型命令（已移除）](./cli-model)  
 - [发现与 test-security（已移除）](./cli-diagnostics)  
 - [Agent skills](./skills)  
-- [微信与配置](./wechat)  
 - [模型与端点](./models)  
 - [架构](./architecture)  
 - [配置与安全](./config-security)  

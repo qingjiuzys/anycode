@@ -65,6 +65,32 @@ def _call_signature(event: dict[str, Any]) -> str:
     return f"{_tool_name(event).lower()}:{command}".strip()
 
 
+def _is_environment_error(event: dict[str, Any]) -> bool:
+    """Tool-unavailable errors (missing browser bundle, absent binary, no network
+    permission) say something about the eval ENVIRONMENT, not agent behavior —
+    they must not burn the agent's tool-error budget."""
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return False
+    text = str(payload.get("error", "")).lower()
+    if not text:
+        return False
+    env_markers = (
+        "not found",
+        "not installed",
+        "unavailable",
+        "no such file",
+        "bundle not found",
+        "browsermcp",
+        "browser_mcp",
+        "mcp_root",
+        "permission denied",
+        "environment",
+        "tool is not available",
+    )
+    return any(marker in text for marker in env_markers)
+
+
 def evaluate_trajectory(
     trace: Any,
     *,
@@ -101,11 +127,21 @@ def evaluate_trajectory(
     failed_tools = [
         event
         for event in ends
-        if event.get("severity") == "error"
-        or (
-            isinstance(event.get("payload"), dict)
-            and str(event["payload"].get("error", "")) not in {"", "<none>", "None"}
+        if (
+            event.get("severity") == "error"
+            or (
+                isinstance(event.get("payload"), dict)
+                and str(event["payload"].get("error", "")) not in {"", "<none>", "None"}
+            )
         )
+        and not _is_environment_error(event)
+    ]
+    env_errors = [
+        event
+        for event in ends
+        if isinstance(event.get("payload"), dict)
+        and str(event["payload"].get("error", "")) not in {"", "<none>", "None"}
+        and _is_environment_error(event)
     ]
     max_tool_errors = int(policy.get("max_tool_errors", 2))
     if len(failed_tools) > max_tool_errors:
@@ -146,6 +182,7 @@ def evaluate_trajectory(
         "trajectory_compliant": not violations,
         "tool_calls": len(starts),
         "tool_errors": len(failed_tools),
+        "environment_errors": len(env_errors),
         "retry_count": retries,
         "budget_exceeded": bool(budget_events),
         "forbidden_tool_calls": len(used_forbidden),

@@ -15,7 +15,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 anycode-apple-media = { path = "../../crates/apple-media" }
-anycode-channel-bridge = { path = "../../crates/channel-bridge" }
 # Desktop uses the native macOS speech stack for TTS. Keep local embeddings/STT,
 # but do not pull piper/espeak into the app bundle.
 anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser", "knowledge-embeddings", "embedding-local", "stt-local"] }

@@ -242,7 +242,8 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
       void qc.invalidateQueries({ queryKey: ["auth-me"] });
       void qc.invalidateQueries({ queryKey: ["account-cloud-me"] });
       refresh();
-      void router.navigate({ to: "/cloud-login", replace: true });
+      // Stay in the local workbench; only cloud features degrade.
+      void router.navigate({ to: "/account", replace: true });
     },
   });
 

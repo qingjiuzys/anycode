@@ -134,7 +134,7 @@
 
 - **真正恢复执行的跨进程后台 Agent**：先完成 diagnostic state，再决定是否恢复执行。
 - **Telegram 可选 draft 工具进度**（默认关）。
-- **memory-wiki / dreaming 全栈**：仍不做；只保留 graph memory spike。
+- **memory-wiki 全栈 / 服务端梦境**：仍不做；**本地梦境整理 + Memory Center + E2EE 密文同步**已按 [ADR 014](adr/014-dream-memory-and-experience-packs.md) 落地（替代旧 “不做 dreaming” 决策）。
 - **Transcript 虚拟滚动（ADR 006）**：先跑负载模型，再实现。
 - **会话 rewind（ADR 004）/ `/clear`（ADR 005）**：先统一语义，再改快照。
 - **Webhook / TaskFlow / SQLite ledger**：除非 cron 使用场景明确，不复制 Gateway。

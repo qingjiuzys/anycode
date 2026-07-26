@@ -1,6 +1,11 @@
 //! 内置 Agent 约定：小写 id、`/` 切换命令、子 Agent 默认类型。
+//!
+//! NOTE(2026-07): currently unwired — the only caller was the removed terminal CLI.
+//! Kept per ADR 014 §6 (workflow DAG + checkpoints); rewire into the scheduler
+//! cron path or delete — see docs/planning/audit-questions-2026-07-24.md Q6.
+#![allow(dead_code)]
 
-use anycode_agent::{normalize_agent_id as normalize_agent_id_inner, SHIPPED_ROLE_IDS};
+use anycode_agent::normalize_agent_id as normalize_agent_id_inner;
 
 /// 与 `AgentRuntime::new` 注册的 `AgentType` 一致。
 pub const BUILTIN_AGENT_IDS: [&str; 5] = [
@@ -50,7 +55,7 @@ pub fn parse_agent_slash_command(trimmed: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anycode_agent::BUILTIN_AGENT_SEED;
+    use anycode_agent::{BUILTIN_AGENT_SEED, SHIPPED_ROLE_IDS};
 
     #[test]
     fn shipped_profile_ids_match_catalog_seed() {

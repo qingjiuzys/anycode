@@ -20,7 +20,8 @@ refer to exact evidence hashes instead of relying only on lossy text summaries.
 
 ## Scope Rules
 
-- This is not a full memory-wiki or dreaming system.
+- Local **dream consolidation** (ADR 014) may promote structured episode events into long-term memory while retaining `evidence_hash` links.
+- This is not a full memory-wiki; cloud sync (if enabled) stores **ciphertext only**.
 - Channel messages should not automatically become project memory.
 - Full graph memory remains a spike until evidence-index usage proves valuable.
 

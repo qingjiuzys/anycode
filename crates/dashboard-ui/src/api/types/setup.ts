@@ -4,7 +4,6 @@ export type SetupStepId =
   | "llm_test"
   | "memory"
   | "skills"
-  | "channels"
   | "projects"
   | "done";
 
@@ -33,43 +32,3 @@ export type QuickAuthPreset = {
   device_auth?: boolean;
 };
 
-export type WechatQrPayload = {
-  qrcode_id: string;
-  content: string;
-  terminal_render?: string | null;
-  qr_svg?: string | null;
-};
-
-export type WechatQrPollResult = {
-  status: "wait" | "scanned" | "confirmed" | "expired" | "error";
-  message?: string | null;
-  account_saved: boolean;
-};
-
-export type TelegramBotInfo = {
-  id: number;
-  username: string;
-  first_name?: string | null;
-};
-
-export type TelegramChatOption = {
-  chat_id: string;
-  title?: string | null;
-  username?: string | null;
-  chat_type?: string | null;
-};
-
-export type DiscordBotInfo = {
-  id: string;
-  username: string;
-  global_name?: string | null;
-};
-
-export type ChannelsSettingsView = {
-  telegram: { configured: boolean; chat_id?: string | null; path?: string | null };
-  discord: { configured: boolean; channel_id?: string | null; path?: string | null };
-  wechat: boolean;
-  platform: string;
-  telegram_start_command: string;
-  discord_start_command: string;
-};

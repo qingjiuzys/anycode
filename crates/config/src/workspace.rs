@@ -1,4 +1,4 @@
-//! User workspace `~/.anycode/workspace`: default WeChat cwd and project registry (OpenClaw-style).
+//! User workspace `~/.anycode/workspace`: default task cwd and project registry (OpenClaw-style).
 
 use crate::schema::Config;
 use anycode_core::RuntimeMode;

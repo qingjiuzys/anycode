@@ -1,4 +1,9 @@
 //! Shared Digital Workbench recording for REPL turns.
+//!
+//! NOTE(2026-07): currently unwired — the only caller was the removed terminal CLI.
+//! Kept per ADR 014 §6 (workflow DAG + checkpoints); rewire into the scheduler
+//! cron path or delete — see docs/planning/audit-questions-2026-07-24.md Q6.
+#![allow(dead_code)]
 
 use anycode_core::{DiskTaskOutput, Task, TaskId};
 use anycode_dashboard::{cancel_ipc, DashboardRecorder, RunSessionKind};

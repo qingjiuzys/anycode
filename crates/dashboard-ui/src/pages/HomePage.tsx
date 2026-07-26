@@ -21,7 +21,7 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
   const homeSearch = useSearch({ from: "/_shell/", shouldThrow: false }) as
     | { project?: string }
     | undefined;
-  const { projectOptions, projectId, goHome, beginPendingSession, markSessionStreaming } =
+  const { projectOptions, projectsError, projectId, goHome, beginPendingSession, markSessionStreaming } =
     useConversationShell();
   const health = useQuery({
     queryKey: ["health"],
@@ -86,6 +86,13 @@ export function HomePage(_props: EmbeddedPageProps = {}) {
             </h1>
             <p className="dw-home-hero__subtitle">{t("home.hero.subtitle")}</p>
           </div>
+          {projectsError ? (
+            <div className="dw-alert-error mb-4">
+              {/\b401\b/.test(projectsError.message)
+                ? t("projects.authError")
+                : projectsError.message || t("projects.loadError")}
+            </div>
+          ) : null}
           <HomeHeroComposer
             sseStatus={sseStatus}
             projectOptions={projectOptions.map((p) => ({ id: p.id, name: p.name }))}

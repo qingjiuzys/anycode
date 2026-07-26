@@ -1,4 +1,9 @@
 //! `embedded runtime task` / 单次任务执行与 goal 循环（与 REPL 解耦）。
+//!
+//! NOTE(2026-07): currently unwired — the only caller was the removed terminal CLI.
+//! Kept per ADR 014 §6 (workflow DAG + checkpoints); rewire into the scheduler
+//! cron path or delete — see docs/planning/audit-questions-2026-07-24.md Q6.
+#![allow(dead_code)]
 
 use crate::app_config::Config;
 use crate::i18n::{tr, tr_args};

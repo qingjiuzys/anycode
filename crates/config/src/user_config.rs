@@ -1,8 +1,8 @@
 //! `~/.anycode/config.json` user file (`AnyCodeConfig`) and persistence.
 
 use super::schema::{
-    ChannelsConfigFile, LspConfigFile, McpConfigFile, MemoryConfigFile, MemoryPipelineConfigFile,
-    RoutingConfig, RuntimeSettingsFile, SecurityConfigFile, SessionConfigFile, SkillsConfigFile,
+    LspConfigFile, McpConfigFile, MemoryConfigFile, MemoryPipelineConfigFile, RoutingConfig,
+    RuntimeSettingsFile, SecurityConfigFile, SessionConfigFile, SkillsConfigFile,
     StatusLineConfigFile,
 };
 
@@ -91,15 +91,14 @@ pub struct AnyCodeConfig {
     pub session: SessionConfigFile,
     #[serde(default)]
     pub model_instructions: ModelInstructionsConfigFile,
-    /// 全屏 TUI 底部 status line（JSON key `statusLine`）。
+    /// DEPRECATED (terminal TUI removed): kept for config backward compatibility;
+    /// ignored at runtime. JSON key `statusLine`.
     #[serde(default, rename = "statusLine")]
     pub status_line: StatusLineConfigFile,
-    /// 流式终端与行式 REPL 共用此段（备用屏等）。`terminal.alternateScreen` 为 true 时 DEC 备用屏；显式 `ANYCODE_TERM_ALT_SCREEN` 可解析时覆盖（见 CHANGELOG）。
+    /// DEPRECATED (terminal TUI removed): kept for config backward compatibility;
+    /// ignored at runtime. `terminal.alternateScreen` 曾用于 DEC 备用屏。
     #[serde(default, rename = "terminal")]
     pub terminal: TerminalConfigFile,
-    /// 通道特定配置（wechat、telegram、discord等）
-    #[serde(default)]
-    pub channels: ChannelsConfigFile,
     #[serde(default)]
     pub lsp: LspConfigFile,
     #[serde(default)]
@@ -113,9 +112,6 @@ pub struct AnyCodeConfig {
     /// Declarative agent profiles (extends builtin agents).
     #[serde(default)]
     pub agents: super::schema::AgentsConfigFile,
-    /// 本机微信聊天记录只读查询。
-    #[serde(default, rename = "wechatHistory")]
-    pub wechat_history: super::schema::WechatHistoryConfigFile,
 }
 
 /// `config.json` 的 `terminal` 段。
@@ -324,12 +320,10 @@ pub fn default_anycode_config() -> AnyCodeConfig {
         model_instructions: ModelInstructionsConfigFile::default(),
         status_line: StatusLineConfigFile::default(),
         terminal: TerminalConfigFile::default(),
-        channels: ChannelsConfigFile::default(),
         lsp: LspConfigFile::default(),
         mcp: McpConfigFile::default(),
         notifications: Default::default(),
         models: Default::default(),
-        wechat_history: super::schema::WechatHistoryConfigFile::default(),
     }
 }
 

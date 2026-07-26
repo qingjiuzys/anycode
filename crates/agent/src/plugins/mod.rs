@@ -32,9 +32,9 @@ pub struct PluginsState {
 }
 
 pub fn anycode_home() -> PathBuf {
-    std::env::var("HOME")
-        .map(|h| PathBuf::from(h).join(".anycode"))
-        .unwrap_or_else(|_| PathBuf::from(".anycode"))
+    dirs::home_dir()
+        .map(|h| h.join(".anycode"))
+        .unwrap_or_else(|| PathBuf::from(".anycode"))
 }
 
 pub fn plugins_state_path() -> PathBuf {
@@ -106,47 +106,21 @@ fn scan_plugins_dir(dir: &Path, out: &mut Vec<PluginManifest>) {
     }
 }
 
-fn builtin_plugins() -> Vec<PluginManifest> {
-    vec![PluginManifest {
-        id: "channel-wechat".into(),
-        name: "WeChat Channel Rules".into(),
-        version: "1.0.0".into(),
-        enabled: true,
-        priority: 10,
-        system_prompt_overlay: Some(
-            include_str!("../../builtin_plugins/channel-wechat/overlay.md")
-                .trim()
-                .to_string(),
-        ),
-        tools: vec!["wechat_send".into()],
-    }]
-}
-
-/// Load built-in + `~/.anycode/plugins` + workspace `.anycode/plugins` manifests.
+/// Load `~/.anycode/plugins` + workspace `.anycode/plugins` manifests.
+///
+/// No plugins ship built into the runtime anymore (channel overlays were
+/// removed), so this is a plain disk scan with state applied — earlier wins
+/// on duplicate ids.
 #[must_use]
 pub fn load_plugins(workspace: Option<&Path>) -> Vec<PluginManifest> {
-    let mut plugins = builtin_plugins();
-    let mut seen: HashMap<String, usize> = HashMap::new();
-    for (i, p) in plugins.iter().enumerate() {
-        seen.insert(p.id.clone(), i);
-    }
-
     let mut disk: Vec<PluginManifest> = Vec::new();
     scan_plugins_dir(&anycode_home().join("plugins"), &mut disk);
     if let Some(ws) = workspace {
         scan_plugins_dir(&ws.join(".anycode").join("plugins"), &mut disk);
     }
-
-    for p in disk {
-        if let Some(idx) = seen.get(&p.id).copied() {
-            plugins[idx] = p;
-        } else {
-            seen.insert(p.id.clone(), plugins.len());
-            plugins.push(p);
-        }
-    }
-
-    apply_state(plugins)
+    let mut seen: HashMap<String, ()> = HashMap::new();
+    disk.retain(|p| seen.insert(p.id.clone(), ()).is_none());
+    apply_state(disk)
 }
 
 /// Back-compat alias used by system prompt composition.
@@ -166,21 +140,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_wechat_plugin_loads() {
-        let plugins = load_builtin_plugins();
-        assert!(plugins
-            .iter()
-            .any(|p| p.id == "channel-wechat" && p.enabled));
-    }
-
-    #[test]
-    fn state_toggle_disables_plugin() {
-        let dir = tempfile::tempdir().unwrap();
-        std::env::set_var("HOME", dir.path().to_string_lossy().to_string());
-        set_plugin_enabled("channel-wechat", false).unwrap();
-        let plugins = load_builtin_plugins();
-        let wechat = plugins.iter().find(|p| p.id == "channel-wechat").unwrap();
-        assert!(!wechat.enabled);
-        set_plugin_enabled("channel-wechat", true).unwrap();
+    fn unknown_dirs_yield_empty() {
+        // isolate from the real ~/.anycode/plugins
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", tmp.path());
+        let plugins = load_plugins(Some(Path::new("/nonexistent-workspace")));
+        assert!(plugins.is_empty());
     }
 }

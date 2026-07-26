@@ -35,7 +35,7 @@ cd crates/account-portal && npm install && npm run dev
 ### Crate Structure
 
 - **`apps/anycode-desktop`** — Tauri shell; embeds dashboard in-process
-- **`crates/channel-bridge`** — `anycode-daemon` (channels + scheduler)
+- **`crates/channel-bridge`** — `anycode-daemon` (built-in cron scheduler)
 - **`crates/config`** — `config.json` schema
 - **`crates/bootstrap`** — `initialize_runtime` composition root
 - **`crates/dashboard`** — Workbench HTTP API + embedded UI
@@ -60,10 +60,11 @@ cd crates/account-portal && npm install && npm run dev
 ### Product Entry Points
 
 1. **anyCode.app** — Workbench at `http://127.0.0.1:43180` (in-process dashboard)
-2. **`anycode-daemon`** — `scheduler`, `wechat-bridge`, `telegram-bridge`, `discord-bridge`
+2. **`anycode-daemon`** — `scheduler` (built-in cron)
 3. **Dev** — `cargo tauri dev` in `apps/anycode-desktop`
 
 The terminal `anycode` CLI (REPL/TUI/`run`/`setup`) is **removed**.
+Third-party IM channel bridges (WeChat / Telegram / Discord) are **removed**; conversations happen in the local Workbench only.
 
 ### Configuration
 
@@ -71,9 +72,9 @@ The terminal `anycode` CLI (REPL/TUI/`run`/`setup`) is **removed**.
 - Workbench `/setup` for first-time model configuration
 - `ANYCODE_IGNORE_APPROVAL`, `ANYCODE_DASHBOARD_*`, etc.
 
-### Channel Bridges
+### Cron Scheduler
 
-Implementations in `crates/channel-bridge/src/channels/`. Run via `anycode-daemon *-bridge`; share `initialize_runtime` with headless approval callbacks.
+`crates/channel-bridge` hosts the built-in cron scheduler (`anycode-daemon scheduler`); jobs persist in `~/.anycode/tasks/orchestration.json`, results land in the Workbench session and `~/.anycode/logs/cron-runs.jsonl`.
 
 ### Common Tasks
 

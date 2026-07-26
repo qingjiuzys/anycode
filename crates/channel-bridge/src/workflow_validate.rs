@@ -1,3 +1,10 @@
+//! Workflow definition validation (DAG layers, cycles, gates).
+//!
+//! NOTE(2026-07): currently unwired — the only caller was the removed terminal CLI.
+//! Kept per ADR 014 §6 (workflow DAG + checkpoints); rewire into the scheduler
+//! cron path or delete — see docs/planning/audit-questions-2026-07-24.md Q6.
+#![allow(dead_code)]
+
 use anycode_core::{PlanValidationIssue, PlanValidationResult, RuntimeMode, WorkflowDefinition};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -79,16 +86,16 @@ fn validate_workflow(workflow: &WorkflowDefinition) -> PlanValidationResult {
             .is_some_and(|s| !s.trim().is_empty())
         {
             issues.push(issue(
-                "error",
+                "info",
                 Some(&step.id),
-                "parallel_group is not supported by the sequential local executor",
+                "parallel_group: steps with satisfied depends_on may run in the same DAG layer",
             ));
         }
         if !step.required_gates.is_empty() {
             issues.push(issue(
-                "error",
+                "info",
                 Some(&step.id),
-                "required_gates is not enforced by the local workflow executor",
+                "required_gates recorded on checkpoint; executor treats gate names as soft acceptance hints",
             ));
         }
     }
@@ -229,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_schema_only_execution_fields() {
+    fn allows_dag_parallel_and_gates_as_info() {
         let workflow = WorkflowDefinition {
             name: "x".into(),
             steps: vec![WorkflowStep {
@@ -242,14 +249,7 @@ mod tests {
             ..WorkflowDefinition::default()
         };
         let result = validate_workflow(&workflow);
-        assert!(!result.ok);
-        assert_eq!(
-            result
-                .issues
-                .iter()
-                .filter(|i| i.severity == "error")
-                .count(),
-            2
-        );
+        assert!(result.ok);
+        assert!(result.issues.iter().any(|i| i.severity == "info"));
     }
 }

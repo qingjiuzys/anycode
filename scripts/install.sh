@@ -354,7 +354,6 @@ main() {
     info "  macOS: install anyCode.app from Releases — Workbench runs inside the app"
     info "  headless Workbench: http://127.0.0.1:43180/setup (anycode-dashboard-serve or daemon + browser)"
     info "  headless: anycode-daemon scheduler   # cron / automations"
-    info "  channels: anycode-daemon wechat-bridge | telegram-bridge | discord-bridge"
   fi
 }
 

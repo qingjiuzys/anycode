@@ -22,11 +22,11 @@ macOS 请使用 **anyCode.app** 窗口操作 Workbench。桌面版运行时 `htt
 
 ## 首次配置
 
-在 Workbench 打开 **设置** 或访问 **`/setup`**，配置模型（BYOK）、记忆与可选通道。
+在 Workbench 打开 **设置** 或访问 **`/setup`**，配置模型（BYOK）与记忆。
 
-## 无头通道与定时任务
+## 定时任务
 
-日常使用可保持桌面应用运行。若在服务器上跑微信/Telegram/Discord 或独立调度进程，请安装 **`anycode-daemon`** — 见 [无头守护进程](./daemon)。
+日常使用可保持桌面应用运行。若在服务器上跑独立调度进程，请安装 **`anycode-daemon`** — 见 [无头守护进程](./daemon)。
 
 ## 相关
 

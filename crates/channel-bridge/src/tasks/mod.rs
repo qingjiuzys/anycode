@@ -6,3 +6,4 @@ mod workflow_exec;
 
 pub(crate) use tasks_run::{run_single_task_with_tail, RunTaskOptions};
 pub(crate) use tasks_sink::ReplSink;
+pub(crate) use workflow_exec::run_workflow_path;

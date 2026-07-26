@@ -11,7 +11,7 @@ import type { CronRunRecord, DoctorCheck, NotificationPolicyRecord } from "@/api
 import { useT } from "@/i18n/context";
 import { sessionChatSearch } from "@/lib/sessionLinks";
 
-const PIPELINE_DOCTOR_IDS = ["wechat.cron_notify", "wechat.data_dir", "cron_scheduler"] as const;
+const PIPELINE_DOCTOR_IDS = ["cron_scheduler"] as const;
 const AUTOMATION_NOTIFY_EVENTS = new Set([
   "gate_failed",
   "session_blocked",

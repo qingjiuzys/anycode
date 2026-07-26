@@ -85,6 +85,7 @@ type ConversationShellContextValue = {
   clearOptimisticStreaming: () => void;
   beginPendingSession: (session: SessionDetail, project?: { id: string; name?: string }) => void;
   projectOptions: Array<{ id: string; name: string; root_path?: string; updated_at?: string }>;
+  projectsError: Error | null;
   navigateSearch: (next: ConversationSearch) => void;
   effectiveSearch: ConversationSearch;
   search: ConversationSearch;
@@ -565,6 +566,7 @@ function useConversationShellState(): ConversationShellContextValue {
         })),
     [projects.data?.projects],
   );
+  const projectsError = (projects.error as Error | null) ?? null;
 
   const renameProject = useCallback(
     (id: string, name: string) => {
@@ -702,6 +704,7 @@ function useConversationShellState(): ConversationShellContextValue {
     clearOptimisticStreaming,
     beginPendingSession,
     projectOptions,
+    projectsError,
     navigateSearch,
     effectiveSearch,
     search,

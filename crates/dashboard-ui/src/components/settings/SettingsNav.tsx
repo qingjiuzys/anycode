@@ -9,7 +9,6 @@ export type SettingsSection =
   | "skills"
   | "security"
   | "notify"
-  | "channels"
   | "gates"
   | "plugins"
   | "ops"
@@ -24,7 +23,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   "skills",
   "security",
   "notify",
-  "channels",
   "gates",
   "plugins",
   "ops",

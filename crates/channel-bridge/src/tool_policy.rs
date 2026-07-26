@@ -7,36 +7,6 @@ use anycode_tools::{
     ToolExecutionSurface,
 };
 
-#[derive(Clone, Default)]
-pub(crate) struct ToolPolicyConfigSnapshot {
-    pub profiles: anycode_tools::ToolPolicyProfiles,
-    pub deny_names: Vec<String>,
-    pub deny_prefixes: Vec<String>,
-}
-
-impl From<&Config> for ToolPolicyConfigSnapshot {
-    fn from(config: &Config) -> Self {
-        Self {
-            profiles: config.runtime.tool_policy_profiles.clone(),
-            deny_names: config.runtime.tool_deny_names.clone(),
-            deny_prefixes: config.runtime.tool_deny_prefixes.clone(),
-        }
-    }
-}
-
-pub(crate) fn channel_tool_filters_from_snapshot(
-    snapshot: &ToolPolicyConfigSnapshot,
-) -> (Vec<String>, Vec<String>) {
-    resolve_runtime_tool_filters(RuntimeToolPolicyInput {
-        surface: ToolExecutionSurface::Channel,
-        profiles: &snapshot.profiles,
-        explicit_profile: None,
-        explicit_allowlist: None,
-        extra_deny_names: &snapshot.deny_names,
-        extra_deny_prefixes: &snapshot.deny_prefixes,
-    })
-}
-
 pub(crate) fn resolve_task_tool_filters(
     config: &Config,
     surface: ToolExecutionSurface,
@@ -73,26 +43,10 @@ pub(crate) fn resolve_headless_task_tool_filters(
     })
 }
 
-pub(crate) fn channel_task_tool_filters(config: &Config) -> (Vec<String>, Vec<String>) {
-    resolve_task_tool_filters(
-        config,
-        ToolExecutionSurface::Channel,
-        &RunTaskOptions::default(),
-    )
-}
-
-pub(crate) fn interactive_tool_filters(config: &Config) -> (Vec<String>, Vec<String>) {
-    resolve_task_tool_filters(
-        config,
-        ToolExecutionSurface::Interactive,
-        &RunTaskOptions::default(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_config::{Config, LLMConfig, MemoryConfig, RuntimeSettings, SecurityConfig};
+    use anycode_config::{LLMConfig, MemoryConfig, RuntimeSettings, SecurityConfig};
     use anycode_core::{FeatureRegistry, ModelRouteProfile, RuntimeMode};
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -153,34 +107,21 @@ mod tests {
             session: Default::default(),
             status_line: Default::default(),
             terminal: Default::default(),
-            channels: Default::default(),
             lsp: Default::default(),
             mcp: Default::default(),
             notifications: Default::default(),
-            wechat_history: Default::default(),
         }
     }
 
     #[test]
-    fn channel_filters_default_observability() {
+    fn headless_filters_apply_explicit_profile() {
         let config = minimal_config();
-        let (names, _) = channel_task_tool_filters(&config);
+        let options = RunTaskOptions {
+            tool_profile: Some("read_only".into()),
+            ..RunTaskOptions::default()
+        };
+        let (names, _) =
+            resolve_task_tool_filters(&config, ToolExecutionSurface::Headless, &options);
         assert!(names.iter().any(|n| n == "Bash"));
-    }
-
-    #[test]
-    fn channel_self_hosted_disables_interactive_approval() {
-        use crate::app_config::apply_channel_self_hosted_security;
-
-        let mut config = minimal_config();
-        config.security.require_approval = true;
-        config.security.always_ask_rules = vec!["Bash".to_string()];
-        config.security.session_skip_interactive_approval = false;
-
-        apply_channel_self_hosted_security(&mut config);
-
-        assert!(!config.security.require_approval);
-        assert!(config.security.session_skip_interactive_approval);
-        assert!(config.security.always_ask_rules.is_empty());
     }
 }

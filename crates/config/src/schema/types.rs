@@ -82,17 +82,12 @@ pub struct Config {
     pub status_line: StatusLineRuntime,
     /// 流式终端画布（`config.json` 的 `terminal`；env 可覆盖）。
     pub terminal: TerminalRuntime,
-    /// 通道特定配置：serde 聚合体；各通道子命令当前多读 `~/.anycode/channels/*.json`，此字段预留给统一运行时。
-    #[allow(dead_code)]
-    pub channels: ChannelsConfig,
     /// `LSP` 工具子进程（需 `--features tools-lsp`）。
     pub lsp: LspRuntime,
     /// MCP 连接器（`tools-mcp`；含内置浏览器）。
     pub mcp: McpRuntime,
     /// 会话外向通知（OpenClaw 类网关 / 自定义脚本）。
     pub notifications: anycode_core::SessionNotificationSettings,
-    /// 本机微信聊天记录只读查询（`config.json` 的 `wechatHistory`）。
-    pub wechat_history: WechatHistoryRuntime,
 }
 
 /// 运行时 `terminal` 段（与 [`TerminalConfigFile`] 对应）。
@@ -106,63 +101,6 @@ impl From<TerminalConfigFile> for TerminalRuntime {
     fn from(f: TerminalConfigFile) -> Self {
         Self {
             alternate_screen: f.alternate_screen,
-        }
-    }
-}
-
-/// 运行时通道配置
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-#[derive(Default)]
-pub struct ChannelsConfig {
-    /// 微信通道配置
-    pub wechat: Option<ChannelSpecificConfig>,
-    /// Telegram通道配置
-    pub telegram: Option<ChannelSpecificConfig>,
-    /// Discord通道配置
-    pub discord: Option<ChannelSpecificConfig>,
-}
-
-/// 单个通道的运行时配置
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct ChannelSpecificConfig {
-    /// 是否启用该通道
-    pub enabled: bool,
-    /// 该通道使用的助手agent
-    pub assistant_agent: Option<String>,
-    /// 通道特定的系统提示词
-    pub system_prompt: Option<String>,
-    /// Bot token（已解析）
-    pub bot_token: Option<String>,
-    /// 审批模式
-    pub approval_mode: Option<String>,
-}
-
-impl From<ChannelsConfigFile> for ChannelsConfig {
-    fn from(f: ChannelsConfigFile) -> Self {
-        Self {
-            wechat: f.wechat.map(|c| ChannelSpecificConfig {
-                enabled: c.enabled,
-                assistant_agent: c.assistant_agent,
-                system_prompt: c.system_prompt,
-                bot_token: c.bot_token,
-                approval_mode: c.approval_mode,
-            }),
-            telegram: f.telegram.map(|c| ChannelSpecificConfig {
-                enabled: c.enabled,
-                assistant_agent: c.assistant_agent,
-                system_prompt: c.system_prompt,
-                bot_token: c.bot_token,
-                approval_mode: c.approval_mode,
-            }),
-            discord: f.discord.map(|c| ChannelSpecificConfig {
-                enabled: c.enabled,
-                assistant_agent: c.assistant_agent,
-                system_prompt: c.system_prompt,
-                bot_token: c.bot_token,
-                approval_mode: c.approval_mode,
-            }),
         }
     }
 }
@@ -185,7 +123,7 @@ pub struct RuntimeSettings {
     pub max_tool_calls: Option<usize>,
     /// 当前工作目录在 `~/.anycode/workspace/projects/index.json` 中匹配到的项目标签（仅内存叠加，不写回全局配置）。
     pub workspace_project_label: Option<String>,
-    /// 同上：项目级通道 profile 提示（如 `web` / `wechat`）。
+    /// 同上：项目级通道 profile 提示（如 `web`）。
     pub workspace_channel_profile: Option<String>,
 }
 
@@ -433,40 +371,6 @@ fn default_context_window_tokens() -> u32 {
 
 fn default_context_window_auto() -> bool {
     true
-}
-
-/// `config.json` 的 `channels` 段：通道特定配置
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ChannelsConfigFile {
-    /// 微信通道配置
-    #[serde(default)]
-    pub wechat: Option<ChannelSpecificConfigFile>,
-    /// Telegram通道配置
-    #[serde(default)]
-    pub telegram: Option<ChannelSpecificConfigFile>,
-    /// Discord通道配置
-    #[serde(default)]
-    pub discord: Option<ChannelSpecificConfigFile>,
-}
-
-/// 单个通道的特定配置
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ChannelSpecificConfigFile {
-    /// 是否启用该通道
-    #[serde(default)]
-    pub enabled: bool,
-    /// 该通道使用的助手agent
-    #[serde(default)]
-    pub assistant_agent: Option<String>,
-    /// 通道特定的系统提示词
-    #[serde(default)]
-    pub system_prompt: Option<String>,
-    /// Bot token（支持SecretRef语法）
-    #[serde(default)]
-    pub bot_token: Option<String>,
-    /// 审批模式（仅在需要覆盖默认时设置）
-    #[serde(default)]
-    pub approval_mode: Option<String>,
 }
 
 /// `config.json` 的 `session` 段（serde）
@@ -887,74 +791,6 @@ impl From<AgentsConfigFile> for AgentsConfig {
         Self {
             profiles: f.profiles,
             defaults: f.defaults,
-        }
-    }
-}
-
-fn default_wechat_history_timezone() -> String {
-    "Asia/Shanghai".to_string()
-}
-
-fn default_wechat_history_max_rows() -> usize {
-    500
-}
-
-fn default_wechat_history_http_endpoint() -> String {
-    "http://127.0.0.1:5030".to_string()
-}
-
-/// `config.json` 的 `wechatHistory` 段（serde）。
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct WechatHistoryConfigFile {
-    #[serde(default)]
-    pub enabled: bool,
-    /// `sqlcipher_key_map` (default) | `sqlite_plain` | `chatlog_http` | `auto`
-    #[serde(default)]
-    pub backend: Option<String>,
-    #[serde(default)]
-    pub data_dir: Option<PathBuf>,
-    #[serde(default)]
-    pub key_map_path: Option<PathBuf>,
-    #[serde(default = "default_wechat_history_http_endpoint")]
-    pub http_endpoint: String,
-    #[serde(default = "default_wechat_history_timezone")]
-    pub default_timezone: String,
-    #[serde(default = "default_wechat_history_max_rows")]
-    pub max_rows_per_query: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct WechatHistoryRuntime {
-    pub config: anycode_wechat_history::WechatHistoryConfig,
-}
-
-impl Default for WechatHistoryRuntime {
-    fn default() -> Self {
-        Self {
-            config: anycode_wechat_history::WechatHistoryConfig::default(),
-        }
-    }
-}
-
-impl From<WechatHistoryConfigFile> for WechatHistoryRuntime {
-    fn from(f: WechatHistoryConfigFile) -> Self {
-        use anycode_wechat_history::WechatHistoryBackendKind;
-        let backend = f
-            .backend
-            .as_deref()
-            .and_then(WechatHistoryBackendKind::parse)
-            .unwrap_or_default();
-        Self {
-            config: anycode_wechat_history::WechatHistoryConfig {
-                enabled: f.enabled,
-                backend,
-                data_dir: f.data_dir,
-                key_map_path: f.key_map_path,
-                http_endpoint: f.http_endpoint,
-                default_timezone: f.default_timezone,
-                max_rows_per_query: f.max_rows_per_query.max(1),
-            },
         }
     }
 }

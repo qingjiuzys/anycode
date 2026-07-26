@@ -20,14 +20,13 @@ After this page, you will have:
 
 1. **Install** — [Install](./install): macOS **anyCode.app** (recommended) or Linux/Windows **`anycode-daemon`**.  
 2. **Open Workbench** — launch the desktop app or visit `http://127.0.0.1:43180` after starting the embedded dashboard.  
-3. **Complete `/setup`** — choose model, memory / embedding ([Memory notes](./memory)), optional channels.  
+3. **Complete `/setup`** — choose model, memory / embedding ([Memory notes](./memory)).  
 4. **Verify** — send a short message in the Workbench composer.
 
 ## Requirements
 
 - **Prebuilt install**: no Rust needed.
-- **Source build only**: Rust + Cargo (`cargo build --release -p anycode-desktop-desktop-channel-bridge` or desktop crate).
-- **For WeChat QR login**: run `anycode-daemon wechat-bridge` on a machine that can open browser/GUI.
+- **Source build only**: Rust + Cargo (`cargo build --release` or desktop crate).
 
 ## First-time setup (Workbench)
 
@@ -35,7 +34,6 @@ Open **`http://127.0.0.1:43180/setup`** (or **Settings** in the app) and follow 
 
 1. Model / provider (BYOK)
 2. Memory and optional embeddings
-3. Optional channel hints (WeChat, Telegram, Discord)
 
 No terminal `Workbench /setup` command — configuration is shared via `~/.anycode/config.json`.
 
@@ -53,19 +51,15 @@ Expected: assistant replies `OK`. Tool traces and approvals appear in the transc
 |------|------------|-------|
 | **Daily use (macOS)** | **anyCode.app** — Workbench + Apple Speech / Vision OCR | [Desktop app](./desktop) |
 | **Workbench** | Projects, sessions, assets, security inbox | [Workbench tour](./workbench) |
-| **Personal WeChat** | `anycode-daemon wechat-bridge` after setup | [WeChat & setup](./wechat) |
 | **Scheduled jobs** | Workbench **Automations** + `anycode-daemon scheduler` | [Scheduled reminders](./cli-scheduler) |
-| **Headless server** | `anycode-daemon` channels + scheduler | [Headless daemon](./daemon) |
+| **Headless server** | `anycode-daemon` for scheduler | [Headless daemon](./daemon) |
 | **Switch models / BYOK** | Workbench **Settings** | [Models & endpoints](./models) |
 | **Integrate / extend** | Workbench REST API, API tokens, Skills, MCP | [Architecture](./architecture) |
-
-**Platform note:** macOS offers the richest experience (desktop app, native STT/OCR). Linux and Windows use **`anycode-daemon`** + browser Workbench; WeChat bridge runs wherever you can complete QR login.
 
 ## If something fails
 
 - Workbench won't load → confirm desktop app is running or dashboard is listening on port **43180**
 - `anycode-daemon: command not found` → check PATH in [Install](./install)
-- WeChat QR cannot complete → run `anycode-daemon wechat-bridge` on a GUI machine
 
 ## UI language
 
@@ -82,7 +76,6 @@ export ANYCODE_LANG=en
 - [Install](./install)
 - [Models & endpoints](./models)
 - [Digital Workbench](./workbench)
-- [WeChat & setup](./wechat)
 - [Scheduled reminders](./cli-scheduler)
 - [Troubleshooting](./troubleshooting)
 

@@ -74,12 +74,6 @@ risk = "P1"
 timeout_seconds = 600
 
 [[cases]]
-id = "skills-wechat-daily-history-contract"
-runner = "dashboard"
-risk = "P1"
-timeout_seconds = 600
-
-[[cases]]
 id = "skills-weekly-report-contract"
 runner = "dashboard"
 risk = "P1"

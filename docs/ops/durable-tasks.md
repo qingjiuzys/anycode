@@ -7,14 +7,22 @@ a diagnostic state file when they start, finish, fail, or are cancelled:
 ~/.anycode/tasks/<task-id>/state.json
 ```
 
-The file is intentionally diagnostic-only:
+The file is intentionally diagnostic-only for nested agents:
 
 - It helps `TaskOutput`, future doctor commands, and users distinguish
   `running`, `completed`, `failed`, and `cancelled`.
-- It does **not** promise execution recovery after process restart.
-- Future cross-process agents must add a separate ADR before resuming work from
-  this state file.
+- Nested agent `state.json` does **not** by itself resume tool loops after restart.
 
-This is the first production-safe step toward durable background agents without
-creating a second orchestration engine outside `AgentRuntime`.
+## Workflow DAG checkpoints (recoverable)
 
+YAML / compiled workflows persist a **v2 checkpoint** under the project:
+
+```text
+<workdir>/.anycode/workflow-checkpoints/<workflow-name>.json
+```
+
+This records per-step status, artifact handoff summaries, gate hints, and
+`depends_on` unlock state so Desktop/daemon can continue a DAG after restart
+(see ADR 014). It is separate from nested-agent diagnostic `state.json`.
+
+This remains inside the existing `AgentRuntime` authority — no second orchestrator.

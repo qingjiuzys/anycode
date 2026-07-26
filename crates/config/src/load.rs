@@ -15,6 +15,90 @@ fn resolve_model_instructions_file_from_env() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// Chat-model env overrides for eval / ops runs (`ANYCODE_CHAT_PROVIDER`,
+/// `ANYCODE_CHAT_MODEL`, `ANYCODE_CHAT_BASE_URL`, `ANYCODE_CHAT_API_KEY` or
+/// `ANYCODE_CHAT_API_KEY_ENV` naming an env var that holds the key).
+/// Lets an acceptance dashboard use a different gateway without touching the
+/// user's `~/.anycode/config.json`.
+fn apply_chat_model_env_overrides(cfg: &mut AnyCodeConfig) {
+    let provider = std::env::var("ANYCODE_CHAT_PROVIDER")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    let Some(provider) = provider else {
+        return;
+    };
+    let model = std::env::var("ANYCODE_CHAT_MODEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| cfg.model.clone());
+    let base_url = std::env::var("ANYCODE_CHAT_BASE_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(Some)
+        .unwrap_or_else(|| cfg.base_url.clone());
+    let api_key = std::env::var("ANYCODE_CHAT_API_KEY")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            std::env::var("ANYCODE_CHAT_API_KEY_ENV")
+                .ok()
+                .and_then(|name| std::env::var(name).ok())
+                .filter(|s| !s.trim().is_empty())
+        })
+        .unwrap_or_else(|| cfg.api_key.clone());
+    info!(
+        target: "anycode_config",
+        "chat model overridden by env: provider={provider} model={model}"
+    );
+    cfg.provider = provider;
+    cfg.model = model;
+    cfg.base_url = base_url;
+    cfg.api_key = api_key;
+    // Keep the models.chat slot consistent so registry-based readers agree.
+    if let Some(ref mut chat) = cfg.models.chat {
+        chat.provider = Some(cfg.provider.clone());
+        chat.model = Some(cfg.model.clone());
+        chat.base_url = cfg.base_url.clone();
+        chat.api_key = Some(cfg.api_key.clone());
+    }
+}
+
+#[cfg(test)]
+mod chat_env_override_tests {
+    #[test]
+    fn override_rewrites_provider_and_chat_slot() {
+        let mut cfg = crate::user_config::default_anycode_config();
+        cfg.models.chat = Some(anycode_llm::ModelProfileFile {
+            provider: Some("alibaba".into()),
+            model: Some("qwen".into()),
+            ..Default::default()
+        });
+        // SAFETY: single-threaded test binary section; no concurrent env readers here.
+        unsafe {
+            std::env::set_var("ANYCODE_CHAT_PROVIDER", "anthropic");
+            std::env::set_var("ANYCODE_CHAT_MODEL", "kimi-k2-turbo-preview");
+            std::env::set_var("ANYCODE_CHAT_BASE_URL", "https://api.kimi.com/coding/");
+            std::env::set_var("ANYCODE_CHAT_API_KEY", "k-test");
+        }
+        super::apply_chat_model_env_overrides(&mut cfg);
+        assert_eq!(cfg.provider, "anthropic");
+        assert_eq!(cfg.model, "kimi-k2-turbo-preview");
+        assert_eq!(
+            cfg.base_url.as_deref(),
+            Some("https://api.kimi.com/coding/")
+        );
+        let chat = cfg.models.chat.as_ref().unwrap();
+        assert_eq!(chat.provider.as_deref(), Some("anthropic"));
+        assert_eq!(chat.model.as_deref(), Some("kimi-k2-turbo-preview"));
+        unsafe {
+            std::env::remove_var("ANYCODE_CHAT_PROVIDER");
+            std::env::remove_var("ANYCODE_CHAT_MODEL");
+            std::env::remove_var("ANYCODE_CHAT_BASE_URL");
+            std::env::remove_var("ANYCODE_CHAT_API_KEY");
+        }
+    }
+}
+
 pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config> {
     let default_path = resolve_config_path(None)?;
     let mut cfg = match load_anycode_config_resolved(config_file.clone())? {
@@ -51,6 +135,8 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
             }
         }
     }
+
+    apply_chat_model_env_overrides(&mut cfg);
 
     let config_path = resolve_config_path(config_file.clone())?;
     let base_dir = config_path
@@ -106,28 +192,6 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
                 base_dir.join(p)
             };
             lsp_runtime.workspace_root = std::fs::canonicalize(&full).ok().or(Some(full));
-        }
-    }
-
-    let mut wechat_history: WechatHistoryRuntime = cfg.wechat_history.clone().into();
-    if let Some(ref p) = wechat_history.config.data_dir {
-        if !p.as_os_str().is_empty() {
-            let full = if p.is_absolute() {
-                p.clone()
-            } else {
-                base_dir.join(p)
-            };
-            wechat_history.config.data_dir = std::fs::canonicalize(&full).ok().or(Some(full));
-        }
-    }
-    if let Some(ref p) = wechat_history.config.key_map_path {
-        if !p.as_os_str().is_empty() {
-            let full = if p.is_absolute() {
-                p.clone()
-            } else {
-                base_dir.join(p)
-            };
-            wechat_history.config.key_map_path = std::fs::canonicalize(&full).ok().or(Some(full));
         }
     }
 
@@ -221,11 +285,9 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
         session: cfg.session.into(),
         status_line: cfg.status_line.into(),
         terminal: cfg.terminal.into(),
-        channels: cfg.channels.into(),
         lsp: lsp_runtime,
         mcp: cfg.mcp.clone().into(),
         notifications: cfg.notifications,
-        wechat_history,
     })
 }
 
@@ -235,14 +297,10 @@ pub struct LoadOpts {
     pub ignore_approval: bool,
     pub workspace_overlay: bool,
     pub workspace_overlay_dir: Option<PathBuf>,
-    pub wechat_bridge: bool,
 }
 
 pub async fn load_runtime_config(opts: LoadOpts) -> anyhow::Result<Config> {
     let mut config = load_config_for_session(opts.config_file, opts.ignore_approval).await?;
-    if opts.wechat_bridge {
-        apply_channel_self_hosted_security(&mut config);
-    }
     if let Some(dir) = opts.workspace_overlay_dir {
         let wd = std::fs::canonicalize(&dir).unwrap_or(dir);
         apply_project_overlays(&mut config, &wd);
@@ -286,23 +344,4 @@ pub fn env_ignore_approval() -> bool {
 pub fn security_wants_interactive_approval_callback(config: &Config) -> bool {
     !config.security.session_skip_interactive_approval
         && (config.security.require_approval || !config.security.always_ask_rules.is_empty())
-}
-
-pub fn apply_channel_self_hosted_security(config: &mut Config) {
-    if config.security.require_approval {
-        info!(
-            target: "anycode_config",
-            "channel self-hosted: disabling interactive tool approval"
-        );
-        config.security.require_approval = false;
-    }
-    config.security.session_skip_interactive_approval = true;
-    if !config.security.always_ask_rules.is_empty() {
-        tracing::debug!(
-            target: "anycode_config",
-            "channel self-hosted: clearing {} always_ask_rules for this process",
-            config.security.always_ask_rules.len()
-        );
-        config.security.always_ask_rules.clear();
-    }
 }

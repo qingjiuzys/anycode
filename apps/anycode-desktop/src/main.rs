@@ -7,7 +7,6 @@ use dashboard_backend::{
     apply_dashboard_env, dashboard_http_ready, DashboardServerState, start_in_process,
 };
 
-use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{
     menu::{Menu, MenuItem},
@@ -16,16 +15,6 @@ use tauri::{
 };
 
 const DASHBOARD_API_BASE: &str = "http://127.0.0.1:43180";
-
-struct BridgeState(Mutex<Vec<tauri::async_runtime::JoinHandle<()>>>);
-
-fn stop_bridges(state: &BridgeState) {
-    if let Ok(mut guard) = state.0.lock() {
-        for handle in guard.drain(..) {
-            handle.abort();
-        }
-    }
-}
 
 fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
@@ -39,8 +28,17 @@ fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
     false
 }
 
-fn navigate_workbench(w: &tauri::WebviewWindow) -> bool {
-    w.eval(&format!("window.location.replace('{DASHBOARD_API_BASE}/');"))
+fn navigate_workbench(app: &tauri::AppHandle, w: &tauri::WebviewWindow) -> bool {
+    let bootstrap = app
+        .try_state::<DashboardServerState>()
+        .and_then(|state| state.take_bootstrap_token());
+    let url = match bootstrap.as_deref() {
+        Some(token) if !token.is_empty() => {
+            format!("{DASHBOARD_API_BASE}/api/auth/desktop-bootstrap?token={token}")
+        }
+        _ => format!("{DASHBOARD_API_BASE}/"),
+    };
+    w.eval(&format!("window.location.replace('{url}');"))
         .is_ok()
 }
 
@@ -145,7 +143,7 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
         return;
     };
     if ready {
-        if !navigate_workbench(&w) {
+        if !navigate_workbench(app, &w) {
             let _ = w.eval(&format!("window.location.replace('{DASHBOARD_API_BASE}/');"));
         }
     } else {
@@ -233,7 +231,6 @@ fn main() {
             apple_media::apple_media_notify,
         ])
         .manage(DashboardServerState::new())
-        .manage(BridgeState(Mutex::new(Vec::new())))
         .setup(|app| {
             register_deep_link_handlers(app.handle());
 
@@ -242,25 +239,7 @@ fn main() {
 
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                let mut handles = Vec::new();
                 let dashboard_ok = wait_for_dashboard_ready(90);
-                if std::env::var("ANYCODE_DESKTOP_WECHAT")
-                    .ok()
-                    .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-                {
-                    let join = tauri::async_runtime::spawn(async {
-                        if let Err(e) = anycode_channel_bridge::run_wechat_bridge().await {
-                            eprintln!("anycode-desktop: WeChat bridge exited: {e:#}");
-                        }
-                    });
-                    handles.push(join);
-                    eprintln!("anycode-desktop: started in-process WeChat bridge");
-                }
-                if let Some(state) = handle.try_state::<BridgeState>() {
-                    if let Ok(mut guard) = state.0.lock() {
-                        *guard = handles;
-                    }
-                }
                 let show_handle = handle.clone();
                 let _ = handle.run_on_main_thread(move || {
                     show_workbench(&show_handle, dashboard_ok);
@@ -301,9 +280,6 @@ fn main() {
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
                 if let Some(state) = app.try_state::<DashboardServerState>() {
                     state.stop();
-                }
-                if let Some(state) = app.try_state::<BridgeState>() {
-                    stop_bridges(&*state);
                 }
             }
         });
