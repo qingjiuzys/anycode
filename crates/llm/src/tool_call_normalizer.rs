@@ -1,4 +1,9 @@
 //! OpenAI-compatible tool-call normalization: native JSON `tool_calls` only.
+//!
+//! NOTE: the legacy `function_call` migration chain (schema validation +
+//! legacy parsing) is a test-covered reference implementation not yet wired
+//! into production providers — hence the module-level allow.
+#![allow(dead_code)]
 
 use anycode_core::prelude::*;
 use serde_json::{json, Value};
@@ -225,6 +230,9 @@ pub fn normalize_assistant_output(
 }
 
 /// Full message JSON normalization (native + legacy function_call).
+/// Currently only exercised in tests; kept as the reference implementation
+/// for the legacy `function_call` migration path.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn normalize_from_openai_message(
     message: &Value,
     assistant_text: &str,
@@ -241,6 +249,8 @@ pub fn normalize_from_openai_message(
 
 /// Stateful OpenAI SSE stream parser (native structured tool_calls only).
 pub struct OpenAiCompatStreamState {
+    /// Tool schemas offered to the model (kept for future per-call validation).
+    #[allow(dead_code)]
     pub tools: Vec<ToolSchema>,
     tool_builders: HashMap<u64, (Option<String>, Option<String>, String)>,
     emitted_structured_tools: bool,

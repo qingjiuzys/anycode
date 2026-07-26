@@ -152,6 +152,8 @@ def filter_cases(
     profile_id: str,
     models: list[str] | None,
     profile_tiers: list[str] | None = None,
+    *,
+    offline: bool = False,
 ) -> list[CaseSpec]:
     selected_tiers = set(profile_tiers or [profile_id])
     filtered = [
@@ -159,6 +161,14 @@ def filter_cases(
         for c in cases
         if not c.tier or bool(selected_tiers.intersection(c.tier)) or "all" in c.tier
     ]
+    if offline:
+        # Offline mode is the default for all test runs: skip anything that
+        # needs a live LLM or external network (ANYCODE_OFFLINE=0 to opt out).
+        filtered = [
+            c
+            for c in filtered
+            if c.requires.get("llm") != "live" and not c.requires.get("network")
+        ]
     if models:
         model_set = {m.strip() for m in models}
         filtered = [

@@ -11,8 +11,12 @@ use crate::retry_strategy::{ErrorCategory, ProviderRetryConfig, RetryStrategy};
 pub struct RetryAttemptOutcome {
     pub should_retry: bool,
     pub delay: Duration,
+    /// Classified error kind (currently consumed only by tests).
+    #[allow(dead_code)]
     pub category: ErrorCategory,
     pub consecutive_overload: u32,
+    /// Overload fallback hint (currently consumed only by tests).
+    #[allow(dead_code)]
     pub should_fallback: bool,
 }
 

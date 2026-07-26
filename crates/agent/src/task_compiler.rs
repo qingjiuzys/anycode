@@ -231,6 +231,7 @@ impl<'a> TaskCompiler<'a> {
                     || p.contains("spreadsheet")
                     || p.contains("excel")
                     || p.contains("工作簿")
+                    || p.contains("表格")
                     || p.contains("表格文件")
                 {
                     required_capabilities.extend([
@@ -243,7 +244,7 @@ impl<'a> TaskCompiler<'a> {
                         required: true,
                         path_globs: vec!["**/*.xlsx".into()],
                     });
-                    deliverables.push("Excel .xlsx workbook".into());
+                    deliverables.push("Excel .xlsx workbook (anycode-xlsx)".into());
                 } else if p.contains("pptx")
                     || p.contains("ppt")
                     || p.contains("slides")
@@ -251,17 +252,39 @@ impl<'a> TaskCompiler<'a> {
                     || p.contains("演示")
                     || p.contains("幻灯片")
                 {
-                    required_capabilities.extend([
-                        "presentation.author".into(),
-                        "presentation.export.pptx".into(),
-                    ]);
-                    expected_artifacts.push(ExpectedArtifact {
-                        id: "deck_pptx".into(),
-                        kind: "pptx".into(),
-                        required: true,
-                        path_globs: vec!["**/*.pptx".into()],
-                    });
-                    deliverables.push("PowerPoint .pptx deck".into());
+                    let scenario = infer_office_scenario(prompt);
+                    let html_slides = scenario.as_deref() == Some("anycode-ppt")
+                        || p.contains("anycode-ppt")
+                        || p.contains("anycode ppt")
+                        || p.contains("html ppt")
+                        || p.contains("html 幻灯片");
+                    if html_slides {
+                        required_capabilities.push("presentation.author".into());
+                        expected_artifacts.push(ExpectedArtifact {
+                            id: "deck_html_slides".into(),
+                            kind: "html".into(),
+                            required: true,
+                            path_globs: vec![
+                                "slides/*.html".into(),
+                                "**/slides/*.html".into(),
+                                "index.html".into(),
+                            ],
+                        });
+                        deliverables
+                            .push("HTML slide deck (1920×1080 pages + index.html viewer)".into());
+                    } else {
+                        required_capabilities.extend([
+                            "presentation.author".into(),
+                            "presentation.export.pptx".into(),
+                        ]);
+                        expected_artifacts.push(ExpectedArtifact {
+                            id: "deck_pptx".into(),
+                            kind: "pptx".into(),
+                            required: true,
+                            path_globs: vec!["**/*.pptx".into()],
+                        });
+                        deliverables.push("PowerPoint .pptx deck".into());
+                    }
                 } else {
                     required_capabilities
                         .extend(["document.author".into(), "document.export.docx".into()]);
@@ -271,7 +294,15 @@ impl<'a> TaskCompiler<'a> {
                         required: true,
                         path_globs: vec!["**/*.docx".into()],
                     });
-                    deliverables.push("Word .docx document".into());
+                    expected_artifacts.push(ExpectedArtifact {
+                        id: "report_preview".into(),
+                        kind: "html".into(),
+                        required: false,
+                        path_globs: vec!["report.preview.html".into(), "**/*.preview.html".into()],
+                    });
+                    deliverables.push(
+                        "Word .docx + HTML preview (anycode-docx: MD → preview → docx)".into(),
+                    );
                 }
                 let brand = infer_office_brand_kit(prompt);
                 constraints.push(format!(
@@ -282,14 +313,69 @@ impl<'a> TaskCompiler<'a> {
                         "follow scenario pack outline under scenarios/ when templates exist".into(),
                     );
                 }
-                constraints.push(
-                    "PPT: presentation-design → presentation-commercial-delivery (editable native pptx)".into(),
-                );
-                constraints.push(
-                    "formal artifact must be native editable OOXML; evidence PNG alone is not deliverable".into(),
-                );
-                constraints
-                    .push("render evidence/slide-*.png after HTML design when possible".into());
+                let p_lower = prompt.to_ascii_lowercase();
+                let html_slides = infer_office_scenario(prompt).as_deref() == Some("anycode-ppt")
+                    || p_lower.contains("anycode-ppt")
+                    || p_lower.contains("anycode ppt")
+                    || p_lower.contains("html ppt")
+                    || p_lower.contains("html 幻灯片");
+                let pptish = p_lower.contains("pptx")
+                    || p_lower.contains("ppt")
+                    || p_lower.contains("slides")
+                    || p_lower.contains("deck")
+                    || p_lower.contains("演示")
+                    || p_lower.contains("幻灯片");
+                if pptish {
+                    constraints.push(
+                        "PPT: invoke Skill anycode-ppt — COPY templates/*.html (fde-editorial); NEVER lingqi #1B3A5C/#00B050 or invented CSS".into(),
+                    );
+                    if html_slides {
+                        constraints.push(
+                            "HTML slides: anycode-ppt run → validate anycode-ppt → deliver slides/*.html + index.html; NO pptx".into(),
+                        );
+                        constraints.push(
+                            "formal artifact is paginated HTML slide files; evidence PNG is preview only".into(),
+                        );
+                    } else {
+                        constraints.push(
+                            "PPT export: presentation-design → presentation-commercial-delivery for native OOXML".into(),
+                        );
+                        constraints.push(
+                            "formal artifact must be native editable OOXML; evidence PNG alone is not deliverable".into(),
+                        );
+                    }
+                    constraints
+                        .push("render evidence/slide-*.png after HTML design when possible".into());
+                }
+                let xlsxish = p_lower.contains("xlsx")
+                    || p_lower.contains("xls")
+                    || p_lower.contains("spreadsheet")
+                    || p_lower.contains("excel")
+                    || p_lower.contains("工作簿")
+                    || p_lower.contains("表格");
+                if xlsxish {
+                    constraints.push(
+                        "XLSX: invoke Skill anycode-xlsx — COPY templates/workbook-*.json → run → .xlsx".into(),
+                    );
+                    constraints.push(
+                        "workbook.json is source; formal artifact must be native .xlsx with fde-editorial theme".into(),
+                    );
+                }
+                let docxish = p_lower.contains("docx")
+                    || p_lower.contains("word")
+                    || p_lower.contains("document")
+                    || p_lower.contains("文档")
+                    || p_lower.contains("报告")
+                    || p_lower.contains("汇报");
+                if docxish {
+                    constraints.push(
+                        "DOCX: invoke Skill anycode-docx — COPY templates/*.md → validate → preview.html → .docx".into(),
+                    );
+                    constraints.push(
+                        "HTML preview for Workbench review; formal artifact must be editable .docx"
+                            .into(),
+                    );
+                }
             }
             TaskFamily::CrossFileCoding => {
                 deliverables.push("code change with tests".into());
@@ -555,12 +641,44 @@ fn infer_office_brand_kit(prompt: &str) -> String {
     if edu.iter().any(|k| p.contains(k)) {
         return "edu-clean".into();
     }
-    "lingqi".into()
+    "fde-editorial".into()
 }
 
 fn infer_office_scenario(prompt: &str) -> Option<String> {
     let p = prompt.to_ascii_lowercase();
     let rules: &[(&str, &[&str])] = &[
+        (
+            "anycode-ppt",
+            &[
+                "anycode-ppt",
+                "anycode ppt",
+                "html ppt",
+                "slides",
+                "deck",
+                "幻灯片",
+                "演示文稿",
+                "pitch deck",
+                "presentation",
+                "调研",
+                "高密度 ppt",
+                "dense deck",
+                "editorial ppt",
+            ],
+        ),
+        (
+            "anycode-xlsx",
+            &[
+                "anycode-xlsx",
+                "anycode xlsx",
+                "xlsx",
+                "excel",
+                "spreadsheet",
+                "工作簿",
+                "表格",
+            ],
+        ),
+        // Specific scenario packs BEFORE the generic anycode-docx family —
+        // otherwise 述职/工作汇报/周报 would be shadowed by the docx default.
         (
             "performance-review",
             &["述职", "performance review", "okr review", "年度考核"],
@@ -595,6 +713,18 @@ fn infer_office_scenario(prompt: &str) -> Option<String> {
         (
             "work-report",
             &["工作汇报", "weekly report", "周报", "月报", "ops report"],
+        ),
+        (
+            "anycode-docx",
+            &[
+                "anycode-docx",
+                "anycode docx",
+                "docx",
+                "word",
+                "文档",
+                "报告",
+                "briefing",
+            ],
         ),
     ];
     for (id, keys) in rules {
@@ -775,10 +905,39 @@ mod tests {
     }
 
     #[test]
+    fn infers_anycode_html_slides_over_pptx() {
+        let pack = builtin_web_and_rust_pack();
+        let compiler = TaskCompiler::new(&pack);
+        let html = compiler.compile("用 anycode ppt 做产品发布幻灯片", &[]);
+        assert!(html
+            .task_spec
+            .expected_artifacts
+            .iter()
+            .any(|a| a.kind == "html" && a.id == "deck_html_slides"));
+        assert!(!html
+            .task_spec
+            .required_capabilities
+            .iter()
+            .any(|c| c == "presentation.export.pptx"));
+        assert!(html
+            .task_spec
+            .constraints
+            .iter()
+            .any(|c| c.contains("NO pptx")));
+    }
+
+    #[test]
     fn infers_gov_and_edu_brand_kits() {
         assert_eq!(infer_office_brand_kit("政府公文汇报材料"), "gov-formal");
         assert_eq!(infer_office_brand_kit("高中物理课纲教案"), "edu-clean");
-        assert_eq!(infer_office_brand_kit("enterprise pitch deck"), "lingqi");
+        assert_eq!(
+            infer_office_brand_kit("enterprise pitch deck"),
+            "fde-editorial"
+        );
+        assert_eq!(
+            infer_office_scenario("anycode ppt 产品发布幻灯片"),
+            Some("anycode-ppt".into())
+        );
     }
 
     #[test]
@@ -791,7 +950,10 @@ mod tests {
             infer_office_scenario("教学设计 lesson plan"),
             Some("education-lesson-plan".into())
         );
-        assert_eq!(infer_office_scenario("generic docx report"), None);
+        assert_eq!(
+            infer_office_scenario("generic docx report"),
+            Some("anycode-docx".into())
+        );
     }
 
     #[test]

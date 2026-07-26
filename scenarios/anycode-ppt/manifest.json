@@ -1,0 +1,24 @@
+{
+  "id": "anycode-ppt",
+  "title": "anyCode editorial HTML slides (flexible deck)",
+  "brand_kit_default": "fde-editorial",
+  "keywords": ["anycode-ppt", "anycode ppt", "slides", "html ppt", "幻灯片", "演示文稿", "pitch deck", "presentation"],
+  "min_slides": 2,
+  "outline": ["cover", "section", "content", "closing"],
+  "optional_blocks": [
+    "ladder-flow",
+    "layer-stack",
+    "layer-stack-4",
+    "agent-cycle",
+    "duo-compare",
+    "trio-cards",
+    "metrics-kpi",
+    "quote-insight",
+    "timeline",
+    "checklist",
+    "diagram-image"
+  ],
+  "required_sections": [],
+  "deliverable": "html_slides",
+  "deliverable_note": "slides/*.html + index.html — no pptx"
+}

@@ -29,18 +29,6 @@ impl RunLogger {
         }
     }
 
-    pub(crate) fn gate(
-        &self,
-        task_id: TaskId,
-        name: &str,
-        status: &str,
-        command: &str,
-        output: &str,
-    ) {
-        let line = anycode_core::format_gate_log_line(name, status, command, output);
-        self.line(task_id, &line);
-    }
-
     /// Structured assistant text for dashboard conversation replay.
     pub(crate) fn assistant_response(&self, task_id: TaskId, turn: usize, text: &str) {
         let text = text.trim();

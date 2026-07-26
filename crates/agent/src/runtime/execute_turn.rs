@@ -403,6 +403,11 @@ impl AgentRuntime {
                                         StreamEvent::Reasoning(r) => {
                                             if !r.trim().is_empty() {
                                                 received_any = true;
+                                                live_trace_emit::emit_thinking_delta(
+                                                    &live_trace_tx,
+                                                    turn,
+                                                    &r,
+                                                );
                                                 let mut g = messages.lock().await;
                                                 if let Some(last) = g.last_mut() {
                                                     if last.id == assistant_id {

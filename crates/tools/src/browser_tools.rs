@@ -664,6 +664,9 @@ pub fn register_browser_tools(
     );
 }
 
+/// Public catalog of browser tool ids (used by docs / future gating; kept as
+/// the single source for "which tools are the browser family").
+#[allow(dead_code)]
 pub const BROWSER_TOOL_IDS: &[&str] = &[
     "BrowserTabs",
     "BrowserNavigate",

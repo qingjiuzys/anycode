@@ -473,6 +473,40 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 version: "0.5.0".into(),
             },
             ExperienceCard {
+                id: "office.pptx-anycode".into(),
+                title: "anyCode editorial HTML slides (dense deck)".into(),
+                family: TaskFamily::OfficeDelivery,
+                applicable_when: vec![
+                    "anycode-ppt".into(),
+                    "anycode ppt".into(),
+                    "html ppt".into(),
+                    "slides".into(),
+                    "幻灯片".into(),
+                    "演示文稿".into(),
+                    "pitch deck".into(),
+                    "presentation".into(),
+                ],
+                task_breakdown: vec![
+                    "brand_kit fde-editorial; scenario anycode-ppt".into(),
+                    "anycode-ppt templates → slides/*.html (pick by narrative)".into(),
+                    "anycode-ppt run: validate density + build index.html viewer".into(),
+                ],
+                tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
+                key_checks: vec![
+                    "slides/*.html exist (≥2 pages)".into(),
+                    "index.html deck viewer generated".into(),
+                    "content slides have ladder/layer/agent-cycle/trio visual blocks".into(),
+                ],
+                common_failures: vec!["sparse title-only slides".into(), "exporting pptx instead of HTML".into()],
+                recovery: vec!["copy templates from components.md and fill content".into()],
+                examples: vec![
+                    "Deliver slides/ + index.html; open in browser for presentation.".into(),
+                ],
+                model_compat: weak_compat(),
+                regression_score: 0.91,
+                version: "0.6.0".into(),
+            },
+            ExperienceCard {
                 id: "office.pptx-education-lesson".into(),
                 title: "Education lesson deck".into(),
                 family: TaskFamily::OfficeDelivery,
@@ -621,7 +655,7 @@ mod tests {
     #[test]
     fn retrieve_office_and_sql_cards() {
         let pack = builtin_web_and_rust_pack();
-        assert_eq!(pack.cards.len(), 12);
+        assert_eq!(pack.cards.len(), 13);
         assert_eq!(
             pack.retrieve("写一份 pptx 演示文稿 briefing", 1)[0].id,
             "office.pptx-briefing"

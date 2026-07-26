@@ -102,6 +102,8 @@ impl EmbeddingClient {
 }
 
 /// Shared process-wide FastEmbed instance for memory + media (same model id).
+/// Public API for the embedding-local feature set; unused in lean builds.
+#[cfg_attr(feature = "embedding-local", allow(dead_code))]
 #[cfg(feature = "embedding-local")]
 pub fn shared_fastembed(
     cache_dir: Option<PathBuf>,

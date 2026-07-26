@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""anycode-docx: MD template → validate → HTML preview → branded .docx."""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+SKILL_DIR = Path(__file__).resolve().parent
+REPO = SKILL_DIR.parents[1] if (SKILL_DIR.parents[1] / "brand-kits").is_dir() else SKILL_DIR.parents[2]
+BRAND = "fde-editorial"
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print("usage: run report.md [output.docx]", file=sys.stderr)
+        return 1
+    src = Path(sys.argv[1]).resolve()
+    docx_out = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else src.with_suffix(".docx")
+
+    validator = REPO / "scripts" / "office" / "validate_report_md.py"
+    preview_py = REPO / "scripts" / "office" / "build_md_preview.py"
+    delivery = REPO / "skills-starter" / "document-delivery" / "run"
+
+    for step, cmd in [
+        ("validate", [sys.executable, str(validator), str(src), "anycode-docx"]),
+        ("preview", [sys.executable, str(preview_py), str(src)]),
+        ("docx", [sys.executable, str(delivery), str(src), str(docx_out), BRAND]),
+    ]:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            sys.stderr.write(f"[{step}] failed\n{proc.stderr or proc.stdout}")
+            return proc.returncode
+        if proc.stdout.strip():
+            print(proc.stdout.strip())
+
+    print(f"report: {src}")
+    print(f"preview: {src.with_suffix('.preview.html')}")
+    print(f"docx: {docx_out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

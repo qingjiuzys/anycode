@@ -263,6 +263,53 @@ mod tests {
     }
 
     #[test]
+    fn anycode_ppt_author_prefers_anycode_skill() {
+        let temp = tempfile::tempdir().unwrap();
+        write_skill(temp.path(), "office-pptx", "presentation.author", 50);
+        write_skill(
+            temp.path(),
+            "presentation-design",
+            "presentation.author",
+            120,
+        );
+        write_skill(temp.path(), "anycode-ppt", "presentation.author", 125);
+        let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
+        let gov = SkillsGovernance::default();
+        let ctx = SkillResolutionContext::default();
+        let res = resolve_capabilities(&["presentation.author".into()], &catalog, &gov, &ctx);
+        assert_eq!(res.selected[0].skill_id, "anycode-ppt");
+    }
+
+    #[test]
+    fn anycode_docx_author_prefers_anycode_skill() {
+        let temp = tempfile::tempdir().unwrap();
+        write_skill(temp.path(), "document-delivery", "document.author", 90);
+        write_skill(temp.path(), "anycode-docx", "document.author", 125);
+        let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
+        let gov = SkillsGovernance::default();
+        let ctx = SkillResolutionContext::default();
+        let res = resolve_capabilities(&["document.author".into()], &catalog, &gov, &ctx);
+        assert_eq!(res.selected[0].skill_id, "anycode-docx");
+    }
+
+    #[test]
+    fn anycode_xlsx_author_prefers_anycode_skill() {
+        let temp = tempfile::tempdir().unwrap();
+        write_skill(
+            temp.path(),
+            "spreadsheet-delivery",
+            "spreadsheet.author",
+            90,
+        );
+        write_skill(temp.path(), "anycode-xlsx", "spreadsheet.author", 125);
+        let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
+        let gov = SkillsGovernance::default();
+        let ctx = SkillResolutionContext::default();
+        let res = resolve_capabilities(&["spreadsheet.author".into()], &catalog, &gov, &ctx);
+        assert_eq!(res.selected[0].skill_id, "anycode-xlsx");
+    }
+
+    #[test]
     fn disabled_arm_denies_all() {
         let temp = tempfile::tempdir().unwrap();
         write_skill(temp.path(), "web-a", "web.implement", 10);

@@ -148,7 +148,7 @@ static GATEWAY_REACH_CACHE: Mutex<Option<GatewayReachCache>> = Mutex::new(None);
 
 fn gateway_chat_http_reachable(chat_url: &str) -> bool {
     let ttl = Duration::from_secs(60);
-    if let Ok(mut guard) = GATEWAY_REACH_CACHE.lock() {
+    if let Ok(guard) = GATEWAY_REACH_CACHE.lock() {
         if let Some(cache) = guard.as_ref() {
             if cache.url == chat_url && cache.checked_at.elapsed() < ttl {
                 return cache.reachable;

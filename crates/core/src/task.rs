@@ -16,9 +16,9 @@ use crate::live_trace::LiveTraceEvent;
 pub const NESTED_TASK_COOPERATIVE_CANCEL_ERROR: &str = "cancelled";
 
 /// Default max LLM round-trips per task (`execute_task` / `execute_turn_from_messages`).
-pub const DEFAULT_MAX_AGENT_TURNS: usize = 8;
+pub const DEFAULT_MAX_AGENT_TURNS: usize = 256;
 /// Default cumulative tool invocations per task before hard stop.
-pub const DEFAULT_MAX_TOOL_CALLS: usize = 32;
+pub const DEFAULT_MAX_TOOL_CALLS: usize = 256;
 /// Upper clamp for configured `max_agent_turns`.
 pub const MAX_AGENT_TURNS_CLAMP: usize = 10_000;
 /// Upper clamp for configured `max_tool_calls`.

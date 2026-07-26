@@ -1,0 +1,36 @@
+{
+  "title": "Team KPI Dashboard",
+  "sheets": [
+    {
+      "name": "Summary",
+      "rows": [
+        ["KPI", "Current", "Target", "Status"],
+        ["Deployment Frequency", "12/wk", "10/wk", "OK"],
+        ["Incident MTTR", "42m", "60m", "OK"],
+        ["Skill Success Rate", "94%", "90%", "OK"],
+        ["User NPS", "38", "40", "WARN"]
+      ]
+    },
+    {
+      "name": "Detail",
+      "rows": [
+        ["Week", "Deployments", "Incidents", "MTTR (min)", "Skill Calls", "Success %"],
+        ["W26", 11, 3, 55, 820, 91],
+        ["W27", 13, 2, 48, 910, 93],
+        ["W28", 12, 4, 38, 880, 94],
+        ["W29", 14, 1, 35, 950, 95],
+        ["W30", 12, 2, 42, 870, 94],
+        ["W31", 15, 3, 40, 920, 96]
+      ]
+    },
+    {
+      "name": "Actions",
+      "rows": [
+        ["Item", "Owner", "Due", "Status"],
+        ["Improve NPS survey sampling", "Product", "2026-08-05", "Open"],
+        ["Add workbook validate to CI", "Platform", "2026-07-28", "In Progress"],
+        ["Document HTML preview flow", "Docs", "2026-07-30", "Open"]
+      ]
+    }
+  ]
+}

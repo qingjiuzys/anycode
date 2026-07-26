@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Closing · FDE Courseware</title>
+  <style>
+    :root{--bg:#231f20;--ink:#f2f5f0;--accent:#1400ff;--accent-soft:#7d8cff;
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:96px;height:100%;box-sizing:border-box;position:relative}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:rgba(242,245,240,.55);
+      display:flex;align-items:center;gap:14px;margin-bottom:32px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent-soft);font-weight:700}
+    h2{font-family:var(--serif);font-weight:900;font-size:72px;line-height:1.15;margin:0 0 40px;max-width:1200px}
+    .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1400px;margin-bottom:48px}
+    .card{border:1px solid rgba(242,245,240,.25);padding:24px;background:rgba(242,245,240,.04)}
+    .card .lab{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--accent-soft);margin-bottom:10px}
+    .card h4{font-family:var(--serif);font-size:22px;font-weight:900;margin:0 0 8px}
+    .card p{font-size:15px;line-height:1.5;color:rgba(242,245,240,.65);margin:0}
+    .cta{font-family:var(--mono);font-size:14px;letter-spacing:.12em;color:rgba(242,245,240,.55)}
+    .cta b{color:var(--accent-soft)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="closing">
+    <div class="sec-label"><span class="num">06</span>小结 · WRAP</div>
+    <h2>记住：Agent = 模型 + 循环 + 工具</h2>
+    <div class="trio">
+      <div class="card"><div class="lab">要点 1</div><h4>五步循环</h4><p>理解 → 规划 → 调用 → 观察 → 继续</p></div>
+      <div class="card"><div class="lab">要点 2</div><h4>四层架构</h4><p>Model / Harness / Tools / Workbench</p></div>
+      <div class="card"><div class="lab">要点 3</div><h4>动手闭环</h4><p>能读仓库、跑命令、落盘产物</p></div>
+    </div>
+    <p class="cta">下一节 · <b>S02 如何读 anyCode 代码库</b> · 咱们继续</p>
+  </div>
+</body>
+</html>

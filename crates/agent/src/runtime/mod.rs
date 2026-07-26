@@ -426,12 +426,6 @@ impl AgentRuntime {
             .unwrap_or(&self.default_model_config)
     }
 
-    fn runtime_mode_for_agent(agent_type: &AgentType) -> RuntimeMode {
-        crate::agent_profiles::runtime_mode_for_extends(&crate::agent_profiles::normalize_agent_id(
-            agent_type.as_str(),
-        ))
-    }
-
     /// 构建 TUI 会话使用的初始 `system` 消息（不注入 memory，避免引入额外不确定性）。
     pub async fn build_system_message(
         &self,

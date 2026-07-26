@@ -28,6 +28,7 @@ import {
   replaceOptimisticId,
   type OptimisticQueueItem,
 } from "@/lib/optimisticMessageQueue";
+import { useComposerIme } from "@/lib/composerIme";
 
 type ConversationStartSuccess = {
   session: SessionDetail;
@@ -222,6 +223,7 @@ export function ConversationComposer(props: Props) {
   const [optimisticQueue, setOptimisticQueue] = useState<OptimisticQueueItem[]>([]);
   const pendingOptimisticId = useRef<string | null>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
+  const { compositionProps, shouldIgnoreEnterForIme } = useComposerIme();
 
   useEffect(() => {
     if (props.mode === "start" && props.initialAgent !== undefined) {
@@ -580,6 +582,7 @@ export function ConversationComposer(props: Props) {
         return;
       }
       if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && menu.length > 0)) {
+        if (e.key === "Enter" && shouldIgnoreEnterForIme(e)) return;
         e.preventDefault();
         if (showMentionMenu) {
           applyMention(mentionCandidates[mentionIndex]!);
@@ -600,6 +603,7 @@ export function ConversationComposer(props: Props) {
       return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
+      if (shouldIgnoreEnterForIme(e)) return;
       e.preventDefault();
       submitMessage();
     }
@@ -715,6 +719,7 @@ export function ConversationComposer(props: Props) {
           disabled={pending || stopping}
           rows={isStart ? 5 : 4}
           onKeyDown={onComposerKeyDown}
+          {...compositionProps}
         />
         {(attachedTextFiles.length > 0 || attachedImages.length > 0) && (
           <div className="flex flex-wrap gap-2 mt-2 items-center">

@@ -61,12 +61,6 @@ pub enum McpServerEntry {
     },
 }
 
-/// Return MCP entries; stdio and remote HTTP may be mixed.
-#[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
-pub fn mcp_server_entries_from_env() -> Vec<McpServerEntry> {
-    mcp_server_entries_merged(&[], true)
-}
-
 /// Merge `config.json` → `mcp.servers` with optional env override (`ANYCODE_MCP_*`).
 #[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
 pub fn mcp_server_entries_merged(

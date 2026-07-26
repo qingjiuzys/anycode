@@ -15,7 +15,6 @@ static ACTIVITY_REFCOUNT: AtomicU32 = AtomicU32::new(0);
 pub(crate) enum ActivityReason {
     ApiCall,
     ToolExec,
-    RetryWait,
 }
 
 impl ActivityReason {
@@ -23,7 +22,6 @@ impl ActivityReason {
         match self {
             Self::ApiCall => "api_call",
             Self::ToolExec => "tool_exec",
-            Self::RetryWait => "retry_wait",
         }
     }
 }

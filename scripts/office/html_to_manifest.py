@@ -79,13 +79,67 @@ def _stats(html: str) -> list[dict]:
     return stats
 
 
+def _first_heading(html: str) -> str:
+    for pat in (
+        r"<h1[^>]*>(.*?)</h1>",
+        r"<h2[^>]*>(.*?)</h2>",
+        r"<h3[^>]*>(.*?)</h3>",
+    ):
+        t = _first(pat, html)
+        if t:
+            return re.sub(r"<[^>]+>", " ", t)
+    return _first(r"<title[^>]*>(.*?)</title>", html)
+
+
+def _lede(html: str) -> str:
+    return _first(r'class=["\'][^"\']*lede[^"\']*["\'][^>]*>(.*?)</', html) or _first(
+        r'class=["\'][^"\']*statement[^"\']*["\'][^>]*>(.*?)</', html
+    )
+
+
 def _agenda(html: str) -> list[str]:
     items: list[str] = []
     for block in re.findall(r"<li[^>]*>(.*?)</li>", html, re.S | re.I):
         t = _strip(re.sub(r'<span class="num">.*?</span>', "", block, flags=re.S))
         if t:
             items.append(t)
+    for block in re.findall(r'class=["\'][^"\']*item[^"\']*["\'][^>]*>(.*?)</div>', html, re.S | re.I):
+        t = _first(r'class=["\'][^"\']*t[^"\']*["\'][^>]*>(.*?)</', block) or _strip(block)
+        t = re.sub(r"<small[^>]*>.*?</small>", "", t, flags=re.S | re.I)
+        t = _strip(t)
+        if t:
+            items.append(t)
     return items
+
+
+def _images(html: str) -> list[str]:
+    out: list[str] = []
+    for src in re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', html, re.I):
+        if src and not src.startswith(("http://", "https://", "data:")):
+            out.append(src)
+    return out
+
+
+DENSE_VISUAL = (
+    "ladder",
+    "layer-stack",
+    "layer-stack-4",
+    "agent-cycle",
+    "evo-grid",
+    "duo",
+    "trio",
+    "metrics",
+    "timeline",
+    "checklist",
+    "diagram-box",
+    "quote",
+)
+
+
+def _has_dense_visual(html: str) -> bool:
+    if re.search(r"<img\b", html, re.I):
+        return True
+    return any(re.search(rf'class=["\'][^"\']*\b{pat}\b', html, re.I) for pat in DENSE_VISUAL)
 
 
 def _charts(html: str) -> list[dict]:
@@ -110,8 +164,8 @@ def _charts(html: str) -> list[dict]:
 def parse_slide(html: str, idx: int, total: int, source: str) -> dict:
     st = _slide_type(html, idx, total)
     slide: dict = {"type": st, "source_html": source}
-    slide["title"] = _first(r"<h1[^>]*>(.*?)</h1>", html) or _first(r"<title[^>]*>(.*?)</title>", html)
-    slide["subtitle"] = _first(r'class=["\']subtitle["\'][^>]*>(.*?)</', html)
+    slide["title"] = _first_heading(html)
+    slide["subtitle"] = _lede(html) or _first(r'class=["\']subtitle["\'][^>]*>(.*?)</', html)
     slide["meta"] = _first(r'class=["\']meta["\'][^>]*>(.*?)</', html)
     slide["footer_left"] = _first(r'class=["\']footer["\'][^>]*>\s*<span>([^<]+)', html)
     slide["footer_right"] = ""
@@ -129,6 +183,8 @@ def parse_slide(html: str, idx: int, total: int, source: str) -> dict:
     if st == "closing" and not slide["actions"]:
         slide["actions"] = [{"text": b.get("text", ""), "source": b.get("source", "")} for b in slide["bullets"]]
     slide["charts"] = _charts(html)
+    slide["images"] = _images(html)
+    slide["has_visual"] = _has_dense_visual(html)
     return slide
 
 

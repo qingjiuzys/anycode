@@ -36,6 +36,23 @@ pub(crate) fn emit_assistant_delta(
     );
 }
 
+pub(crate) fn emit_thinking_delta(
+    tx: &Option<UnboundedSender<LiveTraceEvent>>,
+    turn: usize,
+    delta: &str,
+) {
+    if delta.is_empty() {
+        return;
+    }
+    try_emit(
+        tx,
+        LiveTraceEvent::ThinkingDelta {
+            turn: turn as u32,
+            delta: delta.to_string(),
+        },
+    );
+}
+
 pub(crate) fn emit_progress_update(
     tx: &Option<UnboundedSender<LiveTraceEvent>>,
     event: LiveTraceEvent,

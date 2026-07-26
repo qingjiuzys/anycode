@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Duo Compare · FDE Courseware</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-05:rgba(35,31,32,.05);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px;max-width:1200px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:32px;line-height:1.65;max-width:900px}
+    .duo{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1500px}
+    .card{border:1px solid var(--ink);padding:28px;background:rgba(255,255,255,.35)}
+    .card .lab{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;font-weight:700}
+    .card h4{font-family:var(--serif);font-size:26px;font-weight:900;margin:0 0 16px}
+    .card ul{margin:0;padding:0;list-style:none}
+    .card li{font-size:16px;line-height:1.55;color:var(--ink-60);padding:10px 0;border-bottom:1px solid var(--ink-05)}
+    .card li:last-child{border-bottom:none}
+    .card li b{color:var(--ink)}
+    .card.dim{background:var(--ink-05)}
+    .card.hot{border-color:var(--accent);outline:3px solid var(--accent);outline-offset:-3px}
+    .card.hot .lab{color:var(--accent)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">05</span>对比 · VS</div>
+    <h3>聊天机器人 vs Agent（带工具）</h3>
+    <p class="lede">很多同学把「会写代码的 ChatGPT」当成 Agent——其实差在能不能<strong>动手</strong>并<strong>闭环</strong>。</p>
+    <div class="duo">
+      <div class="card dim">
+        <div class="lab">常见误区</div>
+        <h4>纯对话模型</h4>
+        <ul>
+          <li>只输出文字，<b>不执行</b> Shell/文件操作</li>
+          <li>无法读仓库真实状态，容易<b>幻觉路径</b></li>
+          <li>一轮问答结束，<b>无多步规划</b></li>
+          <li>工具报错时无法自动重试</li>
+        </ul>
+      </div>
+      <div class="card hot">
+        <div class="lab">正确形态 · Agent</div>
+        <h4>模型 + Harness + 工具</h4>
+        <ul>
+          <li><b>Read/Grep</b> 读代码，<b>Bash</b> 跑测试</li>
+          <li>多轮 <b>plan → tool → observe</b> 直到完成</li>
+          <li>审批门禁拦截危险命令</li>
+          <li>产物落盘：pptx / docx / 代码变更</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

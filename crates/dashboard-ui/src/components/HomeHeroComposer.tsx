@@ -8,6 +8,7 @@ import { ProjectPicker } from "@/components/ProjectPicker";
 import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { useT } from "@/i18n/context";
+import { useComposerIme } from "@/lib/composerIme";
 
 type Sse = "live" | "connecting" | "reconnecting" | "offline";
 
@@ -62,6 +63,7 @@ export function HomeHeroComposer({
   };
   const [browserHintDismissed, setBrowserHintDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { compositionProps, shouldIgnoreEnterForIme } = useComposerIme();
 
   const browser = useQuery({
     queryKey: ["browser-connector"],
@@ -178,10 +180,12 @@ export function HomeHeroComposer({
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && canSubmit) {
+              if (shouldIgnoreEnterForIme(e)) return;
               e.preventDefault();
               start.mutate({});
             }
           }}
+          {...compositionProps}
         />
         <div className="dw-hero-composer__toolbar">
           <ProjectPicker

@@ -75,6 +75,8 @@ impl GoalEngine {
         }
     }
 
+    /// Exercised by goal-engine unit tests; production reads it via the runner.
+    #[allow(dead_code)]
     fn satisfies_done_when(&self, output: &str, working_dir: &Path, rule: &str) -> bool {
         matches!(
             self.evaluate_done_when(output, working_dir, rule, None),

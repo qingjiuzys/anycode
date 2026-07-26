@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="${ANYCODE_SKILLS_DIR:-$HOME/.anycode/skills}"
 SRC="$ROOT/skills-starter"
 BRAND_ROOT="$ROOT/brand-kits"
-DEFAULT_BRAND="${ANYCODE_DEFAULT_BRAND_KIT:-lingqi}"
+DEFAULT_BRAND="${ANYCODE_DEFAULT_BRAND_KIT:-fde-editorial}"
 mkdir -p "$DEST"
 
 copy_brand_to_skill() {
@@ -34,9 +34,18 @@ for d in "$SRC"/*/; do
       rm -rf "$DEST/$id/templates"
       cp -R "$d/templates" "$DEST/$id/templates"
     fi
-    if [[ "$id" == *"-delivery" || "$id" == "office-pptx" || "$id" == "presentation-design" ]]; then
+    if [[ "$id" == *"-delivery" || "$id" == "office-pptx" || "$id" == "presentation-design" || "$id" == "anycode-ppt" || "$id" == "anycode-docx" || "$id" == "anycode-xlsx" ]]; then
       copy_brand_to_skill "$DEST/$id" "$DEFAULT_BRAND"
     fi
+    if [[ -d "$d/docs" ]]; then
+      mkdir -p "$DEST/$id/docs"
+      cp -R "$d/docs/"* "$DEST/$id/docs/" 2>/dev/null || true
+    fi
+    for doc in visual-format.md diagram-density.md; do
+      if [[ -f "$d/$doc" ]]; then
+        cp "$d/$doc" "$DEST/$id/$doc"
+      fi
+    done
     echo "installed: $id -> $DEST/$id"
   fi
 done

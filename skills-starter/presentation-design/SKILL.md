@@ -19,21 +19,23 @@ permissions:
 
 # presentation-design
 
-**Design-only** stage for commercial decks. Does **not** produce final `.pptx`.
+**Design-only** stage. Does **not** produce final `.pptx`.
+
+> **General PPT tasks:** use **`anycode-ppt`** skill instead (priority 125). It owns FDE Editorial templates + validate + export.
+> **Do not** use this skill alone to author slides from scratch.
 
 ## Style contract
 
-Default visual language is **FDE Editorial** (`templates/*.html`, contract: `docs/design/fde-editorial-contract.md`, tokens: `brand-kits/fde-editorial/tokens.json`):
+Default visual language is **FDE Editorial** only (`brand-kits/fde-editorial/tokens.json`, contract: `docs/design/fde-editorial-contract.md`):
 
-- Canvas `#f2f5f0`, ink `#231f20`, accent `#1400ff`; semantic 7-color legend for categories.
-- Serif 900 display headlines (Songti SC) + mono uppercase micro-labels; 6px ink rules + 1px hairline grids.
-- **Forbidden**: gradients, card shadows, large rounded corners, emoji icons.
+- Canvas `#f2f5f0`, ink `#231f20`, accent `#1400ff`
+- Serif 900 headlines + mono sec-label + 6px ink rules
+- **Forbidden**: gradients, shadows, large border-radius, lingqi blue/green theme
 
-Use `templates/lingqi/` (corporate blue) only when the user explicitly asks for that brand.
+`templates/lingqi/` is **deprecated for default use** — only when user explicitly names lingqi brand.
 
 ## Workflow
 
-1. Create `slides/*.html` (1920×1080) from `templates/` — cover / section / two-column / metrics / content / closing. One argument per slide; title states the conclusion.
-2. Run **`run`** via Skill: `slides/` `[brand_kit=fde-editorial]`
-3. Outputs: `slide_manifest.json` + `evidence/slide-*.png` — inspect the PNGs yourself and fix overflow/empty areas before exporting.
-4. Then invoke **`presentation-commercial-delivery`** to export editable native `.pptx`.
+1. Slides must already exist from **`anycode-ppt` templates** (copy-first, not invent CSS)
+2. Run **`run`**: `slides/` `fde-editorial` → manifest + evidence
+3. Then **`presentation-commercial-delivery`** → editable `.pptx`

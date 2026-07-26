@@ -15,6 +15,57 @@ from html_to_manifest import build_manifest  # noqa: E402
 from pptx_slide_builder import build_deck  # noqa: E402
 
 
+def ensure_evidence_pngs(workspace: Path) -> None:
+    """Regenerate stale/missing HTML evidence before pptx export."""
+    screenshot = REPO / "scripts" / "office" / "screenshot_slide_html.py"
+    if not screenshot.is_file():
+        return
+    slides_dir = workspace / "slides" if (workspace / "slides").is_dir() else workspace
+    slides = sorted(slides_dir.glob("*.html"))
+    if not slides:
+        return
+    ev = workspace / "evidence"
+    ev.mkdir(parents=True, exist_ok=True)
+    import subprocess
+
+    for i, hf in enumerate(slides, start=1):
+        png = ev / f"slide-{i:02d}.png"
+        if not png.is_file() or png.stat().st_mtime < hf.stat().st_mtime:
+            subprocess.run([sys.executable, str(screenshot), str(hf), str(png)], check=False)
+
+
+def attach_visual_assets(manifest: dict, workspace: Path) -> None:
+    """Wire evidence PNGs (HTML screenshots) into manifest so pptx matches designed visuals."""
+
+    def evidence_png(index: int) -> tuple[str, Path] | None:
+        for base in (workspace, workspace / "slides"):
+            png = base / "evidence" / f"slide-{index:02d}.png"
+            if png.is_file():
+                rel = png.relative_to(workspace)
+                return str(rel), png
+        return None
+
+    slides_dir = workspace / "slides" if (workspace / "slides").is_dir() else workspace
+    for i, slide in enumerate(manifest.get("slides") or []):
+        hit = evidence_png(i + 1)
+        if hit:
+            slide["visual_png"] = hit[0]
+        src = slide.get("source_html")
+        if src:
+            html_path = slides_dir / src
+            if not html_path.is_file():
+                html_path = workspace / src
+            if html_path.is_file():
+                html = html_path.read_text(encoding="utf-8")
+                from html_to_manifest import _has_dense_visual, _images  # noqa: WPS433
+
+                slide["has_visual"] = slide.get("has_visual") or _has_dense_visual(html)
+                if not slide.get("images"):
+                    slide["images"] = _images(html)
+        if slide.get("visual_png"):
+            slide["layout"] = "visual_full"
+
+
 def load_manifest(src: Path, brand: str = "fde-editorial") -> dict:
     if src.is_file() and src.suffix == ".json":
         return json.loads(src.read_text(encoding="utf-8"))
@@ -44,6 +95,8 @@ def main() -> int:
     if manifest.get("brand_kit") in (None, "lingqi") and brand != "lingqi":
         manifest["brand_kit"] = brand
     ws = src if src.is_dir() else src.parent
+    ensure_evidence_pngs(ws)
+    attach_visual_assets(manifest, ws)
     charts_dir = ws / "charts"
     renderer = REPO / "scripts" / "office" / "render_chart_png.py"
     for i, slide in enumerate(manifest.get("slides") or []):

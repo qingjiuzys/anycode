@@ -16,6 +16,7 @@ const DELTA_FLUSH: Duration = Duration::from_millis(50);
 struct BridgeState {
     assistant_raw_buffers: HashMap<u32, String>,
     assistant_display_buffers: HashMap<u32, String>,
+    thinking_buffers: HashMap<u32, String>,
     pending_delta_turn: Option<u32>,
     last_delta_flush: HashMap<u32, Instant>,
     streaming_phases: HashSet<u32>,
@@ -28,6 +29,7 @@ impl BridgeState {
         Self {
             assistant_raw_buffers: HashMap::new(),
             assistant_display_buffers: HashMap::new(),
+            thinking_buffers: HashMap::new(),
             pending_delta_turn: None,
             last_delta_flush: HashMap::new(),
             streaming_phases: HashSet::new(),
@@ -99,6 +101,7 @@ impl BridgeState {
                 self.streaming_phases.clear();
                 self.tool_phases.clear();
                 self.narration_turns.clear();
+                self.thinking_buffers.clear();
                 None
             }
             _ => None,
@@ -191,6 +194,19 @@ pub fn spawn_live_bridge(
                             ) {
                                 publish_persisted(&db, &events, chat_evt, user_turn_id).await;
                             }
+                            continue;
+                        }
+                        LiveTraceEvent::ThinkingDelta { turn, delta } => {
+                            let buf = state.thinking_buffers.entry(*turn).or_default();
+                            buf.push_str(delta);
+                            let chat_evt = crate::observability::chat_events::thinking_delta_event(
+                                &session_id,
+                                &project_id,
+                                user_turn_id,
+                                *turn,
+                                buf,
+                            );
+                            publish_persisted(&db, &events, chat_evt, user_turn_id).await;
                             continue;
                         }
                         LiveTraceEvent::AssistantDelta { turn, narration, .. } => {

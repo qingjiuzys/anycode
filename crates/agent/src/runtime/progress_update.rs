@@ -7,7 +7,6 @@ pub(crate) enum ProgressPhase {
     Intent,
     Execute,
     Discovery,
-    Deliver,
 }
 
 impl ProgressPhase {
@@ -16,7 +15,6 @@ impl ProgressPhase {
             Self::Intent => "intent",
             Self::Execute => "execute",
             Self::Discovery => "discovery",
-            Self::Deliver => "deliver",
         }
     }
 }
@@ -85,19 +83,6 @@ fn first_sentence(text: &str) -> String {
 
 fn tool_evidence_ref(_user_turn: u32, tool_turn: u32, idx: u32) -> String {
     format!("{tool_turn}:{idx}")
-}
-
-pub(crate) fn build_intent_update(turn: u32, seq: u32, text: &str) -> LiveTraceEvent {
-    LiveTraceEvent::ProgressUpdate {
-        turn,
-        seq,
-        phase: ProgressPhase::Intent.as_str().into(),
-        work_stage: None,
-        summary: first_sentence(text),
-        next: None,
-        discovery: None,
-        evidence_refs: vec![],
-    }
 }
 
 /// User-facing progress for a tool round (supports empty assistant text).
@@ -200,19 +185,6 @@ pub(crate) fn build_discovery_from_failure(
             err_snippet
         }),
         evidence_refs: vec![tool_evidence_ref(user_turn, tool_turn, tool_idx)],
-    }
-}
-
-pub(crate) fn build_deliver_update(turn: u32, seq: u32, text: &str) -> LiveTraceEvent {
-    LiveTraceEvent::ProgressUpdate {
-        turn,
-        seq,
-        phase: ProgressPhase::Deliver.as_str().into(),
-        work_stage: None,
-        summary: first_sentence(text),
-        next: None,
-        discovery: None,
-        evidence_refs: vec![],
     }
 }
 

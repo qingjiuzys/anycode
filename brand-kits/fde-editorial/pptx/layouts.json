@@ -1,0 +1,43 @@
+{
+  "brand_kit": "fde-editorial",
+  "slide_types": {
+    "cover": {
+      "background": "surface",
+      "title_color": "ink",
+      "accent_bar": true,
+      "min_value_chips": 3
+    },
+    "section": {
+      "background": "surface",
+      "title_color": "ink",
+      "left_accent_bar": true,
+      "min_agenda_items": 4
+    },
+    "content": {
+      "background": "surface",
+      "title_color": "ink",
+      "footer": true,
+      "min_bullets": 4
+    },
+    "metrics": {
+      "background": "surface_alt",
+      "stat_cards": 6,
+      "min_stat_cards": 4
+    },
+    "closing": {
+      "background": "ink",
+      "title_color": "surface",
+      "cta": true,
+      "min_action_items": 3
+    }
+  },
+  "content_density": {
+    "cover": {"min_list_items": 0, "min_stat_spans": 0, "min_side_panels": 1},
+    "section": {"min_list_items": 4, "min_stat_spans": 0, "min_side_panels": 1},
+    "content": {"min_list_items": 3, "min_stat_spans": 0, "min_side_panels": 1},
+    "metrics": {"min_list_items": 4, "min_stat_spans": 4, "min_side_panels": 0},
+    "closing": {"min_list_items": 3, "min_stat_spans": 0, "min_side_panels": 3}
+  },
+  "min_shapes_per_slide": 4,
+  "footer_text": "FDE Editorial · Courseware"
+}

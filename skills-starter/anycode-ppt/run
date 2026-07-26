@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""anycode-ppt: editorial HTML slide deck (fde-editorial) — no pptx export."""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+SKILL_DIR = Path(__file__).resolve().parent
+REPO = SKILL_DIR.parents[1] if (SKILL_DIR.parents[1] / "brand-kits").is_dir() else SKILL_DIR.parents[2]
+BRAND = "fde-editorial"
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print("usage: run slides_dir", file=sys.stderr)
+        return 1
+    src = Path(sys.argv[1]).resolve()
+
+    design_run = REPO / "skills-starter" / "presentation-design" / "run"
+    validator = REPO / "scripts" / "office" / "validate_slide_html.py"
+    index_py = REPO / "scripts" / "office" / "build_slide_deck_index.py"
+
+    for step, cmd in [
+        ("design", [sys.executable, str(design_run), str(src), BRAND]),
+        ("validate", [sys.executable, str(validator), str(src), "anycode-ppt"]),
+        ("index", [sys.executable, str(index_py), str(src)]),
+    ]:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            sys.stderr.write(f"[{step}] failed\n{proc.stderr or proc.stdout}")
+            return proc.returncode
+        if proc.stdout.strip():
+            print(proc.stdout.strip())
+
+    slides = sorted(src.glob("*.html"))
+    if not slides and (src / "slides").is_dir():
+        slides = sorted((src / "slides").glob("*.html"))
+    slides = [s for s in slides if s.name.lower() != "index.html"]
+    deck_dir = slides[0].parent if slides else src
+    index = deck_dir / "index.html"
+    print(f"slides: {len(slides)} pages in {deck_dir}")
+    print(f"deck: {index}")
+    print(f"manifest: {src / 'slide_manifest.json'}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

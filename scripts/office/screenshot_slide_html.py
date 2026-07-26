@@ -17,7 +17,7 @@ def screenshot_html(html_path: Path, png_path: Path, *, width: int = WIDTH, heig
     url = html_path.as_uri()
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": width, "height": height, "deviceScaleFactor": 1})
+        page = browser.new_page(viewport={"width": width, "height": height, "deviceScaleFactor": 2})
         page.goto(url, wait_until="networkidle")
         page.wait_for_timeout(150)
         page.screenshot(path=str(png_path), clip={"x": 0, "y": 0, "width": width, "height": height})

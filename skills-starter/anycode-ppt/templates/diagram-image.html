@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Diagram · anyCode PPT</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box;display:grid;grid-template-rows:auto 1fr auto;gap:24px}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0}
+    .lede{font-size:18px;color:var(--ink-60);line-height:1.65;max-width:1100px}
+    .diagram-box{border:1px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:520px}
+    .diagram-box img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+    .caption{font-family:var(--mono);font-size:13px;color:var(--ink-60);letter-spacing:.08em}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">03</span>图示 · DIAGRAM</div>
+    <div>
+      <h3>用插图讲清一个关键点</h3>
+      <p class="lede">架构图、流程截图、产品 UI — 放 <code>slides/assets/</code> 下，相对路径引用。</p>
+    </div>
+    <div class="diagram-box">
+      <!-- 替换为实际资产，例如 assets/architecture.png -->
+      <svg width="900" height="420" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" aria-label="diagram placeholder">
+        <rect x="1" y="1" width="898" height="418" fill="none" stroke="#231f20" stroke-width="2"/>
+        <text x="450" y="200" text-anchor="middle" font-family="monospace" font-size="18" fill="#231f20">diagram-box · SVG or &lt;img src="assets/..."&gt;</text>
+        <rect x="80" y="240" width="740" height="120" fill="#f2f5f0" stroke="#1400ff" stroke-width="4"/>
+        <text x="450" y="310" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#1400ff">主视觉区域</text>
+      </svg>
+    </div>
+    <p class="caption">图注 · 数据来源 / 版本 / 链接</p>
+  </div>
+</body>
+</html>

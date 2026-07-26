@@ -53,3 +53,5 @@ apps/anycode-desktop/icons/.icon-fingerprint
 apps/anycode-desktop/resources/.stage-fingerprint
 apps/anycode-desktop/resources/.ui-stage-fingerprint
 scripts/__pycache__/
+__pycache__/
+*.pyc

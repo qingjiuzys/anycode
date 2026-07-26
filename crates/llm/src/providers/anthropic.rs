@@ -76,7 +76,7 @@ impl LLMClient for AnthropicClient {
         let observer = config.retry_observer.as_deref();
         let mut attempt: u32 = 0;
         let mut consecutive_overload = 0u32;
-        let mut last_err = String::new();
+        let mut last_err: String;
         loop {
             attempt += 1;
             let response = match self
@@ -375,11 +375,14 @@ pub(crate) enum AnthropicResponseContent {
         #[serde(default)]
         input: serde_json::Value,
     },
-    /// Extended thinking / Token Plan reasoning blocks — ignored for text output.
+    /// Extended thinking / Token Plan reasoning blocks — ignored for text output
+    /// (fields retained for forward-compatible parsing).
     Thinking {
         #[serde(default)]
+        #[allow(dead_code)]
         thinking: String,
         #[serde(default)]
+        #[allow(dead_code)]
         signature: String,
     },
     /// Forward-compatible catch-all for unknown content block types.

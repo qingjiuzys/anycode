@@ -1,15 +1,15 @@
 ---
 name: document-delivery
-description: Author structured reports and export editable DOCX with Decision/Action ownership.
-description_zh: 撰写结构化报告并导出可编辑 DOCX（含 Decision/Action 责任人）。
-name_zh: 文档交付
+description: MD → docx export (internal). Prefer anycode-docx for editorial reports.
+description_zh: MD 转 docx。报告请用 anycode-docx。
+name_zh: 文档导出
 category: business
-version: 1.1.0
+version: 1.2.0
 mode: executable
 approval: writes-workspace
 channel_capabilities: [files, artifacts]
-provides_capabilities: [document.author, document.export.docx]
-priority: 110
+provides_capabilities: [document.export.docx]
+priority: 90
 platforms: [darwin, linux]
 permissions:
   read_dirs: [workspace]
@@ -19,9 +19,9 @@ permissions:
 
 # document-delivery
 
-Produce a real `.docx` in the workspace. Independent validators decide completion.
+Low-level **MD → docx** export. For editorial reports, use **`anycode-docx`** first (templates + validate + HTML preview + docx).
 
-## Workflow
+## Workflow (when called by anycode-docx or legacy)
 
 1. Clarify audience and purpose (once).
 2. Outline Markdown: `# Summary` first, then `##` sections (metrics, incidents, changes, next steps).

@@ -91,12 +91,13 @@ def run_profile(
     coverage: bool,
     shard: str | None,
     repetitions: int = 1,
+    offline: bool = False,
 ) -> int:
     if profile == "live-model" and not models:
         print("live-model profile requires --models", file=sys.stderr)
         return 2
     spec = load_profile(profile)
-    cases = filter_cases(spec.cases, profile, models or None, spec.tier)
+    cases = filter_cases(spec.cases, profile, models or None, spec.tier, offline=offline)
     cases = shard_cases(cases, shard)
     if not cases:
         print(f"No cases selected for profile={profile}", file=sys.stderr)
@@ -172,6 +173,11 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         help="repeat each selected case (live-model defaults to 3)",
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="opt out of offline mode: allow cases needing a live LLM / network",
+    )
     args = parser.parse_args(argv)
 
     if args.command == "doctor":
@@ -190,12 +196,14 @@ def main(argv: list[str] | None = None) -> int:
     if repetitions < 1:
         parser.error("--repetitions must be >= 1")
 
+    offline = not args.live and os.environ.get("ANYCODE_OFFLINE", "1") != "0"
     return run_profile(
         args.profile,
         parse_models(args.models),
         coverage=args.coverage,
         shard=args.shard,
         repetitions=repetitions,
+        offline=offline,
     )
 
 

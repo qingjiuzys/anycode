@@ -43,6 +43,7 @@ use crate::web_search::WebSearchTool;
 use anycode_core::prelude::*;
 use std::collections::HashMap;
 
+#[cfg_attr(feature = "tools-mcp", allow(dead_code))]
 fn mcp_configured(deps: &ToolRegistryDeps) -> bool {
     #[cfg(feature = "tools-mcp")]
     {

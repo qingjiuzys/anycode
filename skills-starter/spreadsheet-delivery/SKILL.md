@@ -1,15 +1,15 @@
 ---
 name: spreadsheet-delivery
-description: Author tabular workbooks and export real XLSX with headers and concrete rows.
-description_zh: 编写表格工作簿并导出真实 XLSX（表头 + 具体数据行）。
-name_zh: 表格交付
+description: workbook.json/CSV → xlsx export (internal). Prefer anycode-xlsx.
+description_zh: 工作簿转 xlsx。表格请用 anycode-xlsx。
+name_zh: 表格导出
 category: business
-version: 1.0.0
+version: 1.1.0
 mode: executable
 approval: writes-workspace
 channel_capabilities: [files, artifacts]
-provides_capabilities: [spreadsheet.author, spreadsheet.export.xlsx]
-priority: 110
+provides_capabilities: [spreadsheet.export.xlsx]
+priority: 90
 platforms: [darwin, linux]
 permissions:
   read_dirs: [workspace]
@@ -19,9 +19,9 @@ permissions:
 
 # spreadsheet-delivery
 
-Produce a real `.xlsx` workbook. Independent validators decide completion.
+Low-level **workbook.json / CSV → xlsx** export. For editorial workbooks, use **`anycode-xlsx`** first (templates + validate + xlsx).
 
-## Workflow
+## Workflow (when called by anycode-xlsx or legacy)
 
 1. Confirm sheet names, columns, and units (currency, percent, dates).
 2. Write a CSV or Markdown table source under the workspace (`sales.csv` or `table.md`).

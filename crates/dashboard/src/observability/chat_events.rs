@@ -334,6 +334,7 @@ pub fn chat_event_from_live_trace(
                 true,
             ))
         }
+        anycode_core::LiveTraceEvent::ThinkingDelta { .. } => None,
         anycode_core::LiveTraceEvent::AssistantDone { turn, text } => {
             let display = strip_llm_reasoning_for_display(text);
             assistant_raw_buffers.insert(*turn, text.clone());
@@ -968,6 +969,46 @@ fn live_assistant_meta(
         meta["message_role"] = serde_json::json!("status");
     }
     meta
+}
+
+pub fn thinking_delta_event(
+    session_id: &str,
+    project_id: &str,
+    user_turn_id: u32,
+    turn: u32,
+    full_text: &str,
+) -> ChatStreamEvent {
+    let preview = full_text.trim();
+    ChatStreamEvent {
+        session_id: session_id.to_string(),
+        project_id: project_id.to_string(),
+        kind: "thinking_delta".into(),
+        turn: Some(turn),
+        conversation_turn_id: Some(user_turn_id),
+        seq: None,
+        event_id: None,
+        tool_key: None,
+        tool_name: None,
+        text: Some(preview.to_string()),
+        block: Some(TranscriptBlock {
+            id: format!("thinking:u{user_turn_id}:{turn}"),
+            block_type: "system_notice".into(),
+            at: Utc::now().to_rfc3339(),
+            title: "Thinking".into(),
+            body: preview.to_string(),
+            meta: json!({
+                "source": "thinking_delta",
+                "live": true,
+                "turn": turn,
+                "user_turn_id": user_turn_id.to_string(),
+            }),
+            collapsible: true,
+            default_collapsed: true,
+            event_id: None,
+        }),
+        payload: json!({ "turn": turn, "user_turn_id": user_turn_id }),
+        at: Utc::now().to_rfc3339(),
+    }
 }
 
 pub fn assistant_delta_event(

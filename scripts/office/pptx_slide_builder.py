@@ -165,6 +165,66 @@ def build_metrics(slide, prs, data: dict, tokens: dict, workspace: Path | None =
     _footer(slide, data.get("footer_left", ""), data.get("footer_right", ""), tokens)
 
 
+def build_visual_full(slide, prs, data: dict, tokens: dict, workspace: Path | None = None):
+    """Full-bleed 1920×1080 evidence PNG — pixel-perfect HTML→PPT (16:9 slide)."""
+    png_rel = data.get("visual_png") or data.get("hero_image")
+    if png_rel and workspace:
+        png_path = workspace / png_rel
+        if png_path.is_file():
+            slide.shapes.add_picture(
+                str(png_path),
+                0,
+                0,
+                width=prs.slide_width,
+                height=prs.slide_height,
+            )
+            return
+    build_visual(slide, prs, data, tokens, workspace)
+
+
+def build_visual(slide, prs, data: dict, tokens: dict, workspace: Path | None = None):
+    """Partial embed + editable title — fallback when no full-slide evidence PNG."""
+    _bg(slide, prs, tokens, "FFFFFF")
+    _accent_bar(slide, prs, tokens)
+    title = (data.get("title") or "").strip()
+    subtitle = (data.get("subtitle") or "").strip()
+    if title:
+        _box(slide, Inches(0.55), Inches(0.25), Inches(12.2), Inches(0.65), title, size=26, bold=True, color_key="primary", tokens=tokens)
+    if subtitle:
+        _box(slide, Inches(0.55), Inches(0.85), Inches(12.0), Inches(0.45), subtitle, size=14, color_key="body_text", tokens=tokens)
+    top = 1.35 if subtitle else 0.95
+    png_rel = data.get("visual_png") or data.get("hero_image")
+    placed = False
+    if png_rel and workspace:
+        png_path = workspace / png_rel
+        if png_path.is_file():
+            slide.shapes.add_picture(
+                str(png_path),
+                Inches(0.35),
+                Inches(top),
+                width=Inches(12.6),
+                height=Inches(7.5 - top - 0.55),
+            )
+            placed = True
+    if not placed:
+        for img_rel in data.get("images") or []:
+            png_path = (workspace / img_rel) if workspace else Path(img_rel)
+            if png_path.is_file():
+                slide.shapes.add_picture(
+                    str(png_path),
+                    Inches(0.55),
+                    Inches(top),
+                    width=Inches(12.0),
+                    height=Inches(5.5),
+                )
+                placed = True
+                break
+    if not placed:
+        build_content(slide, prs, data, tokens)
+        return
+    _footer(slide, data.get("footer_left", ""), data.get("footer_right", ""), tokens)
+
+
 def build_closing(slide, prs, data: dict, tokens: dict):
     _bg(slide, prs, tokens, "primary")
     _accent_bar(slide, prs, tokens)
@@ -186,6 +246,8 @@ BUILDERS = {
     "content": build_content,
     "metrics": build_metrics,
     "closing": build_closing,
+    "visual": build_visual,
+    "visual_full": build_visual_full,
 }
 
 
@@ -197,8 +259,15 @@ def build_deck(manifest: dict, tokens: dict, workspace: Path | None = None) -> P
     ws = workspace
     for slide_data in manifest.get("slides") or []:
         st = slide_data.get("type", "content")
+        layout = slide_data.get("layout")
         slide = prs.slides.add_slide(blank)
-        if st == "metrics":
+        if layout == "visual_full" or (
+            slide_data.get("visual_png") and layout != "native"
+        ):
+            build_visual_full(slide, prs, slide_data, tokens, ws)
+        elif layout == "visual" or slide_data.get("visual_png"):
+            build_visual(slide, prs, slide_data, tokens, ws)
+        elif st == "metrics":
             build_metrics(slide, prs, slide_data, tokens, ws)
         else:
             builder = BUILDERS.get(st, build_content)

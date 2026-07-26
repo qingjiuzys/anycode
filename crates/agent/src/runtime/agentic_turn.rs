@@ -43,6 +43,10 @@ impl TurnToolCancel<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TurnToolCancelOutcome {
+    /// Reserved for the no-cancel steady state (matches `Option::None` in both
+    /// `into_*` mappings); not constructed yet while the steady path is
+    /// represented by the enum's `Option` wrapper.
+    #[allow(dead_code)]
     None,
     TaskCancelled,
     TurnCancelled,

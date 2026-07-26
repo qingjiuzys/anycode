@@ -18,6 +18,11 @@ pub enum LiveTraceEvent {
         #[serde(default)]
         narration: bool,
     },
+    /// Model reasoning / thinking chain (shown in tool-strip fold, not final reply).
+    ThinkingDelta {
+        turn: u32,
+        delta: String,
+    },
     /// Re-tag a turn's assistant block as tool-round narration (after tool_calls are known).
     AssistantNarrationMark {
         turn: u32,

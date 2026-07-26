@@ -55,7 +55,7 @@ def find_brand_kit(name: str = "fde-editorial") -> Path:
 def infer_brand_kit(text: str) -> str:
     t = text.lower()
     gov_hits = ("政府", "政务", "公文", "红头", "gov ", "government", "密级", "机关")
-    edu_hits = ("教育", "教学", "课纲", "教案", "lesson plan", "school", "course")
+    edu_hits = ("教育", "教学", "课纲", "教案", "lesson plan", "school", "course", "教学课件")
     if any(h in t for h in gov_hits):
         return "gov-formal"
     if any(h in t for h in edu_hits):
@@ -113,6 +113,25 @@ def emit_artifact(path: Path, kind: str) -> None:
 def infer_scenario(text: str) -> str | None:
     t = text.lower()
     rules: list[tuple[str, tuple[str, ...]]] = [
+        (
+            "anycode-ppt",
+            (
+                "anycode-ppt",
+                "anycode ppt",
+                "pptx",
+                "ppt",
+                "slides",
+                "deck",
+                "幻灯片",
+                "演示文稿",
+                "pitch deck",
+                "presentation",
+                "调研",
+                "高密度 ppt",
+                "dense deck",
+                "editorial ppt",
+            ),
+        ),
         ("performance-review", ("述职", "performance review", "okr review", "年度考核")),
         ("education-lesson-plan", ("课纲", "教案", "lesson plan", "教学设计", "教学课件")),
         ("gov-briefing", ("政府", "政务", "gov briefing", "公文", "汇报材料")),

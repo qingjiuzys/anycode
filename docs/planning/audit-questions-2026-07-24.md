@@ -1,92 +1,40 @@
-# 审计存疑项 — 待用户决策（2026-07-24）
+# 审计存疑项 — 待用户决策（2026-07-24，07-26 更新）
 
-> SOTA 迭代审计中无法自行拍板的问题。每条附背景、选项、我的倾向。
-> 明显的问题已直接修复，不在此列（修复清单见文末）。
+> 用户已授权「按照你的倾向来」。以下记录各问题的处理结果；仅剩 Q5.3/Q7.5/Q7.6/Q8 余项待后续。
 
-## 使用方式
+## 已按倾向执行完毕
 
-在每条下面写「选 A/B/C」或自由回复即可。
+- **Q1 A**：config schema 忽略未知键（channels/wechatHistory 本就不在 schema）；statusLine/terminal 保留但标记 DEPRECATED。
+- **Q2 A**：FDE 提为全管线默认，lingqi 降级 `templates/lingqi/` + 可选品牌。
+- **Q4 A**：已提交 4 个 commit（渠道移除 / experience+office+FDE / fmt / provider 加固）。
+- **Q5 A**：dead-code 全清（channel-bridge 12 死依赖、bootstrap dialoguer、desktop BridgeState、dashboard 6 处、agent 5 处）。
+- **Q6 A**：workflow DAG 已接入 scheduler（cron job `workflow` 字段 → DAG+checkpoint；文档已更新 docs/user/zh/guide/daemon.md）。
+- **Q7.1/7.2/7.4**：/setup/* 写端点仅 loopback 免认证；desktop 杀端口进程前校验 anycode 身份；3 个死环境变量已删。
+- **Q9.1**：配额耗尽 429 快速失败（zai+openai）；anthropic 过载重试加强（10 次/30s/抖动）。
+- **Q9.3**：eval 超时会话自动 cancel。
 
----
+## Kimi 验收实测（07-26）
 
-## Q1. 用户 config.json 的残留键怎么处置
+- 端到端 **PROVEN**：dashboard → Kimi(kimi-k2-turbo-preview) → 流式中文回答 → session completed。
+- 沿途抓到并修复 3 个真实 provider bug：① content block 缺 `type` 标签（严格网关 400）；② 尾部 system 角色消息（违反 Anthropic 契约）；③ 错误日志无响应体。
+- 全套件验收受阻：61 工具/12k token 大请求持续触发 Kimi 套餐 rate_limit（engine overloaded），与 Claude Code 本会话共享预算；属环境约束非代码缺陷。anthropic 重试已加强到 10 次/30s 仍不够覆盖长窗口，引擎冷却后可重跑：`ANYCODE_CHAT_PROVIDER=anthropic ANYCODE_CHAT_MODEL=kimi-k2-turbo-preview ANYCODE_CHAT_BASE_URL=https://api.kimi.com/coding/v1/messages ANYCODE_CHAT_API_KEY_ENV=KIMI_API_KEY python3 scripts/run-agent-quality.py --models kimi-k2-turbo-preview --arms experience_skill`
 
-`~/.anycode/config.json` 里仍有已移除功能的配置：`channels`（telegram/discord/wechat 全 null）、`wechatHistory`、`terminal`、可能还有 `statusLine`。
+## 仍待决策（下轮）
 
-- A. config schema 保留这些字段但标记 deprecated，启动时静默忽略（向后兼容，推荐）
-- B. schema 删除字段 + 写一次性迁移把旧键从用户 config 里清掉
-- C. 不动
+- **Q7.3** WebChatHub stub 移除（API 面清理）。
+- **Q7.5** sync_registry 启动本地模型即改写全局 chat 配置——改 per-agent 路由还是保持？
+- **Q7.6** stale-epoch 分支：防御性代码还是掩盖竞态？
+- **Q8 余项** weak-local 恢复双实现保留（语义真实不同：消息锁/预算/返回类型各异），已注释说明。
+- **Q3** hidden split 评测何时跑（需引擎空闲窗口）。
 
-**我的倾向：A**——不碰用户数据，schema 层忽略即可。
 
-## Q2. lingqi 企业蓝风格的去留（已按 A 执行，知会即可）
 
-已落地：FDE 模板提为 `templates/` 默认（lingqi 降级 `templates/lingqi/`）；所有 run 脚本默认 brand 改为 `fde-editorial`；scenarios 商用场景 manifest 默认 fde-editorial；experience pack 教学文案同步；`infer_brand_kit` 默认 fde-editorial。lingqi 保留为可选品牌。若你想让 lingqi 彻底移除，回复说明。
 
-## Q3. M4 promotion gate 是否现在跑
 
-`docs/ops/agent-quality-promotion.md` 的 hidden split 四臂评测 + 视觉盲评需要真实模型调用（deepseek-v4-flash / qwen3.8-max-preview 已在 config），会消耗 API 额度，时长可能 1-2 小时。
 
-- A. 现在跑 dev split 冒烟（~10 任务），hidden 留给你决定
-- B. 直接全量跑 hidden
-- C. 本轮不跑，只保证 harness 可用
 
-**我的倾向：A**。
 
-## Q4. 282 个未提交文件的拆分方案
 
-当前工作区混着两条线：① 渠道桥移除（已 staged 的删除 + 配套修改）② experience/评测/office 新体系（未跟踪）。加上本轮我的修复。
-
-- A. 拆 3 个 commit：渠道移除 / experience+评测体系 / 本轮审计修复+风格对齐（推荐）
-- B. 全部一个 commit
-- C. 更细粒度（5+ 个 commit）
-
-**我的倾向：A**。注：部分文件（task_compiler.rs、execute_task.rs 等）同时含②和③的改动，文件级无法干净三分；实际执行时建议 C1=渠道移除（39 staged 删除 + 渠道相关修改），C2=experience/评测/office+审计修复合并为一个，或接受近似拆分。**本轮我未执行任何 commit**——你确认方案后我再提交（或你说「直接提交」我就按 A 执行）。
-
-## Q5. channel-bridge / dashboard 的 ~200 个 dead-code 警告
-
-渠道移除后大量 unused import / dead fn 警告。全量清理会触碰很多文件。
-
-- A. 本轮全清（推荐，配合渠道移除 commit）
-- B. 只清 channel-bridge，dashboard 下轮
-- C. 留着不管
-
-**我的倾向：A**。
-
-## Q6. Workflow DAG 执行链失去入口
-
-ADR 014 决定「`depends_on` 以 DAG + checkpoint 执行」，但这条链（`tasks_run.rs` → `workflow_exec.rs` / `workflow_validate.rs`）的唯一调用方是被删除的终端 CLI `run` 命令。现在 rustc 报整链 dead code：scheduler 和 Workbench 都不走它。
-
-- A. 把 workflow 执行接入 scheduler cron job（job 声明 workflow 文件 → DAG 执行），恢复 ADR 014 承诺的能力（推荐，工作量中等）
-- B. 接入 Workbench 自动化面板（UI 更重）
-- C. 删除这条链，ADR 014 第 6 条标记 superseded
-- D. 暂时保留死代码，下轮再定
-
-**我的倾向：A**。
-
-## Q7. 安全与运维类存疑（需要你的判断）
-
-1. **`api/auth.rs is_public_path` 把所有 `/api/setup/*`（含写端点）免认证**。dashboard 默认绑 127.0.0.1 风险低，但非 loopback 部署时可匿名改配置。建议：写端点仅限 loopback。要改吗？
-2. **`dashboard_backend.rs` 启动时 `lsof -ti :43180 | kill`** 杀任意占用进程（不校验身份），可能误杀用户其他服务。建议：先校验进程是旧 anycode 再杀，或改成报错提示。要改吗？
-3. **`WebChatHub` 已退化为恒 bail 的 stub**，但 AppState/handlers 仍带着它流转。建议下轮移除；本轮未动。
-4. **三个只设不读的环境变量**（`ANYCODE_DASHBOARD_EMBEDDED_CHAT` / `INPROCESS_TRIGGERS` / `API_ONLY`）。删除还是恢复功能？
-5. **`managed_local_llm.sync_registry` 启动本地模型就改写全局 provider/model/api_key**（api_key 写成 "sglang"/"ollama" 字面量），副作用大。这是有意设计（让会话立即切到本地模型）还是应改为 per-agent 路由？
-6. **`chat_runtime/mod.rs` stale-epoch 早退分支疑似不可达**——防御性死代码还是掩盖真实竞态？需要你确认历史意图。
-
-## Q8. execute_task / execute_turn 双编排器去重
-
-审计发现 weak-local 工具恢复逻辑和 TaskCompiler 装配块在两个编排器里近乎逐行复制（execute_task.rs:317-386 ≈ execute_turn.rs:636-720；execute_task.rs:78-143 ≈ execute_turn.rs:90-248），且对同一 GuardDecision 的最终语义不一致（Partial vs 拼接近似成功文本）。合并是中等规模重构，本轮未动。
-
-- A. 下轮迭代合并为单一编排实现（推荐）
-- B. 保留双轨，先补文档说明语义差异
-
-## Q9. 评测门禁校准（验收实测发现）
-
-1. **qwen token-plan 周配额已耗尽**（07-30 05:38 UTC 重置）。第 2/3 轮验收后 5 个用例死于网关 429 → LLM 调用挂起。两个启示：a) 网关 429/配额错误应快速失败并明确报错，而不是挂起 40 分钟（建议下轮排查 streaming + failover 在 429 下的行为）；b) 验收套件需要支持切换备用模型（目前 dashboard server 只读 config 的 models.chat，无 env 覆盖；我想用隔离 HOME + deepseek 跑但被凭证复制安全限制拦下——需要一个官方的多模型验收通道）。
-2. **trajectory gate `max_tool_errors=2` 偏紧**：eval 环境缺 browser bundle 时模型重试 BrowserNavigate 即超预算，任务其实已完成。建议区分"工具不可用（环境）"与"工具失败（agent）"计数。
-3. **eval 会话泄漏**：超时用例的 session 永远停在 running。已修（executor 超时即调 cancel）。
-
----
 
 ## 已直接修复（无需回复）
 

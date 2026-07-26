@@ -178,7 +178,8 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
     );
   }
 
-  const showThinkingFold = processSnippets.length > 0;
+  const showThinkingFold =
+    processSnippets.length > 0 || processMessageCount > 0;
 
   return (
     <div className="flex flex-col gap-1.5 w-full max-w-[min(100%,42rem)]">

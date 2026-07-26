@@ -246,13 +246,10 @@ pub struct MemoryConfig {
     /// `http`（默认，OpenAI 兼容远程）| `local`（本地 ONNX，需 `--features embedding-local`）。
     pub embedding_provider: String,
     /// 本地嵌入模型缓存目录；`None` 用 fastembed 默认（多为 `~/.cache/fastembed`）。
-    #[cfg_attr(not(feature = "embedding-local"), allow(dead_code))]
     pub embedding_local_cache_dir: Option<PathBuf>,
     /// 本地 ONNX 模型 id，与 fastembed `EmbeddingModel` 的 `Debug` 名一致（如 `AllMiniLML6V2`、`BGESmallZHV15`）。
-    #[cfg_attr(not(feature = "embedding-local"), allow(dead_code))]
     pub embedding_local_model: Option<String>,
     /// 覆盖 Hugging Face 下载根 URL（如 `https://hf-mirror.com`）；未设置时尊重环境变量 `HF_ENDPOINT`。
-    #[cfg_attr(not(feature = "embedding-local"), allow(dead_code))]
     pub embedding_hf_endpoint: Option<String>,
 }
 

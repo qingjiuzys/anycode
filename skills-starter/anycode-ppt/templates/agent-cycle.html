@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Agent Cycle · FDE Editorial</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-40:rgba(35,31,32,.55);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:64px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:16px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:44px;margin:0 0 10px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:28px;line-height:1.65;max-width:900px}
+    .agent-cycle{position:relative;width:1500px;height:620px;margin:0 auto}
+    .agent-cycle svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+    .agent-cycle svg line,.agent-cycle svg path{stroke:var(--ink);stroke-width:2;fill:none}
+    .agent-cycle svg marker path{fill:var(--ink)}
+    .cycle-core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:420px;
+      background:var(--ink);color:var(--bg);padding:28px 32px;text-align:center;border:1px solid var(--ink)}
+    .cycle-core h4{font-family:var(--serif);font-size:26px;font-weight:900;margin:0 0 8px}
+    .cycle-core p{font-family:var(--mono);font-size:13px;line-height:1.65;color:rgba(242,245,240,.75);margin:0}
+    .cycle-node{position:absolute;width:200px;text-align:center;transform:translate(-50%,-50%)}
+    .cycle-node .bubble{width:56px;height:56px;border:2px solid var(--ink);margin:0 auto 10px;
+      display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:22px;font-weight:700;background:var(--bg)}
+    .cycle-node b{display:block;font-size:17px;font-weight:700;margin-bottom:4px}
+    .cycle-node span{font-size:13px;color:var(--ink-60);line-height:1.4;display:block}
+    .cycle-node.on .bubble{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .cycle-node.n1{left:50%;top:4%}
+    .cycle-node.n2{left:88%;top:28%}
+    .cycle-node.n3{left:88%;top:72%}
+    .cycle-node.n4{left:12%;top:72%}
+    .cycle-node.n5{left:12%;top:28%}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">03</span>Agent 循环 · CYCLE</div>
+    <h3>不是一问一答，而是五步闭环</h3>
+    <p class="lede">理解任务 → 规划拆步 → 调用工具 → 观察结果 → 继续或交还人类；中心是模型 + Harness 骨架。</p>
+    <div class="agent-cycle">
+      <svg viewBox="0 0 1500 620" aria-hidden="true">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z"/>
+          </marker>
+        </defs>
+        <path d="M750,80 A320,260 0 0,1 1290,200" marker-end="url(#arr)"/>
+        <path d="M1290,420 A320,260 0 0,1 750,540" marker-end="url(#arr)"/>
+        <path d="M750,540 A320,260 0 0,1 210,420" marker-end="url(#arr)"/>
+        <path d="M210,200 A320,260 0 0,1 750,80" marker-end="url(#arr)"/>
+        <line x1="750" y1="80" x2="210" y2="200" stroke-dasharray="6 4" opacity=".35"/>
+      </svg>
+      <div class="cycle-core">
+        <h4>模型 + Harness（骨架）</h4>
+        <p>工具表 · 记忆 · 规划 · 重试 · 日志</p>
+      </div>
+      <div class="cycle-node n1"><div class="bubble">1</div><b>理解任务</b><span>读懂目标</span></div>
+      <div class="cycle-node n2 on"><div class="bubble">2</div><b>规划</b><span>拆步骤</span></div>
+      <div class="cycle-node n3"><div class="bubble">3</div><b>调用工具</b><span>调 Skill · Tool Calling</span></div>
+      <div class="cycle-node n4"><div class="bubble">4</div><b>观察结果</b><span>看结果对不对</span></div>
+      <div class="cycle-node n5"><div class="bubble">5</div><b>继续 · 求助</b><span>循环或交还人类</span></div>
+    </div>
+  </div>
+</body>
+</html>
