@@ -4,8 +4,8 @@ use crate::task_compiler::{
     attributed_memories_sections, CompileArmFlags, CompiledPromptParts, MemoryRecallBudgets,
     TaskCompiler,
 };
-use anycode_core::{builtin_web_and_rust_pack, GatePlan, Memory, MemoryType, TaskFamily};
 use anycode_core::ExpectedArtifact;
+use anycode_core::{builtin_web_and_rust_pack, GatePlan, Memory, MemoryType, TaskFamily};
 use anycode_tools::{resolve_capabilities, SkillCatalog, SkillResolutionContext, SkillsGovernance};
 use std::path::Path;
 use std::sync::{Arc, Mutex as StdMutex};
@@ -84,20 +84,20 @@ pub async fn compile_for_prompt(
 }
 
 /// Stable one-line markers so both orchestrators log gates/skills identically.
-pub fn gate_plan_marker(family: Option<TaskFamily>, requirements: usize, arm: CompileArmFlags) -> String {
+pub fn gate_plan_marker(
+    family: Option<TaskFamily>,
+    requirements: usize,
+    arm: CompileArmFlags,
+) -> String {
     format!(
         "[gate_plan_created] family={:?} requirements={} arm=exp:{}:skills:{}",
-        family,
-        requirements,
-        arm.experience_enabled as u8,
-        arm.production_skills_enabled as u8
+        family, requirements, arm.experience_enabled as u8, arm.production_skills_enabled as u8
     )
 }
 
 pub fn skill_resolved_marker(selected: &[String]) -> String {
     format!("[skill_resolved] selected={}", selected.join(","))
 }
-
 
 pub async fn recall_typed_memories(
     store: &dyn anycode_core::MemoryStore,

@@ -464,7 +464,11 @@ pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> 
                     }
                     MessageContent::Text(text) => vec![AnthropicContent::text(text)],
                     MessageContent::ToolUse { name, input } => {
-                        vec![AnthropicContent::tool_use(Uuid::new_v4().to_string(), name, input)]
+                        vec![AnthropicContent::tool_use(
+                            Uuid::new_v4().to_string(),
+                            name,
+                            input,
+                        )]
                     }
                     MessageContent::ToolResult {
                         tool_use_id,

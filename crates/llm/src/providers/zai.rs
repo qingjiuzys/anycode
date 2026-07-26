@@ -1052,9 +1052,7 @@ impl LLMClient for ZaiClient {
                     ));
 
                     if is_quota_exhausted(&error_text) {
-                        error!(
-                            "{provider_label} quota exhausted — failing fast without retries"
-                        );
+                        error!("{provider_label} quota exhausted — failing fast without retries");
                         break;
                     }
                     if attempt <= max_retries && is_retryable_status(status) {

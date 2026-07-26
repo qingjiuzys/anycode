@@ -109,9 +109,7 @@ impl AgentRuntime {
         if !compiled.parts.selected_skill_ids.is_empty() {
             logger.line(
                 task.id,
-                &super::compile_context::skill_resolved_marker(
-                    &compiled.parts.selected_skill_ids,
-                ),
+                &super::compile_context::skill_resolved_marker(&compiled.parts.selected_skill_ids),
             );
         }
         // Prefer attributed sections over the flat legacy blob when we have typed recall.

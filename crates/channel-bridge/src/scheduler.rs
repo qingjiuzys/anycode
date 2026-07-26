@@ -406,8 +406,7 @@ pub(crate) async fn run_builtin_scheduler(
                     .await
                     .map(|_| ())
                 };
-                if let Err(e) = run_result
-                {
+                if let Err(e) = run_result {
                     let msg = e.to_string();
                     warn!(
                         target: "anycode_scheduler",
