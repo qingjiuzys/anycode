@@ -73,7 +73,7 @@ pub struct AgentRuntime {
     default_model_config: ModelConfig,
     model_overrides: HashMap<AgentType, ModelConfig>,
     /// Optional fallback chat model when primary fails (geo / rate limit / etc.).
-    failover_policy: Option<failover::FailoverPolicy>,
+    failover_chain: Vec<failover::FailoverPolicy>,
     disk_output: Option<DiskTaskOutput>,
     /// 权限与审批（策略、沙箱、工具确认）
     security: Arc<SecurityLayer>,
@@ -198,7 +198,7 @@ impl AgentRuntime {
             memory_store,
             default_model_config,
             model_overrides,
-            failover_policy,
+            failover_chain,
             disk_output,
             security,
             sandbox_mode,
@@ -256,7 +256,7 @@ impl AgentRuntime {
             session_notifications,
             default_model_config,
             model_overrides,
-            failover_policy,
+            failover_chain,
             disk_output,
             security,
             sandbox_mode,
@@ -318,10 +318,9 @@ impl AgentRuntime {
         logger: &RunLogger,
     ) -> Result<LLMResponse, CoreError> {
         let messages = crate::reply_language::inject_ephemeral_reply_language_reminder(messages);
-        let Some(policy) = self.failover_policy.as_ref() else {
-            // No failover configured: hand the snapshot over without cloning.
+        if self.failover_chain.is_empty() {
             return self.llm_client.chat(messages, tools, primary).await;
-        };
+        }
         match self
             .llm_client
             .chat(messages.clone(), tools.clone(), primary)
@@ -329,23 +328,32 @@ impl AgentRuntime {
         {
             Ok(r) => Ok(r),
             Err(e) => {
-                if !failover::error_triggers_failover(&e, policy.trigger) {
-                    return Err(e);
+                let mut last_err = e;
+                for policy in &self.failover_chain {
+                    if !failover::error_triggers_failover(&last_err, policy.trigger) {
+                        return Err(last_err);
+                    }
+                    logger.line(
+                        task_id,
+                        &format!(
+                            "[model_failover] from={}/{} to={}/{} reason={}",
+                            Self::provider_label(primary),
+                            primary.model,
+                            Self::provider_label(&policy.fallback),
+                            policy.fallback.model,
+                            last_err
+                        ),
+                    );
+                    match self
+                        .llm_client
+                        .chat(messages.clone(), tools.clone(), &policy.fallback)
+                        .await
+                    {
+                        Ok(r) => return Ok(r),
+                        Err(next) => last_err = next,
+                    }
                 }
-                logger.line(
-                    task_id,
-                    &format!(
-                        "[model_failover] from={}/{} to={}/{} reason={}",
-                        Self::provider_label(primary),
-                        primary.model,
-                        Self::provider_label(&policy.fallback),
-                        policy.fallback.model,
-                        e
-                    ),
-                );
-                self.llm_client
-                    .chat(messages, tools, &policy.fallback)
-                    .await
+                Err(last_err)
             }
         }
     }
@@ -359,27 +367,35 @@ impl AgentRuntime {
         logger: &RunLogger,
         err: &str,
     ) -> Result<Option<LLMResponse>, CoreError> {
-        let Some(policy) = self.failover_policy.as_ref() else {
-            return Ok(None);
-        };
-        let synthetic = CoreError::LLMError(err.to_string());
-        if !failover::error_triggers_failover(&synthetic, policy.trigger) {
+        if self.failover_chain.is_empty() {
             return Ok(None);
         }
-        logger.line(
-            task_id,
-            &format!(
-                "[model_failover] stream_error from={}/{} to={}/{}",
-                Self::provider_label(primary),
-                primary.model,
-                Self::provider_label(&policy.fallback),
-                policy.fallback.model
-            ),
-        );
-        self.llm_client
-            .chat(messages.to_vec(), tools, &policy.fallback)
-            .await
-            .map(Some)
+        let synthetic = CoreError::LLMError(err.to_string());
+        let mut last_err = synthetic;
+        for policy in &self.failover_chain {
+            if !failover::error_triggers_failover(&last_err, policy.trigger) {
+                return Ok(None);
+            }
+            logger.line(
+                task_id,
+                &format!(
+                    "[model_failover] stream_error from={}/{} to={}/{}",
+                    Self::provider_label(primary),
+                    primary.model,
+                    Self::provider_label(&policy.fallback),
+                    policy.fallback.model
+                ),
+            );
+            match self
+                .llm_client
+                .chat(messages.to_vec(), tools.clone(), &policy.fallback)
+                .await
+            {
+                Ok(r) => return Ok(Some(r)),
+                Err(next) => last_err = next,
+            }
+        }
+        Err(last_err)
     }
 
     fn provider_label(cfg: &ModelConfig) -> String {

@@ -51,9 +51,13 @@ fn soffice_available() -> bool {
 }
 
 fn find_repo_root(start: &Path) -> Option<PathBuf> {
+    let marker = |p: &Path| {
+        p.join("scripts/office/validate_slide_html.py").is_file()
+            || p.join("scripts/office/render_pptx_evidence.py").is_file()
+    };
     let mut cur = start.to_path_buf();
     loop {
-        if cur.join("scripts/office/render_pptx_evidence.py").is_file() {
+        if marker(&cur) {
             return Some(cur);
         }
         if !cur.pop() {
@@ -63,7 +67,113 @@ fn find_repo_root(start: &Path) -> Option<PathBuf> {
     std::env::var("ANYCODE_REPO_ROOT")
         .ok()
         .map(PathBuf::from)
-        .filter(|p| p.join("scripts/office/render_pptx_evidence.py").is_file())
+        .filter(|p| marker(p))
+}
+
+fn run_office_script(
+    workspace: &Path,
+    script_rel: &str,
+    args: &[&str],
+) -> Result<(), (String, String)> {
+    let repo = find_repo_root(workspace).ok_or_else(|| {
+        (
+            "repo_root_missing".into(),
+            format!("cannot find repo root from {}", workspace.display()),
+        )
+    })?;
+    let script = repo.join(script_rel);
+    if !script.is_file() {
+        return Err((
+            "script_missing".into(),
+            format!("missing {}", script.display()),
+        ));
+    }
+    let output = Command::new("python3")
+        .arg(&script)
+        .args(args)
+        .current_dir(workspace)
+        .output()
+        .map_err(|e| ("spawn_failed".into(), e.to_string()))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Err((
+            "validate_failed".into(),
+            if stderr.is_empty() { stdout } else { stderr },
+        ))
+    }
+}
+
+fn find_slides_dir(workspace: &Path, candidates: &[Artifact]) -> Option<PathBuf> {
+    for art in candidates {
+        if let Some(path) = art.path.as_deref() {
+            let p = Path::new(path);
+            if p.is_file() && p.extension().and_then(|e| e.to_str()) == Some("html") {
+                if let Some(parent) = p.parent() {
+                    return Some(parent.to_path_buf());
+                }
+            }
+            if p.is_dir() {
+                return Some(p.to_path_buf());
+            }
+        }
+    }
+    for rel in ["slides", "."] {
+        let dir = if rel == "." {
+            workspace.to_path_buf()
+        } else {
+            workspace.join(rel)
+        };
+        if !dir.is_dir() {
+            continue;
+        }
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        let has_html = entries
+            .flatten()
+            .any(|e| e.path().extension().and_then(|x| x.to_str()) == Some("html"));
+        if has_html {
+            return Some(dir);
+        }
+    }
+    None
+}
+
+fn find_report_md(workspace: &Path) -> Option<PathBuf> {
+    for name in ["report.md", "docs/report.md"] {
+        let p = workspace.join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    let mut found = None;
+    if let Ok(entries) = fs::read_dir(workspace) {
+        for ent in entries.flatten() {
+            let p = ent.path();
+            if p.extension().and_then(|e| e.to_str()) == Some("md")
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n != "README.md" && n != "components.md")
+            {
+                found = Some(p);
+                break;
+            }
+        }
+    }
+    found
+}
+
+fn find_workbook_json(workspace: &Path) -> Option<PathBuf> {
+    for name in ["workbook.json", "docs/workbook.json"] {
+        let p = workspace.join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
 }
 
 fn try_auto_render_pptx(pptx: &Path, workspace: &Path) -> Option<String> {
@@ -990,6 +1100,173 @@ fn missing(
         error_code: Some("missing_artifact".into()),
         diagnostics: vec![msg.into()],
         evidence_paths: vec![],
+    }
+}
+
+/// Reuse `scripts/office/validate_slide_html.py` (same as anycode-ppt skill).
+pub struct SlideHtmlValidateValidator;
+
+#[async_trait::async_trait]
+impl ArtifactValidator for SlideHtmlValidateValidator {
+    fn id(&self) -> &'static str {
+        "office.slide_html_validate"
+    }
+    fn version(&self) -> &'static str {
+        "1"
+    }
+    async fn validate(
+        &self,
+        requirement: &GateRequirement,
+        _expected: &ExpectedArtifact,
+        candidates: &[Artifact],
+        context: &ValidationContext,
+    ) -> VerificationResult {
+        let Some(dir) = find_slides_dir(&context.workspace, candidates) else {
+            return missing(requirement, self, "slides HTML directory missing");
+        };
+        match run_office_script(
+            &context.workspace,
+            "scripts/office/validate_slide_html.py",
+            &[dir.to_str().unwrap_or("."), "anycode-ppt"],
+        ) {
+            Ok(()) => passed(requirement, self, &dir.display().to_string()),
+            Err((code, msg)) if code == "repo_root_missing" || code == "script_missing" => {
+                VerificationResult {
+                    gate_id: requirement.id.clone(),
+                    validator_id: self.id().into(),
+                    validator_version: self.version().into(),
+                    outcome: VerificationOutcome::EnvironmentFailed,
+                    severity: requirement.severity,
+                    artifact_path: Some(dir.display().to_string()),
+                    artifact_hash: None,
+                    error_code: Some(code),
+                    diagnostics: vec![msg],
+                    evidence_paths: vec![],
+                }
+            }
+            Err((code, msg)) => failed(requirement, self, &dir.display().to_string(), &code, msg),
+        }
+    }
+}
+
+/// Reuse `scripts/office/validate_report_md.py` (same as anycode-docx skill).
+pub struct ReportMdValidateValidator;
+
+#[async_trait::async_trait]
+impl ArtifactValidator for ReportMdValidateValidator {
+    fn id(&self) -> &'static str {
+        "office.report_md_validate"
+    }
+    fn version(&self) -> &'static str {
+        "1"
+    }
+    async fn validate(
+        &self,
+        requirement: &GateRequirement,
+        _expected: &ExpectedArtifact,
+        candidates: &[Artifact],
+        context: &ValidationContext,
+    ) -> VerificationResult {
+        let md = first_path(candidates, &[".md"])
+            .map(PathBuf::from)
+            .or_else(|| find_report_md(&context.workspace));
+        let Some(md) = md else {
+            // Preview/docx-only delivery without MD source → skip as Info pass.
+            return VerificationResult {
+                gate_id: requirement.id.clone(),
+                validator_id: self.id().into(),
+                validator_version: self.version().into(),
+                outcome: VerificationOutcome::Passed,
+                severity: requirement.severity,
+                artifact_path: None,
+                artifact_hash: None,
+                error_code: None,
+                diagnostics: vec!["no report.md in workspace — skipped MD validate".into()],
+                evidence_paths: vec![],
+            };
+        };
+        match run_office_script(
+            &context.workspace,
+            "scripts/office/validate_report_md.py",
+            &[md.to_str().unwrap_or("report.md"), "anycode-docx"],
+        ) {
+            Ok(()) => passed(requirement, self, &md.display().to_string()),
+            Err((code, msg)) if code == "repo_root_missing" || code == "script_missing" => {
+                VerificationResult {
+                    gate_id: requirement.id.clone(),
+                    validator_id: self.id().into(),
+                    validator_version: self.version().into(),
+                    outcome: VerificationOutcome::EnvironmentFailed,
+                    severity: requirement.severity,
+                    artifact_path: Some(md.display().to_string()),
+                    artifact_hash: None,
+                    error_code: Some(code),
+                    diagnostics: vec![msg],
+                    evidence_paths: vec![],
+                }
+            }
+            Err((code, msg)) => failed(requirement, self, &md.display().to_string(), &code, msg),
+        }
+    }
+}
+
+/// Reuse `scripts/office/validate_workbook.py` (same as anycode-xlsx skill).
+pub struct WorkbookValidateValidator;
+
+#[async_trait::async_trait]
+impl ArtifactValidator for WorkbookValidateValidator {
+    fn id(&self) -> &'static str {
+        "office.workbook_validate"
+    }
+    fn version(&self) -> &'static str {
+        "1"
+    }
+    async fn validate(
+        &self,
+        requirement: &GateRequirement,
+        _expected: &ExpectedArtifact,
+        candidates: &[Artifact],
+        context: &ValidationContext,
+    ) -> VerificationResult {
+        let src = first_path(candidates, &[".json", ".csv"])
+            .map(PathBuf::from)
+            .or_else(|| find_workbook_json(&context.workspace));
+        let Some(src) = src else {
+            return VerificationResult {
+                gate_id: requirement.id.clone(),
+                validator_id: self.id().into(),
+                validator_version: self.version().into(),
+                outcome: VerificationOutcome::Passed,
+                severity: requirement.severity,
+                artifact_path: None,
+                artifact_hash: None,
+                error_code: None,
+                diagnostics: vec!["no workbook.json — skipped source validate".into()],
+                evidence_paths: vec![],
+            };
+        };
+        match run_office_script(
+            &context.workspace,
+            "scripts/office/validate_workbook.py",
+            &[src.to_str().unwrap_or("workbook.json"), "anycode-xlsx"],
+        ) {
+            Ok(()) => passed(requirement, self, &src.display().to_string()),
+            Err((code, msg)) if code == "repo_root_missing" || code == "script_missing" => {
+                VerificationResult {
+                    gate_id: requirement.id.clone(),
+                    validator_id: self.id().into(),
+                    validator_version: self.version().into(),
+                    outcome: VerificationOutcome::EnvironmentFailed,
+                    severity: requirement.severity,
+                    artifact_path: Some(src.display().to_string()),
+                    artifact_hash: None,
+                    error_code: Some(code),
+                    diagnostics: vec![msg],
+                    evidence_paths: vec![],
+                }
+            }
+            Err((code, msg)) => failed(requirement, self, &src.display().to_string(), &code, msg),
+        }
     }
 }
 

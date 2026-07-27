@@ -772,6 +772,7 @@ export const zh = {
     progressWorkAnalyze: "分析",
     progressWorkImplement: "实现",
     progressWorkVerify: "验证",
+    progressWorkCompile: "交付预检",
     progressNextPrefix: "接下来：",
     progressDiscoveryPrefix: "发现：",
     executionRecordFold: "查看执行记录 · {n} 个阶段",

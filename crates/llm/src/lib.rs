@@ -55,9 +55,10 @@ pub use cloud_session::{
     AGNES_DIRECT_CHAT_URL, DEFAULT_ACCOUNT_API, DEFAULT_CLOUD_PORTAL, DEFAULT_GATEWAY_HOST,
 };
 pub use config_file::{
-    default_config_path, migrate_legacy_llm_section, patch_llm_config, patch_llm_config_value,
-    read_config_value, read_model_fallback, read_models_config, string_field,
-    sync_memory_embedding_pipeline, write_config_value, LlmConfigPatch,
+    clear_config_value_override, default_config_path, migrate_legacy_llm_section, patch_llm_config,
+    patch_llm_config_value, read_config_value, read_model_fallback, read_models_config,
+    set_config_value_override, string_field, sync_memory_embedding_pipeline, write_config_value,
+    LlmConfigPatch,
 };
 pub use config_models::{
     ConfiguredModelFile, EndpointOverrides, FailoverTrigger, FallbackChainEntry, MaskedSecret,

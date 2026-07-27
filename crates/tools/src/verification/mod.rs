@@ -14,8 +14,9 @@ use std::sync::Arc;
 pub use office::{
     DocxClassificationValidator, DocxCommercialValidator, DocxOpenValidator,
     DocxStructureValidator, PptxDensityValidator, PptxDisclaimerValidator, PptxEditableValidator,
-    PptxOpenValidator, PptxRenderThumbsValidator, PptxStructureValidator, XlsxOpenValidator,
-    XlsxStructureValidator, XlsxStyleValidator,
+    PptxOpenValidator, PptxRenderThumbsValidator, PptxStructureValidator,
+    ReportMdValidateValidator, SlideHtmlValidateValidator, WorkbookValidateValidator,
+    XlsxOpenValidator, XlsxStructureValidator, XlsxStyleValidator,
 };
 pub use web::{
     HtmlAntiSlopValidator, HtmlParseValidator, HtmlStructureValidator, HtmlViewportValidator,
@@ -68,6 +69,9 @@ impl ValidatorRegistry {
         reg.register(Arc::new(XlsxOpenValidator));
         reg.register(Arc::new(XlsxStructureValidator));
         reg.register(Arc::new(XlsxStyleValidator));
+        reg.register(Arc::new(SlideHtmlValidateValidator));
+        reg.register(Arc::new(ReportMdValidateValidator));
+        reg.register(Arc::new(WorkbookValidateValidator));
         reg
     }
 

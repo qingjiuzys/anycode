@@ -144,6 +144,24 @@ impl AgentRuntime {
                     drop(tools);
                 }
                 let sections = compiled.sections.clone();
+                {
+                    let preflight =
+                        super::compile_context::delivery_preflight_marker(&compiled.parts);
+                    logger.line(task_id, &preflight);
+                    live_trace_emit::try_emit(
+                        &live_trace_tx,
+                        LiveTraceEvent::ProgressUpdate {
+                            turn: 0,
+                            seq: 0,
+                            phase: "intent".into(),
+                            work_stage: Some("compile".into()),
+                            summary: preflight,
+                            next: None,
+                            discovery: None,
+                            evidence_refs: compiled.parts.selected_skill_ids.clone(),
+                        },
+                    );
+                }
                 if let Some(plan) = &compiled.gate_plan {
                     let marker = super::compile_context::gate_plan_marker(
                         compiled.family,
@@ -155,7 +173,7 @@ impl AgentRuntime {
                         &live_trace_tx,
                         LiveTraceEvent::ProgressUpdate {
                             turn: 0,
-                            seq: 0,
+                            seq: 1,
                             phase: "gate".into(),
                             work_stage: Some("compile".into()),
                             summary: marker,
@@ -174,7 +192,7 @@ impl AgentRuntime {
                         &live_trace_tx,
                         LiveTraceEvent::ProgressUpdate {
                             turn: 0,
-                            seq: 1,
+                            seq: 2,
                             phase: "skill".into(),
                             work_stage: Some("compile".into()),
                             summary: marker,

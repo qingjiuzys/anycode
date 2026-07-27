@@ -96,6 +96,7 @@ mod tests {
                 tool_deny_names: vec![],
                 tool_deny_prefixes: vec![],
                 model_fallback: None,
+                model_fallbacks: vec![],
                 max_agent_turns: None,
                 max_tool_calls: None,
                 workspace_project_label: None,

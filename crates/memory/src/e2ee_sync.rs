@@ -302,6 +302,44 @@ mod tests {
     }
 
     #[test]
+    fn full_sync_roundtrip_two_devices_no_plaintext_leak() {
+        // End-to-end: device A encrypts + wraps, server stores opaque envelopes,
+        // device B merges and decrypts — server never sees plaintext and a
+        // stale A cannot clobber a newer B write.
+        let key = rand_key();
+        let plaintext = b"prefer fde editorial style";
+
+        // Device A writes.
+        let env_a = wrap_envelope("m1", plaintext, "device-a", 1, &key).unwrap();
+        assert!(!env_a.ciphertext_b64.contains("fde editorial"));
+        assert!(env_a.nonce_b64.len() >= 16);
+        // content hash is keyed — identical plaintext under another key differs.
+        let other_key = rand_key();
+        let env_a2 = wrap_envelope("m1", plaintext, "device-a", 1, &other_key).unwrap();
+        assert_ne!(env_a.content_hash, env_a2.content_hash);
+
+        // Device B pulls + merges + decrypts.
+        let merged = merge_envelopes(vec![], vec![env_a.clone()]);
+        assert_eq!(merged.len(), 1);
+        let plain_b =
+            decrypt_memory_blob(&merged[0].ciphertext_b64, &merged[0].nonce_b64, &key).unwrap();
+        assert_eq!(plain_b, plaintext);
+
+        // Device B writes a newer version; stale A re-sends the old envelope.
+        let env_b2 = wrap_envelope("m1", b"newer fact", "device-b", 3, &key).unwrap();
+        let mut vv_b2 = env_b2.version_vector.clone();
+        vv_b2.insert("device-a".into(), 1); // B has seen A's write
+        let env_b2 = MemoryEnvelope {
+            version_vector: vv_b2,
+            ..env_b2
+        };
+        let merged = merge_envelopes(vec![env_b2.clone()], vec![env_a.clone()]);
+        // Stale A neither replaces nor conflicts the dominant B write.
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].ciphertext_b64, env_b2.ciphertext_b64);
+    }
+
+    #[test]
     fn merge_prefers_dominant_vv() {
         let a = MemoryEnvelope {
             id: "m1".into(),

@@ -783,6 +783,7 @@ export const en = {
     progressWorkAnalyze: "Analyze",
     progressWorkImplement: "Implement",
     progressWorkVerify: "Verify",
+    progressWorkCompile: "Delivery preflight",
     progressNextPrefix: "Next: ",
     progressDiscoveryPrefix: "Found: ",
     executionRecordFold: "View execution record · {n} phases",

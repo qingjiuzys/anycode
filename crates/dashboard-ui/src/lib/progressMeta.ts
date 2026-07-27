@@ -16,6 +16,13 @@ export function progressPhase(block: TranscriptBlock): AgentPhaseKind {
     if (raw === "intent" || raw === "execute" || raw === "discovery" || raw === "deliver") {
       return raw;
     }
+    // Compile / gate / skill markers are preflight (intent).
+    if (raw === "gate" || raw === "skill" || raw === "compile") {
+      return "intent";
+    }
+  }
+  if (block.meta?.work_stage === "compile") {
+    return "intent";
   }
   if (block.meta?.narration === true || block.meta?.message_role === "status") {
     return "execute";
@@ -23,12 +30,25 @@ export function progressPhase(block: TranscriptBlock): AgentPhaseKind {
   return "execute";
 }
 
+/** Format `[delivery_preflight] …` for Workbench display. */
+export function formatDeliveryPreflight(summary: string): string | null {
+  if (!summary.includes("[delivery_preflight]")) return null;
+  const family = summary.match(/family=([^\s]+)/)?.[1] ?? "—";
+  const skill = summary.match(/skill=([^\s]+)/)?.[1] ?? "—";
+  const brand = summary.match(/brand=([^\s]+)/)?.[1] ?? "—";
+  const scenario = summary.match(/scenario=([^\s]+)/)?.[1] ?? "—";
+  const artifacts = summary.match(/artifacts=\[([^\]]*)\]/)?.[1] ?? "";
+  const gates = summary.match(/gates=(\d+)/)?.[1] ?? "0";
+  return `交付预检 · ${family} → ${skill} · brand ${brand} · scenario ${scenario} · [${artifacts}] · ${gates} gates`;
+}
+
 export function progressSummary(block: TranscriptBlock, localeBody?: string): string {
   const metaSummary = block.meta?.summary;
-  if (typeof metaSummary === "string" && metaSummary.trim()) {
-    return metaSummary.trim();
-  }
-  return (localeBody ?? block.body ?? "").trim();
+  const raw =
+    typeof metaSummary === "string" && metaSummary.trim()
+      ? metaSummary.trim()
+      : (localeBody ?? block.body ?? "").trim();
+  return formatDeliveryPreflight(raw) ?? raw;
 }
 
 export function progressNext(block: TranscriptBlock): string | null {
@@ -75,6 +95,8 @@ export function workStageLabelKey(stage: string): string | null {
       return "conversations.progressWorkImplement";
     case "verify":
       return "conversations.progressWorkVerify";
+    case "compile":
+      return "conversations.progressWorkCompile";
     default:
       return null;
   }

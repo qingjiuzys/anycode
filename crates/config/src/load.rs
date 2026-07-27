@@ -20,12 +20,12 @@ fn resolve_model_instructions_file_from_env() -> Option<PathBuf> {
 /// `ANYCODE_CHAT_API_KEY_ENV` naming an env var that holds the key).
 /// Lets an acceptance dashboard use a different gateway without touching the
 /// user's `~/.anycode/config.json`.
-fn apply_chat_model_env_overrides(cfg: &mut AnyCodeConfig) {
+fn apply_chat_model_env_overrides(cfg: &mut AnyCodeConfig) -> bool {
     let provider = std::env::var("ANYCODE_CHAT_PROVIDER")
         .ok()
         .filter(|s| !s.trim().is_empty());
     let Some(provider) = provider else {
-        return;
+        return false;
     };
     let model = std::env::var("ANYCODE_CHAT_MODEL")
         .ok()
@@ -60,6 +60,108 @@ fn apply_chat_model_env_overrides(cfg: &mut AnyCodeConfig) {
         chat.model = Some(cfg.model.clone());
         chat.base_url = cfg.base_url.clone();
         chat.api_key = Some(cfg.api_key.clone());
+    }
+    true
+}
+
+/// Media (image/video) model env overrides for eval runs:
+/// `ANYCODE_IMAGE_MODEL`, `ANYCODE_IMAGE_BASE_URL`, `ANYCODE_IMAGE_API_KEY`
+/// (or `ANYCODE_IMAGE_API_KEY_ENV`). Keeps GenerateImage usable when the
+/// configured image slot points at a paid/expired subscription.
+fn apply_image_model_env_overrides(cfg: &mut AnyCodeConfig) -> bool {
+    let model = std::env::var("ANYCODE_IMAGE_MODEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    let Some(model) = model else {
+        return false;
+    };
+    let base_url = std::env::var("ANYCODE_IMAGE_BASE_URL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(Some)
+        .unwrap_or_else(|| cfg.models.image.as_ref().and_then(|i| i.base_url.clone()));
+    let api_key = std::env::var("ANYCODE_IMAGE_API_KEY")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            std::env::var("ANYCODE_IMAGE_API_KEY_ENV")
+                .ok()
+                .and_then(|name| std::env::var(name).ok())
+                .filter(|s| !s.trim().is_empty())
+        });
+    info!(target: "anycode_config", "image model overridden by env: model={model}");
+    let slot = cfg.models.image.get_or_insert_with(Default::default);
+    slot.model = Some(model.clone());
+    slot.base_url = base_url.clone();
+    if let Some(ref k) = api_key {
+        slot.api_key = Some(k.clone());
+    }
+    // The registry resolves capabilities via models.items + active map — upsert
+    // an item with a stable id and point `active.image` at it.
+    let items = cfg.models.items.get_or_insert_with(Vec::new);
+    let item_id = "env-image-override";
+    let item = anycode_llm::ConfiguredModelFile {
+        id: item_id.into(),
+        display_name: Some(format!("{model} (env override)")),
+        provider: "custom".into(),
+        model: model.clone(),
+        capabilities: vec![anycode_llm::ModelCapability::ImageGen],
+        api_key: api_key,
+        api_key_ref: None,
+        plan: None,
+        base_url,
+        temperature: None,
+        max_tokens: None,
+        extra_headers: None,
+        endpoint_overrides: None,
+        enabled: true,
+        tags: None,
+        source: Some("env_override".into()),
+    };
+    anycode_llm::upsert_registry_item(items, item);
+    cfg.models
+        .active
+        .get_or_insert_with(Default::default)
+        .insert("image".into(), item_id.into());
+    true
+}
+
+#[cfg(test)]
+mod image_env_override_tests {
+    #[test]
+    fn override_rewrites_image_slot() {
+        let mut cfg = crate::user_config::default_anycode_config();
+        unsafe {
+            std::env::set_var("ANYCODE_IMAGE_MODEL", "agnes-image-2.1-flash");
+            std::env::set_var("ANYCODE_IMAGE_BASE_URL", "https://apihub.agnes-ai.com/v1");
+            std::env::set_var("ANYCODE_IMAGE_API_KEY", "k-img");
+        }
+        super::apply_image_model_env_overrides(&mut cfg);
+        let slot = cfg.models.image.as_ref().unwrap();
+        assert_eq!(slot.model.as_deref(), Some("agnes-image-2.1-flash"));
+        assert_eq!(
+            slot.base_url.as_deref(),
+            Some("https://apihub.agnes-ai.com/v1")
+        );
+        assert_eq!(slot.api_key.as_deref(), Some("k-img"));
+        assert_eq!(
+            cfg.models
+                .active
+                .as_ref()
+                .unwrap()
+                .get("image")
+                .map(String::as_str),
+            Some("env-image-override")
+        );
+        let items = cfg.models.items.as_ref().unwrap();
+        let item = items.iter().find(|i| i.id == "env-image-override").unwrap();
+        assert_eq!(item.model, "agnes-image-2.1-flash");
+        assert_eq!(item.api_key.as_deref(), Some("k-img"));
+        unsafe {
+            std::env::remove_var("ANYCODE_IMAGE_MODEL");
+            std::env::remove_var("ANYCODE_IMAGE_BASE_URL");
+            std::env::remove_var("ANYCODE_IMAGE_API_KEY");
+        }
     }
 }
 
@@ -136,7 +238,15 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
         }
     }
 
-    apply_chat_model_env_overrides(&mut cfg);
+    let chat_overridden = apply_chat_model_env_overrides(&mut cfg);
+    let image_overridden = apply_image_model_env_overrides(&mut cfg);
+    if chat_overridden || image_overridden {
+        // Readers that re-read the config file directly (media registry,
+        // bootstrap composition) must see the env-overridden view too.
+        if let Ok(v) = serde_json::to_value(&cfg) {
+            anycode_llm::set_config_value_override(v);
+        }
+    }
 
     let config_path = resolve_config_path(config_file.clone())?;
     let base_dir = config_path
@@ -261,6 +371,7 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
             tool_deny_names: cfg.runtime.tool_deny_names.clone(),
             tool_deny_prefixes: cfg.runtime.tool_deny_prefixes.clone(),
             model_fallback: cfg.runtime.model_fallback.clone(),
+            model_fallbacks: cfg.runtime.model_fallbacks.clone(),
             max_agent_turns: cfg.runtime.max_agent_turns,
             max_tool_calls: cfg.runtime.max_tool_calls,
             workspace_project_label: None,

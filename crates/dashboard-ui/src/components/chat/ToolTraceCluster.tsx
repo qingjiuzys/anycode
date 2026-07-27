@@ -23,6 +23,7 @@ import {
 import { toolIconName } from "@/lib/toolIcons";
 import { useT } from "@/i18n/context";
 import { useSmoothText } from "@/hooks/useSmoothText";
+import { formatDeliveryPreflight } from "@/lib/progressMeta";
 
 type Props = {
   steps: ToolStep[];
@@ -303,7 +304,7 @@ function ThinkingTraceFold({
           <ul className="m-0 pl-4 space-y-1">
             {snippets.map((snippet, i) => (
               <li key={`${i}-${snippet.slice(0, 24)}`} className="text-xs text-secondary">
-                {snippet}
+                {formatDeliveryPreflight(snippet) ?? snippet}
               </li>
             ))}
           </ul>

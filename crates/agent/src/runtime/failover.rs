@@ -37,4 +37,14 @@ mod tests {
         let err = CoreError::LLMError("google API error: User location is not supported".into());
         assert!(error_triggers_failover(&err, FailoverTrigger::Geo));
     }
+
+    #[test]
+    fn quota_exhaustion_triggers_any_error_not_geo() {
+        let err = CoreError::LLMError(
+            "API error: status=429 body={\"type\":\"insufficient_quota\"}".into(),
+        );
+        assert!(error_triggers_failover(&err, FailoverTrigger::RateLimit));
+        assert!(!error_triggers_failover(&err, FailoverTrigger::Geo));
+        assert!(error_triggers_failover(&err, FailoverTrigger::AnyError));
+    }
 }

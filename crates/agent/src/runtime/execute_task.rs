@@ -96,6 +96,10 @@ impl AgentRuntime {
         let expected_artifacts = compiled.expected_artifacts.clone();
         let task_family = compiled.family;
         let skill_denies = compiled.skill_denies.clone();
+        logger.line(
+            task.id,
+            &super::compile_context::delivery_preflight_marker(&compiled.parts),
+        );
         if let Some(plan) = &gate_plan {
             logger.line(
                 task.id,

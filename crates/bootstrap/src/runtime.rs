@@ -5,7 +5,7 @@ use crate::llm_stack::build_llm_stack;
 use crate::security_setup::build_security_setup;
 use crate::tools_setup::build_tools_setup;
 use crate::{
-    build_failover_policy, build_memory_layer, build_model_routing_parts,
+    build_failover_chain, build_memory_layer, build_model_routing_parts,
     compile_tool_name_deny_regexes, effective_memory_backend, MemoryAttachMode,
 };
 use anycode_agent::{
@@ -73,7 +73,7 @@ pub async fn initialize_runtime(
     let (default_model_config, mut model_overrides) = build_model_routing_parts(config)?;
     crate::agents::merge_profile_routing(config, &mut model_overrides);
     let model_overrides_snapshot = model_overrides.clone();
-    let failover_policy = build_failover_policy(config);
+    let failover_chain = build_failover_chain(config);
     let router = ModelRouter::new(
         default_model_config.clone(),
         model_overrides.clone(),
@@ -140,7 +140,7 @@ pub async fn initialize_runtime(
                 memory_store,
                 default_model_config,
                 model_overrides,
-                failover_policy,
+                failover_chain,
                 disk_output: Some(DiskTaskOutput::new_default()?),
                 security: security_setup.security.clone(),
                 sandbox_mode: config.security.sandbox_mode,

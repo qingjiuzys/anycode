@@ -83,8 +83,10 @@ pub fn build_model_routing_parts(
     Ok((default_model_config, model_overrides))
 }
 
-pub fn build_failover_policy(config: &Config) -> Option<anycode_agent::FailoverPolicy> {
-    let fb = config.runtime.model_fallback.as_ref()?;
+fn failover_hop(
+    config: &Config,
+    fb: &anycode_llm::ModelFallbackConfig,
+) -> Option<anycode_agent::FailoverPolicy> {
     let provider = fb.provider.as_deref()?.trim();
     let model = fb.model.as_deref()?.trim();
     if provider.is_empty() || model.is_empty() {
@@ -99,6 +101,27 @@ pub fn build_failover_policy(config: &Config) -> Option<anycode_agent::FailoverP
         fallback: resolve_model_profile(config, &profile).ok()?,
         trigger: fb.on,
     })
+}
+
+/// Multi-hop failover chain (`runtime.model_fallbacks` in order; legacy
+/// `runtime.model_fallback` appended as the final hop).
+pub fn build_failover_chain(config: &Config) -> Vec<anycode_agent::FailoverPolicy> {
+    let mut hops: Vec<anycode_agent::FailoverPolicy> = config
+        .runtime
+        .model_fallbacks
+        .iter()
+        .filter_map(|fb| failover_hop(config, fb))
+        .collect();
+    if let Some(fb) = config.runtime.model_fallback.as_ref() {
+        if let Some(hop) = failover_hop(config, fb) {
+            hops.push(hop);
+        }
+    }
+    hops
+}
+
+pub fn build_failover_policy(config: &Config) -> Option<anycode_agent::FailoverPolicy> {
+    build_failover_chain(config).into_iter().next()
 }
 
 pub fn build_preview_model_router(config: &Config) -> ModelRouter {

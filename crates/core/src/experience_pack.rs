@@ -87,7 +87,14 @@ impl ExperienceCard {
                 }
             }
         }
-        score + self.regression_score.max(0.0) * 0.1
+        // Regression history only breaks ties between cards that actually
+        // matched something — without a real hit every vague query ("画个图")
+        // would surface the highest-regression card (PPT deck) and mislead.
+        if score > 0.0 {
+            score + self.regression_score.max(0.0) * 0.1
+        } else {
+            0.0
+        }
     }
 }
 
@@ -436,7 +443,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![
-                    "office.docx_commercial pass".into(),
+                    "report.docx openable".into(),
                     "Decision/Action with owner/date per section".into(),
                 ],
                 common_failures: vec!["flat bullets without hierarchy".into()],
@@ -487,24 +494,27 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                     "presentation".into(),
                 ],
                 task_breakdown: vec![
-                    "brand_kit fde-editorial; scenario anycode-ppt".into(),
-                    "anycode-ppt templates → slides/*.html (pick by narrative)".into(),
-                    "anycode-ppt run: validate density + build index.html viewer".into(),
+                    "use Skill anycode-ppt".into(),
+                    "copy templates → slides/*.html".into(),
+                    "run → validate + index.html".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![
                     "slides/*.html exist (≥2 pages)".into(),
                     "index.html deck viewer generated".into(),
-                    "content slides have ladder/layer/agent-cycle/trio visual blocks".into(),
                 ],
-                common_failures: vec!["sparse title-only slides".into(), "exporting pptx instead of HTML".into()],
+                common_failures: vec![
+                    "sparse title-only slides".into(),
+                    "exporting pptx instead of HTML".into(),
+                    "skipping skill validate".into(),
+                ],
                 recovery: vec!["copy templates from components.md and fill content".into()],
                 examples: vec![
                     "Deliver slides/ + index.html; open in browser for presentation.".into(),
                 ],
                 model_compat: weak_compat(),
                 regression_score: 0.91,
-                version: "0.6.0".into(),
+                version: "0.7.0".into(),
             },
             ExperienceCard {
                 id: "office.pptx-education-lesson".into(),
@@ -641,6 +651,17 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vague_query_retrieves_nothing() {
+        // Regression score must not surface cards without any real match:
+        // "画个图" used to retrieve office.pptx-briefing and mislead the agent.
+        let pack = builtin_web_and_rust_pack();
+        assert!(pack.retrieve("画个图", 2).is_empty());
+        assert!(pack.retrieve("随便说点什么", 2).is_empty());
+        // Real matches still win, boosted by regression history.
+        assert!(!pack.retrieve("pptx 演示文稿", 1).is_empty());
+    }
 
     #[test]
     fn retrieve_web_card() {

@@ -117,6 +117,9 @@ pub struct RuntimeSettings {
     /// Additive tool-name prefix deny list merged into every task.
     pub tool_deny_prefixes: Vec<String>,
     pub model_fallback: Option<anycode_llm::ModelFallbackConfig>,
+    /// Multi-hop failover chain, tried in order when the primary errors.
+    /// Legacy `model_fallback` (single) is appended as the final hop.
+    pub model_fallbacks: Vec<anycode_llm::ModelFallbackConfig>,
     /// Max LLM round-trips per task; unset uses [`anycode_core::DEFAULT_MAX_AGENT_TURNS`].
     pub max_agent_turns: Option<usize>,
     /// Cumulative tool calls per task; unset uses [`anycode_core::DEFAULT_MAX_TOOL_CALLS`].
@@ -656,6 +659,9 @@ pub struct RuntimeSettingsFile {
     /// Primary chat model fallback when provider errors match `on` trigger.
     #[serde(default)]
     pub model_fallback: Option<anycode_llm::ModelFallbackConfig>,
+    /// Multi-hop failover chain (optional; legacy `model_fallback` still works).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub model_fallbacks: Vec<anycode_llm::ModelFallbackConfig>,
     /// Max LLM round-trips per task (`runtime.max_agent_turns`).
     #[serde(default)]
     pub max_agent_turns: Option<usize>,
@@ -674,6 +680,7 @@ impl Default for RuntimeSettingsFile {
             tool_deny_names: vec![],
             tool_deny_prefixes: vec![],
             model_fallback: None,
+            model_fallbacks: Vec::new(),
             max_agent_turns: None,
             max_tool_calls: None,
         }

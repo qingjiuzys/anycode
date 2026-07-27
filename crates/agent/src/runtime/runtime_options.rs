@@ -22,7 +22,7 @@ pub struct RuntimeCoreDeps {
     pub memory_store: Arc<dyn MemoryStore>,
     pub default_model_config: ModelConfig,
     pub model_overrides: HashMap<AgentType, ModelConfig>,
-    pub failover_policy: Option<super::failover::FailoverPolicy>,
+    pub failover_chain: Vec<super::failover::FailoverPolicy>,
     pub disk_output: Option<DiskTaskOutput>,
     pub security: Arc<SecurityLayer>,
     pub sandbox_mode: bool,

@@ -165,7 +165,19 @@ impl VerificationReport {
 }
 
 /// Build a deterministic gate plan from expected artifacts (before execution).
+///
+/// Gate Lite: existence + openability + same validate scripts skills use.
+/// Style/density details live in skill `run`, not a second Rust engine.
 pub struct GatePolicy;
+
+fn is_slide_deck_html(art: &ExpectedArtifact, scenario: Option<&str>) -> bool {
+    scenario == Some("anycode-ppt")
+        || art.id.contains("slide")
+        || art
+            .path_globs
+            .iter()
+            .any(|g| g.contains("slides/") || g.contains("slide-"))
+}
 
 impl GatePolicy {
     pub fn plan(
@@ -178,7 +190,7 @@ impl GatePolicy {
         let brand_kit = extras_map
             .get("brand_kit")
             .map(String::as_str)
-            .unwrap_or("lingqi");
+            .unwrap_or("fde-editorial");
         let scenario = extras_map.get("scenario").map(String::as_str);
         let mut requirements = Vec::new();
         for art in expected.iter().filter(|a| a.required) {
@@ -190,6 +202,16 @@ impl GatePolicy {
                 timeout_ms: 5_000,
             });
             match art.kind.as_str() {
+                "html" | "webpage" if is_slide_deck_html(art, scenario) => {
+                    // anycode-ppt: HTML slides — reuse skill validate, no pptx_* gates.
+                    requirements.push(GateRequirement {
+                        id: format!("slides.validate.{}", art.id),
+                        validator_id: "office.slide_html_validate".into(),
+                        artifact_ref: art.id.clone(),
+                        severity: GateSeverity::P0,
+                        timeout_ms: 30_000,
+                    });
+                }
                 "html" | "webpage" => {
                     requirements.push(GateRequirement {
                         id: format!("html.parse.{}", art.id),
@@ -242,9 +264,10 @@ impl GatePolicy {
                         severity: GateSeverity::P1,
                         timeout_ms: 15_000,
                     });
+                    // MD source quality — same script as anycode-docx skill.
                     requirements.push(GateRequirement {
-                        id: format!("docx.commercial.{}", art.id),
-                        validator_id: "office.docx_commercial".into(),
+                        id: format!("docx.md_validate.{}", art.id),
+                        validator_id: "office.report_md_validate".into(),
                         artifact_ref: art.id.clone(),
                         severity: GateSeverity::P1,
                         timeout_ms: 15_000,
@@ -260,6 +283,7 @@ impl GatePolicy {
                     }
                 }
                 "pptx" | "presentation" => {
+                    // Native OOXML pptx only (explicit user request).
                     requirements.push(GateRequirement {
                         id: format!("pptx.open.{}", art.id),
                         validator_id: "office.pptx_open".into(),
@@ -274,38 +298,6 @@ impl GatePolicy {
                         severity: GateSeverity::P1,
                         timeout_ms: 15_000,
                     });
-                    requirements.push(GateRequirement {
-                        id: format!("pptx.editable.{}", art.id),
-                        validator_id: "office.pptx_editable".into(),
-                        artifact_ref: art.id.clone(),
-                        severity: GateSeverity::P1,
-                        timeout_ms: 15_000,
-                    });
-                    requirements.push(GateRequirement {
-                        id: format!("pptx.density.{}", art.id),
-                        validator_id: "office.pptx_density".into(),
-                        artifact_ref: art.id.clone(),
-                        severity: GateSeverity::P1,
-                        timeout_ms: 15_000,
-                    });
-                    requirements.push(GateRequirement {
-                        id: format!("pptx.render.{}", art.id),
-                        validator_id: "office.pptx_render_thumbs".into(),
-                        artifact_ref: art.id.clone(),
-                        severity: GateSeverity::P1,
-                        timeout_ms: 60_000,
-                    });
-                    if scenario == Some("med-aesthetic-proposal")
-                        || scenario == Some("finance-quarterly-review")
-                    {
-                        requirements.push(GateRequirement {
-                            id: format!("pptx.disclaimer.{}", art.id),
-                            validator_id: "office.pptx_disclaimer".into(),
-                            artifact_ref: art.id.clone(),
-                            severity: GateSeverity::P1,
-                            timeout_ms: 15_000,
-                        });
-                    }
                 }
                 "xlsx" | "spreadsheet" | "workbook" => {
                     requirements.push(GateRequirement {
@@ -323,10 +315,28 @@ impl GatePolicy {
                         timeout_ms: 15_000,
                     });
                     requirements.push(GateRequirement {
-                        id: format!("xlsx.style.{}", art.id),
-                        validator_id: "office.xlsx_style".into(),
+                        id: format!("xlsx.workbook_validate.{}", art.id),
+                        validator_id: "office.workbook_validate".into(),
                         artifact_ref: art.id.clone(),
                         severity: GateSeverity::P1,
+                        timeout_ms: 15_000,
+                    });
+                }
+                "markdown" | "md" => {
+                    requirements.push(GateRequirement {
+                        id: format!("md.validate.{}", art.id),
+                        validator_id: "office.report_md_validate".into(),
+                        artifact_ref: art.id.clone(),
+                        severity: GateSeverity::P0,
+                        timeout_ms: 15_000,
+                    });
+                }
+                "json" if art.id.contains("workbook") => {
+                    requirements.push(GateRequirement {
+                        id: format!("workbook.validate.{}", art.id),
+                        validator_id: "office.workbook_validate".into(),
+                        artifact_ref: art.id.clone(),
+                        severity: GateSeverity::P0,
                         timeout_ms: 15_000,
                     });
                 }
@@ -366,6 +376,79 @@ mod tests {
             .requirements
             .iter()
             .any(|r| r.validator_id == "web.html_structure"));
+    }
+
+    #[test]
+    fn slide_html_plan_uses_skill_validate_not_pptx_gates() {
+        let expected = vec![ExpectedArtifact {
+            id: "deck_html_slides".into(),
+            kind: "html".into(),
+            required: true,
+            path_globs: vec!["slides/*.html".into(), "index.html".into()],
+        }];
+        let mut extras = HashMap::new();
+        extras.insert("scenario".into(), "anycode-ppt".into());
+        extras.insert("brand_kit".into(), "fde-editorial".into());
+        let plan = GatePolicy::plan(
+            Some(TaskFamily::OfficeDelivery),
+            &expected,
+            "hash",
+            Some(&extras),
+        );
+        assert!(plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "office.slide_html_validate"));
+        assert!(!plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id.starts_with("office.pptx_")));
+        assert!(!plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "web.html_structure"));
+    }
+
+    #[test]
+    fn docx_plan_is_lite_no_commercial() {
+        let expected = vec![ExpectedArtifact {
+            id: "report_docx".into(),
+            kind: "docx".into(),
+            required: true,
+            path_globs: vec!["**/*.docx".into()],
+        }];
+        let plan = GatePolicy::plan(Some(TaskFamily::OfficeDelivery), &expected, "hash", None);
+        assert!(plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "office.docx_open"));
+        assert!(plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "office.report_md_validate"));
+        assert!(!plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "office.docx_commercial"));
+    }
+
+    #[test]
+    fn xlsx_plan_drops_style_uses_workbook_validate() {
+        let expected = vec![ExpectedArtifact {
+            id: "workbook_xlsx".into(),
+            kind: "xlsx".into(),
+            required: true,
+            path_globs: vec!["**/*.xlsx".into()],
+        }];
+        let plan = GatePolicy::plan(Some(TaskFamily::OfficeDelivery), &expected, "hash", None);
+        assert!(plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "office.workbook_validate"));
+        assert!(!plan
+            .requirements
+            .iter()
+            .any(|r| r.validator_id == "office.xlsx_style"));
     }
 
     #[test]

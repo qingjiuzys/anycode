@@ -99,6 +99,53 @@ pub fn skill_resolved_marker(selected: &[String]) -> String {
     format!("[skill_resolved] selected={}", selected.join(","))
 }
 
+/// Human-readable delivery preflight for Workbench process/progress UI.
+pub fn delivery_preflight_marker(parts: &CompiledPromptParts) -> String {
+    let family = parts
+        .task_spec
+        .family
+        .map(|f| f.as_str().to_string())
+        .unwrap_or_else(|| "general".into());
+    let skills = if parts.selected_skill_ids.is_empty() {
+        parts
+            .task_spec
+            .extras
+            .get("selected_skills")
+            .cloned()
+            .unwrap_or_else(|| "—".into())
+    } else {
+        parts.selected_skill_ids.join(",")
+    };
+    let arts: Vec<_> = parts
+        .task_spec
+        .expected_artifacts
+        .iter()
+        .filter(|a| a.required)
+        .map(|a| format!("{}:{}", a.id, a.kind))
+        .collect();
+    let brand = parts
+        .task_spec
+        .extras
+        .get("brand_kit")
+        .map(String::as_str)
+        .unwrap_or("fde-editorial");
+    let scenario = parts
+        .task_spec
+        .extras
+        .get("scenario")
+        .map(|s| s.as_str())
+        .unwrap_or("—");
+    let gates = parts
+        .gate_plan
+        .as_ref()
+        .map(|p| p.requirements.len())
+        .unwrap_or(0);
+    format!(
+        "[delivery_preflight] family={family} skill={skills} brand={brand} scenario={scenario} artifacts=[{}] gates={gates}",
+        arts.join(", ")
+    )
+}
+
 pub async fn recall_typed_memories(
     store: &dyn anycode_core::MemoryStore,
     prompt: &str,
@@ -190,6 +237,10 @@ pub fn compiler_context_sections(parts: &CompiledPromptParts) -> Vec<String> {
     if !parts.skill_segment.trim().is_empty() {
         sections.push(parts.skill_segment.clone());
     }
+    sections.push(format!(
+        "## Delivery Preflight\n{}",
+        delivery_preflight_marker(parts)
+    ));
     if let Some(plan) = &parts.gate_plan {
         if !plan.is_empty() {
             let gates: Vec<_> = plan
@@ -198,7 +249,7 @@ pub fn compiler_context_sections(parts: &CompiledPromptParts) -> Vec<String> {
                 .map(|r| format!("{}:{}", r.id, r.validator_id))
                 .collect();
             sections.push(format!(
-                "## Gate Plan\nindependent validators will check before completion:\n- {}",
+                "## Gate Plan (lite)\nindependent validators will check before completion:\n- {}",
                 gates.join("\n- ")
             ));
         }

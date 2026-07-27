@@ -10,6 +10,24 @@ use anyhow::{Context, Result};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
+/// In-memory config value override set by `anycode_config::load_config` after
+/// applying env overrides — readers that would otherwise re-read the config
+/// FILE (media registry, bootstrap) see the overridden view instead.
+static CONFIG_VALUE_OVERRIDE: std::sync::OnceLock<std::sync::RwLock<Option<Value>>> =
+    std::sync::OnceLock::new();
+
+fn override_slot() -> &'static std::sync::RwLock<Option<Value>> {
+    CONFIG_VALUE_OVERRIDE.get_or_init(|| std::sync::RwLock::new(None))
+}
+
+pub fn set_config_value_override(v: Value) {
+    *override_slot().write().expect("config override lock") = Some(v);
+}
+
+pub fn clear_config_value_override() {
+    *override_slot().write().expect("config override lock") = None;
+}
+
 pub fn default_config_path() -> PathBuf {
     std::env::var("HOME")
         .map(|h| PathBuf::from(h).join(".anycode").join("config.json"))
@@ -18,6 +36,15 @@ pub fn default_config_path() -> PathBuf {
 
 pub fn read_config_value(path: Option<&Path>) -> Result<(PathBuf, Value)> {
     let path = path.map(PathBuf::from).unwrap_or_else(default_config_path);
+    if path == default_config_path() {
+        if let Some(v) = override_slot()
+            .read()
+            .expect("config override lock")
+            .clone()
+        {
+            return Ok((path, v));
+        }
+    }
     if !path.exists() {
         return Ok((path, json!({})));
     }
