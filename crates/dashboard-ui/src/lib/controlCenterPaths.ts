@@ -6,6 +6,7 @@ export type ControlCenterView =
   | { view: "projects" }
   | { view: "project"; projectId: string }
   | { view: "automations" }
+  | { view: "colleagues" }
   | { view: "assets"; search: Record<string, string> }
   | { view: "artifact"; artifactId: string }
   | { view: "reports"; search: Record<string, string> }
@@ -21,6 +22,7 @@ const TOP_LEVEL = new Set([
   "/overview",
   "/projects",
   "/automations",
+  "/colleagues",
   "/assets",
   "/reports",
   "/audit",
@@ -78,6 +80,8 @@ export function parseControlCenterPath(path: string): ControlCenterView {
       return { view: "projects" };
     case "/automations":
       return { view: "automations" };
+    case "/colleagues":
+      return { view: "colleagues" };
     case "/assets":
       return { view: "assets", search };
     case "/reports":

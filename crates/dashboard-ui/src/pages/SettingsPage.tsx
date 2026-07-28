@@ -20,6 +20,7 @@ import { SettingsOverviewBanner } from "@/pages/settings/SettingsOverviewBanner"
 import { SettingsSecuritySection } from "@/pages/settings/SettingsSecuritySection";
 import { SettingsServiceSection } from "@/pages/settings/SettingsServiceSection";
 import { SettingsSkillsSection } from "@/pages/settings/SettingsSkillsSection";
+import { SettingsLanSection } from "@/pages/settings/SettingsLanSection";
 import { SettingsPluginsSection } from "@/pages/settings/SettingsPluginsSection";
 
 const VALID_SECTIONS = new Set<SettingsSection>([
@@ -31,6 +32,7 @@ const VALID_SECTIONS = new Set<SettingsSection>([
   "skills",
   "security",
   "notify",
+  "lan",
   "gates",
   "plugins",
   "ops",
@@ -130,6 +132,7 @@ function SettingsPageInner({
             {section === "skills" && <SettingsSkillsSection />}
             {section === "security" && <SettingsSecuritySection />}
             {section === "notify" && <SettingsNotifySection />}
+            {section === "lan" && <SettingsLanSection />}
             {section === "gates" && <SettingsGatesSection />}
             {section === "plugins" && <SettingsPluginsSection />}
             {section === "ops" && <SettingsOpsSection />}

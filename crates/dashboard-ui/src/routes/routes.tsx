@@ -25,6 +25,7 @@ import {
   AssetsPage,
   AuditPage,
   AutomationsPage,
+  ColleaguesPage,
   ConversationsPage,
   EventDetailPage,
   HomePage,
@@ -293,6 +294,16 @@ export const automationsRoute = createRoute({
   ),
 });
 
+export const colleaguesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/colleagues",
+  component: () => (
+    <Page>
+      <ColleaguesPage />
+    </Page>
+  ),
+});
+
 export const assetsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/assets",
@@ -439,6 +450,7 @@ export const routeTree = rootRoute.addChildren([
     sessionDetailRoute,
     eventDetailRoute,
     automationsRoute,
+    colleaguesRoute,
     assetsRoute,
     artifactDetailRoute,
     agentsRoute,

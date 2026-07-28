@@ -589,6 +589,31 @@ pub fn router(state: AppState) -> Router {
             "/settings/connectors/{connector_id}/linear/issues",
             get(handlers::get_connector_linear_issues),
         )
+        .route("/lan/peers", get(handlers::get_lan_peers))
+        .route(
+            "/lan/settings",
+            get(handlers::get_lan_settings).patch(handlers::patch_lan_settings),
+        )
+        .route(
+            "/lan/handoff/request",
+            post(handlers::post_lan_handoff_request),
+        )
+        .route(
+            "/lan/handoff/incoming",
+            get(handlers::get_lan_handoff_incoming),
+        )
+        .route(
+            "/lan/handoff/outgoing",
+            get(handlers::get_lan_handoff_outgoing),
+        )
+        .route(
+            "/lan/handoff/{handoff_id}/approve",
+            post(handlers::post_lan_handoff_approve),
+        )
+        .route(
+            "/lan/handoff/{handoff_id}/reject",
+            post(handlers::post_lan_handoff_reject),
+        )
         .route("/audit/events", get(handlers::list_audit_events))
         .route("/plugins", get(handlers::list_plugins))
         .route(

@@ -14,6 +14,7 @@ import {
   AssetsPage,
   AuditPage,
   AutomationsPage,
+  ColleaguesPage,
   HomePage,
   OverviewPage,
   ProjectDetailPage,
@@ -38,6 +39,7 @@ function ControlCenterContent({ path }: { path: string }) {
           <ProjectDetailPage embedded projectId={parsed.projectId} />
         )}
         {parsed.view === "automations" && <AutomationsPage embedded />}
+        {parsed.view === "colleagues" && <ColleaguesPage embedded />}
         {parsed.view === "assets" && (
           <AssetsPage embedded initialSearch={parsed.search} />
         )}

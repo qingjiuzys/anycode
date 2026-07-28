@@ -37,6 +37,13 @@ export const FEATURE_NAV: FeatureNavItem[] = [
     group: "workspace",
   },
   {
+    id: "colleagues",
+    to: "/colleagues",
+    key: "nav.colleagues",
+    icon: "group",
+    group: "automation",
+  },
+  {
     id: "automations",
     to: "/automations",
     key: "nav.automations",

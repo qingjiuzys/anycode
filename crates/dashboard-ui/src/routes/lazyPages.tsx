@@ -60,6 +60,9 @@ export const EventDetailPage = lazyWithChunkReload(() =>
 export const AutomationsPage = lazyWithChunkReload(() =>
   import("@/pages/AutomationsPage").then((m) => ({ default: m.AutomationsPage })),
 );
+export const ColleaguesPage = lazyWithChunkReload(() =>
+  import("@/pages/ColleaguesPage").then((m) => ({ default: m.ColleaguesPage })),
+);
 export const AssetsPage = lazyWithChunkReload(() =>
   import("@/pages/AssetsPage").then((m) => ({ default: m.AssetsPage })),
 );

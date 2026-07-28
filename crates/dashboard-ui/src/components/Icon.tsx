@@ -205,6 +205,14 @@ const icons: Record<string, ReactNode> = {
       <path d="M10 15h6l4 3V9" />
     </>
   ),
+  group: (
+    <>
+      <circle cx="9" cy="9" r="2.75" />
+      <path d="M4.5 19a5.5 5.5 0 0 1 9 0" />
+      <circle cx="16" cy="9" r="2.75" />
+      <path d="M10.5 19a5.5 5.5 0 0 1 9 0" />
+    </>
+  ),
   help_center: (
     <>
       <circle cx="12" cy="12" r="8" />

@@ -3,6 +3,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Icon } from "@/components/Icon";
 import { ProjectGroupedSessionList } from "@/components/session/ProjectGroupedSessionList";
 import { SessionSearchModal } from "@/components/session/SessionSearchModal";
+import { IncomingHandoffBanner } from "@/components/colleagues/IncomingHandoffBanner";
 import { SidebarFooter } from "@/components/SidebarFooter";
 import { useControlCenter } from "@/context/ControlCenterContext";
 import { useConversationShell } from "@/context/ConversationShellContext";
@@ -17,7 +18,7 @@ type QuickAction = {
 
 export function SessionSidebar() {
   const t = useT();
-  const { openControlCenter } = useControlCenter();
+  const { openControlCenter, open, activePath } = useControlCenter();
   const {
     sidebarRows,
     sidebarFilteredRows,
@@ -39,6 +40,7 @@ export function SessionSidebar() {
   } = useConversationShell();
 
   const [searchOpen, setSearchOpen] = useState(false);
+  const colleaguesActive = open && activePath.startsWith("/colleagues");
 
   const quickActions: QuickAction[] = [
     {
@@ -58,6 +60,12 @@ export function SessionSidebar() {
       labelKey: "sidebar.search",
       icon: "search",
       onClick: () => setSearchOpen(true),
+    },
+    {
+      id: "discover-colleagues",
+      labelKey: "sidebar.discoverColleagues",
+      icon: "group",
+      onClick: () => openControlCenter("/colleagues"),
     },
     {
       id: "automations",
@@ -96,7 +104,10 @@ export function SessionSidebar() {
             key={action.id}
             type="button"
             className={`dw-sidebar-quick__item${
-              action.id === "search" && searchOpen ? " dw-sidebar-quick__item--active" : ""
+              (action.id === "search" && searchOpen) ||
+              (action.id === "discover-colleagues" && colleaguesActive)
+                ? " dw-sidebar-quick__item--active"
+                : ""
             }`}
             onClick={action.onClick}
           >
@@ -105,6 +116,8 @@ export function SessionSidebar() {
           </button>
         ))}
       </nav>
+
+      <IncomingHandoffBanner />
 
       <div
         className={`flex-1 min-h-0 overflow-y-auto overscroll-y-contain transition-opacity ${listBusy ? "opacity-60" : ""}`}

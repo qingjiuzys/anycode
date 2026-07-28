@@ -161,6 +161,14 @@ async fn run_inner(
     let events = Arc::new(EventBus::new());
     crate::notify::register_inprocess_bus(Arc::clone(&events));
     let db_for_state = db.clone();
+    let lan_hub = if crate::lan::lan_enabled() {
+        Some(Arc::new(crate::lan::LanHub::new(
+            config.version.clone(),
+            crate::lan::lan_data_dir(),
+        )))
+    } else {
+        None
+    };
     let state = AppState {
         db,
         events: Arc::clone(&events),
@@ -184,9 +192,22 @@ async fn run_inner(
         test_auth_bypass: std::env::var("ANYCODE_DASHBOARD_TEST_AUTH_BYPASS")
             .ok()
             .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+        lan_hub: lan_hub.clone(),
     };
     crate::control::question_notify::install(events, db_for_state.clone());
     crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
+    if let Some(hub) = lan_hub {
+        crate::lan::spawn_discovery(Arc::clone(&hub));
+        crate::lan::spawn_lan_listener(crate::lan::LanListenerState {
+            hub: Arc::clone(&hub),
+            db: state.db.clone(),
+            events: Arc::clone(&state.events),
+            memory_root: dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".anycode")
+                .join("memory"),
+        });
+    }
     let _ = crate::audit::record_audit(
         &state.db,
         crate::audit::AuditEventInput::low(
@@ -378,6 +399,7 @@ pub async fn app_for_test_custom(db_path: &Path, opts: TestAppOptions) -> Result
         managed_local_llm: crate::managed_local_llm::ManagedLocalLlm::new(),
         desktop_bootstrap_token: Arc::new(tokio::sync::Mutex::new(opts.desktop_bootstrap_token)),
         test_auth_bypass: opts.auth_bypass,
+        lan_hub: None,
     };
     crate::control::question_notify::install(events, db_for_state.clone());
     crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);

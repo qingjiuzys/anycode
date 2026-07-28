@@ -33,4 +33,6 @@ pub struct AppState {
     /// `ANYCODE_DASHBOARD_TEST_AUTH_BYPASS` (per-app in tests) so parallel
     /// test apps no longer race on a process-global env var.
     pub test_auth_bypass: bool,
+    /// LAN colleague discovery and handoff (optional).
+    pub lan_hub: Option<std::sync::Arc<crate::lan::LanHub>>,
 }

@@ -18,6 +18,7 @@ pub mod embedded_ui;
 pub mod events;
 pub mod governance;
 pub mod ipc;
+pub mod lan;
 pub mod llm_probe;
 pub mod local_service;
 pub mod managed_local_llm;

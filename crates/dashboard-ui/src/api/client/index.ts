@@ -8,6 +8,7 @@ import { mediaClient } from "./media";
 import { settingsClient } from "./settings";
 import { setupClient } from "./setup";
 import { workbenchClient } from "./workbench";
+import { lanClient } from "./lan";
 
 export type {
   ArtifactListOpts,
@@ -29,4 +30,5 @@ export const api = {
   ...governanceClient,
   ...setupClient,
   ...workbenchClient,
+  ...lanClient,
 };
