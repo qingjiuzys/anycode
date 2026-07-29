@@ -304,6 +304,7 @@ pub async fn send_session_message(
                 vision_images: body.vision_images.clone(),
                 text_files: body.text_files.clone(),
                 lang: body.lang.clone(),
+                composer_mode: body.composer_mode.clone(),
             })
             .await
         {
@@ -361,6 +362,7 @@ pub async fn send_session_message(
         body.lang.as_deref(),
         false,
         "conversation_message",
+        body.composer_mode.as_deref(),
     )
     .await
     {

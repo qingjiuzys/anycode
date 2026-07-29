@@ -1,5 +1,6 @@
 //! Central cloud account API for anyCode subscriptions and entitlements.
 
+pub mod a2a;
 pub mod admin;
 pub mod api;
 pub mod auth;

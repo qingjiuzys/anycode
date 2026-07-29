@@ -11,13 +11,14 @@ const COPY = {
     body: "anyCode 是可扩展的本地 Agent 工作台：项目、工具、Skills 与审批在本机执行；需要更强推理时，再按需接入 Cloud Auto / Agnes Chat。",
     localCore: "LOCAL CORE",
     optionalCloud: "OPTIONAL CLOUD",
-    localBoundary: "数据、工具与审批留在本机；离线也可跑通主路径",
-    cloudBoundary: "仅模型推理走托管网关；账号与额度在 anycode.work",
-    modelRouter: "模型路由",
+    localBoundary: "数据、工具与审批留在本机；离线也可跑通主路径。",
+    cloudBoundary: "仅模型推理走托管网关；账号与额度在 anycode.work。",
+    modelRouter: "本机 → 模型路由 → 云端（可选）",
     nativeMedia: "原生媒体",
     secureContext: "安全审批",
     pillarsKicker: "PRODUCT STACK",
-    pillarsTitle: "一屏看清产品边界",
+    pillarsTitle: "产品边界",
+    pillarsLead: "从桌面工作台到云端账号，每一层职责清晰。",
     pillars: [
       {
         code: "01",
@@ -64,13 +65,14 @@ const COPY = {
     body: "anyCode is an extensible local Agent workbench: projects, tools, skills, and approvals run on device. Cloud Auto / Agnes Chat join only when you need more inference.",
     localCore: "LOCAL CORE",
     optionalCloud: "OPTIONAL CLOUD",
-    localBoundary: "Data, tools, and approvals stay on device — main path works offline",
-    cloudBoundary: "Only model inference hits the gateway; account & quota live on anycode.work",
-    modelRouter: "Model router",
+    localBoundary: "Data, tools, and approvals stay on device — the main path works offline.",
+    cloudBoundary: "Only model inference hits the gateway; account & quota live on anycode.work.",
+    modelRouter: "Device → model router → cloud (optional)",
     nativeMedia: "Native media",
     secureContext: "Approvals",
     pillarsKicker: "PRODUCT STACK",
-    pillarsTitle: "The product boundary in one screen",
+    pillarsTitle: "Product boundary",
+    pillarsLead: "From desktop workbench to cloud account — each layer has a clear job.",
     pillars: [
       {
         code: "01",
@@ -121,23 +123,21 @@ export function ProductPage() {
 
   return (
     <div className="nx-site nx-site--product">
-      <section className="nx-architecture nx-architecture--page nx-product">
-        <div className="nx-frame nx-product__frame">
-          <header className="nx-section-head nx-section-head--light nx-product__head">
-            <div>
-              <p className="nx-kicker">{copy.kicker}</p>
-              <h1>{copy.title}</h1>
-            </div>
-            <p>{copy.body}</p>
+      <section className="nx-product-screen nx-product-screen--arch" aria-labelledby="nx-product-title">
+        <div className="nx-frame nx-product-screen__inner">
+          <header className="nx-page-hero">
+            <p className="nx-kicker">{copy.kicker}</p>
+            <h1 id="nx-product-title">{copy.title}</h1>
+            <p className="nx-page-hero__lead">{copy.body}</p>
           </header>
 
-          <div className="nx-topology">
-            <div className="nx-topology__zone nx-topology__zone--local">
-              <div className="nx-topology__zone-head">
+          <div className="nx-arch-flow">
+            <div className="nx-arch-flow__zone">
+              <div className="nx-arch-flow__zone-head">
                 <span>{copy.localCore}</span>
                 <strong>DEVICE / 127.0.0.1</strong>
               </div>
-              <div className="nx-topology__nodes">
+              <div className="nx-arch-flow__nodes">
                 <div>
                   <span>01</span>
                   <strong>Agent Runtime</strong>
@@ -158,67 +158,67 @@ export function ProductPage() {
               <p>{copy.localBoundary}</p>
             </div>
 
-            <div className="nx-topology__bridge" aria-hidden>
+            <div className="nx-arch-flow__bridge" aria-hidden>
               <span>{copy.modelRouter}</span>
-              <i />
-              <b>→</b>
             </div>
 
-            <div className="nx-topology__zone nx-topology__zone--cloud">
-              <div className="nx-topology__zone-head">
+            <div className="nx-arch-flow__zone nx-arch-flow__zone--cloud">
+              <div className="nx-arch-flow__zone-head">
                 <span>{copy.optionalCloud}</span>
                 <strong>ANYCODE.WORK</strong>
               </div>
-              <div className="nx-cloud-orbit" aria-hidden>
-                <div>Cloud Auto</div>
-                <div>Agnes Chat</div>
-                <span>API</span>
+              <div className="nx-arch-flow__cloud">
+                <span>Cloud Auto</span>
+                <span>Agnes Chat</span>
+                <b>API</b>
               </div>
               <p>{copy.cloudBoundary}</p>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="nx-product__lower">
-            <div className="nx-product__pillars">
-              <header className="nx-product__block-head">
-                <p className="nx-kicker">{copy.pillarsKicker}</p>
-                <h2>{copy.pillarsTitle}</h2>
-              </header>
-              <div className="nx-product__pillar-grid">
-                {copy.pillars.map((item) => (
-                  <article className="nx-product__pillar" key={item.code}>
-                    <span className="nx-product__pillar-code">{item.code}</span>
-                    <h3>{item.title}</h3>
-                    <p>{item.body}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
+      <section className="nx-product-screen nx-product-screen--stack" aria-labelledby="nx-product-stack-title">
+        <div className="nx-frame nx-product-screen__inner">
+          <header className="nx-page-hero">
+            <p className="nx-kicker">{copy.pillarsKicker}</p>
+            <h2 id="nx-product-stack-title">{copy.pillarsTitle}</h2>
+            <p className="nx-page-hero__lead">{copy.pillarsLead}</p>
+          </header>
 
-            <aside className="nx-product__stays">
-              <header className="nx-product__block-head">
-                <p className="nx-kicker">{copy.staysKicker}</p>
-                <h2>{copy.staysTitle}</h2>
-              </header>
-              <ul>
-                {copy.stays.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-              <div className="nx-product__actions">
-                <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
-                  {t("hero.ctaDownload")} <span aria-hidden>↓</span>
-                </a>
-                <Link className="nx-btn nx-btn--secondary" to={authenticated ? "/console" : "/register"}>
-                  {authenticated ? t("hero.ctaConsole") : t("hero.ctaGetStarted")}{" "}
-                  <span aria-hidden>→</span>
-                </Link>
-                <Link className="nx-text-link" to={SITE_PATHS.features}>
-                  {t("nav.features")}
-                </Link>
-              </div>
-            </aside>
+          <div className="nx-product__pillar-grid nx-product__pillar-grid--loose">
+            {copy.pillars.map((item) => (
+              <article className="nx-product__pillar" key={item.code}>
+                <span className="nx-product__pillar-code">{item.code}</span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
           </div>
+
+          <aside className="nx-product__stays nx-product__stays--band">
+            <header className="nx-product__block-head">
+              <p className="nx-kicker">{copy.staysKicker}</p>
+              <h2>{copy.staysTitle}</h2>
+            </header>
+            <ul>
+              {copy.stays.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <div className="nx-product__actions">
+              <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
+                {t("hero.ctaDownload")} <span aria-hidden>↓</span>
+              </a>
+              <Link className="nx-btn nx-btn--secondary" to={authenticated ? "/console" : "/register"}>
+                {authenticated ? t("hero.ctaConsole") : t("hero.ctaGetStarted")}{" "}
+                <span aria-hidden>→</span>
+              </Link>
+              <Link className="nx-text-link" to={SITE_PATHS.features}>
+                {t("nav.features")}
+              </Link>
+            </div>
+          </aside>
         </div>
       </section>
     </div>

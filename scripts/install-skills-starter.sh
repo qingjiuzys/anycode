@@ -34,18 +34,22 @@ for d in "$SRC"/*/; do
       rm -rf "$DEST/$id/templates"
       cp -R "$d/templates" "$DEST/$id/templates"
     fi
-    if [[ "$id" == *"-delivery" || "$id" == "office-pptx" || "$id" == "presentation-design" || "$id" == "anycode-ppt" || "$id" == "anycode-docx" || "$id" == "anycode-xlsx" ]]; then
+    if [[ "$id" == *"-delivery" || "$id" == "office-pptx" || "$id" == "presentation-design" || "$id" == "anycode-ppt" || "$id" == "anycode-docx" || "$id" == "anycode-xlsx" || "$id" == "anycode-pdf" ]]; then
       copy_brand_to_skill "$DEST/$id" "$DEFAULT_BRAND"
     fi
     if [[ -d "$d/docs" ]]; then
       mkdir -p "$DEST/$id/docs"
       cp -R "$d/docs/"* "$DEST/$id/docs/" 2>/dev/null || true
     fi
-    for doc in visual-format.md diagram-density.md; do
+    for doc in visual-format.md diagram-density.md components.md; do
       if [[ -f "$d/$doc" ]]; then
         cp "$d/$doc" "$DEST/$id/$doc"
       fi
     done
+    if [[ -f "$SRC/_shared/deepseek-office.md" ]]; then
+      mkdir -p "$DEST/_shared"
+      cp "$SRC/_shared/deepseek-office.md" "$DEST/_shared/deepseek-office.md"
+    fi
     echo "installed: $id -> $DEST/$id"
   fi
 done

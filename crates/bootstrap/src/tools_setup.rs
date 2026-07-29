@@ -36,6 +36,30 @@ pub async fn build_tools_setup(
         merged_extra.extend(more);
     }
 
+    if config.skills.enabled {
+        if let Some(home) = dirs::home_dir() {
+            let skills_dest = home.join(".anycode/skills");
+            match anycode_tools::ensure_office_starter_skills(&skills_dest) {
+                Ok(installed) if !installed.is_empty() => {
+                    tracing::info!(
+                        target: "anycode_bootstrap",
+                        count = installed.len(),
+                        ids = ?installed.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+                        "installed default office starter skills"
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(
+                        target: "anycode_bootstrap",
+                        error = %e,
+                        "default office starter skills install skipped"
+                    );
+                }
+            }
+        }
+    }
+
     let skill_catalog: Arc<SkillCatalog> = Arc::new(if config.skills.enabled {
         let mut roots = default_skill_roots(&merged_extra, dirs::home_dir().as_deref());
         if let Some(root) = skill_project_root {

@@ -126,6 +126,7 @@ export const projectsClient = {
       text_files?: { filename: string; content: string }[];
       lang?: string;
       recycle_session?: boolean;
+      composer_mode?: string;
     },
   ) =>
     post<{ session: SessionDetail; chat: WebChatResult }>(
@@ -142,6 +143,7 @@ export const projectsClient = {
       text_files?: { filename: string; content: string }[];
       lang?: string;
       enqueue?: boolean;
+      composer_mode?: string;
     },
   ) =>
     post<{

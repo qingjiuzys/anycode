@@ -257,4 +257,25 @@ export const api = {
 
   revokeApiKey: (id: string) =>
     apiFetch(`/api/v1/account/api-keys/${id}`, { method: "DELETE" }),
+
+  orgMembers: () =>
+    apiFetch<{
+      members: Array<{ id: string; email: string; display_name: string; role: string }>;
+    }>("/api/v1/org/members"),
+
+  teamPeers: () =>
+    apiFetch<{
+      peers: Array<{
+        user_id: string;
+        display_name: string;
+        email: string;
+        device_id: string;
+        instance_id: string;
+        device_name: string;
+        version: string;
+        online: boolean;
+        last_seen: string;
+        capabilities: string[];
+      }>;
+    }>("/api/v1/a2a/team/peers"),
 };

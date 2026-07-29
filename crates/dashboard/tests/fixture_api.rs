@@ -1269,6 +1269,7 @@ async fn cancel_session_clears_pending_message_queue() {
         vision_images: None,
         text_files: None,
         lang: None,
+        composer_mode: None,
     })
     .await
     .unwrap();

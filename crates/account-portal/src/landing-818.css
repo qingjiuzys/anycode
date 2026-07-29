@@ -135,6 +135,24 @@ html:has(.lx-home) a.scene-hero-btn:not(.scene-hero-btn--primary):hover {
   gap: 12px;
 }
 
+.lx-header__icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: inherit;
+  opacity: 0.88;
+  text-decoration: none;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.lx-header__icon-link:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .lx-header .locale-switch {
   color: inherit;
   opacity: 0.85;
@@ -162,6 +180,21 @@ html:has(.lx-home) a.scene-hero-btn:not(.scene-hero-btn--primary):hover {
 
 .locale-dropdown--header .locale-dropdown__trigger {
   border-color: rgba(255, 255, 255, 0.35);
+}
+
+.locale-dropdown__trigger--icon {
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 8px;
+  opacity: 0.88;
+}
+
+.locale-dropdown__trigger--icon:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .lx-header.is-scrolled .locale-dropdown--header .locale-dropdown__trigger {

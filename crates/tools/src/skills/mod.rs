@@ -6,7 +6,8 @@ pub mod router;
 pub mod vet;
 pub use effective::SkillsGovernance;
 pub use install::{
-    install_skill, install_starter_skills, resolve_skills_starter_dir, SkillInstallResult,
+    ensure_office_starter_skills, install_skill, install_starter_skills,
+    resolve_skills_starter_dir, SkillInstallResult, OFFICE_STARTER_SKILL_IDS,
 };
 pub use router::{
     resolve_capabilities, SelectedSkill, SkillMatchStatus, SkillResolution, SkillResolutionContext,

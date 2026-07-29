@@ -58,3 +58,13 @@ permissions:
 
 - preview.html 对齐 `docs/design/fde-editorial-contract.md`
 - docx 走 `document-delivery` + `brand-kits/fde-editorial`
+
+## DeepSeek 执行要点
+
+Read `../_shared/deepseek-office.md` — copy-first，填完必须 `run report.md`。
+
+## Kimi 蒸馏约束
+
+- 有模板时只做**表单填写**，不重设计式
+- 终稿必须是 **docx**；preview.html 供评审，不是替代
+- 外部数据表格加 Source Name / Source URL 列

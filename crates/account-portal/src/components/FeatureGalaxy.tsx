@@ -65,7 +65,9 @@ export function FeatureGalaxy({ mode = "home", title, subtitle }: Props) {
   const t = useT();
   const { authenticated } = useAuth();
   const planets = mode === "page" ? ALL_PLANETS : HOME_PLANETS;
-  const [active, setActive] = useState<GalaxyFeatureKey | null>(null);
+  const [active, setActive] = useState<GalaxyFeatureKey | null>(
+    mode === "page" ? "agent" : null,
+  );
   const [hovered, setHovered] = useState<GalaxyFeatureKey | null>(null);
   const titleId = useId();
   const reducedMotion = useMemo(() => {
@@ -74,22 +76,83 @@ export function FeatureGalaxy({ mode = "home", title, subtitle }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!active) return;
+    if (mode === "page" || !active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setActive(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active]);
+  }, [active, mode]);
 
   const activePlanet = planets.find((p) => p.key === active) ?? null;
   const focusKey = hovered ?? active;
   const heading = title ?? (mode === "page" ? t("featuresPage.title") : t("features.title"));
   const lead = subtitle ?? (mode === "page" ? t("featuresPage.subtitle") : t("features.subtitle"));
+  const isPage = mode === "page";
+
+  const map = (
+    <div
+      className={`nx-universe__map${reducedMotion ? " is-static" : ""}`}
+      role="list"
+      aria-label={t("features.eyebrow")}
+    >
+      <div className="nx-universe__orbits" aria-hidden>
+        <i className="nx-universe__ring nx-universe__ring--1" />
+        <i className="nx-universe__ring nx-universe__ring--2" />
+        <i className="nx-universe__ring nx-universe__ring--3" />
+        <i className="nx-universe__halo" />
+      </div>
+
+      <div className="nx-universe__core">
+        <LogoMark />
+        <span>anyCode</span>
+      </div>
+
+      <svg className="nx-universe__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+        {planets.map((p) => (
+          <line
+            key={p.key}
+            className={`nx-universe__line nx-universe__line--${p.tone}${focusKey === p.key ? " is-lit" : ""}`}
+            x1="50"
+            y1="50"
+            x2={p.x}
+            y2={p.y}
+          />
+        ))}
+      </svg>
+
+      {planets.map((p) => (
+        <button
+          key={p.key}
+          type="button"
+          role="listitem"
+          className={`nx-universe__star nx-universe__planet nx-universe__star--${p.size} nx-universe__star--${p.tone}${active === p.key ? " is-active" : ""}${hovered === p.key ? " is-hover" : ""}`}
+          style={{ left: `${p.x}%`, top: `${p.y}%` }}
+          aria-pressed={active === p.key}
+          aria-label={t(`features.${p.key}.title`)}
+          onClick={() => setActive(p.key)}
+          onMouseEnter={() => setHovered(p.key)}
+          onMouseLeave={() => setHovered(null)}
+          onFocus={() => setHovered(p.key)}
+          onBlur={() => setHovered(null)}
+        >
+          <span className="nx-universe__star-orbit" aria-hidden />
+          <span className="nx-universe__planet-body" aria-hidden>
+            <span className="nx-universe__planet-shine" />
+            <span className="nx-universe__planet-ring" />
+          </span>
+          <span className="nx-universe__star-label is-visible">
+            <small>{p.code}</small>
+            <strong>{t(`features.${p.key}.tag`)}</strong>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <section
-      className={`nx-universe${mode === "home" ? " nx-universe--embed" : ""}`}
+      className={`nx-universe${mode === "home" ? " nx-universe--embed" : " nx-universe--page"}`}
       aria-labelledby={titleId}
     >
       <div className="nx-universe__sky" aria-hidden>
@@ -108,87 +171,49 @@ export function FeatureGalaxy({ mode = "home", title, subtitle }: Props) {
         ))}
       </div>
 
-      <div className="nx-frame nx-universe__frame">
-        <header className="nx-universe__head">
+      <div className={`nx-frame nx-universe__frame${isPage ? " nx-universe__frame--page" : ""}`}>
+        <header className={`nx-universe__head${isPage ? " nx-page-hero" : ""}`}>
           <p className="nx-kicker">
             {mode === "home" ? `${t("features.eyebrow")} / 01` : t("featuresPage.kicker")}
           </p>
-          {mode === "page" ? (
+          {isPage ? (
             <h1 id={titleId}>{heading}</h1>
           ) : (
             <h2 id={titleId}>{heading}</h2>
           )}
-          <p className="nx-universe__lead">{lead}</p>
-          <p className="nx-universe__hint">
-            {t("featuresPage.galaxyHint")}
-            {mode === "home" ? (
-              <>
-                {" · "}
-                <Link className="nx-capabilities__more" to="/features">
-                  {t("featuresPage.explore")} <span aria-hidden>→</span>
-                </Link>
-              </>
-            ) : null}
-          </p>
+          <p className={isPage ? "nx-page-hero__lead" : "nx-universe__lead"}>{lead}</p>
+          {!isPage ? (
+            <p className="nx-universe__hint">
+              {t("featuresPage.galaxyHint")}
+              {" · "}
+              <Link className="nx-capabilities__more" to="/features">
+                {t("featuresPage.explore")} <span aria-hidden>→</span>
+              </Link>
+            </p>
+          ) : (
+            <p className="nx-universe__hint">{t("featuresPage.galaxyHint")}</p>
+          )}
         </header>
 
-        <div
-          className={`nx-universe__map${reducedMotion ? " is-static" : ""}`}
-          role="list"
-          aria-label={t("features.eyebrow")}
-        >
-          <div className="nx-universe__orbits" aria-hidden>
-            <i className="nx-universe__ring nx-universe__ring--1" />
-            <i className="nx-universe__ring nx-universe__ring--2" />
-            <i className="nx-universe__ring nx-universe__ring--3" />
-            <i className="nx-universe__halo" />
+        {isPage ? (
+          <div className="nx-universe__stage">
+            {map}
+            {activePlanet ? (
+              <aside
+                className={`nx-universe__detail nx-universe__detail--${activePlanet.tone}`}
+                aria-live="polite"
+              >
+                <p className="nx-kicker">
+                  {activePlanet.code} / {t(`features.${activePlanet.key}.tag`)}
+                </p>
+                <h2>{t(`features.${activePlanet.key}.title`)}</h2>
+                <p>{t(`features.${activePlanet.key}.body`)}</p>
+              </aside>
+            ) : null}
           </div>
-
-          <div className="nx-universe__core">
-            <LogoMark />
-            <span>anyCode</span>
-          </div>
-
-          <svg className="nx-universe__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-            {planets.map((p) => (
-              <line
-                key={p.key}
-                className={`nx-universe__line nx-universe__line--${p.tone}${focusKey === p.key ? " is-lit" : ""}`}
-                x1="50"
-                y1="50"
-                x2={p.x}
-                y2={p.y}
-              />
-            ))}
-          </svg>
-
-          {planets.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              role="listitem"
-              className={`nx-universe__star nx-universe__planet nx-universe__star--${p.size} nx-universe__star--${p.tone}${active === p.key ? " is-active" : ""}${hovered === p.key ? " is-hover" : ""}`}
-              style={{ left: `${p.x}%`, top: `${p.y}%` }}
-              aria-pressed={active === p.key}
-              aria-label={t(`features.${p.key}.title`)}
-              onClick={() => setActive(p.key)}
-              onMouseEnter={() => setHovered(p.key)}
-              onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(p.key)}
-              onBlur={() => setHovered(null)}
-            >
-              <span className="nx-universe__star-orbit" aria-hidden />
-              <span className="nx-universe__planet-body" aria-hidden>
-                <span className="nx-universe__planet-shine" />
-                <span className="nx-universe__planet-ring" />
-              </span>
-              <span className="nx-universe__star-label is-visible">
-                <small>{p.code}</small>
-                <strong>{t(`features.${p.key}.tag`)}</strong>
-              </span>
-            </button>
-          ))}
-        </div>
+        ) : (
+          map
+        )}
 
         <div className="nx-universe__grid" role="list">
           {planets.map((p) => (
@@ -205,7 +230,7 @@ export function FeatureGalaxy({ mode = "home", title, subtitle }: Props) {
           ))}
         </div>
 
-        {mode === "page" ? (
+        {isPage ? (
           <div className="nx-universe__actions">
             <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
               {t("hero.ctaDownload")} <span aria-hidden>↓</span>
@@ -221,7 +246,7 @@ export function FeatureGalaxy({ mode = "home", title, subtitle }: Props) {
         ) : null}
       </div>
 
-      {activePlanet ? (
+      {!isPage && activePlanet ? (
         <div
           className="nx-universe__overlay"
           role="dialog"

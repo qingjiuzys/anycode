@@ -126,12 +126,12 @@ pub use services::{
     CronJobCreateOptions, CronJobPatch, LspConnectionConfig, ToolRegistryDeps, ToolServices,
 };
 pub use skills::{
-    default_skill_roots, install_skill, install_starter_skills, normalize_skill_category,
-    parse_skill_manifest_file, parse_skill_manifest_text, resolve_capabilities,
-    resolve_skills_starter_dir, truncate_skill_output, vet_skill_by_id, vet_skill_dir,
-    SelectedSkill, SkillCatalog, SkillInstallResult, SkillManifest, SkillMatchStatus, SkillMeta,
-    SkillResolution, SkillResolutionContext, SkillVetReport, SkillsGovernance,
-    MAX_SKILL_OUTPUT_BYTES,
+    default_skill_roots, ensure_office_starter_skills, install_skill, install_starter_skills,
+    normalize_skill_category, parse_skill_manifest_file, parse_skill_manifest_text,
+    resolve_capabilities, resolve_skills_starter_dir, truncate_skill_output, vet_skill_by_id,
+    vet_skill_dir, SelectedSkill, SkillCatalog, SkillInstallResult, SkillManifest,
+    SkillMatchStatus, SkillMeta, SkillResolution, SkillResolutionContext, SkillVetReport,
+    SkillsGovernance, MAX_SKILL_OUTPUT_BYTES, OFFICE_STARTER_SKILL_IDS,
 };
 pub use tool_input_coerce::coerce_tool_input;
 pub use verification::{discover_candidates, ValidationContext, ValidatorRegistry};

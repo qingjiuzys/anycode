@@ -8,7 +8,8 @@ const MENU = [
   { to: "/console/plans", labelKey: "console.plans", code: "03" },
   { to: "/console/billing", labelKey: "console.billing", code: "04" },
   { to: "/console/api", labelKey: "console.api", code: "05" },
-  { to: "/console/settings", labelKey: "console.settings", code: "06" },
+  { to: "/console/team", labelKey: "console.team", code: "06" },
+  { to: "/console/settings", labelKey: "console.settings", code: "07" },
 ] as const;
 
 export function ConsoleLayout() {

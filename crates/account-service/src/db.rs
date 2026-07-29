@@ -74,6 +74,16 @@ impl AccountDb {
             include_str!("../migrations/015_memory_sync.sql"),
         )
         .await?;
+        self.apply_migration(
+            "016_a2a_handoff",
+            include_str!("../migrations/016_a2a_handoff.sql"),
+        )
+        .await?;
+        self.apply_migration(
+            "017_a2a_stream_token_ephemeral",
+            include_str!("../migrations/017_a2a_stream_token_ephemeral.sql"),
+        )
+        .await?;
         Ok(())
     }
 
@@ -86,11 +96,20 @@ impl AccountDb {
         if applied > 0 {
             return Ok(());
         }
-        for statement in sql
+        // Strip `--` line comments before splitting on `;` so comments cannot
+        // inject stray statement fragments (e.g. "stored; this is only…").
+        let without_line_comments: String = sql
+            .lines()
+            .filter(|line| {
+                let t = line.trim();
+                !t.is_empty() && !t.starts_with("--")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        for statement in without_line_comments
             .split(';')
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .filter(|s| !is_comment_only_sql(s))
         {
             Self::execute_with_retry(&self.pool, statement, version).await?;
         }
@@ -133,13 +152,6 @@ impl std::fmt::Debug for AccountDb {
 #[allow(dead_code)]
 pub fn migration_dir() -> &'static Path {
     Path::new("./migrations")
-}
-
-fn is_comment_only_sql(statement: &str) -> bool {
-    statement.lines().all(|line| {
-        let trimmed = line.trim();
-        trimmed.is_empty() || trimmed.starts_with("--")
-    })
 }
 
 fn is_duplicate_schema_error(error: &sqlx::Error) -> bool {

@@ -2,14 +2,20 @@
 
 ## Unreleased
 
+## 0.3.0
+
 ### Added
 
-- **macOS native media layer**: shared `anycode-apple-media` crate + Swift helper ops for STT, OCR, TTS (`AVSpeechSynthesizer`), audio convert (`AVFoundation` + `afconvert` fallback), UserNotifications, Keychain, and rich pasteboard. CLI, WeChat bridge, `SttClient`/`TtsClient`, and Dashboard settings now share the same helper path (`~/.anycode/bin/anycode-apple-media`).
-- **Agent loop limits**: configure `runtime.max_agent_turns` (default 8) and `runtime.max_tool_calls` (default 32) in `~/.anycode/config.json`, Workbench **Settings → Agents**, or env `ANYCODE_MAX_AGENT_TURNS` / `ANYCODE_MAX_TOOL_CALLS`.
+- **Grill Me（拷问模式）**: `/拷问` / grill switch — align with one `AskUserQuestion` at a time before implementation.
+- **Team handoff**: LAN mDNS peer transfer (ADR 015) plus **cloud A2A streaming relay** on account-service (ADR 016) — no OSS; in-memory pipe; explicit recipient approval; Portal Team page.
+- **Office skills**: `anycode-docx` / `anycode-ppt` / `anycode-xlsx` / `anycode-pdf` starter skills and validation helpers.
+- **Marketing site**: homepage Workbench preview, product architecture, features galaxy, dark plans, narrow downloads.
+- **macOS native media layer**: shared `anycode-apple-media` crate + Swift helper ops for STT, OCR, TTS, audio convert, UserNotifications, Keychain, and rich pasteboard.
+- **Agent loop limits**: `runtime.max_agent_turns` / `runtime.max_tool_calls` (defaults 8 / 32), Workbench settings, or env overrides.
 
 ### Changed
 
-- **Release packaging**: GitHub Release on tag ships **macOS `.dmg` only**; standalone Linux/Windows CLI tarballs/zips are no longer attached automatically (`release-binaries.yml` is manual `workflow_dispatch` only). Non-macOS installs: `cargo install` or build from source.
+- **Release packaging**: GitHub Release on tag ships **macOS `.dmg` only**; standalone Linux/Windows CLI tarballs/zips are manual `workflow_dispatch` only.
 
 ## 0.2.3
 

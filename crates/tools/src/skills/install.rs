@@ -34,6 +34,10 @@ enum ParsedSource {
 /// Token prefix for market/catalog installs from the bundled starter pack.
 pub const ANYCODE_STARTER_SOURCE_PREFIX: &str = "anycode-starter:";
 
+/// Office skills distilled for DeepSeek + FDE editorial — installed by default when missing.
+pub const OFFICE_STARTER_SKILL_IDS: &[&str] =
+    &["anycode-ppt", "anycode-docx", "anycode-xlsx", "anycode-pdf"];
+
 /// Resolve bundled `skills-starter/` (repo dev) or `ANYCODE_SKILLS_STARTER`.
 #[must_use]
 pub fn resolve_skills_starter_dir() -> Option<PathBuf> {
@@ -78,6 +82,34 @@ pub fn install_starter_skills(dest_root: &Path) -> anyhow::Result<Vec<SkillInsta
     }
     if installed.is_empty() {
         anyhow::bail!("no skills found under {}", starter.display());
+    }
+    Ok(installed)
+}
+
+/// Install bundled office skills when not yet present under `dest_root`.
+pub fn ensure_office_starter_skills(dest_root: &Path) -> anyhow::Result<Vec<SkillInstallResult>> {
+    SkillCatalog::invalidate_scan_cache();
+    let starter = resolve_skills_starter_dir()
+        .ok_or_else(|| anyhow::anyhow!("skills-starter directory not found"))?;
+    fs::create_dir_all(dest_root)?;
+    let mut installed = Vec::new();
+    for id in OFFICE_STARTER_SKILL_IDS {
+        let dest = dest_root.join(id);
+        if dest.join("SKILL.md").is_file() {
+            continue;
+        }
+        let sub = starter.join(id);
+        if !sub.join("SKILL.md").is_file() {
+            tracing::debug!(skill = id, "office starter skill missing from bundle");
+            continue;
+        }
+        let report = validate_skill_dir(&sub)?;
+        copy_skill_tree(&sub, &dest)?;
+        write_install_metadata(&dest, "anycode-starter", &report)?;
+        installed.push(SkillInstallResult {
+            id: (*id).to_string(),
+            dest,
+        });
     }
     Ok(installed)
 }
@@ -538,6 +570,27 @@ mod tests {
     fn parses_anycode_starter_source() {
         let parsed = parse_skill_source("anycode-starter:daily-brief").unwrap();
         assert_eq!(parsed, ParsedSource::Starter("daily-brief".into()));
+    }
+
+    #[test]
+    fn ensure_office_starter_skills_installs_missing_only() {
+        let Some(starter) = resolve_skills_starter_dir() else {
+            return;
+        };
+        let tmp = tempfile::tempdir().unwrap();
+        let dest_root = tmp.path().join("skills");
+        let first = ensure_office_starter_skills(&dest_root).unwrap();
+        assert!(!first.is_empty(), "expected at least one office skill");
+        for id in OFFICE_STARTER_SKILL_IDS {
+            if starter.join(id).join("SKILL.md").is_file() {
+                assert!(
+                    dest_root.join(id).join("SKILL.md").is_file(),
+                    "missing {id}"
+                );
+            }
+        }
+        let second = ensure_office_starter_skills(&dest_root).unwrap();
+        assert!(second.is_empty(), "second run should not reinstall");
     }
 
     #[test]

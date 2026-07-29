@@ -9,6 +9,8 @@ use std::time::Duration;
 pub struct CloudSession {
     pub access_token: String,
     pub refresh_token: String,
+    #[serde(default)]
+    pub device_id: Option<String>,
     pub user_email: Option<String>,
     pub gateway_url: Option<String>,
 }
@@ -149,6 +151,7 @@ pub async fn try_poll_device_link(device_code: &str) -> Result<Option<CloudSessi
             .as_str()
             .context("missing refresh_token")?
             .to_string(),
+        device_id: v["device_id"].as_str().map(|s| s.to_string()),
         user_email: v["user"]["email"].as_str().map(|s| s.to_string()),
         gateway_url: Some(gw),
     };

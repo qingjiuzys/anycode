@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anycode.work/schemas/a2a/agent-card/v1",
+  "title": "anyCode Agent Card",
+  "description": "Agent Card for anyCode Desktop A2A team handoff (P1 subset of Google A2A AgentCard).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "instance_id",
+    "device_id",
+    "organization_id",
+    "name",
+    "transport",
+    "capabilities",
+    "version"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "anycode_agent_card_v1"
+    },
+    "instance_id": {
+      "type": "string",
+      "description": "Stable desktop instance UUID (LAN + cloud)."
+    },
+    "device_id": {
+      "type": "string",
+      "description": "linked_devices.id from account-service."
+    },
+    "organization_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human display name (device / user)."
+    },
+    "transport": {
+      "type": "string",
+      "enum": ["cloud", "lan"],
+      "description": "Preferred handoff transport for this agent."
+    },
+    "version": {
+      "type": "string",
+      "description": "anyCode app version."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "handoff.project",
+          "handoff.session",
+          "tasks.send",
+          "streaming.relay"
+        ]
+      },
+      "minItems": 1
+    },
+    "skills": {
+      "type": "array",
+      "description": "Optional skill ids (P2+).",
+      "items": { "type": "string" }
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "P2: well-known Agent Card URL."
+    },
+    "last_seen": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

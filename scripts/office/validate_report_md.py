@@ -54,7 +54,7 @@ def main() -> int:
         print("usage: validate_report_md.py report.md [anycode-docx]", file=sys.stderr)
         return 1
     src = Path(sys.argv[1]).resolve()
-    strict = len(sys.argv) > 2 and sys.argv[2] == "anycode-docx"
+    strict = len(sys.argv) > 2 and sys.argv[2] in ("anycode-docx", "anycode-pdf")
     if src.is_dir():
         files = sorted(src.glob("*.md"))
         files = [f for f in files if f.name.lower() not in ("readme.md", "components.md")]
@@ -67,7 +67,7 @@ def main() -> int:
         for i in all_issues:
             print(f"WARN: {i}", file=sys.stderr)
         return 1
-    mode = "anycode-docx strict" if strict else "report md"
+    mode = f"{sys.argv[2]} strict" if strict and len(sys.argv) > 2 else "report md"
     print(f"OK: {len(files)} file(s) pass {mode}")
     return 0
 

@@ -3,6 +3,7 @@ pub mod approval_notify;
 pub mod chat_live_bridge;
 pub mod chat_runtime;
 pub mod gate_runner;
+pub mod grill_mode;
 pub mod message_queue;
 pub mod question_notify;
 pub mod session_status;

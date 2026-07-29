@@ -346,6 +346,28 @@ impl<'a> TaskCompiler<'a> {
                                 .into(),
                         );
                     }
+                } else if p.contains("pdf")
+                    || p.contains("导出 pdf")
+                    || p.contains("打印版")
+                    || (p.contains("报告") && p.contains("pdf"))
+                {
+                    required_capabilities
+                        .extend(["document.author".into(), "document.export.pdf".into()]);
+                    expected_artifacts.push(ExpectedArtifact {
+                        id: "report_pdf".into(),
+                        kind: "pdf".into(),
+                        required: true,
+                        path_globs: vec!["**/*.pdf".into()],
+                    });
+                    expected_artifacts.push(ExpectedArtifact {
+                        id: "report_preview".into(),
+                        kind: "html".into(),
+                        required: false,
+                        path_globs: vec!["report.preview.html".into(), "**/*.preview.html".into()],
+                    });
+                    deliverables.push("PDF report (+ HTML preview)".into());
+                    constraints
+                        .push("use Skill anycode-pdf (MD template → preview.html → .pdf)".into());
                 } else {
                     required_capabilities
                         .extend(["document.author".into(), "document.export.docx".into()]);
@@ -727,6 +749,17 @@ fn infer_office_scenario(prompt: &str) -> Option<String> {
                 "文档",
                 "报告",
                 "briefing",
+            ],
+        ),
+        (
+            "anycode-pdf",
+            &[
+                "anycode-pdf",
+                "anycode pdf",
+                "pdf",
+                "导出 pdf",
+                "打印版",
+                "论文 pdf",
             ],
         ),
     ];

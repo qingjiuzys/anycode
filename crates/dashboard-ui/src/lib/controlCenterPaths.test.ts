@@ -34,6 +34,10 @@ describe("controlCenterPaths", () => {
       view: "reports",
       search: { artifact_id: "r1" },
     });
+    expect(parseControlCenterPath("/colleagues?handoff=project&projectId=p1")).toEqual({
+      view: "colleagues",
+      search: { handoff: "project", projectId: "p1" },
+    });
   });
 
   it("builds hrefs with params and search", () => {

@@ -108,23 +108,24 @@ Portal **Plans** → **Stripe** creates a Checkout Session (recurring subscripti
 
 在 [微信支付商户平台](https://pay.weixin.qq.com/) → 产品中心 → 开发配置 → **Native 支付** / **支付回调 URL** 填入上表 notify 地址。
 
-### 本地配置（与 zixun / wjw-mini-program 同一商户 1703159450）
+### 本地配置
 
 ```bash
 cd deploy/account-service
 cp env.example .env
-# 编辑 .env 填入 WECHAT_PAY_API_V3_KEY（见下方脚本或 env.example 注释）
+# 编辑 .env：WECHAT_PAY_API_V3_KEY、WECHAT_PAY_APP_ID、WECHAT_PAY_MCH_ID、WECHAT_PAY_SERIAL_NO
+# （勿提交 .env；值从微信商户平台获取）
 
-# 从 zixun 项目同步证书（已在仓库 scripts/）
-./scripts/sync-wechat-certs.sh
+./scripts/sync-wechat-certs.sh   # → secrets/apiclient_key.pem + pub_key.pem（gitignore）
 ```
 
-`deploy/account-service/.env` 已预填（gitignore）：
+`.env` 需包含（示例键名，见 `env.example`）：
 
-- `WECHAT_PAY_APP_ID=wxd4e452a3fededd33`
-- `WECHAT_PAY_MCH_ID=1703159450`
-- `WECHAT_PAY_SERIAL_NO=4134FBAC10F16DF923310571D1C743EB5676D4E4`
-- 私钥 / 平台公钥 → `secrets/apiclient_key.pem`、`secrets/pub_key.pem`
+- `WECHAT_PAY_APP_ID`
+- `WECHAT_PAY_MCH_ID`
+- `WECHAT_PAY_SERIAL_NO`
+- `WECHAT_PAY_API_V3_KEY`
+- 私钥 / 平台公钥 → `secrets/apiclient_key.pem`、`secrets/pub_key.pem`（**仅本地 / K8s Secret，不进镜像**）
 
 Docker 启动：
 
@@ -180,8 +181,12 @@ NS=dis-cloud
 kubectl apply -f deploy/account-service/k8s/postgres.yaml -n $NS
 kubectl wait --for=condition=ready pod -l app=anycode-postgres -n $NS --timeout=120s
 
-# 2) DATABASE_URL Secret — edit secret.yaml first if using external DB
-kubectl apply -f deploy/account-service/k8s/secret.yaml -n $NS
+# 2) Secrets — fill secret.yaml locally OR use kubectl (never commit real values)
+kubectl apply -f deploy/account-service/k8s/secret.yaml -n $NS   # template only; edit first
+
+# 2b) WeChat PEM volume secret (runtime mount /app/wechat-certs)
+chmod +x deploy/account-service/scripts/create-k8s-wechat-secret.sh
+./deploy/account-service/scripts/create-k8s-wechat-secret.sh $NS
 
 # 3) App + Service
 kubectl apply -f deploy/account-service/k8s/deployment.yaml -n $NS
@@ -209,9 +214,11 @@ kubectl rollout restart deployment/anycode -n dis-cloud
 
 **Deploy checklist**
 
-1. Set real `DATABASE_URL` in Secret `anycode-account-env` (only runtime secret).
-2. TLS: apply Ingress with cert for `anycode.work` — app does not terminate SSL.
-3. WeChat Pay: already in the image (merchant env + PEMs); notify URL `https://anycode.work/api/v1/billing/webhooks/wechat`.
+1. Set `DATABASE_URL`, `WECHAT_PAY_API_V3_KEY`, `WECHAT_PAY_APP_ID`, `WECHAT_PAY_MCH_ID`, `WECHAT_PAY_SERIAL_NO` in Secret `anycode-account-secrets`.
+2. Create Secret `anycode-wechat-certs` with PEM files (`create-k8s-wechat-secret.sh`).
+3. TLS: apply Ingress with cert for `anycode.work` — app does not terminate SSL.
+4. WeChat notify URL: `https://anycode.work/api/v1/billing/webhooks/wechat` (set in merchant platform).
+5. Verify: `curl -s https://anycode.work/health | jq .wechat_pay_configured` → `true`.
 
 **ImagePullBackOff / `image ... not found`**
 

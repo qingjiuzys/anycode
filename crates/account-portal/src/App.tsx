@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { I18nProvider } from "./i18n/context";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { BillingPage } from "./pages/BillingPage";
+import { CaseDetailPage } from "./pages/CaseDetailPage";
 import { DownloadsPage } from "./pages/DownloadsPage";
 import { FeaturesPage } from "./pages/FeaturesPage";
 import { HomePage } from "./pages/HomePage";
@@ -17,6 +18,7 @@ import { PlansPage } from "./pages/PlansPage";
 import { ProductPage } from "./pages/ProductPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TeamPage } from "./pages/TeamPage";
 import { UsagePage } from "./pages/UsagePage";
 import { AlgorithmDisclosurePage } from "./pages/legal/AlgorithmDisclosurePage";
 import { PrivacyPolicyPage } from "./pages/legal/PrivacyPolicyPage";
@@ -62,6 +64,7 @@ function AppRoutes() {
           <Route path={SITE_PATHS.product} element={<ProductPage />} />
           <Route path={SITE_PATHS.plans} element={<MarketingPlansPage />} />
           <Route path={SITE_PATHS.downloads} element={<DownloadsPage />} />
+          <Route path="/cases/:caseId" element={<CaseDetailPage />} />
           <Route path="/home-classic" element={<HomePage />} />
           <Route path={SITE_PATHS.login} element={<LoginPage />} />
           <Route path={SITE_PATHS.register} element={<RegisterPage />} />
@@ -83,6 +86,7 @@ function AppRoutes() {
             <Route path="usage" element={<UsagePage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="api" element={<ApiKeysPage />} />
+            <Route path="team" element={<TeamPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

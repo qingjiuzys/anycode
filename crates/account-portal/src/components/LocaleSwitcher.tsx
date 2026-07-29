@@ -37,13 +37,15 @@ export function LocaleSwitcher({ variant = "default" }: { variant?: "default" | 
     >
       <button
         type="button"
-        className="locale-dropdown__trigger"
+        className={`locale-dropdown__trigger${variant === "header" ? " locale-dropdown__trigger--icon" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
+        aria-label={t("common.language")}
+        title={t(current.labelKey)}
         onClick={() => setOpen((v) => !v)}
       >
-        <svg className="locale-dropdown__globe" width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+        <svg className="locale-dropdown__globe" width="20" height="20" viewBox="0 0 24 24" aria-hidden>
           <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.75" />
           <path
             d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9M12 3c-2.5 2.8-3.8 5.8-3.8 9s1.3 6.2 3.8 9"
@@ -52,10 +54,14 @@ export function LocaleSwitcher({ variant = "default" }: { variant?: "default" | 
             strokeWidth="1.75"
           />
         </svg>
-        <span className="locale-dropdown__label">{t(current.labelKey)}</span>
-        <svg className="locale-dropdown__chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-          <path d="M2.5 4.5 6 8 9.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
+        {variant === "header" ? null : (
+          <>
+            <span className="locale-dropdown__label">{t(current.labelKey)}</span>
+            <svg className="locale-dropdown__chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+              <path d="M2.5 4.5 6 8 9.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          </>
+        )}
       </button>
       {open && (
         <ul className="locale-dropdown__menu" role="listbox" id={listId} aria-label={t("common.language")}>

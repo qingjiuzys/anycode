@@ -9,6 +9,7 @@ type MenuState = {
 
 type Props = {
   onRename: (sessionId: string, title: string) => void;
+  onHandoffToColleague?: (sessionId: string) => void;
   children: (handlers: {
     onContextMenu: (sessionId: string, event: React.MouseEvent) => void;
     renamingSessionId: string | null;
@@ -17,7 +18,7 @@ type Props = {
   }) => React.ReactNode;
 };
 
-export function SessionListContextShell({ onRename, children }: Props) {
+export function SessionListContextShell({ onRename, onHandoffToColleague, children }: Props) {
   const t = useT();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
@@ -79,6 +80,19 @@ export function SessionListContextShell({ onRename, children }: Props) {
           >
             {t("conversations.renameSession")}
           </button>
+          {onHandoffToColleague ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-3 py-2 text-sm border-0 bg-transparent hover:bg-surface-container-low cursor-pointer"
+              onClick={() => {
+                onHandoffToColleague(menu.sessionId);
+                setMenu(null);
+              }}
+            >
+              {t("conversations.handoffToColleague")}
+            </button>
+          ) : null}
         </div>
       )}
     </>

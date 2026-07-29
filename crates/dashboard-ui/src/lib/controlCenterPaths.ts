@@ -6,7 +6,7 @@ export type ControlCenterView =
   | { view: "projects" }
   | { view: "project"; projectId: string }
   | { view: "automations" }
-  | { view: "colleagues" }
+  | { view: "colleagues"; search: Record<string, string> }
   | { view: "assets"; search: Record<string, string> }
   | { view: "artifact"; artifactId: string }
   | { view: "reports"; search: Record<string, string> }
@@ -81,7 +81,7 @@ export function parseControlCenterPath(path: string): ControlCenterView {
     case "/automations":
       return { view: "automations" };
     case "/colleagues":
-      return { view: "colleagues" };
+      return { view: "colleagues", search };
     case "/assets":
       return { view: "assets", search };
     case "/reports":

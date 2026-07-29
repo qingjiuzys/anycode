@@ -19,6 +19,7 @@ pub struct DeviceLinkStart {
 pub struct DeviceLinkTokens {
     pub access_token: String,
     pub refresh_token: String,
+    pub device_id: String,
     pub user: AuthUser,
     pub entitlements: crate::models::EntitlementsView,
 }
@@ -160,6 +161,7 @@ pub async fn poll_device_link(
     Ok(Some(DeviceLinkTokens {
         access_token,
         refresh_token,
+        device_id,
         user,
         entitlements,
     }))
@@ -308,6 +310,7 @@ pub async fn refresh_device_session(
     Ok(Some(DeviceLinkTokens {
         access_token,
         refresh_token: new_refresh_token,
+        device_id: r.get("id"),
         user,
         entitlements,
     }))

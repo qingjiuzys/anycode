@@ -133,6 +133,23 @@ export async function pickDirectory(): Promise<string | null> {
   }
 }
 
+export type ApplePasteboardItem = {
+  kind: string;
+  mime_type?: string | null;
+  text?: string | null;
+  data_base64?: string | null;
+};
+
+/** Read macOS pasteboard via anycode-apple-media (images, text, file URLs). */
+export async function readApplePasteboard(): Promise<ApplePasteboardItem[]> {
+  if (!isTauriDesktop()) return [];
+  try {
+    return await invokeTauri<ApplePasteboardItem[]>("apple_media_read_pasteboard");
+  } catch {
+    return [];
+  }
+}
+
 /** Reset cached desktop detection (tests). */
 export function resetDesktopShellCache(): void {
   tauriAvailable = null;

@@ -21,6 +21,7 @@ def main() -> int:
     validator = REPO / "scripts" / "office" / "validate_workbook.py"
     preview_py = REPO / "scripts" / "office" / "build_workbook_preview.py"
     delivery = REPO / "skills-starter" / "spreadsheet-delivery" / "run"
+    recheck = REPO / "scripts" / "office" / "recheck_xlsx.py"
 
     for step, cmd in [
         ("validate", [sys.executable, str(validator), str(src), "anycode-xlsx"]),
@@ -33,6 +34,17 @@ def main() -> int:
             return proc.returncode
         if proc.stdout.strip():
             print(proc.stdout.strip())
+
+    proc = subprocess.run(
+        [sys.executable, str(recheck), str(xlsx_out)],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        sys.stderr.write(f"[recheck] failed\n{proc.stderr or proc.stdout}")
+        return proc.returncode
+    if proc.stdout.strip():
+        print(proc.stdout.strip())
 
     print(f"workbook: {src}")
     print(f"preview: {src.with_suffix('.preview.html')}")

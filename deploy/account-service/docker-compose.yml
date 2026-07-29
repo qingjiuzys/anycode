@@ -28,8 +28,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://anycode:anycode@postgres:5432/anycode_account}
       ACCOUNT_SERVICE_HOST: 0.0.0.0
       ACCOUNT_SERVICE_PORT: 8080
+      WECHAT_PAY_PRIVATE_KEY_PATH: /app/wechat-certs/apiclient_key.pem
+      WECHAT_PAY_PUBLIC_KEY_PATH: /app/wechat-certs/pub_key.pem
     volumes:
-      - ./secrets:/run/secrets/wechat:ro
+      - ./secrets:/app/wechat-certs:ro
     ports:
       - "43200:8080"
 

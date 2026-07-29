@@ -149,6 +149,7 @@ pub async fn start_project_conversation(
                 body.lang.as_deref(),
                 true,
                 "conversation_recycled",
+                body.composer_mode.as_deref(),
             )
             .await
             {
@@ -209,6 +210,7 @@ pub async fn start_project_conversation(
         body.lang.as_deref(),
         false,
         "conversation_started",
+        body.composer_mode.as_deref(),
     )
     .await
     {

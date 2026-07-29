@@ -21,6 +21,8 @@ import {
   togglePinnedProjectId,
 } from "@/lib/pinnedProjects";
 import { formatRelativeTime } from "@/utils/formatTime";
+import { useControlCenter } from "@/context/ControlCenterContext";
+import { buildHandoffColleaguesPath } from "@/lib/handoffIntent";
 
 const DEFAULT_EXPANDED_COUNT = 2;
 
@@ -79,6 +81,7 @@ export function ProjectGroupedSessionList({
   optimisticStreamingSessionId = null,
 }: Props) {
   const t = useT();
+  const { openControlCenter } = useControlCenter();
   const [pinnedIds, setPinnedIds] = useState<string[]>(() => readPinnedProjectIds());
   const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
   const [menu, setMenu] = useState<ProjectMenuState | null>(null);
@@ -178,6 +181,27 @@ export function ProjectGroupedSessionList({
   function openNewSession(projectId: string) {
     expandProject(projectId);
     onNewSession?.(projectId);
+  }
+
+  function handoffProject(projectId: string) {
+    openControlCenter(
+      buildHandoffColleaguesPath({
+        kind: "project",
+        projectId,
+      }),
+    );
+  }
+
+  function handoffSession(sessionId: string) {
+    const session = sessions.find((row) => row.id === sessionId);
+    if (!session) return;
+    openControlCenter(
+      buildHandoffColleaguesPath({
+        kind: "session",
+        projectId: session.project_id,
+        sessionId,
+      }),
+    );
   }
 
   function openProjectMenu(projectId: string, event: React.MouseEvent) {
@@ -340,6 +364,18 @@ export function ProjectGroupedSessionList({
               role="menuitem"
               className="dw-project-menu__item"
               onClick={() => {
+                handoffProject(menu.projectId);
+                setMenu(null);
+              }}
+            >
+              <Icon name="group" size={16} />
+              <span className="dw-project-menu__label">{t("conversations.handoffToColleague")}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="dw-project-menu__item"
+              onClick={() => {
                 setPinnedIds(togglePinnedProjectId(menu.projectId));
                 setMenu(null);
               }}
@@ -429,7 +465,7 @@ export function ProjectGroupedSessionList({
   }
 
   return (
-    <SessionListContextShell onRename={onRenameSession}>
+    <SessionListContextShell onRename={onRenameSession} onHandoffToColleague={handoffSession}>
       {(ctx) => renderGroups(ctx)}
     </SessionListContextShell>
   );

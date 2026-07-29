@@ -25,24 +25,28 @@ export function ImageViewer({ path, title, projectId, previewPath }: Props) {
       <div className="px-4 py-2 border-b border-outline-variant/30 flex items-center justify-between gap-2">
         <p className="m-0 text-sm font-medium truncate">{title}</p>
       </div>
-      <button
-        type="button"
-        className="block w-full p-0 border-0 bg-surface-container-low cursor-zoom-in"
-        onClick={() => setLightbox(true)}
-        aria-label={title}
-      >
+      <div className="relative bg-surface-container-low group">
         <img
           src={rawUrl}
           alt={title}
-          className="w-full max-h-[min(420px,60vh)] object-contain bg-surface-container-lowest"
+          className="w-full max-h-[min(420px,60vh)] object-contain bg-surface-container-lowest select-auto"
           loading="lazy"
         />
-      </button>
+        <button
+          type="button"
+          className="absolute top-2 right-2 dw-btn-ghost text-xs py-1 px-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-surface-container-lowest/90"
+          onClick={() => setLightbox(true)}
+          aria-label={t("conversations.deliverable.preview")}
+        >
+          <Icon name="open_in_new" size={16} />
+        </button>
+      </div>
       <div className="px-4 pb-3">
         <DeliverableFileActions
           path={path}
           downloadUrl={projectFsRawUrl(projectId, path)}
           downloadName={fileName}
+          copyImageUrl={rawUrl}
           compact
         />
       </div>
@@ -66,7 +70,7 @@ export function ImageViewer({ path, title, projectId, previewPath }: Props) {
           <img
             src={rawUrl}
             alt={title}
-            className="max-w-full max-h-full object-contain"
+            className="max-w-full max-h-full object-contain select-auto"
             onClick={(event) => event.stopPropagation()}
           />
         </div>

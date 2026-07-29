@@ -18,6 +18,11 @@ import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { appendOcrToMessage, ImageOcrButton } from "@/components/ImageOcrButton";
 import { agentDisplayLabel, isPrimaryAgentId } from "@/lib/agentCatalog";
+import {
+  imageFilesFromPasteEvent,
+  pastedImageFromBase64,
+} from "@/lib/clipboardImage";
+import { readApplePasteboard } from "@/lib/desktopShell";
 import { useLocale, useT } from "@/i18n/context";
 import { skillDisplayDescription, skillDisplayName } from "@/lib/skillCatalog";
 import { skillIconMeta, skillIconToneClass } from "@/lib/skillIcons";
@@ -29,6 +34,21 @@ import {
   type OptimisticQueueItem,
 } from "@/lib/optimisticMessageQueue";
 import { useComposerIme } from "@/lib/composerIme";
+import {
+  composerModeForSend,
+  grillSlashCommand,
+  isGrillSlashToken,
+  loadGrillMode,
+  saveGrillMode,
+  shouldExitGrillMode,
+} from "@/lib/grillMode";
+import {
+  GOAL_AGENT_ID,
+  goalSlashCommand,
+  isGoalSlashToken,
+  loadGoalMode,
+  saveGoalMode,
+} from "@/lib/goalMode";
 
 type ConversationStartSuccess = {
   session: SessionDetail;
@@ -81,8 +101,6 @@ function isImageFile(file: File): boolean {
   if (file.type.startsWith("image/")) return true;
   return /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(file.name);
 }
-
-const SLASH_COMMANDS = ["help", "skills"] as const;
 
 /** Fixed popup above an anchor — avoids overflow:hidden clipping in composer. */
 function useAnchoredAboveStyle(
@@ -137,6 +155,20 @@ async function fileToVisionAttachment(file: File): Promise<VisionAttachment> {
   };
 }
 
+function visionAttachmentFromBase64(mime_type: string, data_base64: string): VisionAttachment {
+  const binary = atob(data_base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], { type: mime_type || "image/png" });
+  return {
+    mime_type: mime_type || "image/png",
+    data_base64,
+    previewUrl: URL.createObjectURL(blob),
+  };
+}
+
 function parseSkillAllowlist(skillsJson: string): string[] | null {
   if (!skillsJson.trim()) return null;
   try {
@@ -157,10 +189,11 @@ function parseSlashCommand(text: string): string | null {
   const trimmed = text.trimStart();
   if (!trimmed.startsWith("/") || trimmed.includes("\n")) return null;
   const body = trimmed.slice(1);
-  if (!body || /^[\w.-]*$/.test(body)) {
-    return body.toLowerCase();
-  }
-  return null;
+  const token = body.split(/\s+/)[0] ?? "";
+  // Bare "/" opens the full menu (same as "@" with empty filter).
+  if (token === "") return "";
+  if (/^[\w.-]+$/.test(token)) return token.toLowerCase();
+  return token;
 }
 
 /** Session-level approval delegation toggle ("托管模式"). */
@@ -231,13 +264,6 @@ export function ConversationComposer(props: Props) {
     }
   }, [props]);
 
-  useEffect(() => {
-    if (props.mode === "follow-up" && session?.agent_type) {
-      // Runtime may store Auto as general-purpose; keep picker on Auto display.
-      setAgent(session.agent_type === "general-purpose" ? "" : session.agent_type);
-    }
-  }, [props.mode, session?.agent_type]);
-
   const agentProfiles = useQuery({
     queryKey: ["agent-profiles"],
     queryFn: () => api.agentProfiles(),
@@ -260,7 +286,145 @@ export function ConversationComposer(props: Props) {
     return (item?.capabilities ?? []).includes("vision");
   }, [modelsRegistry.data?.active?.chat, modelsRegistry.data?.items]);
 
+  const ingestImageFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      if (!chatSupportsVision) {
+        setAttachmentError(t("conversations.attachmentVisionDisabled"));
+        return;
+      }
+      const nextImages: VisionAttachment[] = [];
+      for (const file of files) {
+        if (attachedImages.length + nextImages.length >= 3) break;
+        if (file.size > MAX_IMAGE_BYTES) {
+          setAttachmentError(
+            t("conversations.attachmentImageTooLarge").replace("{name}", file.name || "image"),
+          );
+          continue;
+        }
+        nextImages.push(await fileToVisionAttachment(file));
+      }
+      if (nextImages.length > 0) {
+        setAttachmentError(null);
+        setAttachedImages((prev) => [...prev, ...nextImages].slice(0, 3));
+      }
+    },
+    [attachedImages.length, chatSupportsVision, t],
+  );
+
+  const handleComposerPaste = useCallback(
+    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      let imageFiles = imageFilesFromPasteEvent(event.nativeEvent);
+      if (imageFiles.length === 0) {
+        const pbItems = await readApplePasteboard();
+        const imageItem = pbItems.find((item) => item.kind === "image" && item.data_base64);
+        if (imageItem?.data_base64) {
+          event.preventDefault();
+          if (!chatSupportsVision) {
+            setAttachmentError(t("conversations.attachmentVisionDisabled"));
+            return;
+          }
+          if (attachedImages.length >= 3) return;
+          const payload = pastedImageFromBase64(imageItem.mime_type, imageItem.data_base64);
+          const approxBytes = Math.floor((payload.data_base64.length * 3) / 4);
+          if (approxBytes > MAX_IMAGE_BYTES) {
+            setAttachmentError(t("conversations.attachmentImageTooLarge").replace("{name}", "image"));
+            return;
+          }
+          setAttachmentError(null);
+          setAttachedImages((prev) =>
+            [...prev, visionAttachmentFromBase64(payload.mime_type, payload.data_base64)].slice(0, 3),
+          );
+          return;
+        }
+        return;
+      }
+      event.preventDefault();
+      await ingestImageFiles(imageFiles);
+    },
+    [attachedImages.length, chatSupportsVision, ingestImageFiles, t],
+  );
+
   const locale = useLocale();
+  const grillStorageKey = isStart ? `project:${projectId}` : session?.id;
+  const goalStorageKey = grillStorageKey;
+  const agentBeforeGoalRef = useRef<string | null>(null);
+  const [grillMode, setGrillMode] = useState(() => loadGrillMode(grillStorageKey));
+  const [goalMode, setGoalMode] = useState(() => loadGoalMode(goalStorageKey));
+
+  useEffect(() => {
+    const grill = loadGrillMode(grillStorageKey);
+    const goal = loadGoalMode(goalStorageKey);
+    setGrillMode(grill);
+    setGoalMode(goal && !grill);
+  }, [grillStorageKey, goalStorageKey]);
+
+  useEffect(() => {
+    if (!goalMode) return;
+    setAgent((current) => {
+      if (current === GOAL_AGENT_ID) return current;
+      agentBeforeGoalRef.current = current;
+      return GOAL_AGENT_ID;
+    });
+  }, [goalMode, grillStorageKey]);
+
+  useEffect(() => {
+    saveGrillMode(grillStorageKey, grillMode);
+  }, [grillStorageKey, grillMode]);
+
+  useEffect(() => {
+    saveGoalMode(goalStorageKey, goalMode);
+  }, [goalStorageKey, goalMode]);
+
+  useEffect(() => {
+    if (props.mode === "follow-up" && session?.agent_type) {
+      const fromSession = session.agent_type === "general-purpose" ? "" : session.agent_type;
+      if (goalMode) {
+        agentBeforeGoalRef.current = fromSession;
+        setAgent(GOAL_AGENT_ID);
+      } else {
+        setAgent(fromSession);
+      }
+    }
+  }, [props.mode, session?.agent_type, goalMode]);
+
+  const slashCommands = useMemo(
+    () => [grillSlashCommand(locale), goalSlashCommand(locale)],
+    [locale],
+  );
+
+  function restoreAgentAfterGoal() {
+    if (agent === GOAL_AGENT_ID) {
+      setAgent(agentBeforeGoalRef.current ?? "");
+    }
+    agentBeforeGoalRef.current = null;
+  }
+
+  function enableGoalMode() {
+    setGrillMode(false);
+    setGoalMode(true);
+    agentBeforeGoalRef.current = agent;
+    setAgent(GOAL_AGENT_ID);
+  }
+
+  function disableGoalMode() {
+    setGoalMode(false);
+    restoreAgentAfterGoal();
+  }
+
+  function toggleGoalMode() {
+    if (goalMode) disableGoalMode();
+    else enableGoalMode();
+  }
+
+  function toggleGrillMode() {
+    if (grillMode) {
+      setGrillMode(false);
+      return;
+    }
+    disableGoalMode();
+    setGrillMode(true);
+  }
 
   const skillOptions = useMemo(() => {
     const rows = allSkills.data?.skills ?? [];
@@ -303,10 +467,10 @@ export function ConversationComposer(props: Props) {
   const slashQuery = parseSlashCommand(message);
   const slashCandidates = useMemo(() => {
     if (slashQuery === null) return [];
-    return SLASH_COMMANDS.filter(
+    return slashCommands.filter(
       (cmd) => cmd.startsWith(slashQuery) || slashQuery === "",
     );
-  }, [slashQuery]);
+  }, [slashQuery, slashCommands]);
 
   useEffect(() => {
     setMentionIndex(0);
@@ -429,8 +593,17 @@ export function ConversationComposer(props: Props) {
             ? attachedTextFiles.map(({ filename, content }) => ({ filename, content }))
             : undefined,
         recycle_session: false,
+        composer_mode: composerModeForSend(grillMode),
       }),
     onSuccess: (data) => {
+      if (grillMode) {
+        saveGrillMode(data.session.id, true);
+        saveGrillMode(`project:${projectId}`, false);
+      }
+      if (goalMode) {
+        saveGoalMode(data.session.id, true);
+        saveGoalMode(`project:${projectId}`, false);
+      }
       setMessage("");
       attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setAttachedImages([]);
@@ -505,16 +678,29 @@ export function ConversationComposer(props: Props) {
     textareaRef.current?.focus();
   }
 
-  function applySlash(cmd: (typeof SLASH_COMMANDS)[number]) {
-    if (cmd === "help") {
-      setMessage(t("conversations.slashHelpText"));
+  function slashCmdLabel(cmd: string): string {
+    if (isGrillSlashToken(cmd)) {
+      return t("conversations.slashCmd.grill");
+    }
+    if (isGoalSlashToken(cmd)) {
+      return t("conversations.slashCmd.goal");
+    }
+    return cmd;
+  }
+
+  function applySlash(cmd: string) {
+    if (isGrillSlashToken(cmd)) {
+      toggleGrillMode();
+      setMessage("");
       setSlashOpen(false);
+      textareaRef.current?.focus();
       return;
     }
-    if (cmd === "skills") {
+    if (isGoalSlashToken(cmd)) {
+      toggleGoalMode();
       setMessage("");
-      setSkillsOpen(true);
       setSlashOpen(false);
+      textareaRef.current?.focus();
     }
   }
 
@@ -523,6 +709,7 @@ export function ConversationComposer(props: Props) {
       prompt: prompt.trim(),
       agent: agent.trim() || undefined,
       skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+      composer_mode: composerModeForSend(grillMode),
       vision_images:
         attachedImages.length > 0
           ? attachedImages.map(({ mime_type, data_base64 }) => ({
@@ -541,11 +728,15 @@ export function ConversationComposer(props: Props) {
     if (waitingForQuestion || stopping) return;
     if (!canSend) return;
     const payload = buildFollowUpPayload(message);
+    const exitGrill = grillMode && shouldExitGrillMode(message);
     if (isStart) {
       startSession.mutate();
     } else {
       const optimisticId = turnActive ? `opt-${Date.now()}` : undefined;
       sendFollowUp.mutate({ ...payload, optimisticId });
+    }
+    if (exitGrill) {
+      setGrillMode(false);
     }
   }
 
@@ -587,7 +778,7 @@ export function ConversationComposer(props: Props) {
         if (showMentionMenu) {
           applyMention(mentionCandidates[mentionIndex]!);
         } else {
-          applySlash(slashCandidates[mentionIndex]! as (typeof SLASH_COMMANDS)[number]);
+          applySlash(slashCandidates[mentionIndex]!);
         }
         return;
       }
@@ -696,29 +887,64 @@ export function ConversationComposer(props: Props) {
                       applySlash(cmd);
                     }}
                   >
-                    /{cmd} — {t(`conversations.slashCmd.${cmd}`)}
+                    /{cmd} — {slashCmdLabel(cmd)}
                   </button>
                 ))}
             </div>,
             document.body,
           )}
+        {grillMode ? (
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/8 px-2.5 py-1 text-xs text-primary">
+              <Icon name="quiz" size={14} />
+              {t("conversations.grillModeActive")}
+            </span>
+            <button
+              type="button"
+              className="dw-btn-ghost text-xs py-0.5 px-1.5"
+              onClick={() => setGrillMode(false)}
+            >
+              {t("conversations.grillModeExit")}
+            </button>
+          </div>
+        ) : null}
+        {goalMode ? (
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/8 px-2.5 py-1 text-xs text-secondary">
+              <Icon name="flag" size={14} />
+              {t("conversations.goalModeActive")}
+            </span>
+            <button
+              type="button"
+              className="dw-btn-ghost text-xs py-0.5 px-1.5"
+              onClick={() => disableGoalMode()}
+            >
+              {t("conversations.goalModeExit")}
+            </button>
+          </div>
+        ) : null}
         <textarea
           ref={textareaRef}
           className="dw-composer-textarea"
           placeholder={
             stopping
               ? t("conversations.composeStopping")
-              : turnActive
-              ? t("conversations.composePlaceholderRunning")
-              : isStart
-                ? t("conversations.composePlaceholderStart")
-                : t("conversations.composePlaceholder")
+              : grillMode
+                ? t("conversations.grillModePlaceholder")
+                : goalMode
+                  ? t("conversations.goalModePlaceholder")
+                  : turnActive
+                    ? t("conversations.composePlaceholderRunning")
+                    : isStart
+                      ? t("conversations.composePlaceholderStart")
+                      : t("conversations.composePlaceholder")
           }
           value={message}
           onChange={(e) => onMessageChange(e.target.value)}
           disabled={pending || stopping}
           rows={isStart ? 5 : 4}
           onKeyDown={onComposerKeyDown}
+          onPaste={(e) => void handleComposerPaste(e)}
           {...compositionProps}
         />
         {(attachedTextFiles.length > 0 || attachedImages.length > 0) && (

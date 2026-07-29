@@ -40,6 +40,7 @@ async fn main() -> Result<()> {
         db,
         version: env!("CARGO_PKG_VERSION").into(),
         config: Arc::new(config.clone()),
+        a2a_relay: Arc::new(anycode_account_service::a2a::StreamRelay::new()),
     };
 
     let mut cors = CorsLayer::new()

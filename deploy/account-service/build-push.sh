@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build (linux/amd64) and push anycode account+portal image to Aliyun ACR.
-# Secrets (DATABASE_URL, WECHAT_PAY_API_V3_KEY) are injected at deploy time via K8s Secret — never build-args.
+# All payment secrets (API v3 key, PEM, AppID/MchID) are runtime K8s Secrets — never in image.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -9,9 +9,6 @@ VERSION="$(grep '^version' "$ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)".*/\1
 TAG="${TAG:-$VERSION}"
 GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 IMMUTABLE_TAG="${TAG}-${GIT_SHA}"
-
-# Ensure WeChat PEM files exist in build context (public keys only; API v3 key is runtime Secret)
-"$ROOT/deploy/account-service/scripts/sync-wechat-certs.sh"
 
 DOWNLOAD_DIR="$ROOT/crates/account-portal/public/downloads"
 if ! compgen -G "$DOWNLOAD_DIR/anyCode_"*"_aarch64.dmg" >/dev/null 2>&1; then
@@ -26,9 +23,7 @@ ls -lh "$DOWNLOAD_DIR"/*.dmg 2>/dev/null | sed 's/^/  /'
 echo "Building $REGISTRY:$IMMUTABLE_TAG (linux/amd64, immutable tag + latest alias)"
 # ACR: NEVER enable provenance/sbom — they push an OCI attestation index that
 # shows as "正常" with empty 大小/镜像ID in the console and breaks pulls.
-# Also: do NOT store WeChat PEMs under /run/secrets in the image — ACK/K8s
-# volume mounts on /run/secrets hide baked-in certs and make wechat_pay_configured=false
-# even when WECHAT_PAY_API_V3_KEY is set. Use /app/wechat-certs instead.
+# WeChat PEM + merchant IDs: runtime Secret volume at /app/wechat-certs (see k8s/deployment.yaml).
 docker buildx build \
   --platform linux/amd64 \
   --provenance=false \

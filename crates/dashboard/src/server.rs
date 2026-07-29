@@ -208,6 +208,7 @@ async fn run_inner(
                 .join("memory"),
         });
     }
+    crate::api::spawn_cloud_a2a_heartbeat(state.clone());
     let _ = crate::audit::record_audit(
         &state.db,
         crate::audit::AuditEventInput::low(

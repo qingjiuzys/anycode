@@ -36,56 +36,58 @@ export function DownloadsPage() {
   const githubRelease = `https://github.com/qingjiuzys/anycode/releases`;
 
   return (
-    <div className="site-page downloads-page">
-      <header className="site-page__header">
-        <p className="eyebrow">{t("downloads.eyebrow")}</p>
-        <h1>{t("downloads.title")}</h1>
-        <p className="lede">{t("downloads.lede")}</p>
-      </header>
+    <div className="nx-site nx-site--downloads">
+      <section className="nx-downloads">
+        <div className="nx-downloads__frame">
+          <header className="nx-page-hero">
+            <p className="nx-kicker">{t("downloads.eyebrow")}</p>
+            <h1>{t("downloads.title")}</h1>
+            <p className="nx-page-hero__lead">{t("downloads.lede")}</p>
+          </header>
 
-      <section className="card downloads-card">
-        <h2>{t("downloads.macosTitle")}</h2>
-        <p className="muted">
-          {formatMessage(t("downloads.versionLabel"), { version })}
-        </p>
-        {error && <p className="form-note">{error}</p>}
-        <div className="downloads-actions">
-          <a className="btn btn-primary" href={dmgUrl}>
-            {t("downloads.downloadLatest")}
-          </a>
-          {versionedUrl !== dmgUrl && (
-            <a className="btn btn-secondary" href={versionedUrl}>
-              {formatMessage(t("downloads.downloadVersioned"), { version })}
+          <div className="nx-downloads__hero-card">
+            <div className="nx-downloads__hero-meta">
+              <span className="nx-downloads__os">macOS · Apple Silicon</span>
+              <strong>{formatMessage(t("downloads.versionLabel"), { version })}</strong>
+            </div>
+            {error ? <p className="nx-downloads__error">{error}</p> : null}
+            <a className="nx-btn nx-btn--primary nx-downloads__cta" href={dmgUrl}>
+              {t("downloads.downloadLatest")} <span aria-hidden>↓</span>
             </a>
-          )}
+            {versionedUrl !== dmgUrl ? (
+              <a className="nx-text-link" href={versionedUrl}>
+                {formatMessage(t("downloads.downloadVersioned"), { version })}
+              </a>
+            ) : null}
+            {sha ? (
+              <p className="nx-downloads__sha">
+                SHA-256 <code>{sha}</code>
+              </p>
+            ) : null}
+            <p className="nx-downloads__checksum">
+              <a href="/downloads/SHA256SUMS.txt">{t("downloads.checksums")}</a>
+            </p>
+          </div>
+
+          <aside className="nx-downloads__channels">
+            <h2>{t("downloads.otherChannels")}</h2>
+            <ul>
+              <li>
+                <a href={dmgUrl}>{SITE_ORIGIN}/downloads</a>
+                <span>{t("downloads.channelPrimary")}</span>
+              </li>
+              <li>
+                <a href={githubRelease} target="_blank" rel="noreferrer">
+                  GitHub Releases
+                </a>
+                <span>{t("downloads.channelGithub")}</span>
+              </li>
+              <li>
+                <a href={siteUrl("docs")}>{t("downloads.installDocs")}</a>
+              </li>
+            </ul>
+          </aside>
         </div>
-        {sha && (
-          <p className="muted downloads-sha">
-            SHA-256: <code>{sha}</code>
-          </p>
-        )}
-        <p className="muted">
-          <a href="/downloads/SHA256SUMS.txt">{t("downloads.checksums")}</a>
-        </p>
-      </section>
-
-      <section className="card downloads-card">
-        <h2>{t("downloads.otherChannels")}</h2>
-        <ul className="downloads-list">
-          <li>
-            <a href={dmgUrl}>{SITE_ORIGIN}/downloads</a>
-            <span className="muted"> — {t("downloads.channelPrimary")}</span>
-          </li>
-          <li>
-            <a href={githubRelease} target="_blank" rel="noreferrer">
-              GitHub Releases
-            </a>
-            <span className="muted"> — {t("downloads.channelGithub")}</span>
-          </li>
-          <li>
-            <a href={siteUrl("docs")}>{t("downloads.installDocs")}</a>
-          </li>
-        </ul>
       </section>
     </div>
   );

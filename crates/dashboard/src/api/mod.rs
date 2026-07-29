@@ -2,6 +2,10 @@ pub mod auth;
 mod handlers;
 pub mod state;
 
+pub fn spawn_cloud_a2a_heartbeat(state: AppState) {
+    handlers::cloud_a2a::spawn_cloud_a2a_heartbeat(state);
+}
+
 use crate::api::state::AppState;
 use axum::{
     http::{
@@ -38,6 +42,34 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/cloud/sync-models", post(handlers::post_cloud_sync_models))
         .route("/cloud/unlink", post(handlers::post_cloud_unlink))
+        .route(
+            "/cloud/a2a/heartbeat",
+            post(handlers::post_cloud_a2a_heartbeat),
+        )
+        .route(
+            "/cloud/a2a/team/peers",
+            get(handlers::get_cloud_a2a_team_peers),
+        )
+        .route(
+            "/cloud/a2a/handoff/request",
+            post(handlers::post_cloud_a2a_handoff_request),
+        )
+        .route(
+            "/cloud/a2a/handoff/incoming",
+            get(handlers::get_cloud_a2a_handoff_incoming),
+        )
+        .route(
+            "/cloud/a2a/handoff/outgoing",
+            get(handlers::get_cloud_a2a_handoff_outgoing),
+        )
+        .route(
+            "/cloud/a2a/handoff/{handoff_id}/approve",
+            post(handlers::post_cloud_a2a_handoff_approve),
+        )
+        .route(
+            "/cloud/a2a/handoff/{handoff_id}/reject",
+            post(handlers::post_cloud_a2a_handoff_reject),
+        )
         .route("/local-models", get(handlers::list_local_models))
         .route(
             "/local-models/{model_id}",

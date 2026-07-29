@@ -6,6 +6,9 @@
  */
 export const SITE_ORIGIN = "https://anycode.work";
 
+/** Canonical public GitHub repository. */
+export const SITE_GITHUB = "https://github.com/qingjiuzys/anycode";
+
 /** Pathnames on the public portal (always start with `/`). */
 export const SITE_PATHS = {
   home: "/",
@@ -21,6 +24,7 @@ export const SITE_PATHS = {
   legalAlgorithmDisclosure: "/legal/algorithm-disclosure",
   desktopDownloadDmg: "/downloads/anyCode_latest_aarch64.dmg",
   downloads: "/downloads",
+  cases: "/cases",
 } as const;
 
 export type SitePathKey = keyof typeof SITE_PATHS;

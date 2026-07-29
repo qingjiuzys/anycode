@@ -9,9 +9,15 @@ read_when:
 
 # Releases & feature flags
 
+## 0.3.0 (workspace)
+
+- **Grill Me**: align before action via one `AskUserQuestion` at a time.
+- **Team handoff**: LAN mDNS (ADR 015) + cloud A2A streaming relay (ADR 016, no OSS).
+- **Release packaging**: macOS ships **`anyCode_<version>_aarch64.dmg` only** (CLI bundled); Linux/Windows via `cargo install` or source.
+
 ## 0.2.2 (workspace)
 
-- **Release packaging**: macOS ships **`anyCode_<version>_aarch64.dmg` only** (CLI bundled inside the app). Standalone Linux/Windows CLI tarballs are no longer attached on tag (see Unreleased in CHANGELOG); use `cargo install` or build from source.
+- **Release packaging**: macOS ships **`anyCode_<version>_aarch64.dmg` only** (CLI bundled inside the app). Standalone Linux/Windows CLI tarballs are no longer attached on tag; use `cargo install` or build from source.
 - **Desktop CI**: ad-hoc codesign when no Apple Developer ID secrets; tag-triggered desktop release runs macOS only.
 
 ## 0.2.0 (workspace)

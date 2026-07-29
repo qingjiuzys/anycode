@@ -464,6 +464,7 @@ pub async fn device_link_poll(
         Ok(Some(tokens)) => Json(serde_json::json!({
             "access_token": tokens.access_token,
             "refresh_token": tokens.refresh_token,
+            "device_id": tokens.device_id,
             "user": tokens.user,
             "entitlements": tokens.entitlements,
             "gateway_url": state.config.model_gateway_url,
@@ -492,6 +493,7 @@ pub async fn device_refresh(
         Ok(Some(tokens)) => Json(serde_json::json!({
             "access_token": tokens.access_token,
             "refresh_token": tokens.refresh_token,
+            "device_id": tokens.device_id,
             "user": tokens.user,
             "entitlements": tokens.entitlements,
             "gateway_url": state.config.model_gateway_url,

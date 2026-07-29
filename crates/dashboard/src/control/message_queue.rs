@@ -124,6 +124,7 @@ async fn dispatch_queued_item(
         item.lang.as_deref(),
         false,
         "conversation_message_queued",
+        item.composer_mode.as_deref(),
     )
     .await
     {

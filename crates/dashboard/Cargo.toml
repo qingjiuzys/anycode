@@ -49,6 +49,7 @@ sqlx = { workspace = true, features = ["runtime-tokio", "sqlite", "migrate"] }
 tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread", "signal", "fs", "process", "io-util", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"] }
 tracing = { workspace = true }

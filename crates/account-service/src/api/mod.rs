@@ -16,6 +16,7 @@ pub struct AppState {
     pub db: AccountDb,
     pub version: String,
     pub config: Arc<ServiceConfig>,
+    pub a2a_relay: Arc<crate::a2a::StreamRelay>,
 }
 
 pub mod handlers;
@@ -47,6 +48,11 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/gateway/upstream-failure",
             post(handlers::gateway_upstream_failure),
+        )
+        // Stream auth is one-time stream_token query param (not Bearer) — see ADR-016.
+        .route(
+            "/a2a/handoff/{id}/stream",
+            get(crate::a2a::handlers::a2a_handoff_stream_ws),
         );
 
     let admin_public = Router::new().route("/admin/login", post(handlers::admin::admin_login));
@@ -151,6 +157,50 @@ pub fn router(state: AppState) -> Router {
         .route("/usage/summary", get(handlers::usage_summary))
         .route("/memory-sync/push", post(handlers::memory_sync_push))
         .route("/memory-sync/pull", get(handlers::memory_sync_pull))
+        .route(
+            "/a2a/presence/heartbeat",
+            post(crate::a2a::handlers::a2a_heartbeat),
+        )
+        .route(
+            "/a2a/team/peers",
+            get(crate::a2a::handlers::a2a_team_peers),
+        )
+        .route(
+            "/a2a/handoff/request",
+            post(crate::a2a::handlers::a2a_handoff_request),
+        )
+        .route(
+            "/a2a/handoff/incoming",
+            get(crate::a2a::handlers::a2a_handoff_incoming),
+        )
+        .route(
+            "/a2a/handoff/outgoing",
+            get(crate::a2a::handlers::a2a_handoff_outgoing),
+        )
+        .route(
+            "/a2a/handoff/{id}/approve",
+            post(crate::a2a::handlers::a2a_handoff_approve),
+        )
+        .route(
+            "/a2a/handoff/{id}/reject",
+            post(crate::a2a::handlers::a2a_handoff_reject),
+        )
+        .route(
+            "/a2a/handoff/{id}/status",
+            get(crate::a2a::handlers::a2a_handoff_status),
+        )
+        .route(
+            "/a2a/agents/{instance_id}/card",
+            get(crate::a2a::handlers::a2a_agent_card),
+        )
+        .route(
+            "/a2a/version",
+            get(crate::a2a::handlers::a2a_version_info),
+        )
+        .route(
+            "/a2a/jsonrpc",
+            post(crate::a2a::handlers::a2a_jsonrpc_stub),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let api = Router::new()

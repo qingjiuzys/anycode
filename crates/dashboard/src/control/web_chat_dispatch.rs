@@ -30,6 +30,7 @@ pub async fn dispatch_web_chat_prompt(
     reply_lang: Option<&str>,
     recycled: bool,
     audit_action: &str,
+    composer_mode: Option<&str>,
 ) -> Result<(SessionDetail, WebChatSendResult), (StatusCode, String)> {
     if let Some(imgs) = vision_images {
         if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
@@ -107,6 +108,7 @@ pub async fn dispatch_web_chat_prompt(
                 &prompt_for_chat,
                 vision_images,
                 reply_lang,
+                composer_mode,
                 drain,
             )
             .await

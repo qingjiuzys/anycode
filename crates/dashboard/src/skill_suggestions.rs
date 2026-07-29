@@ -5,6 +5,10 @@ use anyhow::Result;
 use serde_json::{json, Value};
 
 pub const STARTER_SKILL_IDS: &[&str] = &[
+    "anycode-ppt",
+    "anycode-docx",
+    "anycode-xlsx",
+    "anycode-pdf",
     "daily-brief",
     "weekly-report",
     "doc-summary",

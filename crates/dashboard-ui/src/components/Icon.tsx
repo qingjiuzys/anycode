@@ -63,6 +63,9 @@ const icons: Record<string, ReactNode> = {
   chevron_left: <path d="m14.5 6-6 6 6 6" />,
   chevron_right: <path d="m9.5 6 6 6-6 6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
+  cloud: (
+    <path d="M6.5 18h11a3.5 3.5 0 0 0 .6-6.95A5 5 0 0 0 8.3 9.6 4.5 4.5 0 0 0 6.5 18Z" />
+  ),
   cloud_off: (
     <>
       <path d="M6.5 18h11a3.5 3.5 0 0 0 .6-6.95A5 5 0 0 0 8.3 9.6 4.5 4.5 0 0 0 6.5 18Z" />
@@ -179,6 +182,12 @@ const icons: Record<string, ReactNode> = {
       <path d="M7 3h10v4H7zM7 17h10v4H7z" />
       <path d="M5 7v10M19 7v10" />
       <path d="M9 12h6" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M5 21V4" />
+      <path d="M5 4h10l-1.5 3.5L15 11H5" />
     </>
   ),
   folder: (

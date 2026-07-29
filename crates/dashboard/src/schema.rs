@@ -448,6 +448,9 @@ pub struct StartConversationRequest {
     /// starts omit this (default false) so each start is a fresh session.
     #[serde(default = "default_recycle_session")]
     pub recycle_session: bool,
+    /// Composer mode hint (`grill` = 拷问 / grill-me Socratic alignment).
+    #[serde(default)]
+    pub composer_mode: Option<String>,
 }
 
 fn default_recycle_session() -> bool {
@@ -475,6 +478,9 @@ pub struct SendConversationMessageRequest {
     /// When true and the session turn is busy, enqueue instead of dispatching immediately.
     #[serde(default)]
     pub enqueue: Option<bool>,
+    /// Composer mode hint (`grill` = 拷问 / grill-me Socratic alignment).
+    #[serde(default)]
+    pub composer_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -11,7 +11,7 @@ alwaysApply: true
 2. **禁止** `--provenance=true` / `--sbom=true`：会生成 OCI attestation index，ACR 控制台显示「正常」但**大小为空**、拉取异常
 3. 推送后用 `docker manifest inspect <image>:<tag>` 确认有非空 `layers`；若无 layers，视为推送失败并重推
 4. 入口脚本：`./scripts/build-account-image.sh` → `deploy/account-service/build-push.sh`
-5. WeChat PEM 放在镜像 `/app/wechat-certs/`，**不要**放 `/run/secrets/`（ACK 挂卷会盖住证书，导致已配 `WECHAT_PAY_API_V3_KEY` 仍报 WeChat Pay is not configured）
+5. WeChat PEM **仅运行时挂载**到 `/app/wechat-certs/`（K8s Secret `anycode-wechat-certs`），**禁止**打进镜像
 6. 排障：看 `https://anycode.work/health` 的 `wechat_pay_configured` / `wechat_pay_missing`
 
-历史踩坑（2026-07）：`0.2.4` 曾因 attestation 大小为空；支付失败曾因 `/run/secrets` 被挂载覆盖证书。
+历史踩坑（2026-07）：`0.2.4` 曾因 attestation 大小为空；支付失败曾因 `/run/secrets` 被挂载覆盖证书；商户号/AppID 勿提交 git（GitHub secret scanning）。

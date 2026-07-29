@@ -9,6 +9,12 @@ read_when:
 
 # 版本与特性开关
 
+## 0.3.0（工作区）
+
+- **拷问模式 / Grill Me**：先对齐再动手（`AskUserQuestion` 单问）。
+- **团队交接**：局域网 mDNS（ADR 015）+ 云端 A2A 流式中继（ADR 016，不经 OSS）。
+- **发布打包**：macOS 仅发 **`anyCode_<version>_aarch64.dmg`**（CLI 已内置）；Linux/Windows CLI 请用 `cargo install` 或源码。
+
 ## 0.2.2（工作区）
 
 - **发布打包**：macOS 仅发 **`anyCode_<version>_aarch64.dmg`**（CLI 已内置）；tag 不再自动附带 Linux/Windows CLI tar/zip，请用 `cargo install` 或源码安装。

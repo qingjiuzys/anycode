@@ -70,3 +70,7 @@ permissions:
 - **`index.html`** — 左侧目录 + iframe 16:9 预览，`←` `→` 翻页，`F` 新标签打开当前页
 - **`evidence/*.png`** — Playwright 截图，供 Workbench 缩略预览，**不是**终稿
 - **终稿** = `slides/` 目录下的 HTML 分页文件
+
+## DeepSeek 执行要点
+
+Read `../_shared/deepseek-office.md` — **只复制 templates/**，禁止自写 CSS；改完必须 `run slides/`。

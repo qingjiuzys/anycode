@@ -51,3 +51,13 @@ permissions:
 ## 品牌
 
 - `brand-kits/fde-editorial/xlsx/theme.json`（ink 表头 / accent 强调列）
+
+## DeepSeek 执行要点
+
+Read `../_shared/deepseek-office.md` — 复制 workbook 模板，填具体数字，**run 后 recheck 必须通过**。
+
+## Kimi 蒸馏约束
+
+- 含公式的工作簿：`run` 会自动 **recheck**（#REF! / #NAME? / 隐式数组公式）
+- 外部数据必须附 **Source Name + Source URL** 列（纯文本，不用 HYPERLINK）
+- 财务类任务：数字列用明确格式，Summary sheet 放聚合指标

@@ -13,6 +13,7 @@ pub struct EnqueueMessageInput {
     pub vision_images: Option<Vec<VisionImagePayload>>,
     pub text_files: Option<Vec<TextFilePayload>>,
     pub lang: Option<String>,
+    pub composer_mode: Option<String>,
 }
 
 impl DashboardDb {
@@ -49,8 +50,8 @@ impl DashboardDb {
         sqlx::query(
             r#"
             INSERT INTO session_message_queue
-                (id, session_id, seq, prompt, agent, skills_json, vision_json, text_files_json, lang, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                (id, session_id, seq, prompt, agent, skills_json, vision_json, text_files_json, lang, composer_mode, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
             "#,
         )
         .bind(&id)
@@ -62,6 +63,7 @@ impl DashboardDb {
         .bind(&vision_json)
         .bind(&text_files_json)
         .bind(&input.lang)
+        .bind(&input.composer_mode)
         .execute(&self.pool)
         .await?;
 
@@ -156,7 +158,7 @@ impl DashboardDb {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
             r#"
-            SELECT id, session_id, seq, prompt, agent, skills_json, vision_json, text_files_json, lang
+            SELECT id, session_id, seq, prompt, agent, skills_json, vision_json, text_files_json, lang, composer_mode
             FROM session_message_queue
             WHERE session_id = ? AND status = 'pending'
             ORDER BY seq ASC
@@ -209,6 +211,7 @@ impl DashboardDb {
                 .as_deref()
                 .and_then(|s| serde_json::from_str(s).ok()),
             lang: row.get("lang"),
+            composer_mode: row.get("composer_mode"),
         }))
     }
 
@@ -266,4 +269,5 @@ pub struct QueuedMessagePop {
     pub vision_images: Option<Vec<VisionImagePayload>>,
     pub text_files: Option<Vec<TextFilePayload>>,
     pub lang: Option<String>,
+    pub composer_mode: Option<String>,
 }

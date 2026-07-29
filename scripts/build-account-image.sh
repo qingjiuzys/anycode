@@ -3,7 +3,8 @@
 #
 # Prereqs:
 #   - macOS + ~/.anycode/release.env (see scripts/release.env.example)
-#   - deploy/account-service/.env with WECHAT_PAY_API_V3_KEY
+#   - deploy/account-service/.env for local compose (WECHAT_PAY_* + secrets/*.pem)
+#   - Production: K8s Secrets anycode-account-secrets + anycode-wechat-certs (see README)
 #
 # Usage:
 #   ./scripts/build-account-image.sh              # build DMG (if needed) + push image

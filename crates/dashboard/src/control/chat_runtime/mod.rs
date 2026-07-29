@@ -141,6 +141,7 @@ impl ChatRuntimeHost {
         prompt: &str,
         vision_images: Option<&[VisionImagePayload]>,
         reply_lang: Option<&str>,
+        composer_mode: Option<&str>,
         drain: Option<crate::control::message_queue::QueueDrainContext>,
     ) -> anyhow::Result<WebChatSendResult> {
         if !crate::question_ipc::list_pending_for_session(Some(session_id), 1).is_empty() {
@@ -279,6 +280,7 @@ impl ChatRuntimeHost {
             .map(vision_payload::to_core_images)
             .unwrap_or_default();
         let reply_lang_owned = reply_lang.map(str::to_string);
+        let composer_mode_owned = composer_mode.map(str::to_string);
         let db2 = db.clone();
         let events2 = Arc::clone(&events);
         let session_id_owned = session_id.to_string();
@@ -302,6 +304,7 @@ impl ChatRuntimeHost {
                 vision_images,
                 live_tx2,
                 reply_lang_owned,
+                composer_mode_owned,
                 user_turn_id,
                 coop,
                 turn_epoch,
@@ -378,6 +381,7 @@ async fn run_embedded_turn(
     user_vision_images: Vec<anycode_core::VisionImage>,
     live_trace_tx: mpsc::UnboundedSender<LiveTraceEvent>,
     reply_lang: Option<String>,
+    composer_mode: Option<String>,
     user_turn_id: u32,
     coop: Arc<AtomicBool>,
     turn_epoch: u64,
@@ -436,6 +440,7 @@ async fn run_embedded_turn(
             user_vision_images,
             live_trace_tx,
             reply_lang,
+            composer_mode,
             coop,
             turn_epoch,
             user_turn_id,
@@ -458,12 +463,14 @@ async fn run_embedded_turn_scoped(
     user_vision_images: Vec<anycode_core::VisionImage>,
     live_trace_tx: mpsc::UnboundedSender<LiveTraceEvent>,
     reply_lang: String,
+    composer_mode: Option<String>,
     coop: Arc<AtomicBool>,
     turn_epoch: u64,
     user_turn_id: u32,
     preview_status: Option<crate::control::start_server_intent::PreviewServerStatus>,
 ) -> anyhow::Result<()> {
-    refresh_embedded_system_message(&runtime, &session, &reply_lang).await?;
+    refresh_embedded_system_message(&runtime, &session, &reply_lang, composer_mode.as_deref())
+        .await?;
     crate::notify::register_inprocess_bus(Arc::clone(&events));
 
     // Host already started the preview — skip the agent loop so weak models
@@ -834,11 +841,22 @@ impl Drop for TurnInFlightGuard {
 async fn refresh_embedded_system_message(
     runtime: &AgentRuntime,
     session: &EmbeddedSession,
-    _reply_lang: &str,
+    reply_lang: &str,
+    composer_mode: Option<&str>,
 ) -> anyhow::Result<()> {
-    let fresh_system = runtime
+    let mut fresh_system = runtime
         .build_system_message(&session.agent_type, &session.working_directory)
         .await?;
+    if let Some(append) =
+        crate::control::grill_mode::system_append_for_mode(composer_mode, reply_lang)
+    {
+        if let MessageContent::Text(text) = &mut fresh_system.content {
+            if !text.is_empty() {
+                text.push_str("\n\n");
+            }
+            text.push_str(append);
+        }
+    }
     let mut messages = session.messages.lock().await;
     if let Some(first) = messages.first_mut() {
         if matches!(first.role, MessageRole::System) {

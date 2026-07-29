@@ -8,6 +8,7 @@ type Props = {
   path: string;
   downloadUrl?: string;
   downloadName?: string;
+  copyImageUrl?: string;
   compact?: boolean;
 };
 
@@ -15,10 +16,11 @@ export function DeliverableFileActions({
   path,
   downloadUrl,
   downloadName,
+  copyImageUrl,
   compact = false,
 }: Props) {
   const t = useT();
-  const { copy, copied } = useClipboard();
+  const { copy, copyImage, copied, copiedImage } = useClipboard();
 
   const onReveal = useCallback(() => {
     void revealInFileManager(path).catch((err) => {
@@ -40,6 +42,16 @@ export function DeliverableFileActions({
         <Icon name="content_copy" size={14} className="inline mr-1" />
         {copied ? t("common.copied") : t("conversations.deliverable.copyPath")}
       </button>
+      {copyImageUrl ? (
+        <button
+          type="button"
+          className={btnClass}
+          onClick={() => void copyImage(copyImageUrl)}
+        >
+          <Icon name="image" size={14} className="inline mr-1" />
+          {copiedImage ? t("common.copied") : t("conversations.deliverable.copyImage")}
+        </button>
+      ) : null}
       {downloadUrl ? (
         <a
           href={downloadUrl}

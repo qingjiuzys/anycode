@@ -39,7 +39,9 @@ function ControlCenterContent({ path }: { path: string }) {
           <ProjectDetailPage embedded projectId={parsed.projectId} />
         )}
         {parsed.view === "automations" && <AutomationsPage embedded />}
-        {parsed.view === "colleagues" && <ColleaguesPage embedded />}
+        {parsed.view === "colleagues" && (
+          <ColleaguesPage embedded initialSearch={parsed.search} />
+        )}
         {parsed.view === "assets" && (
           <AssetsPage embedded initialSearch={parsed.search} />
         )}
