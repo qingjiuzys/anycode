@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Metrics KPI · FDE Editorial</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:40px;line-height:1.65;max-width:920px}
+    .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;max-width:1600px;margin-bottom:36px}
+    .stat{border:1px solid var(--ink);padding:28px 24px;background:rgba(255,255,255,.35)}
+    .stat .number{font-family:var(--serif);font-size:56px;font-weight:900;line-height:1;margin-bottom:8px;color:var(--accent)}
+    .stat .label{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-60);margin-bottom:10px}
+    .stat p{font-size:14px;color:var(--ink-60);line-height:1.5;margin:0}
+    .stat.hot{background:var(--ink);border-color:var(--ink)}
+    .stat.hot .number{color:var(--bg)}
+    .stat.hot .label,.stat.hot p{color:rgba(242,245,240,.7)}
+    .insight{border-left:6px solid var(--accent);padding:20px 28px;max-width:1200px;font-size:17px;line-height:1.65;color:var(--ink-60)}
+    .insight b{color:var(--ink)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">07</span>数据 · METRICS</div>
+    <h3>本季度驾驶舱关键指标</h3>
+    <p class="lede">数字要服务决策——每个 KPI 后面跟一句「所以接下来做什么」。</p>
+    <div class="metrics">
+      <div class="stat hot"><div class="label">活跃会话</div><div class="number">12.4k</div><p>环比 +18%，Workbench 日活稳定</p></div>
+      <div class="stat"><div class="label">工具成功率</div><div class="number">94%</div><p>失败集中在 Bash 超时，已加 retry</p></div>
+      <div class="stat"><div class="label">平均轮次</div><div class="number">6.2</div><p>复杂任务多轮闭环，非单轮问答</p></div>
+      <div class="stat"><div class="label">产物交付</div><div class="number">847</div><p>pptx/docx/html 落盘可验收</p></div>
+    </div>
+    <div class="insight"><b>解读：</b>Harness 稳定后，瓶颈从「模型会不会」转向「工具链与门禁是否跟得上业务节奏」。</div>
+  </div>
+</body>
+</html>

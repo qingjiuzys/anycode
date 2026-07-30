@@ -9,6 +9,12 @@ read_when:
 
 # Releases & feature flags
 
+## 0.3.1 (workspace)
+
+- **Deliverable cards**: spreadsheet previews, HTML preview sidecars for Office/PDF, PPT slide grid, inline table cards, Mermaid blocks.
+- **Viewer consolidation**: shared `selectDeliverableViewer` for chat cards and workbench file preview.
+- **Skill emit**: `anycode-ppt` and office starters emit `ANYCODE_ARTIFACT` with sidecar.
+
 ## 0.3.0 (workspace)
 
 - **Grill Me**: align before action via one `AskUserQuestion` at a time.

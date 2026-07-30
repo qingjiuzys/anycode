@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Content · FDE Editorial</title>
+  <style>
+    :root{
+      --bg:#f2f5f0; --ink:#231f20; --accent:#1400ff;
+      --ink-60:rgba(35,31,32,.6); --ink-40:rgba(35,31,32,.4); --ink-08:rgba(35,31,32,.08); --ink-05:rgba(35,31,32,.05);
+      --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+      --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    }
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{position:relative;padding:84px 110px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:14px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);display:flex;align-items:center;gap:16px;margin-bottom:30px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);margin-left:8px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;line-height:1.28;margin:0 0 14px;max-width:1400px}
+    .lede{font-size:17px;color:var(--ink-60);max-width:820px;margin-bottom:44px;line-height:1.7}
+    .rows{border-top:1px solid var(--ink)}
+    .row{display:grid;grid-template-columns:110px 1fr 1.2fr;gap:36px;padding:22px 8px;border-bottom:1px solid var(--ink-08);align-items:baseline}
+    .row:hover{background:var(--ink-05)}
+    .row .no{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase}
+    .row .k{font-family:var(--serif);font-size:22px;font-weight:900}
+    .row .v{font-size:15px;color:var(--ink-60);line-height:1.65}
+    .row .v b{color:var(--ink)}
+    .footer{position:absolute;bottom:40px;left:110px;right:110px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-40)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">1.2</span>小节标题 · SUBSECTION</div>
+    <h3>本页一个观点：用结论做标题，不用名词做标题</h3>
+    <p class="lede">导语一到两句，交代这页论证的结构。</p>
+    <div class="rows">
+      <div class="row"><span class="no">要点 01</span><div class="k">关键论断</div><div class="v">支撑说明，<b>关键数据加粗</b>，其余 60% 墨色降层。每行一个信息单元，不超过两行。</div></div>
+      <div class="row"><span class="no">要点 02</span><div class="k">关键论断</div><div class="v">支撑说明，避免形容词堆砌，用数字和事实。</div></div>
+      <div class="row"><span class="no">要点 03</span><div class="k">关键论断</div><div class="v">支撑说明。</div></div>
+      <div class="row"><span class="no">要点 04</span><div class="k">关键论断</div><div class="v">支撑说明。</div></div>
+      <div class="row"><span class="no">要点 05</span><div class="k">关键论断</div><div class="v">支撑说明。</div></div>
+    </div>
+    <div class="footer"><span>品牌 · 演示文稿</span><span>第 04 页 / 共 24 页</span></div>
+  </div>
+</body>
+</html>

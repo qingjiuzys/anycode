@@ -1,93 +1,75 @@
 ---
-title: Digital Workbench tour
-description: Product guide to sidebar pages—projects, sessions, scheduled jobs, and reports.
+title: Workbench tour
+description: Sidebar pages for projects, sessions, automations, and deliverables.
 ---
 
-# Digital Workbench tour
+# Workbench tour
 
-The Workbench is anyCode’s **local web dashboard**: see which projects are active, whether runs passed checks, and if scheduled jobs failed—without memorizing CLI flags.
+The Workbench answers: **Which projects are active? How are chats going? Did scheduled jobs fail?** — all locally, no terminal required.
 
-## What you can do
+![Workbench home](/docs/assets/screenshots/home.png)
+*Home — shortcuts and recent activity*
 
-- Browse registered projects and sessions
-- Inspect run status, gates, and output files
-- Create scheduled jobs and retry failures
-- Generate project or session reports (Markdown or HTML)
-
-## How to open it
-
-**Browser:**
-
-```bash
-anyCode desktop app or http://127.0.0.1:43180
-```
-
-Default URL: `http://127.0.0.1:43180`
-
-**macOS app:** Install the platform build from [Releases](https://github.com/qingjiuzys/anycode/releases) (macOS `.dmg`, Windows `.msi`/`.exe`, Linux `.deb`/`.AppImage`). The app starts the Workbench automatically.
-
-## Conversations & vision
-
-- **Web chat:** attach images in project conversations (requires a vision-capable model).
-- **Deliverable cards:** images, video, PDF, Office files, and mind maps from Skills/tools appear as cards in the thread — see [Conversation deliverables](./deliverables.md).
-- **Channels:** WeChat, Telegram, and Discord accept images; Telegram/Discord voice messages are transcribed when `models.speech.stt` is configured.
-- See [run-flow.md](https://github.com/qingjiuzys/anycode/blob/main/docs/ops/run-flow.md) in the repo.
-
-## Project knowledge
-
-On a project page, configure **knowledge paths** and **reindex**. Desktop releases include vector search; dev CLI builds need the `knowledge-embeddings` feature. Doctor checks report index and vector status.
-
-## MCP & browser
-
-- **Settings → MCP servers:** edit `mcp.servers` in `~/.anycode/config.json` from the UI.
-- **Settings → Notifications → Built-in browser:** enable native CDP Chromium on Desktop (`browser.enabled` in config). Agent `Browser*` tools and the conversation Workbench browser panel share one session. Legacy Playwright MCP (`mcp.browser.enabled`) is deprecated.
-
-### Automated browser testing (Workbench)
-
-1. **Prerequisites:** macOS/Windows/Linux with Chromium — desktop `.app` bundle, or Google Chrome on PATH, or `ANYCODE_CHROMIUM_PATH`.
-2. **Enable:** Settings → Notifications → **Built-in browser** → Enable (writes `browser.enabled` in `~/.anycode/config.json`). Start a **new conversation** after toggling.
-3. **Right panel:** Conversations → pick a **project-bound** session → right rail **Browser** (globe) → enter a URL to preview (live screencast).
-4. **Agent automation:** In the same thread, prompt e.g. “打开 http://127.0.0.1:43180 并用 BrowserSnapshot 检查标题”. Tools: `BrowserNavigate`, `BrowserSnapshot`, `BrowserClick`, `BrowserType`, … — bound to the conversation id; panel and agent share one CDP session.
-5. **Troubleshooting:** Doctor → `browser_connector`; panel shows setup steps if Chromium is missing. Dev-only `anycode-dashboard-serve` must be built with `--features tools-browser`.
-
-## Sidebar pages
+## Sidebar at a glance
 
 | Page | What you see | Typical actions |
 |------|----------------|-----------------|
-| **Overview** | Counts, running sessions, recent activity | Spot issues quickly |
-| **Projects** | Workspaces, trust level, last activity | Open a project |
-| **Conversations** | Sessions grouped by project | Open a thread timeline |
-| **Automations** | Scheduled jobs, run history, guardrails | Create jobs, retry on failure |
-| **Assets** | Deliverable files (PPTX, PDF, etc.) | Open outputs, filter unverified |
-| **Reports** | Summary exports (gates, trust, deliverables) | Share Markdown/HTML externally; files live under Assets / session panel |
-| **Audit** | Config change log | Trace policy edits |
-| **Agents / Skills** | Roles and local skill packs | See installed skills |
-| **Settings** | Login, models, notifications, ops | Change port, report format |
+| **Home** | Shortcuts, recent sessions | New session, resume work |
+| **Projects** | Registered workspace folders | Add project, open details |
+| **Sessions** | Chats grouped by project | Open a conversation |
+| **Colleagues** | Other anyCode instances on LAN | Discover peers, hand off sessions |
+| **Automations** | Cron jobs and run history | Create schedule, retry failures |
+| **Artifacts** | Generated file index | Open PDFs, spreadsheets, decks |
+| **Settings** | Models, Skills, notifications | API keys, install skill packs |
 
-## Automations (scheduled jobs)
+## Projects
 
-The Automations page is about **running tasks on a schedule**, not mixed with workflow session tables:
+Register a local folder so the assistant can read and write files there.
 
-1. **Summary cards** — job count, recent failures, enabled guardrails
-2. **Create job** — natural language schedule plus what the assistant should do
-3. **Project guardrails** — e.g. block on gate failure, auto-report when done
-4. **Jobs & run history** — see each trigger; retry failed runs
+![Projects](/docs/assets/screenshots/projects.png)
+*Projects — bind workspace roots*
 
-Keep the scheduler or desktop app running for jobs to fire.
+## Settings
+
+Models, language, built-in browser, MCP servers — all under **Settings**.
+
+![Settings](/docs/assets/screenshots/settings.png)
+*Settings — models and preferences*
+
+## Automations
+
+Describe *when* and *what* in plain language, e.g. “Every weekday at 9am, summarize yesterday's git commits.”
+
+![Automations](/docs/assets/screenshots/automations.png)
+*Automations — schedules and run log*
+
+Keep **anyCode** or **`anycode-daemon`** running for jobs to fire on time.
+
+## Colleagues (session handoff)
+
+Discover other anyCode instances on your network and hand a session to another machine.
+
+![Colleagues](/docs/assets/screenshots/colleagues.png)
+*Colleagues — discover and hand off*
+
+## In conversations
+
+- **Text & images** — type or paste images (Vision model required)
+- **Deliverable cards** — PDFs, Office files, spreadsheets, mind maps → [Deliverables](./deliverables)
+- **Approvals** — confirmations before sensitive file edits (adjust in Settings)
 
 ## Language & theme
 
-Use the top bar to switch **中文 / English** and light/dark theme. Sidebar **Documentation** and **Help** open the matching site locale.
+Switch **中文 / English** and light/dark theme in the top bar. **Docs** and **Help** follow your language.
 
-## Something wrong?
+## Problems?
 
 | Symptom | Try |
 |---------|-----|
-| Page won’t load | Run anyCode desktop or Workbench at http://127.0.0.1:43180; check for port conflicts |
-| Empty lists | Run a task in a project folder first, then refresh |
-| Jobs never run | Ensure scheduler/desktop app is running; check run history |
-| Stuck at login | On `127.0.0.1`, local user is usually trusted automatically |
+| Page won't load | Ensure anyCode is running; check port 43180 |
+| Empty lists | Complete `/setup`, then add a project or session |
+| Jobs never run | Keep app/daemon running; check Automations run log |
 
 More: [Common issues](./troubleshooting).
 
-简体中文: [工作台导览](/zh/guide/workbench).
+简体中文: [工作台导览](/docs/zh/guide/workbench).

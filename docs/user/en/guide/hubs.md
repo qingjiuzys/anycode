@@ -1,36 +1,49 @@
 ---
-title: All pages (hub)
-description: Full list of English guide pages in this VitePress site.
-summary: Machine-friendly map of every guide URL under /guide/.
-read_when:
-  - You want a checklist of all documentation pages.
+title: Documentation index
+description: Full list of anyCode user documentation pages.
 ---
 
-# All pages (hub)
+# Documentation index
 
-English **`/guide/`** routes:
+Suggested path for regular users:
 
-- [Docs directory](./docs-directory)  
-- [Getting started](./getting-started)  
-- [Install](./install)  
-- [Open the Workbench](./dashboard)  
-- [Workbench tour](./workbench)  
-- [Conversation deliverables](./deliverables)  
-- [Desktop app (macOS)](./desktop)  
-- [Headless daemon](./daemon)  
-- [Terminal CLI (removed)](./cli)  
-- [Run, REPL & TUI (removed)](./cli-sessions)  
-- [Scheduled reminders](./cli-scheduler)  
-- [HTTP daemon (removed)](./cli-daemon)  
-- [Model commands (removed)](./cli-model)  
-- [Discovery & test-security (removed)](./cli-diagnostics)  
-- [Agent skills](./skills)  
-- [Models](./models)  
-- [Architecture](./architecture)  
-- [Config & security](./config-security)  
-- [Troubleshooting](./troubleshooting)  
-- [Development](./development)  
-- [Roadmap](./roadmap)  
-- [This hub](./hubs)  
+1. [Quick start](./getting-started) → [Install](./install) → [Open the Workbench](./dashboard)
+2. [Workbench tour](./workbench) → [Conversation deliverables](./deliverables)
+3. [Common issues](./troubleshooting) when stuck
 
-Chinese locale: **`/zh/guide/`** — [全量索引](/zh/guide/hubs).
+## Get started
+
+- [Quick start](./getting-started)
+- [Install](./install)
+- [Open the Workbench](./dashboard)
+
+## Digital Workbench
+
+- [Workbench tour](./workbench)
+- [Conversation deliverables](./deliverables)
+
+## Desktop & automation
+
+- [Desktop app (macOS)](./desktop)
+- [Headless daemon](./daemon)
+- [Scheduled reminders](./cli-scheduler)
+- [Common issues](./troubleshooting)
+
+## Settings & skills
+
+- [Models](./models)
+- [Config & security](./config-security)
+- [Agents & Skills](./agents)
+- [Official skills catalog](./skills/index)
+- [Memory](./memory)
+- [Notifications](./notifications)
+
+## Developer reference
+
+- [Architecture](./architecture)
+- [Development](./development)
+- [Contributing extensions](./contributing-extensions)
+- [Releases & feature flags](./releases)
+- [Roadmap](./roadmap)
+
+简体中文: [文档索引](/docs/zh/guide/hubs).

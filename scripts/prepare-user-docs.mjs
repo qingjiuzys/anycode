@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const srcRoot = path.join(root, "docs/user");
 const outRoot = path.join(root, "crates/account-portal/public/docs-src");
+const assetsSrc = path.join(srcRoot, "assets");
+const assetsOut = path.join(root, "crates/account-portal/public/docs/assets");
 
 function stripFrontmatter(text) {
   if (!text.startsWith("---\n")) return text;
@@ -53,6 +55,16 @@ if (!fs.existsSync(srcRoot)) {
   process.exit(1);
 }
 
+function copyAssets() {
+  if (!fs.existsSync(assetsSrc)) return;
+  fs.rmSync(assetsOut, { recursive: true, force: true });
+  fs.cpSync(assetsSrc, assetsOut, { recursive: true });
+}
+
 fs.rmSync(outRoot, { recursive: true, force: true });
 walk(srcRoot);
+copyAssets();
 console.log(`staged user docs → ${path.relative(root, outRoot)}`);
+if (fs.existsSync(assetsOut)) {
+  console.log(`staged doc assets → ${path.relative(root, assetsOut)}`);
+}

@@ -410,6 +410,15 @@ mod tests {
         assert!(out.contains("Media generation"));
     }
 
+    #[test]
+    fn media_and_plan_omitted_without_matching_tools() {
+        let cfg = RuntimePromptConfig::default();
+        let agent = stub(vec!["Bash".into(), "Read".into()]);
+        let out = compose_effective_system_prompt(&cfg, &agent, "/w", None);
+        assert!(!out.contains("# Media generation"));
+        assert!(!out.contains("# Plan progress"));
+    }
+
     #[tokio::test]
     async fn reply_language_prefers_task_local_context_per_session() {
         // Two concurrent scopes with different languages must not interfere,

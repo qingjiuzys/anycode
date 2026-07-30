@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Checklist · FDE Editorial</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box;display:grid;grid-template-columns:1fr 1fr;gap:48px}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px;grid-column:1/-1}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:44px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:28px;line-height:1.65}
+    .checklist{border:1px solid var(--ink);padding:0}
+    .check-item{display:grid;grid-template-columns:48px 1fr;gap:16px;padding:18px 20px;border-bottom:1px solid var(--ink-08);align-items:start}
+    .check-item:last-child{border-bottom:none}
+    .check-item .mark{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);line-height:1.2}
+    .check-item b{display:block;font-size:17px;margin-bottom:4px}
+    .check-item span{font-size:14px;color:var(--ink-60);line-height:1.45}
+    .check-item.done .mark{color:var(--ink-60)}
+    .check-item.hot{background:rgba(20,0,255,.06);border-left:4px solid var(--accent)}
+    .panel{border:1px solid var(--ink);padding:32px;background:rgba(255,255,255,.35);align-self:start}
+    .panel .lab{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:16px}
+    .panel h4{font-family:var(--serif);font-size:26px;font-weight:900;margin:0 0 16px}
+    .panel p{font-size:15px;color:var(--ink-60);line-height:1.65;margin:0}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">10</span>行动清单 · CHECKLIST</div>
+    <div>
+      <h3>本节结束前你要完成什么</h3>
+      <p class="lede">勾选式验收——做完一项打勾，别只「听懂了」。</p>
+      <div class="checklist">
+        <div class="check-item done"><span class="mark">✓</span><div><b>跑通一次 Skill 调用</b><span>在 Workbench 里执行 anycode-ppt run</span></div></div>
+        <div class="check-item done"><span class="mark">✓</span><div><b>复制模板改文案</b><span>从 templates/ 复制，保留 class 名</span></div></div>
+        <div class="check-item hot"><span class="mark">→</span><div><b>validate 全绿</b><span>validate_slide_html.py slides/ anycode-ppt</span></div></div>
+        <div class="check-item"><span class="mark">○</span><div><b>浏览器预览 deck</b><span>打开 index.html，← → 翻页</span></div></div>
+        <div class="check-item"><span class="mark">○</span><div><b>交给同事评审</b><span>发 slides/ 目录或 index.html 链接</span></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="lab">Next · 下节预告</div>
+      <h4>把 HTML slides 接进 Cron</h4>
+      <p>定时任务生成周报幻灯片，结果落 Workbench session，evidence 自动截图供预览。</p>
+    </div>
+  </div>
+</body>
+</html>

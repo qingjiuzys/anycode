@@ -5,7 +5,7 @@
 <h1 align="center">anyCode</h1>
 
 <p align="center">
-  <strong>Enterprise-grade agents you control</strong>
+  <strong>Enterprise-grade · Open source (MIT) · Self-hosted</strong>
 </p>
 
 <p align="center">
@@ -25,6 +25,28 @@
   <img alt="rust" src="https://img.shields.io/badge/rust-edition%202021-orange.svg" />
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg" />
   <img alt="status" src="https://img.shields.io/badge/status-invite--only%20beta-yellow.svg" />
+</p>
+
+---
+
+## At a glance
+
+<p align="center">
+  <a href="https://anycode.work">
+    <img src="docs/user/assets/screenshots/home.png" alt="anyCode enterprise Agent workbench — self-hosted on your machine or private network" width="920" />
+  </a>
+</p>
+
+<p align="center">
+  <sub><strong>Enterprise-grade · Free & open source · Self-hosted</strong> — Digital Workbench on your hardware, BYOK models, configurable approvals</sub>
+</p>
+
+<p align="center">
+  <img src="docs/user/assets/screenshots/colleagues.png" alt="Team handoff — LAN discovery and org-scoped streaming relay" width="920" />
+</p>
+
+<p align="center">
+  <sub>Team collaboration: mDNS on LAN + cloud A2A streaming relay (no OSS) for compliance-friendly deployments</sub>
 </p>
 
 ---

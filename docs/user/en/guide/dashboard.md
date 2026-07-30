@@ -1,29 +1,40 @@
 ---
 title: Open the Workbench
-description: Start the local Workbench in a browser or the macOS desktop app.
+description: Launch the local Workbench in the desktop app or browser.
 ---
 
 # Open the Workbench
 
-## Browser (all platforms)
+The **Digital Workbench** is your local web dashboard for projects, sessions, scheduled jobs, and files the assistant creates.
 
-```bash
-anyCode desktop app or http://127.0.0.1:43180
-```
+## macOS desktop app (recommended)
 
-Opens `http://127.0.0.1:43180`. If lists are empty, run a task in a project folder first, then refresh.
+1. Install [anyCode.app](./install)
+2. Open the app — the Workbench runs **inside the app window**
 
-## macOS desktop app
+> **Note:** With the desktop app, `http://127.0.0.1:43180` is mainly the API. Use the **anyCode.app** window for the full UI.
 
-1. Download `anyCode_<version>_aarch64.dmg` from [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) (Apple Silicon).
-2. Drag **anyCode** into Applications and launch it.
+## Browser
 
-Build locally: `./scripts/build-desktop-release.sh`
+For headless Linux or dev:
 
-## Next steps
+- URL: **`http://127.0.0.1:43180`**
+- Requires **anyCode** or **`anycode-daemon`** to be running
 
-- [Workbench tour](./workbench) — what each sidebar page does
-- [Using anyCode in the terminal](./cli) — work with the assistant in CLI
-- [Scheduled reminders](./cli-scheduler) — create timed jobs
+![Workbench home](/docs/assets/screenshots/home.png)
+*Home in the browser*
 
-简体中文: [打开数字工作台](/zh/guide/dashboard).
+## Empty on first open?
+
+That's normal:
+
+1. Finish [Quick start](./getting-started) setup (`/setup`)
+2. Register a **Project** folder or start a **New session**
+
+## Next
+
+- [Workbench tour](./workbench)
+- [Scheduled reminders](./cli-scheduler)
+- [Desktop app](./desktop)
+
+简体中文: [打开工作台](/docs/zh/guide/dashboard).

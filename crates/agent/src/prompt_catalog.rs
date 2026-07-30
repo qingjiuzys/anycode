@@ -95,6 +95,10 @@ pub(crate) fn default_stack_sections(
     let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let os = std::env::consts::OS.to_string();
     let tools_joined = tools.join(", ");
+    let include_media = tools
+        .iter()
+        .any(|t| t == "GenerateImage" || t == "GenerateVideo");
+    let include_plan = tools.iter().any(|t| t == "PlanWrite");
 
     let mut env_vars = HashMap::new();
     env_vars.insert("cwd", cwd.to_string());
@@ -112,8 +116,12 @@ pub(crate) fn default_stack_sections(
     parts.push(fill_template(core("environment"), &env_vars));
     parts.push(fill_template(core("agent_loop"), &loop_vars));
     parts.push(core("user_clarification").trim().to_string());
-    parts.push(core("media_generation").trim().to_string());
-    parts.push(core("plan_progress").trim().to_string());
+    if include_media {
+        parts.push(core("media_generation").trim().to_string());
+    }
+    if include_plan {
+        parts.push(core("plan_progress").trim().to_string());
+    }
     if include_browser {
         parts.push(core("browser").trim().to_string());
     }
@@ -128,11 +136,32 @@ mod tests {
     fn core_and_locale_files_are_nonempty() {
         assert!(CORE_TONE.contains("# Tone"));
         assert!(CORE_TONE.contains("coding agent"));
+        assert!(CORE_TONE.contains("never invent tool output"));
         assert!(CORE_AGENT_LOOP.contains("{tools}"));
         assert!(LOCALE_ZH_REPLY_LANGUAGE.contains("中文"));
         assert!(LOCALE_EN_REPLY_LANGUAGE.contains("English"));
         assert!(!LOCALE_ZH_EPHEMERAL.trim().is_empty());
         assert!(!LOCALE_EN_EPHEMERAL.trim().is_empty());
+    }
+
+    #[test]
+    fn default_stack_omits_media_and_plan_without_tools() {
+        let parts = default_stack_sections("/tmp", &["Bash".into()], false);
+        let joined = parts.join("\n");
+        assert!(!joined.contains("# Media generation"));
+        assert!(!joined.contains("# Plan progress"));
+    }
+
+    #[test]
+    fn default_stack_includes_media_and_plan_when_tools_present() {
+        let parts = default_stack_sections(
+            "/tmp",
+            &["Bash".into(), "GenerateVideo".into(), "PlanWrite".into()],
+            false,
+        );
+        let joined = parts.join("\n");
+        assert!(joined.contains("# Media generation"));
+        assert!(joined.contains("# Plan progress"));
     }
 
     #[test]

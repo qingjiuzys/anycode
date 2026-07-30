@@ -8,6 +8,7 @@ in="$1"
 out="${2:-${in%.md}.csv}"
 python3 - "$in" "$out" <<'PY'
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -42,5 +43,18 @@ if not rows:
     sys.exit(1)
 with dst.open("w", encoding="utf-8", newline="") as f:
     csv.writer(f).writerows(rows)
-print(dst)
+
+abs_path = dst.resolve()
+payload = {
+    "path": str(abs_path),
+    "kind": "spreadsheet",
+    "title": abs_path.name,
+    "inline": True,
+}
+print(abs_path)
+print(f"ANYCODE_ARTIFACT:{json.dumps(payload, ensure_ascii=False)}")
+Path(f"{abs_path}.anycode-artifact.json").write_text(
+    json.dumps(payload, ensure_ascii=False) + "\n",
+    encoding="utf-8",
+)
 PY

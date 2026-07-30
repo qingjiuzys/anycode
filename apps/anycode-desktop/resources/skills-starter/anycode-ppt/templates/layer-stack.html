@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Layer Stack · FDE Courseware</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --c-model:#1400ff;--c-harness:#5f52a0;--c-tools:#2f9e44;--c-ui:#f5a947;
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box;display:grid;grid-template-columns:1fr 320px;gap:48px}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px;grid-column:1/-1}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:28px;line-height:1.65;max-width:900px}
+    .layer-stack{display:flex;flex-direction:column;gap:0;border:1px solid var(--ink);max-width:1100px}
+    .layer-card{display:grid;grid-template-columns:100px 1fr auto;gap:20px;padding:18px 22px;border-bottom:1px solid var(--ink);
+      align-items:center;background:rgba(255,255,255,.35)}
+    .layer-card:last-child{border-bottom:none}
+    .layer-card .lab{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+    .layer-card.l1 .lab{color:var(--c-model)}
+    .layer-card.l2 .lab{color:var(--c-harness)}
+    .layer-card.l3 .lab{color:var(--c-tools)}
+    .layer-card.l4 .lab{color:var(--c-ui)}
+    .layer-card h4{font-family:var(--serif);font-size:22px;font-weight:900;margin:0}
+    .layer-card p{font-size:15px;color:var(--ink-60);margin:4px 0 0;line-height:1.45}
+    .layer-card .chips{font-family:var(--mono);font-size:12px;color:var(--ink-60);text-align:right;line-height:1.5}
+    .layer-card.hot{background:var(--ink);color:var(--bg)}
+    .layer-card.hot p,.layer-card.hot .chips{color:rgba(242,245,240,.65)}
+    .layer-card.hot h4{color:var(--bg)}
+    .side{font-family:var(--mono);font-size:13px;line-height:1.7;color:var(--ink-60);border-left:6px solid var(--accent);padding-left:20px;align-self:center}
+    .side b{display:block;color:var(--accent);font-size:14px;margin-bottom:12px;letter-spacing:.1em}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">04</span>分层架构 · LAYERS</div>
+    <div>
+      <h3>Agent 不是「只有一个模型」</h3>
+      <p class="lede">四层接电：模型提供推理，Harness 管循环与记忆，工具层执行，Workbench 给你看结果。</p>
+      <div class="layer-stack">
+        <div class="layer-card l1"><span class="lab">L1 MODEL</span><div><h4>大模型</h4><p>规划、生成、选工具</p></div><div class="chips">GPT / Claude<br/>DeepSeek / Kimi</div></div>
+        <div class="layer-card l2 hot"><span class="lab">L2 HARNESS</span><div><h4>AgentRuntime</h4><p>多轮循环、记忆、审批</p></div><div class="chips">anyCode<br/>← 你在这里</div></div>
+        <div class="layer-card l3"><span class="lab">L3 TOOLS</span><div><h4>工具表</h4><p>Shell、文件、MCP、Skill</p></div><div class="chips">Read / Bash<br/>Skill / MCP</div></div>
+        <div class="layer-card l4"><span class="lab">L4 UI</span><div><h4>Workbench</h4><p>会话、产物、门禁</p></div><div class="chips">Dashboard<br/>Desktop</div></div>
+      </div>
+    </div>
+    <div class="side"><b>白话侧栏</b>模型像大脑；Harness 像脊柱；工具像手脚；UI 是驾驶舱。缺一层都跑不顺。</div>
+  </div>
+</body>
+</html>

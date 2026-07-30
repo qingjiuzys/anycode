@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import type { CloudTeamPeer } from "@/api/client/cloudA2a";
-import type { HandoffKind, LanPeer } from "@/api/client/lan";
+import type { HandoffKind } from "@/api/client/lan";
 import { ModalOverlay } from "@/components/ui/ModalOverlay";
 import { useConversationShell } from "@/context/ConversationShellContext";
 import { useT } from "@/i18n/context";
@@ -12,8 +12,6 @@ type WizardStep = "pick" | "confirm";
 type Props = {
   open: boolean;
   onClose: () => void;
-  transport: "lan" | "cloud";
-  lanPeer: LanPeer | null;
   cloudPeer: CloudTeamPeer | null;
   kind: HandoffKind;
   initialProjectId?: string;
@@ -23,8 +21,6 @@ type Props = {
 export function HandoffWizard({
   open,
   onClose,
-  transport,
-  lanPeer,
   cloudPeer,
   kind,
   initialProjectId,
@@ -41,10 +37,7 @@ export function HandoffWizard({
   const [error, setError] = useState<string | null>(null);
   const [sentId, setSentId] = useState<string | null>(null);
 
-  const peerName =
-    transport === "lan"
-      ? lanPeer?.device_name
-      : cloudPeer?.display_name || cloudPeer?.device_name;
+  const peerName = cloudPeer?.display_name || cloudPeer?.device_name;
 
   useEffect(() => {
     if (!open) {
@@ -76,33 +69,20 @@ export function HandoffWizard({
   ]);
 
   const submitHandoff = async () => {
-    if (transport === "lan" && !lanPeer) return;
-    if (transport === "cloud" && !cloudPeer) return;
+    if (!cloudPeer) return;
     setBusy(true);
     setError(null);
     try {
-      if (transport === "lan" && lanPeer) {
-        const resp = await api.requestHandoff({
-          peer_id: lanPeer.instance_id,
-          kind,
-          project_id: wizardProjectId || undefined,
-          session_id: kind === "session" ? wizardSessionId || undefined : undefined,
-          target_project_id: kind === "session" ? wizardTargetProjectId || undefined : undefined,
-        });
-        setSentId(resp.handoff_id);
-      } else if (transport === "cloud" && cloudPeer) {
-        const resp = await api.requestCloudHandoff({
-          recipient_device_id: cloudPeer.device_id,
-          recipient_instance_id: cloudPeer.instance_id,
-          kind,
-          project_id: wizardProjectId || undefined,
-          session_id: kind === "session" ? wizardSessionId || undefined : undefined,
-          target_project_id: kind === "session" ? wizardTargetProjectId || undefined : undefined,
-        });
-        setSentId(resp.handoff?.id ?? null);
-      }
+      const resp = await api.requestCloudHandoff({
+        recipient_device_id: cloudPeer.device_id,
+        recipient_instance_id: cloudPeer.instance_id,
+        kind,
+        project_id: wizardProjectId || undefined,
+        session_id: kind === "session" ? wizardSessionId || undefined : undefined,
+        target_project_id: kind === "session" ? wizardTargetProjectId || undefined : undefined,
+      });
+      setSentId(resp.handoff?.id ?? null);
       setWizardStep("confirm");
-      void qc.invalidateQueries({ queryKey: ["lan"] });
       void qc.invalidateQueries({ queryKey: ["cloud"] });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

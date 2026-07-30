@@ -36,6 +36,12 @@ const icons: Record<string, ReactNode> = {
       <path d="M19 19v-7" />
     </>
   ),
+  table_chart: (
+    <>
+      <path d="M4 6h16v12H4z" />
+      <path d="M4 10h16M10 6v12" />
+    </>
+  ),
   cancel: (
     <>
       <circle cx="12" cy="12" r="8" />
@@ -290,6 +296,13 @@ const icons: Record<string, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8" />
       <path d="M4 12h16M12 4a12 12 0 0 1 3 8 12 12 0 0 1-3 8 12 12 0 0 1-3-8 12 12 0 0 1 3-8z" />
+    </>
+  ),
+  web: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M4 12h16M12 4a12 12 0 0 1 3 8 12 12 0 0 1-3 8 12 12 0 0 1-3-8 12 12 0 0 1 3-8z" />
+      <path d="M12 4v16" />
     </>
   ),
   inventory_2: (

@@ -41,7 +41,7 @@ spec:
       #   - name: aliyun-acr
       containers:
         - name: anycode-account
-          image: registry.cn-zhangjiakou.aliyuncs.com/818cloud/anycode:0.3.0
+          image: registry.cn-zhangjiakou.aliyuncs.com/818cloud/anycode:0.3.1
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

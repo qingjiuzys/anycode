@@ -58,7 +58,7 @@ export function TranscriptToolBlock({
 
     return (
       <div
-        className={`tool-strip rounded-xl border border-dashed overflow-hidden ${
+        className={`tool-strip rounded-xl border border-solid overflow-hidden ${
           failed
             ? "border-error/40 bg-error/5"
             : running

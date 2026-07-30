@@ -8,6 +8,8 @@ describe("artifactKind", () => {
     expect(kindForPath("/tmp/deck.pptx")).toBe("presentation");
     expect(kindForPath("/tmp/notes.mindmap.md")).toBe("mindmap");
     expect(kindForPath("/tmp/x.pdf")).toBe("pdf");
+    expect(kindForPath("/tmp/report.csv")).toBe("spreadsheet");
+    expect(kindForPath("/tmp/sales-workbook.json")).toBe("spreadsheet");
   });
 
   it("respects kind hints", () => {
@@ -22,6 +24,7 @@ describe("artifactKind", () => {
   it("marks rich kinds inline", () => {
     expect(isInlineKind("image")).toBe(true);
     expect(isInlineKind("presentation")).toBe(true);
+    expect(isInlineKind("spreadsheet")).toBe(true);
     expect(isInlineKind("file")).toBe(false);
   });
 });

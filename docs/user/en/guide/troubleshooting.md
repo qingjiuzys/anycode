@@ -1,58 +1,63 @@
 ---
 title: Common issues
-description: Install, Workbench, terminal, and scheduled jobs—quick fixes.
+description: Install, Workbench, models, and scheduled jobs — FAQ.
 ---
 
 # Common issues
 
-## Install & setup
+## Install & first launch
 
-**`anycode` not found after install?**  
-Add the install directory to PATH or open a new terminal. From source, use the full path to `target/release/anycode`.
+**Workbench won't open?**  
+Ensure **anyCode** is running. Browser users: `http://127.0.0.1:43180`. If the port is busy, stop the other process using 43180.
 
-**`setup` failed?**  
-Usually network or API keys. Verify provider credentials and run `Workbench /setup` again.
+**Setup wizard (/setup) rejects API key?**  
+Verify the key and network access to your provider. Re-save under **Settings → Models**.
 
-## Workbench
+## Workbench UI
 
-**Can’t open `http://127.0.0.1:43180`?**  
-Run anyCode desktop or Workbench at http://127.0.0.1:43180 first; check for port conflicts. Change port in Settings if needed.
+**Empty project/session lists?**  
+Complete [Quick start](./getting-started), then add a **Project** or **New session**.
 
-**Empty project list?**  
-The Workbench lists workspaces that have already run tasks. Start a conversation from a project in the Workbench, then refresh.
+**UI in English?**  
+Switch language to 中文 in the top bar.
 
-**Wrong language?**  
-Switch **中文 / English** in the top bar. Sidebar doc/help links follow the UI locale.
+**Broken layout?**  
+Hard refresh (Cmd+Shift+R) or restart anyCode.
 
-## Terminal
+## Chat & models
 
-**Assistant ignores project files?**  
-Check `pwd` is the project root.
+**Message spins forever?**  
+Check network; verify model and API key in **Settings**; check provider quota.
 
-**Too many approval prompts?**  
-By design for safety. Adjust policies in Settings; don’t disable all checks blindly.
+**Approval before every edit?**  
+By design. Adjust policy under **Settings → Security** (don't disable all checks blindly).
 
-**Slow or interrupted replies?**  
-Check network and quotas; `Ctrl+C` stops the current turn.
+**Switch models?**  
+**Settings → Models** — pick another provider or model ID.
 
 ## Scheduled jobs
 
-**Job never fires?**  
-Keep scheduler or desktop app running; check **Automations → Recent triggers**.
+**Job never runs?**  
+anyCode or `anycode-daemon` must stay running. Check **Automations → Run history**.
 
-**Shows failed?**  
-Use **Retry now**; open the session for details; clarify the task text.
+**Failed run?**  
+Click **Retry**; open the linked session for errors; make the task description more specific.
 
-## macOS desktop app
+## Deliverables
 
-**Small Dock icon?**  
-Use the latest DMG; if the icon is cached, run `killall Dock`.
+**File on disk but no chat card?**  
+Refresh the session; see [Deliverables](./deliverables).
 
-**Blank window?**  
-Wait a few seconds for the sidecar; or run anyCode desktop or Workbench at http://127.0.0.1:43180 manually, then reopen the app.
+## macOS desktop
+
+**Blank window on launch?**  
+Wait a few seconds for the embedded server; quit and reopen if needed.
+
+**Blurry Dock icon?**  
+Use the latest Release; restart Dock: `killall Dock`
 
 ---
 
-Still stuck? Open a [GitHub Issue](https://github.com/qingjiuzys/anycode/issues) with OS version, `anycode --version`, steps, and expected behavior.
+Still stuck? [GitHub Issues](https://github.com/qingjiuzys/anycode/issues) — include OS version, anyCode version ( **Settings → About** or Release tag), steps, and screenshots.
 
-简体中文: [常见问题](/zh/guide/troubleshooting).
+简体中文: [常见问题](/docs/zh/guide/troubleshooting).

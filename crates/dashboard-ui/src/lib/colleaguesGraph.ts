@@ -1,7 +1,14 @@
 import type { Edge, Node } from "reactflow";
-import type { LanPeer } from "@/api/client/lan";
 
 export type ColleagueNodeKind = "self" | "peer";
+
+export type GraphPeer = {
+  id: string;
+  name: string;
+  subtitle?: string;
+  /** Preview-only node — not a real cloud peer. */
+  demo?: boolean;
+};
 
 export type ColleagueNodeData = {
   kind: ColleagueNodeKind;
@@ -9,10 +16,12 @@ export type ColleagueNodeData = {
   subtitle?: string;
   peerId?: string;
   online?: boolean;
+  demo?: boolean;
+  initial: string;
 };
 
 const SELF_NODE_ID = "self";
-const RADIUS = 240;
+const RADIUS = 220;
 const CENTER = { x: 0, y: 0 };
 
 function peerPosition(index: number, total: number): { x: number; y: number } {
@@ -24,9 +33,25 @@ function peerPosition(index: number, total: number): { x: number; y: number } {
   };
 }
 
+export function colleagueInitial(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  return trimmed.slice(0, 1).toUpperCase();
+}
+
+/** Mock teammates for empty-state visual preview. */
+export function demoColleagues(): GraphPeer[] {
+  return [
+    { id: "demo_lin", name: "林晓", subtitle: "预览", demo: true },
+    { id: "demo_chen", name: "陈默", subtitle: "预览", demo: true },
+    { id: "demo_zhou", name: "周予", subtitle: "预览", demo: true },
+    { id: "demo_wang", name: "王可", subtitle: "预览", demo: true },
+  ];
+}
+
 export function buildColleaguesGraph(
   selfName: string,
-  peers: LanPeer[],
+  peers: GraphPeer[],
 ): { nodes: Node<ColleagueNodeData>[]; edges: Edge[] } {
   const nodes: Node<ColleagueNodeData>[] = [
     {
@@ -36,35 +61,44 @@ export function buildColleaguesGraph(
       data: {
         kind: "self",
         name: selfName,
-        subtitle: "LAN",
+        subtitle: undefined,
         online: true,
+        initial: colleagueInitial(selfName),
       },
       draggable: false,
     },
   ];
 
-  const edges: Edge[] = peers.map((peer) => {
-    const pos = peerPosition(nodes.length - 1, peers.length);
+  const edges: Edge[] = peers.map((peer, index) => {
+    const pos = peerPosition(index, peers.length);
     nodes.push({
-      id: peer.instance_id,
+      id: peer.id,
       type: "colleague",
       position: pos,
       data: {
         kind: "peer",
-        name: peer.device_name,
-        subtitle: `${peer.host}:${peer.lan_port} · v${peer.version}`,
-        peerId: peer.instance_id,
+        name: peer.name,
+        subtitle: peer.subtitle,
+        peerId: peer.id,
         online: true,
+        demo: peer.demo,
+        initial: colleagueInitial(peer.name),
       },
       draggable: false,
     });
     return {
-      id: `edge-${SELF_NODE_ID}-${peer.instance_id}`,
+      id: `edge-${SELF_NODE_ID}-${peer.id}`,
       source: SELF_NODE_ID,
-      target: peer.instance_id,
-      type: "smoothstep",
-      animated: true,
-      style: { stroke: "var(--colleague-edge, #94a3b8)", strokeWidth: 1.5, strokeDasharray: "6 4" },
+      target: peer.id,
+      type: "straight",
+      animated: !peer.demo,
+      style: {
+        stroke: peer.demo
+          ? "color-mix(in srgb, var(--outline-variant) 80%, transparent)"
+          : "var(--colleague-edge, #94a3b8)",
+        strokeWidth: 1.25,
+        strokeDasharray: peer.demo ? "4 6" : undefined,
+      },
     };
   });
 
@@ -72,5 +106,7 @@ export function buildColleaguesGraph(
 }
 
 export function colleagueGraphFitPadding(peerCount: number): number {
-  return peerCount === 0 ? 0.35 : 0.25;
+  return peerCount === 0 ? 0.45 : 0.3;
 }
+
+export { SELF_NODE_ID };

@@ -9,6 +9,12 @@ read_when:
 
 # 版本与特性开关
 
+## 0.3.1（工作区）
+
+- **交付物卡片**：表格（CSV/XLSX/workbook.json）缩略预览、Office/PDF `preview.html` 侧车、PPT 幻灯片网格、正文大表格卡、Mermaid 流程图块。
+- **Viewer 收敛**：对话卡片与工作台预览共用 `selectDeliverableViewer` 路由。
+- **Skill emit**：`anycode-ppt` 及 office 系列 starter 统一 `ANYCODE_ARTIFACT` + sidecar。
+
 ## 0.3.0（工作区）
 
 - **拷问模式 / Grill Me**：先对齐再动手（`AskUserQuestion` 单问）。

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Timeline · FDE Editorial</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:48px;line-height:1.65;max-width:900px}
+    .timeline{position:relative;max-width:1600px;padding-top:24px}
+    .timeline::before{content:"";position:absolute;left:0;right:0;top:48px;height:2px;background:var(--ink)}
+    .timeline{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+    .mile{border-top:6px solid var(--ink);padding-top:28px}
+    .mile .when{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--accent);margin-bottom:10px}
+    .mile h4{font-family:var(--serif);font-size:20px;font-weight:900;margin:0 0 8px}
+    .mile p{font-size:14px;color:var(--ink-60);line-height:1.5;margin:0}
+    .mile.on{border-top-color:var(--accent);background:rgba(20,0,255,.05);padding:28px 16px 16px;margin-top:-28px}
+    .mile.done{opacity:.75}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">09</span>路线图 · TIMELINE</div>
+    <h3>从 POC 到部门驾驶舱的五步</h3>
+    <p class="lede">按周推进，每步都有可演示里程碑——不要一口气画大饼。</p>
+    <div class="timeline">
+      <div class="mile done"><div class="when">W1</div><h4>对齐场景</h4><p>选 1 个高频任务 + 验收标准</p></div>
+      <div class="mile done"><div class="when">W2</div><h4>接模型</h4><p>API 网关 + 工具表白名单</p></div>
+      <div class="mile on"><div class="when">W3</div><h4>跑通 Harness</h4><p>多轮循环 + 审批 + 日志</p></div>
+      <div class="mile"><div class="when">W4</div><h4>接 Skill</h4><p>HTML slides / docx 等产物链</p></div>
+      <div class="mile"><div class="when">W5</div><h4>内测上线</h4><p>5 人试点 + 指标看板</p></div>
+    </div>
+  </div>
+</body>
+</html>

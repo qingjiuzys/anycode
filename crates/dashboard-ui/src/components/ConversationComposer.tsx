@@ -34,6 +34,7 @@ import {
   type OptimisticQueueItem,
 } from "@/lib/optimisticMessageQueue";
 import { useComposerIme } from "@/lib/composerIme";
+import { chatModelSupportsVision } from "@/lib/composerModels";
 import {
   composerModeForSend,
   grillSlashCommand,
@@ -280,11 +281,10 @@ export function ConversationComposer(props: Props) {
     staleTime: 60_000,
   });
 
-  const chatSupportsVision = useMemo(() => {
-    const activeId = modelsRegistry.data?.active?.chat;
-    const item = (modelsRegistry.data?.items ?? []).find((m) => m.id === activeId);
-    return (item?.capabilities ?? []).includes("vision");
-  }, [modelsRegistry.data?.active?.chat, modelsRegistry.data?.items]);
+  const chatSupportsVision = useMemo(
+    () => chatModelSupportsVision(modelsRegistry.data),
+    [modelsRegistry.data],
+  );
 
   const ingestImageFiles = useCallback(
     async (files: File[]) => {

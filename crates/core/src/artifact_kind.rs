@@ -16,7 +16,7 @@ pub fn artifact_kind_for_path(path: &str) -> &'static str {
         "pdf" => "pdf",
         "pptx" | "ppt" | "key" => "presentation",
         "docx" | "doc" | "rtf" | "odt" => "document",
-        "xlsx" | "xls" | "csv" | "ods" => "document",
+        "xlsx" | "xls" | "csv" | "ods" => "spreadsheet",
         "md" | "markdown" => {
             if lower.contains("mindmap") || lower.contains("mind-map") || lower.contains("导图") {
                 "mindmap"
@@ -27,6 +27,8 @@ pub fn artifact_kind_for_path(path: &str) -> &'static str {
             }
         }
         "mmd" => "mindmap",
+        "json" if lower.contains("workbook") => "spreadsheet",
+        "html" | "htm" if lower.contains("preview") || lower.ends_with("index.html") => "report",
         "ipynb" => "notebook",
         _ => "file",
     }
@@ -70,7 +72,16 @@ pub fn mime_for_path(path: &str) -> &'static str {
 pub fn artifact_kind_is_inline(kind: &str) -> bool {
     matches!(
         kind,
-        "image" | "video" | "audio" | "pdf" | "mindmap" | "presentation" | "document" | "media"
+        "image"
+            | "video"
+            | "audio"
+            | "pdf"
+            | "mindmap"
+            | "presentation"
+            | "document"
+            | "spreadsheet"
+            | "media"
+            | "report"
     )
 }
 
@@ -93,6 +104,10 @@ mod tests {
         assert_eq!(mime_for_path("/a/b/c.png"), "image/png");
         assert_eq!(artifact_kind_for_path("deck.pptx"), "presentation");
         assert_eq!(artifact_kind_for_path("notes.mindmap.md"), "mindmap");
+        assert_eq!(artifact_kind_for_path("sheet.xlsx"), "spreadsheet");
+        assert_eq!(artifact_kind_for_path("data.json"), "file");
+        assert_eq!(artifact_kind_for_path("sales-workbook.json"), "spreadsheet");
+        assert!(artifact_kind_is_inline("spreadsheet"));
         assert!(artifact_kind_is_inline("image"));
         assert!(!artifact_kind_is_inline("bash"));
     }

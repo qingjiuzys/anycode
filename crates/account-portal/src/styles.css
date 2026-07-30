@@ -1,20 +1,20 @@
 :root {
-  --bg: #0a0812;
-  --bg-elevated: #12101c;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-card-elevated: rgba(255, 255, 255, 0.08);
-  --border: rgba(123, 92, 255, 0.12);
-  --border-strong: rgba(123, 92, 255, 0.22);
-  --brand-glow: rgba(123, 92, 255, 0.22);
-  --brand-accent: rgba(123, 92, 255, 0.35);
-  --accent: #7b5cff;
-  --accent-hover: #9580ff;
-  --accent-muted: rgba(123, 92, 255, 0.18);
-  --text: #f5f3ff;
-  --text-muted: #9b97b0;
-  --accent-fg: #0a0812;
-  --link: #b8b0d8;
-  --link-hover: #f5f3ff;
+  --bg: #ffffff;
+  --bg-elevated: #f5f5f7;
+  --bg-card: rgba(0, 0, 0, 0.02);
+  --bg-card-elevated: rgba(0, 0, 0, 0.04);
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --brand-glow: rgba(0, 0, 0, 0.04);
+  --brand-accent: rgba(0, 0, 0, 0.08);
+  --accent: #191919;
+  --accent-hover: #333333;
+  --accent-muted: rgba(0, 0, 0, 0.08);
+  --text: #191919;
+  --text-muted: #6b7280;
+  --accent-fg: #ffffff;
+  --link: #191919;
+  --link-hover: #333333;
   --radius: 12px;
   --radius-lg: 16px;
   --max-width: 1180px;
@@ -350,10 +350,16 @@ a:hover {
   font-family: inherit;
 }
 
-.locale-dropdown--header .locale-dropdown__trigger {
+.locale-dropdown--header .locale-dropdown__trigger:not(.locale-dropdown__trigger--icon) {
   background: rgba(0, 0, 0, 0.35);
   border-color: rgba(255, 255, 255, 0.28);
   color: #fff;
+}
+
+.locale-dropdown--header .locale-dropdown__trigger--icon {
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .locale-dropdown__globe {

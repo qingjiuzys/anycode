@@ -17,16 +17,17 @@ export function TopNav() {
   const isProduct = loc.pathname === SITE_PATHS.product;
   const isPlans = loc.pathname === SITE_PATHS.plans;
   const isDownloads = loc.pathname === SITE_PATHS.downloads;
+  const isChangelog = loc.pathname === SITE_PATHS.changelog;
   const isDocs = loc.pathname.startsWith(SITE_PATHS.docs);
   const isConsole = loc.pathname.startsWith("/console");
   const scrolled = useHomeHeaderScroll(true);
 
-  const headerClass = ["lx-header", scrolled || !isHome ? "is-scrolled" : ""]
+  const headerClass = ["lx-header", scrolled || isHome ? "is-scrolled" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <header className={headerClass} data-theme="dark">
+    <header className={headerClass} data-theme={isHome ? "light" : "dark"}>
       <div className="lx-header__inner">
         <Link className="lx-header__brand" to="/">
           <Logo size="sm" />
@@ -51,6 +52,12 @@ export function TopNav() {
             to={SITE_PATHS.downloads}
           >
             {t("nav.downloads")}
+          </Link>
+          <Link
+            className={`lx-header__link${isChangelog ? " active" : ""}`}
+            to={SITE_PATHS.changelog}
+          >
+            {t("nav.changelog")}
           </Link>
           <Link className={`lx-header__link${isDocs ? " active" : ""}`} to={SITE_PATHS.docs}>
             {t("nav.docs")}

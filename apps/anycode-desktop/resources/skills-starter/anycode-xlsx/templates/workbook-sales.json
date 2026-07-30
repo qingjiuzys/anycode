@@ -1,0 +1,38 @@
+{
+  "title": "Q2 Sales Workbook",
+  "sheets": [
+    {
+      "name": "Summary",
+      "rows": [
+        ["Metric", "Q2 Value", "QoQ"],
+        ["Total Revenue", 1280000, "12%"],
+        ["Units Sold", 8420, "8%"],
+        ["Active Regions", 6, "0%"],
+        ["Win Rate", 0.34, "2pp"]
+      ]
+    },
+    {
+      "name": "Detail",
+      "rows": [
+        ["Region", "Product", "Units", "Revenue", "Owner"],
+        ["APAC", "Pro", 120, 480000, "Lin Wei"],
+        ["APAC", "Team", 85, 255000, "Lin Wei"],
+        ["EMEA", "Pro", 95, 380000, "Priya Nair"],
+        ["EMEA", "Team", 60, 180000, "Priya Nair"],
+        ["NA", "Pro", 110, 440000, "Alex Chen"],
+        ["NA", "Team", 72, 216000, "Alex Chen"],
+        ["LATAM", "Pro", 45, 135000, "Maria Santos"],
+        ["LATAM", "Team", 30, 90000, "Maria Santos"]
+      ]
+    },
+    {
+      "name": "Pricing",
+      "rows": [
+        ["Tier", "List Price", "Discount", "Net", "Status"],
+        ["Pro", 4000, "10%", 3600, "Active"],
+        ["Team", 3000, "15%", 2550, "Active"],
+        ["Enterprise", 8000, "20%", 6400, "Active"]
+      ]
+    }
+  ]
+}

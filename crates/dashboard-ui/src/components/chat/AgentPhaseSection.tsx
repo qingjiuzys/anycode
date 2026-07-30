@@ -97,17 +97,22 @@ export const AgentPhaseSection = memo(function AgentPhaseSection({
           if (!live) setCollapsed((v) => !v);
         }}
         aria-expanded={expanded}
+        aria-label={expanded ? t("common.collapse") : t("common.expand")}
         disabled={live}
       >
+        {!live && (
+          <Icon
+            name={expanded ? "expand_more" : "chevron_right"}
+            size={18}
+            className="transcript-expand-icon shrink-0"
+          />
+        )}
         <Icon name={live ? "progress_activity" : "route"} size={14} className={live ? "animate-spin" : ""} />
         <span>{t(phaseTitleKey(phase))}</span>
         {workStageKey && (
           <span className="agent-phase-section__work-stage">{t(workStageKey)}</span>
         )}
         {live && <span className="agent-progress-card__live-dot" aria-hidden />}
-        {!live && (
-          <Icon name={expanded ? "expand_more" : "chevron_right"} size={14} className="ml-auto" />
-        )}
       </button>
 
       {(expanded || live) && (

@@ -5,12 +5,12 @@
 <h1 align="center">anyCode</h1>
 
 <p align="center">
-  <strong>企业自主可控 Agent</strong>
+  <strong>企业级开源免费 Agent · 支持独立部署</strong>
 </p>
 
 <p align="center">
   本地优先 · BYOK · 数据不出端<br/>
-  在你自己的机器上跑 Agent，而不是把代码与业务交给云端黑盒。
+  在你自己的机器或内网跑 Agent，而不是把代码与业务交给云端黑盒。
 </p>
 
 <p align="center">
@@ -25,6 +25,28 @@
   <img alt="rust" src="https://img.shields.io/badge/rust-edition%202021-orange.svg" />
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg" />
   <img alt="status" src="https://img.shields.io/badge/status-%E5%8F%97%E9%82%80%E5%86%85%E6%B5%8B-yellow.svg" />
+</p>
+
+---
+
+## 一眼看懂
+
+<p align="center">
+  <a href="https://anycode.work">
+    <img src="docs/user/assets/screenshots/home.png" alt="anyCode 企业级 Agent 工作台 — 支持在本机或内网独立部署" width="920" />
+  </a>
+</p>
+
+<p align="center">
+  <sub><strong>企业级 · 开源免费（MIT）· 可独立部署</strong> — Digital Workbench 跑在你的硬件上，模型 BYOK，审批与策略可配置</sub>
+</p>
+
+<p align="center">
+  <img src="docs/user/assets/screenshots/colleagues.png" alt="团队交接与协作 — 局域网或组织内流式交接" width="920" />
+</p>
+
+<p align="center">
+  <sub>团队协作：局域网 mDNS 发现 + 云端 A2A 流式交接（包体不经 OSS），适合内网落地与合规场景</sub>
 </p>
 
 ---
@@ -213,5 +235,5 @@ cd crates/account-portal && npm install && npm run dev
 ---
 
 <p align="center">
-  <sub>企业自主可控 Agent — 执行在本地，协作可交接，动手前先对齐。</sub>
+  <sub>企业级开源免费 Agent · 支持独立部署 — 执行在本地，协作可交接，动手前先对齐。</sub>
 </p>

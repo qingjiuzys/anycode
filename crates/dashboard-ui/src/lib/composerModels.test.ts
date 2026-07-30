@@ -4,6 +4,8 @@ import {
   inferAutoFromRegistry,
   listChatModels,
   modelLabel,
+  modelLikelySupportsVision,
+  chatModelSupportsVision,
   modelSubtitle,
 } from "@/lib/composerModels";
 import type { ConfiguredModel, ModelsRegistryView } from "@/api/types";
@@ -102,5 +104,21 @@ describe("composerModels", () => {
       ],
     };
     expect(inferAutoFromRegistry(registry)).toBe(false);
+  });
+
+  it("detects likely vision models by name", () => {
+    expect(modelLikelySupportsVision("gpt-4o")).toBe(true);
+    expect(modelLikelySupportsVision("kimi-k2.5")).toBe(true);
+    expect(modelLikelySupportsVision("text-embedding-3-small")).toBe(false);
+  });
+
+  it("allows attachments when active chat model likely supports vision", () => {
+    const registry: ModelsRegistryView = {
+      config_present: true,
+      active: { chat: "kimi" },
+      model_fallback: {},
+      items: [chatItem({ id: "kimi", provider: "moonshot", model: "kimi-k2.5" })],
+    };
+    expect(chatModelSupportsVision(registry)).toBe(true);
   });
 });

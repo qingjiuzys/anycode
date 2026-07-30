@@ -1,0 +1,52 @@
+{
+  "title": "Q2 Finance Quarterly Review",
+  "sheets": [
+    {
+      "name": "Summary",
+      "rows": [
+        ["Line", "Actual", "Budget", "Variance %"],
+        ["Revenue", 4200000, 4000000, "5.0%"],
+        ["COGS", 1680000, 1600000, "5.0%"],
+        ["Opex", 1260000, 1200000, "5.0%"],
+        ["EBITDA", 1260000, 1200000, "5.0%"]
+      ]
+    },
+    {
+      "name": "P&L",
+      "rows": [
+        ["Account", "Jan", "Feb", "Mar", "Q2 Total"],
+        ["Product Revenue", 380000, 410000, 430000, 1220000],
+        ["Service Revenue", 280000, 290000, 310000, 880000],
+        ["Total Revenue", 660000, 700000, 740000, 2100000],
+        ["COGS", 264000, 280000, 296000, 840000],
+        ["Gross Profit", 396000, 420000, 444000, 1260000],
+        ["Sales & Marketing", 99000, 105000, 111000, 315000],
+        ["R&D", 132000, 140000, 148000, 420000],
+        ["G&A", 66000, 70000, 74000, 210000],
+        ["EBITDA", 99000, 105000, 111000, 315000]
+      ]
+    },
+    {
+      "name": "Detail",
+      "rows": [
+        ["Cost Center", "Category", "Amount", "Owner", "Note"],
+        ["CC-100", "Cloud Infra", 420000, "Ops", "ACK + CDN"],
+        ["CC-200", "LLM API", 380000, "Platform", "Multi-model gateway"],
+        ["CC-300", "Headcount", 520000, "HR", "Net +3 FTE"],
+        ["CC-400", "Marketing", 180000, "Growth", "Launch campaign"],
+        ["CC-500", "Facilities", 60000, "Admin", "Office lease"],
+        ["CC-600", "Legal", 40000, "Legal", "Contract review"]
+      ]
+    },
+    {
+      "name": "Disclaimer",
+      "rows": [
+        ["Note", "Value"],
+        ["Classification", "Internal — Finance Only"],
+        ["Prepared by", "FP&A Team"],
+        ["Date", "2026-07-26"],
+        ["Disclaimer", "Figures subject to audit adjustment"]
+      ]
+    }
+  ]
+}

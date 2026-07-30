@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ProductArchDiagram } from "../components/ProductArchDiagram";
 import { useLocale, useT } from "../i18n/context";
 import { DESKTOP_DOWNLOAD_URL } from "../lib/desktopDownload";
 import { useAuth } from "../hooks/useAuth";
@@ -123,90 +124,58 @@ export function ProductPage() {
 
   return (
     <div className="nx-site nx-site--product">
-      <section className="nx-product-screen nx-product-screen--arch" aria-labelledby="nx-product-title">
-        <div className="nx-frame nx-product-screen__inner">
-          <header className="nx-page-hero">
-            <p className="nx-kicker">{copy.kicker}</p>
-            <h1 id="nx-product-title">{copy.title}</h1>
-            <p className="nx-page-hero__lead">{copy.body}</p>
-          </header>
+      <section className="nx-product-onepage" aria-labelledby="nx-product-title">
+        <div className="nx-frame nx-product-onepage__inner">
+          <div className="nx-product-onepage__intro">
+            <header className="nx-page-hero">
+              <p className="nx-kicker">{copy.kicker}</p>
+              <h1 id="nx-product-title">{copy.title}</h1>
+              <p className="nx-page-hero__lead">{copy.body}</p>
+            </header>
 
-          <div className="nx-arch-flow">
-            <div className="nx-arch-flow__zone">
-              <div className="nx-arch-flow__zone-head">
-                <span>{copy.localCore}</span>
-                <strong>DEVICE / 127.0.0.1</strong>
-              </div>
-              <div className="nx-arch-flow__nodes">
-                <div>
-                  <span>01</span>
-                  <strong>Agent Runtime</strong>
-                </div>
-                <div>
-                  <span>02</span>
-                  <strong>Tools + Skills</strong>
-                </div>
-                <div>
-                  <span>03</span>
-                  <strong>{copy.nativeMedia}</strong>
-                </div>
-                <div>
-                  <span>04</span>
-                  <strong>{copy.secureContext}</strong>
-                </div>
-              </div>
-              <p>{copy.localBoundary}</p>
-            </div>
-
-            <div className="nx-arch-flow__bridge" aria-hidden>
-              <span>{copy.modelRouter}</span>
-            </div>
-
-            <div className="nx-arch-flow__zone nx-arch-flow__zone--cloud">
-              <div className="nx-arch-flow__zone-head">
-                <span>{copy.optionalCloud}</span>
-                <strong>ANYCODE.WORK</strong>
-              </div>
-              <div className="nx-arch-flow__cloud">
-                <span>Cloud Auto</span>
-                <span>Agnes Chat</span>
-                <b>API</b>
-              </div>
-              <p>{copy.cloudBoundary}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="nx-product-screen nx-product-screen--stack" aria-labelledby="nx-product-stack-title">
-        <div className="nx-frame nx-product-screen__inner">
-          <header className="nx-page-hero">
-            <p className="nx-kicker">{copy.pillarsKicker}</p>
-            <h2 id="nx-product-stack-title">{copy.pillarsTitle}</h2>
-            <p className="nx-page-hero__lead">{copy.pillarsLead}</p>
-          </header>
-
-          <div className="nx-product__pillar-grid nx-product__pillar-grid--loose">
-            {copy.pillars.map((item) => (
-              <article className="nx-product__pillar" key={item.code}>
-                <span className="nx-product__pillar-code">{item.code}</span>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
-            ))}
+            <ProductArchDiagram
+              copy={{
+                localCore: copy.localCore,
+                optionalCloud: copy.optionalCloud,
+                localBoundary: copy.localBoundary,
+                cloudBoundary: copy.cloudBoundary,
+                modelRouter: copy.modelRouter,
+                nativeMedia: copy.nativeMedia,
+                secureContext: copy.secureContext,
+              }}
+            />
           </div>
 
-          <aside className="nx-product__stays nx-product__stays--band">
-            <header className="nx-product__block-head">
+          <div className="nx-product-onepage__stack">
+            <header className="nx-product-onepage__stack-head">
+              <p className="nx-kicker">{copy.pillarsKicker}</p>
+              <h2>{copy.pillarsTitle}</h2>
+              <p>{copy.pillarsLead}</p>
+            </header>
+
+            <div className="nx-product__pillar-grid nx-product__pillar-grid--compact">
+              {copy.pillars.map((item) => (
+                <article className="nx-product__pillar" key={item.code}>
+                  <span className="nx-product__pillar-code">{item.code}</span>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <aside className="nx-product-onepage__cta">
+            <div className="nx-product-onepage__stays">
               <p className="nx-kicker">{copy.staysKicker}</p>
               <h2>{copy.staysTitle}</h2>
-            </header>
-            <ul>
-              {copy.stays.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-            <div className="nx-product__actions">
+              <ul>
+                {copy.stays.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="nx-product-onepage__actions">
               <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
                 {t("hero.ctaDownload")} <span aria-hidden>↓</span>
               </a>

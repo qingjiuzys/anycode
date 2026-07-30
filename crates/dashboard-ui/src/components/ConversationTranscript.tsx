@@ -12,7 +12,9 @@ import {
 } from "@/components/TranscriptCommandBlock";
 import { TranscriptMarkdown } from "@/components/TranscriptMarkdown";
 import { ToolTraceCluster } from "@/components/chat/ToolTraceCluster";
+import { TaskReceiptCard } from "@/components/chat/TaskReceiptCard";
 import { isStatusMessage } from "@/lib/agentActivitySummary";
+import { isTaskSummaryReceipt } from "@/lib/taskSummaryReceipt";
 import {
   CollapsiblePanel,
   previewLines,
@@ -43,6 +45,8 @@ import {
   SESSION_QUERY_GC_MS,
   transcriptQueryOptions,
 } from "@/lib/sessionQuery";
+import { collectInlineDeliverables } from "@/lib/deliverableInference";
+import { isArtifactScaffoldOnly } from "@/lib/artifactMarker";
 import { sanitizeAssistantDisplay } from "@/lib/assistantText";
 import {
   isScrollNearBottom,
@@ -75,6 +79,7 @@ import type { SessionLiveState } from "@/lib/sessionLiveStore";
 
 interface Props {
   sessionId: string | null;
+  projectId?: string | null;
   modelName?: string | null;
   isRunning?: boolean;
   /** Canonical merge / polling stream mode (prefer over raw sseLive + chatStreamLive). */
@@ -112,6 +117,7 @@ function getScrollContainer(
 
 export function ConversationTranscript({
   sessionId,
+  projectId,
   modelName,
   isRunning,
   streamLive: streamLiveOverride,
@@ -398,6 +404,7 @@ export function ConversationTranscript({
                 isRunning={Boolean(isRunning)}
                 streamHasActivity={turnHasActivity}
                 sessionId={sessionId}
+                projectId={projectId ?? undefined}
                 modelName={modelName}
                 selectedToolId={selectedToolId}
                 onSelectTool={onSelectTool}
@@ -428,6 +435,7 @@ export function ConversationTranscript({
           isRunning={Boolean(isRunning)}
           streamHasActivity={turnHasActivity}
           sessionId={sessionId}
+          projectId={projectId ?? undefined}
           modelName={modelName}
           selectedToolId={selectedToolId}
           onSelectTool={onSelectTool}
@@ -450,6 +458,7 @@ function ConversationTurnView({
   isRunning,
   streamHasActivity,
   sessionId,
+  projectId,
   modelName,
   selectedToolId,
   onSelectTool,
@@ -464,6 +473,7 @@ function ConversationTurnView({
   isRunning: boolean;
   streamHasActivity?: boolean;
   sessionId: string;
+  projectId?: string;
   modelName?: string | null;
   selectedToolId?: string | null;
   onSelectTool?: (tool: TranscriptBlock) => void;
@@ -541,6 +551,18 @@ function ConversationTurnView({
     }
     return null;
   }, [replyItems, isLast, isRunning]);
+
+  const markerDeliverablesByBlockId = useMemo(
+    () => collectInlineDeliverables(replyItems, projectId),
+    [replyItems, projectId],
+  );
+  const turnHasDeliverableBlocks = useMemo(
+    () =>
+      replyItems.some(
+        (item) => item.kind === "block" && item.block.block_type === "deliverable",
+      ),
+    [replyItems],
+  );
 
   const showRecapHeader = isLast && isRunning;
   const hideBubbleTimestamps = isLast && isRunning;
@@ -677,25 +699,50 @@ function ConversationTurnView({
           if (!deliverable) return null;
           return (
             <MessageRow key={block.id} align="left">
-              <DeliverableCard {...deliverable} />
+              <DeliverableCard {...deliverable} projectId={deliverable.projectId ?? projectId ?? undefined} />
             </MessageRow>
           );
         }
         if (block.block_type === "assistant_message") {
-          if (!block.body.trim() && !block.meta?.live) return null;
+          const markerDeliverables = markerDeliverablesByBlockId.get(block.id) ?? [];
+          const displayBody = sanitizeAssistantDisplay(block.body, locale);
+          const scaffoldEcho =
+            isArtifactScaffoldOnly(block.body) || isArtifactScaffoldOnly(displayBody);
+          const hasDeliverables =
+            markerDeliverables.length > 0 || turnHasDeliverableBlocks;
+          if (!displayBody.trim() && !block.meta?.live && markerDeliverables.length === 0) {
+            return null;
+          }
           const isFinal =
             itemIndex === finalAssistantIndex ||
             (isLast && isRunning && block.meta?.live === true && itemIndex === activeSegmentIndex);
+          const showReplyBubble =
+            (displayBody.trim().length > 0 || Boolean(block.meta?.live)) &&
+            !(scaffoldEcho && hasDeliverables && !block.meta?.live);
+          if (!showReplyBubble && markerDeliverables.length === 0) {
+            return null;
+          }
           return (
             <MessageRow key={block.id} align="left">
-              <ReplyBubble
-                block={block}
-                modelName={modelName}
-                showStreamCursor={block.id === lastLiveAssistantBlockId}
-                forceStreamSmooth={isLast && isRunning}
-                hideTimestamp={hideBubbleTimestamps}
-                collapsed={!segmentExpanded && !isFinal}
-              />
+              <div className="flex flex-col gap-3 w-full max-w-[min(100%,42rem)]">
+                {showReplyBubble ? (
+                  <ReplyBubble
+                    block={block}
+                    modelName={modelName}
+                    showStreamCursor={block.id === lastLiveAssistantBlockId}
+                    forceStreamSmooth={isLast && isRunning}
+                    hideTimestamp={hideBubbleTimestamps}
+                    collapsed={!segmentExpanded && !isFinal}
+                  />
+                ) : null}
+                {markerDeliverables.map((deliverable) => (
+                  <DeliverableCard
+                    key={deliverable.path}
+                    {...deliverable}
+                    projectId={deliverable.projectId ?? projectId ?? undefined}
+                  />
+                ))}
+              </div>
             </MessageRow>
           );
         }
@@ -797,8 +844,9 @@ function TimelineProgressLine({
         className="agent-narration-fold"
         onClick={() => setUserPinned(true)}
         aria-expanded={false}
+        aria-label={t("common.expand")}
       >
-        <Icon name="chevron_right" size={14} />
+        <Icon name="chevron_right" size={18} className="transcript-expand-icon" />
         <span className="agent-narration-fold__text">{preview.replace(/\s+/g, " ")}</span>
       </button>
     );
@@ -812,9 +860,9 @@ function TimelineProgressLine({
           className="agent-narration-fold agent-narration-fold--open"
           onClick={() => setUserPinned(false)}
           aria-expanded
+          aria-label={t("common.collapse")}
         >
-          <Icon name="expand_more" size={14} />
-          <span className="agent-narration-fold__hint">{t("common.collapse")}</span>
+          <Icon name="expand_more" size={18} className="transcript-expand-icon" />
         </button>
       ) : null}
       {mdBody ? (
@@ -950,8 +998,9 @@ const ReplyBubble = memo(function ReplyBubble({
         className="agent-narration-fold"
         onClick={() => setUserExpanded(true)}
         aria-expanded={false}
+        aria-label={t("common.expand")}
       >
-        <Icon name="chevron_right" size={14} />
+        <Icon name="chevron_right" size={18} className="transcript-expand-icon" />
         <span className="agent-narration-fold__text">{preview}</span>
       </button>
     );
@@ -1023,6 +1072,26 @@ const ReplyBubble = memo(function ReplyBubble({
           </time>
         )}
       </CollapsiblePanel>
+    );
+  }
+
+  if (isFinalReply && isTaskSummaryReceipt(displayBody)) {
+    return (
+      <div className="group relative max-w-[min(100%,42rem)]">
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
+          {headerActions}
+        </div>
+        <TaskReceiptCard
+          body={smoothedBody}
+          live={visuallyStreaming}
+          showCursor={showCursor}
+        />
+        {!hideTimestamp && (
+          <time className="block mt-2 text-[11px] text-secondary">
+            {formatRelativeTime(block.at)}
+          </time>
+        )}
+      </div>
     );
   }
 

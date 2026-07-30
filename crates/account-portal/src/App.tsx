@@ -7,6 +7,7 @@ import { I18nProvider } from "./i18n/context";
 import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { BillingPage } from "./pages/BillingPage";
 import { CaseDetailPage } from "./pages/CaseDetailPage";
+import { ChangelogPage } from "./pages/ChangelogPage";
 import { DownloadsPage } from "./pages/DownloadsPage";
 import { FeaturesPage } from "./pages/FeaturesPage";
 import { HomePage } from "./pages/HomePage";
@@ -64,6 +65,7 @@ function AppRoutes() {
           <Route path={SITE_PATHS.product} element={<ProductPage />} />
           <Route path={SITE_PATHS.plans} element={<MarketingPlansPage />} />
           <Route path={SITE_PATHS.downloads} element={<DownloadsPage />} />
+          <Route path={SITE_PATHS.changelog} element={<ChangelogPage />} />
           <Route path="/cases/:caseId" element={<CaseDetailPage />} />
           <Route path="/home-classic" element={<HomePage />} />
           <Route path={SITE_PATHS.login} element={<LoginPage />} />

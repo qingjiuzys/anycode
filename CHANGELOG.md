@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.3.1
+
+### Added
+
+- **Deliverable cards**: spreadsheet (CSV/XLSX/workbook.json) thumbnails, HTML preview sidecars for Office/PDF, PPT slide grid, inline GFM table cards, Mermaid diagram blocks.
+- **Skill emit**: `anycode-ppt` and office starters emit `ANYCODE_ARTIFACT` with `preview_path`.
+- **Portal changelog**: `/changelog` vertical release timeline (zh/en).
+
+### Changed
+
+- Consolidated deliverable viewers (`DeliverableCompactShell`, `selectDeliverableViewer`); `DeliverableCard` and workbench `FilePreview` share routing.
+- User docs: L0–L3 parsing layers (zh/en deliverables guides) with refreshed screenshots.
+- **Marketing site**: product page single-viewport layout + SVG architecture diagram; downloads page copy-left / download card-right.
+
+### Fixed
+
+- Assistant `anycode` product echo preserved when artifact markers are stripped.
+- Missing `web` / `table_chart` icon registrations.
+
 ## 0.3.0
 
 ### Added

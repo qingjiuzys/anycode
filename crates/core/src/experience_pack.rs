@@ -172,7 +172,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
     ExperiencePack {
         meta: ExperiencePackMeta {
             id: "anycode-builtin".into(),
-            version: "0.3.0".into(),
+            version: "0.3.1".into(),
             model_compat: weak_compat(),
             regression_score: 0.86,
             created_at: None,
@@ -236,7 +236,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 ],
                 model_compat: weak_compat(),
                 regression_score: 0.9,
-                version: "0.3.0".into(),
+                version: "0.3.1".into(),
             },
             ExperienceCard {
                 id: "code.cross-file-verify".into(),
@@ -275,7 +275,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 ],
                 model_compat: weak_compat(),
                 regression_score: 0.91,
-                version: "0.3.0".into(),
+                version: "0.3.1".into(),
             },
             ExperienceCard {
                 id: "office.pptx-briefing".into(),
@@ -606,7 +606,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 examples: vec!["SaaS billing: orgs → users → plans → subscriptions → invoices".into()],
                 model_compat: weak_compat(),
                 regression_score: 0.88,
-                version: "0.3.0".into(),
+                version: "0.3.1".into(),
             },
             ExperienceCard {
                 id: "sql.query-safe".into(),
@@ -642,7 +642,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 ],
                 model_compat: weak_compat(),
                 regression_score: 0.9,
-                version: "0.3.0".into(),
+                version: "0.3.1".into(),
             },
         ],
     }

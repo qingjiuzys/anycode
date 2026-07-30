@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Cover · FDE Editorial</title>
+  <style>
+    :root{
+      --bg:#f2f5f0; --ink:#231f20; --accent:#1400ff;
+      --ink-60:rgba(35,31,32,.6); --ink-40:rgba(35,31,32,.4); --ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+      --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    }
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{position:relative;padding:96px 110px 84px;height:100%;box-sizing:border-box;border-bottom:8px solid var(--ink)}
+    .meta-line{font-family:var(--mono);font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-60);display:flex;gap:44px;flex-wrap:wrap}
+    .meta-line b{color:var(--accent);font-weight:700}
+    .brand-tag{position:absolute;top:96px;right:110px;font-family:var(--mono);font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-40)}
+    h1{font-family:var(--serif);font-weight:900;font-size:92px;line-height:1.14;margin:150px 0 0;letter-spacing:.01em;max-width:1500px}
+    h1 .thin{font-weight:400;color:var(--ink-60)}
+    .statement{font-family:var(--serif);font-size:34px;line-height:1.6;margin-top:52px;max-width:1150px}
+    .statement strong{color:var(--accent);font-weight:900}
+    .ladder{margin-top:96px;display:flex;border:1px solid var(--ink)}
+    .rung{flex:1;font-family:var(--mono);padding:20px 24px;border-right:1px solid var(--ink)}
+    .rung:last-child{border-right:none}
+    .rung small{display:block;font-size:12px;letter-spacing:.12em;color:var(--ink-40);text-transform:uppercase;margin-bottom:6px}
+    .rung b{font-size:22px;font-weight:700}
+    .rung.final{background:var(--accent);color:#fff}
+    .rung.final small{color:rgba(255,255,255,.6)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="cover">
+    <div class="meta-line">
+      <span><b>DECK</b> 演示文稿</span>
+      <span>6 章节 · 24 页</span>
+      <span>2026-07-24</span>
+    </div>
+    <div class="brand-tag">CONFIDENTIAL · V1.0</div>
+    <h1>主标题：一句话价值主张<br><span class="thin">副标题：受众 · 场景 · 差异化</span></h1>
+    <p class="statement">核心论断一句话，<strong>关键词用强调色</strong>，其余保持墨色。</p>
+    <div class="ladder">
+      <div class="rung"><small>章节 01</small><b>背景</b></div>
+      <div class="rung"><small>章节 02</small><b>问题</b></div>
+      <div class="rung"><small>章节 03</small><b>方案</b></div>
+      <div class="rung"><small>章节 04</small><b>证据</b></div>
+      <div class="rung final"><small>章节 05</small><b>行动</b></div>
+    </div>
+  </div>
+</body>
+</html>

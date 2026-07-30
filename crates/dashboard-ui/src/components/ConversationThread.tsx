@@ -311,6 +311,7 @@ export function ConversationThread({
         <div className="conv-thread-body">
           <ConversationTranscript
             sessionId={session.id}
+            projectId={session.project_id}
             modelName={session.model}
             isRunning={running}
             streamLive={streamLive}

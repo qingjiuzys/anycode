@@ -11,12 +11,17 @@ type MenuState = {
 type Props = {
   onProjectHandoff: (peerId: string) => void;
   onSessionHandoff: (peerId: string) => void;
-  children: (handlers: {
-    onContextMenu: (peerId: string, event: React.MouseEvent) => void;
-  }) => React.ReactNode;
+  /** Expose open-at-pointer so click and right-click can share the same menu. */
+  onReady?: (open: (peerId: string, event: React.MouseEvent) => void) => void;
+  children: React.ReactNode;
 };
 
-export function ColleagueContextMenu({ onProjectHandoff, onSessionHandoff, children }: Props) {
+export function ColleagueContextMenu({
+  onProjectHandoff,
+  onSessionHandoff,
+  onReady,
+  children,
+}: Props) {
   const t = useT();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [submenuOpen, setSubmenuOpen] = useState(false);
@@ -50,9 +55,13 @@ export function ColleagueContextMenu({ onProjectHandoff, onSessionHandoff, child
     setMenu({ peerId, x: event.clientX, y: event.clientY });
   }, []);
 
+  useEffect(() => {
+    onReady?.(onContextMenu);
+  }, [onReady, onContextMenu]);
+
   return (
     <>
-      {children({ onContextMenu })}
+      {children}
       {menu &&
         createPortal(
           <div

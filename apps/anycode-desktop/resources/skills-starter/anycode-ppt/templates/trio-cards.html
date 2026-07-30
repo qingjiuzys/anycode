@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Trio Cards · FDE Editorial</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:36px;line-height:1.65;max-width:900px}
+    .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1600px}
+    .card{border:1px solid var(--ink);padding:28px 24px;background:rgba(255,255,255,.35);min-height:420px}
+    .card .lab{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:14px}
+    .card h4{font-family:var(--serif);font-size:24px;font-weight:900;margin:0 0 16px;line-height:1.25}
+    .card p{font-size:15px;color:var(--ink-60);line-height:1.6;margin:0 0 12px}
+    .card ul{margin:0;padding:0;list-style:none}
+    .card li{font-size:14px;line-height:1.5;color:var(--ink-60);padding:8px 0;border-top:1px solid var(--ink-08)}
+    .card.hot{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+    .card.hot .lab{color:rgba(242,245,240,.7)}
+    .card.hot h4,.card.hot p,.card.hot li{color:rgba(242,245,240,.85)}
+    .card.hot li{border-top-color:rgba(242,245,240,.15)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">06</span>三要点 · TRIO</div>
+    <h3>落地 Agent 的三条硬约束</h3>
+    <p class="lede">产品、工程、运营各拿一条——缺任何一条，驾驶舱都会变成「只会聊天的网页」。</p>
+    <div class="trio">
+      <div class="card">
+        <div class="lab">01 · 模型</div>
+        <h4>选对推理入口</h4>
+        <p>长上下文、工具调用稳定、失败可重试。</p>
+        <ul><li>统一 API 网关</li><li>成本与延迟可见</li><li>多模型 fallback</li></ul>
+      </div>
+      <div class="card hot">
+        <div class="lab">02 · Harness</div>
+        <h4>多轮循环是 spine</h4>
+        <p>规划、记忆、审批、日志——模型本身不会替你跑完。</p>
+        <ul><li>ToolRegistry 白名单</li><li>Cooperative cancel</li><li>Session 持久化</li></ul>
+      </div>
+      <div class="card">
+        <div class="lab">03 · 产物</div>
+        <h4>可交付、可验收</h4>
+        <p>每次 run 必须落盘 artifact，不是聊天泡泡。</p>
+        <ul><li>HTML slides / docx</li><li>evidence 预览</li><li>门禁 validate</li></ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

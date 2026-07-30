@@ -280,16 +280,29 @@ function sanitizeForEn(text: string): string {
   return stripTrailingChineseTail(out, "en");
 }
 
+import { stripArtifactMarkers, isArtifactScaffoldOnly } from "@/lib/artifactMarker";
+
+function stripLeadingProductEcho(text: string): string {
+  return text.replace(/^anycode\s*\r?\n/i, "").trimStart();
+}
+
 /** Sanitize assistant text for the active UI locale (symmetric zh/en scaffold removal). */
 export function sanitizeAssistantDisplay(text: string, locale: string): string {
-  const normalized = normalizeDecorativeRules(text);
+  const normalized = normalizeDecorativeRules(
+    stripLeadingProductEcho(stripArtifactMarkers(text)),
+  );
+  let result: string;
   if (locale.startsWith("zh")) {
-    return sanitizeForZh(normalized);
+    result = sanitizeForZh(normalized);
+  } else if (locale.startsWith("en")) {
+    result = sanitizeForEn(normalized);
+  } else {
+    result = normalized;
   }
-  if (locale.startsWith("en")) {
-    return sanitizeForEn(normalized);
+  if (isArtifactScaffoldOnly(result)) {
+    return /^anycode$/i.test(result.trim()) ? "anycode" : "";
   }
-  return normalized;
+  return result;
 }
 
 /** Turn lone *** / --- lines into blank lines so GFM doesn't leave raw asterisks. */

@@ -9,6 +9,9 @@ import python from "highlight.js/lib/languages/python";
 import markdown from "highlight.js/lib/languages/markdown";
 import { useMemo } from "react";
 import { useProjectFsRead } from "../hooks/useProjectFileTree";
+import { kindForPath } from "@/lib/artifactKind";
+import { basename } from "@/lib/pathUtils";
+import { selectDeliverableViewer } from "@/lib/selectDeliverableViewer";
 import { useT } from "@/i18n/context";
 
 hljs.registerLanguage("rust", rust);
@@ -41,9 +44,19 @@ function langFromMime(mime: string, path: string): string {
   return "plaintext";
 }
 
+const PREVIEW_KINDS = new Set([
+  "mindmap",
+  "report",
+  "spreadsheet",
+  "presentation",
+  "document",
+]);
+
 export function FilePreview({ projectId, filePath }: Props) {
   const t = useT();
   const read = useProjectFsRead(projectId, filePath);
+  const fileKind = filePath ? kindForPath(filePath) : "file";
+  const fileName = filePath ? basename(filePath) : "";
 
   const html = useMemo(() => {
     if (!read.data?.file) return "";
@@ -75,15 +88,28 @@ export function FilePreview({ projectId, filePath }: Props) {
     );
   }
 
+  if (PREVIEW_KINDS.has(fileKind) || (fileKind === "document" && /\.(docx?|xlsx?)$/i.test(filePath))) {
+    return (
+      <div className="flex flex-col min-h-0 h-full border-t border-outline-variant/60 p-3 bg-white">
+        {selectDeliverableViewer({
+          path: filePath,
+          title: fileName,
+          projectId,
+          variant: "full",
+        })}
+      </div>
+    );
+  }
+
   const file = read.data!.file;
 
   return (
-    <div className="flex flex-col min-h-0 h-full border-t border-outline-variant/60">
+    <div className="flex flex-col min-h-0 h-full border-t border-outline-variant/60 bg-white">
       <div className="px-3 py-1.5 text-[10px] font-code text-secondary truncate border-b border-outline-variant/40 shrink-0">
         {file.path}
         {file.truncated ? ` · ${t("workbench.truncated")}` : ""}
       </div>
-      <pre className="flex-1 min-h-0 overflow-auto m-0 p-3 text-[11px] font-code leading-relaxed bg-surface-container-lowest">
+      <pre className="flex-1 min-h-0 overflow-auto m-0 p-3 text-[11px] font-code leading-relaxed bg-white">
         <code dangerouslySetInnerHTML={{ __html: html }} />
       </pre>
     </div>

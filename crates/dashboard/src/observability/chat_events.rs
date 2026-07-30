@@ -16,6 +16,92 @@ fn artifact_title_for_path_fallback(path: &str, kind: &str) -> String {
     }
 }
 
+/// Strip `ANYCODE_ARTIFACT:{...}` protocol lines from assistant display text.
+fn strip_artifact_markers(text: &str) -> String {
+    let mut marker_paths = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        let Some(json_part) = trimmed.strip_prefix("ANYCODE_ARTIFACT:") else {
+            continue;
+        };
+        if let Ok(v) = serde_json::from_str::<Value>(json_part.trim()) {
+            if let Some(path) = v.get("path").and_then(|p| p.as_str()) {
+                marker_paths.push(path.to_string());
+            }
+        }
+    }
+    let had_markers = !marker_paths.is_empty();
+    let stripped = text
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            if trimmed.contains("ANYCODE_ARTIFACT:") {
+                return false;
+            }
+            if marker_paths.iter().any(|path| path == trimmed) {
+                return false;
+            }
+            if had_markers && is_artifact_scaffold_line(trimmed, &marker_paths) {
+                return false;
+            }
+            true
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string();
+    if is_artifact_scaffold_only(&stripped) {
+        return String::new();
+    }
+    stripped
+}
+
+fn is_artifact_scaffold_line(line: &str, marker_paths: &[String]) -> bool {
+    use std::path::Path;
+
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    if trimmed.eq_ignore_ascii_case("anycode") {
+        return true;
+    }
+    for path in marker_paths {
+        let base = Path::new(path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        if !base.is_empty() && trimmed == base {
+            return true;
+        }
+        let base_no_ext = base.rsplit_once('.').map(|(name, _)| name).unwrap_or(base);
+        if !base_no_ext.is_empty() && trimmed.eq_ignore_ascii_case(base_no_ext) {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_artifact_scaffold_only(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    if trimmed.eq_ignore_ascii_case("anycode") {
+        return true;
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return false;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    lower.ends_with(".md")
+        || lower.ends_with(".markdown")
+        || lower.ends_with(".html")
+        || lower.ends_with(".pdf")
+        || lower.ends_with(".pptx")
+        || lower.ends_with(".xlsx")
+}
+
 fn turn_from_payload(payload: &Value) -> Option<u32> {
     payload
         .get("turn")
@@ -336,7 +422,7 @@ pub fn chat_event_from_live_trace(
         }
         anycode_core::LiveTraceEvent::ThinkingDelta { .. } => None,
         anycode_core::LiveTraceEvent::AssistantDone { turn, text } => {
-            let display = strip_llm_reasoning_for_display(text);
+            let display = strip_artifact_markers(&strip_llm_reasoning_for_display(text));
             assistant_raw_buffers.insert(*turn, text.clone());
             assistant_display_buffers.insert(*turn, display.clone());
             Some(ChatStreamEvent {
@@ -1115,6 +1201,13 @@ fn stable_parsed_block_id(parsed: &ParsedLine) -> String {
 mod tests {
     use super::*;
     use crate::observability::log_parser::ParsedLine;
+
+    #[test]
+    fn strip_artifact_markers_removes_scaffold_echo() {
+        let text = "anycode\n/tmp/mindmap-foo.md\nANYCODE_ARTIFACT:{\"path\":\"/tmp/mindmap-foo.md\",\"kind\":\"mindmap\",\"inline\":true}";
+        assert_eq!(strip_artifact_markers(text), "");
+        assert_eq!(strip_artifact_markers("anycode"), "");
+    }
 
     #[test]
     fn maps_tool_start_from_project_event() {

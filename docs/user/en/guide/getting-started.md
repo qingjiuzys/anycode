@@ -1,82 +1,78 @@
 ---
-title: Getting started
-description: Install anyCode, complete Workbench setup, and run your first task.
-summary: A non-technical first-run path with clear steps and what to do if something fails.
-read_when:
-  - You are new to anyCode and want the shortest path to a working setup.
+title: Quick start
+description: Install anyCode, complete Workbench setup, and run your first chat in minutes.
 ---
 
-# Getting started
+# Quick start
 
-For first-time users who want to get usable quickly.
+> **Enterprise-grade, free & open-source Agent** — **self-host** on your machine or private network. BYOK models; data stays local by default.
 
-After this page, you will have:
+![anyCode enterprise Agent workbench — self-hosted](/docs/assets/screenshots/home.png)
+*Local Digital Workbench — projects, sessions, deliverables, and approvals on your hardware*
 
-- anyCode installed (desktop app or `anycode-daemon`)
-- model configured via Workbench **`/setup`**
-- one successful test chat
+For **first-time users**. Follow these four steps to chat with the AI assistant on your machine.
 
-## Five-minute path
+## What you'll have
 
-1. **Install** — [Install](./install): macOS **anyCode.app** (recommended) or Linux/Windows **`anycode-daemon`**.  
-2. **Open Workbench** — launch the desktop app or visit `http://127.0.0.1:43180` after starting the embedded dashboard.  
-3. **Complete `/setup`** — choose model, memory / embedding ([Memory notes](./memory)).  
-4. **Verify** — send a short message in the Workbench composer.
+- anyCode installed (macOS desktop app recommended)
+- Models configured in Workbench **Settings**
+- A successful test message
 
-## Requirements
+## Step 1: Install
 
-- **Prebuilt install**: no Rust needed.
-- **Source build only**: Rust + Cargo (`cargo build --release` or desktop crate).
+On macOS, download **`anyCode_<version>_aarch64.dmg`** from [GitHub Releases](https://github.com/qingjiuzys/anycode/releases), drag **anyCode** into Applications, and open it.
 
-## First-time setup (Workbench)
+Other platforms: [Install](./install).
 
-Open **`http://127.0.0.1:43180/setup`** (or **Settings** in the app) and follow the wizard:
+## Step 2: Open the Workbench
 
-1. Model / provider (BYOK)
-2. Memory and optional embeddings
+Launch **anyCode** — the Digital Workbench opens inside the app window.
 
-No terminal `Workbench /setup` command — configuration is shared via `~/.anycode/config.json`.
+For headless installs (`anycode-daemon`), open **`http://127.0.0.1:43180`** in your browser.
 
-## Verify
+![Workbench home](/docs/assets/screenshots/home.png)
+*Home — start a session or pick up where you left off*
 
-In the Workbench home or a project conversation, send:
+## Step 3: First-time setup
 
-> Reply with OK only
+On first launch you'll see the **setup wizard** (`/setup`):
 
-Expected: assistant replies `OK`. Tool traces and approvals appear in the transcript.
+1. Pick a model provider and enter your API key (BYOK — keys stay on your machine)
+2. Optionally enable memory and vector search
 
-## Choose your next experience
+![Setup wizard](/docs/assets/screenshots/setup.png)
+*Setup wizard — model and API key*
 
-| Goal | What to do | Guide |
-|------|------------|-------|
-| **Daily use (macOS)** | **anyCode.app** — Workbench + Apple Speech / Vision OCR | [Desktop app](./desktop) |
-| **Workbench** | Projects, sessions, assets, security inbox | [Workbench tour](./workbench) |
-| **Scheduled jobs** | Workbench **Automations** + `anycode-daemon scheduler` | [Scheduled reminders](./cli-scheduler) |
-| **Headless server** | `anycode-daemon` for scheduler | [Headless daemon](./daemon) |
-| **Switch models / BYOK** | Workbench **Settings** | [Models & endpoints](./models) |
-| **Integrate / extend** | Workbench REST API, API tokens, Skills, MCP | [Architecture](./architecture) |
+Settings are saved to **`~/.anycode/config.json`**. Change them anytime under **Settings**.
 
-## If something fails
+![Settings](/docs/assets/screenshots/settings.png)
+*Settings — models, notifications, browser, Skills*
 
-- Workbench won't load → confirm desktop app is running or dashboard is listening on port **43180**
-- `anycode-daemon: command not found` → check PATH in [Install](./install)
+## Step 4: Send a test message
 
-## UI language
+1. Click **New session** on the home page, or open a **Project**
+2. Send:
 
-Set in Workbench **Settings**, or:
+   > Reply with only: OK
 
-```bash
-export ANYCODE_LANG=zh
-# or
-export ANYCODE_LANG=en
-```
+3. Expected: the assistant replies `OK`
 
-## Next
+If nothing comes back, see [Common issues](./troubleshooting).
 
-- [Install](./install)
-- [Models & endpoints](./models)
-- [Digital Workbench](./workbench)
-- [Scheduled reminders](./cli-scheduler)
-- [Troubleshooting](./troubleshooting)
+## What's next
 
-简体中文：[快速开始](/zh/guide/getting-started).
+| Goal | Doc |
+|------|-----|
+| Learn each sidebar page | [Workbench tour](./workbench) |
+| PDFs, spreadsheets, slides | [Conversation deliverables](./deliverables) |
+| Scheduled tasks | [Scheduled reminders](./cli-scheduler) |
+| Change models or keys | [Models](./models) |
+
+## Where docs live
+
+Use **Docs** in the Workbench sidebar, or visit [anycode.work/docs](https://anycode.work/docs/) (local dev: `http://127.0.0.1:43200/docs/`).
+
+![Docs site](/docs/assets/screenshots/docs-portal.png)
+*Online docs — same look as the product*
+
+简体中文: [快速开始](/docs/zh/guide/getting-started).

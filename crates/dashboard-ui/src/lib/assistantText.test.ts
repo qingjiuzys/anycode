@@ -109,4 +109,10 @@ describe("sanitizeAssistantDisplay", () => {
     const text = "**HTML**\n***\nbody copy\n---\nmore";
     expect(sanitizeAssistantDisplay(text, "zh")).toBe("**HTML**\n\nbody copy\n\nmore");
   });
+
+  it("strips ANYCODE_ARTIFACT marker lines", () => {
+    const text =
+      'anycode\nANYCODE_ARTIFACT:{"path":"/tmp/m.md","kind":"mindmap","inline":true}';
+    expect(sanitizeAssistantDisplay(text, "zh")).toBe("anycode");
+  });
 });

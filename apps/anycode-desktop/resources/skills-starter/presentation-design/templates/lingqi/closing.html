@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Closing Slide</title>
+  <style>
+    body{margin:0;width:1920px;height:1080px;font-family:"PingFang SC","Arial",sans-serif;background:#1B3A5C;color:#fff;overflow:hidden}
+    .slide{position:relative;padding:80px 100px;height:100%;box-sizing:border-box}
+    .accent-bar{position:absolute;top:0;left:0;width:14px;height:1080px;background:#00B050}
+    .accent-bar-bottom{position:absolute;bottom:0;left:0;width:1920px;height:6px;background:linear-gradient(90deg,#00B050,#2D5F8A)}
+    h1{font-size:52px;font-weight:700;margin:0 0 16px}
+    .subtitle{font-size:26px;opacity:0.88;margin-bottom:40px;font-weight:300}
+    .cols{display:flex;gap:40px;margin-top:20px}
+    .cta-box{flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:28px}
+    .cta-box h2{font-size:20px;margin:0 0 16px;color:#00B050;text-transform:uppercase;letter-spacing:1px}
+    .cta-box ul{list-style:none;padding:0;margin:0}
+    .cta-box li{font-size:19px;line-height:1.5;padding:10px 0 10px 28px;position:relative;border-bottom:1px solid rgba(255,255,255,0.08)}
+    .cta-box li::before{content:"✓";position:absolute;left:0;color:#00B050;font-weight:700}
+    .contact{flex:0.9;background:#fff;color:#1B3A5C;border-radius:14px;padding:28px}
+    .contact h2{font-size:20px;margin:0 0 16px}
+    .contact p{font-size:17px;line-height:1.6;margin:8px 0}
+    .contact .highlight{font-size:28px;font-weight:800;color:#00B050}
+    .footer{position:absolute;bottom:24px;left:100px;right:100px;display:flex;justify-content:space-between;font-size:13px;opacity:0.45}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="closing">
+    <div class="accent-bar"></div>
+    <div class="accent-bar-bottom"></div>
+    <h1>下一步 · 试点与采购</h1>
+    <p class="subtitle">明确 Ask：设计合作伙伴 · 预算 · 时间表 · 决策人</p>
+    <div class="cols">
+      <div class="cta-box">
+        <h2>Action Items</h2>
+        <ul>
+          <li>2026-08-15 前签约 5 家 design partner — Sarah Chen</li>
+          <li>2026-09-01 启动 90 天 POC（100 seats）— Mike Torres</li>
+          <li>2026-10-15 SOC2 Type II 审计 kickoff — Anita Rao</li>
+          <li>2026-Q4 预算批复 $240K ARR pilot — CFO office</li>
+        </ul>
+      </div>
+      <div class="contact">
+        <h2>Contact</h2>
+        <p class="highlight">demo@anycode.ai</p>
+        <p>Executive briefing deck · Confidential</p>
+        <p>Owner: Priya Krishnan · 2026-07-23</p>
+        <p>Decision: 2026-08-30 board readout</p>
+      </div>
+    </div>
+    <div class="footer"><span>anyCode · Confidential</span><span>Closing</span></div>
+  </div>
+</body>
+</html>

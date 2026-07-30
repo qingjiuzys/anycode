@@ -3,14 +3,17 @@ import type { TranscriptBlock } from "@/api/types";
 import { Icon } from "@/components/Icon";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { formatTranscriptBlockTitle } from "@/lib/eventFormat";
-import { truncateThinkingPreview } from "@/lib/agentActivitySummary";
 import {
   countLogicalToolSteps,
   toolStepFailed,
   toolStepRunning,
   type ToolStep,
 } from "@/lib/transcriptGrouping";
-import { formatToolFailureRecovery } from "@/lib/agentActivitySummary";
+import {
+  formatAgentActivityRecap,
+  formatToolFailureRecovery,
+  truncateThinkingPreview,
+} from "@/lib/agentActivitySummary";
 import {
   toolTraceShowThinkingHeader,
   toolTraceStreaming,
@@ -80,6 +83,24 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
     }, 0);
     return { count, lastLabel, totalDuration: formatDurationMs({ duration_ms: totalMs }) };
   }, [steps, t, isRunning]);
+
+  const activityRecap = useMemo(
+    () => formatAgentActivityRecap(steps, t),
+    [steps, t],
+  );
+
+  const toolUsageLine = useMemo(() => {
+    if (summary.count <= 0) return null;
+    if (anyFailed) {
+      return t("conversations.toolTraceFailed").replace("{n}", String(summary.count));
+    }
+    if (activityRecap) {
+      return t("conversations.toolUsageSummaryDetail")
+        .replace("{n}", String(summary.count))
+        .replace("{detail}", activityRecap);
+    }
+    return t("conversations.toolUsageSummary").replace("{n}", String(summary.count));
+  }, [summary.count, anyFailed, activityRecap, t]);
 
   if (steps.length === 0 && processMessageCount === 0) {
     return null;
@@ -183,41 +204,31 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
     processSnippets.length > 0 || processMessageCount > 0;
 
   return (
-    <div className="flex flex-col gap-1.5 w-full max-w-[min(100%,42rem)]">
-      {!suppressActivityLine && steps.length > 0 && (
-        <AgentActivityLine steps={steps} suppressDuration />
+    <div className="agent-trace-meta w-full max-w-[min(100%,42rem)]">
+      {showThinkingFold && (
+        <ThinkingTraceFold
+          count={processMessageCount}
+          snippets={processSnippets}
+          loading={false}
+          settled
+        />
       )}
-      <div className={`tool-strip ${stripClass}`}>
-        {showThinkingFold && (
-          <ThinkingTraceFold
-            count={processMessageCount}
-            snippets={processSnippets}
-            loading={false}
-          />
-        )}
-        {steps.length > 0 && (
-          <>
-            <div className="tool-strip-summary" role="status" data-testid="tool-strip-summary-done">
-              {anyFailed ? (
-                <span>{t("conversations.toolTraceFailed").replace("{n}", String(summary.count))}</span>
-              ) : (
-                <span>{t("conversations.toolTraceDone").replace("{n}", String(summary.count))}</span>
-              )}
-              {summary.lastLabel && (
-                <span className="tool-strip-summary-meta">{summary.lastLabel}</span>
-              )}
-              {summary.totalDuration && (
-                <span className="tool-strip-summary-meta">{summary.totalDuration}</span>
-              )}
-            </div>
-            {recoveryLine && (
-              <p className="tool-strip-recovery m-0 px-3 py-2 text-xs text-warn" data-testid="tool-failure-recovery">
-                {recoveryLine}
-              </p>
-            )}
-          </>
-        )}
-      </div>
+      {toolUsageLine && (
+        <p className="agent-trace-meta__line m-0" data-testid="tool-usage-summary">
+          {toolUsageLine}
+          {summary.totalDuration ? (
+            <span className="agent-trace-meta__meta"> · {summary.totalDuration}</span>
+          ) : null}
+          {summary.lastLabel ? (
+            <span className="agent-trace-meta__meta"> · {summary.lastLabel}</span>
+          ) : null}
+        </p>
+      )}
+      {recoveryLine && (
+        <p className="agent-trace-meta__warn m-0" data-testid="tool-failure-recovery">
+          {recoveryLine}
+        </p>
+      )}
     </div>
   );
 }, (prev, next) =>
@@ -236,10 +247,12 @@ function ThinkingTraceFold({
   count,
   snippets,
   loading,
+  settled = false,
 }: {
   count: number;
   snippets: string[];
   loading: boolean;
+  settled?: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -269,11 +282,11 @@ function ThinkingTraceFold({
       ? t("conversations.thinkingBrief")
       : t("conversations.thinkingDone").replace("{n}", String(count));
 
-  const showPreview = !open && previewText.length > 0;
+  const showPreview = !settled && !open && previewText.length > 0;
   const showBulletList = open && !loading && snippets.length > 0;
 
   return (
-    <div className="tool-strip-step tool-strip-step-thinking">
+    <div className={`tool-strip-step tool-strip-step-thinking ${settled ? "tool-strip-step-thinking--settled" : ""}`}>
       <button
         type="button"
         className="tool-strip-step-toggle"
@@ -283,18 +296,18 @@ function ThinkingTraceFold({
           }
         }}
         aria-expanded={open || showPreview}
+        aria-label={open ? t("conversations.thinkingCollapse") : t("conversations.thinkingExpand")}
         disabled={loading || snippets.length === 0}
       >
+        {!loading && snippets.length > 0 && (
+          <Icon
+            name={open ? "expand_more" : "chevron_right"}
+            size={18}
+            className="transcript-expand-icon shrink-0"
+          />
+        )}
         <Icon name={loading ? "progress_activity" : "psychology"} size={14} />
         <span>{label}</span>
-        {!loading && snippets.length > 0 && (
-          <>
-            <span className="tool-strip-step-thinking-expand">
-              {open ? t("conversations.thinkingCollapse") : t("conversations.thinkingExpand")}
-            </span>
-            <Icon name={open ? "expand_more" : "chevron_right"} size={14} />
-          </>
-        )}
       </button>
       {showPreview && (
         <p className="tool-strip-step-thinking-preview">{previewText}</p>
@@ -310,7 +323,7 @@ function ThinkingTraceFold({
           </ul>
         </div>
       )}
-      {loading && snippets.length > 0 && (
+      {loading && snippets.length > 0 && !settled && (
         <p className="tool-strip-step-thinking-preview">{smoothedSnippet}</p>
       )}
     </div>
@@ -382,9 +395,17 @@ function ToolStepLine({
           onSelectTool?.(primary);
         }}
         aria-expanded={showBody}
+        aria-label={expanded ? t("common.collapse") : t("common.expand")}
         data-selected={selectedToolId === primary.id ? "true" : undefined}
         disabled={!canExpand && !onSelectTool}
       >
+        {canExpand && (
+          <Icon
+            name={expanded ? "expand_more" : "chevron_right"}
+            size={18}
+            className="transcript-expand-icon shrink-0"
+          />
+        )}
         <Icon
           name={
             failed
@@ -411,7 +432,6 @@ function ToolStepLine({
             {failed ? "✗" : "✓"}
           </span>
         )}
-        {canExpand && <Icon name={expanded ? "expand_more" : "chevron_right"} size={14} />}
       </button>
       {showBody && <pre className="tool-strip-step-body">{expandBody}</pre>}
     </div>

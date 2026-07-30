@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Layer Stack 4 · FDE Editorial</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --c-l1:#1400ff;--c-l2:#5f52a0;--c-l3:#2f9e44;--c-l4:#1400ff;
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:64px 80px;height:100%;box-sizing:border-box;display:grid;grid-template-columns:1fr 280px;gap:40px}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:16px;grid-column:1/-1}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:44px;margin:0 0 10px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:24px;line-height:1.65;max-width:920px}
+    .layer-stack-4{display:flex;flex-direction:column;gap:0;border:1px solid var(--ink);max-width:1180px}
+    .layer-card{display:grid;grid-template-columns:88px 1fr auto;gap:18px;padding:16px 20px;border-bottom:1px solid var(--ink);
+      align-items:center;background:rgba(255,255,255,.35)}
+    .layer-card:last-child{border-bottom:none}
+    .layer-card .lab{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;line-height:1.35}
+    .layer-card.l1 .lab{color:var(--c-l1)}
+    .layer-card.l2 .lab{color:var(--c-l2)}
+    .layer-card.l3 .lab{color:var(--c-l3)}
+    .layer-card.l4 .lab{color:var(--c-l4)}
+    .layer-card h4{font-family:var(--serif);font-size:21px;font-weight:900;margin:0}
+    .layer-card p{font-size:14px;color:var(--ink-60);margin:3px 0 0;line-height:1.45}
+    .layer-card .chips{font-family:var(--mono);font-size:11px;color:var(--ink-60);text-align:right;line-height:1.55}
+    .layer-card.frame{outline:3px solid var(--accent);outline-offset:-3px;background:rgba(20,0,255,.06)}
+    .layer-card.hot{background:var(--accent);color:#fff}
+    .layer-card.hot p,.layer-card.hot .chips{color:rgba(255,255,255,.75)}
+    .layer-card.hot h4{color:#fff}
+    .layer-card.hot .lab{color:rgba(255,255,255,.85)}
+    .side-rail{align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+      font-family:var(--mono);font-size:12px;color:var(--ink-60);text-align:center;line-height:1.55;padding:0 8px}
+    .side-rail .arrow{display:flex;flex-direction:column;align-items:center;gap:6px}
+    .side-rail .arrow::before,.side-rail .arrow::after{content:"";width:2px;height:48px;background:var(--ink)}
+    .side-rail .arrow span{font-size:18px;line-height:1;color:var(--accent)}
+    .side-rail b{display:block;color:var(--accent);font-size:13px;letter-spacing:.08em;margin-bottom:4px}
+    .you-here{font-family:var(--mono);font-size:11px;color:var(--accent);white-space:nowrap}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">02</span>四层架构 · STACK</div>
+    <div>
+      <h3>AI 能力从底座到应用，一层层叠上去</h3>
+      <p class="lede">越往下越是通用底座（谁都绕不开）；越往上越贴近业务与日常工作。</p>
+      <div class="layer-stack-4 layer-stack">
+        <div class="layer-card l1">
+          <span class="lab">L1<br/>MODEL</span>
+          <div><h4>模型层</h4><p>能力的源头</p></div>
+          <div class="chips">闭源 GPT / Claude<br/>开源 Qwen / DeepSeek<br/>国内 Kimi / 智谱</div>
+        </div>
+        <div class="layer-card l2">
+          <span class="lab">L2<br/>PLATFORM</span>
+          <div><h4>平台层</h4><p>模型怎么被跑起来</p></div>
+          <div class="chips">API 网关 · 云托管<br/>本地推理 · Ollama<br/>vLLM</div>
+        </div>
+        <div class="layer-card l3">
+          <span class="lab">L3<br/>PROTOCOL</span>
+          <div><h4>协议与工具层</h4><p>模型与世界的接口</p></div>
+          <div class="chips">MCP · Function Calling<br/>Agent 框架 · Harness</div>
+        </div>
+        <div class="layer-card l4 frame hot">
+          <span class="lab">L4<br/>APP</span>
+          <div><h4>应用层</h4><p>直接为人服务的产品</p></div>
+          <div class="chips">聊天助手 · AI 编程<br/>垂直应用<br/><span class="you-here">← 部门驾驶舱 · 你在这里</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="side-rail">
+      <b>越往上</b>
+      <span>更贴近业务<br/>与日常工作</span>
+      <div class="arrow"><span>⇅</span></div>
+      <b>越往下</b>
+      <span>通用底座<br/>谁都绕不开</span>
+    </div>
+  </div>
+</body>
+</html>

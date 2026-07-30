@@ -1,75 +1,78 @@
 ---
 title: 快速开始
-description: 安装 anyCode，完成 Workbench 配置，并在几分钟内跑通第一条任务。
-summary: 面向非技术用户的最短路径，包含失败时下一步动作。
-read_when:
-  - 第一次使用 anyCode，想尽快跑通。
+description: 安装 anyCode，完成工作台配置 — 企业级开源免费 Agent，支持在本机或内网独立部署。
 ---
 
 # 快速开始
 
-适合第一次使用 anyCode 的用户。
+> **企业级开源免费 Agent** — 支持在你自己的机器或内网 **独立部署**。BYOK 模型，数据默认不出端。
 
-完成本页后，你会得到：
+![anyCode 企业级 Agent 工作台 — 支持独立部署](/docs/assets/screenshots/home.png)
+*图：本地 Digital Workbench — 项目、会话、交付物与审批，全部在你的环境内运行*
 
-- anyCode 已安装（桌面应用或 `anycode-daemon`）
-- 已通过 Workbench **`/setup`** 配置模型
-- 一条验证对话成功返回
+面向**第一次使用 anyCode** 的用户。按下面四步走完，你就能在本机与 AI 助手对话。
 
-## 五分钟路径
+## 你会得到什么
 
-1. **安装** — 见 [安装](./install)：macOS 推荐 **anyCode.app**，Linux/Windows 安装 **`anycode-daemon`**。  
-2. **打开工作台** — 启动桌面应用，或访问 `http://127.0.0.1:43180`。  
-3. **完成 `/setup`** — 选择模型、记忆 / 向量（见 [记忆](./memory)）。
-4. **验证** — 在工作台会话中发送一条短消息。
+- anyCode 已安装（推荐 macOS 桌面应用）
+- 已在工作台 **设置** 中配置好模型
+- 一条测试对话成功返回
 
-## 环境要求
+## 第一步：安装
 
-- **预编译安装**：不需要 Rust。
-- **源码构建**：需要 Rust + Cargo（`cargo build --release` 或 desktop crate）。
+macOS 用户从 [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) 下载 **`anyCode_<version>_aarch64.dmg`**，拖入「应用程序」后打开即可。
 
-## 首次配置（Workbench）
+其他平台见 [安装](./install)。
 
-打开 **`http://127.0.0.1:43180/setup`**（或应用内 **设置**），按向导完成：
+## 第二步：打开工作台
 
-1. 模型 / provider（BYOK）
-2. 记忆与可选向量
+启动 **anyCode** 后，应用内会自动打开数字工作台。
 
-配置保存在 `~/.anycode/config.json`，无终端 `Workbench /setup` 命令。
+若使用无头服务（`anycode-daemon`），在浏览器访问 **`http://127.0.0.1:43180`**。
 
-## 验证
+![工作台首页](/docs/assets/screenshots/home.png)
+*图：工作台首页 — 从这里进入项目与会话*
 
-在工作台首页或项目会话中发送：
+## 第三步：完成首次配置
 
-> 请只回复：OK
+第一次使用会进入 **设置向导**（地址栏为 `/setup`）。按页面提示：
 
-预期：助手回复 `OK`。
+1. 选择模型服务商并填写 API Key（BYOK，密钥只保存在本机）
+2. 按需开启记忆、向量检索等选项
 
-## 下一步体验路线
+![设置向导](/docs/assets/screenshots/setup.png)
+*图：首次配置向导 — 选模型、填密钥*
 
-| 目标 | 操作 | 文档 |
-|------|------|------|
-| **macOS 日常使用** | **anyCode.app** | [桌面应用](./desktop) |
-| **工作台** | 项目、会话、资产、审批 | [工作台导览](./workbench) |
-| **定时任务** | 工作台 **Automations** + `anycode-daemon scheduler` | [定时提醒](./cli-scheduler) |
-| **无头服务器** | `anycode-daemon` 调度 | [无头守护进程](./daemon) |
-| **模型 / BYOK** | 工作台 **设置** | [模型与端点](./models) |
+完成后配置写入 **`~/.anycode/config.json`**。之后可随时在 **设置** 中修改。
 
-## 失败时下一步
+![设置页](/docs/assets/screenshots/settings.png)
+*图：设置 — 模型、通知、浏览器、Skills 等*
 
-- 工作台打不开 → 确认桌面应用已启动，或端口 **43180** 可访问
-- `anycode-daemon: command not found` → 见 [安装](./install) PATH 说明
+## 第四步：发一条测试消息
 
-## 界面语言
+1. 在首页点击 **新建会话**，或进入某个 **项目**
+2. 在输入框发送：
 
-在工作台 **设置** 中切换，或：
+   > 请只回复：OK
 
-```bash
-export ANYCODE_LANG=zh
-```
+3. 预期：助手回复 `OK`
 
-## 下一步
+若长时间无响应，见 [常见问题](./troubleshooting) 的「模型与网络」一节。
 
-- [安装](./install) · [模型](./models) · [工作台](./workbench) · [排错](./troubleshooting)
+## 接下来做什么
 
-English: [Getting started](/guide/getting-started).
+| 你想… | 去看 |
+|------|------|
+| 了解侧栏每个页面 | [工作台导览](./workbench) |
+| 让助手产出 PDF / 表格 / 幻灯片 | [会话交付物](./deliverables) |
+| 每天定时跑任务 | [定时提醒](./cli-scheduler) |
+| 换模型或改密钥 | [模型与端点](./models) |
+
+## 文档在哪里
+
+工作台侧栏底部有 **文档** 链接；也可直接打开 [anycode.work/docs](https://anycode.work/docs/)（本地开发时为 `http://127.0.0.1:43200/docs/`）。
+
+![文档站点](/docs/assets/screenshots/docs-portal.png)
+*图：在线文档 — 与产品同风格的说明页*
+
+English: [Getting started](/docs/guide/getting-started).

@@ -9,19 +9,20 @@ import ReactFlow, {
   type NodeProps,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import type { LanPeer } from "@/api/client/lan";
 import {
   buildColleaguesGraph,
   colleagueGraphFitPadding,
   type ColleagueNodeData,
+  type GraphPeer,
 } from "@/lib/colleaguesGraph";
 import { useT } from "@/i18n/context";
 
 type Props = {
   selfName: string;
-  peers: LanPeer[];
+  peers: GraphPeer[];
   selectedPeerId?: string | null;
-  onSelectPeer?: (peerId: string | null) => void;
+  /** Left-click or right-click a peer — open handoff menu at pointer. */
+  onPeerInteract?: (peerId: string, event: React.MouseEvent) => void;
 };
 
 function ColleagueNodeView({ data, selected }: NodeProps<ColleagueNodeData>) {
@@ -32,16 +33,16 @@ function ColleagueNodeView({ data, selected }: NodeProps<ColleagueNodeData>) {
     <div
       className={`dw-colleague-node${isSelf ? " dw-colleague-node--self" : ""}${
         selected ? " dw-colleague-node--selected" : ""
-      }`}
+      }${data.demo ? " dw-colleague-node--demo" : ""}`}
       style={{ "--colleague-accent": accent } as CSSProperties}
       data-kind={data.kind}
+      title={data.demo ? undefined : data.name}
     >
       <Handle type="target" position={Position.Top} className="!opacity-0 !h-1 !w-1 !min-w-0 !min-h-0" />
-      <div className="dw-colleague-node__avatar" aria-hidden>
-        {isSelf ? "◎" : "◉"}
+      <div className="dw-colleague-node__circle" aria-hidden>
+        <span className="dw-colleague-node__initial">{data.initial}</span>
       </div>
       <div className="dw-colleague-node__name">{data.name}</div>
-      {data.subtitle ? <div className="dw-colleague-node__sub">{data.subtitle}</div> : null}
       <Handle type="source" position={Position.Bottom} className="!opacity-0 !h-1 !w-1 !min-w-0 !min-h-0" />
     </div>
   );
@@ -53,7 +54,7 @@ export const ColleaguesGraph = memo(function ColleaguesGraph({
   selfName,
   peers,
   selectedPeerId,
-  onSelectPeer,
+  onPeerInteract,
 }: Props) {
   const t = useT();
   const model = useMemo(() => buildColleaguesGraph(selfName, peers), [selfName, peers]);
@@ -70,12 +71,19 @@ export const ColleaguesGraph = memo(function ColleaguesGraph({
     setEdges(model.edges);
   }, [model, selectedPeerId]);
 
-  const onNodeClick: NodeMouseHandler = (_event, node) => {
-    if (node.data.kind === "self") {
-      onSelectPeer?.(null);
-      return;
-    }
-    onSelectPeer?.(node.id);
+  const interact = (event: React.MouseEvent, node: Node<ColleagueNodeData>) => {
+    if (node.data.kind === "self") return;
+    const peerId = node.data.peerId ?? node.id;
+    onPeerInteract?.(peerId, event);
+  };
+
+  const onNodeClick: NodeMouseHandler = (event, node) => {
+    interact(event, node as Node<ColleagueNodeData>);
+  };
+
+  const onNodeContextMenu: NodeMouseHandler = (event, node) => {
+    event.preventDefault();
+    interact(event, node as Node<ColleagueNodeData>);
   };
 
   return (
@@ -85,6 +93,7 @@ export const ColleaguesGraph = memo(function ColleaguesGraph({
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
+        onNodeContextMenu={onNodeContextMenu}
         fitView
         fitViewOptions={{ padding: colleagueGraphFitPadding(peers.length) }}
         minZoom={0.4}
@@ -92,18 +101,22 @@ export const ColleaguesGraph = memo(function ColleaguesGraph({
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable
+        panOnDrag
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={20} size={1} color="var(--outline-variant)" />
+        <Background gap={22} size={1} color="var(--outline-variant)" />
         <Controls showInteractive={false} />
       </ReactFlow>
       <div className="dw-colleagues-graph__legend">
         <span>{t("colleagues.graphLegend")}</span>
         <span className="text-on-surface-variant">
-          {peers.length === 0
-            ? t("colleagues.emptyShort")
-            : t("colleagues.peerCount").replace("{count}", String(peers.length))}
+          {peers.every((p) => p.demo)
+            ? t("colleagues.demoHint")
+            : peers.length === 0
+              ? t("colleagues.emptyShort")
+              : t("colleagues.peerCount").replace("{count}", String(peers.length))}
         </span>
+        <span className="text-on-surface-variant">{t("colleagues.clickOrRightHint")}</span>
       </div>
     </div>
   );

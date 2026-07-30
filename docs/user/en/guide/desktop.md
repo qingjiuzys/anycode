@@ -1,37 +1,44 @@
 ---
 title: Desktop app (macOS)
-description: anyCode.app bundles the Digital Workbench, native speech, and on-device OCR.
+description: anyCode.app with embedded Workbench, native speech, and on-device OCR.
 ---
 
 # Desktop app (macOS)
 
-**anyCode.app** is the recommended macOS experience. It embeds the Digital Workbench inside the app window (not as a separate browser tab), plus native capabilities not available in a browser-only session:
+**anyCode.app** is the recommended way to use anyCode on macOS.
 
-- **Apple Speech** — voice input without downloading Whisper
-- **Apple Vision OCR** — on-device text extraction from images
+## vs browser-only
+
+| Capability | Desktop app | Browser on :43180 only |
+|------------|-------------|-------------------------|
+| Full Workbench UI | ✅ In app window | ❌ API only |
+| Apple speech input | ✅ | ❌ |
+| On-device OCR (Vision) | ✅ | ❌ |
+| Built-in browser (agent automation) | ✅ | Depends on build |
 
 ## Install
 
-1. Download **`anyCode_<version>_aarch64.dmg`** from [Releases](https://github.com/qingjiuzys/anycode/releases).
-2. Open the disk image and drag **anyCode** to **Applications**.
-3. Launch **anyCode** — Workbench opens in the app window.
+1. [GitHub Releases](https://github.com/qingjiuzys/anycode/releases) → **`anyCode_<version>_aarch64.dmg`**
+2. Drag into Applications
+3. Open **anyCode**
 
-::: tip
-On macOS, use the **anyCode.app** window for Workbench. `http://127.0.0.1:43180` is API-only when the desktop app is running (no full UI in Safari/Chrome). Headless/Linux installs still use the browser at that URL.
-:::
+![Workbench in app](/docs/assets/screenshots/home.png)
+*Workbench inside the desktop app*
 
 ## First-time setup
 
-Open **Settings** or visit **`/setup`** in the Workbench to configure your model (BYOK) and memory.
+First launch opens the **setup wizard** (`/setup`). Add your model API key and memory options.
 
-## Headless scheduler
+See [Quick start](./getting-started).
 
-Keep the desktop app running for Workbench chat and automations. For a dedicated scheduler process on a server, install **`anycode-daemon`** — see [Headless daemon](./daemon).
+## Keep it running (scheduled jobs)
+
+For [Scheduled reminders](./cli-scheduler), leave anyCode running in the background, or use **`anycode-daemon`** on a server.
 
 ## Related
 
 - [Open the Workbench](./dashboard)
 - [Workbench tour](./workbench)
-- [Getting started](./getting-started)
+- [Common issues](./troubleshooting)
 
-简体中文：[桌面应用（macOS）](/zh/guide/desktop).
+简体中文: [桌面应用](/docs/zh/guide/desktop).

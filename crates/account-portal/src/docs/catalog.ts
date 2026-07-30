@@ -27,7 +27,7 @@ const enSections: DocsNavSection[] = [
     ],
   },
   {
-    text: "Desktop & headless",
+    text: "Desktop & automation",
     items: [
       { text: "Desktop app (macOS)", slug: "guide/desktop" },
       { text: "Headless daemon", slug: "guide/daemon" },
@@ -36,17 +36,19 @@ const enSections: DocsNavSection[] = [
     ],
   },
   {
-    text: "Learn more",
+    text: "Settings & skills",
     items: [
-      { text: "WeChat & setup", slug: "guide/wechat" },
-      { text: "Telegram", slug: "guide/telegram" },
-      { text: "Discord", slug: "guide/discord" },
       { text: "Models", slug: "guide/models" },
       { text: "Config & security", slug: "guide/config-security" },
-      { text: "Agents & Skills", slug: "guide/agents" },
       { text: "Official skills catalog", slug: "guide/skills/index" },
       { text: "Memory", slug: "guide/memory" },
       { text: "Notifications", slug: "guide/notifications" },
+    ],
+  },
+  {
+    text: "Reference",
+    items: [
+      { text: "Agents & Skills", slug: "guide/agents" },
       { text: "Architecture", slug: "guide/architecture" },
       { text: "Development", slug: "guide/development" },
       { text: "All pages (index)", slug: "guide/hubs" },
@@ -71,7 +73,7 @@ const zhSections: DocsNavSection[] = [
     ],
   },
   {
-    text: "桌面与无头服务",
+    text: "桌面与自动化",
     items: [
       { text: "桌面应用（macOS）", slug: "guide/desktop" },
       { text: "无头守护进程", slug: "guide/daemon" },
@@ -80,17 +82,19 @@ const zhSections: DocsNavSection[] = [
     ],
   },
   {
-    text: "了解更多",
+    text: "设置与技能",
     items: [
-      { text: "微信与配置", slug: "guide/wechat" },
-      { text: "Telegram", slug: "guide/telegram" },
-      { text: "Discord", slug: "guide/discord" },
       { text: "模型与端点", slug: "guide/models" },
       { text: "配置与安全", slug: "guide/config-security" },
-      { text: "Agent 与 Skills", slug: "guide/agents" },
       { text: "官方 Skills 目录", slug: "guide/skills/index" },
       { text: "记忆", slug: "guide/memory" },
       { text: "会话通知", slug: "guide/notifications" },
+    ],
+  },
+  {
+    text: "参考",
+    items: [
+      { text: "Agent 与 Skills", slug: "guide/agents" },
       { text: "架构说明", slug: "guide/architecture" },
       { text: "开发与贡献", slug: "guide/development" },
       { text: "全量索引", slug: "guide/hubs" },
@@ -119,4 +123,3 @@ export function parseDocsSlug(pathname: string): string {
   }
   return rest.replace(/\/$/, "");
 }
-

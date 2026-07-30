@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Cover · FDE Courseware</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-40:rgba(35,31,32,.55);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box;border-bottom:8px solid var(--ink)}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:28px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h1{font-family:var(--serif);font-weight:900;font-size:84px;line-height:1.12;margin:0 0 24px;max-width:1500px}
+    h1 .thin{font-weight:400;color:var(--ink-60)}
+    .statement{font-family:var(--serif);font-size:32px;line-height:1.55;max-width:1100px;margin-bottom:48px}
+    .statement strong{color:var(--accent);font-weight:900;border-bottom:6px solid var(--accent)}
+    .ladder{display:flex;border:1px solid var(--ink);width:max-content;margin-top:24px}
+    .rung{font-family:var(--mono);padding:16px 20px;border-right:1px solid var(--ink);min-width:120px}
+    .rung:last-child{border-right:none}
+    .rung small{display:block;font-size:11px;letter-spacing:.1em;color:var(--ink-40);text-transform:uppercase;margin-bottom:6px}
+    .rung b{font-size:18px;font-weight:700}
+    .rung.hot{background:var(--accent);color:#fff;border-right-color:var(--accent)}
+    .rung.hot small{color:rgba(255,255,255,.65)}
+    .brand-bar{position:absolute;left:96px;bottom:36px;font-family:var(--mono);font-size:13px;letter-spacing:.14em;color:var(--ink-40)}
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="cover">
+    <div class="sec-label"><span class="num">01</span>EDITORIAL · PPT</div>
+    <h1>节标题：核心命题<br><span class="thin">副标题 · 受众 · 场景</span></h1>
+    <p class="statement">同学们，这一节讲<strong>一个关键结论</strong>，用课堂口吻，短句，像站着讲。</p>
+    <div class="ladder">
+      <div class="rung"><small>01</small><b>背景</b></div>
+      <div class="rung"><small>02</small><b>机制</b></div>
+      <div class="rung"><small>03</small><b>工具</b></div>
+      <div class="rung"><small>04</small><b>案例</b></div>
+      <div class="rung hot"><small>05</small><b>小结</b></div>
+    </div>
+    <div class="brand-bar">FDE·训练营 / Day 05 · S01</div>
+  </div>
+</body>
+</html>

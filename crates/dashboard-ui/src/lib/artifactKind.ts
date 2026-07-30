@@ -5,6 +5,7 @@ export type ArtifactKind =
   | "pdf"
   | "presentation"
   | "document"
+  | "spreadsheet"
   | "mindmap"
   | "report"
   | "file"
@@ -35,6 +36,7 @@ function normalizeKind(value: string | undefined | null): ArtifactKind | null {
     "pdf",
     "presentation",
     "document",
+    "spreadsheet",
     "mindmap",
     "report",
     "file",
@@ -46,6 +48,7 @@ function normalizeKind(value: string | undefined | null): ArtifactKind | null {
   if (lower.includes("presentation") || lower.includes("slideshow")) return "presentation";
   if (lower.includes("document")) return "document";
   if (lower.includes("mindmap") || lower.includes("mind-map")) return "mindmap";
+  if (lower.includes("spreadsheet") || lower.includes("workbook")) return "spreadsheet";
   if (lower.includes("report")) return "report";
   if (lower.includes("image")) return "image";
   if (lower.includes("video")) return "video";
@@ -68,6 +71,8 @@ export function kindForPath(path: string, hint?: string | null): ArtifactKind {
   if (VIDEO_EXT.has(ext)) return "video";
   if (AUDIO_EXT.has(ext)) return "audio";
   if (PRESENTATION_EXT.has(ext)) return "presentation";
+  if (ext === "csv" || ext === "xlsx" || ext === "xls" || ext === "ods") return "spreadsheet";
+  if (lowerPath.includes("workbook") && ext === "json") return "spreadsheet";
   if (MINDMAP_EXT.has(ext) || lowerPath.includes("mindmap") || lowerPath.includes("mind-map")) {
     return "mindmap";
   }
@@ -125,6 +130,8 @@ export function isInlineKind(kind: ArtifactKind): boolean {
     kind === "video" ||
     kind === "audio" ||
     kind === "mindmap" ||
+    kind === "report" ||
+    kind === "spreadsheet" ||
     kind === "pdf" ||
     kind === "presentation" ||
     kind === "document" ||

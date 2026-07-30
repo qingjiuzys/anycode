@@ -24,6 +24,7 @@ export const SITE_PATHS = {
   legalAlgorithmDisclosure: "/legal/algorithm-disclosure",
   desktopDownloadDmg: "/downloads/anyCode_latest_aarch64.dmg",
   downloads: "/downloads",
+  changelog: "/changelog",
   cases: "/cases",
 } as const;
 

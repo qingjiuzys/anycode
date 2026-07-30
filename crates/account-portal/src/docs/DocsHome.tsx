@@ -6,12 +6,30 @@ export function DocsHome({ locale }: { locale: DocsLocale }) {
   return (
     <div className="docs-home">
       <p className="docs-home__eyebrow">{isZh ? "Documentation" : "Documentation"}</p>
-      <h1>{isZh ? "从本机开始" : "Start on your machine"}</h1>
+      <h1>{isZh ? "企业级开源 Agent · 独立部署" : "Enterprise Agent · Self-hosted"}</h1>
       <p className="docs-home__tagline">
         {isZh
-          ? "桌面工作台、守护进程、微信桥与 BYOK 模型目录——本地执行，云端可选。"
-          : "Desktop workbench, daemon, WeChat bridge, and BYOK catalog — execute locally, cloud optional."}
+          ? "开源免费（MIT），在本机或内网安装运行。配图说明安装、配置与工作台用法。"
+          : "Free & open source (MIT). Install on your machine or private network — guides with screenshots."}
       </p>
+      <figure className="docs-home__hero">
+        <img
+          src="/docs/assets/screenshots/home.png"
+          alt={
+            isZh
+              ? "anyCode 企业级 Agent 工作台 — 支持独立部署"
+              : "anyCode enterprise Agent workbench — self-hosted"
+          }
+          width={920}
+          height={575}
+          loading="eager"
+        />
+        <figcaption>
+          {isZh
+            ? "本地 Digital Workbench — 项目、会话、交付物与审批"
+            : "Local Digital Workbench — projects, sessions, deliverables, approvals"}
+        </figcaption>
+      </figure>
       <div className="docs-home__actions">
         <Link className="nx-btn nx-btn--primary" to={docsPageHref(locale, "guide/getting-started")}>
           {isZh ? "快速开始" : "Quick start"} <span aria-hidden>→</span>
@@ -22,27 +40,27 @@ export function DocsHome({ locale }: { locale: DocsLocale }) {
       </div>
       <ul className="docs-home__features">
         <li>
-          <strong>{isZh ? "BYOK 模型目录" : "BYOK model catalog"}</strong>
+          <strong>{isZh ? "配图快速开始" : "Screenshot walkthroughs"}</strong>
           <span>
             {isZh
-              ? "DeepSeek、GLM、Anthropic、Ollama 等，本地配置与探测。"
-              : "DeepSeek, GLM, Anthropic, Ollama, and more — configure and probe locally."}
+              ? "安装、设置向导、侧栏页面——对照截图操作。"
+              : "Install, setup wizard, and sidebar pages — follow along with screenshots."}
           </span>
         </li>
         <li>
-          <strong>{isZh ? "个人微信桥" : "Personal WeChat bridge"}</strong>
+          <strong>{isZh ? "BYOK 模型" : "BYOK models"}</strong>
           <span>
             {isZh
-              ? "扫码绑定后在手机上发任务、审批工具、接收文件。"
-              : "Scan to bind — send tasks, approve tools, and receive files from your phone."}
+              ? "DeepSeek、GLM、Anthropic、Ollama 等，密钥只保存在本机。"
+              : "DeepSeek, GLM, Anthropic, Ollama, and more — keys stay on your machine."}
           </span>
         </li>
         <li>
-          <strong>{isZh ? "自动化与审批" : "Automation & approvals"}</strong>
+          <strong>{isZh ? "交付物与自动化" : "Deliverables & automation"}</strong>
           <span>
             {isZh
-              ? "自然语言 cron、运行历史，敏感操作始终需要确认。"
-              : "Natural-language cron and run history — sensitive actions always ask first."}
+              ? "PDF、表格、幻灯片在对话里预览；自然语言创建定时任务。"
+              : "Preview PDFs, spreadsheets, and slides in chat; schedule jobs in plain language."}
           </span>
         </li>
       </ul>
