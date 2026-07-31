@@ -8,6 +8,15 @@
 
 - **Discoverable verification**: agents discover official verify/build steps (prompt + `verify-discover` skill + runtime evidence nudge + `verify_recipe` memory) instead of asking users to recompile.
 - Researcher profile now exposes `WebSearch` / `WebFetch` and can bind `verify-discover`.
+- **Portal case demos**: openable static demos for launch PPT, courseware, weekly report, and ops sheet (`/demos/...`).
+- **Home slash modes**: Workbench home composer supports `/拷问` and `/目标` (aligned with conversation composer).
+
+### Changed
+
+- **Free plan**: new signups get **20M** hosted tokens (was 500K).
+- **Pro (¥599/mo)**: **10,000** model calls per **5-hour** rolling window; DeepSeek V4 Pro temporarily disabled in catalog.
+- **Cloud 5h**: unchanged — 1,000 calls / 5-hour window.
+- Removed Workbench Settings → LAN collaboration UI (cloud A2A colleagues remain).
 
 ### Fixed
 
@@ -16,6 +25,7 @@
 - Bash recognizes `docker compose up` as long-running.
 - `anycode_apple_media::mime_to_ext` available on Linux CI (was macOS-gated).
 - cargo fmt drift in dashboard chat_runtime and account-service.
+- Portal auth/legal “back home” no longer shows a double `←`.
 
 ## 0.3.1
 

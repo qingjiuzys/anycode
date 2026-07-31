@@ -114,8 +114,8 @@ pub fn static_limits_for_plan(plan: &str) -> PlanLimits {
             yearly_price_fen: 599_000,
             currency: "CNY",
             hosted_models_enabled: true,
-            quota_window_secs: 0,
-            calls_per_window: 0,
+            quota_window_secs: crate::quota::DEFAULT_WINDOW_SECS,
+            calls_per_window: 10_000,
         },
         "team" => PlanLimits {
             token_limit: 60_000_000,
@@ -129,7 +129,7 @@ pub fn static_limits_for_plan(plan: &str) -> PlanLimits {
             calls_per_window: 0,
         },
         _ => PlanLimits {
-            token_limit: 500_000,
+            token_limit: 20_000_000,
             api_key_limit: 1,
             seat_limit: 1,
             monthly_price_fen: 0,
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn free_plan_limits() {
         let l = static_limits_for_plan("free");
-        assert_eq!(l.token_limit, 500_000);
+        assert_eq!(l.token_limit, 20_000_000);
         assert!(l.hosted_models_enabled);
         assert_eq!(l.calls_per_window, 0);
     }
@@ -353,5 +353,7 @@ mod tests {
         assert_eq!(l.api_key_limit, 5);
         assert_eq!(l.monthly_price_fen, 59_900);
         assert_eq!(l.currency, "CNY");
+        assert_eq!(l.quota_window_secs, 18_000);
+        assert_eq!(l.calls_per_window, 10_000);
     }
 }

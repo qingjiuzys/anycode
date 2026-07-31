@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { parseComposerSlashInput } from "./composerSlash";
+import { parseComposerSlashInput, parseSlashQuery } from "./composerSlash";
+
+describe("parseSlashQuery", () => {
+  it("opens the menu on bare slash", () => {
+    expect(parseSlashQuery("/")).toBe("");
+  });
+
+  it("filters by partial token", () => {
+    expect(parseSlashQuery("/拷")).toBe("拷");
+    expect(parseSlashQuery("/grill")).toBe("grill");
+  });
+
+  it("closes on multi-line or non-slash input", () => {
+    expect(parseSlashQuery("hello")).toBeNull();
+    expect(parseSlashQuery("/拷问\n更多")).toBeNull();
+  });
+});
 
 describe("parseComposerSlashInput", () => {
   it("passes through normal text", () => {

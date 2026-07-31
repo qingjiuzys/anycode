@@ -7,7 +7,7 @@ export const PLAN_CATALOG: Record<PlanTier, PlanCatalogEntry> = {
     tier: "free",
     monthlyPriceFen: 0,
     yearlyPriceFen: 0,
-    tokenLimit: 500_000,
+    tokenLimit: 20_000_000,
     apiKeyLimit: 1,
     seatLimit: 1,
     featured: false,
@@ -43,10 +43,10 @@ export const PLAN_CATALOG: Record<PlanTier, PlanCatalogEntry> = {
     featured: true,
     promoLabel: null,
     featureKeys: [
-      "service.plan.features.higherQuota",
-      "service.plan.features.automation",
+      "service.plan.features.cloud5hWindow",
+      "service.plan.features.proWindowCalls",
       "service.plan.features.apiAccess",
-      "service.plan.features.prioritySupport",
+      "service.plan.features.flashOnlyHosted",
     ],
   },
   team: {

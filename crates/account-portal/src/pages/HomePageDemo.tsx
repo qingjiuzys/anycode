@@ -199,7 +199,7 @@ export function HomePageDemo() {
             <p>{cases.sectionLead}</p>
           </header>
 
-          <Link className="nx-case-feature" to={casePath(featured.id)}>
+          <div className="nx-case-feature">
             <CaseSlidePreview
               title={featuredItem.slideTitle}
               sub={featuredItem.slideSub}
@@ -228,11 +228,18 @@ export function HomePageDemo() {
                   <strong>{featuredItem.output}</strong>
                 </li>
               </ul>
-              <span className="nx-case-feature__go">
-                {cases.viewCase} <span aria-hidden>→</span>
-              </span>
+              <div className="nx-case-feature__actions">
+                {featured.demoUrl ? (
+                  <a className="nx-btn nx-btn--primary" href={featured.demoUrl} target="_blank" rel="noreferrer">
+                    {cases.openDemo} <span aria-hidden>→</span>
+                  </a>
+                ) : null}
+                <Link className="nx-btn nx-btn--ghost" to={casePath(featured.id)}>
+                  {cases.viewCase}
+                </Link>
+              </div>
             </div>
-          </Link>
+          </div>
 
           <div className="nx-cases__grid nx-cases__grid--loose">
             {cards.map((card, index) => {

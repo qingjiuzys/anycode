@@ -101,7 +101,6 @@ export const setupRoute = createRoute({
       "skills",
       "security",
       "notify",
-      "lan",
       "gates",
       "plugins",
       "ops",

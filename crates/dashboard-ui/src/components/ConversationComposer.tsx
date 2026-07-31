@@ -1,13 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/api/client";
 import type { WebChatResult } from "@/api/client/projects";
@@ -43,7 +35,7 @@ import {
   saveGrillMode,
   shouldExitGrillMode,
 } from "@/lib/grillMode";
-import { parseComposerSlashInput } from "@/lib/composerSlash";
+import { parseComposerSlashInput, parseSlashQuery } from "@/lib/composerSlash";
 import {
   GOAL_AGENT_ID,
   goalSlashCommand,
@@ -51,6 +43,7 @@ import {
   loadGoalMode,
   saveGoalMode,
 } from "@/lib/goalMode";
+import { useAnchoredAboveStyle } from "@/lib/useAnchoredAboveStyle";
 
 type ConversationStartSuccess = {
   session: SessionDetail;
@@ -104,45 +97,6 @@ function isImageFile(file: File): boolean {
   return /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(file.name);
 }
 
-/** Fixed popup above an anchor — avoids overflow:hidden clipping in composer. */
-function useAnchoredAboveStyle(
-  open: boolean,
-  anchorRef: React.RefObject<HTMLElement | null>,
-  opts?: { matchWidth?: boolean; minWidth?: number; maxWidth?: number },
-) {
-  const [style, setStyle] = useState<CSSProperties>({});
-  const matchWidth = opts?.matchWidth ?? false;
-  const minWidth = opts?.minWidth ?? 0;
-  const maxWidth = opts?.maxWidth ?? 384;
-
-  useLayoutEffect(() => {
-    if (!open || !anchorRef.current) return;
-    const update = () => {
-      const rect = anchorRef.current!.getBoundingClientRect();
-      const width = matchWidth
-        ? Math.min(rect.width, window.innerWidth - 16)
-        : Math.min(Math.max(rect.width, minWidth), maxWidth, window.innerWidth - 16);
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-      setStyle({
-        position: "fixed",
-        left,
-        bottom: window.innerHeight - rect.top + 8,
-        width,
-        zIndex: 300,
-      });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-    };
-  }, [open, anchorRef, matchWidth, minWidth, maxWidth]);
-
-  return style;
-}
-
 async function fileToVisionAttachment(file: File): Promise<VisionAttachment> {
   const buf = await file.arrayBuffer();
   const bytes = new Uint8Array(buf);
@@ -185,17 +139,6 @@ function parseSkillAllowlist(skillsJson: string): string[] | null {
 function parseMentionFilter(text: string): string | null {
   const match = text.match(/@([\w.-]*)$/);
   return match ? match[1] : null;
-}
-
-function parseSlashCommand(text: string): string | null {
-  const trimmed = text.trimStart();
-  if (!trimmed.startsWith("/") || trimmed.includes("\n")) return null;
-  const body = trimmed.slice(1);
-  const token = body.split(/\s+/)[0] ?? "";
-  // Bare "/" opens the full menu (same as "@" with empty filter).
-  if (token === "") return "";
-  if (/^[\w.-]+$/.test(token)) return token.toLowerCase();
-  return token;
 }
 
 /** Session-level approval delegation toggle ("托管模式"). */
@@ -456,7 +399,7 @@ export function ConversationComposer(props: Props) {
       .slice(0, 8);
   }, [mentionFilter, skillOptions]);
 
-  const slashQuery = parseSlashCommand(message);
+  const slashQuery = parseSlashQuery(message);
   const slashCandidates = useMemo(() => {
     if (slashQuery === null) return [];
     return slashCommands.filter(

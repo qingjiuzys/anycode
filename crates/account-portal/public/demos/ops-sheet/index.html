@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>经营数据表预览 · anyCode Demo</title>
+  <style>
+    :root { --bg:#0b1220; --ink:#e2e8f0; --muted:#94a3b8; --line:#243044; --accent:#22c55e; --head:#111827; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,sans-serif}
+    .bar{display:flex;justify-content:space-between;gap:1rem;padding:.85rem 1.25rem;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--muted);position:sticky;top:0;background:rgba(11,18,32,.92);backdrop-filter:blur(8px)}
+    .bar a{color:var(--ink);text-decoration:none}.bar a:hover{color:var(--accent)}
+    .wrap{max-width:56rem;margin:1.5rem auto;padding:0 1rem 2rem}
+    h1{margin:0 0 .35rem;font-size:1.6rem} .lead{color:var(--muted);margin:0 0 1.25rem}
+    .tabs{display:flex;gap:.4rem;margin-bottom:.75rem}
+    .tabs button{appearance:none;border:1px solid var(--line);background:#111827;color:var(--muted);border-radius:.6rem;padding:.4rem .75rem;cursor:pointer}
+    .tabs button.on{color:var(--ink);border-color:var(--accent)}
+    table{width:100%;border-collapse:collapse;background:#111827;border:1px solid var(--line);border-radius:.8rem;overflow:hidden}
+    th,td{padding:.7rem .85rem;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+    th:first-child,td:first-child{text-align:left}
+    th{background:var(--head);color:var(--muted);font-size:.78rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+    tr:last-child td{border-bottom:0;color:var(--accent);font-weight:700}
+    .sheet{display:none}.sheet.on{display:block}
+    .note{margin-top:1rem;color:var(--muted);font-size:.85rem;line-height:1.55}
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <a href="/cases/ops-sheet">← 返回案例</a>
+    <span>XLSX 预览（HTML 示意）</span>
+    <a href="/downloads/anyCode_latest_aarch64.dmg">下载桌面版生成真 .xlsx</a>
+  </div>
+  <div class="wrap">
+    <h1>经营数据表</h1>
+    <p class="lead">收入 / 成本 / 汇总 · 公式可审计（演示页用静态结果示意跨 sheet 联动）</p>
+    <div class="tabs" role="tablist">
+      <button type="button" class="on" data-sheet="rev">收入</button>
+      <button type="button" data-sheet="cost">成本</button>
+      <button type="button" data-sheet="sum">汇总</button>
+    </div>
+    <div class="sheet on" id="rev">
+      <table>
+        <thead><tr><th>月份</th><th>订阅</th><th>用量</th><th>合计</th></tr></thead>
+        <tbody>
+          <tr><td>5 月</td><td>120,000</td><td>36,000</td><td>156,000</td></tr>
+          <tr><td>6 月</td><td>148,000</td><td>41,200</td><td>189,200</td></tr>
+          <tr><td>7 月</td><td>176,500</td><td>52,800</td><td>229,300</td></tr>
+          <tr><td>合计</td><td>444,500</td><td>130,000</td><td>574,500</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="sheet" id="cost">
+      <table>
+        <thead><tr><th>月份</th><th>模型成本</th><th>基建</th><th>合计</th></tr></thead>
+        <tbody>
+          <tr><td>5 月</td><td>48,000</td><td>22,000</td><td>70,000</td></tr>
+          <tr><td>6 月</td><td>55,400</td><td>22,000</td><td>77,400</td></tr>
+          <tr><td>7 月</td><td>63,200</td><td>24,500</td><td>87,700</td></tr>
+          <tr><td>合计</td><td>166,600</td><td>68,500</td><td>235,100</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="sheet" id="sum">
+      <table>
+        <thead><tr><th>月份</th><th>收入</th><th>成本</th><th>毛利</th><th>毛利率</th></tr></thead>
+        <tbody>
+          <tr><td>5 月</td><td>156,000</td><td>70,000</td><td>86,000</td><td>55.1%</td></tr>
+          <tr><td>6 月</td><td>189,200</td><td>77,400</td><td>111,800</td><td>59.1%</td></tr>
+          <tr><td>7 月</td><td>229,300</td><td>87,700</td><td>141,600</td><td>61.8%</td></tr>
+          <tr><td>合计</td><td>574,500</td><td>235,100</td><td>339,400</td><td>59.1%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">汇总页毛利 = 收入 − 成本（对应 xlsx 跨 sheet 公式）。本机用同一提示词可生成可复核的 .xlsx。</p>
+  </div>
+  <script>
+    const buttons = [...document.querySelectorAll(".tabs button")];
+    buttons.forEach((btn) => btn.addEventListener("click", () => {
+      buttons.forEach((b) => b.classList.toggle("on", b === btn));
+      document.querySelectorAll(".sheet").forEach((s) => s.classList.toggle("on", s.id === btn.dataset.sheet));
+    }));
+  </script>
+</body>
+</html>

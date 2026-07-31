@@ -84,6 +84,16 @@ impl AccountDb {
             include_str!("../migrations/017_a2a_stream_token_ephemeral.sql"),
         )
         .await?;
+        self.apply_migration(
+            "018_pro_window_quota_disable_v4_pro",
+            include_str!("../migrations/018_pro_window_quota_disable_v4_pro.sql"),
+        )
+        .await?;
+        self.apply_migration(
+            "019_free_plan_20m_tokens",
+            include_str!("../migrations/019_free_plan_20m_tokens.sql"),
+        )
+        .await?;
         Ok(())
     }
 

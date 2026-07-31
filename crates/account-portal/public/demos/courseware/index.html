@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>培训课件翻页稿 · anyCode Demo</title>
+  <style>
+    :root { --bg:#111827; --ink:#f8fafc; --muted:#94a3b8; --accent:#38bdf8; --panel:#1e293b; --line:rgba(148,163,184,.25); }
+    *{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,sans-serif}
+    body{display:grid;grid-template-rows:auto 1fr auto}
+    header,footer{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.75rem 1.25rem;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+    footer{border-bottom:0;border-top:1px solid var(--line)}
+    a{color:var(--ink);text-decoration:none} a:hover{color:var(--accent)}
+    main{position:relative;overflow:hidden}
+    .slide{position:absolute;inset:0;display:none;padding:clamp(1.5rem,5vw,4rem);flex-direction:column;justify-content:center;gap:1rem;background:linear-gradient(160deg,#0f172a,#111827 40%,#172554)}
+    .slide.is-active{display:flex;animation:in .25s ease}
+    @keyframes in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+    .kicker{letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-size:.75rem}
+    h1,h2{margin:0;line-height:1.15;font-weight:700;max-width:16ch}
+    h1{font-size:clamp(2rem,5.5vw,3.6rem)} h2{font-size:clamp(1.7rem,4vw,2.8rem)}
+    p{margin:0;max-width:48ch;color:#cbd5e1;font-size:1.1rem;line-height:1.6}
+    .quote{border-left:3px solid var(--accent);padding:.2rem 0 .2rem 1rem;font-size:1.35rem;color:var(--ink);max-width:28ch}
+    .cards{display:grid;gap:.7rem;max-width:34rem}
+    .cards div{padding:.9rem 1rem;border:1px solid var(--line);border-radius:.8rem;background:color-mix(in srgb,var(--panel) 90%,transparent)}
+    .cards b{display:block;margin-bottom:.25rem}
+    button{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:.45rem .9rem;cursor:pointer}
+    button:hover{border-color:var(--accent);color:var(--accent)}
+    .actions{display:flex;gap:.5rem}
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/cases/courseware">← 返回案例</a>
+    <span>anyCode Demo · 培训课件</span>
+    <a href="/downloads/anyCode_latest_aarch64.dmg">下载桌面版</a>
+  </header>
+  <main id="deck"></main>
+  <footer>
+    <div class="actions">
+      <button type="button" id="prev">上一页</button>
+      <button type="button" id="next">下一页</button>
+    </div>
+    <span id="counter">1 / 5 · ← → 翻页</span>
+  </footer>
+  <script>
+    const slides = [
+      `<p class="kicker">封面</p><h1>机制课：一页一命题</h1><p>面向内训的翻页课件。先讲清因果，再给可复述的结论。</p>`,
+      `<p class="kicker">机制</p><h2>为什么一页只讲一件事</h2><p>注意力有限。每页一个命题，听众才能带着结论离开教室。</p>`,
+      `<p class="kicker">案例</p><h2>同一提示词，两种结果</h2><div class="cards"><div><b>堆砌型</b>一页塞满 bullet，演示时读屏幕。</div><div><b>命题型</b>一页一句主张，口头展开证据。</div></div>`,
+      `<p class="kicker">练习</p><div class="quote">把你的下一页改成：主张 + 一个证据 + 一个行动。</div>`,
+      `<p class="kicker">小结</p><h2>带走三句话</h2><div class="cards"><div><b>1</b>一页一命题</div><div><b>2</b>先因果后结论</div><div><b>3</b>本机打开即可授课</div></div>`
+    ];
+    const deck = document.getElementById("deck");
+    let i = 0;
+    slides.forEach((html, idx) => {
+      const el = document.createElement("section");
+      el.className = "slide" + (idx === 0 ? " is-active" : "");
+      el.innerHTML = html;
+      deck.appendChild(el);
+    });
+    const nodes = [...deck.querySelectorAll(".slide")];
+    const counter = document.getElementById("counter");
+    function go(n) {
+      i = (n + nodes.length) % nodes.length;
+      nodes.forEach((el, idx) => el.classList.toggle("is-active", idx === i));
+      counter.textContent = `${i + 1} / ${nodes.length} · ← → 翻页`;
+    }
+    document.getElementById("prev").onclick = () => go(i - 1);
+    document.getElementById("next").onclick = () => go(i + 1);
+    window.addEventListener("keydown", (e) => {
+      if (["ArrowRight", " ", "PageDown"].includes(e.key)) { e.preventDefault(); go(i + 1); }
+      if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(i - 1); }
+    });
+  </script>
+</body>
+</html>

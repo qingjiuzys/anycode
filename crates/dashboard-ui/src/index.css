@@ -1897,9 +1897,17 @@
     box-shadow: var(--shadow-float, 0 12px 40px rgba(0, 0, 0, 0.14));
   }
 
+  .dw-hero-composer__modes {
+    @apply flex flex-wrap items-center gap-3 px-6 pt-4;
+  }
+
   .dw-hero-composer__textarea {
     @apply w-full min-h-[14rem] max-h-[24rem] resize-none border-0 bg-transparent px-6 pt-6 pb-4 text-lg leading-relaxed text-on-surface outline-none placeholder:text-outline;
     transition: box-shadow 0.15s ease;
+  }
+
+  .dw-hero-composer__modes + .dw-hero-composer__input-wrap .dw-hero-composer__textarea {
+    @apply pt-3;
   }
 
   .dw-hero-composer__card:focus-within {

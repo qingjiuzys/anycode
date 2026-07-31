@@ -11,6 +11,20 @@ export type ComposerSlashParse = {
   bareSlash: boolean;
 };
 
+/**
+ * Active slash autocomplete filter, or `null` when the menu should stay closed.
+ * Bare `/` returns `""` (show all commands). Multi-line input disables the menu.
+ */
+export function parseSlashQuery(text: string): string | null {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith("/") || trimmed.includes("\n")) return null;
+  const body = trimmed.slice(1);
+  const token = body.split(/\s+/)[0] ?? "";
+  if (token === "") return "";
+  if (/^[\w.-]+$/.test(token)) return token.toLowerCase();
+  return token;
+}
+
 /** Parse a leading `/拷问` or `/目标` (and English aliases) out of the composer text. */
 export function parseComposerSlashInput(text: string): ComposerSlashParse {
   const trimmed = text.trim();

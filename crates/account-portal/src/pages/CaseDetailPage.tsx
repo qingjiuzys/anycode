@@ -94,9 +94,19 @@ export function CaseDetailPage() {
               <h2>{copy.tryLabel}</h2>
               <p>{copy.tryBody}</p>
             </div>
-            <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
-              {t("hero.ctaDownload")} <span aria-hidden>↓</span>
-            </a>
+            <div className="nx-case-detail__try-actions">
+              {def.demoUrl ? (
+                <a className="nx-btn nx-btn--primary" href={def.demoUrl} target="_blank" rel="noreferrer">
+                  {copy.openDemo} <span aria-hidden>→</span>
+                </a>
+              ) : null}
+              <a
+                className={def.demoUrl ? "nx-btn nx-btn--ghost" : "nx-btn nx-btn--primary"}
+                href={DESKTOP_DOWNLOAD_URL}
+              >
+                {t("hero.ctaDownload")} <span aria-hidden>↓</span>
+              </a>
+            </div>
           </section>
 
           {others.length > 0 ? (

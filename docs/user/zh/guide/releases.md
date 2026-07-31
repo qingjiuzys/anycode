@@ -13,6 +13,9 @@ read_when:
 
 - **开放验证**：Discover→Search→Run（`verify-discover` skill + 空口完成 evidence nudge + `verify_recipe` 记忆）。
 - **启动短路移除**：主机「站点已在运行 :8080」不再劫持 docker/真实启动。
+- **套餐**：Free 新用户 2000 万 tokens；Cloud 5h 窗口内 1000 次；Pro ¥599/月窗口内 10000 次（Pro 模型暂未开放）。
+- **门户案例**：https://anycode.work/cases/… 可「打开演示」在线翻页/预览。
+- **首页斜杠**：Workbench 首页支持 `/拷问`、`/目标`。
 - **CI**：`mime_to_ext` 跨平台；fmt 漂移修复。
 
 ## 0.3.1（工作区）

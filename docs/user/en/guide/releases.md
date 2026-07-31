@@ -13,6 +13,9 @@ read_when:
 
 - **Discoverable verification**: Discover→Search→Run (`verify-discover` skill + hollow-completion evidence nudge + `verify_recipe` memory).
 - **Start shortcircuit removed**: host “site already running :8080” no longer hijacks docker/real starts.
+- **Plans**: Free new users get 20M tokens; Cloud 5h stays 1,000 calls/window; Pro ¥599/mo is 10,000 calls/5h window (Pro model temporarily unavailable).
+- **Portal cases**: https://anycode.work/cases/… offers openable in-browser demos.
+- **Home slash modes**: Workbench home supports `/拷问` and `/目标`.
 - **CI**: cross-platform `mime_to_ext`; rustfmt drift fixes.
 
 ## 0.3.1 (workspace)

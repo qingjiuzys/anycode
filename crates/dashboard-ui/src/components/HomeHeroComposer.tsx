@@ -1,14 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { createPortal } from "react-dom";
 import { buildConversationsHref, conversationSearchParams } from "@/lib/conversationsSearch";
 import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
 import { ProjectPicker } from "@/components/ProjectPicker";
 import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
-import { useT } from "@/i18n/context";
+import { useLocale, useT } from "@/i18n/context";
 import { useComposerIme } from "@/lib/composerIme";
+import { parseComposerSlashInput, parseSlashQuery } from "@/lib/composerSlash";
+import {
+  composerModeForSend,
+  grillSlashCommand,
+  isGrillSlashToken,
+  loadGrillMode,
+  saveGrillMode,
+  shouldExitGrillMode,
+} from "@/lib/grillMode";
+import {
+  GOAL_AGENT_ID,
+  goalSlashCommand,
+  isGoalSlashToken,
+  loadGoalMode,
+  saveGoalMode,
+} from "@/lib/goalMode";
+import { useAnchoredAboveStyle } from "@/lib/useAnchoredAboveStyle";
 
 type Sse = "live" | "connecting" | "reconnecting" | "offline";
 
@@ -46,6 +64,7 @@ export function HomeHeroComposer({
   onSelectDirectory?: () => void;
 }) {
   const t = useT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [internalPrompt, setInternalPrompt] = useState("");
@@ -64,6 +83,32 @@ export function HomeHeroComposer({
   const [browserHintDismissed, setBrowserHintDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { compositionProps, shouldIgnoreEnterForIme } = useComposerIme();
+
+  const modeStorageKey = resolvedProjectId ? `project:${resolvedProjectId}` : undefined;
+  const [grillMode, setGrillMode] = useState(() => loadGrillMode(modeStorageKey));
+  const [goalMode, setGoalMode] = useState(() => loadGoalMode(modeStorageKey));
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
+
+  const slashCommands = useMemo(
+    () => [grillSlashCommand(locale), goalSlashCommand(locale)],
+    [locale],
+  );
+
+  useEffect(() => {
+    const grill = loadGrillMode(modeStorageKey);
+    const goal = loadGoalMode(modeStorageKey);
+    setGrillMode(grill);
+    setGoalMode(goal && !grill);
+  }, [modeStorageKey]);
+
+  useEffect(() => {
+    saveGrillMode(modeStorageKey, grillMode);
+  }, [modeStorageKey, grillMode]);
+
+  useEffect(() => {
+    saveGoalMode(modeStorageKey, goalMode);
+  }, [modeStorageKey, goalMode]);
 
   const browser = useQuery({
     queryKey: ["browser-connector"],
@@ -111,15 +156,25 @@ export function HomeHeroComposer({
   }, [initialProjectId, internalProjectId, isControlled, projectOptions]);
 
   const start = useMutation({
-    mutationFn: (opts?: { agent?: string; skills?: string[]; prompt?: string }) =>
+    mutationFn: (vars: { prompt: string; grill: boolean; goal: boolean }) =>
       api.startConversation(resolvedProjectId, {
-        prompt: (opts?.prompt ?? prompt).trim(),
-        agent: opts?.agent,
-        skills: opts?.skills,
+        prompt: vars.prompt.trim(),
+        agent: vars.goal ? GOAL_AGENT_ID : undefined,
+        composer_mode: composerModeForSend(vars.grill),
         recycle_session: false,
       }),
-    onSuccess: (data) => {
+    onSuccess: (data, vars) => {
+      if (vars.grill) {
+        saveGrillMode(data.session.id, true);
+        saveGrillMode(modeStorageKey, false);
+      }
+      if (vars.goal) {
+        saveGoalMode(data.session.id, true);
+        saveGoalMode(modeStorageKey, false);
+      }
       setPrompt("");
+      setGrillMode(false);
+      setGoalMode(false);
       const projectName =
         projectOptions.find((p) => p.id === resolvedProjectId)?.name ?? "";
       onSessionStarted?.({
@@ -158,8 +213,116 @@ export function HomeHeroComposer({
     setBrowserHintDismissed(true);
   }
 
+  function enableGoalMode() {
+    setGrillMode(false);
+    setGoalMode(true);
+  }
+
+  function disableGoalMode() {
+    setGoalMode(false);
+  }
+
+  function enableGrillMode() {
+    disableGoalMode();
+    setGrillMode(true);
+  }
+
+  function slashCmdLabel(cmd: string): string {
+    if (isGrillSlashToken(cmd)) return t("conversations.slashCmd.grill");
+    if (isGoalSlashToken(cmd)) return t("conversations.slashCmd.goal");
+    return cmd;
+  }
+
+  function applySlash(cmd: string) {
+    const parsed = parseComposerSlashInput(prompt);
+    if (isGrillSlashToken(cmd)) {
+      if (grillMode && parsed.bareSlash) {
+        setGrillMode(false);
+      } else {
+        enableGrillMode();
+      }
+      setPrompt(parsed.mode === "grill" ? parsed.prompt : "");
+      setSlashOpen(false);
+      textareaRef.current?.focus();
+      return;
+    }
+    if (isGoalSlashToken(cmd)) {
+      if (goalMode && parsed.bareSlash) {
+        disableGoalMode();
+      } else {
+        enableGoalMode();
+      }
+      setPrompt(parsed.mode === "goal" ? parsed.prompt : "");
+      setSlashOpen(false);
+      textareaRef.current?.focus();
+    }
+  }
+
+  function submitMessage() {
+    const parsed = parseComposerSlashInput(prompt);
+    const grillActive = grillMode || parsed.mode === "grill";
+    const goalActive = goalMode || parsed.mode === "goal";
+
+    if (parsed.bareSlash && parsed.mode) {
+      if (parsed.mode === "grill") {
+        if (grillMode) setGrillMode(false);
+        else enableGrillMode();
+      } else if (goalMode) {
+        disableGoalMode();
+      } else {
+        enableGoalMode();
+      }
+      setPrompt("");
+      setSlashOpen(false);
+      return;
+    }
+
+    const outgoingPrompt = parsed.mode ? parsed.prompt : prompt.trim();
+    if (!outgoingPrompt || !resolvedProjectId || start.isPending) return;
+
+    if (parsed.mode === "grill" && !grillMode) enableGrillMode();
+    if (parsed.mode === "goal" && !goalMode) enableGoalMode();
+
+    start.mutate({
+      prompt: outgoingPrompt,
+      grill: grillActive,
+      goal: goalActive,
+    });
+
+    if (grillActive && shouldExitGrillMode(outgoingPrompt)) {
+      setGrillMode(false);
+    }
+  }
+
+  function onPromptInput(value: string) {
+    setPrompt(value);
+    setSlashOpen(value.trimStart().startsWith("/"));
+  }
+
+  const slashQuery = parseSlashQuery(prompt);
+  const slashCandidates = useMemo(() => {
+    if (slashQuery === null) return [];
+    return slashCommands.filter((cmd) => cmd.startsWith(slashQuery) || slashQuery === "");
+  }, [slashQuery, slashCommands]);
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashQuery]);
+
+  const showSlashMenu =
+    slashOpen && slashCandidates.length > 0 && slashQuery !== null && prompt.trimStart().startsWith("/");
+  const slashMenuStyle = useAnchoredAboveStyle(showSlashMenu, textareaRef, {
+    matchWidth: true,
+  });
+
+  const parsedForSubmit = parseComposerSlashInput(prompt);
+  const canToggleMode = Boolean(parsedForSubmit.bareSlash && parsedForSubmit.mode);
+  const outgoingForSubmit = parsedForSubmit.mode
+    ? parsedForSubmit.prompt
+    : prompt.trim();
   const canSubmit =
-    prompt.trim().length > 0 && resolvedProjectId.length > 0 && !start.isPending;
+    !start.isPending &&
+    (canToggleMode || (outgoingForSubmit.length > 0 && resolvedProjectId.length > 0));
   const hasAlerts = blockedCount > 0 || pendingCount > 0 || budgetExceededCount > 0;
 
   const statusLabel = connected
@@ -168,25 +331,125 @@ export function HomeHeroComposer({
       ? t("home.hero.statusConnecting")
       : t("home.hero.statusOffline");
 
+  const placeholder = grillMode
+    ? t("conversations.grillModePlaceholder")
+    : goalMode
+      ? t("conversations.goalModePlaceholder")
+      : t("home.hero.placeholder");
+
+  function onComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (showSlashMenu && slashCandidates.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((i) => (i + 1) % slashCandidates.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((i) => (i - 1 + slashCandidates.length) % slashCandidates.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        if (e.key === "Enter" && shouldIgnoreEnterForIme(e)) return;
+        e.preventDefault();
+        const parsed = parseComposerSlashInput(prompt);
+        if (e.key === "Enter" && parsed.mode && !parsed.bareSlash) {
+          submitMessage();
+        } else {
+          applySlash(slashCandidates[slashIndex]!);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashOpen(false);
+        if (prompt.trimStart().startsWith("/")) setPrompt("");
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey && canSubmit) {
+      if (shouldIgnoreEnterForIme(e)) return;
+      e.preventDefault();
+      submitMessage();
+    }
+  }
+
   return (
     <div className="dw-hero-composer">
       <div className="dw-hero-composer__card glass-panel">
-        <textarea
-          ref={textareaRef}
-          className="dw-hero-composer__textarea"
-          placeholder={t("home.hero.placeholder")}
-          value={prompt}
-          rows={7}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && canSubmit) {
-              if (shouldIgnoreEnterForIme(e)) return;
-              e.preventDefault();
-              start.mutate({});
-            }
-          }}
-          {...compositionProps}
-        />
+        {(grillMode || goalMode) && (
+          <div className="dw-hero-composer__modes">
+            {grillMode ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/8 px-2.5 py-1 text-xs text-primary">
+                  <Icon name="quiz" size={14} />
+                  {t("conversations.grillModeActive")}
+                </span>
+                <button
+                  type="button"
+                  className="dw-btn-ghost text-xs py-0.5 px-1.5"
+                  onClick={() => setGrillMode(false)}
+                >
+                  {t("conversations.grillModeExit")}
+                </button>
+              </div>
+            ) : null}
+            {goalMode ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-secondary/30 bg-secondary/8 px-2.5 py-1 text-xs text-secondary">
+                  <Icon name="flag" size={14} />
+                  {t("conversations.goalModeActive")}
+                </span>
+                <button
+                  type="button"
+                  className="dw-btn-ghost text-xs py-0.5 px-1.5"
+                  onClick={() => disableGoalMode()}
+                >
+                  {t("conversations.goalModeExit")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+        <div className="dw-hero-composer__input-wrap relative">
+          {showSlashMenu &&
+            createPortal(
+              <div
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg overflow-hidden"
+                style={slashMenuStyle}
+                role="listbox"
+              >
+                {slashCandidates.map((cmd, idx) => (
+                  <button
+                    key={cmd}
+                    type="button"
+                    role="option"
+                    aria-selected={idx === slashIndex}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low ${
+                      idx === slashIndex ? "bg-surface-container-low" : ""
+                    }`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      applySlash(cmd);
+                    }}
+                  >
+                    /{cmd} — {slashCmdLabel(cmd)}
+                  </button>
+                ))}
+              </div>,
+              document.body,
+            )}
+          <textarea
+            ref={textareaRef}
+            className="dw-hero-composer__textarea"
+            placeholder={placeholder}
+            value={prompt}
+            rows={7}
+            onChange={(e) => onPromptInput(e.target.value)}
+            onKeyDown={onComposerKeyDown}
+            {...compositionProps}
+          />
+        </div>
         <div className="dw-hero-composer__toolbar">
           <ProjectPicker
             value={resolvedProjectId}
@@ -199,14 +462,14 @@ export function HomeHeroComposer({
           <div className="dw-hero-composer__toolbar-actions">
             <VoiceInputButton
               disabled={start.isPending}
-              onTranscribed={(text) => setPrompt(mergeVoiceTranscript(prompt, text))}
+              onTranscribed={(text) => onPromptInput(mergeVoiceTranscript(prompt, text))}
             />
             <button
               type="button"
               className="dw-hero-composer__submit"
               disabled={!canSubmit}
               aria-label={t("home.hero.send")}
-              onClick={() => start.mutate({})}
+              onClick={() => submitMessage()}
             >
               <Icon name="arrow_upward" size={20} />
             </button>

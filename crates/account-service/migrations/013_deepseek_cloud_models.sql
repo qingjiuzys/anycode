@@ -17,7 +17,7 @@ INSERT IGNORE INTO cloud_models (
     'deepseek-v4-pro', 'deepseek', 'DeepSeek V4 Pro', 'deepseek-v4-pro', 1000000,
     1.305, 2.61,
     9.0000, 18.0000, 'CNY',
-    'pro', 1, 6
+    'pro', 0, 6
   );
 
 UPDATE cloud_models
@@ -48,7 +48,7 @@ SET
   price_per_1m_output_cny = 18.0000,
   currency = 'CNY',
   min_plan = 'pro',
-  enabled = 1,
+  enabled = 0,
   sort_order = 6
 WHERE id = 'deepseek-v4-pro';
 

@@ -27,9 +27,9 @@ INSERT INTO cloud_plans (
   promo_label, featured, enabled, sort_order
 ) VALUES
 (
-  'free', 'Free', '试用 DeepSeek Flash 托管额度',
+  'free', 'Free', '新用户赠送 2000 万 tokens（DeepSeek Flash）',
   0, 0,
-  500000, 1, 1,
+  20000000, 1, 1,
   0, 0, 1,
   NULL, 0, 1, 10
 ),
@@ -41,10 +41,10 @@ INSERT INTO cloud_plans (
   NULL, 0, 1, 20
 ),
 (
-  'pro', 'Pro', '个人托管额度（DeepSeek ×3）',
+  'pro', 'Pro', '10000 次模型调用 / 每 5 小时重置',
   59900, 599000,
   15000000, 5, 1,
-  0, 0, 1,
+  18000, 10000, 1,
   '推荐', 1, 1, 30
 ),
 (

@@ -130,7 +130,7 @@ export const en = {
     cloud: {
       tag: "Cloud",
       title: "Cloud Auto · DeepSeek",
-      body: "Turn on hosted DeepSeek (Flash / Pro, official CNY ×3) when needed — local workflow unchanged.",
+      body: "Turn on hosted DeepSeek Flash when needed (official CNY ×3; Pro model temporarily unavailable) — local workflow unchanged.",
     },
     speech: {
       tag: "Apple Speech",
@@ -221,9 +221,9 @@ export const en = {
       free: {
         name: "Free",
         price: "¥0",
-        desc: "Trial DeepSeek Flash hosted quota",
+        desc: "New users get DeepSeek Flash hosted quota",
         h0: "DeepSeek V4 Flash (×3 unit price)",
-        h1: "500K trial tokens",
+        h1: "20M bonus tokens",
         h2: "Link desktop app",
       },
       cloud_5h: {
@@ -237,10 +237,10 @@ export const en = {
       pro: {
         name: "Pro",
         price: "¥599/mo",
-        desc: "Personal hosted quota (DeepSeek ×3)",
-        h0: "Flash + Pro hosted models",
-        h1: "15M tokens / month",
-        h2: "5 API keys",
+        desc: "10,000 model calls per 5-hour rolling window",
+        h0: "5-hour rolling window",
+        h1: "10,000 calls per window",
+        h2: "Flash hosted · Pro model temporarily unavailable",
       },
       team: {
         name: "Team",
@@ -259,7 +259,7 @@ export const en = {
     signInExisting: "Sign in",
   },
   auth: {
-    backHome: "← Back to home",
+    backHome: "Back to home",
     asideTitle: "anycode",
     asideLead:
       "Cloud account, subscriptions, and hosted models. Your agent still runs locally; identity and quota are managed in the cloud.",

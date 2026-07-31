@@ -132,7 +132,7 @@ export const zh: MessageTree = {
     cloud: {
       tag: "Cloud",
       title: "Cloud Auto · DeepSeek",
-      body: "云端推理按需启用（Flash / Pro，官方单价 ×3），本地工作流保持不变。",
+      body: "云端推理按需启用（DeepSeek Flash，官方单价 ×3；Pro 模型暂未开放），本地工作流保持不变。",
     },
     speech: {
       tag: "Apple Speech",
@@ -222,9 +222,9 @@ export const zh: MessageTree = {
       free: {
         name: "Free",
         price: "¥0",
-        desc: "试用 DeepSeek Flash 托管额度",
+        desc: "新用户赠送 DeepSeek Flash 托管额度",
         h0: "DeepSeek V4 Flash（×3 单价）",
-        h1: "50 万 tokens 试用",
+        h1: "2000 万 tokens 赠送",
         h2: "可关联桌面端",
       },
       cloud_5h: {
@@ -238,10 +238,10 @@ export const zh: MessageTree = {
       pro: {
         name: "Pro",
         price: "¥599/月",
-        desc: "个人托管额度（DeepSeek ×3）",
-        h0: "Flash + Pro 托管模型",
-        h1: "1500 万 tokens/月",
-        h2: "5 个 API Key",
+        desc: "10000 次模型调用 / 每 5 小时重置",
+        h0: "5 小时滚动窗口",
+        h1: "窗口内 10000 次调用",
+        h2: "Flash 托管 · Pro 模型暂未开放",
       },
       team: {
         name: "Team",
@@ -260,7 +260,7 @@ export const zh: MessageTree = {
     signInExisting: "已有账号登录",
   },
   auth: {
-    backHome: "← 返回首页",
+    backHome: "返回首页",
     asideTitle: "anycode",
     asideLead:
       "云端账号、订阅计费与托管模型。本地 Agent 执行不变，身份与额度由云端统一管理。",

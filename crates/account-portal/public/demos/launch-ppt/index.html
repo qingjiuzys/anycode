@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>产品发布会演示稿 · anyCode Demo</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --ink: #f4efe6;
+      --muted: #9aa3ad;
+      --accent: #d97757;
+      --line: rgba(244, 239, 230, 0.14);
+      --panel: #171d24;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", serif; }
+    body { display: grid; grid-template-rows: auto 1fr auto; }
+    header, footer {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--line); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; color: var(--muted);
+    }
+    footer { border-bottom: 0; border-top: 1px solid var(--line); }
+    header a, footer a { color: var(--ink); text-decoration: none; }
+    header a:hover, footer a:hover { color: var(--accent); }
+    main { position: relative; overflow: hidden; }
+    .slide {
+      position: absolute; inset: 0; padding: clamp(1.5rem, 5vw, 4rem);
+      display: none; flex-direction: column; justify-content: center; gap: 1.25rem;
+      background: radial-gradient(1200px 600px at 10% -10%, #243041 0%, transparent 55%), var(--bg);
+    }
+    .slide.is-active { display: flex; animation: in 280ms ease; }
+    @keyframes in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .kicker { font-family: ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-size: 0.75rem; }
+    h1 { margin: 0; font-size: clamp(2.2rem, 6vw, 4.2rem); line-height: 1.05; font-weight: 600; max-width: 14ch; }
+    h2 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.15; font-weight: 600; }
+    p { margin: 0; max-width: 46ch; font-size: clamp(1.05rem, 2vw, 1.35rem); color: #d7d1c6; line-height: 1.55; }
+    .ladder { display: grid; gap: 0.65rem; margin-top: 0.5rem; max-width: 36rem; }
+    .ladder div {
+      display: grid; grid-template-columns: 2.5rem 1fr; gap: 0.75rem; align-items: baseline;
+      padding: 0.7rem 0.9rem; border: 1px solid var(--line); border-radius: 0.75rem; background: color-mix(in srgb, var(--panel) 88%, transparent);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    .ladder small { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .ladder b { font-weight: 600; }
+    .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; max-width: 40rem; }
+    .kpi article { padding: 1rem; border: 1px solid var(--line); border-radius: 0.85rem; background: var(--panel); font-family: ui-sans-serif, system-ui, sans-serif; }
+    .kpi strong { display: block; font-size: 1.8rem; color: var(--ink); }
+    .kpi span { color: var(--muted); font-size: 0.85rem; }
+    .nav-hint { font-family: ui-sans-serif, system-ui, sans-serif; }
+    .dots { display: flex; gap: 0.35rem; }
+    .dots i { width: 0.45rem; height: 0.45rem; border-radius: 999px; background: #3a4450; display: block; }
+    .dots i.on { background: var(--accent); }
+    button {
+      appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+      border-radius: 999px; padding: 0.45rem 0.9rem; cursor: pointer; font: inherit;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    .actions { display: flex; gap: 0.5rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/cases/launch-ppt">← 返回案例</a>
+    <span>anyCode Demo · 产品发布会</span>
+    <a href="/downloads/anyCode_latest_aarch64.dmg">下载桌面版</a>
+  </header>
+  <main id="deck" aria-live="polite"></main>
+  <footer>
+    <div class="actions">
+      <button type="button" id="prev">上一页</button>
+      <button type="button" id="next">下一页</button>
+    </div>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+    <span class="nav-hint" id="counter">1 / 6 · ← → 翻页</span>
+  </footer>
+  <script>
+    const slides = [
+      {
+        html: `<p class="kicker">01 · Cover</p>
+          <h1>产品发布</h1>
+          <p>本地 Agent · 可交付。一句话启动，Skills 落地成可演示的幻灯片。</p>`
+      },
+      {
+        html: `<p class="kicker">02 · Architecture</p>
+          <h2>本机执行，云端可选</h2>
+          <div class="ladder">
+            <div><small>01</small><b>Workbench 对话编排</b></div>
+            <div><small>02</small><b>Skills 落盘交付物</b></div>
+            <div><small>03</small><b>云端账号 / 额度 / 托管模型</b></div>
+          </div>`
+      },
+      {
+        html: `<p class="kicker">03 · KPI</p>
+          <h2>发布目标</h2>
+          <div class="kpi">
+            <article><strong>12</strong><span>页可演示稿</span></article>
+            <article><strong>&lt;3min</strong><span>从提示词到预览</span></article>
+            <article><strong>100%</strong><span>本机可打开</span></article>
+          </div>`
+      },
+      {
+        html: `<p class="kicker">04 · Roadmap</p>
+          <h2>路线图</h2>
+          <div class="ladder">
+            <div><small>Q1</small><b>HTML PPT / DOCX / XLSX Skills</b></div>
+            <div><small>Q2</small><b>云端 Flash 托管与套餐</b></div>
+            <div><small>Q3</small><b>团队云端交接与更多交付物</b></div>
+          </div>`
+      },
+      {
+        html: `<p class="kicker">05 · Checklist</p>
+          <h2>行动清单</h2>
+          <div class="ladder">
+            <div><small>01</small><b>下载 anyCode 桌面版</b></div>
+            <div><small>02</small><b>粘贴同一句提示词</b></div>
+            <div><small>03</small><b>打开 slides/index.html 演示</b></div>
+          </div>`
+      },
+      {
+        html: `<p class="kicker">06 · Close</p>
+          <h1>现在就试</h1>
+          <p>在 Workbench 输入：「帮我做一份 12 页产品发布 PPT」。本演示页即为同类产物形态。</p>`
+      }
+    ];
+    const deck = document.getElementById("deck");
+    const dots = document.getElementById("dots");
+    const counter = document.getElementById("counter");
+    let i = 0;
+    slides.forEach((s, idx) => {
+      const el = document.createElement("section");
+      el.className = "slide" + (idx === 0 ? " is-active" : "");
+      el.innerHTML = s.html;
+      deck.appendChild(el);
+      const d = document.createElement("i");
+      if (idx === 0) d.className = "on";
+      dots.appendChild(d);
+    });
+    const nodes = [...deck.querySelectorAll(".slide")];
+    const dotNodes = [...dots.querySelectorAll("i")];
+    function go(n) {
+      i = (n + nodes.length) % nodes.length;
+      nodes.forEach((el, idx) => el.classList.toggle("is-active", idx === i));
+      dotNodes.forEach((el, idx) => el.classList.toggle("on", idx === i));
+      counter.textContent = `${i + 1} / ${nodes.length} · ← → 翻页`;
+    }
+    document.getElementById("prev").onclick = () => go(i - 1);
+    document.getElementById("next").onclick = () => go(i + 1);
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); go(i + 1); }
+      if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(i - 1); }
+      if (e.key === "Home") go(0);
+      if (e.key === "End") go(nodes.length - 1);
+    });
+  </script>
+</body>
+</html>

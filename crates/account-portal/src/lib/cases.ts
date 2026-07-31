@@ -8,6 +8,8 @@ export type CaseDef = {
   skill: string;
   model: string;
   featured?: boolean;
+  /** Static demo under portal `public/demos/` — openable without Desktop. */
+  demoUrl?: string;
 };
 
 export const CASES: CaseDef[] = [
@@ -17,24 +19,28 @@ export const CASES: CaseDef[] = [
     skill: "anycode-ppt",
     model: "DeepSeek Flash",
     featured: true,
+    demoUrl: "/demos/launch-ppt/",
   },
   {
     id: "courseware",
     kind: "ppt",
     skill: "anycode-ppt",
     model: "DeepSeek Flash",
+    demoUrl: "/demos/courseware/",
   },
   {
     id: "weekly-report",
     kind: "doc",
     skill: "anycode-docx",
     model: "DeepSeek Flash",
+    demoUrl: "/demos/weekly-report/",
   },
   {
     id: "ops-sheet",
     kind: "sheet",
     skill: "anycode-xlsx",
     model: "DeepSeek Flash",
+    demoUrl: "/demos/ops-sheet/",
   },
 ];
 
@@ -44,6 +50,7 @@ const COPY = {
     sectionTitle: "交付案例",
     sectionLead: "一句话启动，本机落盘可验收文件。",
     viewCase: "查看案例",
+    openDemo: "打开演示",
     backHome: "返回首页",
     promptLabel: "提示词",
     modelLabel: "模型",
@@ -51,7 +58,7 @@ const COPY = {
     outputLabel: "产物",
     stepsLabel: "怎么跑通",
     tryLabel: "自己试一次",
-    tryBody: "下载 anyCode，用同一句话在本机生成。",
+    tryBody: "先打开在线演示感受产物；再下载 anyCode，用同一句话在本机生成。",
     items: {
       "launch-ppt": {
         tag: "HTML PPT",
@@ -133,6 +140,7 @@ const COPY = {
     sectionTitle: "Deliverable cases",
     sectionLead: "One sentence in. Shippable files out — on your machine.",
     viewCase: "View case",
+    openDemo: "Open demo",
     backHome: "Back home",
     promptLabel: "Prompt",
     modelLabel: "Model",
@@ -140,7 +148,7 @@ const COPY = {
     outputLabel: "Output",
     stepsLabel: "How it runs",
     tryLabel: "Try it yourself",
-    tryBody: "Download anyCode and run the same prompt locally.",
+    tryBody: "Open the online demo first, then download anyCode and run the same prompt locally.",
     items: {
       "launch-ppt": {
         tag: "HTML PPT",

@@ -21,6 +21,51 @@ export type ChangelogRelease = {
 /** Newest first — rendered as a vertical timeline (top → bottom). */
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: "0.3.2",
+    date: "2026-07-31",
+    tag: "v0.3.2",
+    summary: {
+      zh: "套餐配额调整、门户案例可直接打开演示、首页支持 /拷问 /目标。",
+      en: "Updated plan quotas, openable portal case demos, and home slash modes.",
+    },
+    sections: [
+      {
+        kind: "added",
+        items: [
+          {
+            zh: "门户交付案例：四个案例均可「打开演示」（PPT 翻页 / 周报 / 经营表预览）。",
+            en: "Portal cases: all four demos are openable in-browser (PPT decks, weekly report, ops sheet).",
+          },
+          {
+            zh: "Workbench 首页 composer 支持 `/拷问`、`/目标` 斜杠模式（与会话页一致）。",
+            en: "Workbench home composer supports `/拷问` and `/目标` slash modes (same as conversation).",
+          },
+        ],
+      },
+      {
+        kind: "changed",
+        items: [
+          {
+            zh: "Free：新用户赠送 2000 万 tokens（DeepSeek Flash 托管）。",
+            en: "Free: new users get 20M bonus hosted tokens (DeepSeek Flash).",
+          },
+          {
+            zh: "Cloud 5h：维持 5 小时滚动窗口、窗口内 1000 次调用。",
+            en: "Cloud 5h: unchanged — 1,000 calls per 5-hour rolling window.",
+          },
+          {
+            zh: "Pro（¥599/月）：改为 5 小时滚动窗口、窗口内 10000 次调用；DeepSeek V4 Pro 暂未开放。",
+            en: "Pro (¥599/mo): 10,000 calls per 5-hour rolling window; DeepSeek V4 Pro temporarily unavailable.",
+          },
+          {
+            zh: "移除设置页「局域网协作」入口（同事交接走云端 A2A）。",
+            en: "Removed Settings → LAN collaboration (team handoff remains cloud A2A).",
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: "0.3.1",
     date: "2026-07-30",
     tag: "v0.3.1",

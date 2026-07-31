@@ -4013,6 +4013,14 @@ body:has(.app--nx) {
   font-size: 14px;
 }
 
+.nx-case-detail__try-actions,
+.nx-case-feature__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
 .nx-case-detail__more {
   margin-top: 88px;
 }
