@@ -64,6 +64,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgomp1
+          # Full Chromium staging is desktop-release only; Tauri still requires the path.
+          mkdir -p apps/anycode-desktop/resources/browser
+          touch apps/anycode-desktop/resources/browser/.ci-placeholder
 
       - name: Build anycode-desktop
         run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release --manifest-path apps/anycode-desktop/Cargo.toml

@@ -19,15 +19,36 @@ test.describe("Agents tabs", () => {
   });
 
   test("installed skills show Chinese names in zh locale", async ({ page, request }) => {
+    const install = await request.post("/api/skills/install-starter");
+    expect(install.ok(), await install.text()).toBeTruthy();
+    const installed = (await install.json()) as { count?: number; installed?: string[] };
+    expect(installed.count ?? 0).toBeGreaterThan(0);
+
+    const skillsRes = await request.get("/api/skills?limit=100");
+    expect(skillsRes.ok()).toBeTruthy();
+    const skillsBody = (await skillsRes.json()) as { skills?: Array<{ id: string }> };
+    const ids = new Set((skillsBody.skills ?? []).map((s) => s.id));
+    expect(
+      ids.has("cn-daily-brief") || ids.has("report-to-csv"),
+      `starter skills missing from API after install: ${[...ids].slice(0, 12).join(",")}`,
+    ).toBeTruthy();
+
     await page.addInitScript(() => {
       localStorage.setItem("anycode-dashboard-locale", "zh");
     });
-    // Fixture HOME may have an empty skills dir — seed starter pack first.
-    const install = await request.post("/api/skills/install-starter");
-    expect(install.ok()).toBeTruthy();
     await page.goto("/agents");
-    // Default tab is already "installed"; use tab id (avoid matching other「已安装」buttons).
     await page.locator("#agents-tab-installed").click();
+    await expect(page.locator(".dw-agents-skill-row").first()).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Force locale in case the shell remounted before init script applied.
+    await page.evaluate(() => {
+      localStorage.setItem("anycode-dashboard-locale", "zh");
+    });
+    await page.reload();
+    await page.locator("#agents-tab-installed").click();
+
     const zhName = page.locator(".dw-agents-skill-row__name").filter({
       hasText: /中文日报|报表转 CSV/,
     });
