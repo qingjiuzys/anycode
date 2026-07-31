@@ -133,7 +133,7 @@ fn write_temp_file(prefix: &str, ext: &str, bytes: &[u8]) -> Result<PathBuf, Str
     Ok(path)
 }
 
-#[cfg(target_os = "macos")]
+/// Pure MIME → file extension mapping (available on all platforms; used by non-macOS CI builds).
 pub fn mime_to_ext(mime: &str) -> &str {
     let m = mime.to_ascii_lowercase();
     if m.contains("png") {
@@ -579,7 +579,6 @@ mod tests {
         assert!(!apple_media_available(NO_EXTRA_PATHS));
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn mime_to_ext_mapping() {
         assert_eq!(mime_to_ext("image/png"), "png");

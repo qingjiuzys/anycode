@@ -57,7 +57,6 @@ pub fn wechat_pay_missing(config: &ServiceConfig) -> Vec<&'static str> {
     missing
 }
 
-
 pub async fn plan_amount_fen(
     db: &AccountDb,
     config: &ServiceConfig,

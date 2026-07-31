@@ -23,11 +23,7 @@ pub async fn verify_device_owner(db: &AccountDb, user_id: &str, device_id: &str)
     Ok(count > 0)
 }
 
-pub async fn upsert_presence(
-    db: &AccountDb,
-    user: &AuthUser,
-    card: &AgentCard,
-) -> Result<()> {
+pub async fn upsert_presence(db: &AccountDb, user: &AuthUser, card: &AgentCard) -> Result<()> {
     if card.organization_id != user.organization_id {
         return Err(anyhow!("organization mismatch"));
     }
@@ -367,10 +363,7 @@ pub async fn peek_stream_token(
         return Err(anyhow!("forbidden"));
     }
     let state: String = row.get("state");
-    if !matches!(
-        state.as_str(),
-        "approved" | "uploading" | "importing"
-    ) {
+    if !matches!(state.as_str(), "approved" | "uploading" | "importing") {
         return Ok(None);
     }
     Ok(row.get("stream_token_ephemeral"))
@@ -415,11 +408,7 @@ fn row_expired(row: &sqlx::mysql::MySqlRow) -> bool {
     expires < Utc::now()
 }
 
-fn ensure_recipient(
-    row: &sqlx::mysql::MySqlRow,
-    user: &AuthUser,
-    device_id: &str,
-) -> Result<()> {
+fn ensure_recipient(row: &sqlx::mysql::MySqlRow, user: &AuthUser, device_id: &str) -> Result<()> {
     let rid: String = row.get("recipient_user_id");
     let rdid: String = row.get("recipient_device_id");
     if rid != user.id || rdid != device_id {
@@ -458,13 +447,11 @@ async fn set_state(db: &AccountDb, handoff_id: &str, state: HandoffState) -> Res
         .execute(db.pool())
         .await?;
     } else {
-        sqlx::query(
-            "UPDATE a2a_handoff_tasks SET state = ?, updated_at = NOW(3) WHERE id = ?",
-        )
-        .bind(state.as_str())
-        .bind(handoff_id)
-        .execute(db.pool())
-        .await?;
+        sqlx::query("UPDATE a2a_handoff_tasks SET state = ?, updated_at = NOW(3) WHERE id = ?")
+            .bind(state.as_str())
+            .bind(handoff_id)
+            .execute(db.pool())
+            .await?;
     }
     Ok(())
 }
@@ -511,11 +498,10 @@ async fn row_to_view(
 }
 
 async fn user_display(db: &AccountDb, user_id: &str) -> Result<String> {
-    let name: Option<String> = sqlx::query_scalar(
-        "SELECT display_name FROM users WHERE id = ? LIMIT 1",
-    )
-    .bind(user_id)
-    .fetch_optional(db.pool())
-    .await?;
+    let name: Option<String> =
+        sqlx::query_scalar("SELECT display_name FROM users WHERE id = ? LIMIT 1")
+            .bind(user_id)
+            .fetch_optional(db.pool())
+            .await?;
     Ok(name.unwrap_or_else(|| user_id.to_string()))
 }

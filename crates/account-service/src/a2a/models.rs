@@ -200,9 +200,7 @@ mod tests {
 
     #[test]
     fn agent_card_defaults() {
-        let card = AgentCard::anycode_desktop(
-            "inst1", "dev1", "org1", "user1", "Desk", "0.2.4",
-        );
+        let card = AgentCard::anycode_desktop("inst1", "dev1", "org1", "user1", "Desk", "0.2.4");
         assert_eq!(card.schema_version, "anycode_agent_card_v1");
         assert_eq!(card.transport, "cloud");
         assert!(card.capabilities.contains(&"streaming.relay".into()));

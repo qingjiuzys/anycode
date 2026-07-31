@@ -9,6 +9,12 @@ read_when:
 
 # Releases & feature flags
 
+## 0.3.2 (workspace)
+
+- **Discoverable verification**: Discover→Search→Run (`verify-discover` skill + hollow-completion evidence nudge + `verify_recipe` memory).
+- **Start shortcircuit removed**: host “site already running :8080” no longer hijacks docker/real starts.
+- **CI**: cross-platform `mime_to_ext`; rustfmt drift fixes.
+
 ## 0.3.1 (workspace)
 
 - **Deliverable cards**: spreadsheet previews, HTML preview sidecars for Office/PDF, PPT slide grid, inline table cards, Mermaid blocks.

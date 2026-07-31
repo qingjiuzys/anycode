@@ -200,7 +200,10 @@ mod tests {
 
     #[test]
     fn dominates_requires_all_gte_and_one_gt() {
-        assert!(dominates(&vv(&[("a", 2), ("b", 1)]), &vv(&[("a", 1), ("b", 1)])));
+        assert!(dominates(
+            &vv(&[("a", 2), ("b", 1)]),
+            &vv(&[("a", 1), ("b", 1)])
+        ));
         assert!(!dominates(&vv(&[("a", 1)]), &vv(&[("a", 1)]))); // equal
         assert!(!dominates(&vv(&[("a", 1)]), &vv(&[("a", 2)]))); // older
     }

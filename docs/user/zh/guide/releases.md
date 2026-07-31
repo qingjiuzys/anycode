@@ -9,6 +9,12 @@ read_when:
 
 # 版本与特性开关
 
+## 0.3.2（工作区）
+
+- **开放验证**：Discover→Search→Run（`verify-discover` skill + 空口完成 evidence nudge + `verify_recipe` 记忆）。
+- **启动短路移除**：主机「站点已在运行 :8080」不再劫持 docker/真实启动。
+- **CI**：`mime_to_ext` 跨平台；fmt 漂移修复。
+
 ## 0.3.1（工作区）
 
 - **交付物卡片**：表格（CSV/XLSX/workbook.json）缩略预览、Office/PDF `preview.html` 侧车、PPT 幻灯片网格、正文大表格卡、Mermaid 流程图块。

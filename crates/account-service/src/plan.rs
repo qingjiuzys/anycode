@@ -277,9 +277,7 @@ pub async fn patch_plan(
     let token_limit = body.token_limit.unwrap_or(existing.token_limit);
     let api_key_limit = body.api_key_limit.unwrap_or(existing.api_key_limit);
     let seat_limit = body.seat_limit.unwrap_or(existing.seat_limit);
-    let quota_window_secs = body
-        .quota_window_secs
-        .unwrap_or(existing.quota_window_secs);
+    let quota_window_secs = body.quota_window_secs.unwrap_or(existing.quota_window_secs);
     let calls_per_window = body.calls_per_window.unwrap_or(existing.calls_per_window);
     let hosted_models_enabled = body
         .hosted_models_enabled

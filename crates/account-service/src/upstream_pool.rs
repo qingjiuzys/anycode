@@ -37,8 +37,7 @@ pub fn default_agnes_base_url() -> String {
 }
 
 pub fn default_deepseek_base_url() -> String {
-    std::env::var("DEEPSEEK_API_BASE_URL")
-        .unwrap_or_else(|_| "https://api.deepseek.com".into())
+    std::env::var("DEEPSEEK_API_BASE_URL").unwrap_or_else(|_| "https://api.deepseek.com".into())
 }
 
 pub fn default_upstream_base_url(provider_id: &str) -> String {

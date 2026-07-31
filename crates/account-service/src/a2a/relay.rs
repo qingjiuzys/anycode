@@ -317,9 +317,7 @@ mod tests {
     #[tokio::test]
     async fn stream_token_survives_until_cleared() {
         let relay = StreamRelay::new();
-        relay
-            .store_stream_token("ho_tok", "secret".into())
-            .await;
+        relay.store_stream_token("ho_tok", "secret".into()).await;
         assert_eq!(
             relay.get_stream_token("ho_tok").await.as_deref(),
             Some("secret")

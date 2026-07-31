@@ -161,10 +161,7 @@ pub fn router(state: AppState) -> Router {
             "/a2a/presence/heartbeat",
             post(crate::a2a::handlers::a2a_heartbeat),
         )
-        .route(
-            "/a2a/team/peers",
-            get(crate::a2a::handlers::a2a_team_peers),
-        )
+        .route("/a2a/team/peers", get(crate::a2a::handlers::a2a_team_peers))
         .route(
             "/a2a/handoff/request",
             post(crate::a2a::handlers::a2a_handoff_request),
@@ -193,14 +190,8 @@ pub fn router(state: AppState) -> Router {
             "/a2a/agents/{instance_id}/card",
             get(crate::a2a::handlers::a2a_agent_card),
         )
-        .route(
-            "/a2a/version",
-            get(crate::a2a::handlers::a2a_version_info),
-        )
-        .route(
-            "/a2a/jsonrpc",
-            post(crate::a2a::handlers::a2a_jsonrpc_stub),
-        )
+        .route("/a2a/version", get(crate::a2a::handlers::a2a_version_info))
+        .route("/a2a/jsonrpc", post(crate::a2a::handlers::a2a_jsonrpc_stub))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let api = Router::new()

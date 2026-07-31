@@ -441,16 +441,19 @@ async fn run_embedded_turn_scoped(
         .await?;
     crate::notify::register_inprocess_bus(Arc::clone(&events));
 
-    let tool_deny_names =
-        if crate::control::grill_mode::normalize_composer_mode(composer_mode.as_deref()).is_some() {
-            crate::control::grill_mode::grill_tool_deny_names()
-                .iter()
-                .copied()
-                .map(str::to_string)
-                .collect()
-        } else {
-            vec![]
-        };
+    let tool_deny_names = if crate::control::grill_mode::normalize_composer_mode(
+        composer_mode.as_deref(),
+    )
+    .is_some()
+    {
+        crate::control::grill_mode::grill_tool_deny_names()
+            .iter()
+            .copied()
+            .map(str::to_string)
+            .collect()
+    } else {
+        vec![]
+    };
 
     let task = Task {
         id: session.task_id,

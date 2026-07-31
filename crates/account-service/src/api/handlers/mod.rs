@@ -619,19 +619,19 @@ pub async fn sync_payment_order(
     Extension(ctx): Extension<AuthContext>,
     Path(order_id): Path<String>,
 ) -> impl IntoResponse {
-    let order = match crate::billing::get_payment_order(
-        &state.db,
-        &ctx.user.organization_id,
-        &order_id,
-    )
-    .await
-    {
-        Ok(Some(o)) => o,
-        Ok(None) => return json_error(StatusCode::NOT_FOUND, "order not found").into_response(),
-        Err(e) => {
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response()
-        }
-    };
+    let order =
+        match crate::billing::get_payment_order(&state.db, &ctx.user.organization_id, &order_id)
+            .await
+        {
+            Ok(Some(o)) => o,
+            Ok(None) => {
+                return json_error(StatusCode::NOT_FOUND, "order not found").into_response()
+            }
+            Err(e) => {
+                return json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+                    .into_response()
+            }
+        };
     if order.status == "paid" {
         return Json(serde_json::json!({ "order": order, "synced": false })).into_response();
     }
@@ -641,23 +641,16 @@ pub async fn sync_payment_order(
     let Some(out_trade_no) = order.out_trade_no.as_deref() else {
         return json_error(StatusCode::BAD_REQUEST, "order missing out_trade_no").into_response();
     };
-    match crate::billing_wechat::sync_order_by_out_trade_no(
-        &state.config,
-        &state.db,
-        out_trade_no,
-    )
-    .await
+    match crate::billing_wechat::sync_order_by_out_trade_no(&state.config, &state.db, out_trade_no)
+        .await
     {
         Ok(synced) => {
-            let refreshed = crate::billing::get_payment_order(
-                &state.db,
-                &ctx.user.organization_id,
-                &order_id,
-            )
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or(order);
+            let refreshed =
+                crate::billing::get_payment_order(&state.db, &ctx.user.organization_id, &order_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or(order);
             Json(serde_json::json!({ "order": refreshed, "synced": synced })).into_response()
         }
         Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),

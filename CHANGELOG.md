@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.3.2
+
+### Added
+
+- **Discoverable verification**: agents discover official verify/build steps (prompt + `verify-discover` skill + runtime evidence nudge + `verify_recipe` memory) instead of asking users to recompile.
+- Researcher profile now exposes `WebSearch` / `WebFetch` and can bind `verify-discover`.
+
+### Fixed
+
+- Host start-intent shortcircuit removed — “启动 / docker compose up” goes through a normal agent turn.
+- Grill / `AskUserQuestion` UI rehydrate and slash-command composer helpers.
+- Bash recognizes `docker compose up` as long-running.
+- `anycode_apple_media::mime_to_ext` available on Linux CI (was macOS-gated).
+- cargo fmt drift in dashboard chat_runtime and account-service.
+
 ## 0.3.1
 
 ### Added

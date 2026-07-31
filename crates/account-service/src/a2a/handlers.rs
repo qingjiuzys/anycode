@@ -1,7 +1,7 @@
 //! A2A HTTP + WebSocket handlers.
 
 use crate::a2a::models::{
-    AgentCard, HandoffKind, HandoffState, A2aJsonRpcRequest, A2aVersionNegotiation,
+    A2aJsonRpcRequest, A2aVersionNegotiation, AgentCard, HandoffKind, HandoffState,
     DEFAULT_A2A_VERSION,
 };
 use crate::a2a::relay::StreamRelay;
@@ -187,9 +187,7 @@ pub async fn a2a_handoff_status(
             if !is_party {
                 return json_error(StatusCode::FORBIDDEN, "not a handoff party").into_response();
             }
-            if let Ok(Some(token)) =
-                store::peek_stream_token(&state.db, &id, &q.device_id).await
-            {
+            if let Ok(Some(token)) = store::peek_stream_token(&state.db, &id, &q.device_id).await {
                 task.stream_token = Some(token);
             } else if let Some(token) = state.a2a_relay.get_stream_token(&id).await {
                 if matches!(
@@ -241,14 +239,8 @@ async fn handle_stream_socket(
 
     match role.as_str() {
         "sender" => {
-            let _ = store::update_progress(
-                &db,
-                &handoff_id,
-                HandoffState::Uploading,
-                0,
-                None,
-            )
-            .await;
+            let _ =
+                store::update_progress(&db, &handoff_id, HandoffState::Uploading, 0, None).await;
             run_sender_socket(relay, db, handoff_id, socket).await;
         }
         "receiver" => {
@@ -314,14 +306,7 @@ async fn run_sender_socket(
     // Sender does NOT mark completed — receiver owns terminal success.
     if !failed {
         let _ = relay.publish_eof(&handoff_id).await;
-        let _ = store::update_progress(
-            &db,
-            &handoff_id,
-            HandoffState::Importing,
-            95,
-            None,
-        )
-        .await;
+        let _ = store::update_progress(&db, &handoff_id, HandoffState::Importing, 95, None).await;
     }
     let _ = sink.send(Message::Close(None)).await;
 }
@@ -381,14 +366,7 @@ async fn run_receiver_socket(
     }
 
     if ok {
-        let _ = store::update_progress(
-            &db,
-            &handoff_id,
-            HandoffState::Completed,
-            100,
-            None,
-        )
-        .await;
+        let _ = store::update_progress(&db, &handoff_id, HandoffState::Completed, 100, None).await;
     }
     let _ = sink.send(Message::Close(None)).await;
     relay.clear_stream_token(&handoff_id).await;
@@ -422,12 +400,11 @@ pub async fn a2a_agent_card(
     Extension(_ctx): Extension<AuthContext>,
     Path(instance_id): Path<String>,
 ) -> impl IntoResponse {
-    let row = sqlx::query(
-        "SELECT agent_card_json FROM a2a_agent_presence WHERE instance_id = ? LIMIT 1",
-    )
-    .bind(&instance_id)
-    .fetch_optional(state.db.pool())
-    .await;
+    let row =
+        sqlx::query("SELECT agent_card_json FROM a2a_agent_presence WHERE instance_id = ? LIMIT 1")
+            .bind(&instance_id)
+            .fetch_optional(state.db.pool())
+            .await;
 
     match row {
         Ok(Some(r)) => {
