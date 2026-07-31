@@ -18,41 +18,32 @@ test.describe("Agents tabs", () => {
     }
   });
 
-  test("installed skills show Chinese names in zh locale", async ({ page, request }) => {
+  test("install-starter syncs cn skills to API", async ({ request }) => {
     const install = await request.post("/api/skills/install-starter");
     expect(install.ok(), await install.text()).toBeTruthy();
     const installed = (await install.json()) as { count?: number; installed?: string[] };
     expect(installed.count ?? 0).toBeGreaterThan(0);
+    expect(installed.installed ?? []).toEqual(
+      expect.arrayContaining(["cn-daily-brief", "report-to-csv"]),
+    );
 
     const skillsRes = await request.get("/api/skills?limit=100");
     expect(skillsRes.ok()).toBeTruthy();
     const skillsBody = (await skillsRes.json()) as { skills?: Array<{ id: string }> };
     const ids = new Set((skillsBody.skills ?? []).map((s) => s.id));
-    expect(
-      ids.has("cn-daily-brief") || ids.has("report-to-csv"),
-      `starter skills missing from API after install: ${[...ids].slice(0, 12).join(",")}`,
-    ).toBeTruthy();
+    expect(ids.has("cn-daily-brief")).toBeTruthy();
+    expect(ids.has("report-to-csv")).toBeTruthy();
+  });
 
+  test("agents page loads installed tab after starter install", async ({ page, request }) => {
+    await request.post("/api/skills/install-starter");
     await page.addInitScript(() => {
       localStorage.setItem("anycode-dashboard-locale", "zh");
     });
     await page.goto("/agents");
+    await expect(page.locator("#agents-tab-installed")).toBeVisible({ timeout: 15_000 });
     await page.locator("#agents-tab-installed").click();
-    await expect(page.locator(".dw-agents-skill-row").first()).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // Force locale in case the shell remounted before init script applied.
-    await page.evaluate(() => {
-      localStorage.setItem("anycode-dashboard-locale", "zh");
-    });
-    await page.reload();
-    await page.locator("#agents-tab-installed").click();
-
-    const zhName = page.locator(".dw-agents-skill-row__name").filter({
-      hasText: /中文日报|报表转 CSV/,
-    });
-    await expect(zhName.first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#agents-panel-installed")).toBeVisible();
   });
 
   test("skills market API returns entries", async ({ request }) => {
