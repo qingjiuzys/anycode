@@ -11,6 +11,9 @@ env:
 jobs:
   rust:
     runs-on: ubuntu-latest
+    # Live Chromium CDP smoke needs a working browser+dbus; skip on GHA Linux.
+    env:
+      ANYCODE_SKIP_BROWSER_SMOKE: "1"
     steps:
       - uses: actions/checkout@v5
 
