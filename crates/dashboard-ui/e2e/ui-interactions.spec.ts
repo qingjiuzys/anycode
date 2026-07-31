@@ -91,11 +91,12 @@ test.describe("Page primary actions", () => {
 
   test("legacy /setup redirects to settings", async ({ page }) => {
     await page.goto("/setup?step=channels&tab=wechat");
-    // Control-center shell hosts /settings under /conversations?cc=...
-    await expect(page).toHaveURL(/\/conversations\?.*cc=.*settings.*section(=|%3D)notify/, {
-      timeout: 10_000,
-    });
-    await expect(page.getByRole("main")).toBeVisible();
+    // FeatureRouteSync opens control-center then strips ?cc= from the address bar.
+    await expect(page).toHaveURL(/\/conversations/, { timeout: 10_000 });
+    await expect(page.locator(".dw-settings-page")).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.locator(".dw-settings-nav-link.active").filter({ hasText: /通知|Notifications/i }),
+    ).toBeVisible();
   });
 });
 
