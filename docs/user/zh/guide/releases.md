@@ -9,6 +9,12 @@ read_when:
 
 # 版本与特性开关
 
+## 0.3.3（工作区）
+
+- **大脑 + 能力槽**：纯文本对话模型可贴图（Apple OCR 注入底层）；助手气泡朗读走 TTS 槽；STT 仍走麦克风槽。
+- **气泡展示**：用户消息显示原文 + 图片缩略图，OCR 不进入可见正文。
+- **门户课件演示**：县城咖啡市场调研 8 页 FDE 课件（`/demos/courseware/`）。
+
 ## 0.3.2（工作区）
 
 - **开放验证**：Discover→Search→Run（`verify-discover` skill + 空口完成 evidence nudge + `verify_recipe` 记忆）。

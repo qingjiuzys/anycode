@@ -245,12 +245,12 @@ pub async fn send_session_message(
                 .into_response();
         }
         if !imgs.is_empty() {
-            match crate::control::vision_payload::active_chat_supports_vision() {
+            match crate::control::vision_payload::can_accept_images_for_chat() {
                 Ok(false) => {
                     return (
                         StatusCode::BAD_REQUEST,
                         Json(json!({
-                            "error": "Active chat model does not support vision. Attach images only when the current chat model has the vision capability, or switch models in Settings."
+                            "error": "Active chat model does not support vision, and OCR is unavailable. Enable Apple OCR on Desktop, or switch chat to a vision-capable model."
                         })),
                     )
                         .into_response();

@@ -7,6 +7,13 @@ export interface MediaStatus {
   stt_provider?: string | null;
   stt_model?: string | null;
   stt_builtin?: boolean;
+  tts_configured?: boolean;
+  tts_provider?: string | null;
+  tts_model?: string | null;
+  ocr_available?: boolean;
+  chat_supports_vision?: boolean;
+  /** Chat has vision OR OCR fallback — safe to attach images. */
+  image_attach_ok?: boolean;
   apple_media?: AppleMediaCapabilities | null;
 }
 
@@ -31,8 +38,64 @@ export interface TranscribeResult {
   model?: string;
 }
 
+export interface OcrResult {
+  ok: boolean;
+  text?: string;
+  error?: string;
+  provider?: string;
+}
+
+export interface TtsResult {
+  ok: boolean;
+  audio_base64?: string;
+  mime_type?: string;
+  error?: string;
+  provider?: string;
+  model?: string;
+}
+
 export const mediaClient = {
   mediaStatus: () => get<MediaStatus>("/api/media/status"),
+
+  ocrImages: async (
+    images: { mime_type: string; data_base64: string }[],
+  ): Promise<OcrResult> => {
+    try {
+      const url = apiUrl("/api/media/ocr");
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images }),
+      });
+      const data = (await res.json()) as OcrResult;
+      if (!res.ok) {
+        return { ok: false, error: data.error ?? `${res.status} ocr failed` };
+      }
+      return data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+
+  synthesizeSpeech: async (text: string): Promise<TtsResult> => {
+    try {
+      const url = apiUrl("/api/media/tts");
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = (await res.json()) as TtsResult;
+      if (!res.ok) {
+        return { ok: false, error: data.error ?? `${res.status} tts failed` };
+      }
+      return data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
 
   transcribeAudio: async (file: Blob, filename: string): Promise<TranscribeResult> => {
     const form = new FormData();

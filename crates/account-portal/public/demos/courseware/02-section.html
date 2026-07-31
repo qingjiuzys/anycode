@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>结构 · Agenda</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:96px;height:100%;box-sizing:border-box;position:relative}
+    .sec-label{font-family:var(--mono);font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:18px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:520px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h2{font-family:var(--serif);font-weight:900;font-size:68px;line-height:1.2;margin:48px 0 32px;max-width:1300px}
+    .lede{font-size:20px;color:var(--ink-60);max-width:900px;line-height:1.7}
+    .agenda{position:absolute;left:96px;right:96px;bottom:80px;border-top:1px solid var(--ink)}
+    .item{display:grid;grid-template-columns:100px 1fr auto;gap:32px;padding:22px 8px;border-bottom:1px solid var(--ink-08);align-items:baseline}
+    .item .no{font-family:var(--mono);font-weight:700;font-size:22px;color:var(--accent)}
+    .item .t{font-family:var(--serif);font-size:24px;font-weight:900}
+    .item .t small{display:block;font-family:var(--sans);font-weight:400;font-size:14px;color:var(--ink-60);margin-top:4px}
+    .item .pg{font-family:var(--mono);font-size:13px;color:var(--ink-60)}
+  </style>
+</head>
+<body>
+
+  <div class="slide" data-type="section">
+    <div class="sec-label"><span class="num">02</span>本章结构 · AGENDA</div>
+    <h2>这一节要回答什么问题</h2>
+    <p class="lede">以「华东某三线城市 · 步行街咖啡」为样本：从研究问题到行动清单，一页一命题。</p>
+    <div class="agenda">
+      <div class="item"><span class="no">2.1</span><div class="t">五步调研链路<small>问题 → 样本 → 采集 → 交叉 → 决策</small></div><span class="pg">P.03</span></div>
+      <div class="item"><span class="no">2.2</span><div class="t">关键指标怎么读<small>客单价、复购、租金、饱和度</small></div><span class="pg">P.04</span></div>
+      <div class="item"><span class="no">2.3</span><div class="t">问卷堆砌 vs 决策抽样<small>常见误区对照</small></div><span class="pg">P.05</span></div>
+      <div class="item"><span class="no">2.4</span><div class="t">结论与行动清单<small>本周能落地的三件事</small></div><span class="pg">P.06–08</span></div>
+    </div>
+  </div>
+
+</body>
+</html>

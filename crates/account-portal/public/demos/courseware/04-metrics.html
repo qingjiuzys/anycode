@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>数据 · 驾驶舱</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:40px;line-height:1.65;max-width:920px}
+    .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;max-width:1600px;margin-bottom:36px}
+    .stat{border:1px solid var(--ink);padding:28px 24px;background:rgba(255,255,255,.35)}
+    .stat .number{font-family:var(--serif);font-size:56px;font-weight:900;line-height:1;margin-bottom:8px;color:var(--accent)}
+    .stat .label{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-60);margin-bottom:10px}
+    .stat p{font-size:14px;color:var(--ink-60);line-height:1.5;margin:0}
+    .stat.hot{background:var(--ink);border-color:var(--ink)}
+    .stat.hot .number{color:var(--bg)}
+    .stat.hot .label,.stat.hot p{color:rgba(242,245,240,.7)}
+    .insight{border-left:6px solid var(--accent);padding:20px 28px;max-width:1200px;font-size:17px;line-height:1.65;color:var(--ink-60)}
+    .insight b{color:var(--ink)}
+  </style>
+</head>
+<body>
+
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">04</span>数据 · FIELD METRICS</div>
+    <h3>脱敏样本：步行街 800m 圈层</h3>
+    <p class="lede">数字来自 2025 Q4 模拟调研包（教学用）。真实项目请替换为你的门店计数与问卷原始表。</p>
+    <div class="metrics">
+      <div class="stat hot"><div class="label">日均过店客流</div><div class="number">2.1k</div><p>工作日 1.6k / 周末 3.0k，峰值 11–13 点</p></div>
+      <div class="stat"><div class="label">现制咖啡店</div><div class="number">11</div><p>连锁 6 · 独立 5；800m 内已偏饱和</p></div>
+      <div class="stat"><div class="label">客单价中位</div><div class="number">¥18</div><p>连锁 ¥16–22；独立 ¥20–28</p></div>
+      <div class="stat"><div class="label">月租 / 坪</div><div class="number">¥186</div><p>主街铺；副街可压到 ¥120</p></div>
+    </div>
+    <div class="insight"><b>解读：</b>客流够，但同质化供给多；若没有差异化（办公团购 / 烘焙联营），回本周期容易超过 18 个月。</div>
+  </div>
+
+</body>
+</html>

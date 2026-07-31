@@ -113,8 +113,54 @@ pub fn user_message_event(
     conversation_turn_id: u32,
     prompt: &str,
 ) -> ChatStreamEvent {
+    user_message_event_with_media(
+        session_id,
+        project_id,
+        conversation_turn_id,
+        prompt,
+        None,
+        None,
+    )
+}
+
+/// User bubble shows `display_prompt` (+ optional image thumbnails).
+/// `model_prompt` (OCR-enriched) is stored in meta for hydrate / LLM history only.
+#[must_use]
+pub fn user_message_event_with_media(
+    session_id: &str,
+    project_id: &str,
+    conversation_turn_id: u32,
+    display_prompt: &str,
+    model_prompt: Option<&str>,
+    vision_images: Option<&[crate::control::vision_payload::VisionImagePayload]>,
+) -> ChatStreamEvent {
     let at = Utc::now().to_rfc3339();
     let block_id = format!("user:u{conversation_turn_id}:{}", Uuid::new_v4().simple());
+    let display = display_prompt.to_string();
+    let mut meta = json!({
+        "user_turn_id": conversation_turn_id.to_string(),
+        "conversation_turn_id": conversation_turn_id,
+    });
+    let mut payload = json!({
+        "user_turn_id": conversation_turn_id,
+        "conversation_turn_id": conversation_turn_id,
+    });
+    if let Some(model) = model_prompt
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != display)
+    {
+        meta["model_prompt"] = json!(model);
+        payload["model_prompt"] = json!(model);
+        if model.contains("OCR from attached images") {
+            meta["ocr_used"] = json!(true);
+            payload["ocr_used"] = json!(true);
+        }
+    }
+    if let Some(imgs) = vision_images.filter(|i| !i.is_empty()) {
+        let vision_json = serde_json::to_value(imgs).unwrap_or(json!([]));
+        meta["vision_images"] = vision_json.clone();
+        payload["vision_images"] = vision_json;
+    }
     ChatStreamEvent {
         session_id: session_id.to_string(),
         project_id: project_id.to_string(),
@@ -125,25 +171,19 @@ pub fn user_message_event(
         event_id: None,
         tool_key: None,
         tool_name: None,
-        text: Some(prompt.to_string()),
+        text: Some(display.clone()),
         block: Some(TranscriptBlock {
             id: block_id,
             block_type: "user_message".into(),
             at: at.clone(),
             title: "You".into(),
-            body: prompt.to_string(),
-            meta: json!({
-                "user_turn_id": conversation_turn_id.to_string(),
-                "conversation_turn_id": conversation_turn_id,
-            }),
+            body: display,
+            meta,
             collapsible: false,
             default_collapsed: false,
             event_id: None,
         }),
-        payload: json!({
-            "user_turn_id": conversation_turn_id,
-            "conversation_turn_id": conversation_turn_id,
-        }),
+        payload,
         at,
     }
 }
@@ -450,6 +490,25 @@ mod tests {
         let evt = user_message_event("s1", "p1", 3, "test");
         assert_eq!(evt.conversation_turn_id, Some(3));
         assert!(evt.block.is_some());
+    }
+
+    #[test]
+    fn user_message_keeps_ocr_out_of_visible_body() {
+        use crate::control::vision_payload::VisionImagePayload;
+        let imgs = [VisionImagePayload {
+            mime_type: "image/png".into(),
+            data_base64: "abc".into(),
+        }];
+        let model = "这是什么\n\n--- OCR from attached images (chat model is text-only; OCR capability used) ---\n[image 1]\nhi";
+        let evt =
+            user_message_event_with_media("s1", "p1", 1, "这是什么", Some(model), Some(&imgs));
+        let block = evt.block.expect("block");
+        assert_eq!(block.body, "这是什么");
+        assert_eq!(block.meta["model_prompt"], model);
+        assert_eq!(block.meta["ocr_used"], true);
+        assert!(block.meta["vision_images"]
+            .as_array()
+            .is_some_and(|a| a.len() == 1));
     }
 
     #[allow(dead_code)]

@@ -138,8 +138,12 @@ impl ChatRuntimeHost {
         project_id: &str,
         project_root: &Path,
         agent: Option<&str>,
-        prompt: &str,
-        vision_images: Option<&[VisionImagePayload]>,
+        // Visible bubble text (no OCR dump) vs model prompt (may include OCR).
+        display_prompt: &str,
+        model_prompt: &str,
+        // Transcript thumbnails vs images forwarded to a vision-capable chat model.
+        display_vision_images: Option<&[VisionImagePayload]>,
+        model_vision_images: Option<&[VisionImagePayload]>,
         reply_lang: Option<&str>,
         composer_mode: Option<&str>,
         drain: Option<crate::control::message_queue::QueueDrainContext>,
@@ -243,11 +247,16 @@ impl ChatRuntimeHost {
             *guard = Some(Arc::clone(&coop));
         }
 
-        let user_evt = crate::observability::chat_turn_log::user_message_event(
+        let display_trimmed = display_prompt.trim();
+        let model_trimmed = model_prompt.trim();
+        let model_prompt_for_meta = (model_trimmed != display_trimmed).then_some(model_trimmed);
+        let user_evt = crate::observability::chat_turn_log::user_message_event_with_media(
             session_id,
             project_id,
             user_turn_id,
-            prompt.trim(),
+            display_trimmed,
+            model_prompt_for_meta,
+            display_vision_images,
         );
         match crate::observability::chat_turn_log::persist_and_enrich(&db, user_evt, user_turn_id)
             .await
@@ -275,8 +284,8 @@ impl ChatRuntimeHost {
             live_rx,
         );
 
-        let prompt = prompt.trim().to_string();
-        let vision_images = vision_images
+        let prompt = model_trimmed.to_string();
+        let vision_images = model_vision_images
             .map(vision_payload::to_core_images)
             .unwrap_or_default();
         let reply_lang_owned = reply_lang.map(str::to_string);

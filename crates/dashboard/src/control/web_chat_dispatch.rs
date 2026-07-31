@@ -32,27 +32,40 @@ pub async fn dispatch_web_chat_prompt(
     audit_action: &str,
     composer_mode: Option<&str>,
 ) -> Result<(SessionDetail, WebChatSendResult), (StatusCode, String)> {
-    if let Some(imgs) = vision_images {
-        if let Err(e) = crate::control::vision_payload::validate_vision_payloads(imgs) {
-            return Err((StatusCode::BAD_REQUEST, e.to_string()));
-        }
+    // Keep original attachments for the transcript UI even when OCR strips them for the model.
+    let display_vision_images = vision_images;
+    let mut model_vision_images = vision_images;
+    let mut prompt_for_chat = prompt_for_chat.to_string();
+    if let Some(imgs) = model_vision_images {
         if !imgs.is_empty() {
-            match crate::control::vision_payload::active_chat_supports_vision() {
-                Ok(false) => {
-                    return Err((
-                        StatusCode::BAD_REQUEST,
-                        "Active chat model does not support vision. Attach images only when the \
-                         current chat model has the vision capability, or switch models in Settings."
-                            .into(),
-                    ));
-                }
+            // OCR may spawn Apple Vision helper (seconds) — keep Tokio workers free.
+            let imgs_owned = imgs.to_vec();
+            let delivery = match tokio::task::spawn_blocking(move || {
+                crate::control::vision_payload::resolve_vision_delivery(&imgs_owned)
+            })
+            .await
+            {
+                Ok(inner) => inner,
                 Err(e) => {
                     return Err((
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("vision capability check failed: {e}"),
+                        format!("vision delivery task: {e}"),
                     ));
                 }
-                Ok(true) => {}
+            };
+            match delivery {
+                Ok(crate::control::vision_payload::VisionDelivery::Native) => {}
+                Ok(crate::control::vision_payload::VisionDelivery::OcrText(ocr)) => {
+                    prompt_for_chat = crate::control::vision_payload::append_ocr_to_prompt(
+                        &prompt_for_chat,
+                        &ocr,
+                    );
+                    // Text-only brain: do not forward raw images to the chat model.
+                    model_vision_images = None;
+                }
+                Err(e) => {
+                    return Err((StatusCode::BAD_REQUEST, e.to_string()));
+                }
             }
         }
     }
@@ -62,7 +75,7 @@ pub async fn dispatch_web_chat_prompt(
         }
     }
     let prompt_for_chat =
-        match crate::control::text_upload::append_to_prompt(prompt_for_chat, text_files) {
+        match crate::control::text_upload::append_to_prompt(&prompt_for_chat, text_files) {
             Ok(p) => p,
             Err(e) => return Err((StatusCode::BAD_REQUEST, e.to_string())),
         };
@@ -105,8 +118,10 @@ pub async fn dispatch_web_chat_prompt(
                 project_id,
                 root,
                 agent_type,
+                prompt,
                 &prompt_for_chat,
-                vision_images,
+                display_vision_images,
+                model_vision_images,
                 reply_lang,
                 composer_mode,
                 drain,
@@ -131,7 +146,7 @@ pub async fn dispatch_web_chat_prompt(
                 agent_type,
                 &dashboard_url,
                 &prompt_for_chat,
-                vision_images,
+                model_vision_images,
                 text_files,
                 reply_lang,
             )

@@ -1,0 +1,226 @@
+{
+  "brand_kit": "fde-editorial",
+  "slides": [
+    {
+      "type": "cover",
+      "source_html": "01-cover.html",
+      "title": "县城咖啡市场：  怎么做一次能拍板的调研 ",
+      "subtitle": "内训课件。目标不是「写满问卷」，而是<strong>两周内给出开不开店的决策依据",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "section",
+      "source_html": "02-section.html",
+      "title": "这一节要回答什么问题",
+      "subtitle": "以「华东某三线城市 · 步行街咖啡」为样本：从研究问题到行动清单，一页一命题。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "五步调研链路 问题 → 样本 → 采集 → 交叉 → 决策",
+        "关键指标怎么读 客单价、复购、租金、饱和度",
+        "问卷堆砌 vs 决策抽样 常见误区对照",
+        "结论与行动清单 本周能落地的三件事"
+      ],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "03-method.html",
+      "title": "能拍板的调研只做五步",
+      "subtitle": "每一步都要留下可复查的证据：录音纪要、门店计数表、租金截图、问卷原始表。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "04-metrics.html",
+      "title": "脱敏样本：步行街 800m 圈层",
+      "subtitle": "数字来自 2025 Q4 模拟调研包（教学用）。真实项目请替换为你的门店计数与问卷原始表。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "05-compare.html",
+      "title": "问卷堆砌 vs 决策抽样",
+      "subtitle": "同样两周工期，方法不同，老板拿到的东西完全不一样。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [
+        {
+          "stat": "",
+          "text": "先写 40+ 题 ，再想要回答什么",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "只做线上问卷，没有门店计数",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "报告全是「用户喜欢咖啡」类空话",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "没有租金与饱和度，无法算回本",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "先定决策： 开 / 不开 / 换址",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "样本分层：办公 / 学生 / 居民各 ≥30",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "三角验证：问卷 + 客流 + 竞品点位",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "交付一页决策卡：条件与否决项",
+          "source": ""
+        }
+      ],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "先写 40+ 题 ，再想要回答什么",
+        "只做线上问卷，没有门店计数",
+        "报告全是「用户喜欢咖啡」类空话",
+        "没有租金与饱和度，无法算回本",
+        "先定决策： 开 / 不开 / 换址",
+        "样本分层：办公 / 学生 / 居民各 ≥30",
+        "三角验证：问卷 + 客流 + 竞品点位",
+        "交付一页决策卡：条件与否决项"
+      ],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "06-insight.html",
+      "title": "金句 · 结论",
+      "subtitle": "",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "<p>调研的价值不在「收集了多少意见」，<em>而在</em>能不能<strong style=\"color:var(--accent);border-bottom:4px solid var(--accent)\">在截止日前给出可执行的开店条件</strong>。</p>\n      <div class=\"source\"><b>本节结论</b> · 县城咖啡市场调研方法课 · anyCode Demo",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "07-checklist.html",
+      "title": "本周结束前完成这五步",
+      "subtitle": "勾选式验收——做完一项打勾，别只「听懂了」。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "✓ 写清决策问题 开店 / 换址 / 不做，三选一",
+        "✓ 画 800m 竞品点位图 连锁 / 独立分色标注",
+        "→ 完成 90 份分层拦截 办公 30 · 学生 30 · 居民 30",
+        "○ 交叉验三张表 问卷偏好 vs 实际客流 vs 租金",
+        "○ 出一页决策卡 开店条件 + 否决项 + 假设"
+      ],
+      "panel_title": "",
+      "panel_body": "提示词：「做一份县城咖啡市场调研培训课件：封面、方法五步、KPI、对比、行动清单，FDE 编辑风。」",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "closing",
+      "source_html": "08-closing.html",
+      "title": "记住：调研 = 问题 + 证据 + 决策",
+      "subtitle": "",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    }
+  ]
+}

@@ -48,19 +48,31 @@ pub fn history_from_records(records: &[ChatTurnEventRecord]) -> HydratedHistory 
     let blocks = records_to_transcript_blocks(records);
     let mut messages = Vec::new();
     for block in blocks {
-        let body = block.body.trim();
-        if body.is_empty() {
-            continue;
-        }
         let role = match block.block_type.as_str() {
             "user_message" => MessageRole::User,
             "assistant_message" => MessageRole::Assistant,
             _ => continue,
         };
+        // User bubbles store display text in body; OCR/model appendix lives in meta.model_prompt.
+        let content_text = if role == MessageRole::User {
+            block
+                .meta
+                .get("model_prompt")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or(block.body.trim())
+                .to_string()
+        } else {
+            block.body.trim().to_string()
+        };
+        if content_text.is_empty() {
+            continue;
+        }
         messages.push(Message {
             id: Uuid::new_v4(),
             role,
-            content: MessageContent::Text(block.body),
+            content: MessageContent::Text(content_text),
             timestamp: parse_occurred_at(&block.at),
             metadata: HashMap::new(),
         });
@@ -90,6 +102,31 @@ mod tests {
             MessageContent::Text(t) => t.as_str(),
             _ => "",
         }
+    }
+
+    #[test]
+    fn history_from_records_prefers_model_prompt_for_user() {
+        let records = vec![ChatTurnEventRecord {
+            id: "1".into(),
+            session_id: "s".into(),
+            project_id: "p".into(),
+            conversation_turn_id: 1,
+            agent_turn: None,
+            seq: 1,
+            kind: "user_message".into(),
+            tool_key: None,
+            tool_name: None,
+            body: "这是什么".into(),
+            block_json: Some(
+                r#"{"id":"u1","block_type":"user_message","at":"2026-01-01T00:00:00Z","title":"User","body":"这是什么","meta":{"model_prompt":"这是什么\n\n--- OCR ---\nhi"},"collapsible":false,"default_collapsed":false}"#.into(),
+            ),
+            payload: serde_json::json!({}),
+            occurred_at: "2026-01-01T00:00:00Z".into(),
+        }];
+        let history = history_from_records(&records);
+        assert_eq!(history.messages.len(), 1);
+        assert!(plain_text(&history.messages[0]).contains("OCR"));
+        assert!(plain_text(&history.messages[0]).contains("这是什么"));
     }
 
     #[test]

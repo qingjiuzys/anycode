@@ -9,6 +9,12 @@ read_when:
 
 # Releases & feature flags
 
+## 0.3.3 (workspace)
+
+- **Brain + capability slots**: text-only chat can attach images via OCR; Speak uses the TTS slot; STT stays on the mic slot.
+- **Bubble UX**: user messages show original text + image thumbnails; OCR stays under the hood (`model_prompt`).
+- **Portal courseware demo**: county-coffee market-research 8-page FDE deck (`/demos/courseware/`).
+
 ## 0.3.2 (workspace)
 
 - **Discoverable verification**: Discover→Search→Run (`verify-discover` skill + hollow-completion evidence nudge + `verify_recipe` memory).

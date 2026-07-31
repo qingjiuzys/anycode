@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { api } from "@/api/client";
 import { Icon } from "@/components/Icon";
+import { useMediaStatus } from "@/hooks/useMediaStatus";
 import { useT } from "@/i18n/context";
 import { appleOcrImage, isTauriDesktop } from "@/lib/desktopShell";
 import { mergeVoiceTranscript } from "@/components/VoiceInputButton";
@@ -17,10 +19,12 @@ type Props = {
 
 export function ImageOcrButton({ images, disabled, onText }: Props) {
   const t = useT();
+  const { ocrAvailable } = useMediaStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isTauriDesktop() || images.length === 0) {
+  const canOcr = isTauriDesktop() || ocrAvailable;
+  if (!canOcr || images.length === 0) {
     return null;
   }
 
@@ -29,19 +33,30 @@ export function ImageOcrButton({ images, disabled, onText }: Props) {
     setError(null);
     setBusy(true);
     try {
-      const parts: string[] = [];
-      for (const img of images) {
-        const result = await appleOcrImage(img.mime_type, img.data_base64);
+      let merged = "";
+      if (isTauriDesktop()) {
+        const parts: string[] = [];
+        for (const img of images) {
+          const result = await appleOcrImage(img.mime_type, img.data_base64);
+          if (!result.ok) {
+            setError(result.error);
+            setBusy(false);
+            return;
+          }
+          if (result.text.trim()) {
+            parts.push(result.text.trim());
+          }
+        }
+        merged = parts.join("\n\n");
+      } else {
+        const result = await api.ocrImages(images);
         if (!result.ok) {
-          setError(result.error);
+          setError(result.error ?? t("conversations.ocrError"));
           setBusy(false);
           return;
         }
-        if (result.text.trim()) {
-          parts.push(result.text.trim());
-        }
+        merged = result.text?.trim() ?? "";
       }
-      const merged = parts.join("\n\n");
       if (!merged) {
         setError(t("conversations.ocrEmpty"));
         setBusy(false);

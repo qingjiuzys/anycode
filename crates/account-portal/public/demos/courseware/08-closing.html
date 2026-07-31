@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>小结</title>
+  <style>
+    :root{--bg:#231f20;--ink:#f2f5f0;--accent:#1400ff;--accent-soft:#7d8cff;
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:96px;height:100%;box-sizing:border-box;position:relative}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:rgba(242,245,240,.55);
+      display:flex;align-items:center;gap:14px;margin-bottom:32px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent-soft);font-weight:700}
+    h2{font-family:var(--serif);font-weight:900;font-size:72px;line-height:1.15;margin:0 0 40px;max-width:1200px}
+    .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1400px;margin-bottom:48px}
+    .card{border:1px solid rgba(242,245,240,.25);padding:24px;background:rgba(242,245,240,.04)}
+    .card .lab{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--accent-soft);margin-bottom:10px}
+    .card h4{font-family:var(--serif);font-size:22px;font-weight:900;margin:0 0 8px}
+    .card p{font-size:15px;line-height:1.5;color:rgba(242,245,240,.65);margin:0}
+    .cta{font-family:var(--mono);font-size:14px;letter-spacing:.12em;color:rgba(242,245,240,.55)}
+    .cta b{color:var(--accent-soft)}
+  </style>
+</head>
+<body>
+
+  <div class="slide" data-type="closing">
+    <div class="sec-label"><span class="num">08</span>小结 · WRAP</div>
+    <h2>记住：调研 = 问题 + 证据 + 决策</h2>
+    <div class="trio">
+      <div class="card"><div class="lab">要点 1</div><h4>先定问题</h4><p>开 / 不开 / 换址，比问卷题量更重要</p></div>
+      <div class="card"><div class="lab">要点 2</div><h4>三角验证</h4><p>问卷、客流、租金必须互相打架或互相印证</p></div>
+      <div class="card"><div class="lab">要点 3</div><h4>一页决策卡</h4><p>条件、否决项、假设写清楚再进立项会</p></div>
+    </div>
+    <p class="cta">演示由 <b>anycode-ppt</b> 技能生成 · 浏览器 ← → 翻页</p>
+  </div>
+
+</body>
+</html>

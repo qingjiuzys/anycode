@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 0.3.3
+
+### Added
+
+- **Brain + capability slots**: text-only chat (e.g. DeepSeek Flash) can attach images via OCR; assistant Speak uses active TTS slot; STT remains mic-slot based.
+- Media APIs: `POST /api/media/ocr`, `POST /api/media/tts`; `/api/media/status` exposes `ocr_available` / `image_attach_ok` / TTS fields.
+- Portal courseware demo: county-coffee market-research 8-page FDE deck (`/demos/courseware/`).
+
+### Changed
+
+- User bubbles show original text + image thumbnails; OCR text stays in `meta.model_prompt` for the model only (not dumped into the visible bubble).
+- Docs: brain + capability routing in zh/en models guide.
+
+### Fixed
+
+- Composer no longer hard-blocks image paste solely because chat lacks vision when OCR is available.
+- Vision dispatch OCR runs in `spawn_blocking`; FE honors `image_attach_ok === false`.
+
 ## 0.3.2
 
 ### Added

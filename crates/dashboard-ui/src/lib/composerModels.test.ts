@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findGlobalDefaultChatId,
   inferAutoFromRegistry,
+  imageAttachAllowed,
   listChatModels,
   modelLabel,
   modelLikelySupportsVision,
@@ -120,5 +121,68 @@ describe("composerModels", () => {
       items: [chatItem({ id: "kimi", provider: "moonshot", model: "kimi-k2.5" })],
     };
     expect(chatModelSupportsVision(registry)).toBe(true);
+  });
+
+  it("rejects attachments when active chat lacks vision even if another item has it", () => {
+    const registry: ModelsRegistryView = {
+      config_present: true,
+      active: { chat: "flash", vision: "llava" },
+      model_fallback: {},
+      items: [
+        chatItem({
+          id: "flash",
+          provider: "anycode_cloud",
+          model: "deepseek-v4-flash",
+          capabilities: ["chat"],
+        }),
+        chatItem({
+          id: "llava",
+          provider: "ollama",
+          model: "llava",
+          capabilities: ["chat", "vision"],
+        }),
+      ],
+    };
+    expect(chatModelSupportsVision(registry)).toBe(false);
+  });
+
+  it("allows attachments when active chat has vision capability", () => {
+    const registry: ModelsRegistryView = {
+      config_present: true,
+      active: { chat: "agnes" },
+      model_fallback: {},
+      items: [
+        chatItem({
+          id: "agnes",
+          provider: "anycode_cloud",
+          model: "agnes-chat",
+          capabilities: ["chat", "vision"],
+        }),
+      ],
+    };
+    expect(chatModelSupportsVision(registry)).toBe(true);
+  });
+
+  it("allows image attach via OCR when chat is text-only", () => {
+    const registry: ModelsRegistryView = {
+      config_present: true,
+      active: { chat: "flash" },
+      model_fallback: {},
+      items: [
+        chatItem({
+          id: "flash",
+          provider: "anycode_cloud",
+          model: "deepseek-v4-flash",
+          capabilities: ["chat"],
+        }),
+      ],
+    };
+    expect(chatModelSupportsVision(registry)).toBe(false);
+    expect(imageAttachAllowed(registry, { ocr_available: true })).toBe(true);
+    expect(imageAttachAllowed(registry, { image_attach_ok: true })).toBe(true);
+    expect(imageAttachAllowed(registry, { ocr_available: false })).toBe(false);
+    expect(
+      imageAttachAllowed(registry, { image_attach_ok: false, ocr_available: false }),
+    ).toBe(false);
   });
 });

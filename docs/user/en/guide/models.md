@@ -196,13 +196,25 @@ The workbench **Settings → Model & routing** panel includes **Local presets**:
 | **STT (macOS desktop)** | `apple_speech` via **anyCode.app** (Apple Speech, no model download) | — |
 | **TTS** | `local_piper` + `--features tts-local` | `piper` HTTP at `http://127.0.0.1:5000/v1` |
 
+### Chat brain + capability slots
+
+**Active chat** is the conversation brain and may be text-only (e.g. DeepSeek Flash). Multimodal work uses capability slots — you do not need to switch chat to LLaVA just to paste a screenshot:
+
+| Capability | Routing | Workbench UX |
+|------------|---------|--------------|
+| **Image → text brain** | Desktop Apple OCR on send, or native vision chat | Paste/attach images; text chat shows an OCR hint; backend injects extracted text |
+| **Native vision** | Active chat with `vision` (Agnes / Gemini / LLaVA) | Images sent as multimodal content to chat |
+| **STT** | Active `stt` (Apple Speech / whisper, …) | Composer mic button |
+| **TTS** | Active `tts` (Piper / Edge, …) | Hover assistant bubble → Speak |
+| **Image / video gen** | Active `image` / `video` | Agent tools + capability matrix |
+
 ### macOS desktop native STT & OCR
 
-In **anyCode.app** (Tauri shell on macOS), you can enable **Apple Speech (macOS native)** under **Settings → Model & routing → Local presets** instead of whisper.cpp. Voice input in the composer uses the system Speech framework (no ~74MB whisper model). Image attachments show **Extract text**, which runs on-device OCR via Apple Vision (`VNRecognizeTextRequest`).
+In **anyCode.app** (Tauri shell on macOS), you can enable **Apple Speech (macOS native)** under **Settings → Model & routing → Local presets** instead of whisper.cpp. Voice input in the composer uses the system Speech framework (no ~74MB whisper model). Image attachments show **Extract text** (Apple Vision OCR); on send, if chat has no vision, the same OCR path injects text into the prompt for the chat brain.
 
 - Requires **Speech Recognition** and **Microphone** permissions (System Settings → Privacy).
 - Browser sessions at `http://127.0.0.1:43180` cannot use `apple_speech`; use whisper or an HTTP STT provider there.
-- OCR is desktop-only and does not replace LLM **vision** for image understanding.
+- OCR hands screenshot text to a text brain; full image understanding still needs a **`vision`** chat model.
 
 Enable all optional local backends:
 
@@ -211,8 +223,6 @@ cargo build -p anycode-desktop-desktop-channel-bridge --features media-local
 ```
 
 When you set **embedding** active to `local_fastembed`, anyCode syncs `memory.pipeline.embedding_provider` to `"local"` so memory recall and tools share the same embedding path.
-
-**Vision** does not use a separate runtime route: images are attached to chat messages. Pick a chat model that also has the **`vision`** capability (or enable an Ollama LLaVA preset, which sets both `chat` and `vision` active).
 
 Preset catalog: `GET /api/settings/model-catalog` → `local_presets`.
 

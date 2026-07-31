@@ -38,27 +38,62 @@ export function modelLikelySupportsVision(modelId: string): boolean {
   );
 }
 
-/** Whether the active chat model (or registry) can accept image attachments. */
+function itemSupportsVision(item: ConfiguredModel): boolean {
+  return item.capabilities.includes("vision") || modelLikelySupportsVision(item.model);
+}
+
+/**
+ * Whether the **active chat** model natively accepts multimodal image input.
+ * Text-only brains (e.g. DeepSeek Flash) return false — use OCR fallback instead.
+ */
 export function chatModelSupportsVision(registry?: ModelsRegistryView | null): boolean {
   if (!registry) return true;
   const activeId = registry.active?.chat?.trim();
   const activeItem = activeId
     ? registry.items.find((m) => m.id === activeId)
     : undefined;
-  const candidate = activeItem ?? registry.items.find(
+  if (activeItem) {
+    return itemSupportsVision(activeItem);
+  }
+  const globalCandidate = registry.items.find(
     (m) =>
       m.enabled &&
       m.capabilities.includes("chat") &&
       m.provider === registry.global?.provider &&
       m.model === registry.global?.model,
   );
-  if (candidate) {
-    if (candidate.capabilities.includes("vision")) return true;
-    if (modelLikelySupportsVision(candidate.model)) return true;
-  } else if (registry.global?.model) {
-    if (modelLikelySupportsVision(registry.global.model)) return true;
+  if (globalCandidate) {
+    return itemSupportsVision(globalCandidate);
   }
-  return registry.items.some((m) => m.enabled && m.capabilities.includes("vision"));
+  if (registry.global?.model) {
+    return modelLikelySupportsVision(registry.global.model);
+  }
+  // No resolved chat model yet — allow UI attach; backend re-checks on send.
+  return true;
+}
+
+export type ImageAttachMediaStatus = {
+  ocr_available?: boolean;
+  image_attach_ok?: boolean;
+  chat_supports_vision?: boolean;
+  apple_media?: { ocr?: boolean } | null;
+};
+
+/**
+ * Whether the composer may accept image paste/attach.
+ * Native vision chat OR delegated OCR capability (brain + OCR).
+ * When media status has loaded, honor `image_attach_ok === false` (no FE heuristic override).
+ */
+export function imageAttachAllowed(
+  registry?: ModelsRegistryView | null,
+  media?: ImageAttachMediaStatus | null,
+): boolean {
+  if (media?.image_attach_ok === true) return true;
+  // Explicit BE deny after media status loaded — do not fall back to chat heuristics.
+  if (media?.image_attach_ok === false) return false;
+  if (media?.ocr_available === true) return true;
+  if (media?.apple_media?.ocr === true) return true;
+  return chatModelSupportsVision(registry);
 }
 
 export type ComposerModelOption = {

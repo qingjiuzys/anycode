@@ -207,20 +207,30 @@ anyCode 对以下情况做指数退避重试：
 | **STT（macOS 桌面）** | **anyCode.app** 内 `apple_speech`（Apple Speech，无需下载模型） | — |
 | **TTS** | `local_piper` + `--features tts-local` | `piper` HTTP，`http://127.0.0.1:5000/v1` |
 
+### 对话大脑 + 能力槽（brain + capabilities）
+
+**Active chat** 是对话大脑，可以是纯文本模型（如 DeepSeek Flash）。多模态能力走独立槽位，不必把 chat 切成 LLaVA：
+
+| 能力 | 路由 | 工作台用法 |
+|------|------|------------|
+| **图片 → 文本大脑** | 桌面 Apple OCR（发送时自动）或原生 vision chat | 粘贴/附加图片；文本 chat 会提示「将用 OCR…」，后端注入识别文字 |
+| **原生视觉理解** | Active chat 勾选 `vision`（如 Agnes / Gemini / LLaVA） | 图片直接作为多模态内容发给 chat |
+| **STT** | Active `stt`（Apple Speech / whisper 等） | 输入框麦克风按钮 |
+| **TTS** | Active `tts`（Piper / Edge 等） | 助手气泡悬停 → 朗读 |
+| **文生图 / 视频** | Active `image` / `video` | 由 Agent 工具或设置中的能力矩阵选用 |
+
 ### macOS 桌面原生 STT 与 OCR
 
-在 **anyCode.app**（macOS Tauri 壳）中，可在 **设置 → 模型与路由 → 本地预设** 启用 **Apple Speech（macOS 原生）**，替代 whisper.cpp。输入框语音按钮走系统 Speech 框架（无需约 74MB whisper 模型）。图片附件旁有 **提取文字**，使用 Apple Vision（`VNRecognizeTextRequest`）本地 OCR。
+在 **anyCode.app**（macOS Tauri 壳）中，可在 **设置 → 模型与路由 → 本地预设** 启用 **Apple Speech（macOS 原生）**，替代 whisper.cpp。输入框语音按钮走系统 Speech 框架（无需约 74MB whisper 模型）。图片附件旁有 **提取文字**，使用 Apple Vision（`VNRecognizeTextRequest`）本地 OCR；发送时若 chat 无 vision，同一 OCR 会自动注入提示词。
 
 - 需授予 **语音识别** 与 **麦克风** 权限（系统设置 → 隐私与安全性）。
 - 浏览器访问 `http://127.0.0.1:43180` **不能**使用 `apple_speech`；请在该场景选用 whisper 或 HTTP STT。
-- OCR 仅桌面 App 可用，不替代 LLM **vision** 的图像理解能力。
+- OCR 用于把截图文字交给文本大脑；完整图像理解仍需带 **`vision`** 的 chat 模型。
 
 启用全部可选本地后端：
 
 ```bash
 cargo build -p anycode-desktop-desktop-channel-bridge --features media-local
 ```
-
-**Vision** 无独立路由：图片作为 chat 消息附件发送，需选用带 **`vision`** 能力的 chat 模型（或启用 Ollama LLaVA 预设）。
 
 预设目录：`GET /api/settings/model-catalog` → `local_presets`。

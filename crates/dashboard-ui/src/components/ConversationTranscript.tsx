@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/api/client";
 import type { TranscriptBlock } from "@/api/types";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { SpeakButton } from "@/components/SpeakButton";
 import { Icon } from "@/components/Icon";
 import {
   isCommandBlock,
@@ -888,6 +889,28 @@ function TimelineProgressLine({
   );
 }
 
+type VisionImageMeta = { mime_type?: string; data_base64?: string };
+
+/** Visible user text — strip legacy OCR dumps that used to be inlined into the body. */
+function userBubbleDisplayText(body: string): string {
+  const marker = "--- OCR from attached images";
+  const idx = body.indexOf(marker);
+  if (idx < 0) return body;
+  return body.slice(0, idx).trimEnd();
+}
+
+function visionImagesFromMeta(meta: TranscriptBlock["meta"]): VisionImageMeta[] {
+  const raw = meta?.vision_images;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (img): img is VisionImageMeta =>
+      !!img &&
+      typeof img === "object" &&
+      typeof (img as VisionImageMeta).mime_type === "string" &&
+      typeof (img as VisionImageMeta).data_base64 === "string",
+  );
+}
+
 function UserBubble({
   block,
   hideTimestamp = false,
@@ -898,6 +921,9 @@ function UserBubble({
   const t = useT();
   const isQueued =
     block.meta?.source === "message_queue" && block.meta?.status === "pending";
+  const displayBody = userBubbleDisplayText(block.body);
+  const visionImages = visionImagesFromMeta(block.meta);
+  const copyText = displayBody || t("conversations.attachImage");
   return (
     <div
       className={`bubble-user rounded-2xl rounded-br-md px-4 py-3 text-sm shadow-sm group relative ${
@@ -910,10 +936,24 @@ function UserBubble({
         </span>
       )}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <CopyButton text={block.body} label={t("conversations.copyMessage")} />
+        <CopyButton text={copyText} label={t("conversations.copyMessage")} />
       </div>
       <div className="leading-relaxed">
-        <span className="whitespace-pre-wrap break-words">{block.body}</span>
+        {visionImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {visionImages.map((img, i) => (
+              <img
+                key={`${img.mime_type}-${i}`}
+                src={`data:${img.mime_type};base64,${img.data_base64}`}
+                alt=""
+                className="max-h-40 max-w-[min(100%,16rem)] rounded-lg object-contain border border-white/20 bg-black/5"
+              />
+            ))}
+          </div>
+        )}
+        {displayBody ? (
+          <span className="whitespace-pre-wrap break-words">{displayBody}</span>
+        ) : null}
         {!hideTimestamp && (
           <time className="ml-1.5 text-[11px] opacity-70 whitespace-nowrap">
             {formatRelativeTime(block.at)}
@@ -1044,6 +1084,7 @@ const ReplyBubble = memo(function ReplyBubble({
           <Icon name="link" size={12} />
         </Link>
       )}
+      {isAssistant && !isError && <SpeakButton text={displayBody} />}
       <CopyButton text={block.body} label={t("conversations.copyMessage")} />
     </>
   );

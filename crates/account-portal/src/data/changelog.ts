@@ -21,6 +21,43 @@ export type ChangelogRelease = {
 /** Newest first — rendered as a vertical timeline (top → bottom). */
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: "0.3.3",
+    date: "2026-07-31",
+    tag: "v0.3.3",
+    summary: {
+      zh: "文本大脑可贴图（OCR 底层）、助手朗读（TTS）、课件演示与气泡不再露出 OCR 原文。",
+      en: "Text brains can attach images via OCR, Speak via TTS, courseware demo, OCR hidden from bubbles.",
+    },
+    sections: [
+      {
+        kind: "added",
+        items: [
+          {
+            zh: "文本对话模型（如 DeepSeek Flash）可贴图：发送时走 Apple OCR，识别结果只给模型。",
+            en: "Text-only chat (e.g. DeepSeek Flash) can attach images; Apple OCR runs on send for the model only.",
+          },
+          {
+            zh: "助手气泡支持朗读（走 TTS 能力槽，不要求 chat 本身是 TTS）。",
+            en: "Assistant bubbles can Speak via the TTS capability slot (chat need not be a TTS model).",
+          },
+          {
+            zh: "门户课件演示：县城咖啡市场调研 8 页 FDE 翻页稿。",
+            en: "Portal courseware demo: county-coffee market-research 8-page FDE deck.",
+          },
+        ],
+      },
+      {
+        kind: "changed",
+        items: [
+          {
+            zh: "用户气泡显示原文 + 图片缩略图，不再把 OCR 全文铺进会话。",
+            en: "User bubbles show original text + image thumbnails; OCR is no longer dumped into the transcript.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: "0.3.2",
     date: "2026-07-31",
     tag: "v0.3.2",

@@ -505,6 +505,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/media/status", get(handlers::get_media_status))
         .route("/media/transcribe", post(handlers::transcribe_audio))
+        .route("/media/ocr", post(handlers::ocr_images))
+        .route("/media/tts", post(handlers::synthesize_speech))
         .route("/settings/services", get(handlers::list_services))
         .route(
             "/settings/service-status",

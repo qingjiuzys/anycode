@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>行动清单</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box;display:grid;grid-template-columns:1fr 1fr;gap:48px}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px;grid-column:1/-1}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:44px;margin:0 0 12px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:28px;line-height:1.65}
+    .checklist{border:1px solid var(--ink);padding:0}
+    .check-item{display:grid;grid-template-columns:48px 1fr;gap:16px;padding:18px 20px;border-bottom:1px solid var(--ink-08);align-items:start}
+    .check-item:last-child{border-bottom:none}
+    .check-item .mark{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);line-height:1.2}
+    .check-item b{display:block;font-size:17px;margin-bottom:4px}
+    .check-item span{font-size:14px;color:var(--ink-60);line-height:1.45}
+    .check-item.done .mark{color:var(--ink-60)}
+    .check-item.hot{background:rgba(20,0,255,.06);border-left:4px solid var(--accent)}
+    .panel{border:1px solid var(--ink);padding:32px;background:rgba(255,255,255,.35);align-self:start}
+    .panel .lab{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:16px}
+    .panel h4{font-family:var(--serif);font-size:26px;font-weight:900;margin:0 0 16px}
+    .panel p{font-size:15px;color:var(--ink-60);line-height:1.65;margin:0}
+  </style>
+</head>
+<body>
+
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">07</span>行动清单 · CHECKLIST</div>
+    <div>
+      <h3>本周结束前完成这五步</h3>
+      <p class="lede">勾选式验收——做完一项打勾，别只「听懂了」。</p>
+      <div class="checklist">
+        <div class="check-item done"><span class="mark">✓</span><div><b>写清决策问题</b><span>开店 / 换址 / 不做，三选一</span></div></div>
+        <div class="check-item done"><span class="mark">✓</span><div><b>画 800m 竞品点位图</b><span>连锁 / 独立分色标注</span></div></div>
+        <div class="check-item hot"><span class="mark">→</span><div><b>完成 90 份分层拦截</b><span>办公 30 · 学生 30 · 居民 30</span></div></div>
+        <div class="check-item"><span class="mark">○</span><div><b>交叉验三张表</b><span>问卷偏好 vs 实际客流 vs 租金</span></div></div>
+        <div class="check-item"><span class="mark">○</span><div><b>出一页决策卡</b><span>开店条件 + 否决项 + 假设</span></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="lab">Next · 练习</div>
+      <h4>用 anyCode 生成你的调研课件</h4>
+      <p>提示词：「做一份县城咖啡市场调研培训课件：封面、方法五步、KPI、对比、行动清单，FDE 编辑风。」</p>
+    </div>
+  </div>
+
+</body>
+</html>

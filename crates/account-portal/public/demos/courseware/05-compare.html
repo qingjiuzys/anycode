@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>对比 · 方法误区</title>
+  <style>
+    :root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-05:rgba(35,31,32,.05);
+      --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+    body{margin:0;width:1920px;height:1080px;font-family:var(--sans);background:var(--bg);color:var(--ink);overflow:hidden}
+    .slide{padding:72px 96px;height:100%;box-sizing:border-box}
+    .sec-label{font-family:var(--mono);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-60);
+      display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .sec-label::after{content:"";flex:1;height:6px;background:var(--ink);max-width:480px}
+    .sec-label .num{color:var(--accent);font-weight:700}
+    h3{font-family:var(--serif);font-weight:900;font-size:46px;margin:0 0 12px;max-width:1200px}
+    .lede{font-size:17px;color:var(--ink-60);margin-bottom:32px;line-height:1.65;max-width:900px}
+    .duo{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1500px}
+    .card{border:1px solid var(--ink);padding:28px;background:rgba(255,255,255,.35)}
+    .card .lab{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;font-weight:700}
+    .card h4{font-family:var(--serif);font-size:26px;font-weight:900;margin:0 0 16px}
+    .card ul{margin:0;padding:0;list-style:none}
+    .card li{font-size:16px;line-height:1.55;color:var(--ink-60);padding:10px 0;border-bottom:1px solid var(--ink-05)}
+    .card li:last-child{border-bottom:none}
+    .card li b{color:var(--ink)}
+    .card.dim{background:var(--ink-05)}
+    .card.hot{border-color:var(--accent);outline:3px solid var(--accent);outline-offset:-3px}
+    .card.hot .lab{color:var(--accent)}
+  </style>
+</head>
+<body>
+
+  <div class="slide" data-type="content">
+    <div class="sec-label"><span class="num">05</span>对比 · VS</div>
+    <h3>问卷堆砌 vs 决策抽样</h3>
+    <p class="lede">同样两周工期，方法不同，老板拿到的东西完全不一样。</p>
+    <div class="duo">
+      <div class="card dim">
+        <div class="lab">常见误区</div>
+        <h4>堆砌型调研</h4>
+        <ul>
+          <li>先写 <b>40+ 题</b>，再想要回答什么</li>
+          <li>只做线上问卷，没有门店计数</li>
+          <li>报告全是「用户喜欢咖啡」类空话</li>
+          <li>没有租金与饱和度，无法算回本</li>
+        </ul>
+      </div>
+      <div class="card hot">
+        <div class="lab">正确形态 · 决策抽样</div>
+        <h4>问题驱动的证据包</h4>
+        <ul>
+          <li>先定决策：<b>开 / 不开 / 换址</b></li>
+          <li>样本分层：办公 / 学生 / 居民各 ≥30</li>
+          <li>三角验证：问卷 + 客流 + 竞品点位</li>
+          <li>交付一页决策卡：条件与否决项</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

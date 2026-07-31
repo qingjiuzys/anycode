@@ -10,11 +10,6 @@ import { ModelPicker } from "@/components/ModelPicker";
 import { mergeVoiceTranscript, VoiceInputButton } from "@/components/VoiceInputButton";
 import { appendOcrToMessage, ImageOcrButton } from "@/components/ImageOcrButton";
 import { agentDisplayLabel, isPrimaryAgentId } from "@/lib/agentCatalog";
-import {
-  imageFilesFromPasteEvent,
-  pastedImageFromBase64,
-} from "@/lib/clipboardImage";
-import { readApplePasteboard } from "@/lib/desktopShell";
 import { useLocale, useT } from "@/i18n/context";
 import { skillDisplayDescription, skillDisplayName } from "@/lib/skillCatalog";
 import { skillIconMeta, skillIconToneClass } from "@/lib/skillIcons";
@@ -26,7 +21,24 @@ import {
   type OptimisticQueueItem,
 } from "@/lib/optimisticMessageQueue";
 import { useComposerIme } from "@/lib/composerIme";
-import { chatModelSupportsVision } from "@/lib/composerModels";
+import { chatModelSupportsVision, imageAttachAllowed } from "@/lib/composerModels";
+import { handleComposerPasteEvent } from "@/lib/composerPaste";
+import { useMediaStatus } from "@/hooks/useMediaStatus";
+import {
+  formatTextAttachmentMeta,
+  MAX_TEXT_FILE_BYTES,
+  MAX_TEXT_FILES,
+  textPayloadsForApi,
+  type TextAttachment,
+} from "@/lib/composerTextAttachment";
+import {
+  fileToVisionAttachment,
+  isImageFile,
+  MAX_IMAGE_BYTES,
+  revokeVisionAttachments,
+  visionPayloadsForApi,
+  type VisionAttachment,
+} from "@/lib/composerVision";
 import {
   composerModeForSend,
   grillSlashCommand,
@@ -76,54 +88,8 @@ type StartProps = {
 
 type Props = FollowUpProps | StartProps;
 
-type VisionAttachment = {
-  mime_type: string;
-  data_base64: string;
-  previewUrl: string;
-};
-
-type TextAttachment = {
-  filename: string;
-  content: string;
-};
-
 const TEXT_FILE_ACCEPT = ".txt,.md,.json,.csv,.log,.pdf";
 const ATTACH_ACCEPT = `image/*,${TEXT_FILE_ACCEPT}`;
-const MAX_TEXT_FILE_BYTES = 1024 * 1024;
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-
-function isImageFile(file: File): boolean {
-  if (file.type.startsWith("image/")) return true;
-  return /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(file.name);
-}
-
-async function fileToVisionAttachment(file: File): Promise<VisionAttachment> {
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return {
-    mime_type: file.type || "image/jpeg",
-    data_base64: btoa(binary),
-    previewUrl: URL.createObjectURL(file),
-  };
-}
-
-function visionAttachmentFromBase64(mime_type: string, data_base64: string): VisionAttachment {
-  const binary = atob(data_base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  const blob = new Blob([bytes], { type: mime_type || "image/png" });
-  return {
-    mime_type: mime_type || "image/png",
-    data_base64,
-    previewUrl: URL.createObjectURL(blob),
-  };
-}
 
 function parseSkillAllowlist(skillsJson: string): string[] | null {
   if (!skillsJson.trim()) return null;
@@ -174,6 +140,7 @@ function AutoApproveToggle({ sessionId }: { sessionId: string }) {
 
 export function ConversationComposer(props: Props) {
   const t = useT();
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const titleTouched = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -197,6 +164,7 @@ export function ConversationComposer(props: Props) {
   const [attachedImages, setAttachedImages] = useState<VisionAttachment[]>([]);
   const [attachedTextFiles, setAttachedTextFiles] = useState<TextAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [attachmentHint, setAttachmentHint] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [optimisticQueue, setOptimisticQueue] = useState<OptimisticQueueItem[]>([]);
   const pendingOptimisticId = useRef<string | null>(null);
@@ -225,15 +193,36 @@ export function ConversationComposer(props: Props) {
     staleTime: 60_000,
   });
 
+  const mediaStatus = useMediaStatus();
   const chatSupportsVision = useMemo(
     () => chatModelSupportsVision(modelsRegistry.data),
     [modelsRegistry.data],
   );
+  const canAttachImages = useMemo(
+    () => imageAttachAllowed(modelsRegistry.data, mediaStatus.data),
+    [mediaStatus.data, modelsRegistry.data],
+  );
+  const usesOcrForImages = canAttachImages && !chatSupportsVision;
+
+  useEffect(() => {
+    if (canAttachImages) return;
+    setAttachedImages((prev) => {
+      if (prev.length === 0) return prev;
+      revokeVisionAttachments(prev);
+      setAttachmentError(t("conversations.attachmentVisionDisabled"));
+      return [];
+    });
+  }, [canAttachImages, t]);
+
+  useEffect(() => {
+    if (attachedImages.length === 0 || !usesOcrForImages) return;
+    setAttachmentHint(t("conversations.attachmentOcrHint"));
+  }, [attachedImages.length, usesOcrForImages, t]);
 
   const ingestImageFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
-      if (!chatSupportsVision) {
+      if (!canAttachImages) {
         setAttachmentError(t("conversations.attachmentVisionDisabled"));
         return;
       }
@@ -250,46 +239,55 @@ export function ConversationComposer(props: Props) {
       }
       if (nextImages.length > 0) {
         setAttachmentError(null);
+        setAttachmentHint(
+          usesOcrForImages ? t("conversations.attachmentOcrHint") : null,
+        );
         setAttachedImages((prev) => [...prev, ...nextImages].slice(0, 3));
       }
     },
-    [attachedImages.length, chatSupportsVision, t],
+    [attachedImages.length, canAttachImages, t, usesOcrForImages],
   );
 
   const handleComposerPaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      let imageFiles = imageFilesFromPasteEvent(event.nativeEvent);
-      if (imageFiles.length === 0) {
-        const pbItems = await readApplePasteboard();
-        const imageItem = pbItems.find((item) => item.kind === "image" && item.data_base64);
-        if (imageItem?.data_base64) {
-          event.preventDefault();
-          if (!chatSupportsVision) {
-            setAttachmentError(t("conversations.attachmentVisionDisabled"));
-            return;
-          }
-          if (attachedImages.length >= 3) return;
-          const payload = pastedImageFromBase64(imageItem.mime_type, imageItem.data_base64);
-          const approxBytes = Math.floor((payload.data_base64.length * 3) / 4);
-          if (approxBytes > MAX_IMAGE_BYTES) {
-            setAttachmentError(t("conversations.attachmentImageTooLarge").replace("{name}", "image"));
-            return;
-          }
-          setAttachmentError(null);
-          setAttachedImages((prev) =>
-            [...prev, visionAttachmentFromBase64(payload.mime_type, payload.data_base64)].slice(0, 3),
-          );
-          return;
-        }
+      const result = await handleComposerPasteEvent(event.nativeEvent, {
+        canAttachImages,
+        attachedImageCount: attachedImages.length,
+        attachedTextFiles,
+        locale,
+        t,
+        ingestImageFiles,
+      });
+      if (result.kind === "text-card") {
+        setAttachedTextFiles((prev) => [...prev, result.file].slice(0, MAX_TEXT_FILES));
+        setAttachmentError(null);
+        setAttachmentHint(result.hint);
         return;
       }
-      event.preventDefault();
-      await ingestImageFiles(imageFiles);
+      if (result.kind === "images") {
+        setAttachmentError(null);
+        setAttachmentHint(
+          usesOcrForImages ? t("conversations.attachmentOcrHint") : null,
+        );
+        setAttachedImages((prev) => [...prev, ...result.images].slice(0, 3));
+        return;
+      }
+      if (result.kind === "error") {
+        setAttachmentHint(null);
+        setAttachmentError(result.error);
+      }
     },
-    [attachedImages.length, chatSupportsVision, ingestImageFiles, t],
+    [
+      attachedImages.length,
+      attachedTextFiles,
+      canAttachImages,
+      ingestImageFiles,
+      locale,
+      t,
+      usesOcrForImages,
+    ],
   );
 
-  const locale = useLocale();
   const grillStorageKey = isStart ? `project:${projectId}` : session?.id;
   const goalStorageKey = grillStorageKey;
   const agentBeforeGoalRef = useRef<string | null>(null);
@@ -449,9 +447,11 @@ export function ConversationComposer(props: Props) {
       const tempId = pendingOptimisticId.current;
       pendingOptimisticId.current = null;
       setMessage("");
-      attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      revokeVisionAttachments(attachedImages);
       setAttachedImages([]);
       setAttachedTextFiles([]);
+      setAttachmentError(null);
+      setAttachmentHint(null);
       if (data.queued && data.queue_id && tempId) {
         setOptimisticQueue((prev) =>
           replaceOptimisticId(prev, tempId, data.queue_id!, data.position ?? prev.length),
@@ -522,16 +522,9 @@ export function ConversationComposer(props: Props) {
         agent: vars.goal ? GOAL_AGENT_ID : agent.trim() || undefined,
         skills: selectedSkills.length > 0 ? selectedSkills : undefined,
         vision_images:
-          attachedImages.length > 0
-            ? attachedImages.map(({ mime_type, data_base64 }) => ({
-                mime_type,
-                data_base64,
-              }))
-            : undefined,
+          attachedImages.length > 0 ? visionPayloadsForApi(attachedImages) : undefined,
         text_files:
-          attachedTextFiles.length > 0
-            ? attachedTextFiles.map(({ filename, content }) => ({ filename, content }))
-            : undefined,
+          attachedTextFiles.length > 0 ? textPayloadsForApi(attachedTextFiles) : undefined,
         recycle_session: false,
         composer_mode: composerModeForSend(vars.grill),
       }),
@@ -545,9 +538,11 @@ export function ConversationComposer(props: Props) {
         saveGoalMode(`project:${projectId}`, false);
       }
       setMessage("");
-      attachedImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      revokeVisionAttachments(attachedImages);
       setAttachedImages([]);
       setAttachedTextFiles([]);
+      setAttachmentError(null);
+      setAttachmentHint(null);
       props.mode === "start" && props.onStreamingStart?.(data.session.id);
       void queryClient.invalidateQueries({ queryKey: ["all-sessions"] });
       void queryClient.invalidateQueries({ queryKey: ["projects", "picker"] });
@@ -665,16 +660,9 @@ export function ConversationComposer(props: Props) {
       skills: selectedSkills.length > 0 ? selectedSkills : undefined,
       composer_mode: composerModeForSend(grill),
       vision_images:
-        attachedImages.length > 0
-          ? attachedImages.map(({ mime_type, data_base64 }) => ({
-              mime_type,
-              data_base64,
-            }))
-          : undefined,
+        attachedImages.length > 0 ? visionPayloadsForApi(attachedImages) : undefined,
       text_files:
-        attachedTextFiles.length > 0
-          ? attachedTextFiles.map(({ filename, content }) => ({ filename, content }))
-          : undefined,
+        attachedTextFiles.length > 0 ? textPayloadsForApi(attachedTextFiles) : undefined,
     };
   }
 
@@ -708,6 +696,10 @@ export function ConversationComposer(props: Props) {
 
     if (parsed.mode === "grill" && !grillMode) enableGrillMode();
     if (parsed.mode === "goal" && !goalMode) enableGoalMode();
+
+    if (attachedImages.length > 0 && usesOcrForImages) {
+      setAttachmentHint(t("conversations.ocrExtracting"));
+    }
 
     const payload = buildFollowUpPayload(outgoingPrompt, {
       grill: grillActive,
@@ -965,13 +957,22 @@ export function ConversationComposer(props: Props) {
             {attachedTextFiles.map((f, idx) => (
               <span
                 key={`${f.filename}-${idx}`}
-                className="inline-flex items-center gap-1 rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-xs"
+                className="inline-flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-low px-2.5 py-1.5 text-xs max-w-[16rem]"
+                title={f.content.slice(0, 200)}
               >
-                <Icon name="description" size={14} className="text-secondary" />
-                <span className="font-code truncate max-w-[10rem]">{f.filename}</span>
+                <Icon name="description" size={16} className="text-secondary shrink-0" />
+                <span className="min-w-0 flex flex-col gap-0.5">
+                  <span className="font-code truncate">{f.filename}</span>
+                  <span className="text-[11px] text-secondary truncate">
+                    {t("conversations.attachmentChars").replace(
+                      "{n}",
+                      formatTextAttachmentMeta(f.content, locale),
+                    )}
+                  </span>
+                </span>
                 <button
                   type="button"
-                  className="dw-btn-ghost text-[10px] px-1 py-0 min-h-0"
+                  className="dw-btn-ghost text-[10px] px-1 py-0 min-h-0 shrink-0"
                   onClick={() =>
                     setAttachedTextFiles((prev) => prev.filter((_, i) => i !== idx))
                   }
@@ -995,7 +996,7 @@ export function ConversationComposer(props: Props) {
             const nextTexts: TextAttachment[] = [];
             for (const file of files) {
               if (isImageFile(file)) {
-                if (!chatSupportsVision) {
+                if (!canAttachImages) {
                   setAttachmentError(t("conversations.attachmentVisionDisabled"));
                   continue;
                 }
@@ -1009,7 +1010,7 @@ export function ConversationComposer(props: Props) {
                 nextImages.push(await fileToVisionAttachment(file));
                 continue;
               }
-              if (attachedTextFiles.length + nextTexts.length >= 3) continue;
+              if (attachedTextFiles.length + nextTexts.length >= MAX_TEXT_FILES) continue;
               if (file.size > MAX_TEXT_FILE_BYTES) {
                 setAttachmentError(
                   t("conversations.attachmentTextTooLarge").replace("{name}", file.name),
@@ -1030,17 +1031,27 @@ export function ConversationComposer(props: Props) {
                 nextTexts.push({ filename: file.name, content });
               }
             }
-            if (nextImages.length > 0 || nextTexts.length > 0) setAttachmentError(null);
+            if (nextImages.length > 0 || nextTexts.length > 0) {
+              setAttachmentError(null);
+              setAttachmentHint(
+                nextImages.length > 0 && usesOcrForImages
+                  ? t("conversations.attachmentOcrHint")
+                  : null,
+              );
+            }
             if (nextImages.length > 0) {
               setAttachedImages((prev) => [...prev, ...nextImages].slice(0, 3));
             }
             if (nextTexts.length > 0) {
-              setAttachedTextFiles((prev) => [...prev, ...nextTexts].slice(0, 3));
+              setAttachedTextFiles((prev) => [...prev, ...nextTexts].slice(0, MAX_TEXT_FILES));
             }
           }}
         />
         {attachmentError && (
           <p className="text-xs text-error m-0 mt-2">{attachmentError}</p>
+        )}
+        {!attachmentError && attachmentHint && (
+          <p className="text-xs text-secondary m-0 mt-2">{attachmentHint}</p>
         )}
       </div>
 
@@ -1163,11 +1174,13 @@ export function ConversationComposer(props: Props) {
             disabled={
               running ||
               pending ||
-              (attachedImages.length >= 3 && attachedTextFiles.length >= 3)
+              (attachedImages.length >= 3 && attachedTextFiles.length >= MAX_TEXT_FILES)
             }
             title={
-              chatSupportsVision
-                ? t("conversations.attachFile")
+              canAttachImages
+                ? usesOcrForImages
+                  ? t("conversations.attachmentOcrHint")
+                  : t("conversations.attachFile")
                 : t("conversations.attachmentVisionDisabled")
             }
             aria-label={t("conversations.attachFile")}
@@ -1179,7 +1192,15 @@ export function ConversationComposer(props: Props) {
           <ImageOcrButton
             disabled={running || pending}
             images={attachedImages.map(({ mime_type, data_base64 }) => ({ mime_type, data_base64 }))}
-            onText={(text) => setMessage((prev) => appendOcrToMessage(prev, text))}
+            onText={(text) => {
+              setMessage((prev) => appendOcrToMessage(prev, text));
+              // Text brain: OCR text is in the prompt — drop images to avoid a second OCR on send.
+              if (usesOcrForImages) {
+                revokeVisionAttachments(attachedImages);
+                setAttachedImages([]);
+                setAttachmentHint(null);
+              }
+            }}
           />
 
           {session && <AutoApproveToggle sessionId={session.id} />}
