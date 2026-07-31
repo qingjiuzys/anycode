@@ -1,4 +1,7 @@
-//! Detect “start / preview local site” user intents and host-start a local preview.
+//! Detect “start / preview local site” user intents and optional local preview helpers.
+//!
+//! Embedded chat **does not** auto-call these helpers (no host short-circuit). The agent
+//! reads README / compose files and uses Bash — same as Claude Code.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;

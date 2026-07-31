@@ -182,6 +182,22 @@ export function useSessionEventStream(
 
   const applyChatEvent = useCallback(
     (evt: ChatStreamEvent) => {
+      if (evt.kind === "question_request" && sessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["pending-questions-rehydrate", sessionId],
+        });
+      }
+
+      if (
+        evt.kind === "tool_start" &&
+        evt.tool_name === "AskUserQuestion" &&
+        sessionId
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: ["pending-questions-rehydrate", sessionId],
+        });
+      }
+
       if (evt.kind === "turn_done") {
         setChatLiveState(false);
         onTurnDone?.();

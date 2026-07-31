@@ -6,6 +6,7 @@ mod artifacts;
 mod budget;
 mod compile_context;
 mod completion_guard;
+mod discoverable_verification;
 mod evidence;
 mod execute_eval;
 mod execute_goal;

@@ -247,6 +247,10 @@ impl AgentRuntime {
         };
         let mut repairs_used: u32 = 0;
         let mut last_repair_diagnostics: Option<String> = None;
+        let verification_shared = Arc::new(std::sync::Mutex::new(
+            super::discoverable_verification::SessionVerificationState::default(),
+        ));
+        let mut evidence_repairs_used: u32 = 0;
 
         // 2) agentic loop：保持与 execute_task 的语义一致
         let model_config = self.model_for_task(agent_type).clone();
@@ -834,6 +838,49 @@ impl AgentRuntime {
                     .await;
                 match guard_out.decision {
                     super::completion_guard::GuardDecision::Complete => {
+                        let verification_snapshot = verification_shared
+                            .lock()
+                            .map(|g| g.clone())
+                            .unwrap_or_default();
+                        if let Some(msg) = super::discoverable_verification::maybe_evidence_repair(
+                            &verification_snapshot,
+                            &last_assistant_text,
+                            evidence_repairs_used,
+                        ) {
+                            evidence_repairs_used += 1;
+                            last_repair_diagnostics = Some(msg.clone());
+                            let marker = format!(
+                                "[evidence_repair_requested] repairs_used={evidence_repairs_used}"
+                            );
+                            logger.line(task_id, &marker);
+                            live_trace_emit::try_emit(
+                                &live_trace_tx,
+                                LiveTraceEvent::ProgressUpdate {
+                                    turn: turn as u32,
+                                    seq: progress_seq.saturating_add(1),
+                                    phase: "verify".into(),
+                                    work_stage: Some("discover".into()),
+                                    summary: marker,
+                                    next: Some("discover and run official verification".into()),
+                                    discovery: None,
+                                    evidence_refs: vec![],
+                                },
+                            );
+                            let mut g = messages.lock().await;
+                            let mut metadata = HashMap::new();
+                            metadata.insert(
+                                ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+                                serde_json::Value::Bool(true),
+                            );
+                            g.push(Message {
+                                id: Uuid::new_v4(),
+                                role: MessageRole::User,
+                                content: MessageContent::Text(msg),
+                                timestamp: chrono::Utc::now(),
+                                metadata,
+                            });
+                            continue;
+                        }
                         let marker = format!(
                             "[verification_finished] passed=1 results={}",
                             guard_out
@@ -949,6 +996,7 @@ impl AgentRuntime {
                 turn,
                 loop_limits,
                 live_trace_tx: live_trace_tx.clone(),
+                verification: Some(Arc::clone(&verification_shared)),
             };
             let mut tool_state = TurnToolState {
                 total_tool_calls,

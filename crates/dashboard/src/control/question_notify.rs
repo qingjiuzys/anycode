@@ -32,9 +32,16 @@ async fn publish_question_request(
         .ok_or_else(|| anyhow::anyhow!("session not found for question"))?;
     let chat_evt =
         question_request_event(&rec.session_id, &session.project_id, rec.user_turn_id, rec);
-    match persist_and_enrich(db, chat_evt, rec.user_turn_id).await {
+    match persist_and_enrich(db, chat_evt.clone(), rec.user_turn_id).await {
         Ok(enriched) => events.publish_chat(enriched),
-        Err(error) => tracing::warn!(%error, "question_request persist failed"),
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                question_id = %rec.question_id,
+                "question_request persist failed — publishing live SSE only"
+            );
+            events.publish_chat(chat_evt);
+        }
     }
     Ok(())
 }

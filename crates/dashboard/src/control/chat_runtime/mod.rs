@@ -387,41 +387,11 @@ async fn run_embedded_turn(
     turn_epoch: u64,
 ) -> anyhow::Result<()> {
     let reply_lang = normalize_reply_lang(reply_lang.as_deref());
-    let start_intent = crate::control::start_server_intent::is_start_server_intent(&prompt);
-    let preview_status = if start_intent {
-        Some(
-            crate::control::start_server_intent::ensure_local_preview_server(
-                &session.working_directory,
-            )
-            .await,
-        )
-    } else {
-        None
-    };
-    let host_intent_hint = if start_intent {
-        Some(crate::control::start_server_intent::start_server_host_hint(
-            &session.working_directory,
-            preview_status.as_ref(),
-        ))
-    } else {
-        None
-    };
-    let preview_ok = preview_status.as_ref().is_some_and(|s| s.ok());
-    // Appendix only when the agent still has to start/verify (host ensure failed).
-    let agent_prompt = if start_intent && !preview_ok {
-        crate::control::start_server_intent::with_start_server_user_appendix(
-            &prompt,
-            &session.working_directory,
-            preview_status.as_ref(),
-        )
-    } else {
-        prompt.clone()
-    };
     let chat_turn = anycode_core::ChatTurnContext {
         dashboard_session_id: Some(session_id.clone()),
         user_turn_id: Some(user_turn_id),
         reply_language: Some(reply_lang.clone()),
-        host_intent_hint,
+        host_intent_hint: None,
     };
     // Task-local scope replaces the old process-env plumbing
     // (ANYCODE_REPLY_LANG / SESSION_ENV / USER_TURN_ENV / dashboard DB vars):
@@ -436,7 +406,7 @@ async fn run_embedded_turn(
             session,
             session_id,
             project_id,
-            agent_prompt,
+            prompt,
             user_vision_images,
             live_trace_tx,
             reply_lang,
@@ -444,7 +414,6 @@ async fn run_embedded_turn(
             coop,
             turn_epoch,
             user_turn_id,
-            preview_status,
         ),
     )
     .await
@@ -467,37 +436,21 @@ async fn run_embedded_turn_scoped(
     coop: Arc<AtomicBool>,
     turn_epoch: u64,
     user_turn_id: u32,
-    preview_status: Option<crate::control::start_server_intent::PreviewServerStatus>,
 ) -> anyhow::Result<()> {
     refresh_embedded_system_message(&runtime, &session, &reply_lang, composer_mode.as_deref())
         .await?;
     crate::notify::register_inprocess_bus(Arc::clone(&events));
 
-    // Host already started the preview — skip the agent loop so weak models
-    // cannot mark the session failed after Glob/FileRead-only exploration.
-    if let Some(st) = preview_status.as_ref().filter(|s| s.ok()) {
-        return finish_host_preview_turn(
-            disk,
-            db,
-            events,
-            session,
-            session_id,
-            project_id,
-            prompt,
-            user_vision_images,
-            live_trace_tx,
-            turn_epoch,
-            user_turn_id,
-            st,
-        )
-        .await;
-    }
-
-    let tool_deny_names = if preview_status.is_some() {
-        crate::control::start_server_intent::start_server_tool_deny_names()
-    } else {
-        vec![]
-    };
+    let tool_deny_names =
+        if crate::control::grill_mode::normalize_composer_mode(composer_mode.as_deref()).is_some() {
+            crate::control::grill_mode::grill_tool_deny_names()
+                .iter()
+                .copied()
+                .map(str::to_string)
+                .collect()
+        } else {
+            vec![]
+        };
 
     let task = Task {
         id: session.task_id,
@@ -658,135 +611,6 @@ async fn run_embedded_turn_scoped(
         }
     }
 
-    Ok(())
-}
-
-/// Host-started preview: write assistant reply + completed status without the agent loop.
-#[allow(clippy::too_many_arguments)]
-async fn finish_host_preview_turn(
-    disk: Arc<DiskTaskOutput>,
-    db: DashboardDb,
-    events: Arc<EventBus>,
-    session: Arc<EmbeddedSession>,
-    session_id: String,
-    project_id: String,
-    prompt: String,
-    user_vision_images: Vec<anycode_core::VisionImage>,
-    live_trace_tx: mpsc::UnboundedSender<LiveTraceEvent>,
-    turn_epoch: u64,
-    user_turn_id: u32,
-    status: &crate::control::start_server_intent::PreviewServerStatus,
-) -> anyhow::Result<()> {
-    let reply = status.user_reply_zh();
-    let task = Task {
-        id: session.task_id,
-        agent_type: session.agent_type.clone(),
-        prompt: prompt.clone(),
-        context: TaskContext {
-            session_id: Uuid::new_v4(),
-            working_directory: session.working_directory.clone(),
-            environment: Default::default(),
-            user_id: None,
-            system_prompt_append: None,
-            context_injections: vec![],
-            nested_model_override: None,
-            nested_worktree_path: None,
-            nested_worktree_repo_root: None,
-            nested_cancel: None,
-            channel_progress_tx: None,
-            live_trace_tx: Some(live_trace_tx.clone()),
-            tool_deny_names: vec![],
-            tool_deny_prefixes: vec![],
-            user_vision_images: user_vision_images.clone(),
-            budget: TaskBudget::default(),
-            loop_limits: embedded_loop_limits(),
-            chat_turn: anycode_core::current_chat_turn(),
-        },
-        created_at: chrono::Utc::now(),
-    };
-
-    let recorder_db = Arc::new(db);
-    let mut recorder = DashboardRecorder::begin(
-        Arc::clone(&recorder_db),
-        RunSessionKind::Repl,
-        &task,
-        &truncate(&prompt, 80),
-    )
-    .await?;
-    recorder.ingest_delta(&disk, session.task_id).await;
-
-    {
-        let mut user_metadata = std::collections::HashMap::new();
-        if !user_vision_images.is_empty() {
-            anycode_core::attach_vision_images(&mut user_metadata, &user_vision_images);
-        }
-        let mut msgs = session.messages.lock().await;
-        msgs.push(Message {
-            id: Uuid::new_v4(),
-            role: MessageRole::User,
-            content: MessageContent::Text(prompt),
-            timestamp: chrono::Utc::now(),
-            metadata: user_metadata,
-        });
-        msgs.push(Message {
-            id: Uuid::new_v4(),
-            role: MessageRole::Assistant,
-            content: MessageContent::Text(reply.clone()),
-            timestamp: chrono::Utc::now(),
-            metadata: Default::default(),
-        });
-    }
-
-    let _ = live_trace_tx.send(LiveTraceEvent::TurnStart { turn: 1 });
-    let _ = live_trace_tx.send(LiveTraceEvent::AssistantDelta {
-        turn: 1,
-        delta: reply.clone(),
-        narration: false,
-    });
-    let _ = live_trace_tx.send(LiveTraceEvent::AssistantDone {
-        turn: 1,
-        text: reply.clone(),
-    });
-    let _ = live_trace_tx.send(LiveTraceEvent::TurnDone {
-        status: crate::control::session_status::STATUS_COMPLETED.to_string(),
-    });
-
-    // Give the live bridge a moment to persist assistant_delta before we finalize.
-    tokio::time::sleep(Duration::from_millis(50)).await;
-
-    let epoch_current = session.epoch.load(Ordering::Acquire) == turn_epoch;
-    if !epoch_current {
-        tracing::info!(
-            target: "anycode_dashboard",
-            session_id = %session_id,
-            turn_epoch,
-            "stale host-preview turn finished; skipping session state writes"
-        );
-        return Ok(());
-    }
-
-    recorder.scan_workspace_artifacts().await;
-    recorder.ingest_full_log(&disk, session.task_id).await;
-    recorder
-        .finish_with_status(
-            crate::control::session_status::STATUS_COMPLETED,
-            Some(reply.as_str()),
-        )
-        .await;
-    publish_embedded_turn_done(
-        &events,
-        &session_id,
-        &project_id,
-        user_turn_id,
-        crate::control::session_status::STATUS_COMPLETED,
-    );
-    tracing::info!(
-        target: "anycode_dashboard",
-        session_id = %session_id,
-        url = %status.url,
-        already_running = status.already_running,
-        "host preview server ensured; skipped agent loop"
-    );
     Ok(())
 }
 

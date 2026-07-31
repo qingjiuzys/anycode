@@ -1,6 +1,7 @@
 //! Shared agentic loop helpers (Template Method + Bridge for `execute_task` / `execute_turn`).
 
 use super::agentic_loop::{nested_coop_cancelled, opt_coop_cancelled, task_cancelled_failure};
+use super::discoverable_verification::SessionVerificationState;
 use anycode_core::prelude::*;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ pub(super) struct TurnToolCtx<'a> {
     pub turn: usize,
     pub loop_limits: AgentLoopLimits,
     pub live_trace_tx: Option<tokio::sync::mpsc::UnboundedSender<LiveTraceEvent>>,
+    pub verification: Option<Arc<std::sync::Mutex<SessionVerificationState>>>,
 }
 
 /// Mutable counters/state updated while dispatching tool calls in a turn.

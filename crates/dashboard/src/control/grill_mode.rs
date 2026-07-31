@@ -26,6 +26,19 @@ pub fn grill_system_append(reply_lang: &str) -> &'static str {
     }
 }
 
+/// Tools blocked while composer is in grill mode (alignment before implementation).
+pub fn grill_tool_deny_names() -> &'static [&'static str] {
+    &[
+        "Bash",
+        "Edit",
+        "Write",
+        "FileWrite",
+        "ApplyPatch",
+        "NotebookEdit",
+        "PowerShell",
+    ]
+}
+
 const GRILL_APPEND_ZH: &str = r#"## 拷问模式（Grill Me）
 
 用户已进入 **拷问模式**：在双方达成共同理解、且用户明确允许动手之前，**禁止写代码、改文件、跑破坏性命令**。
@@ -90,5 +103,13 @@ mod tests {
     fn append_only_for_grill() {
         assert!(system_append_for_mode(Some("grill"), "zh").is_some());
         assert!(system_append_for_mode(Some("other"), "en").is_none());
+    }
+
+    #[test]
+    fn grill_tool_deny_blocks_implementation_tools() {
+        let denied = grill_tool_deny_names();
+        assert!(denied.contains(&"Bash"));
+        assert!(denied.contains(&"Edit"));
+        assert!(!denied.contains(&"AskUserQuestion"));
     }
 }

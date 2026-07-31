@@ -6,6 +6,7 @@ import { ConversationComposer } from "@/components/ConversationComposer";
 import { ConversationTranscript } from "@/components/ConversationTranscript";
 import { Icon } from "@/components/Icon";
 import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
+import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
 import { SessionTitleMenu } from "@/components/session/SessionTitleMenu";
 import { SessionStatusBadges, SessionRunningDots } from "@/components/ui/StatusBadge";
 import { formatRelativeTime } from "@/utils/formatTime";
@@ -333,6 +334,17 @@ export function ConversationThread({
 
       <div className="conv-thread-composer-dock">
         <div className="conv-thread-composer">
+          {(sessionLive?.pendingQuestions.length ?? 0) > 0 && (
+            <div className="conv-thread-approval-pin px-1 pb-2">
+              <AskUserQuestionInbox
+                sessionId={session.id}
+                hideWhenEmpty
+                inline
+                questions={sessionLive?.pendingQuestions ?? []}
+                respondAllowed={questionsRespondAllowed}
+              />
+            </div>
+          )}
           {(pendingApprovalCount > 0 ||
             (sessionLive?.pendingApprovals.length ?? 0) > 0) && (
             <div className="conv-thread-approval-pin px-1 pb-2">

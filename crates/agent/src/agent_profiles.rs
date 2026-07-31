@@ -297,9 +297,22 @@ pub fn profile_spec_for_builtin(id: &str) -> Option<AgentProfileSpec> {
             );
         }
         "researcher" => {
-            spec.skills_allowlist = Some(vec!["daily-brief".into()]);
+            spec.tools_allow = Some(vec![
+                "FileRead".into(),
+                "Glob".into(),
+                "Grep".into(),
+                "Bash".into(),
+                "WebSearch".into(),
+                "WebFetch".into(),
+                "Skill".into(),
+            ]);
+            spec.skills_allowlist = Some(vec![
+                "daily-brief".into(),
+                "deep-research".into(),
+                "verify-discover".into(),
+            ]);
             spec.prompt_overlay = Some(
-                "Gather sources with WebSearch/WebFetch; synthesize with citations. Bind daily-brief skill for scheduled summaries.".into(),
+                "Gather sources with WebSearch/WebFetch; synthesize with citations. Use verify-discover when discovering how to validate a stack. Bind daily-brief skill for scheduled summaries.".into(),
             );
         }
         "file-operator" => {
@@ -329,6 +342,16 @@ mod tests {
         assert_eq!(normalize_agent_id("goal-runner"), "goal");
         assert_eq!(normalize_agent_id("channel-ops"), "workspace-assistant");
         assert_eq!(normalize_agent_id("office-writer"), "office-writer");
+    }
+
+    #[test]
+    fn researcher_profile_includes_web_tools() {
+        let spec = profile_spec_for_builtin("researcher").expect("researcher spec");
+        let allow = spec.tools_allow.expect("tools_allow");
+        assert!(allow.iter().any(|t| t == "WebSearch"));
+        assert!(allow.iter().any(|t| t == "WebFetch"));
+        let skills = spec.skills_allowlist.expect("skills");
+        assert!(skills.iter().any(|s| s == "verify-discover"));
     }
 
     #[test]

@@ -461,6 +461,26 @@ impl AgentRuntime {
         if record_evidence {
             evidence::append_tool_evidence(ctx.task_id, &tool_call.name, &prepared.for_hook);
         }
+        if let Some(v) = &ctx.verification {
+            if let Ok(mut g) = v.lock() {
+                g.note_tool(&tool_call.name, &prepared.for_hook);
+            }
+        }
+        if tool_call.name == "Bash" {
+            let command = tool_call
+                .input
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            self.maybe_record_verify_recipe(
+                ctx.session_label,
+                ctx.task_id,
+                command,
+                &prepared.for_hook,
+                ctx.working_directory,
+            )
+            .await;
+        }
         sink.push(prepared.message).await;
         self.pipeline_memory_hook_tool_result(
             ctx.session_label,

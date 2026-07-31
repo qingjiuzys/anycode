@@ -432,9 +432,9 @@ function useConversationShellState(): ConversationShellContextValue {
         sessionId: displaySessionId ?? undefined,
       }),
     enabled: Boolean(displaySessionId),
-    staleTime: Infinity,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 2_000,
+    refetchInterval: selected?.status === "running" ? 2_000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const rehydrateApprovals = useQuery({
@@ -477,6 +477,26 @@ function useConversationShellState(): ConversationShellContextValue {
       selected?.status,
     ],
   );
+
+  // Re-fetch pending AskUserQuestion forms when SSE missed registration.
+  useEffect(() => {
+    if (!displaySessionId) return;
+    if (sessionLive.pendingQuestions.length > 0) return;
+    const askInFlight = liveEvents.some(
+      (evt) =>
+        evt.tool_name === "AskUserQuestion" &&
+        (evt.kind === "tool_start" || evt.kind === "tool_progress"),
+    );
+    if (!askInFlight) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["pending-questions-rehydrate", displaySessionId],
+    });
+  }, [
+    displaySessionId,
+    liveEvents,
+    queryClient,
+    sessionLive.pendingQuestions.length,
+  ]);
 
   // Sidebar summary can show pending while live/rehydrate is still empty (SSE miss).
   useEffect(() => {

@@ -43,6 +43,7 @@ import {
   saveGrillMode,
   shouldExitGrillMode,
 } from "@/lib/grillMode";
+import { parseComposerSlashInput } from "@/lib/composerSlash";
 import {
   GOAL_AGENT_ID,
   goalSlashCommand,
@@ -412,16 +413,7 @@ export function ConversationComposer(props: Props) {
     restoreAgentAfterGoal();
   }
 
-  function toggleGoalMode() {
-    if (goalMode) disableGoalMode();
-    else enableGoalMode();
-  }
-
-  function toggleGrillMode() {
-    if (grillMode) {
-      setGrillMode(false);
-      return;
-    }
+  function enableGrillMode() {
     disableGoalMode();
     setGrillMode(true);
   }
@@ -491,6 +483,7 @@ export function ConversationComposer(props: Props) {
       skills?: string[];
       vision_images?: { mime_type: string; data_base64: string }[];
       text_files?: { filename: string; content: string }[];
+      composer_mode?: string;
       optimisticId?: string;
     }) => {
       const { optimisticId: _ignored, ...body } = payload;
@@ -575,11 +568,15 @@ export function ConversationComposer(props: Props) {
   });
 
   const startSession = useMutation({
-    mutationFn: () =>
+    mutationFn: (vars: {
+      prompt: string;
+      grill: boolean;
+      goal: boolean;
+    }) =>
       api.startConversation(projectId, {
         title: sessionTitle.trim() || undefined,
-        prompt: message.trim(),
-        agent: agent.trim() || undefined,
+        prompt: vars.prompt,
+        agent: vars.goal ? GOAL_AGENT_ID : agent.trim() || undefined,
         skills: selectedSkills.length > 0 ? selectedSkills : undefined,
         vision_images:
           attachedImages.length > 0
@@ -593,14 +590,14 @@ export function ConversationComposer(props: Props) {
             ? attachedTextFiles.map(({ filename, content }) => ({ filename, content }))
             : undefined,
         recycle_session: false,
-        composer_mode: composerModeForSend(grillMode),
+        composer_mode: composerModeForSend(vars.grill),
       }),
-    onSuccess: (data) => {
-      if (grillMode) {
+    onSuccess: (data, vars) => {
+      if (vars.grill) {
         saveGrillMode(data.session.id, true);
         saveGrillMode(`project:${projectId}`, false);
       }
-      if (goalMode) {
+      if (vars.goal) {
         saveGoalMode(data.session.id, true);
         saveGoalMode(`project:${projectId}`, false);
       }
@@ -689,27 +686,41 @@ export function ConversationComposer(props: Props) {
   }
 
   function applySlash(cmd: string) {
+    const parsed = parseComposerSlashInput(message);
     if (isGrillSlashToken(cmd)) {
-      toggleGrillMode();
-      setMessage("");
+      if (grillMode && parsed.bareSlash) {
+        setGrillMode(false);
+      } else {
+        enableGrillMode();
+      }
+      setMessage(parsed.mode === "grill" ? parsed.prompt : "");
       setSlashOpen(false);
       textareaRef.current?.focus();
       return;
     }
     if (isGoalSlashToken(cmd)) {
-      toggleGoalMode();
-      setMessage("");
+      if (goalMode && parsed.bareSlash) {
+        disableGoalMode();
+      } else {
+        enableGoalMode();
+      }
+      setMessage(parsed.mode === "goal" ? parsed.prompt : "");
       setSlashOpen(false);
       textareaRef.current?.focus();
     }
   }
 
-  function buildFollowUpPayload(prompt: string) {
+  function buildFollowUpPayload(
+    prompt: string,
+    opts?: { grill?: boolean; goal?: boolean },
+  ) {
+    const grill = opts?.grill ?? grillMode;
+    const goal = opts?.goal ?? goalMode;
     return {
       prompt: prompt.trim(),
-      agent: agent.trim() || undefined,
+      agent: goal ? GOAL_AGENT_ID : agent.trim() || undefined,
       skills: selectedSkills.length > 0 ? selectedSkills : undefined,
-      composer_mode: composerModeForSend(grillMode),
+      composer_mode: composerModeForSend(grill),
       vision_images:
         attachedImages.length > 0
           ? attachedImages.map(({ mime_type, data_base64 }) => ({
@@ -726,11 +737,46 @@ export function ConversationComposer(props: Props) {
 
   function submitMessage() {
     if (waitingForQuestion || stopping) return;
-    if (!canSend) return;
-    const payload = buildFollowUpPayload(message);
-    const exitGrill = grillMode && shouldExitGrillMode(message);
+
+    const parsed = parseComposerSlashInput(message);
+    const grillActive = grillMode || parsed.mode === "grill";
+    const goalActive = goalMode || parsed.mode === "goal";
+
+    if (parsed.bareSlash && parsed.mode) {
+      if (parsed.mode === "grill") {
+        if (grillMode) setGrillMode(false);
+        else enableGrillMode();
+      } else {
+        if (goalMode) disableGoalMode();
+        else enableGoalMode();
+      }
+      setMessage("");
+      setSlashOpen(false);
+      return;
+    }
+
+    const outgoingPrompt = parsed.mode ? parsed.prompt : message.trim();
+    const hasOutgoing =
+      outgoingPrompt.length > 0 ||
+      attachedImages.length > 0 ||
+      attachedTextFiles.length > 0;
+    if (!hasOutgoing || pending || stopping) return;
+    if (!isStart && waitingForQuestion) return;
+
+    if (parsed.mode === "grill" && !grillMode) enableGrillMode();
+    if (parsed.mode === "goal" && !goalMode) enableGoalMode();
+
+    const payload = buildFollowUpPayload(outgoingPrompt, {
+      grill: grillActive,
+      goal: goalActive,
+    });
+    const exitGrill = grillActive && shouldExitGrillMode(outgoingPrompt);
     if (isStart) {
-      startSession.mutate();
+      startSession.mutate({
+        prompt: outgoingPrompt,
+        grill: grillActive,
+        goal: goalActive,
+      });
     } else {
       const optimisticId = turnActive ? `opt-${Date.now()}` : undefined;
       sendFollowUp.mutate({ ...payload, optimisticId });
@@ -778,7 +824,12 @@ export function ConversationComposer(props: Props) {
         if (showMentionMenu) {
           applyMention(mentionCandidates[mentionIndex]!);
         } else {
-          applySlash(slashCandidates[mentionIndex]!);
+          const parsed = parseComposerSlashInput(message);
+          if (e.key === "Enter" && parsed.mode && !parsed.bareSlash) {
+            submitMessage();
+          } else {
+            applySlash(slashCandidates[mentionIndex]!);
+          }
         }
         return;
       }

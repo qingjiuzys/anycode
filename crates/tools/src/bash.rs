@@ -138,6 +138,8 @@ fn looks_like_long_running_server(command: &str) -> bool {
         "cargo watch",
         "watchexec ",
         "nodemon ",
+        "docker compose up",
+        "docker-compose up",
     ];
     needles.iter().any(|n| c.contains(n)) || c.split_whitespace().any(|tok| tok == "vite")
 }
@@ -383,6 +385,13 @@ mod tests {
 
     fn services() -> Arc<ToolServices> {
         Arc::new(ToolServices::default())
+    }
+
+    #[test]
+    fn docker_compose_up_is_long_running() {
+        assert!(looks_like_long_running_server("docker compose up"));
+        assert!(looks_like_long_running_server("docker-compose up -d"));
+        assert!(!looks_like_long_running_server("docker compose ps"));
     }
 
     #[test]

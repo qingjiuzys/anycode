@@ -279,4 +279,59 @@ impl AgentRuntime {
             warn!(target: "anycode_agent", "memory auto_save failed: {}", e);
         }
     }
+
+    pub(super) async fn maybe_record_verify_recipe(
+        &self,
+        session_label: &str,
+        task_id: TaskId,
+        command: &str,
+        tool_text: &str,
+        cwd: &str,
+    ) {
+        let Some(recipe) =
+            super::discoverable_verification::try_verify_recipe_from_bash(command, tool_text, cwd)
+        else {
+            return;
+        };
+        if looks_like_secret(&recipe) {
+            return;
+        }
+        record_episode_event(
+            session_label,
+            task_id,
+            EpisodeEvent::KeyDecision {
+                decision: "verify_recipe".into(),
+                rationale: recipe.clone(),
+            },
+        );
+        if let Some(ref pipe) = self.memory_pipeline {
+            let sess = format!("{session_label}:{task_id}");
+            if let Err(e) = pipe
+                .ingest_fragment(&sess, &recipe, MemoryType::Project)
+                .await
+            {
+                warn!(
+                    target: "anycode_agent",
+                    "memory pipeline verify_recipe failed: {}",
+                    e
+                );
+            }
+            return;
+        }
+        let now = chrono::Utc::now();
+        let memory = Memory {
+            id: format!("verify_recipe_{task_id}"),
+            mem_type: MemoryType::Project,
+            title: "verify_recipe".into(),
+            content: recipe,
+            tags: vec!["verify_recipe".into()],
+            scope: MemoryScope::Project,
+            created_at: now,
+            updated_at: now,
+            meta: None,
+        };
+        if let Err(e) = self.memory_store.save(memory).await {
+            warn!(target: "anycode_agent", "verify_recipe memory save failed: {}", e);
+        }
+    }
 }

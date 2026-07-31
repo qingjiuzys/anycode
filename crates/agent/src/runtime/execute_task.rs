@@ -210,6 +210,10 @@ impl AgentRuntime {
         let mut budget_state = RuntimeBudgetState::new(task.context.budget);
         let mut repairs_used: u32 = 0;
         let mut last_repair_diagnostics: Option<String> = None;
+        let verification_shared = Arc::new(std::sync::Mutex::new(
+            super::discoverable_verification::SessionVerificationState::default(),
+        ));
+        let mut evidence_repairs_used: u32 = 0;
         let loop_limits = task.context.loop_limits;
 
         for turn in 1..=loop_limits.max_agent_turns {
@@ -438,6 +442,39 @@ impl AgentRuntime {
                     .await;
                 match guard_out.decision {
                     super::completion_guard::GuardDecision::Complete => {
+                        let verification_snapshot = verification_shared
+                            .lock()
+                            .map(|g| g.clone())
+                            .unwrap_or_default();
+                        if let Some(msg) = super::discoverable_verification::maybe_evidence_repair(
+                            &verification_snapshot,
+                            &turn_plain,
+                            evidence_repairs_used,
+                        ) {
+                            evidence_repairs_used += 1;
+                            last_repair_diagnostics = Some(msg.clone());
+                            logger.line(
+                                task.id,
+                                &format!(
+                                    "[evidence_repair_requested] repairs_used={evidence_repairs_used}"
+                                ),
+                            );
+                            messages.push(Message {
+                                id: Uuid::new_v4(),
+                                role: MessageRole::User,
+                                content: MessageContent::Text(msg),
+                                timestamp: chrono::Utc::now(),
+                                metadata: {
+                                    let mut m = HashMap::new();
+                                    m.insert(
+                                        ANYCODE_CONTEXT_USER_METADATA_KEY.to_string(),
+                                        serde_json::Value::Bool(true),
+                                    );
+                                    m
+                                },
+                            });
+                            continue;
+                        }
                         self.pipeline_memory_hook_agent_turn(
                             &session_label,
                             task.id,
@@ -527,6 +564,7 @@ impl AgentRuntime {
                 turn,
                 loop_limits,
                 live_trace_tx: task.context.live_trace_tx.clone(),
+                verification: Some(Arc::clone(&verification_shared)),
             };
             let mut tool_state = TurnToolState {
                 total_tool_calls,
