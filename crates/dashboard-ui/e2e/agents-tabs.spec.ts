@@ -18,10 +18,13 @@ test.describe("Agents tabs", () => {
     }
   });
 
-  test("installed skills show Chinese names in zh locale", async ({ page }) => {
+  test("installed skills show Chinese names in zh locale", async ({ page, request }) => {
     await page.addInitScript(() => {
       localStorage.setItem("anycode-dashboard-locale", "zh");
     });
+    // Fixture HOME may have an empty skills dir — seed starter pack first.
+    const install = await request.post("/api/skills/install-starter");
+    expect(install.ok()).toBeTruthy();
     await page.goto("/agents");
     // Default tab is already "installed"; use tab id (avoid matching other「已安装」buttons).
     await page.locator("#agents-tab-installed").click();
