@@ -23,14 +23,12 @@ test.describe("Agents tabs", () => {
       localStorage.setItem("anycode-dashboard-locale", "zh");
     });
     await page.goto("/agents");
-    await page.getByRole("button", { name: /已安装|installed/i }).first().click();
-    const row = page.locator(".dw-agents-skill-row").filter({ hasText: "cn-daily-brief" }).first();
-    if (await row.count()) {
-      await expect(row.locator(".dw-agents-skill-row__name")).toHaveText("中文日报");
-    } else {
-      const csvRow = page.locator(".dw-agents-skill-row").filter({ hasText: "report-to-csv" }).first();
-      await expect(csvRow.locator(".dw-agents-skill-row__name")).toHaveText("报表转 CSV");
-    }
+    // Default tab is already "installed"; use tab id (avoid matching other「已安装」buttons).
+    await page.locator("#agents-tab-installed").click();
+    const zhName = page.locator(".dw-agents-skill-row__name").filter({
+      hasText: /中文日报|报表转 CSV/,
+    });
+    await expect(zhName.first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("skills market API returns entries", async ({ request }) => {

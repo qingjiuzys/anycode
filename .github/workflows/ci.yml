@@ -60,6 +60,11 @@ jobs:
           ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-channel-bridge
           ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features embedded-ui
 
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgomp1
+
       - name: Build anycode-desktop
         run: ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release --manifest-path apps/anycode-desktop/Cargo.toml
 

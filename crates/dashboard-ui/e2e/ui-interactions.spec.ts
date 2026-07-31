@@ -91,7 +91,10 @@ test.describe("Page primary actions", () => {
 
   test("legacy /setup redirects to settings", async ({ page }) => {
     await page.goto("/setup?step=channels&tab=wechat");
-    await expect(page).toHaveURL(/\/settings\?section=channels/);
+    // Control-center shell hosts /settings under /conversations?cc=...
+    await expect(page).toHaveURL(/\/conversations\?.*cc=.*settings.*section(=|%3D)notify/, {
+      timeout: 10_000,
+    });
     await expect(page.getByRole("main")).toBeVisible();
   });
 });

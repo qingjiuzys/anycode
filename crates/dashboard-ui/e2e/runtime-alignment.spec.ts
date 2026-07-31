@@ -18,7 +18,7 @@ test.describe("runtime alignment smoke", () => {
     const plist = (await projects.json()) as { projects?: Array<{ id: string }> };
     const projectId = plist.projects?.[0]?.id;
     expect(projectId).toBeTruthy();
-    const res = await request.post(`/api/projects/${projectId}/conversations`, {
+    const res = await request.post(`/api/projects/${projectId}/conversations/start`, {
       data: {
         prompt: "hello",
         kind: "run",

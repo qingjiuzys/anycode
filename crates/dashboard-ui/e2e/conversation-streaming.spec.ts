@@ -93,7 +93,11 @@ test.describe("conversation streaming UX", () => {
 
   test("session open does not poll pending-questions", async ({ page, request }) => {
     const list = await requireSeededSessions(request);
-    const sid = list[0]?.id;
+    // Running sessions intentionally poll; assert cold path on a terminal session.
+    const sid =
+      list.find((s) => s.status === "completed")?.id ??
+      list.find((s) => s.status !== "running")?.id ??
+      list[0]?.id;
     expect(sid, "fixture session missing id").toBeTruthy();
 
     const pendingQuestionUrls: string[] = [];

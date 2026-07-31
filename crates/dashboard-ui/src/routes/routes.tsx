@@ -93,7 +93,6 @@ export const setupRoute = createRoute({
   ): { step?: string; tab?: string; section?: SettingsSection } => {
     const sectionRaw = typeof search.section === "string" ? search.section.trim() : "";
     const valid = [
-      "auth",
       "prefs",
       "data",
       "service",
@@ -102,6 +101,7 @@ export const setupRoute = createRoute({
       "skills",
       "security",
       "notify",
+      "lan",
       "gates",
       "plugins",
       "ops",
@@ -124,6 +124,9 @@ export const setupRoute = createRoute({
       section = "data";
     } else if (step === "skills") {
       section = "skills";
+    } else if (step === "channels" || step === "wechat" || step === "notify") {
+      // Legacy setup wizard channel steps → notification / channel policies.
+      section = "notify";
     } else if (search.section) {
       section = search.section;
     }
