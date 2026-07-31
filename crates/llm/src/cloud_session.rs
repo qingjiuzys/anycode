@@ -264,19 +264,14 @@ pub fn resolve_anycode_cloud_endpoint(
     base_url: Option<&str>,
     api_key: Option<&str>,
 ) -> Result<ResolvedCloudEndpoint, String> {
-    let mut key = api_key.unwrap_or("").trim().to_string();
-    if key.is_empty() {
-        key = read_cloud_access_token().ok_or_else(|| {
-            "anyCode Cloud：请运行 `anycode auth login` 并完成设备关联".to_string()
-        })?;
-    }
-
     let url = base_url
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .unwrap_or_else(default_gateway_chat_url);
 
+    // Prefer direct Agnes when production portal / gateway is unreachable — even without
+    // a cloud login session (CI and offline machines still need a deterministic path).
     if should_use_direct_agnes_for_cloud_gateway(&url) {
         if let Some(fb) = direct_agnes_fallback_for_cloud_model(model) {
             tracing::warn!(
@@ -291,6 +286,16 @@ pub fn resolve_anycode_cloud_endpoint(
                 api_key: fb.api_key,
             });
         }
+    }
+
+    let mut key = api_key.unwrap_or("").trim().to_string();
+    if key.is_empty() {
+        key = read_cloud_access_token().ok_or_else(|| {
+            "anyCode Cloud：请运行 `anycode auth login` 并完成设备关联".to_string()
+        })?;
+    }
+
+    if should_use_direct_agnes_for_cloud_gateway(&url) {
         return Err(format!(
             "anyCode Cloud 网关不可达（{url}）。请启动本地 model-gateway（端口 43210），或在模型库改用「Agnes 2.0 Flash」直连。"
         ));
@@ -459,14 +464,18 @@ mod tests {
 
     #[test]
     fn resolve_endpoint_falls_back_to_agnes_for_production_portal() {
+        crate::config_file::set_config_value_override(serde_json::json!({
+            "provider_credentials": { "agnes": "test-agnes-key-for-ci" }
+        }));
         let resolved = resolve_anycode_cloud_endpoint(
             "auto",
             Some("https://anycode.work/v1/chat/completions"),
             None,
-        )
-        .expect("agnes credential should enable fallback");
+        );
+        crate::config_file::clear_config_value_override();
+        let resolved = resolved.expect("agnes credential should enable fallback");
         assert_eq!(resolved.base_url, AGNES_DIRECT_CHAT_URL);
         assert_eq!(resolved.model, "agnes-2.0-flash");
-        assert!(!resolved.api_key.is_empty());
+        assert_eq!(resolved.api_key, "test-agnes-key-for-ci");
     }
 }

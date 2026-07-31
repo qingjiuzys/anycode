@@ -12,7 +12,6 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
-use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use sqlx::Row;
@@ -269,34 +268,32 @@ async fn run_sender_socket(
 
     while let Some(msg) = stream.next().await {
         match msg {
-            Ok(Message::Binary(data)) => {
-                match relay.publish_chunk(&handoff_id, Bytes::from(data)).await {
-                    Ok(n) => {
-                        let cap = crate::a2a::models::MAX_RELAY_BUFFER_BYTES.max(1);
-                        let pct = (n.min(cap) * 100 / cap) as u8;
-                        let _ = store::update_progress(
-                            &db,
-                            &handoff_id,
-                            HandoffState::Uploading,
-                            pct,
-                            None,
-                        )
-                        .await;
-                    }
-                    Err(e) => {
-                        let _ = store::update_progress(
-                            &db,
-                            &handoff_id,
-                            HandoffState::Failed,
-                            0,
-                            Some(&e.to_string()),
-                        )
-                        .await;
-                        failed = true;
-                        break;
-                    }
+            Ok(Message::Binary(data)) => match relay.publish_chunk(&handoff_id, data).await {
+                Ok(n) => {
+                    let cap = crate::a2a::models::MAX_RELAY_BUFFER_BYTES.max(1);
+                    let pct = (n.min(cap) * 100 / cap) as u8;
+                    let _ = store::update_progress(
+                        &db,
+                        &handoff_id,
+                        HandoffState::Uploading,
+                        pct,
+                        None,
+                    )
+                    .await;
                 }
-            }
+                Err(e) => {
+                    let _ = store::update_progress(
+                        &db,
+                        &handoff_id,
+                        HandoffState::Failed,
+                        0,
+                        Some(&e.to_string()),
+                    )
+                    .await;
+                    failed = true;
+                    break;
+                }
+            },
             Ok(Message::Close(_)) | Err(_) => break,
             _ => {}
         }
