@@ -1,1 +1,1 @@
-0609beb80fbc8f2d0422d53743e9dd4630dabe9258d044106d4df81a9cd7467d  anyCode_0.3.3_aarch64.dmg
+05ddb42dd40ce5f62fbc44473c2d9ee3649cb5d9287b01db97bbc56e60f909fd  anyCode_0.3.4_aarch64.dmg
