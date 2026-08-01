@@ -382,4 +382,19 @@ impl McpConnected for McpLegacySseSession {
         }
         Ok(resp.get("result").cloned().unwrap_or(resp))
     }
+
+    async fn refresh_tools(&self) -> Result<Value, CoreError> {
+        let resp = self.rpc("tools/list", json!({})).await?;
+        if let Some(err) = resp.get("error") {
+            return Err(CoreError::LLMError(format!("tools/list refresh: {}", err)));
+        }
+        let listed = parse_tools_list(&resp)?;
+        Ok(json!({
+            "tools": listed.iter().map(|t| json!({
+                "name": t.name,
+                "description": t.description,
+                "inputSchema": t.input_schema
+            })).collect::<Vec<_>>()
+        }))
+    }
 }

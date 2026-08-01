@@ -1,6 +1,6 @@
 import { isTauriDesktop } from "@/lib/desktopShell";
 
-/** Open a folder/file in the system file manager (Finder / Explorer). */
+/** Reveal a folder/file in the system file manager (Finder / Explorer). */
 export async function revealInFileManager(path: string): Promise<void> {
   const target = path.trim();
   if (!target) return;
@@ -8,6 +8,20 @@ export async function revealInFileManager(path: string): Promise<void> {
   if (isTauriDesktop()) {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("reveal_in_file_manager", { path: target });
+    return;
+  }
+
+  throw new Error("not_desktop");
+}
+
+/** Open a local file/folder with the OS default application. */
+export async function openLocalPath(path: string): Promise<void> {
+  const target = path.trim();
+  if (!target) return;
+
+  if (isTauriDesktop()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_local_path", { path: target });
     return;
   }
 

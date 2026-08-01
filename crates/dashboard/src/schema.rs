@@ -164,7 +164,7 @@ pub struct SkillRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name_zh: Option<String>,
     pub source_path: String,
-    /// Anthropic-style category slug (library-ref/verification/data/…/other).
+    /// Product taxonomy slug (office/writing/design/research/engineering/ops/other).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     pub projects_count: i64,

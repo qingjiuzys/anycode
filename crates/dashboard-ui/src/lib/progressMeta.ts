@@ -10,6 +10,36 @@ export function isProgressBlock(block: TranscriptBlock): boolean {
   );
 }
 
+/** One-line agent status updates — show inline, not as a fold control (thinking/tools stay expandable). */
+export function isStaticProgressStatusLine(block: TranscriptBlock): boolean {
+  if (block.block_type === "progress_update") return true;
+  if (
+    block.block_type === "system_notice" &&
+    block.meta?.source === "intermediate_assistant"
+  ) {
+    return true;
+  }
+  return (
+    block.block_type === "assistant_message" &&
+    (block.meta?.narration === true ||
+      block.meta?.message_role === "status" ||
+      block.meta?.live === true)
+  );
+}
+
+/** Mid-turn assistant text — inline status, not a final reply bubble. */
+export function shouldRenderAssistantAsStatusLine(
+  block: TranscriptBlock,
+  opts: { itemIndex: number; finalAssistantIndex: number },
+): boolean {
+  if (block.block_type !== "assistant_message") return false;
+  if (isStaticProgressStatusLine(block)) return true;
+  if (opts.finalAssistantIndex >= 0 && opts.itemIndex !== opts.finalAssistantIndex) {
+    return true;
+  }
+  return false;
+}
+
 export function progressPhase(block: TranscriptBlock): AgentPhaseKind {
   const raw = block.meta?.phase;
   if (typeof raw === "string") {

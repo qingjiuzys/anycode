@@ -29,18 +29,24 @@ pub async fn get_connector_github_issues(
         )
             .into_response();
     }
-    let repo = config
+    let repo_raw = config
         .get("repo")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .trim();
-    if repo.is_empty() {
+    let Some(repo) = crate::connectors::normalize_github_repo(repo_raw) else {
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "github connector missing repo in config" })),
+            Json(json!({
+                "error": if repo_raw.is_empty() {
+                    "github connector missing repo in config".into()
+                } else {
+                    format!("expected owner/repo, got {repo_raw:?}")
+                }
+            })),
         )
             .into_response();
-    }
+    };
     let token = config
         .get("token")
         .and_then(|v| v.as_str())
@@ -48,7 +54,7 @@ pub async fn get_connector_github_issues(
         .map(str::to_string)
         .or_else(|| std::env::var("GITHUB_TOKEN").ok())
         .or_else(|| std::env::var("ANYCODE_GITHUB_TOKEN").ok());
-    match crate::connectors::fetch_github_issues(repo, token.as_deref()).await {
+    match crate::connectors::fetch_github_issues(&repo, token.as_deref()).await {
         Ok(issues) => Json(json!({ "issues": issues, "repo": repo })).into_response(),
         Err(e) => (
             StatusCode::BAD_GATEWAY,

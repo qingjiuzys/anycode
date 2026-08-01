@@ -1,5 +1,5 @@
 /** Fixed reveal speed for streaming assistant text (chars per second). */
-export const STREAM_REVEAL_CHARS_PER_SEC = 40;
+export const STREAM_REVEAL_CHARS_PER_SEC = 80;
 
 /** @deprecated Use STREAM_REVEAL_CHARS_PER_SEC. Kept for tests importing legacy names. */
 export const SMOOTH_BASE_CHARS_PER_SEC = STREAM_REVEAL_CHARS_PER_SEC;

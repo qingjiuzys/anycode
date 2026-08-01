@@ -220,4 +220,27 @@ impl McpConnected for McpRmcpSession {
             .map_err(map_service_err)?;
         serde_json::to_value(&r).map_err(|e| CoreError::LLMError(e.to_string()))
     }
+
+    async fn refresh_tools(&self) -> Result<Value, CoreError> {
+        let g = self.client.lock().await;
+        let tools = g.list_all_tools().await.map_err(map_service_err)?;
+        let arr: Vec<Value> = tools
+            .iter()
+            .map(|t| {
+                let description = t
+                    .description
+                    .as_ref()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default();
+                let input_schema = serde_json::to_value(t.input_schema.as_ref())
+                    .unwrap_or_else(|_| json!({"type": "object", "additionalProperties": true}));
+                json!({
+                    "name": t.name.to_string(),
+                    "description": description,
+                    "inputSchema": input_schema
+                })
+            })
+            .collect();
+        Ok(json!({ "tools": arr }))
+    }
 }

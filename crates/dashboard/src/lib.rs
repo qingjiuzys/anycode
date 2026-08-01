@@ -61,9 +61,6 @@ pub use observability::{
 };
 pub use observability::{event_tier, execution_log};
 
-#[cfg(test)]
-mod test_util;
-
 pub use api::auth::generate_desktop_bootstrap_token;
 pub use db::DashboardDb;
 pub use db_ops::{backup_db, db_operations};

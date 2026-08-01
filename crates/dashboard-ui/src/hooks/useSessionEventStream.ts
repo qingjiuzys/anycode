@@ -8,6 +8,11 @@ import {
   type ChatStreamEvent,
 } from "@/lib/liveTranscript";
 import { apiUrl } from "@/api/http";
+import {
+  clearSessionStreamSnapshot,
+  getSessionStreamSnapshot,
+  setSessionStreamSnapshot,
+} from "@/lib/sessionStreamStore";
 
 const HEAVY_INVALIDATE_MS = 2_000;
 
@@ -163,12 +168,49 @@ export function useSessionEventStream(
     setChatLive(live);
   }, []);
 
+  const hydrateFromStore = useCallback(
+    (id: string) => {
+      const cached = getSessionStreamSnapshot(id);
+      if (cached.liveEvents.length === 0 && !cached.chatLive) {
+        resetLive();
+        setChatLiveState(false);
+        setAfterSeq(0);
+        lastSeqRef.current = 0;
+        return;
+      }
+      eventsRef.current = new Map();
+      for (const evt of cached.liveEvents) {
+        if (evt.seq !== undefined) {
+          eventsRef.current.set(evt.seq, evt);
+        }
+      }
+      setLiveEvents(cached.liveEvents);
+      setChatLiveState(cached.chatLive);
+      lastSeqRef.current = cached.lastSeq;
+      setAfterSeq(cached.lastSeq);
+    },
+    [resetLive, setChatLiveState],
+  );
+
   useEffect(() => {
-    resetLive();
-    setChatLiveState(false);
-    setAfterSeq(0);
-    lastSeqRef.current = 0;
-  }, [resetLive, sessionId]);
+    if (!sessionId) {
+      resetLive();
+      setChatLiveState(false);
+      setAfterSeq(0);
+      lastSeqRef.current = 0;
+      return;
+    }
+    hydrateFromStore(sessionId);
+  }, [hydrateFromStore, resetLive, sessionId, setChatLiveState]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    setSessionStreamSnapshot(sessionId, {
+      liveEvents,
+      lastSeq: lastSeqRef.current,
+      chatLive,
+    });
+  }, [chatLive, liveEvents, sessionId]);
 
   // When the session leaves `running` (e.g. turn finished but `turn_done` SSE was
   // missed), drop stale live stream state so the composer and recap unstick.
@@ -178,6 +220,7 @@ export function useSessionEventStream(
     if (sessionStatus === "running" || sessionStatus === "pending") return;
     setChatLiveState(false);
     resetLive();
+    clearSessionStreamSnapshot(sessionId);
   }, [optimisticStreaming, resetLive, sessionId, sessionStatus, setChatLiveState]);
 
   const applyChatEvent = useCallback(
@@ -204,7 +247,14 @@ export function useSessionEventStream(
         if (evt.seq !== undefined) {
           lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
         }
-        resetLive();
+        const stillActive =
+          optimisticStreaming ||
+          sessionStatus === "running" ||
+          sessionStatus === "pending";
+        if (!stillActive) {
+          resetLive();
+          clearSessionStreamSnapshot(sessionId);
+        }
         if (sessionId) {
           void queryClient.invalidateQueries({
             queryKey: ["session-transcript", sessionId],
@@ -242,6 +292,7 @@ export function useSessionEventStream(
       if (evt.kind === "session_error") {
         setChatLiveState(false);
         resetLive();
+        clearSessionStreamSnapshot(sessionId);
         if (evt.seq !== undefined) {
           lastSeqRef.current = Math.max(lastSeqRef.current, evt.seq);
         }
@@ -276,7 +327,7 @@ export function useSessionEventStream(
         setLiveEvents((prev) => [...prev, evt]);
       }
     },
-    [onTurnDone, queryClient, resetLive, sessionId, setChatLiveState],
+    [onTurnDone, optimisticStreaming, queryClient, resetLive, sessionId, sessionStatus, setChatLiveState],
   );
 
   const heavyKeysForScope = useCallback((): (readonly unknown[])[] => {

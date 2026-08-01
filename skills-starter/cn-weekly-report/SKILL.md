@@ -3,7 +3,7 @@ name: cn-weekly-report
 description: Summarize a week's work into a Chinese weekly report for managers or teams.
 description_zh: 将一周工作整理为面向团队或上级的中文周报。
 name_zh: 中文周报
-category: business
+category: writing
 version: 1.1.0
 mode: instructions
 approval: read-only-unless-writing-output

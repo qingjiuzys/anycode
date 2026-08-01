@@ -43,29 +43,23 @@ const SKILL_ICON_BY_ID: Record<string, string> = {
 };
 
 const CATEGORY_ICON: Record<SkillCategory, string> = {
-  "library-ref": "menu_book",
-  verification: "verified",
-  data: "bar_chart",
-  business: "corporate_fare",
-  scaffolding: "construction",
-  quality: "fact_check",
-  cicd: "sync",
-  runbook: "route",
-  infra: "dns",
+  office: "description",
+  writing: "edit",
+  design: "palette",
+  research: "analytics",
+  engineering: "code",
+  ops: "folder_open",
   other: "extension",
 };
 
 const CATEGORY_TONE: Record<SkillCategory, SkillIconTone> = {
-  "library-ref": "indigo",
-  verification: "teal",
-  data: "blue",
-  business: "amber",
-  scaffolding: "cyan",
-  quality: "violet",
-  cicd: "orange",
-  runbook: "rose",
-  infra: "indigo",
-  other: "violet",
+  office: "amber",
+  writing: "rose",
+  design: "violet",
+  research: "blue",
+  engineering: "teal",
+  ops: "orange",
+  other: "indigo",
 };
 
 const TONE_ORDER: SkillIconTone[] = [

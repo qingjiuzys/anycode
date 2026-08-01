@@ -53,7 +53,7 @@ export const PLAN_CATALOG: Record<PlanTier, PlanCatalogEntry> = {
     tier: "team",
     monthlyPriceFen: 199_900,
     yearlyPriceFen: 1_999_000,
-    tokenLimit: 60_000_000,
+    tokenLimit: 15_000_000_000,
     apiKeyLimit: 20,
     seatLimit: 10,
     featured: false,

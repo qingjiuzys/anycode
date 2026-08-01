@@ -9,7 +9,7 @@ import { ListPaginationBar } from "@/components/ui/ListPaginationBar";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useLocale, useT } from "@/i18n/context";
 import {
-  categoriesWithEntries,
+  SKILL_CATEGORIES,
   filterSkillsByCategory,
   normalizeSkillCategory,
   skillDisplayDescription,
@@ -49,7 +49,6 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
   });
 
   const list = skills.data?.skills ?? [];
-  const visibleCategories = useMemo(() => categoriesWithEntries(list), [list]);
   const filtered = useMemo(
     () => filterSkillsByCategory(list, categoryFilter),
     [list, categoryFilter],
@@ -115,14 +114,17 @@ export function SkillsGovernancePanel({ runtime }: { runtime?: RuntimeSettings }
       </SectionCard>
 
       <SectionCard title={t("settings.skillsGov.globalTitle")} noPadding>
-        {list.length > 0 && visibleCategories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-4 pt-4 pb-2 sticky top-0 z-[1] bg-surface-container-lowest border-b border-outline-variant/30">
+        {list.length > 0 && (
+          <div
+            className="flex flex-wrap gap-1.5 px-4 pt-4 pb-2 sticky top-0 z-[1] bg-surface-container-lowest border-b border-outline-variant/30"
+            role="tablist"
+          >
             <FilterPill
               active={categoryFilter === "all"}
               label={t("agents.skillCategory.all")}
               onClick={() => setCategoryFilter("all")}
             />
-            {visibleCategories.map((cat) => (
+            {SKILL_CATEGORIES.map((cat) => (
               <FilterPill
                 key={cat}
                 active={categoryFilter === cat}

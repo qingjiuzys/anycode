@@ -182,15 +182,29 @@ impl Tool for BashTool {
                     "type": "string",
                     "description": "Shell command to execute"
                 },
+                "timeout": {
+                    "type": "number",
+                    "description": format!(
+                        "Optional timeout in milliseconds for foreground runs (default: {DEFAULT_TIMEOUT_MS}, max: 600000). Ignored when run_in_background is true."
+                    )
+                },
                 "timeout_ms": {
                     "type": "number",
                     "description": format!(
-                        "Timeout in milliseconds for foreground runs (default: {DEFAULT_TIMEOUT_MS}, max: 600000). Ignored when run_in_background is true."
+                        "Deprecated alias for `timeout` (default: {DEFAULT_TIMEOUT_MS}, max: 600000)."
                     )
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Clear, concise description of what this command does in active voice. Never use words like \"complex\" or \"risk\" — just describe what it does."
                 },
                 "run_in_background": {
                     "type": "boolean",
                     "description": "When true, start the command in the background immediately and return background_task_id. Use for long-running servers; do not append &. Poll TaskOutput / cancel with TaskStop."
+                },
+                "dangerouslyDisableSandbox": {
+                    "type": "boolean",
+                    "description": "Set this to true to dangerously override sandbox mode and run commands without sandboxing."
                 }
             },
             "required": ["command"]
@@ -214,7 +228,15 @@ impl Tool for BashTool {
             #[serde(default = "default_timeout")]
             timeout_ms: u64,
             #[serde(default)]
+            timeout: Option<u64>,
+            #[serde(default)]
             run_in_background: Option<bool>,
+            #[serde(default)]
+            description: Option<String>,
+            #[serde(default)]
+            dangerously_disable_sandbox: Option<bool>,
+            #[serde(default, rename = "dangerouslyDisableSandbox")]
+            dangerously_disable_sandbox_camel: Option<bool>,
         }
 
         fn default_timeout() -> u64 {
@@ -224,6 +246,14 @@ impl Tool for BashTool {
         let bash_input: BashInput =
             serde_json::from_value(input.input.clone()).map_err(CoreError::SerializationError)?;
 
+        // 兼容 Claude Code 的 `timeout` 参数名（timeout_ms 仍是 anyCode 别名）
+        let effective_timeout = bash_input.timeout.unwrap_or(bash_input.timeout_ms);
+        let dangerously_disable_sandbox = bash_input
+            .dangerously_disable_sandbox
+            .or(bash_input.dangerously_disable_sandbox_camel)
+            .unwrap_or(false);
+        let description = bash_input.description.clone();
+
         if self.check_denied(&bash_input.command) {
             return Ok(ToolOutput {
                 result: serde_json::json!({"error": "Command denied by security policy"}),
@@ -232,14 +262,24 @@ impl Tool for BashTool {
             });
         }
 
-        let cwd = resolve_cwd(&self.security_policy, &input)?;
+        let cwd = if dangerously_disable_sandbox {
+            // 显式覆盖沙箱：使用传入工作目录（如有），不要求 sandbox 约束
+            input
+                .working_directory
+                .as_ref()
+                .map(std::path::PathBuf::from)
+        } else {
+            resolve_cwd(&self.security_policy, &input)?
+        };
         let cwd_ref = cwd.as_deref();
 
         let (command, run_bg, bg_reason) =
             coerce_background(&bash_input.command, bash_input.run_in_background);
 
         if run_bg {
-            let mut out = self.execute_background(&command, cwd_ref, start).await?;
+            let mut out = self
+                .execute_background(&command, cwd_ref, description.as_deref(), start)
+                .await?;
             if let Some(reason) = bg_reason {
                 if let Some(obj) = out.result.as_object_mut() {
                     obj.insert("auto_background_reason".into(), serde_json::json!(reason));
@@ -259,7 +299,7 @@ impl Tool for BashTool {
             &program,
             &arg_refs,
             cwd_ref,
-            clamp_timeout_ms(bash_input.timeout_ms),
+            clamp_timeout_ms(effective_timeout),
         )
         .await?;
 
@@ -270,7 +310,7 @@ impl Tool for BashTool {
                     "stdout": capture.stdout,
                     "stderr": capture.stderr,
                     "exit_code": capture.exit_code,
-                    "timeout_ms": clamp_timeout_ms(bash_input.timeout_ms),
+                    "timeout_ms": clamp_timeout_ms(effective_timeout),
                     "hint": "For long-running servers (http.server, npm run dev, vite), use run_in_background: true instead of waiting or appending &.",
                 }),
                 error: Some("Command timed out".to_string()),
@@ -302,10 +342,14 @@ impl BashTool {
         &self,
         command: &str,
         cwd: Option<&std::path::Path>,
+        description: Option<&str>,
         start: Instant,
     ) -> Result<ToolOutput, CoreError> {
         let task_id = Uuid::new_v4();
         let job = self.services.insert_background_agent_job(task_id);
+        if let Some(desc) = description {
+            job.set_title(desc.to_string());
+        }
 
         let (program, args): (String, Vec<String>) = if cfg!(target_os = "windows") {
             ("cmd".into(), vec!["/C".into(), command.to_string()])

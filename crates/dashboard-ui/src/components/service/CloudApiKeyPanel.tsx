@@ -149,6 +149,7 @@ export function CloudApiKeyPanel() {
           setPendingRevokeName("");
         }}
         labelledBy="revoke-key-title"
+        zIndex={360}
       >
         <div className="glass-modal rounded-xl p-6 max-w-md">
           <h2 id="revoke-key-title" className="text-lg font-semibold m-0 mb-2">

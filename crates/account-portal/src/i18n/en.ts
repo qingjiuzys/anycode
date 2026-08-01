@@ -247,7 +247,7 @@ export const en = {
         price: "¥1999/mo",
         desc: "Team seats and higher quota",
         h0: "10 seats",
-        h1: "60M tokens / month",
+        h1: "15B tokens / month",
         h2: "Team billing portal",
       },
     },

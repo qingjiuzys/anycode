@@ -1,14 +1,14 @@
 import { ControlCenterLink } from "@/components/control-center/ControlCenterLink";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { api } from "@/api/client";
 import type { SkillRecord } from "@/api/types";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { useLocale, useT } from "@/i18n/context";
 import {
-  categoriesWithEntries,
+  SKILL_CATEGORIES,
   filterSkillsByCategory,
-  groupSkillsByCategory,
-  normalizeSkillCategory,
   skillDisplayDescription,
   skillDisplayName,
   skillMatchesSearch,
@@ -42,36 +42,31 @@ export function InstalledSkillsPanel({
 }: Props) {
   const t = useT();
   const locale = useLocale();
+  const queryClient = useQueryClient();
   const [categoryFilter, setCategoryFilter] = useState<SkillCategory | "all">("all");
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<Set<SkillCategory>>(new Set());
+  const [pendingUninstallId, setPendingUninstallId] = useState<string | null>(null);
+  const [uninstallError, setUninstallError] = useState<string | null>(null);
+  const [lastUninstalled, setLastUninstalled] = useState<string | null>(null);
+
+  const uninstall = useMutation({
+    mutationFn: (id: string) => api.uninstallSkill(id),
+    onMutate: () => setUninstallError(null),
+    onSuccess: (result) => {
+      setPendingUninstallId(null);
+      setLastUninstalled(result.id);
+      void queryClient.invalidateQueries({ queryKey: ["skills"] });
+      void queryClient.invalidateQueries({ queryKey: ["skill-suggestions"] });
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+    onError: (e: Error) => setUninstallError(e.message),
+  });
 
   const filtered = useMemo(() => {
     let list = skills.filter((s) => skillMatchesSearch(s, search));
     list = filterSkillsByCategory(list, categoryFilter);
     return list;
   }, [skills, search, categoryFilter]);
-
-  const visibleCategories = useMemo(() => categoriesWithEntries(skills), [skills]);
-  const groups = useMemo(() => groupSkillsByCategory(filtered), [filtered]);
-  const allExpanded = groups.length > 0 && groups.every((g) => expanded.has(g.category));
-
-  function toggleCategory(cat: SkillCategory) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (allExpanded) {
-      setExpanded(new Set());
-    } else {
-      setExpanded(new Set(groups.map((g) => g.category)));
-    }
-  }
 
   const toolbar = (
     <header className={embedded ? "dw-agents-tab-toolbar" : "dw-agents-panel__head"}>
@@ -125,26 +120,26 @@ export function InstalledSkillsPanel({
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <FilterPill
+      <div
+        className="flex flex-wrap items-center gap-1.5"
+        role="tablist"
+        aria-label={t("agents.skills")}
+      >
+        <CategoryTab
           active={categoryFilter === "all"}
           label={t("agents.skillCategory.all")}
           onClick={() => setCategoryFilter("all")}
         />
-        {visibleCategories.map((cat) => (
-          <FilterPill
+        {SKILL_CATEGORIES.map((cat) => (
+          <CategoryTab
             key={cat}
             active={categoryFilter === cat}
             label={t(`agents.skillCategory.${cat}`)}
             onClick={() => setCategoryFilter(cat)}
           />
         ))}
-        {groups.length > 1 && (
-          <button type="button" className="dw-btn-ghost text-[13px] ml-auto" onClick={toggleAll}>
-            {allExpanded ? t("agents.skillsCollapseAll") : t("agents.skillsExpandAll")}
-          </button>
-        )}
       </div>
+      <p className="text-[12px] text-secondary m-0">{t("agents.skillUninstallHint")}</p>
     </div>
   );
 
@@ -160,6 +155,16 @@ export function InstalledSkillsPanel({
         <p className="dw-agents-toast m-0" role="status">
           <Icon name="check_circle" size={16} className="text-success" />
           {t("agents.rescanSuccess").replace("{n}", String(rescanSuccess))}
+        </p>
+      )}
+      {lastUninstalled && (
+        <p className="dw-agents-toast m-0" role="status">
+          {t("agents.skillUninstallOk").replace("{name}", lastUninstalled)}
+        </p>
+      )}
+      {uninstallError && (
+        <p className="text-[13px] text-error m-0 px-1 py-2" role="alert">
+          {uninstallError}
         </p>
       )}
       {loading ? (
@@ -202,42 +207,24 @@ export function InstalledSkillsPanel({
       ) : filtered.length === 0 ? (
         <p className="text-sm text-secondary m-0 px-4 py-6">{t("agents.skillMarketEmpty")}</p>
       ) : (
-        <div>
-          {groups.map((group) => {
-            const isOpen = expanded.has(group.category);
-            return (
-              <div key={group.category}>
-                <button
-                  type="button"
-                  className={`dw-agents-skill-group__head w-full ${isOpen ? "dw-agents-skill-group__head--open" : ""}`}
-                  onClick={() => toggleCategory(group.category)}
-                  aria-expanded={isOpen}
-                >
-                  <Icon
-                    name="expand_more"
-                    size={18}
-                    className="dw-agents-skill-group__chevron shrink-0 text-outline"
-                  />
-                  <span>{t(`agents.skillCategory.${group.category}`)}</span>
-                  <span className="font-normal tabular-nums text-outline ml-1">
-                    {group.items.length}
-                  </span>
-                </button>
-                {isOpen && (
-                  <ul className="dw-agents-skill-list m-0 p-0 list-none">
-                    {group.items.map((skill) => (
-                      <SkillRow
-                        key={skill.id}
-                        skill={skill}
-                        locale={locale}
-                        projectsLabel={t("agents.projectsCount")}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 p-1">
+          {filtered.map((skill) => (
+            <InstalledSkillCard
+              key={skill.id}
+              skill={skill}
+              locale={locale}
+              confirmUninstall={pendingUninstallId === skill.id}
+              uninstalling={uninstall.isPending && pendingUninstallId === skill.id}
+              onUninstall={() => {
+                if (pendingUninstallId === skill.id) {
+                  uninstall.mutate(skill.id);
+                } else {
+                  setPendingUninstallId(skill.id);
+                }
+              }}
+              onCancelUninstall={() => setPendingUninstallId(null)}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -262,7 +249,7 @@ export function InstalledSkillsPanel({
   );
 }
 
-function FilterPill({
+function CategoryTab({
   active,
   label,
   onClick,
@@ -274,7 +261,9 @@ function FilterPill({
   return (
     <button
       type="button"
-      className={`text-[13px] px-2 py-0.5 rounded-full border transition-colors ${
+      role="tab"
+      aria-selected={active}
+      className={`text-[13px] px-2.5 py-1 rounded-lg border transition-colors ${
         active
           ? "bg-primary/15 border-primary/40 text-primary font-medium"
           : "border-outline-variant text-secondary hover:bg-surface-container-low"
@@ -286,43 +275,74 @@ function FilterPill({
   );
 }
 
-function SkillRow({
+function InstalledSkillCard({
   skill,
   locale,
-  projectsLabel,
+  confirmUninstall,
+  uninstalling,
+  onUninstall,
+  onCancelUninstall,
 }: {
   skill: SkillRecord;
   locale: "en" | "zh";
-  projectsLabel: string;
+  confirmUninstall: boolean;
+  uninstalling: boolean;
+  onUninstall: () => void;
+  onCancelUninstall: () => void;
 }) {
   const t = useT();
   const desc = skillDisplayDescription(skill, locale);
   const displayName = skillDisplayName(skill, locale);
-  const cat = normalizeSkillCategory(skill.category);
   const { icon, tone } = skillIconMeta(skill);
 
   return (
-    <li>
-      <ControlCenterLink to="/agents/$skillId" params={{ skillId: skill.id }} className="dw-agents-skill-row">
-        <span className={`dw-agents-skill-row__icon ${skillIconToneClass(tone)}`}>
+    <div className="flex flex-col gap-3 p-4 rounded-xl border border-outline-variant bg-surface-container-lowest h-full min-h-[10.5rem]">
+      <ControlCenterLink
+        to="/agents/$skillId"
+        params={{ skillId: skill.id }}
+        className="flex items-start gap-3 min-w-0 no-underline text-inherit flex-1"
+      >
+        <span className={`dw-agents-skill-row__icon shrink-0 ${skillIconToneClass(tone)}`}>
           <Icon name={icon} size={20} />
         </span>
-        <span className="dw-agents-skill-row__body min-w-0">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="dw-agents-skill-row__name">{displayName}</span>
-            <span className="text-[13px] px-1.5 py-0.5 rounded-md bg-surface-container-high text-secondary">
-              {t(`agents.skillCategory.${cat}`)}
-            </span>
-          </span>
-          {desc && <span className="dw-agents-skill-row__desc">{desc}</span>}
-        </span>
-        <span className="dw-agents-skill-row__meta shrink-0">
-          <span className="tabular-nums">
-            {skill.projects_count} {projectsLabel}
-          </span>
-          <Icon name="chevron_right" size={18} className="text-outline" />
+        <span className="flex flex-col gap-1 min-w-0 flex-1">
+          <span className="text-sm font-semibold text-on-surface line-clamp-1">{displayName}</span>
+          {desc && (
+            <span className="text-[13px] text-secondary line-clamp-2 leading-relaxed">{desc}</span>
+          )}
         </span>
       </ControlCenterLink>
-    </li>
+      <div className="flex items-center gap-1.5 mt-auto">
+        {confirmUninstall ? (
+          <>
+            <button
+              type="button"
+              className="dw-btn-ghost text-[12px] text-error px-2 flex-1"
+              disabled={uninstalling}
+              onClick={onUninstall}
+            >
+              {uninstalling ? t("common.loading") : t("agents.skillUninstallConfirm")}
+            </button>
+            <button
+              type="button"
+              className="dw-btn-ghost text-[12px] px-2"
+              disabled={uninstalling}
+              onClick={onCancelUninstall}
+            >
+              {t("common.cancel")}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="dw-btn-ghost text-[12px] text-error px-2 w-full"
+            onClick={onUninstall}
+          >
+            <Icon name="delete" size={14} className="inline mr-1" />
+            {t("agents.skillUninstall")}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

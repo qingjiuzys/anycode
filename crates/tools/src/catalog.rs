@@ -20,11 +20,14 @@ pub const TOOL_KNOWLEDGE_SEARCH: &str = "KnowledgeSearch";
 pub const TOOL_MCP: &str = "mcp";
 pub const TOOL_LIST_MCP_RESOURCES: &str = "ListMcpResourcesTool";
 pub const TOOL_READ_MCP_RESOURCE: &str = "ReadMcpResourceTool";
+pub const TOOL_READ_MCP_RESOURCE_DIR: &str = "ReadMcpResourceDir";
+pub const TOOL_REFRESH_MCP_TOOLS: &str = "RefreshMcpTools";
 pub const TOOL_MCP_AUTH: &str = "McpAuth";
 pub const TOOL_LSP: &str = "LSP";
 pub const TOOL_AGENT: &str = "Agent";
 pub const TOOL_SKILL: &str = "Skill";
 pub const TOOL_SKILL_SEARCH: &str = "SkillSearch";
+pub const TOOL_PROPOSE_SKILLS: &str = "ProposeSkills";
 pub const TOOL_SEND_MESSAGE: &str = "SendMessage";
 pub const TOOL_LEGACY_TASK_AGENT: &str = "Task";
 pub const TOOL_TASK_CREATE: &str = "TaskCreate";
@@ -39,7 +42,10 @@ pub const TOOL_CRON_CREATE: &str = "CronCreate";
 pub const TOOL_CRON_UPDATE: &str = "CronUpdate";
 pub const TOOL_CRON_DELETE: &str = "CronDelete";
 pub const TOOL_CRON_LIST: &str = "CronList";
+pub const TOOL_SCHEDULE_WAKEUP: &str = "ScheduleWakeup";
+pub const TOOL_MONITOR: &str = "Monitor";
 pub const TOOL_REMOTE_TRIGGER: &str = "RemoteTrigger";
+pub const TOOL_WORKFLOW_GET: &str = "WorkflowGet";
 pub const TOOL_ENTER_PLAN: &str = "EnterPlanMode";
 pub const TOOL_EXIT_PLAN: &str = "ExitPlanMode";
 pub const TOOL_ENTER_WORKTREE: &str = "EnterWorktree";
@@ -339,6 +345,7 @@ mod workspace_assistant_tools_tests {
             TOOL_AGENT,
             TOOL_SKILL,
             TOOL_SKILL_SEARCH,
+            TOOL_PROPOSE_SKILLS,
             TOOL_SEND_MESSAGE,
             TOOL_LEGACY_TASK_AGENT,
             TOOL_TASK_CREATE,
@@ -353,7 +360,10 @@ mod workspace_assistant_tools_tests {
             TOOL_CRON_UPDATE,
             TOOL_CRON_DELETE,
             TOOL_CRON_LIST,
+            TOOL_SCHEDULE_WAKEUP,
+            TOOL_MONITOR,
             TOOL_REMOTE_TRIGGER,
+            TOOL_WORKFLOW_GET,
             TOOL_ENTER_PLAN,
             TOOL_EXIT_PLAN,
             TOOL_ENTER_WORKTREE,

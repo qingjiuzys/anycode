@@ -19,7 +19,6 @@ export const TaskReceiptCard = memo(function TaskReceiptCard({
 
   return (
     <article className="task-receipt-card" data-testid="task-receipt-card">
-      <header className="task-receipt-card__header">{t("conversations.assistantReply")}</header>
       <div className="task-receipt-card__body">
         <h3 className="task-receipt-card__title">{t("conversations.taskReceiptTitle")}</h3>
         <TranscriptMarkdown text={content} live={live} />

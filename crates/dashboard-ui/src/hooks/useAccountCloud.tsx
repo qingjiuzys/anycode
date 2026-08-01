@@ -43,6 +43,10 @@ type AccountCloudContextValue = {
   openPortalLogin: (path?: string) => void;
   logout: () => Promise<void>;
   entitlements: ServiceEntitlements | null;
+  /** Token present and me/bundle still in flight. */
+  entitlementsLoading: boolean;
+  /** me or bundle failed after cloud link. */
+  entitlementsError: string | null;
   members: CloudOrgMember[];
   usageLoading: boolean;
   usageStats: Awaited<ReturnType<typeof api.usageMetrics>>["usage"] | undefined;
@@ -203,11 +207,46 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
     return base;
   }, [bundle.data?.account, tokenUsed, apiKeyUsed, members.data?.members]);
 
+  const hasToken = Boolean(getAccountToken());
+  const cloudLinkedNow = cloudSession.data?.linked === true;
+  /** me + bundle finished (or session settled with no token). */
+  const entitlementsQueriesSettled = hasToken
+    ? me.isFetched && (me.isError || (me.isSuccess && bundle.isFetched))
+    : cloudSession.isFetched;
+
+  const entitlementsLoading =
+    configured && cloudLinkedNow && !entitlements && !entitlementsQueriesSettled;
+
+  const entitlementsError = useMemo(() => {
+    if (entitlements || !cloudLinkedNow || !entitlementsQueriesSettled) return null;
+    if (!hasToken) return "missing_token";
+    if (me.isError) return (me.error as Error)?.message || "me_failed";
+    if (bundle.isError) return (bundle.error as Error)?.message || "bundle_failed";
+    if (!bundle.data?.account) return "bundle_empty";
+    return null;
+  }, [
+    entitlements,
+    cloudLinkedNow,
+    entitlementsQueriesSettled,
+    hasToken,
+    me.isError,
+    me.error,
+    bundle.isError,
+    bundle.error,
+    bundle.data?.account,
+  ]);
+
   const refresh = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: ["cloud-session"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-me"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-bundle"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-members"] });
     void qc.invalidateQueries({ queryKey: ["account-cloud-api-keys"] });
+    void applyCloudSessionFromApi().then((linked) => {
+      if (linked) {
+        setTokenVersion((v) => v + 1);
+      }
+    });
   }, [qc]);
 
   const logoutMut = useMutation({
@@ -383,6 +422,8 @@ export function AccountCloudProvider({ children }: { children: ReactNode }) {
       await logoutMut.mutateAsync();
     },
     entitlements,
+    entitlementsLoading,
+    entitlementsError,
     members: members.data?.members ?? [],
     usageLoading: usage.isLoading,
     usageStats: usage.data?.usage,

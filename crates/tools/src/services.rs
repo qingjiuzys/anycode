@@ -63,11 +63,17 @@ pub struct BackgroundAgentJob {
     pub summary: Mutex<Option<String>>,
     /// Set by **`TaskStop`**; **`AgentRuntime::execute_task`** polls between turns/tools.
     pub coop_cancel: Arc<AtomicBool>,
+    /// 任务标题（Bash description 透传，便于工作台/日志识别）。
+    pub title: Mutex<Option<String>>,
 }
 
 impl BackgroundAgentJob {
     pub fn set_abort(&self, handle: tokio::task::AbortHandle) {
         *self.abort.lock().expect("abort mutex") = Some(handle);
+    }
+
+    pub fn set_title(&self, title: String) {
+        *self.title.lock().expect("title mutex") = Some(title);
     }
 }
 
@@ -87,12 +93,14 @@ impl ToolRegistryDeps {
     }
 }
 
-/// 会话级 todo（对齐 Claude Code `TodoWrite` 的简化模型）。
+/// 会话级 todo（对齐 Claude Code `TodoWrite` 的简化模型；`id` 由服务层生成，`activeForm` 展示进行态）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TodoItem {
     pub id: String,
     pub content: String,
     pub status: String,
+    #[serde(default)]
+    pub active_form: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -104,6 +112,18 @@ pub struct TaskRecord {
     pub status: String,
     #[serde(default)]
     pub metadata: serde_json::Value,
+    /// Present continuous form shown in spinner when in_progress (Claude Code `activeForm`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_form: Option<String>,
+    /// Owner label (Claude Code `owner`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    /// Task IDs that this task blocks (Claude Code `addBlocks`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocks: Vec<String>,
+    /// Task IDs that block this task (Claude Code `addBlockedBy`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocked_by: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -115,6 +135,10 @@ pub struct TeamRecord {
 }
 
 fn default_cron_enabled() -> bool {
+    true
+}
+
+fn default_cron_recurring() -> bool {
     true
 }
 
@@ -153,6 +177,9 @@ pub struct CronJob {
     /// of a single-prompt task; `command` becomes the workflow's user prompt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workflow: Option<String>,
+    /// Claude Code 语义：false = 触发一次后自动删除（one-shot）；默认 true = 常驻。
+    #[serde(default = "default_cron_recurring")]
+    pub recurring: bool,
 }
 
 /// Optional production fields when creating cron jobs via `CronCreate` or scheduler APIs.
@@ -167,6 +194,8 @@ pub struct CronJobCreateOptions {
     pub tool_allowlist: Option<Vec<String>>,
     pub project_id: Option<String>,
     pub workflow: Option<String>,
+    /// false = one-shot (auto-delete after first fire); true (default) = recurring.
+    pub recurring: Option<bool>,
 }
 
 /// Partial update for an existing cron job in orchestration.json.
@@ -182,6 +211,8 @@ pub struct CronJobPatch {
     pub tool_profile: Option<String>,
     pub project_id: Option<String>,
     pub workflow: Option<String>,
+    /// false = one-shot (auto-delete after first fire); true = recurring.
+    pub recurring: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -556,6 +587,7 @@ impl ToolServices {
             abort: Mutex::new(None),
             summary: Mutex::new(None),
             coop_cancel: coop_cancel.clone(),
+            title: Mutex::new(None),
         });
         self.background_agents
             .lock()
@@ -806,6 +838,16 @@ impl ToolServices {
         description: String,
         metadata: serde_json::Value,
     ) -> TaskRecord {
+        self.insert_task_full(subject, description, metadata, None)
+    }
+
+    pub fn insert_task_full(
+        &self,
+        subject: String,
+        description: String,
+        metadata: serde_json::Value,
+        active_form: Option<String>,
+    ) -> TaskRecord {
         let id = Uuid::new_v4().to_string();
         let t = TaskRecord {
             id: id.clone(),
@@ -813,6 +855,10 @@ impl ToolServices {
             description,
             status: "pending".to_string(),
             metadata,
+            active_form,
+            owner: None,
+            blocks: Vec::new(),
+            blocked_by: Vec::new(),
         };
         self.tasks
             .lock()
@@ -849,6 +895,18 @@ impl ToolServices {
             }
             if patch.metadata != serde_json::Value::Null {
                 existing.metadata = patch.metadata;
+            }
+            if patch.active_form.is_some() {
+                existing.active_form = patch.active_form;
+            }
+            if patch.owner.is_some() {
+                existing.owner = patch.owner;
+            }
+            if !patch.blocks.is_empty() {
+                existing.blocks = patch.blocks;
+            }
+            if !patch.blocked_by.is_empty() {
+                existing.blocked_by = patch.blocked_by;
             }
             existing.clone()
         });
@@ -944,6 +1002,7 @@ impl ToolServices {
                 }),
             project_id: opts.project_id.filter(|s| !s.trim().is_empty()),
             workflow: opts.workflow.filter(|s| !s.trim().is_empty()),
+            recurring: opts.recurring.unwrap_or(true),
         };
         self.crons.lock().expect("crons mutex").push(job.clone());
         self.try_persist();
@@ -997,6 +1056,9 @@ impl ToolServices {
             } else {
                 Some(project_id)
             };
+        }
+        if let Some(recurring) = patch.recurring {
+            job.recurring = recurring;
         }
         let updated = job.clone();
         drop(g);
@@ -1138,6 +1200,7 @@ pub fn append_cron_job_to_orchestration_file(
         tool_allowlist: opts.tool_allowlist.filter(|list| !list.is_empty()),
         project_id: opts.project_id.filter(|s| !s.trim().is_empty()),
         workflow: opts.workflow.filter(|s| !s.trim().is_empty()),
+        recurring: opts.recurring.unwrap_or(true),
     };
     snap.crons.push(job.clone());
     let text = serde_json::to_string_pretty(&snap)?;
@@ -1191,6 +1254,9 @@ pub fn update_cron_job_in_orchestration_file(
             Some(project_id)
         };
     }
+    if let Some(recurring) = patch.recurring {
+        job.recurring = recurring;
+    }
     let updated = job.clone();
     let text = serde_json::to_string_pretty(&snap)?;
     fs::write(path, text)?;
@@ -1198,18 +1264,24 @@ pub fn update_cron_job_in_orchestration_file(
 }
 
 /// Remove a cron job from `~/.anycode/tasks/orchestration.json` (or `path`) by id.
+///
+/// Uses lenient JSON Value parsing (same spirit as list) so extra orchestration
+/// fields do not block delete.
 pub fn remove_cron_job_from_orchestration_file(path: &Path, id: &str) -> anyhow::Result<bool> {
     if !path.is_file() {
         return Ok(false);
     }
     let text = fs::read_to_string(path)?;
-    let mut snap = serde_json::from_str::<OrchestrationSnapshotV1>(&text)
+    let mut root: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| anyhow::anyhow!("invalid orchestration JSON: {e}"))?;
-    let len = snap.crons.len();
-    snap.crons.retain(|c| c.id != id);
-    let removed = snap.crons.len() < len;
+    let Some(crons) = root.get_mut("crons").and_then(|c| c.as_array_mut()) else {
+        return Ok(false);
+    };
+    let len = crons.len();
+    crons.retain(|c| c.get("id").and_then(|v| v.as_str()) != Some(id));
+    let removed = crons.len() < len;
     if removed {
-        let text = serde_json::to_string_pretty(&snap)?;
+        let text = serde_json::to_string_pretty(&root)?;
         fs::write(path, text)?;
     }
     Ok(removed)
@@ -1266,6 +1338,7 @@ mod orchestration_persist_tests {
                 tool_allowlist: Some(vec!["FileRead".into(), "Glob".into()]),
                 project_id: None,
                 workflow: None,
+                recurring: None,
             },
         );
         assert_eq!(job.session_id.as_deref(), Some("sess-abc"));
@@ -1311,6 +1384,78 @@ mod orchestration_persist_tests {
         assert_eq!(jobs[0].id, "j2");
         let missing = super::remove_cron_job_from_orchestration_file(&path, "missing").unwrap();
         assert!(!missing);
+    }
+
+    #[test]
+    fn one_shot_cron_persists_recurring_false_and_roundtrips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        {
+            let s = ToolServices::load_or_new(path.clone()).unwrap();
+            let job = s.push_cron_with_options(
+                "0 0 12 * * *".into(),
+                "wake me".into(),
+                CronJobCreateOptions {
+                    name: None,
+                    enabled: None,
+                    schedule_timezone: None,
+                    session_id: None,
+                    failure_destination: None,
+                    tool_profile: None,
+                    tool_allowlist: None,
+                    project_id: None,
+                    workflow: None,
+                    recurring: Some(false),
+                },
+            );
+            assert!(
+                !job.recurring,
+                "one-shot job should persist recurring=false"
+            );
+        }
+        // 重载后字段仍在，且默认缺省为 true（旧数据兼容）。
+        let s2 = ToolServices::load_or_new(path).unwrap();
+        let crons = s2.list_crons();
+        assert_eq!(crons.len(), 1);
+        assert!(!crons[0].recurring, "one-shot flag must survive reload");
+
+        let legacy = dir.path().join("legacy.json");
+        fs::write(
+            &legacy,
+            r#"{"version":1,"crons":[{"id":"old","schedule":"0 0 9 * * *","command":"x"}]}"#,
+        )
+        .unwrap();
+        let legacy_jobs = super::read_cron_jobs_from_orchestration_file(&legacy).unwrap();
+        assert!(
+            legacy_jobs[0].recurring,
+            "legacy jobs without recurring field default to true"
+        );
+    }
+
+    #[test]
+    fn update_cron_patch_can_flip_recurring() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orchestration.json");
+        let s = ToolServices::load_or_new(path.clone()).unwrap();
+        let job = s.push_cron_with_options(
+            "0 0 12 * * *".into(),
+            "tick".into(),
+            CronJobCreateOptions::default(),
+        );
+        assert!(job.recurring);
+        let updated = s
+            .update_cron(
+                &job.id,
+                CronJobPatch {
+                    recurring: Some(false),
+                    ..CronJobPatch::default()
+                },
+            )
+            .unwrap();
+        assert!(!updated.recurring);
+        let listed = s.list_crons();
+        assert_eq!(listed.len(), 1);
+        assert!(!listed[0].recurring);
     }
 
     #[test]

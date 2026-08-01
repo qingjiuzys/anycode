@@ -3,7 +3,7 @@ name: video-script
 description: Shot-by-shot video script plus asset generation via media tools.
 description_zh: 分镜视频脚本，并调用媒体工具生成素材。
 name_zh: 视频脚本
-category: creative
+category: writing
 version: 1.1.0
 mode: instructions
 approval: read-only-unless-writing-output

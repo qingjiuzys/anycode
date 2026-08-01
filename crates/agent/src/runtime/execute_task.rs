@@ -5,7 +5,9 @@ use super::agentic_turn::{
     MessageAppendSink, TurnToolBatchOutcome, TurnToolCancel, TurnToolCancelOutcome, TurnToolCtx,
     TurnToolState,
 };
-use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
+use super::budget::{
+    record_llm_usage, tick_budget, token_budget_context_section, RuntimeBudgetState,
+};
 use super::llm_retry::model_config_with_retry_observer;
 use super::nested_worktree::NestedWorktreeGuard;
 use super::session_activity::{ActivityReason, SessionActivityGuard};
@@ -127,6 +129,9 @@ impl AgentRuntime {
         };
         let mut context_injections = task.context.context_injections.clone();
         context_injections.extend(compiler_sections);
+        if let Some(section) = token_budget_context_section(&task.context.budget) {
+            context_injections.push(section);
+        }
 
         let mut model_config = self.model_for_task(&task.agent_type).clone();
         if let Some(ref hint) = task.context.nested_model_override {

@@ -11,11 +11,18 @@ const CORE_USER_CLARIFICATION: &str = include_str!("../prompts/core/user_clarifi
 const CORE_MEDIA_GENERATION: &str = include_str!("../prompts/core/media_generation.md");
 const CORE_PLAN_PROGRESS: &str = include_str!("../prompts/core/plan_progress.md");
 const CORE_BROWSER: &str = include_str!("../prompts/core/browser.md");
+const CORE_TOOL_PREFERENCES: &str = include_str!("../prompts/core/tool_preferences.md");
+const CORE_GIT_WORKFLOW: &str = include_str!("../prompts/core/git_workflow.md");
+const CORE_MCP_INTEGRATION: &str = include_str!("../prompts/core/mcp_integration.md");
+const CORE_HOOKS_CONFIGURATION: &str = include_str!("../prompts/core/hooks_configuration.md");
+const CORE_OUTPUT_FORMAT: &str = include_str!("../prompts/core/output_format.md");
 
 const LOCALE_ZH_REPLY_LANGUAGE: &str = include_str!("../prompts/locale/zh/reply_language.md");
 const LOCALE_EN_REPLY_LANGUAGE: &str = include_str!("../prompts/locale/en/reply_language.md");
 const LOCALE_ZH_EPHEMERAL: &str = include_str!("../prompts/locale/zh/ephemeral_reminder.md");
 const LOCALE_EN_EPHEMERAL: &str = include_str!("../prompts/locale/en/ephemeral_reminder.md");
+const LOCALE_ZH_OUTPUT_FORMAT: &str = include_str!("../prompts/locale/zh/output_format.md");
+const LOCALE_EN_OUTPUT_FORMAT: &str = include_str!("../prompts/locale/en/output_format.md");
 
 /// Normalize raw lang (`zh-CN`, `en`, …) to a catalog tag, or `None` if unsupported.
 #[must_use]
@@ -55,6 +62,11 @@ fn core(name: &str) -> &'static str {
         "media_generation" => CORE_MEDIA_GENERATION,
         "plan_progress" => CORE_PLAN_PROGRESS,
         "browser" => CORE_BROWSER,
+        "tool_preferences" => CORE_TOOL_PREFERENCES,
+        "git_workflow" => CORE_GIT_WORKFLOW,
+        "mcp_integration" => CORE_MCP_INTEGRATION,
+        "hooks_configuration" => CORE_HOOKS_CONFIGURATION,
+        "output_format" => CORE_OUTPUT_FORMAT,
         _ => "",
     }
 }
@@ -65,6 +77,8 @@ fn locale_file(tag: &str, name: &str) -> Option<&'static str> {
         ("en", "reply_language") => Some(LOCALE_EN_REPLY_LANGUAGE),
         ("zh", "ephemeral_reminder") => Some(LOCALE_ZH_EPHEMERAL),
         ("en", "ephemeral_reminder") => Some(LOCALE_EN_EPHEMERAL),
+        ("zh", "output_format") => Some(LOCALE_ZH_OUTPUT_FORMAT),
+        ("en", "output_format") => Some(LOCALE_EN_OUTPUT_FORMAT),
         _ => None,
     }
 }
@@ -99,6 +113,9 @@ pub(crate) fn default_stack_sections(
         .iter()
         .any(|t| t == "GenerateImage" || t == "GenerateVideo");
     let include_plan = tools.iter().any(|t| t == "PlanWrite");
+    let include_mcp = tools
+        .iter()
+        .any(|t| t.starts_with("mcp__") || t == "ListMcpResourcesTool");
 
     let mut env_vars = HashMap::new();
     env_vars.insert("cwd", cwd.to_string());
@@ -125,7 +142,26 @@ pub(crate) fn default_stack_sections(
     if include_browser {
         parts.push(core("browser").trim().to_string());
     }
+    parts.push(core("tool_preferences").trim().to_string());
+    parts.push(core("git_workflow").trim().to_string());
+    if include_mcp {
+        parts.push(core("mcp_integration").trim().to_string());
+    }
+    parts.push(core("hooks_configuration").trim().to_string());
+    if let Some(out) = locale_output_format_section() {
+        parts.push(out);
+    } else {
+        parts.push(core("output_format").trim().to_string());
+    }
     parts
+}
+
+/// `# Output format` section for the active locale (falls back to core English).
+#[must_use]
+pub(crate) fn locale_output_format_section() -> Option<String> {
+    let tag = active_locale_tag()?;
+    let body = locale_file(tag, "output_format")?;
+    Some(body.trim().to_string())
 }
 
 #[cfg(test)]

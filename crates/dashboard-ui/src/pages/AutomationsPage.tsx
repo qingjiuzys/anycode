@@ -38,6 +38,7 @@ export function AutomationsPage(_props: EmbeddedPageProps = {}) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [opsOpen, setOpsOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const cronJobs = useQuery({
     queryKey: ["cron-jobs"],
@@ -60,7 +61,10 @@ export function AutomationsPage(_props: EmbeddedPageProps = {}) {
   const deleteJob = useMutation({
     mutationFn: (jobId: string) => api.deleteCronJob(jobId),
     onMutate: () => setActionError(null),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["cron-jobs"] }),
+    onSuccess: () => {
+      setPendingDeleteId(null);
+      void queryClient.invalidateQueries({ queryKey: ["cron-jobs"] });
+    },
     onError: (e: Error) => setActionError(e.message),
   });
 
@@ -203,17 +207,21 @@ export function AutomationsPage(_props: EmbeddedPageProps = {}) {
                     locale={locale}
                     expanded={expandedId === job.id}
                     toggling={toggleJob.isPending}
-                    deleting={deleteJob.isPending}
+                    deleting={deleteJob.isPending && pendingDeleteId === job.id}
+                    confirmDelete={pendingDeleteId === job.id}
                     onToggleExpand={() =>
                       setExpandedId((id) => (id === job.id ? null : job.id))
                     }
                     onToggle={() => toggleJob.mutate(job)}
                     onEdit={() => openEdit(job)}
                     onDelete={() => {
-                      if (window.confirm(t("automations.deleteJobConfirm"))) {
+                      if (pendingDeleteId === job.id) {
                         deleteJob.mutate(job.id);
+                      } else {
+                        setPendingDeleteId(job.id);
                       }
                     }}
+                    onCancelDelete={() => setPendingDeleteId(null)}
                   />
                 ))}
               </ul>
@@ -280,20 +288,24 @@ function ScheduledTaskRow({
   expanded,
   toggling,
   deleting,
+  confirmDelete,
   onToggleExpand,
   onToggle,
   onEdit,
   onDelete,
+  onCancelDelete,
 }: {
   job: CronJobRecord;
   locale: "en" | "zh";
   expanded: boolean;
   toggling: boolean;
   deleting: boolean;
+  confirmDelete: boolean;
   onToggleExpand: () => void;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onCancelDelete: () => void;
 }) {
   const t = useT();
   const enabled = job.enabled ?? true;
@@ -338,16 +350,46 @@ function ScheduledTaskRow({
           >
             <Icon name="edit" size={16} />
           </button>
-          <button
-            type="button"
-            className="dw-btn-ghost p-1 text-error"
-            disabled={deleting}
-            onClick={onDelete}
-            aria-label={t("automations.deleteJob")}
-            title={t("automations.deleteJob")}
-          >
-            <Icon name="delete" size={16} />
-          </button>
+          {confirmDelete ? (
+            <>
+              <button
+                type="button"
+                className="dw-btn-ghost text-xs text-error px-2"
+                disabled={deleting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
+                {deleting ? t("common.loading") : t("common.confirm")}
+              </button>
+              <button
+                type="button"
+                className="dw-btn-ghost text-xs px-2"
+                disabled={deleting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCancelDelete();
+                }}
+              >
+                {t("common.cancel")}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="dw-btn-ghost p-1 text-error"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              aria-label={t("automations.deleteJob")}
+              title={t("automations.deleteJob")}
+            >
+              <Icon name="delete" size={16} />
+            </button>
+          )}
         </div>
       </div>
       {expanded && (

@@ -92,6 +92,100 @@ pub async fn install_market_skill(
     }
 }
 
+/// Uninstall a user-installed skill from `~/.anycode/skills/<id>` and drop its DB row.
+pub async fn uninstall_skill(
+    State(state): State<AppState>,
+    Path(skill_id): Path<String>,
+) -> impl IntoResponse {
+    let skill_id = skill_id.trim();
+    if skill_id.is_empty()
+        || skill_id.contains('/')
+        || skill_id.contains('\\')
+        || skill_id.contains("..")
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "invalid skill id" })),
+        )
+            .into_response();
+    }
+    let Some(home) = dirs::home_dir() else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "no home directory" })),
+        )
+            .into_response();
+    };
+    let skills_root = home.join(".anycode/skills");
+    let dest = skills_root.join(skill_id);
+
+    let source_path = match state.db.skill_source_path(skill_id).await {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    let under_user_skills = dest.is_dir()
+        || source_path
+            .as_deref()
+            .map(|p| {
+                let path = std::path::Path::new(p);
+                path.starts_with(&skills_root) || path == dest.as_path()
+            })
+            .unwrap_or(false);
+
+    if !under_user_skills && source_path.is_some() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "only skills installed under ~/.anycode/skills can be uninstalled"
+            })),
+        )
+            .into_response();
+    }
+
+    let had_dir = dest.is_dir();
+    if had_dir {
+        if let Err(e) = std::fs::remove_dir_all(&dest) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("failed to remove skill directory: {e}") })),
+            )
+                .into_response();
+        }
+    }
+
+    let deleted = match state.db.delete_skill(skill_id).await {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    if !had_dir && !deleted && source_path.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "skill not found" })),
+        )
+            .into_response();
+    }
+
+    anycode_tools::SkillCatalog::invalidate_scan_cache();
+    skills_scan::invalidate_skills_sync_cache();
+    let _ = skills_scan::sync_skills_to_db_force(&state.db, &state.workspace_paths).await;
+    state.chat_runtime.invalidate_runtime().await;
+    Json(json!({ "ok": true, "id": skill_id })).into_response()
+}
+
 pub async fn install_starter_skills(State(state): State<AppState>) -> impl IntoResponse {
     let Some(home) = dirs::home_dir() else {
         return (

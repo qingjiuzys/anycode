@@ -7,6 +7,13 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// 子代理默认追加提示词（D6：对齐 Claude Code `appendSubagentSystemPrompt`）。
+/// 提示子代理聚焦任务、避免重复上下文与冗长回执。
+const SUBAGENT_SYSTEM_APPEND: &str = "\
+你是被父任务派出的子代理，只完成父任务交给你的这个任务。\
+请保持专注：不要重复描述父任务已提供的上下文，不要主动扩大任务范围。\
+输出只包含任务要求的结果；完成后用简短一句话总结即可。";
+
 #[async_trait]
 impl SubAgentExecutor for AgentRuntime {
     async fn run_nested_task(&self, invoke: NestedTaskInvoke) -> Result<NestedTaskRun, CoreError> {
@@ -35,7 +42,7 @@ impl SubAgentExecutor for AgentRuntime {
                 working_directory: wd,
                 environment: HashMap::new(),
                 user_id: None,
-                system_prompt_append: None,
+                system_prompt_append: Some(SUBAGENT_SYSTEM_APPEND.to_string()),
                 context_injections: vec![],
                 nested_model_override: invoke.model.clone(),
                 nested_worktree_repo_root: wt_roots.as_ref().map(|(r, _)| r.clone()),

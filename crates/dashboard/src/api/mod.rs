@@ -14,7 +14,7 @@ use axum::{
     },
     middleware,
     response::{Html, IntoResponse},
-    routing::{delete, get, patch, post, put},
+    routing::{any, delete, get, patch, post, put},
     Json, Router,
 };
 use serde_json::json;
@@ -42,6 +42,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/cloud/sync-models", post(handlers::post_cloud_sync_models))
         .route("/cloud/unlink", post(handlers::post_cloud_unlink))
+        .route(
+            "/cloud/upstream/{*path}",
+            any(handlers::proxy_cloud_upstream),
+        )
         .route(
             "/cloud/a2a/heartbeat",
             post(handlers::post_cloud_a2a_heartbeat),
@@ -188,7 +192,10 @@ pub fn router(state: AppState) -> Router {
             "/artifacts/{artifact_id}",
             get(handlers::get_artifact_detail),
         )
-        .route("/skills/{skill_id}", get(handlers::get_skill_detail))
+        .route(
+            "/skills/{skill_id}",
+            get(handlers::get_skill_detail).delete(handlers::uninstall_skill),
+        )
         .route("/sessions/running", get(handlers::list_running_sessions))
         .route(
             "/skills",

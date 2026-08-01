@@ -3,7 +3,7 @@ name: verification-before-completion
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
 description_zh: 完成前验证门禁：未跑新鲜验证命令前禁止宣称完成/通过（obra/superpowers）。
 name_zh: 完成前验证
-category: quality
+category: engineering
 version: 1.0.0
 mode: instructions
 priority: 100

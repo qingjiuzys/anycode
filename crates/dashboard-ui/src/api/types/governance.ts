@@ -27,7 +27,7 @@ export interface SkillRecord {
   description_zh?: string | null;
   name_zh?: string | null;
   source_path: string;
-  /** Anthropic-style category slug (library-ref/verification/data/…/other). */
+  /** Product taxonomy slug (office/writing/design/research/engineering/ops/other). */
   category?: string | null;
   projects_count: number;
   enabled?: boolean;

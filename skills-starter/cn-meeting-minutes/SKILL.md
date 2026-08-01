@@ -3,7 +3,7 @@ name: cn-meeting-minutes
 description: Turn meeting notes or transcripts into structured Chinese meeting minutes.
 description_zh: 将会议记录或转写文本整理为结构化中文会议纪要。
 name_zh: 会议纪要
-category: business
+category: writing
 version: 1.1.0
 mode: instructions
 approval: read-only-unless-writing-output

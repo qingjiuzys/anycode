@@ -40,6 +40,7 @@ pub async fn list_cron_runs(
 }
 
 pub async fn delete_cron_job(
+    State(state): State<AppState>,
     axum::extract::Path(job_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     let job_id = job_id.trim();
@@ -61,7 +62,11 @@ pub async fn delete_cron_job(
         }
     };
     match anycode_tools::remove_cron_job_from_orchestration_file(&path, job_id) {
-        Ok(true) => Json(json!({ "ok": true, "job_id": job_id })).into_response(),
+        Ok(true) => {
+            // Drop cached chat/runtime so in-memory cron ledger cannot rewrite the job.
+            state.chat_runtime.invalidate_runtime().await;
+            Json(json!({ "ok": true, "job_id": job_id })).into_response()
+        }
         Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(json!({ "error": "cron job not found" })),
@@ -126,6 +131,8 @@ pub struct PatchCronJobBody {
     pub project_id: Option<String>,
     #[serde(default)]
     pub workflow: Option<String>,
+    #[serde(default)]
+    pub recurring: Option<bool>,
 }
 
 pub async fn patch_cron_job(
@@ -179,6 +186,7 @@ pub async fn patch_cron_job(
         tool_profile: body.tool_profile,
         project_id: body.project_id,
         workflow: body.workflow,
+        recurring: body.recurring,
     };
     match anycode_tools::update_cron_job_in_orchestration_file(&path, job_id, patch) {
         Ok(Some(job)) => {

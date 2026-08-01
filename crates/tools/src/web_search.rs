@@ -24,6 +24,10 @@ impl WebSearchTool {
 #[derive(Deserialize)]
 struct WsInput {
     query: String,
+    #[serde(default)]
+    allowed_domains: Option<Vec<String>>,
+    #[serde(default)]
+    blocked_domains: Option<Vec<String>>,
 }
 
 #[async_trait]
@@ -51,7 +55,17 @@ impl Tool for WebSearchTool {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Search query" }
+                "query": { "type": "string", "description": "Search query" },
+                "allowed_domains": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Only include search results from these domains"
+                },
+                "blocked_domains": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Never include search results from these domains"
+                }
             },
             "required": ["query"]
         })
@@ -74,12 +88,19 @@ impl Tool for WebSearchTool {
             self.services.web_search_endpoint.as_ref(),
             self.services.web_search_api_key.as_ref(),
         ) {
+            let mut body = serde_json::json!({ "query": ws.query });
+            if let Some(d) = ws.allowed_domains {
+                body["allowed_domains"] = serde_json::json!(d);
+            }
+            if let Some(d) = ws.blocked_domains {
+                body["blocked_domains"] = serde_json::json!(d);
+            }
             let v = self
                 .services
                 .http
                 .post(url)
                 .header("Authorization", format!("Bearer {}", key))
-                .json(&serde_json::json!({ "query": ws.query }))
+                .json(&body)
                 .send()
                 .await
                 .map_err(|e| CoreError::Other(anyhow::anyhow!("search request: {}", e)))?

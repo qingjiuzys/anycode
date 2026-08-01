@@ -1,25 +1,38 @@
 import type { Locale } from "@/i18n/context";
 
+/** Product-facing skill taxonomy (secondary tabs on Agents / Skills). */
 export const SKILL_CATEGORIES = [
-  "library-ref",
-  "verification",
-  "data",
-  "business",
-  "scaffolding",
-  "quality",
-  "cicd",
-  "runbook",
-  "infra",
+  "office",
+  "writing",
+  "design",
+  "research",
+  "engineering",
+  "ops",
   "other",
 ] as const;
 
 export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
 
+/** Map legacy Anthropic-style / older anyCode categories → current taxonomy. */
 const LEGACY_CATEGORY_MAP: Record<string, SkillCategory> = {
-  office: "business",
-  docs: "business",
-  dev: "quality",
-  data: "data",
+  office: "office",
+  docs: "office",
+  business: "office",
+  writing: "writing",
+  creative: "design",
+  design: "design",
+  data: "research",
+  research: "research",
+  quality: "engineering",
+  scaffolding: "engineering",
+  cicd: "engineering",
+  "library-ref": "engineering",
+  verification: "engineering",
+  engineering: "engineering",
+  dev: "engineering",
+  runbook: "ops",
+  infra: "ops",
+  ops: "ops",
   other: "other",
 };
 

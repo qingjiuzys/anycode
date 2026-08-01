@@ -8,7 +8,9 @@ use super::agentic_turn::{
     MessageAppendSink, TurnToolBatchOutcome, TurnToolCancel, TurnToolCancelOutcome, TurnToolCtx,
     TurnToolState,
 };
-use super::budget::{record_llm_usage, tick_budget, RuntimeBudgetState};
+use super::budget::{
+    record_llm_usage, tick_budget, token_budget_context_section, RuntimeBudgetState,
+};
 use super::execute_turn_finalize::TurnFinalizeParams;
 use super::live_trace_emit;
 use super::llm_retry::model_config_with_retry_observer;
@@ -143,7 +145,10 @@ impl AgentRuntime {
                     tool_schemas = tool_surface::build_tool_schemas(&names, &tools);
                     drop(tools);
                 }
-                let sections = compiled.sections.clone();
+                let mut sections = compiled.sections.clone();
+                if let Some(section) = token_budget_context_section(&budget) {
+                    sections.push(section);
+                }
                 {
                     let preflight =
                         super::compile_context::delivery_preflight_marker(&compiled.parts);

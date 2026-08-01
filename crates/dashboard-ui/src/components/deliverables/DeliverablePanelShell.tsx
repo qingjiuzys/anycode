@@ -5,6 +5,7 @@ import { useDeliverableFileMeta } from "@/hooks/useDeliverableFileMeta";
 type Props = {
   path: string;
   projectId: string;
+  projectRoot?: string | null;
   title: string;
   metaLabel?: string;
   headerExtra?: ReactNode;
@@ -14,6 +15,7 @@ type Props = {
 export function DeliverablePanelShell({
   path,
   projectId,
+  projectRoot,
   title,
   metaLabel,
   headerExtra,
@@ -37,6 +39,8 @@ export function DeliverablePanelShell({
       <div className="px-4 pb-3">
         <DeliverableFileActions
           path={path}
+          projectId={projectId}
+          projectRoot={projectRoot}
           downloadUrl={downloadUrl}
           downloadName={fileName}
           compact

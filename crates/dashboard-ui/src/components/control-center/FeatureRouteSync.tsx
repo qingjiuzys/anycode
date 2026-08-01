@@ -6,6 +6,7 @@ import {
   shouldOpenControlCenterForLocation,
 } from "@/lib/controlCenterPaths";
 import { conversationSearchParams, parseConversationSearch } from "@/lib/conversationsSearch";
+import { readPinnedSessionId } from "@/lib/activeSessionStorage";
 
 /** Deep-link feature URLs into conversations + control center overlay. */
 export function FeatureRouteSync() {
@@ -45,7 +46,16 @@ export function FeatureRouteSync() {
 
     openControlCenter(href);
     if (pathname !== "/conversations") {
-      void navigate({ to: "/conversations", search: { cc: href }, replace: true });
+      const current = parseConversationSearch(searchStr);
+      const canon = conversationSearchParams({
+        ...current,
+        session: current.session ?? readPinnedSessionId() ?? undefined,
+      });
+      void navigate({
+        to: "/conversations",
+        search: () => ({ ...canon, cc: href }),
+        replace: true,
+      });
     }
   }, [pathname, searchStr, navigate, openControlCenter]);
 

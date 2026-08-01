@@ -2,7 +2,7 @@
 
 use super::SkillCatalog;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SkillVetFinding {
@@ -75,16 +75,6 @@ pub fn vet_skill_dir(skill_dir: &Path) -> anyhow::Result<SkillVetReport> {
         ok,
         findings,
     })
-}
-
-pub fn vet_skill_by_id(id: &str, roots: &[PathBuf]) -> anyhow::Result<SkillVetReport> {
-    for root in roots {
-        let dir = root.join(id);
-        if dir.join("SKILL.md").is_file() {
-            return vet_skill_dir(&dir);
-        }
-    }
-    anyhow::bail!("skill not found: {id}")
 }
 
 #[cfg(test)]

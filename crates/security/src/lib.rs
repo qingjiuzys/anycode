@@ -863,4 +863,15 @@ mod tests {
             .await;
         assert!(result.is_ok() || result.is_err());
     }
+
+    #[test]
+    fn approval_brief_truncates_at_char_boundary_without_panic() {
+        // 回归测试：此前 &trimmed[..120] 在 120 字节落于多字节 UTF-8 字符中间时 panic。
+        let input = serde_json::json!({
+            "command": format!("{}中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文中文", "a".repeat(100))
+        });
+        let rendered = render_approval_request(ApprovalSurface::Cli, "Bash", &input);
+        assert!(rendered.contains("执行命令："));
+        assert!(rendered.contains("…"), "超长命令应以省略号截断: {rendered}");
+    }
 }

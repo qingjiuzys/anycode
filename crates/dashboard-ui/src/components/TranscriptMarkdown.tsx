@@ -26,7 +26,10 @@ hljs.registerLanguage("html", xml);
 type Props = {
   text: string;
   className?: string;
-  /** While streaming, render plain text; parse markdown once settled. */
+  /**
+   * While streaming: still render markdown/tables, but skip syntax highlight
+   * so incomplete fences stay cheap and stable.
+   */
   live?: boolean;
 };
 
@@ -65,20 +68,28 @@ export const TranscriptMarkdown = memo(function TranscriptMarkdown({
         if (match) {
           const lang = match[1];
           let highlighted = raw;
-          try {
-            if (hljs.getLanguage(lang)) {
-              highlighted = hljs.highlight(raw, { language: lang }).value;
+          if (!live) {
+            try {
+              if (hljs.getLanguage(lang)) {
+                highlighted = hljs.highlight(raw, { language: lang }).value;
+              }
+            } catch {
+              /* keep raw */
             }
-          } catch {
-            /* keep raw */
           }
           return (
             <pre className="dw-transcript-code">
-              <code
-                className={codeClass}
-                dangerouslySetInnerHTML={{ __html: highlighted }}
-                {...props}
-              />
+              {live ? (
+                <code className={codeClass} {...props}>
+                  {raw}
+                </code>
+              ) : (
+                <code
+                  className={codeClass}
+                  dangerouslySetInnerHTML={{ __html: highlighted }}
+                  {...props}
+                />
+              )}
             </pre>
           );
         }
@@ -103,21 +114,13 @@ export const TranscriptMarkdown = memo(function TranscriptMarkdown({
         );
       },
     }),
-    [],
+    [live],
   );
 
   const segments = useMemo(
-    () => (live ? [{ type: "markdown" as const, content: displayText }] : splitMarkdownWithTables(displayText)),
-    [displayText, live],
+    () => splitMarkdownWithTables(displayText),
+    [displayText],
   );
-
-  if (live) {
-    return (
-      <div className={`dw-transcript-markdown ${className}`}>
-        <div className="whitespace-pre-wrap break-words leading-relaxed">{displayText}</div>
-      </div>
-    );
-  }
 
   return (
     <div className={`dw-transcript-markdown ${className}`}>

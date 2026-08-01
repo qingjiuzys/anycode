@@ -6,10 +6,8 @@ import { Icon } from "@/components/Icon";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { useLocale, useT } from "@/i18n/context";
 import {
-  categoriesWithEntries,
+  SKILL_CATEGORIES,
   filterSkillsByCategory,
-  groupSkillsByCategory,
-  normalizeSkillCategory,
   skillDisplayDescription,
   skillDisplayName,
   skillMatchesSearch,
@@ -20,13 +18,6 @@ import { skillIconMeta, skillIconToneClass } from "@/lib/skillIcons";
 type Props = {
   /** When true, renders without outer SectionCard (for tabbed Agents page). */
   embedded?: boolean;
-};
-
-type StoreSection = {
-  key: "official" | "anycode";
-  title: string;
-  hint?: string;
-  entries: SkillMarketEntry[];
 };
 
 export function SkillMarketPanel({ embedded = false }: Props) {
@@ -83,46 +74,22 @@ export function SkillMarketPanel({ embedded = false }: Props) {
     return list;
   }, [market.data?.market.entries, search, categoryFilter]);
 
-  const sections = useMemo((): StoreSection[] => {
-    const official = filteredEntries.filter((e) => e.badge === "official");
-    const anycode = filteredEntries.filter((e) => e.badge === "anycode");
-    const out: StoreSection[] = [];
-    if (official.length > 0) {
-      out.push({
-        key: "official",
-        title: t("agents.skillMarketOfficialSection"),
-        hint: t("agents.skillMarketOfficialHint"),
-        entries: official,
-      });
-    }
-    if (anycode.length > 0) {
-      out.push({
-        key: "anycode",
-        title: t("agents.skillMarketAnycodeSection"),
-        hint: t("agents.skillMarketAnycodeHint"),
-        entries: anycode,
-      });
-    }
-    return out;
-  }, [filteredEntries, t]);
-
-  const visibleCategories = useMemo(
-    () => categoriesWithEntries(market.data?.market.entries ?? []),
-    [market.data?.market.entries],
-  );
-
   const body = (
     <>
       {!embedded && <p className="text-[13px] text-secondary m-0 mb-3">{t("agents.skillMarketHint")}</p>}
 
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        <CategoryPill
+      <div
+        className="flex flex-wrap gap-1.5 mb-3"
+        role="tablist"
+        aria-label={t("agents.skillMarketTitle")}
+      >
+        <CategoryTab
           active={categoryFilter === "all"}
           label={t("agents.skillCategory.all")}
           onClick={() => setCategoryFilter("all")}
         />
-        {visibleCategories.map((cat) => (
-          <CategoryPill
+        {SKILL_CATEGORIES.map((cat) => (
+          <CategoryTab
             key={cat}
             active={categoryFilter === cat}
             label={t(`agents.skillCategory.${cat}`)}
@@ -154,44 +121,21 @@ export function SkillMarketPanel({ embedded = false }: Props) {
         <p className="text-sm text-secondary m-0">{t("agents.skillMarketEmpty")}</p>
       )}
 
-      <div className="space-y-6">
-        {sections.map((section) => {
-          const grouped = groupSkillsByCategory(section.entries);
-          return (
-            <section key={section.key} className="dw-skill-store-section">
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold text-on-surface m-0">{section.title}</h3>
-                {section.hint && (
-                  <p className="text-[13px] text-secondary m-0 mt-1">{section.hint}</p>
-                )}
-              </div>
-              <div className="space-y-4">
-                {grouped.map((group) => (
-                  <div key={`${section.key}-${group.category}`}>
-                    <h4 className="text-[13px] font-semibold uppercase tracking-wide text-secondary m-0 mb-2 flex items-center gap-2">
-                      {t(`agents.skillCategory.${group.category}`)}
-                      <span className="font-normal tabular-nums text-outline">{group.items.length}</span>
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {group.items.map((entry) => (
-                        <MarketCard
-                          key={`${entry.badge}-${entry.id}`}
-                          entry={entry}
-                          locale={locale}
-                          installed={installedIds.has(entry.id)}
-                          installing={installingId === entry.id}
-                          onInstall={() => install.mutate(entry.id)}
-                          t={t}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+      {!market.isLoading && filteredEntries.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {filteredEntries.map((entry) => (
+            <MarketCard
+              key={`${entry.badge}-${entry.id}`}
+              entry={entry}
+              locale={locale}
+              installed={installedIds.has(entry.id)}
+              installing={installingId === entry.id}
+              onInstall={() => install.mutate(entry.id)}
+              t={t}
+            />
+          ))}
+        </div>
+      )}
 
       {lastInstalledId && (
         <p className="dw-agents-toast m-0 mt-3" role="status">
@@ -210,14 +154,10 @@ export function SkillMarketPanel({ embedded = false }: Props) {
     return <div className="dw-agents-tab-panel skill-market-panel">{body}</div>;
   }
 
-  return (
-    <SectionCard title={t("agents.skillMarketTitle")}>
-      {body}
-    </SectionCard>
-  );
+  return <SectionCard title={t("agents.skillMarketTitle")}>{body}</SectionCard>;
 }
 
-function CategoryPill({
+function CategoryTab({
   active,
   label,
   onClick,
@@ -229,7 +169,9 @@ function CategoryPill({
   return (
     <button
       type="button"
-      className={`text-[13px] px-2.5 py-1 rounded-full border transition-colors ${
+      role="tab"
+      aria-selected={active}
+      className={`text-[13px] px-2.5 py-1 rounded-lg border transition-colors ${
         active
           ? "bg-primary/15 border-primary/40 text-primary font-medium"
           : "border-outline-variant text-secondary hover:bg-surface-container-low"
@@ -271,25 +213,21 @@ function MarketCard({
 }) {
   const desc = skillDisplayDescription(entry, locale);
   const displayName = skillDisplayName(entry, locale);
-  const cat = normalizeSkillCategory(entry.category);
   const badge = marketBadgeMeta(entry, t);
   const { icon, tone } = skillIconMeta(entry);
 
   return (
-    <div className="flex flex-col gap-3 p-4 rounded-xl border border-outline-variant bg-surface-container-lowest h-full">
-      <div className="flex items-start gap-3 min-w-0">
-        <span className={`dw-agents-skill-row__icon ${skillIconToneClass(tone)}`}>
+    <div className="flex flex-col gap-3 p-4 rounded-xl border border-outline-variant bg-surface-container-lowest h-full min-h-[11rem]">
+      <div className="flex items-start gap-3 min-w-0 flex-1">
+        <span className={`dw-agents-skill-row__icon shrink-0 ${skillIconToneClass(tone)}`}>
           <Icon name={icon} size={20} />
         </span>
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-on-surface">{displayName}</span>
-            <span className="text-[13px] px-1.5 py-0.5 rounded-md bg-surface-container-high text-secondary">
-              {t(`agents.skillCategory.${cat}`)}
-            </span>
+            <span className="text-sm font-semibold text-on-surface line-clamp-1">{displayName}</span>
             <span className={badge.className}>{badge.label}</span>
           </div>
-          <p className="text-[13px] text-secondary m-0 line-clamp-2 leading-relaxed flex-1">
+          <p className="text-[13px] text-secondary m-0 line-clamp-2 leading-relaxed">
             {desc || entry.description}
           </p>
         </div>

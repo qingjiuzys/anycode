@@ -118,7 +118,7 @@ pub fn static_limits_for_plan(plan: &str) -> PlanLimits {
             calls_per_window: 10_000,
         },
         "team" => PlanLimits {
-            token_limit: 60_000_000,
+            token_limit: 15_000_000_000,
             api_key_limit: 20,
             seat_limit: 10,
             monthly_price_fen: 199_900,

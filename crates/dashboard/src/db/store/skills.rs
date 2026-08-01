@@ -71,6 +71,23 @@ impl DashboardDb {
         Ok(n)
     }
 
+    pub async fn delete_skill(&self, skill_id: &str) -> Result<bool> {
+        let result = sqlx::query("DELETE FROM skills WHERE id = ?")
+            .bind(skill_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn skill_source_path(&self, skill_id: &str) -> Result<Option<String>> {
+        let path: Option<String> =
+            sqlx::query_scalar("SELECT source_path FROM skills WHERE id = ?")
+                .bind(skill_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(path)
+    }
+
     pub async fn list_skills(&self, limit: i64) -> Result<Vec<SkillRecord>> {
         let rows = sqlx::query(
             r#"

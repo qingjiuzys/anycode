@@ -21,7 +21,10 @@ export function ConsoleShell({
       <header className="console-topbar glass-panel">
         <div className="console-topbar-brand">
           <span className="console-logo" aria-hidden />
-          <span className="font-semibold text-sm">818Cloud</span>
+          <div className="console-topbar-brand-text">
+            <span className="console-topbar-kicker">CLOUD CONTROL</span>
+            <span className="console-topbar-title">{t("layout.brand")}</span>
+          </div>
         </div>
         <div className="console-topbar-actions">
           <span className="text-xs text-secondary hidden sm:inline">

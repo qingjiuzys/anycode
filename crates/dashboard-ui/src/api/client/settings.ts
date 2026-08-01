@@ -106,6 +106,8 @@ export const settingsClient = {
   rescanSkills: () => post<{ ok: boolean; skills_synced: number }>("/api/skills"),
   skillDetail: (skillId: string) =>
     get<{ skill: SkillDetailRecord }>(`/api/skills/${skillId}`),
+  uninstallSkill: (skillId: string) =>
+    del<{ ok: boolean; id: string }>(`/api/skills/${encodeURIComponent(skillId)}`),
   setSkillAllProjects: (skillId: string, enabled: boolean) =>
     post<{ ok: boolean; projects_updated: number }>(
       `/api/skills/${skillId}/all-projects`,

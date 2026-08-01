@@ -3,7 +3,7 @@ name: webapp-testing
 description: Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.
 description_zh: 用 Playwright 测试本地 Web 应用：截图、选择器与可复现检查。
 name_zh: Web 应用测试
-category: quality
+category: engineering
 version: 1.0.0
 mode: instructions
 priority: 80

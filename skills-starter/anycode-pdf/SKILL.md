@@ -6,7 +6,7 @@ description: >-
 description_zh: >-
   anyCode PDF：复制 MD 模板 → HTML 预览 → 高保真 PDF（FDE Editorial，DeepSeek 友好工作流）。
 name_zh: anyCode PDF
-category: business
+category: office
 version: 1.0.0
 mode: executable
 approval: writes-workspace

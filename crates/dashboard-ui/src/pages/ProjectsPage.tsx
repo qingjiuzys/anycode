@@ -6,7 +6,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { InlineRename } from "@/components/InlineRename";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
-import { WorkspacePathsPanel } from "@/components/WorkspacePathsPanel";
 import { CcPageShell } from "@/components/ui/CcPageShell";
 import { ListPageToolbar } from "@/components/ui/ListPageToolbar";
 import { ListPaginationBar } from "@/components/ui/ListPaginationBar";
@@ -71,17 +70,11 @@ export function ProjectsPage(_props: EmbeddedPageProps = {}) {
       }),
   });
 
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: async () => (await api.bootstrap()).bootstrap,
-  });
-
   const scan = useMutation({
     mutationFn: api.scanProjects,
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] });
       setScanMessage(
         t("projects.scanSuccess")
           .replace("{registered}", String(result.projects_registered))
@@ -193,10 +186,6 @@ export function ProjectsPage(_props: EmbeddedPageProps = {}) {
           </>
         }
       >
-        <div className="mb-4">
-          <WorkspacePathsPanel bootstrap={bootstrap.data} />
-        </div>
-
         {isLoading && <p className="text-secondary text-sm">{t("common.loading")}</p>}
 
         {!isLoading && projects.length === 0 && (

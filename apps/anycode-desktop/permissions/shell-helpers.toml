@@ -4,5 +4,6 @@ description = "Open URLs, reveal paths, and pick directories from the Workbench 
 commands.allow = [
   "open_external_url",
   "reveal_in_file_manager",
+  "open_local_path",
   "pick_directory",
 ]

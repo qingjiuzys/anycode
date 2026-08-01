@@ -666,6 +666,10 @@ pub async fn upsert_connector(
     State(state): State<AppState>,
     Json(body): Json<UpsertConnectorBody>,
 ) -> impl IntoResponse {
+    if let Err(msg) = crate::connectors::validate_connector_config(&body.source_type, &body.config)
+    {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))).into_response();
+    }
     match crate::notifications::upsert_connector(
         &state.db,
         body.project_id.as_deref(),

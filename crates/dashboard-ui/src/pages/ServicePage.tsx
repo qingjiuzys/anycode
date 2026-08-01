@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { CcPageShell } from "@/components/ui/CcPageShell";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ConsoleEntitlementsGate } from "@/components/service/ConsoleEntitlementsGate";
 import { ConsoleShell } from "@/components/service/ConsoleShell";
 import type { ServiceSection } from "@/components/service/ServiceNav";
 import { ServiceCloudShell } from "@/components/service/ServiceCloudShell";
@@ -81,15 +82,19 @@ function ServicePageInner({
       <ServiceCloudShell>
         <ConsoleShell active={section} onSectionChange={onSectionChange}>
           <ServiceMockBanner />
-
-          <div className="space-y-6">
-            {section === "overview" && <ServiceOverviewSection />}
-            {section === "plan" && <ServicePlanSection />}
-            {section === "usage" && <ServiceUsageSection />}
-            {section === "billing" && <ServiceBillingSection />}
-            {section === "api" && <ServiceApiSection />}
-            {section === "enterprise" && <ServiceEnterpriseSection />}
-          </div>
+          {section === "api" ? (
+            <ServiceApiSection />
+          ) : (
+            <ConsoleEntitlementsGate>
+              <div className="space-y-6">
+                {section === "overview" && <ServiceOverviewSection />}
+                {section === "plan" && <ServicePlanSection />}
+                {section === "usage" && <ServiceUsageSection />}
+                {section === "billing" && <ServiceBillingSection />}
+                {section === "enterprise" && <ServiceEnterpriseSection />}
+              </div>
+            </ConsoleEntitlementsGate>
+          )}
         </ConsoleShell>
       </ServiceCloudShell>
     </CcPageShell>

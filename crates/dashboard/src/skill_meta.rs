@@ -2,17 +2,14 @@
 
 use std::path::Path;
 
-/// Anthropic-style 9 categories plus fallback.
+/// Product-facing skill taxonomy (office / writing / design / …).
 pub const SKILL_CATEGORIES: &[&str] = &[
-    "library-ref",
-    "verification",
-    "data",
-    "business",
-    "scaffolding",
-    "quality",
-    "cicd",
-    "runbook",
-    "infra",
+    "office",
+    "writing",
+    "design",
+    "research",
+    "engineering",
+    "ops",
     "other",
 ];
 
@@ -25,7 +22,7 @@ pub struct SkillFrontmatter {
     pub category: String,
 }
 
-/// Normalize legacy or unknown category slugs to the canonical 9+1 set.
+/// Normalize legacy or unknown category slugs to the canonical product set.
 #[must_use]
 pub fn normalize_category(raw: &str) -> String {
     anycode_tools::normalize_skill_category(raw)
@@ -61,24 +58,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_legacy_office_to_business() {
-        assert_eq!(normalize_category("office"), "business");
-        assert_eq!(normalize_category("docs"), "business");
-        assert_eq!(normalize_category("dev"), "quality");
+    fn maps_legacy_categories_to_product_taxonomy() {
+        assert_eq!(normalize_category("office"), "office");
+        assert_eq!(normalize_category("docs"), "office");
+        assert_eq!(normalize_category("business"), "office");
+        assert_eq!(normalize_category("dev"), "engineering");
+        assert_eq!(normalize_category("data"), "research");
+        assert_eq!(normalize_category("runbook"), "ops");
     }
 
     #[test]
     fn keeps_canonical_categories() {
-        assert_eq!(normalize_category("library-ref"), "library-ref");
-        assert_eq!(normalize_category("cicd"), "cicd");
+        assert_eq!(normalize_category("writing"), "writing");
+        assert_eq!(normalize_category("design"), "design");
+        assert_eq!(normalize_category("engineering"), "engineering");
     }
 
     #[test]
     fn parses_description_zh() {
         let raw =
-            "---\nname: demo\ndescription: English\ndescription_zh: 中文\ncategory: data\n---\n";
+            "---\nname: demo\ndescription: English\ndescription_zh: 中文\ncategory: research\n---\n";
         let fm = parse_frontmatter_text(raw);
         assert_eq!(fm.description_zh.as_deref(), Some("中文"));
-        assert_eq!(fm.category, "data");
+        assert_eq!(fm.category, "research");
     }
 }

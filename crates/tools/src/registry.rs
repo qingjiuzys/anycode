@@ -8,7 +8,7 @@
 //! 4. 若工具敏感：加入 `crate::catalog::SECURITY_SENSITIVE_TOOL_IDS`（单一事实来源）；CLI `bootstrap` 自动为该表注册 `SecurityLayer` 策略。
 
 use crate::agent_tools::{
-    AgentTool, LegacyTaskAgentTool, SendMessageTool, SkillSearchTool, SkillTool,
+    AgentTool, LegacyTaskAgentTool, ProposeSkillsTool, SendMessageTool, SkillSearchTool, SkillTool,
 };
 use crate::bash::BashTool;
 use crate::edit::EditTool;
@@ -18,7 +18,10 @@ use crate::glob::GlobTool;
 use crate::grep::GrepTool;
 use crate::knowledge_tools::KnowledgeSearchTool;
 use crate::lsp_tool::LspTool;
-use crate::mcp_tools::{ListMcpResourcesTool, McpAuthTool, McpTool, ReadMcpResourceTool};
+use crate::mcp_tools::{
+    ListMcpResourcesTool, McpAuthTool, McpTool, ReadMcpResourceDirTool, ReadMcpResourceTool,
+    RefreshMcpToolsTool,
+};
 use crate::media_tools::{
     GenerateImageTool, GenerateVideoTool, SpeechToTextTool, TextToSpeechTool,
 };
@@ -28,9 +31,9 @@ use crate::mode_tools::{
 };
 use crate::notebook_edit::NotebookEditTool;
 use crate::orchestration::{
-    CronCreateTool, CronDeleteTool, CronListTool, CronUpdateTool, RemoteTriggerTool,
-    TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool,
-    TeamCreateTool, TeamDeleteTool,
+    CronCreateTool, CronDeleteTool, CronListTool, CronUpdateTool, MonitorTool, RemoteTriggerTool,
+    ScheduleWakeupTool, TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool,
+    TaskUpdateTool, TeamCreateTool, TeamDeleteTool,
 };
 use crate::plan_write::PlanWriteTool;
 use crate::platform_tools::{
@@ -40,6 +43,7 @@ use crate::services::ToolRegistryDeps;
 use crate::todo_write::TodoWriteTool;
 use crate::web_fetch::WebFetchTool;
 use crate::web_search::WebSearchTool;
+use crate::workflows::WorkflowGetTool;
 use anycode_core::prelude::*;
 use std::collections::HashMap;
 
@@ -87,6 +91,8 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
         ins!(McpTool::new(s.clone()));
         ins!(ListMcpResourcesTool::new(s.clone()));
         ins!(ReadMcpResourceTool::new(s.clone()));
+        ins!(ReadMcpResourceDirTool::new(s.clone()));
+        ins!(RefreshMcpToolsTool::new(s.clone()));
         ins!(McpAuthTool::new(s.clone()));
     }
     #[cfg(not(feature = "tools-mcp"))]
@@ -94,12 +100,15 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
         ins!(McpTool::new(s.clone()));
         ins!(ListMcpResourcesTool::new(s.clone()));
         ins!(ReadMcpResourceTool::new(s.clone()));
+        ins!(ReadMcpResourceDirTool::new(s.clone()));
+        ins!(RefreshMcpToolsTool::new(s.clone()));
         ins!(McpAuthTool::new(s.clone()));
     }
     ins!(LspTool::new(s.clone()));
     ins!(AgentTool::new(s.clone()));
     ins!(SkillSearchTool::new(s.clone()));
     ins!(SkillTool::new(s.clone()));
+    ins!(ProposeSkillsTool::new(s.clone()));
     ins!(SendMessageTool::new(s.clone()));
     ins!(LegacyTaskAgentTool::new(s.clone()));
     ins!(TaskCreateTool::new(s.clone()));
@@ -114,7 +123,10 @@ pub fn build_registry(deps: &ToolRegistryDeps) -> HashMap<ToolName, Box<dyn Tool
     ins!(CronUpdateTool::new(s.clone()));
     ins!(CronDeleteTool::new(s.clone()));
     ins!(CronListTool::new(s.clone()));
+    ins!(ScheduleWakeupTool::new(s.clone()));
+    ins!(MonitorTool::new(s.clone()));
     ins!(RemoteTriggerTool::new(s.clone()));
+    ins!(WorkflowGetTool::new(sm));
     ins!(EnterPlanModeTool::new(s.clone()));
     ins!(ExitPlanModeTool::new(s.clone()));
     ins!(EnterWorktreeTool::new(s.clone()));

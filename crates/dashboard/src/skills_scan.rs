@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(fm.name, "Demo");
         assert_eq!(fm.description, "A test skill");
         assert_eq!(fm.description_zh.as_deref(), Some("测试"));
-        assert_eq!(fm.category, "business");
+        assert_eq!(fm.category, "office");
         let _ = found;
     }
 

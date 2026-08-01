@@ -1,4 +1,5 @@
 import type {
+  CheckoutResponse,
   CloudAccountBundle,
   CloudApiKey,
   CloudAuthResponse,
@@ -6,7 +7,11 @@ import type {
   CloudMeResponse,
   CloudOrgMember,
   CloudSubscription,
+  PaymentOrder,
+  PaymentProvider,
 } from "@/api/types/accountCloud";
+import { CLOUD_PLATFORM } from "@/lib/cloudPlatform";
+import { resolveApiBase } from "@/api/http";
 
 const TOKEN_KEY = "anycode-account-token";
 
@@ -33,6 +38,30 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`;
 }
 
+/** Prefer workbench proxy so Tauri / local UI avoids CORS + WebKit "Load failed". */
+function shouldUseWorkbenchProxy(): boolean {
+  if (typeof window === "undefined") return false;
+  if ("__TAURI_INTERNALS__" in window) return true;
+  const { hostname, port } = window.location;
+  const loopback = hostname === "127.0.0.1" || hostname === "localhost";
+  return loopback && (port === "43180" || port === "43199" || port === "");
+}
+
+function resolveFetchTarget(base: string, path: string): { url: string; credentials: RequestCredentials } {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (shouldUseWorkbenchProxy() && normalizedPath.startsWith("/api/v1/")) {
+    const workbench = resolveApiBase();
+    return {
+      url: joinUrl(workbench, `/api/cloud/upstream${normalizedPath}`),
+      credentials: "include",
+    };
+  }
+  return {
+    url: joinUrl(base, normalizedPath),
+    credentials: "omit",
+  };
+}
+
 async function accountFetch<T>(
   base: string,
   path: string,
@@ -46,22 +75,39 @@ async function accountFetch<T>(
   const token = getAccountToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
+  const { url, credentials } = resolveFetchTarget(base, path);
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(joinUrl(base, path), {
+    const res = await fetch(url, {
       ...init,
       headers,
+      credentials,
       signal: init.signal ?? controller.signal,
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(`${res.status} ${path}: ${text}`);
+      let detail = text;
+      try {
+        const parsed = JSON.parse(text) as { error?: string };
+        if (typeof parsed.error === "string" && parsed.error.trim()) {
+          detail = parsed.error.trim();
+        }
+      } catch {
+        /* keep raw */
+      }
+      throw new Error(`${res.status} ${path}: ${detail}`);
+    }
+    if (!text.trim()) {
+      return {} as T;
     }
     return JSON.parse(text) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s: ${path}`);
+    }
+    if (error instanceof TypeError) {
+      throw new Error(`Load failed: ${path}`);
     }
     throw error;
   } finally {
@@ -136,9 +182,31 @@ export const accountCloud = {
         sort_order: number;
       }>;
     }>(base, "/api/v1/plans/catalog"),
-};
 
-import { CLOUD_PLATFORM } from "@/lib/cloudPlatform";
+  checkout: (
+    base: string,
+    plan: string,
+    provider: PaymentProvider = "wechat",
+    cycle: "monthly" | "yearly" = "monthly",
+  ) =>
+    accountFetch<CheckoutResponse>(base, "/api/v1/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan, provider, cycle }),
+    }),
+
+  getPaymentOrder: (base: string, orderId: string) =>
+    accountFetch<{ order: PaymentOrder }>(
+      base,
+      `/api/v1/billing/orders/${encodeURIComponent(orderId)}`,
+    ),
+
+  syncPaymentOrder: (base: string, orderId: string) =>
+    accountFetch<{ order: PaymentOrder; synced: boolean }>(
+      base,
+      `/api/v1/billing/orders/${encodeURIComponent(orderId)}/sync`,
+      { method: "POST" },
+    ),
+};
 
 export function resolveAccountApiBase(healthUrl?: string | null): string {
   const fromEnv = import.meta.env.VITE_ACCOUNT_API_URL?.trim();

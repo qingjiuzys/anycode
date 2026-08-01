@@ -154,7 +154,7 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
       isRunning,
     );
     return (
-      <div className="flex flex-col gap-1.5 w-full max-w-[min(100%,42rem)]">
+      <div className="flex flex-col gap-1.5 w-full max-w-[var(--conv-content-max)]">
         {!suppressActivityLine && steps.length > 0 && (
           <AgentActivityLine steps={steps} suppressDuration />
         )}
@@ -204,7 +204,7 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
     processSnippets.length > 0 || processMessageCount > 0;
 
   return (
-    <div className="agent-trace-meta w-full max-w-[min(100%,42rem)]">
+    <div className="agent-trace-meta w-full max-w-[var(--conv-content-max)]">
       {showThinkingFold && (
         <ThinkingTraceFold
           count={processMessageCount}
@@ -283,7 +283,6 @@ function ThinkingTraceFold({
       : t("conversations.thinkingDone").replace("{n}", String(count));
 
   const showPreview = !settled && !open && previewText.length > 0;
-  const showBulletList = open && !loading && snippets.length > 0;
 
   return (
     <div className={`tool-strip-step tool-strip-step-thinking ${settled ? "tool-strip-step-thinking--settled" : ""}`}>
@@ -306,25 +305,19 @@ function ThinkingTraceFold({
             className="transcript-expand-icon shrink-0"
           />
         )}
-        <Icon name={loading ? "progress_activity" : "psychology"} size={14} />
         <span>{label}</span>
       </button>
       {showPreview && (
-        <p className="tool-strip-step-thinking-preview">{previewText}</p>
+        <p className="tool-strip-step-thinking-preview tool-strip-step-thinking-text">{previewText}</p>
       )}
-      {showBulletList && (
-        <div className="tool-strip-step-body">
-          <ul className="m-0 pl-4 space-y-1">
-            {snippets.map((snippet, i) => (
-              <li key={`${i}-${snippet.slice(0, 24)}`} className="text-xs text-secondary">
-                {formatDeliveryPreflight(snippet) ?? snippet}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {open && !loading && snippets.length > 0 && (
+        <p className="tool-strip-step-thinking-preview tool-strip-step-thinking-text">
+          {formatDeliveryPreflight(snippets[snippets.length - 1] ?? "") ??
+            snippets[snippets.length - 1] ?? ""}
+        </p>
       )}
       {loading && snippets.length > 0 && !settled && (
-        <p className="tool-strip-step-thinking-preview">{smoothedSnippet}</p>
+        <p className="tool-strip-step-thinking-preview tool-strip-step-thinking-text">{smoothedSnippet}</p>
       )}
     </div>
   );

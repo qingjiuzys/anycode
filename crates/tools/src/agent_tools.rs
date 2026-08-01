@@ -7,7 +7,8 @@
 
 use crate::services::ToolServices;
 use crate::skills::{
-    load_skill_instructions, truncate_skill_output, SkillCatalog, MAX_SKILL_OUTPUT_BYTES,
+    load_skill_instructions, parse_skill_manifest_text, truncate_skill_output, SkillCatalog,
+    MAX_SKILL_OUTPUT_BYTES,
 };
 use anycode_core::prelude::*;
 use anycode_core::DiskTaskOutput;
@@ -698,6 +699,196 @@ impl Tool for SkillTool {
 }
 
 #[derive(Deserialize)]
+struct ProposeSkillItem {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    kind: String, // "new" | "improvement"
+    #[serde(default)]
+    target: Option<String>,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    evidence: Option<String>,
+    #[serde(default, alias = "skillMd")]
+    skill_md: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ProposeSkillsIn {
+    #[serde(default)]
+    proposals: Vec<ProposeSkillItem>,
+}
+
+/// 技能提案工具：校验 1-3 个技能提案（新增 / 改进），返回结构化评审结果。
+/// 只读——不安装、不写盘；对齐 Claude Code `ProposeSkills` 语义。
+pub struct ProposeSkillsTool {
+    services: Arc<ToolServices>,
+}
+
+impl ProposeSkillsTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self { services }
+    }
+}
+
+#[async_trait]
+impl Tool for ProposeSkillsTool {
+    fn name(&self) -> &str {
+        "ProposeSkills"
+    }
+    fn description(&self) -> &str {
+        "Validate 1-3 skill proposals (kind=new or kind=improvement). Each proposal: `name`, `kind`, optional `target` (existing skill id for improvement), `description`, optional `evidence`, optional `skillMd` draft. Returns per-proposal acceptance, issues (invalid id, unknown target, existing-name conflict, unparsable SKILL.md frontmatter), and a count summary. Read-only; it does not install skills."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "proposals": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string", "description": "Proposed skill id (letters, digits, dot, underscore, dash)" },
+                            "kind": { "type": "string", "enum": ["new", "improvement"], "description": "new = create a skill; improvement = change an existing one" },
+                            "target": { "type": "string", "description": "Existing skill id when kind=improvement" },
+                            "description": { "type": "string" },
+                            "evidence": { "type": "string", "description": "Why this skill is needed" },
+                            "skillMd": { "type": "string", "description": "Optional draft SKILL.md content" }
+                        },
+                        "required": ["name", "kind", "description"]
+                    }
+                }
+            },
+            "required": ["proposals"]
+        })
+    }
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Auto
+    }
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        None
+    }
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        let v: ProposeSkillsIn =
+            serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        if v.proposals.is_empty() {
+            return Ok(ToolOutput {
+                result: serde_json::json!({ "error": "proposals required (1-3)" }),
+                error: Some("proposals required (1-3)".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        if v.proposals.len() > 3 {
+            return Ok(ToolOutput {
+                result: serde_json::json!({ "error": "at most 3 proposals per call" }),
+                error: Some("at most 3 proposals per call".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        let cat = &self.services.skill_catalog;
+        let mut reviews: Vec<serde_json::Value> = Vec::new();
+        for p in &v.proposals {
+            let name = p.name.trim();
+            let kind = p.kind.trim();
+            let mut issues: Vec<serde_json::Value> = Vec::new();
+            if name.is_empty() {
+                issues.push(json!({ "severity": "error", "message": "name is required" }));
+            } else if !SkillCatalog::is_valid_skill_id(name) {
+                issues.push(json!({
+                    "severity": "error",
+                    "message": "invalid skill id (letters, digits, . _ - only)"
+                }));
+            }
+            if kind != "new" && kind != "improvement" {
+                issues.push(json!({
+                    "severity": "error",
+                    "message": "kind must be new or improvement"
+                }));
+            }
+            let target = p.target.as_deref().unwrap_or("").trim();
+            if kind == "improvement" && target.is_empty() {
+                issues.push(json!({
+                    "severity": "error",
+                    "message": "target required when kind=improvement"
+                }));
+            }
+            if p.description.trim().is_empty() {
+                issues.push(json!({
+                    "severity": "warn",
+                    "message": "description is empty"
+                }));
+            }
+            // 名称冲突 / target 存在性
+            let name_exists = cat.metas().iter().any(|m| m.id == name);
+            let target_exists = !target.is_empty() && cat.metas().iter().any(|m| m.id == target);
+            if kind == "new" && name_exists {
+                issues.push(json!({
+                    "severity": "warn",
+                    "message": "skill with this name already exists; consider kind=improvement"
+                }));
+            }
+            if kind == "improvement" && !target.is_empty() && !target_exists {
+                issues.push(json!({
+                    "severity": "error",
+                    "message": format!("target skill not found: {target}")
+                }));
+            }
+            // skillMd 草案可解析性（frontmatter）
+            let skill_md_valid = match p.skill_md.as_deref() {
+                Some(md) if md.trim().is_empty() => {
+                    issues.push(json!({
+                        "severity": "warn",
+                        "message": "skillMd is empty"
+                    }));
+                    false
+                }
+                Some(md) => match parse_skill_manifest_text(md) {
+                    Some(_) => true,
+                    None => {
+                        issues.push(json!({
+                            "severity": "warn",
+                            "message": "skillMd frontmatter is not parseable"
+                        }));
+                        false
+                    }
+                },
+                None => false,
+            };
+            let accepted = !issues.iter().any(|i| i["severity"] == "error");
+            reviews.push(json!({
+                "name": name,
+                "kind": kind,
+                "target": target,
+                "description": p.description,
+                "evidence": p.evidence,
+                "accepted": accepted,
+                "issues": issues,
+                "nameExists": name_exists,
+                "targetExists": target_exists,
+                "skillMdValid": skill_md_valid,
+            }));
+        }
+        let accepted_count = reviews
+            .iter()
+            .filter(|r| r.get("accepted").and_then(|v| v.as_bool()).unwrap_or(false))
+            .count();
+        Ok(ToolOutput {
+            result: serde_json::json!({
+                "reviews": reviews,
+                "count": reviews.len(),
+                "accepted": accepted_count,
+            }),
+            error: None,
+            duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+}
+
+#[derive(Deserialize)]
 struct MsgIn {
     /// anyCode: `recipient`. Claude Code swarm: `to`.
     #[serde(default, alias = "to")]
@@ -1016,5 +1207,132 @@ mod background_agent_tests {
             out.result.get("nested_task_id").is_none(),
             "must not spawn or register background job"
         );
+    }
+}
+
+#[cfg(test)]
+mod propose_skills_tests {
+    use super::*;
+    use crate::skills::SkillCatalog;
+    use std::fs;
+
+    fn services_with_skill_catalog() -> Arc<ToolServices> {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("skills");
+        let dir = root.join("existing-skill");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\nname: existing-skill\ndescription: an existing skill\n---\n",
+        )
+        .unwrap();
+        let catalog = SkillCatalog::scan(&[root], None, 1_000, true);
+        Arc::new(ToolServices::new_ephemeral_with_skills(
+            None,
+            Arc::new(catalog),
+        ))
+    }
+
+    async fn run(services: Arc<ToolServices>, proposals: serde_json::Value) -> ToolOutput {
+        ProposeSkillsTool::new(services)
+            .execute(ToolInput {
+                name: "ProposeSkills".into(),
+                input: serde_json::json!({ "proposals": proposals }),
+                working_directory: None,
+                sandbox_mode: false,
+            })
+            .await
+            .expect("execute")
+    }
+
+    #[tokio::test]
+    async fn rejects_empty_and_oversized_proposals() {
+        let services = services_with_skill_catalog();
+        let out = run(services.clone(), serde_json::json!([])).await;
+        assert!(out.error.is_some(), "empty proposals must error");
+
+        let many = (0..4)
+            .map(|i| {
+                serde_json::json!({
+                    "name": format!("skill-{i}"),
+                    "kind": "new",
+                    "description": "d"
+                })
+            })
+            .collect::<Vec<_>>();
+        let out = run(services, serde_json::json!(many)).await;
+        assert!(out.error.is_some(), ">3 proposals must error");
+    }
+
+    #[tokio::test]
+    async fn accepts_valid_new_proposal() {
+        let services = services_with_skill_catalog();
+        let out = run(
+            services,
+            serde_json::json!([{
+                "name": "my-skill",
+                "kind": "new",
+                "description": "A brand new skill",
+                "evidence": "seen in repo",
+                "skillMd": "---\nname: my-skill\ndescription: A brand new skill\n---\n"
+            }]),
+        )
+        .await;
+        assert!(out.error.is_none());
+        assert_eq!(out.result["count"], 1);
+        assert_eq!(out.result["accepted"], 1);
+        assert_eq!(out.result["reviews"][0]["accepted"], true);
+    }
+
+    #[tokio::test]
+    async fn flags_invalid_kind_and_unknown_target() {
+        let services = services_with_skill_catalog();
+        let out = run(
+            services,
+            serde_json::json!([
+                {
+                    "name": "bad-kind",
+                    "kind": "delete",
+                    "description": "d"
+                },
+                {
+                    "name": "improved",
+                    "kind": "improvement",
+                    "target": "no-such-skill",
+                    "description": "d"
+                }
+            ]),
+        )
+        .await;
+        assert!(out.error.is_none());
+        assert_eq!(out.result["accepted"], 0);
+        assert_eq!(out.result["count"], 2);
+        let issues0 = out.result["reviews"][0]["issues"].as_array().unwrap();
+        assert!(issues0
+            .iter()
+            .any(|i| i["message"].as_str().unwrap().contains("kind")));
+        let issues1 = out.result["reviews"][1]["issues"].as_array().unwrap();
+        assert!(issues1.iter().any(|i| i["message"]
+            .as_str()
+            .unwrap()
+            .contains("target skill not found")));
+    }
+
+    #[tokio::test]
+    async fn accepts_improvement_of_existing_skill() {
+        let services = services_with_skill_catalog();
+        let out = run(
+            services,
+            serde_json::json!([{
+                "name": "existing-skill",
+                "kind": "improvement",
+                "target": "existing-skill",
+                "description": "make it better"
+            }]),
+        )
+        .await;
+        assert!(out.error.is_none());
+        assert_eq!(out.result["accepted"], 1);
+        assert_eq!(out.result["reviews"][0]["targetExists"], true);
     }
 }

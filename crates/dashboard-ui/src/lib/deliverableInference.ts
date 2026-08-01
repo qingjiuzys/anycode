@@ -1,15 +1,20 @@
 import type { DeliverableCardProps } from "@/components/deliverables/DeliverableCard";
-import { isInlineKind, kindForPath } from "@/lib/artifactKind";
+import { kindForPath } from "@/lib/artifactKind";
 import {
   markerShouldInline,
   parseArtifactMarkers,
   type ParsedArtifactMarker,
 } from "@/lib/artifactMarker";
+import {
+  isPrimaryDeliverableKind,
+  isProcessArtifactPath,
+} from "@/lib/deliverablePath";
 import { toolStepFailed, type ToolStep } from "@/lib/transcriptGrouping";
 import { extractToolCommand } from "@/lib/toolStepLabel";
 import type { TranscriptBlock } from "@/api/types";
 
-const INLINE_FILE_RE = /\.(md|markdown|html|pdf|pptx?|xlsx?|csv|json)$/i;
+/** Paths inferred from prose / tool writes — prefer final formats, not every .md note. */
+const INLINE_FILE_RE = /\.(html|htm|pdf|pptx?|xlsx?|csv|json|md|markdown)$/i;
 const WRITE_MENTION_RE =
   /(?:已写入|written to|wrote to|created|保存为|输出到|写入)\s*[`'"]?([^\s`'"，。；;]+)/gi;
 const BACKTICK_FILE_RE =
@@ -28,8 +33,10 @@ function isPlausibleDeliverablePath(path: string): boolean {
 
 function markerFromPath(path: string, title?: string): ParsedArtifactMarker | null {
   if (!isPlausibleDeliverablePath(path)) return null;
+  if (isProcessArtifactPath(path)) return null;
   const kind = kindForPath(path);
-  if (!isInlineKind(kind)) return null;
+  // Auto-inferred cards: only primary deliverables (mindmap/html/office/…), not every .md.
+  if (!isPrimaryDeliverableKind(kind)) return null;
   const marker: ParsedArtifactMarker = { path, kind, inline: true };
   if (title) marker.title = title;
   return markerShouldInline(marker) ? marker : null;
@@ -57,16 +64,17 @@ export function parseDeliverablePathMentions(text: string): ParsedArtifactMarker
 
   const out: ParsedArtifactMarker[] = [];
   for (const path of paths) {
-    let marker = markerFromPath(path);
-    if (!marker) continue;
     const pathLower = path.toLowerCase();
-    if (
-      marker.kind === "document" &&
-      (pathLower.endsWith(".md") || pathLower.endsWith(".markdown")) &&
-      (mindmapContext || pathLower.includes("mindmap") || pathLower.includes("mind-map"))
-    ) {
-      marker = { ...marker, kind: "mindmap" };
-    }
+    const forceMindmap =
+      mindmapContext || pathLower.includes("mindmap") || pathLower.includes("mind-map");
+    let marker = forceMindmap
+      ? (() => {
+          if (!isPlausibleDeliverablePath(path) || isProcessArtifactPath(path)) return null;
+          const m: ParsedArtifactMarker = { path, kind: "mindmap", inline: true };
+          return markerShouldInline(m) ? m : null;
+        })()
+      : markerFromPath(path);
+    if (!marker) continue;
     if (markerShouldInline(marker)) out.push(marker);
   }
   return out;
@@ -212,6 +220,7 @@ export function collectInlineDeliverables(
 
   const byBlockId = new Map<string, DeliverableCardProps[]>();
   const push = (blockId: string, marker: ParsedArtifactMarker) => {
+    if (isProcessArtifactPath(marker.path)) return;
     const base = marker.path.split(/[/\\]/).pop()?.toLowerCase() ?? marker.path.toLowerCase();
     if (existingBasenames.has(base)) return;
     existingBasenames.add(base);

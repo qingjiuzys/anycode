@@ -1,10 +1,10 @@
 use super::*;
 use crate::config_patch::{self, LlmConfigPatchBody};
 use anycode_llm::{
-    account_api_url, capability_catalog::ModelCapability, default_gateway_chat_url,
-    migrate_legacy_llm_section, read_cloud_access_token, resolve_gateway_host,
-    set_active_capability, sync_legacy_models_section, upsert_registry_item, ConfiguredModelFile,
-    ResolvedModelRegistry,
+    account_api_url, capability_catalog::ModelCapability, clear_cloud_session,
+    default_gateway_chat_url, migrate_legacy_llm_section, read_cloud_access_token,
+    refresh_cloud_access_token, resolve_gateway_host, set_active_capability,
+    sync_legacy_models_section, upsert_registry_item, ConfiguredModelFile, ResolvedModelRegistry,
 };
 use serde::{Deserialize, Serialize};
 
@@ -516,6 +516,235 @@ pub async fn post_cloud_unlink() -> impl IntoResponse {
     }
 }
 
+/// Allow-list account-service paths for the workbench upstream proxy (SSRF guard).
+fn sanitize_cloud_upstream_path(path: &str) -> Option<String> {
+    let p = path.trim().trim_start_matches('/');
+    if p.is_empty() || p.contains("..") || p.contains('\\') {
+        return None;
+    }
+    if p.starts_with("api/v1/") {
+        return Some(p.to_string());
+    }
+    None
+}
+
+/// Billing API paths that may be served by a loopback account-service with WeChat PEMs
+/// when the public cloud deployment has not mounted payment secrets yet.
+fn is_billing_upstream_path(path: &str) -> bool {
+    path.starts_with("api/v1/billing/") && !path.starts_with("api/v1/billing/webhooks/")
+}
+
+fn local_billing_account_base() -> String {
+    std::env::var("ANYCODE_LOCAL_ACCOUNT_API_URL")
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:43200".to_string())
+}
+
+async fn local_account_wechat_ready(client: &reqwest::Client) -> bool {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static CACHE: Mutex<Option<(Instant, bool)>> = Mutex::new(None);
+    const TTL: Duration = Duration::from_secs(20);
+
+    if let Ok(guard) = CACHE.lock() {
+        if let Some((at, ok)) = *guard {
+            if at.elapsed() < TTL {
+                return ok;
+            }
+        }
+    }
+
+    let url = format!("{}/health", local_billing_account_base());
+    let ok = match client
+        .get(&url)
+        .timeout(Duration::from_secs(2))
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v.get("wechat_pay_configured").and_then(|b| b.as_bool()))
+            .unwrap_or(false),
+        _ => false,
+    };
+
+    if let Ok(mut guard) = CACHE.lock() {
+        *guard = Some((Instant::now(), ok));
+    }
+    ok
+}
+
+async fn resolve_account_upstream_base(client: &reqwest::Client, safe_path: &str) -> String {
+    if is_billing_upstream_path(safe_path) && local_account_wechat_ready(client).await {
+        local_billing_account_base()
+    } else {
+        account_api_url().trim_end_matches('/').to_string()
+    }
+}
+
+fn bearer_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
+    let auth = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())?;
+    let token = auth
+        .strip_prefix("Bearer ")
+        .or_else(|| auth.strip_prefix("bearer "))?
+        .trim();
+    if token.is_empty() {
+        None
+    } else {
+        Some(token.to_string())
+    }
+}
+
+fn build_cloud_upstream_request(
+    client: &reqwest::Client,
+    method: &axum::http::Method,
+    url: &str,
+    token: &str,
+    content_type: Option<&str>,
+    body: &[u8],
+) -> Result<reqwest::RequestBuilder, StatusCode> {
+    let req = match *method {
+        axum::http::Method::GET => client.get(url),
+        axum::http::Method::POST => client.post(url),
+        axum::http::Method::PATCH => client.patch(url),
+        axum::http::Method::PUT => client.put(url),
+        axum::http::Method::DELETE => client.delete(url),
+        _ => return Err(StatusCode::METHOD_NOT_ALLOWED),
+    };
+    let mut req = req
+        .bearer_auth(token)
+        .timeout(std::time::Duration::from_secs(30));
+    if !body.is_empty()
+        && matches!(
+            *method,
+            axum::http::Method::POST | axum::http::Method::PATCH | axum::http::Method::PUT
+        )
+    {
+        // String keys for reqwest — axum/http 1.x HeaderName ≠ reqwest's http 0.2.
+        req = req
+            .header("content-type", content_type.unwrap_or("application/json"))
+            .body(body.to_vec());
+    }
+    Ok(req)
+}
+
+async fn forward_cloud_upstream_response(resp: reqwest::Response) -> axum::response::Response {
+    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/json")
+        .to_string();
+    let bytes = resp.bytes().await.unwrap_or_default();
+    (status, [(header::CONTENT_TYPE, ct)], bytes).into_response()
+}
+
+/// Proxy account-service calls through the local Workbench to avoid browser CORS /
+/// WebKit "Load failed" when the UI talks to anycode.work directly.
+/// On upstream 401, refreshes the device token once and retries.
+pub async fn proxy_cloud_upstream(
+    Path(path): Path<String>,
+    method: axum::http::Method,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    let Some(safe_path) = sanitize_cloud_upstream_path(&path) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "invalid upstream path" })),
+        )
+            .into_response();
+    };
+    let mut token = match read_cloud_access_token().or_else(|| bearer_from_headers(&headers)) {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "cloud access token required — link your cloud account" })),
+            )
+                .into_response();
+        }
+    };
+    let client = reqwest::Client::new();
+    let upstream_base = resolve_account_upstream_base(&client, &safe_path).await;
+    let url = format!("{}/{}", upstream_base, safe_path);
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let req = match build_cloud_upstream_request(
+        &client,
+        &method,
+        &url,
+        &token,
+        content_type.as_deref(),
+        &body,
+    ) {
+        Ok(r) => r,
+        Err(status) => {
+            return (status, Json(json!({ "error": "method not allowed" }))).into_response();
+        }
+    };
+    let first = match req.send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": format!("upstream request failed: {e}") })),
+            )
+                .into_response();
+        }
+    };
+    if first.status() != reqwest::StatusCode::UNAUTHORIZED {
+        return forward_cloud_upstream_response(first).await;
+    }
+    // Access token often expires while the device refresh token is still valid.
+    match refresh_cloud_access_token().await {
+        Ok(new_token) => token = new_token,
+        Err(e) => {
+            // Stale/rotated refresh tokens leave a "linked" zombie session — clear so UI
+            // can show the re-link flow instead of endless entitlement failures.
+            let _ = clear_cloud_session();
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "error": "cloud_session_expired",
+                    "hint": format!("re-link your cloud account ({e})")
+                })),
+            )
+                .into_response();
+        }
+    }
+    let retry = match build_cloud_upstream_request(
+        &client,
+        &method,
+        &url,
+        &token,
+        content_type.as_deref(),
+        &body,
+    ) {
+        Ok(r) => r,
+        Err(status) => {
+            return (status, Json(json!({ "error": "method not allowed" }))).into_response();
+        }
+    };
+    match retry.send().await {
+        Ok(resp) => forward_cloud_upstream_response(resp).await,
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "error": format!("upstream request failed: {e}") })),
+        )
+            .into_response(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -533,5 +762,27 @@ mod tests {
         assert_eq!(item.source.as_deref(), Some("cloud"));
         assert_eq!(item.provider, "anycode_cloud");
         assert_eq!(item.model, "agnes-chat");
+    }
+
+    #[test]
+    fn is_billing_upstream_path_excludes_webhooks() {
+        assert!(is_billing_upstream_path("api/v1/billing/checkout"));
+        assert!(is_billing_upstream_path("api/v1/billing/orders/ord_1"));
+        assert!(!is_billing_upstream_path("api/v1/billing/webhooks/wechat"));
+        assert!(!is_billing_upstream_path("api/v1/account/bundle"));
+    }
+
+    #[test]
+    fn sanitize_cloud_upstream_path_allows_v1_only() {
+        assert_eq!(
+            sanitize_cloud_upstream_path("/api/v1/auth/me").as_deref(),
+            Some("api/v1/auth/me")
+        );
+        assert_eq!(
+            sanitize_cloud_upstream_path("api/v1/account/bundle").as_deref(),
+            Some("api/v1/account/bundle")
+        );
+        assert_eq!(sanitize_cloud_upstream_path("../etc/passwd"), None);
+        assert_eq!(sanitize_cloud_upstream_path("/health"), None);
     }
 }

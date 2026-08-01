@@ -3,7 +3,7 @@ name: content-repurpose
 description: Repurpose long content into shorter posts or alternate formats (drafts only, never published).
 description_zh: 将长文/纪要/报告改写为短文帖、线程、大纲等目标格式（仅生成草稿，绝不发布）。
 name_zh: 内容改写
-category: business
+category: writing
 version: 1.0.0
 mode: instructions
 approval: read-only-unless-writing-output

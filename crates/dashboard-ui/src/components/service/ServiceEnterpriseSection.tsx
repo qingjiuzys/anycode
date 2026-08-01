@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { EmptyState } from "@/components/EmptyState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { QuotaProgressBar } from "@/components/service/QuotaProgressBar";
@@ -14,29 +13,6 @@ export function ServiceEnterpriseSection() {
   if (!entitlements) return null;
 
   const org = entitlements.organization;
-  const isTeam = entitlements.plan === "team";
-
-  if (!isTeam) {
-    return (
-      <div className="space-y-6">
-        <EmptyState
-          icon="person"
-          title={t("service.enterprise.teamRequiredTitle")}
-          description={t("service.enterprise.teamRequiredBody")}
-          actions={
-            <Link to="/account" search={{ section: "plan" }} className="dw-btn-primary no-underline text-sm">
-              {t("service.enterprise.viewTeamPlan")}
-            </Link>
-          }
-        />
-        <SectionCard title={t("service.enterprise.capabilities.teamBilling.title")}>
-          <p className="text-sm text-secondary m-0">
-            {t("service.enterprise.capabilities.teamBilling.desc")}
-          </p>
-        </SectionCard>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

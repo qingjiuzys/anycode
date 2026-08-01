@@ -248,7 +248,7 @@ export const zh: MessageTree = {
         price: "¥1999/月",
         desc: "团队席位与更高额度",
         h0: "10 席位",
-        h1: "6000 万 tokens/月",
+        h1: "150 亿 tokens/月",
         h2: "企业账单入口",
       },
     },

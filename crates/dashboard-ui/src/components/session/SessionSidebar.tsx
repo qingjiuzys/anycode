@@ -82,13 +82,10 @@ export function SessionSidebar() {
   ];
 
   if (sessionSidebarCollapsed) {
-    // Narrow inert rail reserves space for macOS traffic lights only.
+    // Narrow inert rail reserves space for macOS traffic lights only (transparent — no glass strip).
     // Expand / collapse lives in the conversation header (not here — was unclickable under lights).
     return (
-      <aside
-        className="dw-session-sidebar glass-panel dw-session-sidebar--collapsed"
-        aria-hidden
-      />
+      <aside className="dw-session-sidebar dw-session-sidebar--collapsed" aria-hidden />
     );
   }
 

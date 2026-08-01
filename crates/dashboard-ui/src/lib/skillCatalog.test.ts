@@ -8,9 +8,11 @@ import {
 } from "./skillCatalog";
 
 describe("skillCatalog", () => {
-  it("maps legacy office to business", () => {
-    expect(normalizeSkillCategory("office")).toBe("business");
-    expect(normalizeSkillCategory("dev")).toBe("quality");
+  it("maps legacy categories to product taxonomy", () => {
+    expect(normalizeSkillCategory("office")).toBe("office");
+    expect(normalizeSkillCategory("business")).toBe("office");
+    expect(normalizeSkillCategory("dev")).toBe("engineering");
+    expect(normalizeSkillCategory("data")).toBe("research");
   });
 
   it("prefers Chinese description in zh locale", () => {
@@ -72,10 +74,10 @@ describe("skillCatalog", () => {
 
   it("filters by category and search", () => {
     const rows = [
-      { id: "a", category: "business", description: "日报" },
-      { id: "b", category: "data", description: "csv" },
+      { id: "a", category: "writing", description: "日报" },
+      { id: "b", category: "research", description: "csv" },
     ];
-    expect(filterSkillsByCategory(rows, "data")).toHaveLength(1);
+    expect(filterSkillsByCategory(rows, "research")).toHaveLength(1);
     expect(skillMatchesSearch(rows[0], "日报")).toBe(true);
     expect(skillMatchesSearch({ id: "cn-daily-brief", description: "x" }, "中文日报")).toBe(true);
     expect(skillMatchesSearch(rows[1], "日报")).toBe(false);

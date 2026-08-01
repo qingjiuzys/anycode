@@ -55,3 +55,11 @@ apps/anycode-desktop/resources/.ui-stage-fingerprint
 scripts/__pycache__/
 __pycache__/
 *.pyc
+
+# Local scratch / temp probes
+.tmp_*
+out/
+docs/module-structure.html
+crates/dashboard/mindmap-*.md
+crates/dashboard/mindmap-*.json
+.cursor/lingzhi-decisions.md

@@ -96,9 +96,7 @@ fn pick_directory(app: tauri::AppHandle) -> Result<Option<String>, String> {
     rx.recv().map_err(|e| e.to_string())
 }
 
-/// Open a local file/directory in Finder / Explorer / file manager.
-#[tauri::command]
-fn reveal_in_file_manager(path: String) -> Result<(), String> {
+fn ensure_existing_path(path: &str) -> Result<&std::path::Path, String> {
     let path = path.trim();
     if path.is_empty() {
         return Err("empty path".into());
@@ -107,10 +105,19 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     if !p.exists() {
         return Err(format!("path does not exist: {path}"));
     }
+    Ok(p)
+}
+
+/// Reveal a local file/directory in Finder / Explorer / file manager.
+#[tauri::command]
+fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let p = ensure_existing_path(&path)?;
+    let path = p.to_string_lossy();
     #[cfg(target_os = "macos")]
     {
+        // `-R` selects the item in Finder (reveal), instead of opening it.
         std::process::Command::new("open")
-            .arg(path)
+            .args(["-R", path.as_ref()])
             .spawn()
             .map_err(|e| e.to_string())?;
         return Ok(());
@@ -118,15 +125,20 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
-            .arg(path)
+            .args(["/select,", path.as_ref()])
             .spawn()
             .map_err(|e| e.to_string())?;
         return Ok(());
     }
     #[cfg(target_os = "linux")]
     {
+        // Best-effort: open the containing directory.
+        let parent = p
+            .parent()
+            .filter(|parent| parent.as_os_str().len() > 0)
+            .unwrap_or(p);
         std::process::Command::new("xdg-open")
-            .arg(path)
+            .arg(parent)
             .spawn()
             .map_err(|e| e.to_string())?;
         return Ok(());
@@ -135,6 +147,42 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     {
         let _ = path;
         Err("reveal_in_file_manager unsupported on this platform".into())
+    }
+}
+
+/// Open a local file/directory with the OS default application.
+#[tauri::command]
+fn open_local_path(path: String) -> Result<(), String> {
+    let p = ensure_existing_path(&path)?;
+    let path = p.to_string_lossy();
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path.as_ref())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", path.as_ref()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path.as_ref())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = path;
+        Err("open_local_path unsupported on this platform".into())
     }
 }
 
@@ -222,6 +270,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             open_external_url,
             reveal_in_file_manager,
+            open_local_path,
             pick_directory,
             apple_media::apple_media_capabilities,
             apple_media::apple_media_transcribe,

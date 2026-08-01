@@ -19,6 +19,7 @@ pub const TOOL_LSP: &str = "LSP";
 pub const TOOL_AGENT: &str = "Agent";
 pub const TOOL_SKILL: &str = "Skill";
 pub const TOOL_SKILL_SEARCH: &str = "SkillSearch";
+pub const TOOL_PROPOSE_SKILLS: &str = "ProposeSkills";
 pub const TOOL_SEND_MESSAGE: &str = "SendMessage";
 pub const TOOL_LEGACY_TASK_AGENT: &str = "Task";
 pub const TOOL_TASK_CREATE: &str = "TaskCreate";
@@ -33,7 +34,10 @@ pub const TOOL_CRON_CREATE: &str = "CronCreate";
 pub const TOOL_CRON_UPDATE: &str = "CronUpdate";
 pub const TOOL_CRON_DELETE: &str = "CronDelete";
 pub const TOOL_CRON_LIST: &str = "CronList";
+pub const TOOL_SCHEDULE_WAKEUP: &str = "ScheduleWakeup";
+pub const TOOL_MONITOR: &str = "Monitor";
 pub const TOOL_REMOTE_TRIGGER: &str = "RemoteTrigger";
+pub const TOOL_WORKFLOW_GET: &str = "WorkflowGet";
 pub const TOOL_ENTER_PLAN: &str = "EnterPlanMode";
 pub const TOOL_EXIT_PLAN: &str = "ExitPlanMode";
 pub const TOOL_ENTER_WORKTREE: &str = "EnterWorktree";
@@ -83,6 +87,7 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_AGENT,
     TOOL_SKILL,
     TOOL_SKILL_SEARCH,
+    TOOL_PROPOSE_SKILLS,
     TOOL_SEND_MESSAGE,
     TOOL_LEGACY_TASK_AGENT,
     TOOL_TASK_CREATE,
@@ -97,7 +102,10 @@ pub const DEFAULT_TOOL_IDS: &[&str] = &[
     TOOL_CRON_UPDATE,
     TOOL_CRON_DELETE,
     TOOL_CRON_LIST,
+    TOOL_SCHEDULE_WAKEUP,
+    TOOL_MONITOR,
     TOOL_REMOTE_TRIGGER,
+    TOOL_WORKFLOW_GET,
     TOOL_ENTER_PLAN,
     TOOL_EXIT_PLAN,
     TOOL_ENTER_WORKTREE,
@@ -149,6 +157,8 @@ pub const SECURITY_SENSITIVE_TOOL_IDS: &[&str] = &[
     TOOL_CRON_CREATE,
     TOOL_CRON_UPDATE,
     TOOL_CRON_DELETE,
+    TOOL_SCHEDULE_WAKEUP,
+    TOOL_MONITOR,
     TOOL_REMOTE_TRIGGER,
     TOOL_ENTER_WORKTREE,
     TOOL_EXIT_WORKTREE,
@@ -274,6 +284,14 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         "standard",
     ),
     tool_entry(
+        TOOL_PROPOSE_SKILLS,
+        "read",
+        "low",
+        ALL_AGENTS,
+        false,
+        "standard",
+    ),
+    tool_entry(
         TOOL_SEND_MESSAGE,
         "ui",
         "medium",
@@ -386,12 +404,36 @@ pub const TOOL_CATALOG: &[ToolCatalogEntry] = &[
         "standard",
     ),
     tool_entry(
+        TOOL_SCHEDULE_WAKEUP,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
+        TOOL_MONITOR,
+        "orchestration",
+        "high",
+        ORCHESTRATION_AGENTS,
+        true,
+        "full",
+    ),
+    tool_entry(
         TOOL_REMOTE_TRIGGER,
         "orchestration",
         "high",
         ORCHESTRATION_AGENTS,
         true,
         "full",
+    ),
+    tool_entry(
+        TOOL_WORKFLOW_GET,
+        "read",
+        "low",
+        ALL_AGENTS,
+        false,
+        "standard",
     ),
     tool_entry(
         TOOL_ENTER_PLAN,

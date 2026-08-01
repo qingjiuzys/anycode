@@ -51,6 +51,16 @@ async fn get_json(app: axum::Router, path: &str) -> Value {
 }
 
 async fn post_json(app: axum::Router, path: &str, body: Value) -> Value {
+    let (status, value) = post_json_status(app, path, body).await;
+    assert!(status.is_success(), "POST {path} => {status} {value}");
+    value
+}
+
+async fn post_json_status(
+    app: axum::Router,
+    path: &str,
+    body: Value,
+) -> (axum::http::StatusCode, Value) {
     let res = app
         .oneshot(
             axum::http::Request::builder()
@@ -62,9 +72,14 @@ async fn post_json(app: axum::Router, path: &str, body: Value) -> Value {
         )
         .await
         .unwrap();
-    assert!(res.status().is_success(), "POST {path}");
+    let status = res.status();
     let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    serde_json::from_slice(&bytes).unwrap()
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+    };
+    (status, value)
 }
 
 async fn put_json(app: axum::Router, path: &str, body: Value) -> Value {
@@ -423,29 +438,62 @@ async fn fixture_api_smoke() {
     assert!(sess_usage["usage"]["total_tokens"].is_number());
     assert!(sess_usage["by_model"].is_array());
 
+    let gh_bad = post_json_status(
+        app.clone(),
+        "/api/settings/connectors",
+        json!({
+            "source_type": "github",
+            "name": "test-gh-invalid",
+            "config": { "repo": "not-a-repo" },
+            "enabled": true
+        }),
+    )
+    .await;
+    assert_eq!(gh_bad.0, axum::http::StatusCode::BAD_REQUEST);
+
     let gh_conn = post_json(
         app.clone(),
         "/api/settings/connectors",
         json!({
             "source_type": "github",
             "name": "test-gh",
-            "config": { "repo": "not-a-repo" },
+            "config": { "repo": "octocat/Hello-World" },
             "enabled": true
         }),
     )
     .await;
     let conn_id = gh_conn["connector"]["id"].as_str().unwrap();
-    let gh_res = app
-        .clone()
-        .oneshot(
-            axum::http::Request::builder()
-                .uri(format!("/api/settings/connectors/{conn_id}/github/issues"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(gh_res.status(), axum::http::StatusCode::BAD_GATEWAY);
+    assert!(conn_id.starts_with("con_"));
+    // Avoid live GitHub HTTP in fixture (no client timeout); validate create + delete only.
+    let _ = delete_json(app.clone(), &format!("/api/settings/connectors/{conn_id}")).await;
+
+    // Ensure missing-key rejection is deterministic even if the host has LINEAR_API_KEY.
+    let _env_lock = ENV_LOCK.lock().await;
+    let prev_linear = std::env::var_os("LINEAR_API_KEY");
+    let prev_anycode_linear = std::env::var_os("ANYCODE_LINEAR_API_KEY");
+    std::env::remove_var("LINEAR_API_KEY");
+    std::env::remove_var("ANYCODE_LINEAR_API_KEY");
+    let linear_bad = post_json_status(
+        app.clone(),
+        "/api/settings/connectors",
+        json!({
+            "source_type": "linear",
+            "name": "test-linear-invalid",
+            "config": { "team_key": "ENG" },
+            "enabled": true
+        }),
+    )
+    .await;
+    assert_eq!(linear_bad.0, axum::http::StatusCode::BAD_REQUEST);
+    match prev_linear {
+        Some(v) => std::env::set_var("LINEAR_API_KEY", v),
+        None => std::env::remove_var("LINEAR_API_KEY"),
+    }
+    match prev_anycode_linear {
+        Some(v) => std::env::set_var("ANYCODE_LINEAR_API_KEY", v),
+        None => std::env::remove_var("ANYCODE_LINEAR_API_KEY"),
+    }
+    drop(_env_lock);
 
     let linear_conn = post_json(
         app.clone(),
@@ -453,7 +501,7 @@ async fn fixture_api_smoke() {
         json!({
             "source_type": "linear",
             "name": "test-linear",
-            "config": { "team_key": "ENG" },
+            "config": { "team_key": "ENG", "token": "fixture-fake-token" },
             "enabled": true
         }),
     )
@@ -471,6 +519,7 @@ async fn fixture_api_smoke() {
         )
         .await
         .unwrap();
+    // Token is redacted on store; without LINEAR_API_KEY this is 502.
     assert_eq!(linear_res.status(), axum::http::StatusCode::BAD_GATEWAY);
 
     let notifications = get_json(app.clone(), "/api/notifications/recent?limit=5").await;

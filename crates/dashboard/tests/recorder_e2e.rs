@@ -20,7 +20,7 @@ async fn recorder_begin_inserts_user_prompt_and_ingests_log() {
         None,
         "1.1.0",
         "/tmp/skills/weekly-report",
-        Some("business"),
+        Some("office"),
         &serde_json::json!({}),
     )
     .await

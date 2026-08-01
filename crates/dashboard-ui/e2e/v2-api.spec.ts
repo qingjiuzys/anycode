@@ -32,23 +32,50 @@ test.describe("Digital Workbench V2 API", () => {
     expect(Array.isArray(p.presets)).toBeTruthy();
   });
 
-  test("github connector issues endpoint shape", async ({ request }) => {
-    const conn = await request.post("/api/settings/connectors", {
+  test("github connector rejects invalid repo on create", async ({ request }) => {
+    const bad = await request.post("/api/settings/connectors", {
       data: {
         source_type: "github",
-        name: "e2e-github",
+        name: "e2e-github-invalid",
         config: { repo: "not-a-repo" },
         enabled: true,
       },
     });
-    expect(conn.ok()).toBeTruthy();
-    const c = await conn.json();
-    const id = c.connector?.id as string;
-    expect(id).toBeTruthy();
+    expect(bad.status()).toBe(400);
+    const err = await bad.json();
+    expect(String(err.error ?? "")).toMatch(/owner\/repo/i);
+  });
 
-    const issues = await request.get(`/api/settings/connectors/${id}/github/issues`);
-    expect(issues.status()).toBe(502);
-    const err = await issues.json();
-    expect(err.error).toBeTruthy();
+  test("github connector issues endpoint shape", async ({ request }) => {
+    let id: string | undefined;
+    try {
+      const conn = await request.post("/api/settings/connectors", {
+        data: {
+          source_type: "github",
+          name: "e2e-github",
+          config: { repo: "octocat/Hello-World" },
+          enabled: true,
+        },
+      });
+      expect(conn.ok()).toBeTruthy();
+      const c = await conn.json();
+      id = c.connector?.id as string;
+      expect(id).toBeTruthy();
+
+      const issues = await request.get(`/api/settings/connectors/${id}/github/issues`);
+      // Public repo may succeed (200) or fail with gateway/timeout (502).
+      expect([200, 502]).toContain(issues.status());
+      const body = await issues.json();
+      if (issues.status() === 200) {
+        expect(Array.isArray(body.issues)).toBeTruthy();
+      } else {
+        expect(body.error).toBeTruthy();
+      }
+      // Create shape is the primary contract; live GitHub is best-effort.
+    } finally {
+      if (id) {
+        await request.delete(`/api/settings/connectors/${id}`);
+      }
+    }
   });
 });

@@ -32,6 +32,11 @@ import {
   optimisticResolvedApprovalsSnapshot,
   subscribeOptimisticResolvedApprovals,
 } from "@/lib/approvalOptimisticStore";
+import {
+  readPinnedSessionId,
+  resolveShellSessionId,
+  writePinnedSessionId,
+} from "@/lib/activeSessionStorage";
 import { prefetchSessionConversation } from "@/lib/sessionQuery";
 
 export type QuickChip = {
@@ -160,6 +165,9 @@ function useConversationShellState(): ConversationShellContextValue {
   const [optimisticStreamingSessionId, setOptimisticStreamingSessionId] = useState<string | null>(
     null,
   );
+  const [pinnedSessionId, setPinnedSessionId] = useState<string | null>(() =>
+    readPinnedSessionId(),
+  );
   const globalSseLive = useSseStatus() === "live";
   const { counts: pendingCounts, pendingTotal, isLoading: pendingCountsLoading } =
     usePendingApprovalCounts();
@@ -234,6 +242,8 @@ function useConversationShellState(): ConversationShellContextValue {
       setSelectedTool(null);
       if (!sessionId) {
         setPendingSessionId(null);
+        setPinnedSessionId(null);
+        writePinnedSessionId(null);
         queueMicrotask(() => {
           navigateSearch({
             ...effectiveSearch,
@@ -311,12 +321,15 @@ function useConversationShellState(): ConversationShellContextValue {
   }, [listSearch, sidebarRows]);
 
   const urlSessionId = useMemo(() => {
-    if (pathname === "/") return null;
-    if (search.session) return search.session;
     const pool = sidebarRows.length > 0 ? sidebarRows : rows;
-    if (pool.length === 0) return null;
-    return pool[0]!.id;
-  }, [pathname, rows, sidebarRows, search.session]);
+    const fallback = pool.length > 0 ? pool[0]!.id : null;
+    return resolveShellSessionId({
+      pathname,
+      urlSession: search.session,
+      pinnedSessionId,
+      fallbackSessionId: fallback,
+    });
+  }, [pathname, pinnedSessionId, rows, sidebarRows, search.session]);
 
   useEffect(() => {
     if (pendingSessionId && search.session === pendingSessionId) {
@@ -325,6 +338,13 @@ function useConversationShellState(): ConversationShellContextValue {
   }, [pendingSessionId, search.session]);
 
   const displaySessionId = pendingSessionId ?? urlSessionId;
+
+  useEffect(() => {
+    if (!displaySessionId) return;
+    if (pinnedSessionId === displaySessionId) return;
+    setPinnedSessionId(displaySessionId);
+    writePinnedSessionId(displaySessionId);
+  }, [displaySessionId, pinnedSessionId]);
 
   const baseSelected = useMemo(() => {
     const pool = sidebarRows.length > 0 ? sidebarRows : rows;

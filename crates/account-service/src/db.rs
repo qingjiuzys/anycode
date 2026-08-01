@@ -94,6 +94,11 @@ impl AccountDb {
             include_str!("../migrations/019_free_plan_20m_tokens.sql"),
         )
         .await?;
+        self.apply_migration(
+            "020_a2a_collation_fix",
+            include_str!("../migrations/020_a2a_collation_fix.sql"),
+        )
+        .await?;
         Ok(())
     }
 

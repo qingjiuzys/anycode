@@ -90,3 +90,22 @@ export interface CloudMeResponse {
   user: CloudAuthUser;
   authenticated: boolean;
 }
+
+export type PaymentProvider = "wechat" | "stripe";
+
+export interface PaymentOrder {
+  id: string;
+  provider: string;
+  plan: string;
+  billing_cycle: string;
+  amount_fen: number;
+  currency: string;
+  status: string;
+  code_url?: string | null;
+  expires_at: string;
+  paid_at?: string | null;
+}
+
+export type CheckoutResponse =
+  | { provider: "stripe"; checkout_url: string }
+  | { provider: "wechat"; order: PaymentOrder };

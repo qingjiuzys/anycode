@@ -188,6 +188,10 @@ kubectl apply -f deploy/account-service/k8s/secret.yaml -n $NS   # template only
 chmod +x deploy/account-service/scripts/create-k8s-wechat-secret.sh
 ./deploy/account-service/scripts/create-k8s-wechat-secret.sh $NS
 
+# 2c) One-shot: sync .env secrets + WeChat PEMs + rollout (requires deploy/account-service/.env)
+chmod +x deploy/account-service/scripts/apply-k8s-account-secrets.sh
+./deploy/account-service/scripts/apply-k8s-account-secrets.sh $NS
+
 # 3) App + Service
 kubectl apply -f deploy/account-service/k8s/deployment.yaml -n $NS
 

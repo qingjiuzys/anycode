@@ -6,6 +6,7 @@
 use crate::services::{TaskRecord, ToolServices};
 use anycode_core::prelude::*;
 use async_trait::async_trait;
+use chrono::{Datelike, Local, Timelike};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -37,6 +38,8 @@ struct TcIn {
     description: String,
     #[serde(default)]
     metadata: serde_json::Value,
+    #[serde(default, alias = "active_form")]
+    active_form: Option<String>,
 }
 
 #[async_trait]
@@ -53,6 +56,7 @@ impl Tool for TaskCreateTool {
             "properties": {
                 "subject": { "type": "string" },
                 "description": { "type": "string" },
+                "activeForm": { "type": "string", "description": "Present continuous form shown in spinner when in_progress (e.g. \"Running tests\")" },
                 "metadata": {}
             },
             "required": ["subject", "description"]
@@ -69,7 +73,7 @@ impl Tool for TaskCreateTool {
         let v: TcIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
         let t = self
             .services
-            .insert_task(v.subject, v.description, v.metadata);
+            .insert_task_full(v.subject, v.description, v.metadata, v.active_form);
         Ok(ToolOutput {
             result: json!({ "task": { "id": t.id, "subject": t.subject } }),
             error: None,
@@ -81,7 +85,10 @@ impl Tool for TaskCreateTool {
 // --- TaskUpdate ---
 #[derive(Deserialize)]
 struct TuIn {
-    id: String,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default, alias = "task_id")]
+    task_id: Option<String>,
     #[serde(default)]
     subject: String,
     #[serde(default)]
@@ -90,6 +97,20 @@ struct TuIn {
     status: String,
     #[serde(default)]
     metadata: serde_json::Value,
+    #[serde(default, alias = "active_form")]
+    active_form: Option<String>,
+    #[serde(default)]
+    owner: Option<String>,
+    #[serde(default)]
+    add_blocks: Option<Vec<String>>,
+    #[serde(default)]
+    add_blocked_by: Option<Vec<String>>,
+}
+
+impl TuIn {
+    fn id(&self) -> Option<String> {
+        self.task_id.clone().or_else(|| self.id.clone())
+    }
 }
 
 pub struct TaskUpdateTool {
@@ -118,13 +139,17 @@ impl Tool for TaskUpdateTool {
         json!({
             "type": "object",
             "properties": {
-                "id": { "type": "string" },
+                "taskId": { "type": "string", "description": "The ID of the task to update (alias: id)" },
                 "subject": { "type": "string" },
                 "description": { "type": "string" },
-                "status": { "type": "string" },
+                "status": { "type": "string", "enum": ["pending", "in_progress", "completed", "deleted"] },
+                "activeForm": { "type": "string", "description": "Present continuous form shown in spinner when in_progress (e.g. \"Running tests\")" },
+                "owner": { "type": "string", "description": "New owner for the task" },
+                "addBlocks": { "type": "array", "items": { "type": "string" }, "description": "Task IDs that this task blocks" },
+                "addBlockedBy": { "type": "array", "items": { "type": "string" }, "description": "Task IDs that block this task" },
                 "metadata": {}
             },
-            "required": ["id"]
+            "required": ["taskId"]
         })
     }
     fn permission_mode(&self) -> PermissionMode {
@@ -136,14 +161,21 @@ impl Tool for TaskUpdateTool {
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
         let u: TuIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        let id = u
+            .id()
+            .ok_or_else(|| CoreError::Other(anyhow::anyhow!("TaskUpdate requires taskId")))?;
         let patch = TaskRecord {
-            id: u.id.clone(),
+            id: id.clone(),
             subject: u.subject,
             description: u.description,
             status: u.status,
             metadata: u.metadata,
+            active_form: u.active_form,
+            owner: u.owner,
+            blocks: u.add_blocks.unwrap_or_default(),
+            blocked_by: u.add_blocked_by.unwrap_or_default(),
         };
-        let out = self.services.update_task(&u.id, patch);
+        let out = self.services.update_task(&id, patch);
         Ok(ToolOutput {
             result: json!({ "task": out }),
             error: if out.is_none() {
@@ -198,7 +230,17 @@ impl Tool for TaskListTool {
 // --- TaskGet ---
 #[derive(Deserialize)]
 struct TgIn {
-    id: String,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    task_id: Option<String>,
+}
+
+impl TgIn {
+    /// 统一取 ID：优先 `taskId`/`task_id`（Claude Code 参数名），其次兼容 `id`。
+    fn resolve_id(&self) -> Option<String> {
+        self.task_id.clone().or_else(|| self.id.clone())
+    }
 }
 
 pub struct TaskGetTool {
@@ -217,13 +259,15 @@ impl Tool for TaskGetTool {
         "TaskGet"
     }
     fn description(&self) -> &str {
-        "Get one orchestration task by id."
+        "Get one orchestration task by taskId (alias: id)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
-            "properties": { "id": { "type": "string" } },
-            "required": ["id"]
+            "properties": {
+                "taskId": { "type": "string", "description": "The ID of the task to retrieve (alias: id)" }
+            },
+            "required": ["taskId"]
         })
     }
     fn permission_mode(&self) -> PermissionMode {
@@ -235,7 +279,10 @@ impl Tool for TaskGetTool {
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
         let g: TgIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        let t = self.services.get_task(&g.id);
+        let id = g
+            .resolve_id()
+            .ok_or_else(|| CoreError::Other(anyhow::anyhow!("TaskGet requires taskId")))?;
+        let t = self.services.get_task(&id);
         Ok(ToolOutput {
             result: json!({ "task": t }),
             error: if t.is_none() {
@@ -269,13 +316,16 @@ impl Tool for TaskStopTool {
         "TaskStop"
     }
     fn description(&self) -> &str {
-        "Remove a task record by id (same persistence rules as TaskCreate). If `id` is a UUID for a nested `Agent` or Bash `run_in_background` job, best-effort aborts that background run (see `background_agent` in JSON)."
+        "Remove a task record by task_id (same persistence rules as TaskCreate). If the id is a UUID for a nested `Agent` or Bash `run_in_background` job, best-effort aborts that background run (see `background_agent` in JSON). Accepts `task_id` (Claude Code), `id`, or `shell_id` (deprecated)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
-            "properties": { "id": { "type": "string" } },
-            "required": ["id"]
+            "properties": {
+                "task_id": { "type": "string", "description": "The ID of the background task to stop (alias: id, shell_id)" },
+                "shell_id": { "type": "string", "description": "Deprecated: use task_id instead" }
+            },
+            "required": ["task_id"]
         })
     }
     fn permission_mode(&self) -> PermissionMode {
@@ -286,14 +336,24 @@ impl Tool for TaskStopTool {
     }
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
+        let shell_id = input
+            .input
+            .get("shell_id")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         let g: TgIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        if let Ok(uid) = Uuid::parse_str(g.id.trim()) {
+        let gid = g
+            .resolve_id()
+            .or(shell_id)
+            .ok_or_else(|| CoreError::Other(anyhow::anyhow!("TaskStop requires task_id")))?;
+        if let Ok(uid) = Uuid::parse_str(gid.trim()) {
             if self.services.cancel_background_agent(uid) {
                 return Ok(ToolOutput {
                     result: json!({
                         "stopped": true,
                         "kind": "background_agent",
-                        "id": g.id,
+                        "task_id": gid,
+                        "id": gid,
                         "note": "best-effort abort: sets nested cooperative-cancel flag and aborts the background task (same flag as NestedTaskInvoke.cancel / TaskContext.nested_cancel)"
                     }),
                     error: None,
@@ -301,9 +361,9 @@ impl Tool for TaskStopTool {
                 });
             }
         }
-        let ok = self.services.remove_task(&g.id);
+        let ok = self.services.remove_task(&gid);
         Ok(ToolOutput {
-            result: json!({ "stopped": ok }),
+            result: json!({ "stopped": ok, "task_id": gid }),
             error: if ok { None } else { Some("not found".into()) },
             duration_ms: start.elapsed().as_millis() as u64,
         })
@@ -327,13 +387,15 @@ impl Tool for TaskOutputTool {
         "TaskOutput"
     }
     fn description(&self) -> &str {
-        "Returns the orchestration task record when `id` matches TaskCreate. If `id` is a runtime execution UUID (e.g. `nested_task_id` from Agent, or `background_task_id` from Bash `run_in_background`), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists. For background jobs, includes `background_status` / `background_summary` from the in-process registry while the process lives."
+        "Returns the orchestration task record when `task_id` matches TaskCreate. If it is a runtime execution UUID (e.g. `nested_task_id` from Agent, or `background_task_id` from Bash `run_in_background`), also returns `output_log_path` and a tail of `output.log` under ~/.anycode/tasks/<id>/ when the file exists. For background jobs, includes `background_status` / `background_summary` from the in-process registry while the process lives. Accepts `task_id` (Claude Code) or `id`."
     }
     fn schema(&self) -> serde_json::Value {
         json!({
             "type": "object",
-            "properties": { "id": { "type": "string" } },
-            "required": ["id"]
+            "properties": {
+                "task_id": { "type": "string", "description": "The task ID to get output from (alias: id)" }
+            },
+            "required": ["task_id"]
         })
     }
     fn permission_mode(&self) -> PermissionMode {
@@ -345,14 +407,17 @@ impl Tool for TaskOutputTool {
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
         let g: TgIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        let t = self.services.get_task(&g.id);
+        let gid = g
+            .resolve_id()
+            .ok_or_else(|| CoreError::Other(anyhow::anyhow!("TaskOutput requires task_id")))?;
+        let t = self.services.get_task(&gid);
 
         const TAIL_MAX: usize = 24 * 1024;
         let mut output_log_path: Option<String> = None;
         let mut output_tail: Option<String> = None;
         let mut background_status: Option<String> = None;
         let mut background_summary: Option<String> = None;
-        if let Ok(uid) = Uuid::parse_str(g.id.trim()) {
+        if let Ok(uid) = Uuid::parse_str(gid.trim()) {
             if let Some((st, sum)) = self.services.background_agent_tool_view(uid) {
                 background_status = Some(st.as_json_str().to_string());
                 background_summary = sum;
@@ -477,7 +542,11 @@ impl Tool for TeamDeleteTool {
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
         let g: TgIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        let ok = self.services.remove_team(&g.id);
+        let ok = self.services.remove_team(
+            g.resolve_id()
+                .as_deref()
+                .ok_or_else(|| CoreError::Other(anyhow::anyhow!("TeamDelete requires id")))?,
+        );
         Ok(ToolOutput {
             result: json!({ "deleted": ok }),
             error: if ok { None } else { Some("not found".into()) },
@@ -489,8 +558,15 @@ impl Tool for TeamDeleteTool {
 // --- Cron ---
 #[derive(Deserialize)]
 struct CronIn {
-    schedule: String,
-    command: String,
+    #[serde(default)]
+    schedule: Option<String>,
+    #[serde(default)]
+    command: Option<String>,
+    /// Claude Code 兼容别名：`cron` → `schedule`，`prompt` → `command`。
+    #[serde(default)]
+    cron: Option<String>,
+    #[serde(default)]
+    prompt: Option<String>,
     /// `local`（默认）：`schedule` 按本机墙钟理解并转为 UTC 存储；`utc`：字段已是 UTC。
     #[serde(default = "default_cron_tz")]
     schedule_timezone: String,
@@ -510,10 +586,27 @@ struct CronIn {
     /// instead of a single-prompt task; `command` becomes the workflow user prompt.
     #[serde(default)]
     workflow: Option<String>,
+    /// Claude Code 语义：true (default) = fire on every cron match; false = fire once then auto-delete.
+    #[serde(default)]
+    recurring: Option<bool>,
+    /// Claude Code 语义：true = persist across restarts. anyCode 的编排 cron 始终持久化，故默认 true。
+    #[serde(default)]
+    durable: Option<bool>,
 }
 
 fn default_cron_tz() -> String {
     "local".to_string()
+}
+
+impl CronIn {
+    /// 兼容 `cron`/`prompt` 别名（Claude Code）与 `schedule`/`command`（anyCode）。
+    fn schedule_expr(&self) -> Option<&str> {
+        self.schedule.as_deref().or(self.cron.as_deref())
+    }
+
+    fn command_str(&self) -> Option<&str> {
+        self.command.as_deref().or(self.prompt.as_deref())
+    }
 }
 
 #[derive(Deserialize)]
@@ -554,8 +647,12 @@ impl Tool for CronCreateTool {
         json!({
             "type": "object",
             "properties": {
-                "schedule": { "type": "string" },
-                "command": { "type": "string" },
+                "cron": { "type": "string", "description": "Standard 5-field cron expression in local time (Claude Code alias for `schedule`): \"M H DoM Mon DoW\" (e.g. \"*/5 * * * *\" = every 5 minutes). 6-field sec-prefixed forms also accepted." },
+                "prompt": { "type": "string", "description": "The prompt to enqueue at each fire time (Claude Code alias for `command`)." },
+                "schedule": { "type": "string", "description": "6 fields sec min hour day month weekday (5-field unix gets leading 0 sec). Alias: `cron`." },
+                "command": { "type": "string", "description": "Runs as one agent task when the scheduler holds the lock. Alias: `prompt`." },
+                "recurring": { "type": "boolean", "description": "true (default) = fire on every cron match until deleted; false = fire once at the next match, then auto-delete." },
+                "durable": { "type": "boolean", "description": "true (default) = persist across restarts (anyCode cron always persists; flag kept for Claude Code parity)." },
                 "schedule_timezone": {
                     "type": "string",
                     "description": "local (default): machine wall clock; utc: schedule already UTC; or IANA e.g. Asia/Shanghai"
@@ -591,7 +688,18 @@ impl Tool for CronCreateTool {
         let start = Instant::now();
         let c: CronIn =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
-        if let Err(e) = crate::cron_schedule::validate_cron_schedule_expr(&c.schedule) {
+        let schedule_expr = c.schedule_expr().unwrap_or_default();
+        let command_str = c.command_str().unwrap_or_default();
+        if schedule_expr.is_empty() || command_str.is_empty() {
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": "CronCreate requires schedule (or cron) and command (or prompt)"
+                }),
+                error: Some("missing schedule/command".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        if let Err(e) = crate::cron_schedule::validate_cron_schedule_expr(schedule_expr) {
             return Ok(ToolOutput {
                 result: json!({ "error": format!("invalid cron schedule: {e}") }),
                 error: Some(format!("invalid cron schedule: {e}")),
@@ -610,7 +718,7 @@ impl Tool for CronCreateTool {
             }
         };
         let prepared =
-            crate::cron_schedule::prepare_cron_schedule_for_storage(&c.schedule, resolved);
+            crate::cron_schedule::prepare_cron_schedule_for_storage(schedule_expr, resolved);
         let stored_schedule = prepared.schedule;
         let tz_note = prepared.note;
         if let Some(ref profile) = c.tool_profile {
@@ -658,7 +766,7 @@ impl Tool for CronCreateTool {
         }
         let job = self.services.push_cron_with_options(
             stored_schedule.clone(),
-            c.command,
+            command_str.to_string(),
             crate::services::CronJobCreateOptions {
                 name: None,
                 enabled: None,
@@ -669,6 +777,7 @@ impl Tool for CronCreateTool {
                 tool_allowlist: c.tool_allowlist,
                 project_id: None,
                 workflow: c.workflow,
+                recurring: c.recurring,
             },
         );
         let next_utc = crate::cron_schedule::next_fire_utc_from_stored_schedule(&stored_schedule);
@@ -684,6 +793,8 @@ impl Tool for CronCreateTool {
                 "tool_allowlist": job.tool_allowlist,
                 "schedule_stored_utc": stored_schedule,
                 "schedule_timezone_applied": tz_note,
+                "recurring": c.recurring.unwrap_or(true),
+                "durable": c.durable.unwrap_or(true),
                 "next_fire_utc": next_utc_s,
                 "next_fire_local": next_local_s,
                 "hint": "Requires the scheduler (`anycode-daemon scheduler`). Cron output is recorded in the Workbench session and ~/.anycode/logs/cron-runs.jsonl."
@@ -765,6 +876,8 @@ struct CronUpdateIn {
     project_id: Option<String>,
     #[serde(default)]
     workflow: Option<String>,
+    #[serde(default)]
+    recurring: Option<bool>,
 }
 
 pub struct CronUpdateTool {
@@ -805,7 +918,8 @@ impl Tool for CronUpdateTool {
                 "session_id": { "type": "string" },
                 "failure_destination": { "type": "string" },
                 "tool_profile": { "type": "string" },
-                "project_id": { "type": "string" }
+                "project_id": { "type": "string" },
+                "recurring": { "type": "boolean", "description": "false = one-shot (auto-delete after next fire); true = recurring" }
             },
             "required": ["id"]
         })
@@ -839,6 +953,7 @@ impl Tool for CronUpdateTool {
             tool_profile: c.tool_profile.clone(),
             project_id: c.project_id,
             workflow: c.workflow.clone(),
+            recurring: c.recurring,
         };
 
         let mut schedule_note = None;
@@ -1007,6 +1122,325 @@ impl Tool for RemoteTriggerTool {
         self.services.push_remote_hook(r.url.clone());
         Ok(ToolOutput {
             result: json!({ "registered": true, "url": r.url }),
+            error: None,
+            duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+}
+
+// --- ScheduleWakeup ---
+#[derive(Deserialize)]
+struct SwIn {
+    #[serde(default)]
+    delay_seconds: Option<u64>,
+    #[serde(default)]
+    reason: Option<String>,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    stop: bool,
+}
+
+const WAKEUP_JOB_NAME_PREFIX: &str = "schedule-wakeup:";
+
+pub struct ScheduleWakeupTool {
+    services: Arc<ToolServices>,
+    policy: SecurityPolicy,
+}
+
+impl ScheduleWakeupTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self {
+            services,
+            policy: sens(),
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for ScheduleWakeupTool {
+    fn name(&self) -> &str {
+        "ScheduleWakeup"
+    }
+    fn description(&self) -> &str {
+        "Schedule the agent to wake up after a delay and run a prompt. \\\n         On fire, the prompt runs as one agent task (like CronCreate with a one-shot schedule). \\\n         Pass `stop: true` to cancel all pending wakeups."
+    }
+    fn schema(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "delaySeconds": { "type": "integer", "description": "Seconds from now to wake up. Clamped to [60, 3600] by the runtime. Required unless `stop` is true." },
+                "reason": { "type": "string", "description": "One short sentence explaining the chosen delay. Shown to the user." },
+                "prompt": { "type": "string", "description": "The prompt to run when the wakeup fires. Required unless `stop` is true." },
+                "stop": { "type": "boolean", "description": "Set to true to cancel all pending wakeups immediately. When true, other fields are ignored." }
+            }
+        })
+    }
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Default
+    }
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        Some(&self.policy)
+    }
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        let w: SwIn = serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+
+        if w.stop {
+            let mut cancelled = 0u32;
+            for job in self.services.list_crons() {
+                if job
+                    .name
+                    .as_deref()
+                    .is_some_and(|n| n.starts_with(WAKEUP_JOB_NAME_PREFIX))
+                {
+                    if self.services.remove_cron(&job.id) {
+                        cancelled += 1;
+                    }
+                }
+            }
+            return Ok(ToolOutput {
+                result: json!({
+                    "stopped": true,
+                    "cancelledWakeups": cancelled,
+                    "message": "pending wakeups cancelled"
+                }),
+                error: None,
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
+        let Some(delay) = w.delay_seconds else {
+            return Ok(ToolOutput {
+                result: json!({ "error": "ScheduleWakeup requires delaySeconds unless stop is true" }),
+                error: Some("missing delaySeconds".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        };
+        let prompt = w.prompt.unwrap_or_default().trim().to_string();
+        if prompt.is_empty() {
+            return Ok(ToolOutput {
+                result: json!({ "error": "ScheduleWakeup requires prompt unless stop is true" }),
+                error: Some("missing prompt".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
+        let was_clamped = delay < 60 || delay > 3600;
+        let clamped = delay.clamp(60, 3600);
+
+        // 一次性 cron：当前本地时刻 + delay 秒（具体数字字段，星期用 * 避免 OR 语义）。
+        let target = Local::now() + chrono::Duration::seconds(clamped as i64);
+        let expr = format!(
+            "{} {} {} {} {} *",
+            target.second(),
+            target.minute(),
+            target.hour(),
+            target.day(),
+            target.month()
+        );
+        let prepared = crate::cron_schedule::prepare_cron_schedule_for_storage(
+            &expr,
+            crate::cron_schedule::ScheduleTimezone::Local,
+        );
+
+        let id = Uuid::new_v4().to_string();
+        let job = self.services.push_cron_with_options(
+            prepared.schedule,
+            prompt,
+            crate::services::CronJobCreateOptions {
+                name: Some(format!("{WAKEUP_JOB_NAME_PREFIX}{id}")),
+                enabled: None,
+                schedule_timezone: Some("local".to_string()),
+                session_id: None,
+                failure_destination: Some("log".to_string()),
+                tool_profile: Some("default".to_string()),
+                tool_allowlist: None,
+                project_id: None,
+                workflow: None,
+                // 一次性唤醒：fire 后由调度器自动删除。
+                recurring: Some(false),
+            },
+        );
+
+        let scheduled_for = target.timestamp_millis();
+        Ok(ToolOutput {
+            result: json!({
+                "scheduledFor": scheduled_for,
+                "clampedDelaySeconds": clamped,
+                "wasClamped": was_clamped,
+                "jobId": job.id,
+                "reason": w.reason.unwrap_or_default(),
+                "hint": "Wakeups are persisted cron jobs; cancel with ScheduleWakeup stop:true or CronDelete."
+            }),
+            error: None,
+            duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+}
+
+// --- Monitor ---
+#[derive(Deserialize)]
+struct MonIn {
+    description: String,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
+    #[serde(default)]
+    persistent: bool,
+    #[serde(default)]
+    command: Option<String>,
+    #[serde(default)]
+    ws: Option<serde_json::Value>,
+}
+
+pub struct MonitorTool {
+    services: Arc<ToolServices>,
+    policy: SecurityPolicy,
+}
+
+impl MonitorTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self {
+            services,
+            policy: sens(),
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for MonitorTool {
+    fn name(&self) -> &str {
+        "Monitor"
+    }
+    fn description(&self) -> &str {
+        "Run a background monitor: a shell command whose stdout lines are events (or a WebSocket). \\\n         Returns a task id; poll with TaskOutput and stop with TaskStop."
+    }
+    fn schema(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "description": { "type": "string", "description": "Short human-readable description of what you are monitoring (shown in notifications)." },
+                "timeout_ms": { "type": "integer", "description": "Kill the monitor after this deadline. Default 300000ms, max 3600000ms. Ignored when persistent is true." },
+                "persistent": { "type": "boolean", "description": "Run for the lifetime of the session (no timeout). Stop with TaskStop." },
+                "command": { "type": "string", "description": "Shell command or script. Each stdout line is an event; exit ends the watch." },
+                "ws": { "type": "object", "description": "WebSocket to open. Each text frame is an event. Cannot be combined with command." }
+            },
+            "required": ["description"]
+        })
+    }
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Default
+    }
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        Some(&self.policy)
+    }
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        let m: MonIn =
+            serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
+        if m.description.trim().is_empty() {
+            return Ok(ToolOutput {
+                result: json!({ "error": "Monitor requires description" }),
+                error: Some("missing description".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+
+        let Some(command) = m.command.clone() else {
+            let ws_hint = if m.ws.is_some() {
+                " (WebSocket monitors are not implemented yet)"
+            } else {
+                ""
+            };
+            return Ok(ToolOutput {
+                result: json!({
+                    "error": format!("Monitor requires `command`{ws_hint}")
+                }),
+                error: Some("missing command".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        };
+
+        let timeout_ms = if m.persistent {
+            0
+        } else {
+            m.timeout_ms.unwrap_or(300_000).clamp(1_000, 3_600_000)
+        };
+
+        let task_id = Uuid::new_v4();
+        let job = self.services.insert_background_agent_job(task_id);
+        job.set_title(m.description.clone());
+
+        let (program, args): (String, Vec<String>) = if cfg!(target_os = "windows") {
+            ("cmd".into(), vec!["/C".into(), command])
+        } else {
+            ("bash".into(), vec!["-c".into(), command])
+        };
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+
+        let spawned =
+            crate::shell_exec::spawn_background_child(&program, &arg_refs, None, task_id)?;
+        let mut child = spawned.child;
+        let log_path = spawned.log_path;
+
+        let services = self.services.clone();
+        let persistent = m.persistent;
+        let timeout = timeout_ms;
+        let handle = tokio::spawn(async move {
+            let outcome = if persistent {
+                match child.wait().await {
+                    Ok(st) => (
+                        crate::services::BackgroundAgentStatus::Completed,
+                        format!("exit_code={}", st.code().unwrap_or(0)),
+                    ),
+                    Err(e) => {
+                        crate::shell_exec::kill_background_child(&mut child);
+                        (
+                            crate::services::BackgroundAgentStatus::Failed,
+                            e.to_string(),
+                        )
+                    }
+                }
+            } else {
+                match tokio::time::timeout(std::time::Duration::from_millis(timeout), child.wait())
+                    .await
+                {
+                    Ok(Ok(st)) => (
+                        crate::services::BackgroundAgentStatus::Completed,
+                        format!("exit_code={}", st.code().unwrap_or(0)),
+                    ),
+                    Ok(Err(e)) => {
+                        crate::shell_exec::kill_background_child(&mut child);
+                        (
+                            crate::services::BackgroundAgentStatus::Failed,
+                            e.to_string(),
+                        )
+                    }
+                    Err(_) => {
+                        crate::shell_exec::kill_background_child(&mut child);
+                        let _ = child.wait().await;
+                        (
+                            crate::services::BackgroundAgentStatus::Failed,
+                            format!("timed out after {timeout}ms"),
+                        )
+                    }
+                }
+            };
+            services.finish_background_shell(task_id, outcome.0, outcome.1);
+        });
+        job.set_abort(handle.abort_handle());
+
+        let output_file = crate::shell_exec::nested_output_log_path(task_id)
+            .unwrap_or_else(|| log_path.to_string_lossy().into_owned());
+
+        Ok(ToolOutput {
+            result: json!({
+                "taskId": task_id.to_string(),
+                "timeoutMs": timeout,
+                "persistent": persistent,
+                "output_file": output_file,
+                "hint": "Poll with TaskOutput id=<taskId>; stop with TaskStop id=<taskId>."
+            }),
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })

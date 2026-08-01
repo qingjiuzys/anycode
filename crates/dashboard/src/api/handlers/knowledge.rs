@@ -174,6 +174,8 @@ pub struct CreateCronJobBody {
     pub project_id: Option<String>,
     #[serde(default)]
     pub workflow: Option<String>,
+    #[serde(default)]
+    pub recurring: Option<bool>,
 }
 
 fn default_cron_tz() -> String {
@@ -215,6 +217,7 @@ pub async fn create_cron_job(Json(body): Json<CreateCronJobBody>) -> impl IntoRe
         tool_allowlist: None,
         project_id: body.project_id,
         workflow: body.workflow,
+        recurring: body.recurring,
     };
     match anycode_tools::append_cron_job_to_orchestration_file(
         &path,

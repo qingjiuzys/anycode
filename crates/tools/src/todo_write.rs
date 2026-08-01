@@ -1,4 +1,4 @@
-//! `TodoWrite` — 会话内 todo 列表（内存，对齐 `todos` 数组语义）。
+//! `TodoWrite` — 会话内 todo 列表（内存，对齐 Claude Code `todos[{content,status,activeForm}]` 语义）。
 
 use crate::services::{TodoItem, ToolServices};
 use anycode_core::prelude::*;
@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Instant;
+use uuid::Uuid;
 
 pub struct TodoWriteTool {
     services: Arc<ToolServices>,
@@ -19,9 +20,12 @@ impl TodoWriteTool {
 
 #[derive(Deserialize)]
 struct TodoIn {
-    id: String,
+    #[serde(default)]
+    id: Option<String>,
     content: String,
     status: String,
+    #[serde(default, alias = "active_form")]
+    active_form: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -48,11 +52,11 @@ impl Tool for TodoWriteTool {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "id": { "type": "string" },
                             "content": { "type": "string" },
-                            "status": { "type": "string" }
+                            "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] },
+                            "activeForm": { "type": "string", "description": "Present continuous form shown in spinner when in_progress (e.g. \"Running tests\")" }
                         },
-                        "required": ["id", "content", "status"]
+                        "required": ["content", "status"]
                     }
                 }
             },
@@ -76,9 +80,10 @@ impl Tool for TodoWriteTool {
             .todos
             .into_iter()
             .map(|t| TodoItem {
-                id: t.id,
+                id: t.id.unwrap_or_else(|| Uuid::new_v4().to_string()),
                 content: t.content,
                 status: t.status,
+                active_form: t.active_form,
             })
             .collect();
         let (old, new) = self.services.replace_todos(mapped);

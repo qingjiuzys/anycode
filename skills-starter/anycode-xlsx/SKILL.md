@@ -6,7 +6,7 @@ description: >-
 description_zh: >-
   anyCode Excel：复制 workbook 模板 → validate → 导出 FDE 品牌 xlsx。
 name_zh: anyCode Excel
-category: business
+category: office
 version: 1.1.0
 mode: executable
 approval: writes-workspace

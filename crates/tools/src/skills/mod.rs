@@ -12,7 +12,7 @@ pub use install::{
 pub use router::{
     resolve_capabilities, SelectedSkill, SkillMatchStatus, SkillResolution, SkillResolutionContext,
 };
-pub use vet::{vet_skill_by_id, vet_skill_dir, SkillVetReport};
+pub use vet::{vet_skill_dir, SkillVetReport};
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -437,10 +437,15 @@ pub fn parse_skill_manifest_file(path: &Path) -> Option<SkillManifest> {
 pub fn normalize_skill_category(raw: &str) -> String {
     let category = raw.trim().to_lowercase();
     match category.as_str() {
-        "library-ref" | "verification" | "data" | "business" | "scaffolding" | "quality"
-        | "cicd" | "runbook" | "infra" | "other" => category,
-        "office" | "docs" => "business".into(),
-        "dev" => "quality".into(),
+        "office" | "writing" | "design" | "research" | "engineering" | "ops" | "other" => category,
+        // Legacy Anthropic-style / older anyCode taxonomy → product taxonomy.
+        "docs" | "business" => "office".into(),
+        "creative" => "design".into(),
+        "data" => "research".into(),
+        "quality" | "scaffolding" | "cicd" | "library-ref" | "verification" | "dev" => {
+            "engineering".into()
+        }
+        "runbook" | "infra" => "ops".into(),
         _ => "other".into(),
     }
 }
@@ -533,7 +538,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(manifest.version.as_deref(), Some("1.2.0"));
-        assert_eq!(normalize_skill_category("office"), "business");
+        assert_eq!(normalize_skill_category("office"), "office");
+        assert_eq!(normalize_skill_category("business"), "office");
+        assert_eq!(normalize_skill_category("quality"), "engineering");
         assert_eq!(
             manifest.permissions.unwrap().get("network"),
             Some(&serde_json::Value::Bool(false))

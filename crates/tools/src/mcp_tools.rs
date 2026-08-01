@@ -4,6 +4,8 @@ use crate::services::ToolServices;
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use serde::Deserialize;
+#[cfg(feature = "tools-mcp")]
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -445,5 +447,265 @@ impl Tool for McpAuthTool {
             error: None,
             duration_ms: start.elapsed().as_millis() as u64,
         })
+    }
+}
+
+pub struct RefreshMcpToolsTool {
+    #[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
+    services: Arc<ToolServices>,
+}
+
+impl RefreshMcpToolsTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self { services }
+    }
+}
+
+#[async_trait]
+impl Tool for RefreshMcpToolsTool {
+    fn name(&self) -> &str {
+        "RefreshMcpTools"
+    }
+
+    fn description(&self) -> &str {
+        "Refresh the tool list for connected MCP servers (re-runs tools/list)."
+    }
+
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "server": { "type": "string", "description": "Optional server name: refresh only this server. Omit to refresh all connected servers." }
+            }
+        })
+    }
+
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Default
+    }
+
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        None
+    }
+
+    #[cfg_attr(not(feature = "tools-mcp"), allow(unused_variables))]
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        #[cfg(feature = "tools-mcp")]
+        {
+            use crate::mcp_normalization::normalize_name_for_mcp;
+            let sessions = self.services.mcp_sessions();
+            if sessions.is_empty() {
+                return Ok(ToolOutput {
+                    result: serde_json::json!({
+                        "status": "unsupported",
+                        "error": "no MCP servers connected"
+                    }),
+                    error: Some("no MCP servers connected".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            let want = input
+                .input
+                .get("server")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(normalize_name_for_mcp);
+            let mut out = Vec::new();
+            let mut any_err = false;
+            for sess in sessions {
+                if let Some(ref w) = want {
+                    if sess.server_slug() != w.as_str() {
+                        continue;
+                    }
+                }
+                match sess.refresh_tools().await {
+                    Ok(v) => out.push(serde_json::json!({
+                        "mcp_server": sess.server_slug(),
+                        "result": v
+                    })),
+                    Err(e) => {
+                        any_err = true;
+                        out.push(serde_json::json!({
+                            "mcp_server": sess.server_slug(),
+                            "error": e.to_string()
+                        }));
+                    }
+                }
+            }
+            if out.is_empty() {
+                return Ok(ToolOutput {
+                    result: serde_json::json!({
+                        "status": "no_match",
+                        "error": "no connected server matches the requested server"
+                    }),
+                    error: Some("no matching MCP server".into()),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "servers": out,
+                    "refreshed": true,
+                    "partial_failure": any_err
+                }),
+                error: None,
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        #[cfg(not(feature = "tools-mcp"))]
+        {
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "status": "unsupported",
+                    "info": "MCP not configured"
+                }),
+                error: None,
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct ReadMcpResourceDirIn {
+    #[serde(default)]
+    server: String,
+    #[serde(default)]
+    uri: String,
+}
+
+pub struct ReadMcpResourceDirTool {
+    #[cfg_attr(not(feature = "tools-mcp"), allow(dead_code))]
+    services: Arc<ToolServices>,
+}
+
+impl ReadMcpResourceDirTool {
+    pub fn new(services: Arc<ToolServices>) -> Self {
+        Self { services }
+    }
+}
+
+#[async_trait]
+impl Tool for ReadMcpResourceDirTool {
+    fn name(&self) -> &str {
+        "ReadMcpResourceDir"
+    }
+
+    fn description(&self) -> &str {
+        "List resources in an MCP directory resource URI."
+    }
+
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "server": { "type": "string", "description": "The MCP server name" },
+                "uri": { "type": "string", "description": "The directory resource URI to list" }
+            },
+            "required": ["server", "uri"]
+        })
+    }
+
+    fn permission_mode(&self) -> PermissionMode {
+        PermissionMode::Default
+    }
+
+    fn security_policy(&self) -> Option<&SecurityPolicy> {
+        None
+    }
+
+    async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
+        let start = Instant::now();
+        let r: ReadMcpResourceDirIn =
+            serde_json::from_value(input.input.clone()).unwrap_or(ReadMcpResourceDirIn {
+                server: String::new(),
+                uri: String::new(),
+            });
+        if r.server.trim().is_empty() || r.uri.trim().is_empty() {
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "error": "server and uri are required"
+                }),
+                error: Some("server and uri required".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        #[cfg(feature = "tools-mcp")]
+        {
+            use crate::mcp_normalization::normalize_name_for_mcp;
+            let sessions = self.services.mcp_sessions();
+            let wn = normalize_name_for_mcp(r.server.trim());
+            for sess in sessions {
+                if sess.server_slug() != wn.as_str() {
+                    continue;
+                }
+                match sess.resources_list(None).await {
+                    Ok(v) => {
+                        let uri_prefix = r.uri.trim().trim_end_matches('/').to_string();
+                        let resources = v
+                            .get("resources")
+                            .and_then(|x| x.as_array())
+                            .cloned()
+                            .unwrap_or_default();
+                        let children: Vec<Value> = resources
+                            .into_iter()
+                            .filter(|res| {
+                                res.get("uri")
+                                    .and_then(|u| u.as_str())
+                                    .map(|u| {
+                                        let base = u.trim_end_matches('/');
+                                        base == uri_prefix
+                                            || (base.starts_with(&format!("{}/", uri_prefix)))
+                                    })
+                                    .unwrap_or(false)
+                            })
+                            .collect();
+                        return Ok(ToolOutput {
+                            result: serde_json::json!({
+                                "mcp_server": sess.server_slug(),
+                                "directory": r.uri,
+                                "resources": children,
+                                "count": children.len()
+                            }),
+                            error: None,
+                            duration_ms: start.elapsed().as_millis() as u64,
+                        });
+                    }
+                    Err(e) => {
+                        return Ok(ToolOutput {
+                            result: serde_json::json!({
+                                "error": e.to_string(),
+                                "mcp_server": sess.server_slug(),
+                                "directory": r.uri
+                            }),
+                            error: Some("resources/list failed".into()),
+                            duration_ms: start.elapsed().as_millis() as u64,
+                        });
+                    }
+                }
+            }
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "error": format!("no connected MCP server matches {:?}", r.server),
+                    "directory": r.uri
+                }),
+                error: Some("no matching MCP server".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        #[cfg(not(feature = "tools-mcp"))]
+        {
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "status": "unsupported",
+                    "error": "MCP not configured",
+                    "directory": r.uri
+                }),
+                error: Some("not configured".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
     }
 }

@@ -3,7 +3,7 @@ name: theme-factory
 description: Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.
 description_zh: 把预设或自定义主题应用到幻灯片、文档与 HTML 制品。
 name_zh: 主题工厂
-category: quality
+category: design
 version: 1.0.0
 mode: instructions
 priority: 80

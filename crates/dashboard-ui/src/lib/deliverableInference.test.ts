@@ -149,4 +149,50 @@ describe("collectInlineDeliverables", () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]?.path).toBe("/proj/mindmap-anycode-complex.md");
   });
+
+  it("does not surface plain process markdown notes as deliverable cards", () => {
+    const assistant: TranscriptBlock = {
+      id: "a1",
+      block_type: "assistant_message",
+      at: "2026-01-01T00:00:00Z",
+      title: "",
+      body: "已写入 docs/architecture.md 与 docs/roadmap.md。",
+    };
+    const writeStep = (path: string) => ({
+      key: path,
+      call: {
+        id: `c-${path}`,
+        block_type: "tool_call" as const,
+        at: "",
+        title: "FileWrite started",
+        body: "",
+        meta: { name: "FileWrite" },
+      },
+      result: {
+        id: `r-${path}`,
+        block_type: "tool_result" as const,
+        at: "",
+        title: "FileWrite finished",
+        body: "",
+        meta: { name: "FileWrite", path },
+      },
+    });
+    const byBlock = collectInlineDeliverables(
+      [
+        {
+          kind: "tool_cluster",
+          id: "tools-1",
+          steps: [
+            writeStep("/proj/docs/architecture.md"),
+            writeStep("/proj/docs/roadmap.md"),
+          ],
+          processMessageCount: 0,
+          processSnippets: [],
+        },
+        { kind: "block", block: assistant },
+      ],
+      "project-1",
+    );
+    expect(byBlock.get("a1") ?? []).toHaveLength(0);
+  });
 });

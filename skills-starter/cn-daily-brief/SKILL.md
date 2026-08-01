@@ -3,7 +3,7 @@ name: cn-daily-brief
 description: Produce a Chinese Markdown daily brief from news, RSS, or user topics.
 description_zh: 根据新闻、RSS 或用户指定主题，生成中文 Markdown 日报。
 name_zh: 中文日报
-category: business
+category: writing
 version: 1.1.0
 mode: instructions
 approval: read-only-unless-writing-output

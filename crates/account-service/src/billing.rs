@@ -47,6 +47,17 @@ pub async fn refresh_subscription_status(db: &AccountDb, org_id: &str) -> Result
         && provider.as_deref() == Some("wechat")
     {
         downgrade_expired_prepaid(db, org_id).await?;
+    } else if plan == "free" && period_end < today {
+        // 免费订阅账期随当前自然月滚动，避免 UI 一直显示过期周期（剩余 0 天）。
+        let (period_start, period_end) = current_calendar_month();
+        sqlx::query(
+            "UPDATE subscriptions SET period_start = ?, period_end = ?, updated_at = NOW() WHERE organization_id = ?",
+        )
+        .bind(period_start)
+        .bind(period_end)
+        .bind(org_id)
+        .execute(db.pool())
+        .await?;
     }
     Ok(())
 }

@@ -1,4 +1,6 @@
 -- A2A agent presence + cloud handoff task metadata (no bundle bytes — stream relay only).
+-- COLLATE 显式声明 utf8mb4_unicode_ci，与 users/organizations 等基础表一致，
+-- 避免 JOIN 时触发 MySQL 1267 (Illegal mix of collations)。
 
 CREATE TABLE IF NOT EXISTS a2a_agent_presence (
   device_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -9,7 +11,7 @@ CREATE TABLE IF NOT EXISTS a2a_agent_presence (
   last_heartbeat_at DATETIME(3) NOT NULL,
   KEY idx_a2a_presence_org (organization_id, last_heartbeat_at),
   KEY idx_a2a_presence_instance (instance_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS a2a_handoff_tasks (
   id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -36,4 +38,4 @@ CREATE TABLE IF NOT EXISTS a2a_handoff_tasks (
   KEY idx_a2a_handoff_org_state (organization_id, state),
   KEY idx_a2a_handoff_recipient (recipient_device_id, state),
   KEY idx_a2a_handoff_sender (sender_device_id, state)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

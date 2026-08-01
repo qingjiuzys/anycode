@@ -132,6 +132,19 @@ fn normalize_budget(mut budget: TaskBudget) -> TaskBudget {
     budget
 }
 
+/// Claude Code `<total_tokens>` 风格的 token 预算提醒段（D1）。
+/// 当任务配置了 token 预算时注入运行时上下文，让模型长会话中自我节流。
+#[must_use]
+pub(super) fn token_budget_context_section(budget: &TaskBudget) -> Option<String> {
+    let total = budget.token_budget_total?;
+    if total == 0 {
+        return None;
+    }
+    Some(format!(
+        "<total_tokens>\n本任务 token 预算为 {total}。接近预算时请压缩输出、优先完成关键步骤、避免重复扫描；预算用尽将强制终止任务。\n</total_tokens>"
+    ))
+}
+
 pub(super) fn log_budget_event(
     logger: &RunLogger,
     task_id: TaskId,

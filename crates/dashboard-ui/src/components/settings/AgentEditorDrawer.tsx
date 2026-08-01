@@ -74,7 +74,7 @@ export function AgentEditorDrawer({ profileId, onClose, onSaved }: Props) {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-scrim/40">
+    <div className="fixed inset-0 z-[340] flex justify-end bg-scrim/40">
       <div className="w-full max-w-lg h-full bg-surface shadow-xl flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-outline-variant">
           <h2 className="text-lg font-semibold m-0">

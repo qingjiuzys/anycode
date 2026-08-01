@@ -22,6 +22,7 @@ LEGACY_IMAGE="${ANYCODE_ACCOUNT_IMAGE:-registry.cn-zhangjiakou.aliyuncs.com/818c
 PORTAL_DIST="$ROOT/crates/account-portal/dist"
 OPS_DIST="$ROOT/crates/ops-portal/dist"
 ENV_FILE="$ROOT/deploy/account-service/.env"
+WECHAT_CERT_DIR="$ROOT/deploy/account-service/secrets"
 ACCOUNT_CRATE="$ROOT/crates/account-service"
 ACCOUNT_BIN="$ACCOUNT_CRATE/target/release/anycode-account"
 ACCOUNT_LOG="${TMPDIR:-/tmp}/anycode-account-local.log"
@@ -47,6 +48,40 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+load_wechat_env() {
+  if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$ENV_FILE"
+    set +a
+  fi
+  if [[ -f "$WECHAT_CERT_DIR/apiclient_key.pem" ]]; then
+    export WECHAT_PAY_PRIVATE_KEY_PATH="$WECHAT_CERT_DIR/apiclient_key.pem"
+  fi
+  if [[ -f "$WECHAT_CERT_DIR/pub_key.pem" ]]; then
+    export WECHAT_PAY_PUBLIC_KEY_PATH="$WECHAT_CERT_DIR/pub_key.pem"
+  fi
+}
+
+wechat_env_for_host() {
+  load_wechat_env
+  local out=()
+  local key
+  for key in WECHAT_PAY_APP_ID WECHAT_PAY_MCH_ID WECHAT_PAY_SERIAL_NO WECHAT_PAY_API_V3_KEY \
+    WECHAT_PAY_NOTIFY_URL WECHAT_PAY_PRIVATE_KEY_PATH WECHAT_PAY_PUBLIC_KEY_PATH \
+    WECHAT_PRICE_CLOUD_5H_CENTS WECHAT_PRICE_PRO_MONTHLY_CENTS WECHAT_PRICE_TEAM_MONTHLY_CENTS \
+    DEFAULT_PAYMENT_PROVIDER ACCOUNT_PUBLIC_URL; do
+    if [[ -n "${!key:-}" ]]; then
+      out+=("$key=${!key}")
+    fi
+  done
+  printf '%s\0' "${out[@]}"
+}
+
+if [[ "$USE_REMOTE_DB" -eq 1 ]] || [[ -f "$WECHAT_CERT_DIR/apiclient_key.pem" ]]; then
+  load_wechat_env
+fi
 
 if [[ "$NO_BUILD" -eq 0 ]]; then
   "$ROOT/scripts/build-account-portal.sh"
@@ -135,14 +170,19 @@ start_host_api() {
     "ACCOUNT_SERVICE_PORT=${ANYCODE_LOCAL_ACCOUNT_API_PORT}"
     "ACCOUNT_PORTAL_DIR=$PORTAL_DIST"
     "ACCOUNT_PORTAL_URL=${ANYCODE_ACCOUNT_API_URL}"
-    "ACCOUNT_PUBLIC_URL=${ANYCODE_ACCOUNT_API_URL}"
+    "ACCOUNT_PUBLIC_URL=${ACCOUNT_PUBLIC_URL:-${ANYCODE_ACCOUNT_API_URL}}"
     "OPS_PORTAL_DIR=$OPS_DIST"
     "CORS_ORIGINS=$CORS_ORIGINS"
     "IDENTITY_ENCRYPTION_SECRET=$IDENTITY_ENCRYPTION_SECRET"
     "ADMIN_BOOTSTRAP_EMAIL=$ADMIN_BOOTSTRAP_EMAIL"
     "ADMIN_BOOTSTRAP_PASSWORD=$ADMIN_BOOTSTRAP_PASSWORD"
-    "WECHAT_PAY_SKIP_VERIFY=1"
   )
+  while IFS= read -r -d '' kv; do
+    [[ -n "$kv" ]] && api_env+=("$kv")
+  done < <(wechat_env_for_host)
+  if [[ -z "${WECHAT_PAY_PRIVATE_KEY_PATH:-}" ]]; then
+    api_env+=("WECHAT_PAY_SKIP_VERIFY=1")
+  fi
   if [[ "$BACKGROUND" -eq 1 ]]; then
     echo "==> starting anycode-account in background (:${ANYCODE_LOCAL_ACCOUNT_API_PORT})"
     : >"$ACCOUNT_LOG"
@@ -164,23 +204,43 @@ start_docker_api() {
   if ! docker image inspect "$RUNTIME_IMAGE" >/dev/null 2>&1; then
     docker pull "$RUNTIME_IMAGE" >/dev/null
   fi
+  load_wechat_env
+  local docker_env=(
+    -e "DATABASE_URL=${DATABASE_URL}"
+    -e "ACCOUNT_SERVICE_HOST=0.0.0.0"
+    -e "ACCOUNT_SERVICE_PORT=8080"
+    -e "ACCOUNT_PORTAL_DIR=/app/portal"
+    -e "ACCOUNT_PORTAL_URL=${ANYCODE_ACCOUNT_API_URL}"
+    -e "ACCOUNT_PUBLIC_URL=${ACCOUNT_PUBLIC_URL:-${ANYCODE_ACCOUNT_API_URL}}"
+    -e "CORS_ORIGINS=${CORS_ORIGINS}"
+    -e "IDENTITY_ENCRYPTION_SECRET=${IDENTITY_ENCRYPTION_SECRET}"
+    -e "ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL}"
+    -e "ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD}"
+  )
+  local key
+  for key in WECHAT_PAY_APP_ID WECHAT_PAY_MCH_ID WECHAT_PAY_SERIAL_NO WECHAT_PAY_API_V3_KEY \
+    WECHAT_PAY_NOTIFY_URL WECHAT_PRICE_CLOUD_5H_CENTS WECHAT_PRICE_PRO_MONTHLY_CENTS \
+    WECHAT_PRICE_TEAM_MONTHLY_CENTS DEFAULT_PAYMENT_PROVIDER; do
+    if [[ -n "${!key:-}" ]]; then
+      docker_env+=(-e "$key=${!key}")
+    fi
+  done
+  if [[ -f "$WECHAT_CERT_DIR/apiclient_key.pem" ]]; then
+    docker_env+=(
+      -e "WECHAT_PAY_PRIVATE_KEY_PATH=/app/wechat-certs/apiclient_key.pem"
+      -e "WECHAT_PAY_PUBLIC_KEY_PATH=/app/wechat-certs/pub_key.pem"
+    )
+  else
+    docker_env+=(-e "WECHAT_PAY_SKIP_VERIFY=1")
+  fi
   echo "==> starting $CONTAINER (host binary in $RUNTIME_IMAGE)"
   docker run --rm -d --name "$CONTAINER" \
     --add-host=host.docker.internal:host-gateway \
     -p "${ANYCODE_LOCAL_ACCOUNT_API_PORT}:8080" \
     -v "$PORTAL_DIST:/app/portal:ro" \
     -v "$ACCOUNT_BIN:/usr/local/bin/anycode-account:ro" \
-    -e "DATABASE_URL=${DATABASE_URL}" \
-    -e "ACCOUNT_SERVICE_HOST=0.0.0.0" \
-    -e "ACCOUNT_SERVICE_PORT=8080" \
-    -e "ACCOUNT_PORTAL_DIR=/app/portal" \
-    -e "ACCOUNT_PORTAL_URL=${ANYCODE_ACCOUNT_API_URL}" \
-    -e "ACCOUNT_PUBLIC_URL=${ANYCODE_ACCOUNT_API_URL}" \
-    -e "CORS_ORIGINS=${CORS_ORIGINS}" \
-    -e "IDENTITY_ENCRYPTION_SECRET=${IDENTITY_ENCRYPTION_SECRET}" \
-    -e "ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL}" \
-    -e "ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD}" \
-    -e "WECHAT_PAY_SKIP_VERIFY=1" \
+    -v "$WECHAT_CERT_DIR:/app/wechat-certs:ro" \
+    "${docker_env[@]}" \
     "$RUNTIME_IMAGE" \
     /usr/local/bin/anycode-account >/dev/null
 }

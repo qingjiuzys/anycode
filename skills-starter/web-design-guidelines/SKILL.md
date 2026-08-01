@@ -3,7 +3,7 @@ name: web-design-guidelines
 description: Review UI code for Web Interface Guidelines compliance. Use when asked to "review my UI", "check accessibility", "audit design", "review UX", or "check my site against best practices".
 description_zh: 按 Vercel Web Interface Guidelines 审计无障碍与交互质量。
 name_zh: Web 设计指南
-category: quality
+category: design
 version: 1.0.0
 mode: instructions
 priority: 80

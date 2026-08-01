@@ -64,6 +64,7 @@ export function AgentUsageStatsModal({
       onClose={onClose}
       labelledBy="agents-stats-modal-title"
       className="w-full max-w-3xl"
+      zIndex={360}
     >
       <div className="glass-modal rounded-xl flex flex-col max-h-[min(90dvh,820px)] overflow-hidden">
         <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-outline-variant/40 shrink-0">

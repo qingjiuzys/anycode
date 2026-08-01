@@ -5,7 +5,9 @@ use crate::app_config::Config;
 use crate::tasks::{run_single_task_with_tail, ReplSink, RunTaskOptions};
 use anycode_bootstrap::{self as bootstrap, MemoryAttachMode};
 use anycode_dashboard::RunSessionKind;
-use anycode_tools::{read_cron_jobs_from_orchestration_file, CronJob};
+use anycode_tools::{
+    read_cron_jobs_from_orchestration_file, remove_cron_job_from_orchestration_file, CronJob,
+};
 use chrono::{DateTime, Timelike, Utc};
 use cron::Schedule;
 use fs4::fs_std::FileExt;
@@ -442,6 +444,28 @@ pub(crate) async fn run_builtin_scheduler(
                     );
                 }
                 runtime.sync_memory_durability();
+                // One-shot（recurring=false）：首次触发后立即删除，避免下次匹配重复执行。
+                if !pj.job.recurring {
+                    match remove_cron_job_from_orchestration_file(&orch_path, &pj.job.id) {
+                        Ok(true) => info!(
+                            target: "anycode_scheduler",
+                            "one-shot cron job {} auto-deleted after fire",
+                            pj.job.id
+                        ),
+                        Ok(false) => warn!(
+                            target: "anycode_scheduler",
+                            "one-shot cron job {} already absent; nothing to delete",
+                            pj.job.id
+                        ),
+                        Err(e) => warn!(
+                            target: "anycode_scheduler",
+                            "one-shot cron job {} delete failed: {e}",
+                            pj.job.id
+                        ),
+                    }
+                    last = next;
+                    break;
+                }
                 last = next;
             }
             last_fire.insert(pj.job.id.clone(), last);
@@ -481,6 +505,7 @@ mod tests {
                 tool_allowlist: None,
                 project_id: None,
                 workflow: None,
+                recurring: true,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -509,6 +534,7 @@ mod tests {
                 tool_allowlist: None,
                 project_id: None,
                 workflow: None,
+                recurring: true,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -542,6 +568,7 @@ mod tests {
                 tool_allowlist: None,
                 project_id: None,
                 workflow: None,
+                recurring: true,
             },
             schedule: Schedule::from_str("0 0 9 * * *").unwrap(),
         };
@@ -586,6 +613,7 @@ mod tests {
                 tool_allowlist: None,
                 project_id: None,
                 workflow: None,
+                recurring: true,
             },
             schedule: Schedule::from_str("0 */15 * * * *").unwrap(),
         };

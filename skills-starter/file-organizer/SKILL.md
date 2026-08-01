@@ -3,7 +3,7 @@ name: file-organizer
 description: Organize files in a folder by rules (date, extension, naming patterns).
 description_zh: 按日期、扩展名或命名规则整理文件夹中的文件。
 name_zh: 文件整理
-category: business
+category: ops
 version: 1.1.0
 mode: instructions
 approval: explicit-before-write

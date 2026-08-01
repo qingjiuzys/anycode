@@ -242,7 +242,9 @@ fn is_public_path(path: &str) -> bool {
             | "/api/cloud/link/poll"
             | "/cloud/unlink"
             | "/api/cloud/unlink"
-    ) || path.starts_with("/setup/")
+    ) || path.starts_with("/cloud/upstream/")
+        || path.starts_with("/api/cloud/upstream/")
+        || path.starts_with("/setup/")
         || path.starts_with("/api/setup/")
         || path == "/bootstrap"
         || path == "/api/bootstrap"
@@ -256,6 +258,13 @@ mod tests {
     fn setup_paths_are_still_public_on_loopback() {
         assert!(is_public_path("/api/setup/status"));
         assert!(is_public_path("/setup/workspace"));
+    }
+
+    #[test]
+    fn cloud_upstream_proxy_is_public() {
+        assert!(is_public_path("/api/cloud/upstream/api/v1/account/bundle"));
+        assert!(is_public_path("/cloud/upstream/api/v1/auth/me"));
+        assert!(!is_public_path("/api/cloud/sync-models"));
     }
 
     #[test]

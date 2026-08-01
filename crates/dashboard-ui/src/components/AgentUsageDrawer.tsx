@@ -69,7 +69,7 @@ export function AgentUsageDrawer({
   const customProfile = profiles.find((p) => p.id === agentId && !p.builtin);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-scrim/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[340] flex justify-end bg-scrim/40" onClick={onClose}>
       <div
         className="w-full max-w-lg h-full bg-surface shadow-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}

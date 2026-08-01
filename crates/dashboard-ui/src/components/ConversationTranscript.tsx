@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/api/client";
 import type { TranscriptBlock } from "@/api/types";
@@ -31,9 +31,11 @@ import {
 } from "@/lib/workLogGrouping";
 import {
   isProgressBlock,
+  isStaticProgressStatusLine,
   progressDiscovery,
   progressNext,
   progressSummary,
+  shouldRenderAssistantAsStatusLine,
 } from "@/lib/progressMeta";
 import {
   resolveActiveReplySegment,
@@ -70,10 +72,11 @@ import {
   isInteractiveToolCluster,
   shouldHideInteractiveCluster,
 } from "@/lib/interactiveTools";
-import {
-  DeliverableCard,
-  type DeliverableCardProps,
-} from "@/components/deliverables/DeliverableCard";
+import { type DeliverableCardProps } from "@/components/deliverables/DeliverableCard";
+import { DeliverableProjectProvider } from "@/components/deliverables/DeliverableProjectContext";
+import { DeliverableStrip } from "@/components/deliverables/DeliverableStrip";
+import { useConversationShell } from "@/context/ConversationShellContext";
+import { isProcessArtifactPath } from "@/lib/deliverablePath";
 import { useLocale, useT } from "@/i18n/context";
 import type { SseStatus } from "@/hooks/useEventSource";
 import type { SessionLiveState } from "@/lib/sessionLiveStore";
@@ -136,6 +139,7 @@ export function ConversationTranscript({
   onSelectTool,
 }: Props) {
   const t = useT();
+  const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
   const localScrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -148,6 +152,14 @@ export function ConversationTranscript({
   const streamLive =
     streamLiveOverride ?? (chatStreamLive || (sseLive && running));
   const pollFallback = running && !streamLive && sseStatus === "offline";
+
+  useEffect(() => {
+    if (!sessionId || !running) return;
+    if (liveEvents.length > 0 || chatStreamLive) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["session-transcript", sessionId],
+    });
+  }, [chatStreamLive, liveEvents.length, queryClient, running, sessionId]);
 
   const transcript = useQuery({
     ...transcriptQueryOptions(sessionId!, running, chatStreamLive, streamLive),
@@ -330,7 +342,7 @@ export function ConversationTranscript({
       return (
         <div className="space-y-4 opacity-80">
           <div className="flex w-full justify-end">
-            <div className="max-w-[min(100%,42rem)] rounded-2xl bg-surface-container-high px-4 py-3 text-sm">
+            <div className="max-w-[var(--conv-content-max)] rounded-2xl bg-surface-container-high px-4 py-3 text-sm">
               {preview}
             </div>
           </div>
@@ -557,13 +569,34 @@ function ConversationTurnView({
     () => collectInlineDeliverables(replyItems, projectId),
     [replyItems, projectId],
   );
-  const turnHasDeliverableBlocks = useMemo(
-    () =>
-      replyItems.some(
-        (item) => item.kind === "block" && item.block.block_type === "deliverable",
-      ),
-    [replyItems],
+  const { projectOptions } = useConversationShell();
+  const projectRoot = useMemo(
+    () => projectOptions.find((p) => p.id === projectId)?.root_path ?? null,
+    [projectId, projectOptions],
   );
+  const turnDeliverables = useMemo(() => {
+    const items: DeliverableCardProps[] = [];
+    for (const item of replyItems) {
+      if (item.kind !== "block" || item.block.block_type !== "deliverable") continue;
+      const deliverable = deliverablePropsFromBlock(item.block);
+      if (!deliverable || isProcessArtifactPath(deliverable.path)) continue;
+      items.push({
+        ...deliverable,
+        projectId: deliverable.projectId ?? projectId ?? undefined,
+      });
+    }
+    for (const list of markerDeliverablesByBlockId.values()) {
+      for (const deliverable of list) {
+        if (isProcessArtifactPath(deliverable.path)) continue;
+        items.push({
+          ...deliverable,
+          projectId: deliverable.projectId ?? projectId ?? undefined,
+        });
+      }
+    }
+    return items;
+  }, [markerDeliverablesByBlockId, projectId, replyItems]);
+  const turnHasDeliverables = turnDeliverables.length > 0;
 
   const showRecapHeader = isLast && isRunning;
   const hideBubbleTimestamps = isLast && isRunning;
@@ -571,6 +604,7 @@ function ConversationTurnView({
     isLast && isRunning && pendingQuestionsCount > 0;
 
   return (
+    <DeliverableProjectProvider projectId={projectId} projectRoot={projectRoot}>
     <article className={`flex flex-col gap-2.5 ${isRunning && isLast ? "pb-4" : "pb-5"}`}>
       <MessageRow align="right">
         <UserBubble block={turn.user} hideTimestamp={hideBubbleTimestamps} />
@@ -696,13 +730,8 @@ function ConversationTurnView({
           );
         }
         if (block.block_type === "deliverable") {
-          const deliverable = deliverablePropsFromBlock(block);
-          if (!deliverable) return null;
-          return (
-            <MessageRow key={block.id} align="left">
-              <DeliverableCard {...deliverable} projectId={deliverable.projectId ?? projectId ?? undefined} />
-            </MessageRow>
-          );
+          // Collected into the bottom DeliverableStrip for this turn.
+          return null;
         }
         if (block.block_type === "assistant_message") {
           const markerDeliverables = markerDeliverablesByBlockId.get(block.id) ?? [];
@@ -710,9 +739,30 @@ function ConversationTurnView({
           const scaffoldEcho =
             isArtifactScaffoldOnly(block.body) || isArtifactScaffoldOnly(displayBody);
           const hasDeliverables =
-            markerDeliverables.length > 0 || turnHasDeliverableBlocks;
+            markerDeliverables.length > 0 || turnHasDeliverables;
           if (!displayBody.trim() && !block.meta?.live && markerDeliverables.length === 0) {
             return null;
+          }
+          if (
+            shouldRenderAssistantAsStatusLine(block, {
+              itemIndex,
+              finalAssistantIndex,
+            })
+          ) {
+            const lineLive = Boolean(isLast && isRunning && block.meta?.live);
+            if (!displayBody.trim() && !lineLive) {
+              return null;
+            }
+            return (
+              <MessageRow key={block.id} align="left">
+                <TimelineProgressLine
+                  block={block}
+                  live={lineLive}
+                  expanded
+                  forceStatic
+                />
+              </MessageRow>
+            );
           }
           const isFinal =
             itemIndex === finalAssistantIndex ||
@@ -723,32 +773,35 @@ function ConversationTurnView({
           if (!showReplyBubble && markerDeliverables.length === 0) {
             return null;
           }
+          if (!showReplyBubble) {
+            return null;
+          }
           return (
             <MessageRow key={block.id} align="left">
-              <div className="flex flex-col gap-3 w-full max-w-[min(100%,42rem)]">
-                {showReplyBubble ? (
-                  <ReplyBubble
-                    block={block}
-                    modelName={modelName}
-                    showStreamCursor={block.id === lastLiveAssistantBlockId}
-                    forceStreamSmooth={isLast && isRunning}
-                    hideTimestamp={hideBubbleTimestamps}
-                    collapsed={!segmentExpanded && !isFinal}
-                  />
-                ) : null}
-                {markerDeliverables.map((deliverable) => (
-                  <DeliverableCard
-                    key={deliverable.path}
-                    {...deliverable}
-                    projectId={deliverable.projectId ?? projectId ?? undefined}
-                  />
-                ))}
+              <div className="flex flex-col gap-3 w-full max-w-[var(--conv-content-max)]">
+                <ReplyBubble
+                  block={block}
+                  modelName={modelName}
+                  showStreamCursor={block.id === lastLiveAssistantBlockId}
+                  forceStreamSmooth={isLast && isRunning}
+                  hideTimestamp={hideBubbleTimestamps}
+                  collapsed={!segmentExpanded && !isFinal}
+                />
               </div>
             </MessageRow>
           );
         }
         return null;
       })}
+
+      {turnHasDeliverables ? (
+        <MessageRow align="left">
+          <DeliverableStrip
+            items={turnDeliverables}
+            projectId={projectId ?? undefined}
+          />
+        </MessageRow>
+      ) : null}
 
       {liveStatus.showThinkingLine && (
         <MessageRow align="left">
@@ -767,6 +820,7 @@ function ConversationTurnView({
         </MessageRow>
       )}
     </article>
+    </DeliverableProjectProvider>
   );
 }
 
@@ -786,11 +840,16 @@ function MessageRow({
   align: "left" | "right";
   children: React.ReactNode;
 }) {
+  // Assistant fills the centered column; user bubbles stay w-fit + end-aligned.
+  const innerClass =
+    align === "right"
+      ? "max-w-[var(--conv-content-max)] w-fit min-w-0"
+      : "w-full max-w-full min-w-0";
   return (
     <div
       className={`flex w-full ${align === "right" ? "justify-end" : "justify-start"}`}
     >
-      <div className="max-w-[min(100%,48rem)] w-fit min-w-0">{children}</div>
+      <div className={innerClass}>{children}</div>
     </div>
   );
 }
@@ -811,11 +870,14 @@ function TimelineProgressLine({
   block,
   live,
   expanded: expandedProp,
+  forceStatic = false,
 }: {
   block: TranscriptBlock;
   live: boolean;
   /** Accordion: parent controls whether this segment is open. */
   expanded: boolean;
+  /** Always inline text — no fold chevron (mid-turn / live status). */
+  forceStatic?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -837,6 +899,30 @@ function TimelineProgressLine({
     // New accordion target clears manual pin.
     setUserPinned(null);
   }, [expandedProp]);
+
+  if (forceStatic || isStaticProgressStatusLine(block)) {
+    return (
+      <div className={`agent-work-line agent-work-line--static ${live ? "agent-work-line--live" : ""}`}>
+        {mdBody ? (
+          <TranscriptMarkdown text={mdBody} live={live} className="agent-work-line__text" />
+        ) : (
+          <p className="agent-work-line__text m-0">{preview.replace(/\s+/g, " ")}</p>
+        )}
+        {finding ? (
+          <p className="m-0 mt-1 agent-work-line__meta">
+            <span className="font-medium">{t("conversations.progressDiscoveryPrefix")}</span>
+            {finding}
+          </p>
+        ) : null}
+        {next ? (
+          <p className="m-0 mt-1 agent-work-line__meta">
+            <span className="font-medium">{t("conversations.progressNextPrefix")}</span>
+            {next}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   if (!expanded) {
     return (
@@ -1049,7 +1135,7 @@ const ReplyBubble = memo(function ReplyBubble({
   if (isStatus) {
     return (
       <div className="agent-status-line">
-        <TranscriptMarkdown text={smoothedBody} live={visuallyStreaming} />
+        <TranscriptMarkdown text={smoothedBody} live={streamActive} />
         {showCursor && <span className="chat-stream-cursor" aria-hidden />}
       </div>
     );
@@ -1105,7 +1191,7 @@ const ReplyBubble = memo(function ReplyBubble({
         icon="smart_toy"
         headerActions={headerActions}
       >
-        <TranscriptMarkdown text={smoothedBody} live={visuallyStreaming && isAssistant} />
+        <TranscriptMarkdown text={smoothedBody} live={streamActive && isAssistant} />
         {showCursor && <span className="chat-stream-cursor" aria-hidden />}
         {!hideTimestamp && (
           <time className="block mt-2 text-[11px] text-secondary">
@@ -1118,13 +1204,13 @@ const ReplyBubble = memo(function ReplyBubble({
 
   if (isFinalReply && isTaskSummaryReceipt(displayBody)) {
     return (
-      <div className="group relative max-w-[min(100%,42rem)]">
+      <div className="group relative max-w-[var(--conv-content-max)] w-full">
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
           {headerActions}
         </div>
         <TaskReceiptCard
           body={smoothedBody}
-          live={visuallyStreaming}
+          live={streamActive}
           showCursor={showCursor}
         />
         {!hideTimestamp && (
@@ -1151,18 +1237,11 @@ const ReplyBubble = memo(function ReplyBubble({
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
         {headerActions}
       </div>
-      {!shouldCollapse && isFinalReply && (
-        <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
-          <span className="font-medium text-secondary">
-            {isError ? t("common.error") : t("conversations.assistant")}
-          </span>
-        </div>
-      )}
       {isError ? (
         <ErrorMessageBody text={block.body} />
       ) : (
         <>
-          <TranscriptMarkdown text={smoothedBody} live={visuallyStreaming && isAssistant} />
+          <TranscriptMarkdown text={smoothedBody} live={streamActive && isAssistant} />
           {showCursor && <span className="chat-stream-cursor" aria-hidden />}
         </>
       )}
