@@ -219,7 +219,7 @@ mod tests {
         let parent = TempDir::new().unwrap();
         let work = parent.path().join("work");
         let skills = parent.path().join("skills");
-        let skill = skills.join("office-pptx");
+        let skill = skills.join("anycode-ppt");
         fs::create_dir_all(&work).unwrap();
         fs::create_dir_all(&skill).unwrap();
         fs::write(skill.join("SKILL.md"), "# skill").unwrap();

@@ -159,12 +159,23 @@ pub fn validate_skill_ids(skills: Option<&[String]>) -> Result<()> {
 }
 
 /// Scan skill directories for a project root (same roots as runtime bootstrap).
+///
+/// Precedence matches bootstrap: `extra_dirs` (low) → project skills →
+/// `~/.anycode/skills` (high / last write wins).
 #[must_use]
 pub fn scan_skill_catalog_for_root(project_root: &Path) -> SkillCatalog {
-    let mut roots = vec![
-        project_root.join("skills"),
-        project_root.join(".anycode/skills"),
-    ];
+    scan_skill_catalog_for_root_with_extra(project_root, &[])
+}
+
+/// Like [`scan_skill_catalog_for_root`], but includes `config.skills.extra_dirs`.
+#[must_use]
+pub fn scan_skill_catalog_for_root_with_extra(
+    project_root: &Path,
+    extra_dirs: &[PathBuf],
+) -> SkillCatalog {
+    let mut roots: Vec<PathBuf> = extra_dirs.to_vec();
+    roots.push(project_root.join("skills"));
+    roots.push(project_root.join(".anycode/skills"));
     if let Some(h) = dirs::home_dir() {
         roots.push(h.join(".anycode/skills"));
     }
@@ -213,7 +224,7 @@ pub async fn validate_trigger_skills_for_project(
     project_root: &Path,
 ) -> Result<()> {
     let config = anycode_config::load_config(None).await?;
-    let catalog = scan_skill_catalog_for_root(project_root);
+    let catalog = scan_skill_catalog_for_root_with_extra(project_root, &config.skills.extra_dirs);
     let project_enabled = anycode_bootstrap::load_project_enabled_skills(project_root).await;
     let governance = skills_governance_from_config(&config, project_enabled);
     let agent_id = agent
@@ -459,9 +470,9 @@ mod tests {
     fn prompt_with_skills_prefixes_hint() {
         let out = prompt_with_skills(
             "summarize",
-            Some(&["daily-brief".into(), "md-to-pdf".into()]),
+            Some(&["internal-comms".into(), "anycode-pdf".into()]),
         );
-        assert!(out.starts_with("[Use skills: daily-brief, md-to-pdf]"));
+        assert!(out.starts_with("[Use skills: internal-comms, anycode-pdf]"));
         assert!(out.contains("summarize"));
     }
 

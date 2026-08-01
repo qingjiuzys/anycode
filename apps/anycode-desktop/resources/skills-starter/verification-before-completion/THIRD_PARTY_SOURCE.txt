@@ -1,0 +1,2 @@
+source=obra/superpowers/skills/verification-before-completion
+license=see upstream MIT

@@ -17,7 +17,7 @@ const SCENARIOS = [
   { id: "04-coding-mock", suite: "coding", title: "Mock eval", content: false },
   { id: "05-coding-live", suite: "coding", title: "Live bugfix", content: false },
   { id: "06-html-page", suite: "html", title: "landing.html", content: true },
-  { id: "07-html-md-skill", suite: "html", title: "md-to-pdf skill", content: true },
+  { id: "07-html-md-skill", suite: "html", title: "anycode-pdf skill", content: true },
   { id: "08-complex-delivery", suite: "complex", title: "复杂交付冲刺（办公+编码+git+manifest）", content: true },
 ];
 

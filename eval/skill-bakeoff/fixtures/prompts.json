@@ -1,0 +1,132 @@
+{
+  "defaults": {
+    "timeout_s": 360,
+    "agent": "general-purpose"
+  },
+  "cases": [
+    {
+      "id": "baseline-anycode-xlsx",
+      "skill": "anycode-xlsx",
+      "baseline": true,
+      "timeout_s": 420,
+      "prompt": "Use the anycode-xlsx skill. Create a tiny workbook with one sheet 'KPIs' containing headers Month,Revenue,Cost and 3 sample rows for Q1. Save ONLY to out/baseline-anycode-xlsx/kpis.xlsx under the project root. Reply with the absolute or relative path. Do not write elsewhere."
+    },
+    {
+      "id": "baseline-deep-research",
+      "skill": "deep-research",
+      "baseline": true,
+      "timeout_s": 480,
+      "prompt": "Use the deep-research skill. Research in ≤8 web searches: What is the Agent Skills open standard (agentskills.io) and how does it relate to Claude Skills? Write a short cited report to out/baseline-deep-research/report.md with Conclusion, Evidence, Uncertainties, Sources. Stay inside that out/ folder."
+    },
+    {
+      "id": "baseline-verify-discover",
+      "skill": "verify-discover",
+      "baseline": true,
+      "timeout_s": 360,
+      "prompt": "Use the verify-discover skill. Claim to verify: 'anyCode Workbench default local port is 43180'. Search the project briefly (docs or code), then write out/baseline-verify-discover/verdict.md with Verdict (true/false/uncertain), Evidence paths, and Counter-arguments. Stay in that folder."
+    },
+    {
+      "id": "baseline-mindmap",
+      "skill": "mindmap",
+      "baseline": true,
+      "timeout_s": 300,
+      "prompt": "Use the mindmap skill. Create a concise mindmap markdown for 'anyCode product surfaces: Desktop Workbench, daemon scheduler, account portal'. Save to out/baseline-mindmap/anycode.md. Stay in that folder."
+    },
+    {
+      "id": "cand-frontend-design",
+      "skill": "bakeoff-frontend-design",
+      "prompt": "Use skill bakeoff-frontend-design. Design a single landing hero for a fictional local bakery '清晨麦香'. Deliver ONE self-contained HTML file at out/cand-frontend-design/hero.html with distinctive typography and palette (no purple gradient AI slop). Brief design rationale in a short comment at top of the file."
+    },
+    {
+      "id": "cand-webapp-testing",
+      "skill": "bakeoff-webapp-testing",
+      "timeout_s": 420,
+      "prompt": "Use skill bakeoff-webapp-testing. Without starting a long-lived server if avoidable: write a minimal Playwright Python script at out/cand-webapp-testing/check_static.py that opens out/cand-webapp-testing/fixture.html (create a tiny fixture with an h1 'Bakeoff') and asserts the h1 text. If Playwright isn't available, document the exact install command and still write the script + fixture. Do not leave processes hanging."
+    },
+    {
+      "id": "cand-doc-coauthoring",
+      "skill": "bakeoff-doc-coauthoring",
+      "prompt": "Use skill bakeoff-doc-coauthoring. Skip interactive Q&A — assume context: audience=engineering leads, doc type=decision doc, topic='Should anyCode ship community skills as optional packs?'. Produce out/cand-doc-coauthoring/decision.md following the skill's structure (context, options, recommendation, open questions)."
+    },
+    {
+      "id": "cand-internal-comms",
+      "skill": "bakeoff-internal-comms",
+      "prompt": "Use skill bakeoff-internal-comms. Write a 3P update (Progress / Plans / Problems) for week of 2026-07-28 about shipping skill bake-off eval. Save to out/cand-internal-comms/3p.md."
+    },
+    {
+      "id": "cand-mcp-builder",
+      "skill": "bakeoff-mcp-builder",
+      "timeout_s": 420,
+      "prompt": "Use skill bakeoff-mcp-builder. Design (do not fully implement a production server) a small MCP for 'local markdown notes search'. Write out/cand-mcp-builder/design.md covering tools, schemas, error model, and security notes. Optionally include a stub Python FastMCP file under the same folder."
+    },
+    {
+      "id": "cand-canvas-design",
+      "skill": "bakeoff-canvas-design",
+      "timeout_s": 420,
+      "prompt": "Use skill bakeoff-canvas-design. Create a visual philosophy .md AND express it as a simple poster PNG or PDF for '开源 Agent Skills 评测'. Save under out/cand-canvas-design/. If image libs fail, deliver SVG or carefully designed HTML poster instead and explain."
+    },
+    {
+      "id": "cand-algorithmic-art",
+      "skill": "bakeoff-algorithmic-art",
+      "timeout_s": 420,
+      "prompt": "Use skill bakeoff-algorithmic-art. Create a short algorithmic philosophy .md and a single self-contained HTML+p5.js (CDN ok) generative sketch with a fixed seed. Save under out/cand-algorithmic-art/."
+    },
+    {
+      "id": "cand-theme-factory",
+      "skill": "bakeoff-theme-factory",
+      "prompt": "Use skill bakeoff-theme-factory. Pick one preset theme and apply it to a tiny 1-page HTML resume for 'Alex Chen, Systems Engineer'. Save themed HTML to out/cand-theme-factory/resume.html and note the theme name in a comment."
+    },
+    {
+      "id": "cand-web-artifacts-builder",
+      "skill": "bakeoff-web-artifacts-builder",
+      "timeout_s": 480,
+      "prompt": "Use skill bakeoff-web-artifacts-builder. Prefer a pragmatic single-file HTML (React via CDN or plain HTML) counter app with two buttons — do NOT require a full Vite init if scripts are heavy. Save to out/cand-web-artifacts-builder/counter.html. Note which parts of the skill you followed vs simplified."
+    },
+    {
+      "id": "cand-slack-gif-creator",
+      "skill": "bakeoff-slack-gif-creator",
+      "timeout_s": 420,
+      "prompt": "Use skill bakeoff-slack-gif-creator. Create a Slack-optimized GIF (or document blockers) of a simple bouncing circle, ≤3s, under out/cand-slack-gif-creator/. If deps missing, write the generation script + requirements and a static PNG storyboard instead."
+    },
+    {
+      "id": "cand-skill-creator",
+      "skill": "bakeoff-skill-creator",
+      "prompt": "Use skill bakeoff-skill-creator. Draft a minimal new skill skeleton for 'meeting-action-extractor' (extract action items from meeting notes). Write SKILL.md + one eval prompt under out/cand-skill-creator/meeting-action-extractor/."
+    },
+    {
+      "id": "cand-claude-api",
+      "skill": "bakeoff-claude-api",
+      "prompt": "Use skill bakeoff-claude-api. Write a short Python example using Anthropic Messages API with tool use (pseudo or real SDK) that lists files then answers. Save to out/cand-claude-api/tool_use_example.py with comments. No network calls required."
+    },
+    {
+      "id": "cand-vercel-react-best-practices",
+      "skill": "bakeoff-vercel-react-best-practices",
+      "prompt": "Use skill bakeoff-vercel-react-best-practices. Review this bad React snippet (write it into the file first) that fetches in render and prop-drills deeply; refactor into out/cand-vercel-react-best-practices/Fixed.tsx following high-impact Vercel rules. Add a short NOTES.md listing which rules you applied."
+    },
+    {
+      "id": "cand-vercel-web-design-guidelines",
+      "skill": "bakeoff-vercel-web-design-guidelines",
+      "prompt": "Use skill bakeoff-vercel-web-design-guidelines. Audit and rewrite a tiny settings form HTML for accessibility (labels, focus, contrast). Save before/after notes + final HTML under out/cand-vercel-web-design-guidelines/."
+    },
+    {
+      "id": "cand-vercel-composition-patterns",
+      "skill": "bakeoff-vercel-composition-patterns",
+      "prompt": "Use skill bakeoff-vercel-composition-patterns. Refactor a messy Card component with boolean props into composition-friendly components. Save to out/cand-vercel-composition-patterns/Card.tsx + README.md explaining the pattern."
+    },
+    {
+      "id": "cand-vercel-writing-guidelines",
+      "skill": "bakeoff-vercel-writing-guidelines",
+      "prompt": "Use skill bakeoff-vercel-writing-guidelines. Rewrite this fluff: 'Leverage our cutting-edge synergistic platform to revolutionize your workflows.' into clear product UI microcopy (button, empty state, error). Save to out/cand-vercel-writing-guidelines/copy.md."
+    },
+    {
+      "id": "cand-design-taste-frontend",
+      "skill": "bakeoff-design-taste-frontend",
+      "prompt": "Use skill bakeoff-design-taste-frontend. Build a distinctive portfolio landing (single HTML) for a ceramic artist. Save to out/cand-design-taste-frontend/index.html. Avoid generic AI aesthetic."
+    },
+    {
+      "id": "cand-find-skills",
+      "skill": "bakeoff-find-skills",
+      "prompt": "Use skill bakeoff-find-skills. User question: 'how do I make better React performance skills available to my agent?'. Produce out/cand-find-skills/recommendations.md with concrete skill names/sources to install (can use WebSearch), and install steps for anyCode if known."
+    }
+  ]
+}

@@ -4,80 +4,556 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>经营数据表预览 · anyCode Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    :root { --bg:#0b1220; --ink:#e2e8f0; --muted:#94a3b8; --line:#243044; --accent:#22c55e; --head:#111827; }
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,sans-serif}
-    .bar{display:flex;justify-content:space-between;gap:1rem;padding:.85rem 1.25rem;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--muted);position:sticky;top:0;background:rgba(11,18,32,.92);backdrop-filter:blur(8px)}
-    .bar a{color:var(--ink);text-decoration:none}.bar a:hover{color:var(--accent)}
-    .wrap{max-width:56rem;margin:1.5rem auto;padding:0 1rem 2rem}
-    h1{margin:0 0 .35rem;font-size:1.6rem} .lead{color:var(--muted);margin:0 0 1.25rem}
-    .tabs{display:flex;gap:.4rem;margin-bottom:.75rem}
-    .tabs button{appearance:none;border:1px solid var(--line);background:#111827;color:var(--muted);border-radius:.6rem;padding:.4rem .75rem;cursor:pointer}
-    .tabs button.on{color:var(--ink);border-color:var(--accent)}
-    table{width:100%;border-collapse:collapse;background:#111827;border:1px solid var(--line);border-radius:.8rem;overflow:hidden}
-    th,td{padding:.7rem .85rem;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
-    th:first-child,td:first-child{text-align:left}
-    th{background:var(--head);color:var(--muted);font-size:.78rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-    tr:last-child td{border-bottom:0;color:var(--accent);font-weight:700}
-    .sheet{display:none}.sheet.on{display:block}
-    .note{margin-top:1rem;color:var(--muted);font-size:.85rem;line-height:1.55}
+    :root {
+      --bg: #f3f1ec;
+      --paper: #ffffff;
+      --ink: #1a1f2c;
+      --muted: #6b7280;
+      --line: #e4e1d8;
+      --grid: #eceae3;
+      --head: #f7f5f0;
+      --sheet: #217346;
+      --sheet-soft: #e8f5ee;
+      --up: #0f766e;
+      --down: #b45309;
+      --formula: #1d4ed8;
+      --shadow: 0 18px 50px rgba(26, 31, 44, 0.07);
+      --radius: 14px;
+      --font: "IBM Plex Sans", "PingFang SC", "Noto Sans SC", sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 480px at 12% -10%, rgba(33, 115, 70, 0.08), transparent 55%),
+        radial-gradient(900px 420px at 100% 0%, rgba(29, 78, 216, 0.05), transparent 50%),
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+    }
+    .bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.8rem;
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(10px);
+    }
+    .bar a { color: var(--ink); text-decoration: none; font-weight: 500; }
+    .bar a:hover { color: var(--sheet); }
+    .wrap { max-width: 72rem; margin: 0 auto; padding: 1.5rem 1.1rem 3rem; }
+    .hero {
+      display: grid;
+      gap: 0.35rem;
+      margin-bottom: 1.25rem;
+    }
+    .kicker {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--sheet);
+      font-weight: 600;
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 2.4vw, 2rem); letter-spacing: -0.03em; }
+    .lead { margin: 0; color: var(--muted); line-height: 1.55; max-width: 42rem; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin: 1.25rem 0 1.1rem;
+    }
+    .kpi {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem 1.05rem 0.95rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      background: var(--sheet);
+    }
+    .kpi[data-tone="warn"]::before { background: var(--down); }
+    .kpi[data-tone="info"]::before { background: var(--formula); }
+    .kpi-label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+    .kpi-value {
+      margin-top: 0.35rem;
+      font-family: var(--mono);
+      font-size: clamp(1.25rem, 2vw, 1.55rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi-meta {
+      margin-top: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .delta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-weight: 500;
+      font-size: 0.72rem;
+    }
+    .delta.up { background: #ecfdf5; color: var(--up); }
+    .delta.flat { background: #f3f4f6; color: var(--muted); }
+    .workbook {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) + 2px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .workbook-chrome {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #fbfaf7, #f4f2ec);
+    }
+    .traffic { display: flex; gap: 0.35rem; }
+    .traffic i {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #d1d5db; display: block;
+    }
+    .traffic i:nth-child(1) { background: #ff5f57; }
+    .traffic i:nth-child(2) { background: #febc2e; }
+    .traffic i:nth-child(3) { background: #28c840; }
+    .wb-title {
+      font-size: 0.82rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wb-title strong { color: var(--ink); font-weight: 600; }
+    .formula-bar {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.55rem;
+      align-items: center;
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+      background: #faf9f6;
+      font-size: 0.8rem;
+    }
+    .fx-badge {
+      font-family: var(--mono);
+      font-weight: 600;
+      color: var(--formula);
+      background: #eff6ff;
+      border: 1px solid #dbeafe;
+      border-radius: 6px;
+      padding: 0.2rem 0.45rem;
+    }
+    .fx-text {
+      font-family: var(--mono);
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sheet-body { display: none; }
+    .sheet-body.on { display: block; }
+    .grid-wrap { overflow-x: auto; }
+    table.sheet {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 36rem;
+      font-size: 0.9rem;
+    }
+    table.sheet th,
+    table.sheet td {
+      border: 1px solid var(--grid);
+      padding: 0.55rem 0.7rem;
+      font-variant-numeric: tabular-nums;
+      font-family: var(--mono);
+      font-size: 0.84rem;
+    }
+    table.sheet thead th {
+      background: var(--head);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    table.sheet .corner,
+    table.sheet .row-h {
+      background: var(--head);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-align: center;
+      width: 2.4rem;
+      user-select: none;
+    }
+    table.sheet td.label,
+    table.sheet th.label {
+      text-align: left;
+      font-family: var(--font);
+      font-weight: 500;
+      color: var(--ink);
+      background: #fcfbf8;
+    }
+    table.sheet td.num { text-align: right; color: #111827; }
+    table.sheet tr.total td {
+      background: var(--sheet-soft);
+      font-weight: 600;
+      color: var(--sheet);
+      border-top: 2px solid #b7dfc8;
+    }
+    table.sheet tr.total td.label { color: var(--sheet); }
+    table.sheet td.pct-good { color: var(--up); font-weight: 600; }
+    table.sheet tr:hover td:not(.row-h) { background: #f8fafc; }
+    table.sheet tr.total:hover td { background: #dff3e8; }
+    .split {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 0;
+      border-top: 1px solid var(--line);
+    }
+    .chart-panel {
+      padding: 1rem 1.1rem 1.15rem;
+      border-left: 1px solid var(--line);
+      background: linear-gradient(180deg, #fcfbf8, #fff);
+    }
+    .chart-panel h3 {
+      margin: 0 0 0.15rem;
+      font-size: 0.9rem;
+      letter-spacing: -0.01em;
+    }
+    .chart-panel p {
+      margin: 0 0 0.85rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .bars { display: grid; gap: 0.7rem; }
+    .bar-row { display: grid; grid-template-columns: 2.6rem 1fr auto; gap: 0.55rem; align-items: center; }
+    .bar-row span { font-size: 0.75rem; color: var(--muted); }
+    .bar-row strong {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--ink);
+      min-width: 4.5rem;
+      text-align: right;
+    }
+    .track {
+      height: 18px;
+      background: #f1efe8;
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+      position: relative;
+    }
+    .track i {
+      display: block;
+      height: 100%;
+    }
+    .track .rev { background: linear-gradient(90deg, #2f9d62, #217346); }
+    .track .cost { background: linear-gradient(90deg, #f59e0b, #d97706); opacity: 0.85; }
+    .legend {
+      display: flex;
+      gap: 0.9rem;
+      margin-top: 0.85rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .legend b {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      margin-right: 0.3rem;
+      vertical-align: middle;
+    }
+    .legend .l-rev { background: #217346; }
+    .legend .l-cost { background: #d97706; }
+    .sheet-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0.35rem 0.5rem 0;
+      background: #e9e7e0;
+      border-top: 1px solid var(--line);
+      overflow-x: auto;
+    }
+    .sheet-tabs button {
+      appearance: none;
+      border: 1px solid transparent;
+      border-bottom: 0;
+      background: transparent;
+      color: var(--muted);
+      font: 500 0.8rem/1 var(--font);
+      padding: 0.55rem 1rem 0.5rem;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .sheet-tabs button:hover { color: var(--ink); background: rgba(255,255,255,0.45); }
+    .sheet-tabs button.on {
+      background: var(--paper);
+      color: var(--sheet);
+      border-color: var(--line);
+      box-shadow: 0 -1px 0 #fff inset;
+    }
+    .audit {
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.85rem;
+      align-items: start;
+      padding: 0.95rem 1.05rem;
+      border: 1px dashed #b7dfc8;
+      border-radius: var(--radius);
+      background: rgba(232, 245, 238, 0.55);
+    }
+    .audit-mark {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--sheet);
+      color: #fff;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .audit h3 { margin: 0 0 0.25rem; font-size: 0.92rem; }
+    .audit p { margin: 0; color: #3f5f4d; font-size: 0.84rem; line-height: 1.55; }
+    .audit code {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      background: #fff;
+      border: 1px solid #cfe9da;
+      border-radius: 4px;
+      padding: 0.05rem 0.3rem;
+      color: var(--formula);
+    }
+    @media (max-width: 900px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .split { grid-template-columns: 1fr; }
+      .chart-panel { border-left: 0; border-top: 1px solid var(--line); }
+    }
+    @media (max-width: 560px) {
+      .kpis { grid-template-columns: 1fr; }
+      .bar { flex-wrap: wrap; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
   </style>
 </head>
 <body>
   <div class="bar">
     <a href="/cases/ops-sheet">← 返回案例</a>
-    <span>XLSX 预览（HTML 示意）</span>
+    <span>XLSX 预览 · 财务工作簿示意</span>
     <a href="/downloads/anyCode_latest_aarch64.dmg">下载桌面版生成真 .xlsx</a>
   </div>
+
   <div class="wrap">
-    <h1>经营数据表</h1>
-    <p class="lead">收入 / 成本 / 汇总 · 公式可审计（演示页用静态结果示意跨 sheet 联动）</p>
-    <div class="tabs" role="tablist">
-      <button type="button" class="on" data-sheet="rev">收入</button>
-      <button type="button" data-sheet="cost">成本</button>
-      <button type="button" data-sheet="sum">汇总</button>
+    <header class="hero">
+      <div class="kicker">Ops workbook · Q2–Q3</div>
+      <h1>经营数据表</h1>
+      <p class="lead">KPI → 分 sheet 明细 → 跨表汇总。演示页保留 Excel 工作簿语感：公式栏、行列号、可审计联动。</p>
+    </header>
+
+    <section class="kpis" aria-label="关键指标">
+      <article class="kpi">
+        <div class="kpi-label">收入合计</div>
+        <div class="kpi-value">¥574,500</div>
+        <div class="kpi-meta"><span class="delta up">▲ 21.2%</span> 7 月 vs 5 月</div>
+      </article>
+      <article class="kpi" data-tone="warn">
+        <div class="kpi-label">成本合计</div>
+        <div class="kpi-value">¥235,100</div>
+        <div class="kpi-meta"><span class="delta up">▲ 25.3%</span> 随用量上升</div>
+      </article>
+      <article class="kpi" data-tone="info">
+        <div class="kpi-label">毛利合计</div>
+        <div class="kpi-value">¥339,400</div>
+        <div class="kpi-meta"><span class="delta up">▲ 64.7%</span> 收入 − 成本</div>
+      </article>
+      <article class="kpi">
+        <div class="kpi-label">综合毛利率</div>
+        <div class="kpi-value">59.1%</div>
+        <div class="kpi-meta"><span class="delta up">▲ 4.0pt</span> 5 月 → 7 月</div>
+      </article>
+    </section>
+
+    <section class="workbook" aria-label="工作簿">
+      <div class="workbook-chrome">
+        <div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="wb-title"><strong>经营数据_2026Q2-Q3.xlsx</strong> · anycode-xlsx 产物预览</div>
+      </div>
+      <div class="formula-bar" id="formulaBar">
+        <span class="fx-badge">fx</span>
+        <span class="fx-text" id="fxText">D5 = B5+C5</span>
+      </div>
+
+      <div class="sheet-body on" id="rev" data-fx="D5 = B5+C5 · 合计行 = SUM(D2:D4)">
+        <div class="grid-wrap">
+          <table class="sheet">
+            <thead>
+              <tr>
+                <th class="corner"></th>
+                <th>A</th><th>B</th><th>C</th><th>D</th>
+              </tr>
+              <tr>
+                <th class="row-h"></th>
+                <th class="label">月份</th>
+                <th>订阅</th><th>用量</th><th>合计</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th class="row-h">2</th><td class="label">5 月</td><td class="num">120,000</td><td class="num">36,000</td><td class="num">156,000</td></tr>
+              <tr><th class="row-h">3</th><td class="label">6 月</td><td class="num">148,000</td><td class="num">41,200</td><td class="num">189,200</td></tr>
+              <tr><th class="row-h">4</th><td class="label">7 月</td><td class="num">176,500</td><td class="num">52,800</td><td class="num">229,300</td></tr>
+              <tr class="total"><th class="row-h">5</th><td class="label">合计</td><td class="num">444,500</td><td class="num">130,000</td><td class="num">574,500</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sheet-body" id="cost" data-fx="D5 = B5+C5 · 模型成本随 token 用量线性爬坡">
+        <div class="grid-wrap">
+          <table class="sheet">
+            <thead>
+              <tr>
+                <th class="corner"></th>
+                <th>A</th><th>B</th><th>C</th><th>D</th>
+              </tr>
+              <tr>
+                <th class="row-h"></th>
+                <th class="label">月份</th>
+                <th>模型成本</th><th>基建</th><th>合计</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th class="row-h">2</th><td class="label">5 月</td><td class="num">48,000</td><td class="num">22,000</td><td class="num">70,000</td></tr>
+              <tr><th class="row-h">3</th><td class="label">6 月</td><td class="num">55,400</td><td class="num">22,000</td><td class="num">77,400</td></tr>
+              <tr><th class="row-h">4</th><td class="label">7 月</td><td class="num">63,200</td><td class="num">24,500</td><td class="num">87,700</td></tr>
+              <tr class="total"><th class="row-h">5</th><td class="label">合计</td><td class="num">166,600</td><td class="num">68,500</td><td class="num">235,100</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sheet-body" id="sum" data-fx="D2 = 收入!D2-成本!D2 · E2 = D2/收入!D2">
+        <div class="split">
+          <div class="grid-wrap">
+            <table class="sheet">
+              <thead>
+                <tr>
+                  <th class="corner"></th>
+                  <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
+                </tr>
+                <tr>
+                  <th class="row-h"></th>
+                  <th class="label">月份</th>
+                  <th>收入</th><th>成本</th><th>毛利</th><th>毛利率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><th class="row-h">2</th><td class="label">5 月</td><td class="num">156,000</td><td class="num">70,000</td><td class="num">86,000</td><td class="num pct-good">55.1%</td></tr>
+                <tr><th class="row-h">3</th><td class="label">6 月</td><td class="num">189,200</td><td class="num">77,400</td><td class="num">111,800</td><td class="num pct-good">59.1%</td></tr>
+                <tr><th class="row-h">4</th><td class="label">7 月</td><td class="num">229,300</td><td class="num">87,700</td><td class="num">141,600</td><td class="num pct-good">61.8%</td></tr>
+                <tr class="total"><th class="row-h">5</th><td class="label">合计</td><td class="num">574,500</td><td class="num">235,100</td><td class="num">339,400</td><td class="num pct-good">59.1%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <aside class="chart-panel">
+            <h3>收入 vs 成本</h3>
+            <p>按月对照（堆叠比例条，便于一眼看出结构）</p>
+            <div class="bars" aria-hidden="true">
+              <div class="bar-row">
+                <span>5 月</span>
+                <div class="track"><i class="rev" style="width:68%"></i><i class="cost" style="width:32%"></i></div>
+                <strong>55% 毛利</strong>
+              </div>
+              <div class="bar-row">
+                <span>6 月</span>
+                <div class="track"><i class="rev" style="width:71%"></i><i class="cost" style="width:29%"></i></div>
+                <strong>59% 毛利</strong>
+              </div>
+              <div class="bar-row">
+                <span>7 月</span>
+                <div class="track"><i class="rev" style="width:72%"></i><i class="cost" style="width:28%"></i></div>
+                <strong>62% 毛利</strong>
+              </div>
+            </div>
+            <div class="legend"><span><b class="l-rev"></b>收入占比</span><span><b class="l-cost"></b>成本占比</span></div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="sheet-tabs" role="tablist" aria-label="工作表">
+        <button type="button" class="on" data-sheet="rev" role="tab" aria-selected="true">收入</button>
+        <button type="button" data-sheet="cost" role="tab" aria-selected="false">成本</button>
+        <button type="button" data-sheet="sum" role="tab" aria-selected="false">汇总</button>
+      </div>
+    </section>
+
+    <div class="audit">
+      <div class="audit-mark" aria-hidden="true">Σ</div>
+      <div>
+        <h3>公式可审计</h3>
+        <p>
+          汇总页毛利对应跨 sheet 公式
+          <code>=收入!D2-成本!D2</code>，
+          毛利率 <code>=D2/收入!D2</code>。
+          本机用同一提示词可生成可在 Excel / Numbers 打开复核的真 .xlsx。
+        </p>
+      </div>
     </div>
-    <div class="sheet on" id="rev">
-      <table>
-        <thead><tr><th>月份</th><th>订阅</th><th>用量</th><th>合计</th></tr></thead>
-        <tbody>
-          <tr><td>5 月</td><td>120,000</td><td>36,000</td><td>156,000</td></tr>
-          <tr><td>6 月</td><td>148,000</td><td>41,200</td><td>189,200</td></tr>
-          <tr><td>7 月</td><td>176,500</td><td>52,800</td><td>229,300</td></tr>
-          <tr><td>合计</td><td>444,500</td><td>130,000</td><td>574,500</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="sheet" id="cost">
-      <table>
-        <thead><tr><th>月份</th><th>模型成本</th><th>基建</th><th>合计</th></tr></thead>
-        <tbody>
-          <tr><td>5 月</td><td>48,000</td><td>22,000</td><td>70,000</td></tr>
-          <tr><td>6 月</td><td>55,400</td><td>22,000</td><td>77,400</td></tr>
-          <tr><td>7 月</td><td>63,200</td><td>24,500</td><td>87,700</td></tr>
-          <tr><td>合计</td><td>166,600</td><td>68,500</td><td>235,100</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="sheet" id="sum">
-      <table>
-        <thead><tr><th>月份</th><th>收入</th><th>成本</th><th>毛利</th><th>毛利率</th></tr></thead>
-        <tbody>
-          <tr><td>5 月</td><td>156,000</td><td>70,000</td><td>86,000</td><td>55.1%</td></tr>
-          <tr><td>6 月</td><td>189,200</td><td>77,400</td><td>111,800</td><td>59.1%</td></tr>
-          <tr><td>7 月</td><td>229,300</td><td>87,700</td><td>141,600</td><td>61.8%</td></tr>
-          <tr><td>合计</td><td>574,500</td><td>235,100</td><td>339,400</td><td>59.1%</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">汇总页毛利 = 收入 − 成本（对应 xlsx 跨 sheet 公式）。本机用同一提示词可生成可复核的 .xlsx。</p>
   </div>
+
   <script>
-    const buttons = [...document.querySelectorAll(".tabs button")];
-    buttons.forEach((btn) => btn.addEventListener("click", () => {
-      buttons.forEach((b) => b.classList.toggle("on", b === btn));
-      document.querySelectorAll(".sheet").forEach((s) => s.classList.toggle("on", s.id === btn.dataset.sheet));
-    }));
+    const buttons = [...document.querySelectorAll(".sheet-tabs button")];
+    const fxText = document.getElementById("fxText");
+    function activate(id) {
+      buttons.forEach((b) => {
+        const on = b.dataset.sheet === id;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      document.querySelectorAll(".sheet-body").forEach((s) => {
+        const on = s.id === id;
+        s.classList.toggle("on", on);
+        if (on && s.dataset.fx) fxText.textContent = s.dataset.fx;
+      });
+    }
+    buttons.forEach((btn) => btn.addEventListener("click", () => activate(btn.dataset.sheet)));
   </script>
 </body>
 </html>

@@ -26,7 +26,7 @@ permissions:
 - 用户给出 `.pdf` 文件并要求阅读、总结、抽取数据、转换格式。
 - 需要合并多个 PDF、拆分章节、旋转/删除页面。
 - 需要填写可填写表单（AcroForm）或基于模板生成 PDF。
-- 不适用：扫描件 OCR（无文本层时先说明需要 OCR，可调用 STT/OCR 能力若可用）、复杂版式重排（建议改走 md-to-pdf 或 document-delivery）。
+- 不适用：扫描件 OCR（无文本层时先说明需要 OCR，可调用 STT/OCR 能力若可用）、复杂版式重排（建议改走 anycode-pdf 或 anycode-docx）。
 
 ## Workflow
 

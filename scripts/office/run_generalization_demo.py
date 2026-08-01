@@ -19,7 +19,7 @@ from brand_kit import infer_brand_kit, infer_scenario, list_brand_kits, load_sce
 OUT = REPO / "test" / "benchmarks" / "agent-quality" / "results" / f"office-generalization-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 # Source slides for the brand-fill demo: the starter FDE editorial templates
 # (stable, in-repo) instead of a pinned historical results directory.
-SLIDES_SRC = REPO / "skills-starter" / "presentation-design" / "templates"
+SLIDES_SRC = REPO / "scripts" / "office" / "slide-templates"
 PY = sys.executable
 
 
@@ -99,7 +99,7 @@ def run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
 
 def make_chart_slide_html(dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
-    tpl = REPO / "skills-starter/presentation-design/templates"
+    tpl = REPO / "scripts/office/slide-templates"
     for f in sorted(tpl.glob("*.html")):
         shutil.copy(f, dest / f.name)
     metrics = dest / "metrics.html"
@@ -230,7 +230,7 @@ def main() -> int:
         docx = OUT / "docx" / brand / f"{name}.docx"
         docx.parent.mkdir(parents=True, exist_ok=True)
         rc, log = run(
-            [PY, str(REPO / "skills-starter/document-delivery/run"), str(md), str(docx), brand]
+            [PY, str(REPO / "scripts/office/build_docx_from_md.py"), str(md), str(docx), brand]
         )
         stats = docx_stats(docx) if docx.is_file() else {}
         ok = rc == 0 and (stats.get("has_header") or stats.get("has_footer"))
@@ -245,7 +245,7 @@ def main() -> int:
     xlsx = OUT / "xlsx" / "lingqi" / "finance-q2.xlsx"
     xlsx.parent.mkdir(parents=True, exist_ok=True)
     rc, log = run(
-        [PY, str(REPO / "skills-starter/spreadsheet-delivery/run"), str(wb_json), str(xlsx), "lingqi"]
+        [PY, str(REPO / "scripts/office/build_xlsx_from_source.py"), str(wb_json), str(xlsx), "lingqi"]
     )
     stats = xlsx_stats(xlsx) if xlsx.is_file() else {}
     ok = rc == 0 and stats.get("sheets", 0) >= 3

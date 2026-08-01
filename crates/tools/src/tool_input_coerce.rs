@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn unwraps_skill_args_string_array() {
         let raw = json!({
-            "name": "office-pptx",
+            "name": "anycode-ppt",
             "args": "[\"/tmp/outline.md\", \"/tmp/out.pptx\"]"
         });
         let coerced = coerce_tool_input("Skill", raw);
@@ -136,18 +136,18 @@ mod tests {
 
     #[test]
     fn maps_skill_name_aliases() {
-        let raw = json!({ "skill": "office-pptx" });
+        let raw = json!({ "skill": "anycode-ppt" });
         let coerced = coerce_tool_input("Skill", raw);
-        assert_eq!(coerced["name"], "office-pptx");
+        assert_eq!(coerced["name"], "anycode-ppt");
     }
 
     #[test]
     fn unwraps_raw_wrapper_object() {
         let raw = json!({
-            "raw": "{\"name\":\"office-pptx\",\"args\":[\"a.md\",\"b.pptx\"]}"
+            "raw": "{\"name\":\"anycode-ppt\",\"args\":[\"a.md\",\"b.pptx\"]}"
         });
         let coerced = coerce_tool_input("Skill", raw);
-        assert_eq!(coerced["name"], "office-pptx");
+        assert_eq!(coerced["name"], "anycode-ppt");
         assert!(coerced["args"].is_array());
     }
 }

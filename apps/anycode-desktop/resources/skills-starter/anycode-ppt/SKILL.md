@@ -29,7 +29,7 @@ permissions:
 
 ## 禁止（违反则 validate 失败）
 
-- **禁止从零写 CSS** / 禁止 `presentation-design/templates/lingqi/` / 禁止企业蓝 `#1B3A5C`、绿 `#00B050`
+- **禁止从零写 CSS** / 禁止 `scripts/office/slide-templates/lingqi/` / 禁止企业蓝 `#1B3A5C`、绿 `#00B050`
 - 禁止渐变、阴影、大圆角（>8px）、footer 写 `lingqi`
 - 禁止跳过本 skill 直接用 Write 造 slides
 - **禁止** `presentation-commercial-delivery` / `fill_potx` / 生成 `.pptx`（除非用户**另外**明确要求 pptx）

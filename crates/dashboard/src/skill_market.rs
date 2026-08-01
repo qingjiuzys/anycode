@@ -101,26 +101,7 @@ fn official_catalog_entries() -> Vec<SkillMarketEntry> {
             source: "anthropics/skills:skills/xlsx".into(),
             badge: "official".into(),
         },
-        SkillMarketEntry {
-            id: "frontend-design".into(),
-            name: "Frontend design".into(),
-            description: "Design and implement polished UI with layout, typography, and component guidance.".into(),
-            description_zh: Some("设计并实现精致 UI，涵盖布局、排版与组件指导。".into()),
-            name_zh: Some("前端设计".into()),
-            category: "quality".into(),
-            source: "anthropics/skills:skills/frontend-design".into(),
-            badge: "official".into(),
-        },
-        SkillMarketEntry {
-            id: "webapp-testing".into(),
-            name: "Webapp testing".into(),
-            description: "Plan and run browser-based tests for web apps with reproducible checks.".into(),
-            description_zh: Some("为 Web 应用规划并执行可复现的浏览器测试。".into()),
-            name_zh: Some("Web 测试".into()),
-            category: "quality".into(),
-            source: "anthropics/skills:skills/webapp-testing".into(),
-            badge: "official".into(),
-        },
+        // frontend-design / webapp-testing ship in skills-starter (anycode badge) after bake-off.
     ]
 }
 

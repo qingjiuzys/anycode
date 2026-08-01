@@ -63,11 +63,11 @@ def build_scenarios() -> list[Scenario]:
         Scenario(
             id="ppt",
             agent="office-writer",
-            skills=["office-pptx"],
+            skills=["anycode-ppt"],
             prompt=(
                 f"Create a minimal 8-slide .pptx about anyCode daily brief. "
                 f"Save ONLY to {_p('ppt', 'daily-brief.pptx')} "
-                f"(do not write to repo root). Use the office-pptx skill."
+                f"(do not write to repo root). Use the anycode-ppt skill."
             ),
             timeout_s=420,
             expect_artifacts_min=1,
@@ -76,10 +76,10 @@ def build_scenarios() -> list[Scenario]:
         Scenario(
             id="pdf",
             agent="office-writer",
-            skills=["md-to-pdf"],
+            skills=["anycode-pdf"],
             prompt=(
                 f"Write {_p('pdf', 'brief.md')} with 3 bullets grounded in real anyCode "
-                f"docs (not invented metrics), then use md-to-pdf to produce "
+                f"docs (not invented metrics), then use anycode-pdf to produce "
                 f"{_p('pdf', 'brief.pdf')}. Do not write to repo root."
             ),
             timeout_s=300,
@@ -124,18 +124,18 @@ def build_scenarios() -> list[Scenario]:
             expect_paths=[_p("skill-trace", "document-summary.md")],
         ),
         Scenario(
-            id="daily-brief",
+            id="internal-comms",
             agent="office-writer",
-            skills=["daily-brief"],
+            skills=["internal-comms"],
             prompt=(
-                f"Using the daily-brief skill and WebSearch, write {_p('daily-brief', 'brief-eval.md')} "
-                "about AI coding agents. Include focus, 3 priorities, one risk, and a Sources "
-                "section with real URLs obtained from tools. Mark offline draft if search fails. "
+                f"Using the internal-comms skill and WebSearch, write {_p('internal-comms', '3p-eval.md')} "
+                "as a Progress/Plans/Problems update about AI coding agents. Include Sources "
+                "with real URLs when search works. Mark offline draft if search fails. "
                 "Do not write to repo root."
             ),
             timeout_s=300,
             expect_artifacts_min=1,
-            expect_paths=[_p("daily-brief", "brief-eval.md")],
+            expect_paths=[_p("internal-comms", "3p-eval.md")],
         ),
     ]
 
@@ -319,7 +319,7 @@ def run_scenario(project_id: str, sc: Scenario) -> dict:
 def main() -> int:
     ensure_workbench()
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    for sub in ("ppt", "pdf", "image", "video/assets", "skill-trace", "daily-brief"):
+    for sub in ("ppt", "pdf", "image", "video/assets", "skill-trace", "internal-comms"):
         (ARTIFACT_DIR / sub).mkdir(parents=True, exist_ok=True)
 
     health = req("GET", "/api/health")

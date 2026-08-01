@@ -5,7 +5,7 @@ Record end-to-end runs after linking an anycode.work account and selecting **Clo
 | Scenario | Input prompt | Expected artifacts | Pass criteria |
 |----------|--------------|-------------------|---------------|
 | Coding | Home → **编码** chip | Source files under project root | Build or test command succeeds |
-| PPT | Home → **写 PPT** + `office-pptx` skill | `.pptx` under workspace | File opens; ≥8 slides |
+| PPT | Home → **写 PPT** + `anycode-ppt` skill | `.pptx` under workspace | File opens; ≥8 slides |
 | Video | Home → **做视频** + `video-script` | `video/script.md` + assets | Script table + ≥1 asset path |
 | Novel | Home → **写小说** + `novel-writer` | `chapters/01.md` | Chapter file on disk |
 

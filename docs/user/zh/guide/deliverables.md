@@ -65,7 +65,7 @@ description: 图片、PDF、Office、表格与思维导图如何在对话中展�
 }
 ```
 
-内置 starter（`anycode-ppt`、`anycode-xlsx`、`md-to-pdf`、`mindmap` 等）已按此约定发射。
+内置 starter（`anycode-ppt`、`anycode-xlsx`、`anycode-pdf`、`mindmap` 等）已按此约定发射。
 
 </details>
 

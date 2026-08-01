@@ -28,7 +28,7 @@ permissions:
 **不适用：**
 - 周报、月报（使用 cn-weekly-report）。
 - 会议纪要（使用 cn-meeting-minutes）。
-- 英文日报（使用 daily-brief）。
+- 英文日报/状态更新（使用 internal-comms）。
 - 自动发布到社交媒体。
 
 ## 执行步骤 / Workflow

@@ -1,0 +1,3 @@
+promoted_from_bakeoff=bakeoff-mcp-builder
+final_id=mcp-builder
+See upstream LICENSE.txt in this skill directory when present.

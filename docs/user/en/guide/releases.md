@@ -9,6 +9,12 @@ read_when:
 
 # Releases & feature flags
 
+## 0.3.4 (workspace)
+
+- **Built-in skills refresh**: promote bake-off frontend/docs/design skills; drop overlapping delivery starters; move Office builders to `scripts/office/`.
+- **Verification coexist**: keep `verify-discover` and ship obra `verification-before-completion`.
+- **EN daily/weekly briefs**: downgrade to `internal-comms`; keep Chinese `cn-*`.
+
 ## 0.3.3 (workspace)
 
 - **Brain + capability slots**: text-only chat can attach images via OCR; Speak uses the TTS slot; STT stays on the mic slot.

@@ -6,7 +6,7 @@
 
 - `cargo build --release -p anycode`
 - `python3` + `openpyxl`, `python-docx`, `python-pptx`
-- 可选 `pandoc`（md-to-pdf）
+- 可选 PDF 引擎（anycode-pdf）
 - `~/.anycode/config.json` 含可用 LLM（live 场景）
 - Dashboard @ `http://127.0.0.1:43180`
 

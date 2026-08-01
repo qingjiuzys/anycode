@@ -156,10 +156,12 @@ impl SkillCatalog {
                 continue;
             };
             for ent in entries.flatten() {
-                let Ok(ft) = ent.file_type() else {
+                let skill_dir = ent.path();
+                // Follow symlinks so project `skills/<id> -> …` installs are discovered.
+                let Ok(meta) = fs::metadata(&skill_dir) else {
                     continue;
                 };
-                if !ft.is_dir() {
+                if !meta.is_dir() {
                     continue;
                 }
                 let id = ent.file_name().to_string_lossy().to_string();
@@ -171,7 +173,6 @@ impl SkillCatalog {
                         continue;
                     }
                 }
-                let skill_dir = ent.path();
                 let md_path = skill_dir.join(SKILL_FILE);
                 if !md_path.is_file() {
                     continue;
@@ -562,6 +563,32 @@ mod tests {
         assert_eq!(
             catalog.resolve_skill_root("demo", Some(&project)),
             fs::canonicalize(project_skill).ok()
+        );
+    }
+
+    #[test]
+    fn scan_follows_symlinked_skill_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real-skill");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(
+            real.join(SKILL_FILE),
+            "---\nname: link-skill\ndescription: via symlink\n---\nbody\n",
+        )
+        .unwrap();
+        let named = dir.path().join("skills_root");
+        std::fs::create_dir_all(&named).unwrap();
+        let target = named.join("link-skill");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real, &target).unwrap();
+        #[cfg(not(unix))]
+        {
+            fs::rename(&real, &target).unwrap();
+        }
+        let catalog = SkillCatalog::scan(&[named], None, 1_000, false);
+        assert!(
+            catalog.metas().iter().any(|s| s.id == "link-skill"),
+            "expected symlink/dir skill to be discovered"
         );
     }
 }

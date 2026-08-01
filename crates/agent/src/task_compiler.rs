@@ -325,7 +325,7 @@ impl<'a> TaskCompiler<'a> {
                         });
                         deliverables.push("PowerPoint .pptx deck".into());
                         constraints.push(
-                            "use presentation-design + presentation-commercial-delivery → native .pptx"
+                            "use anycode-ppt + presentation-commercial-delivery → native .pptx"
                                 .into(),
                         );
                     } else {

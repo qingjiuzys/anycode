@@ -23,7 +23,7 @@ def main() -> int:
     template_dir.mkdir(parents=True, exist_ok=True)
     out = template_dir / "template.potx"
 
-    seed = REPO / "skills-starter" / "presentation-design" / "templates"
+    seed = REPO / "scripts" / "office" / "slide-templates"
     sample_manifest = {
         "brand_kit": brand,
         "slides": [

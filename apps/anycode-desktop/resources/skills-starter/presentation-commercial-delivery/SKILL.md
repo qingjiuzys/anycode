@@ -23,7 +23,7 @@ permissions:
 
 ## Workflow
 
-1. Ensure `slides/*.html` and/or `slide_manifest.json` exist (from `presentation-design`).
+1. Ensure `slides/*.html` and/or `slide_manifest.json` exist (from `anycode-ppt`).
 2. Run **`run`**: `slides/` or `slide_manifest.json` `[output.pptx]` `[brand_kit=fde-editorial]`
    - `fde-editorial` = standard anyCode editorial style (contract: `docs/design/fde-editorial-contract.md`); `lingqi` / `gov-formal` for their respective brands.
 3. Produces editable `.pptx` — native text shapes and native `c:chart` charts, not full-slide raster images.

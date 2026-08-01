@@ -5,7 +5,7 @@ describe("skillIcons", () => {
   it("assigns distinct icons for starter skills", () => {
     const csv = skillIconMeta({ id: "report-to-csv", category: "data" });
     const brief = skillIconMeta({ id: "cn-daily-brief", category: "business" });
-    const pptx = skillIconMeta({ id: "office-pptx", category: "business" });
+    const pptx = skillIconMeta({ id: "anycode-ppt", category: "business" });
     expect(csv.icon).toBe("bar_chart");
     expect(brief.icon).toBe("article");
     expect(pptx.icon).toBe("slideshow");

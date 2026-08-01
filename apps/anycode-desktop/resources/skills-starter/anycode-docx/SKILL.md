@@ -57,7 +57,7 @@ permissions:
 ## 视觉
 
 - preview.html 对齐 `docs/design/fde-editorial-contract.md`
-- docx 走 `document-delivery` + `brand-kits/fde-editorial`
+- docx 走 `scripts/office/build_docx_from_md.py` + `brand-kits/fde-editorial`
 
 ## DeepSeek 执行要点
 

@@ -46,7 +46,7 @@ SCENES: dict[str, dict] = {
             "Include Markdown source then export a real report.docx under the project workspace. "
             "Structure: # Summary, then ## Metrics, ## Incidents, ## Changes, ## Next steps. "
             "End every section with Decision: or Action: including a named owner and ISO date. "
-            "Use concrete numbers (no TBD/lorem). Prefer the document-delivery Skill run script."
+            "Use concrete numbers (no TBD/lorem). Prefer the anycode-docx Skill run script."
         ),
     },
     "pptx": {
@@ -56,7 +56,7 @@ SCENES: dict[str, dict] = {
             "Create a 6-slide product pitch PPTX for anyCode under the project workspace: "
             "Title, Problem, Metric, Plan, Risks, Ask. Every non-title bullet must include a "
             "concrete number OR named owner/date. No TBD / Competitor X. Use "
-            "presentation-design Skill for slides/*.html + slide_manifest.json + evidence PNGs, "
+            "anycode-ppt Skill for slides/*.html + slide_manifest.json + evidence PNGs, "
             "then presentation-commercial-delivery to export editable pitch.pptx (not raster)."
         ),
     },
@@ -65,7 +65,7 @@ SCENES: dict[str, dict] = {
         "prompt": (
             "Audience: enterprise buyers. Do not ask clarifying questions — assume and proceed. "
             "Deliver a commercial-grade 8-slide anyCode pitch deck under the project workspace. "
-            "MUST use presentation-design + presentation-commercial-delivery Skills with lingqi brand-kit and COPY template structure: "
+            "MUST use anycode-ppt + presentation-commercial-delivery Skills with lingqi brand-kit and COPY template structure: "
             "slides/01-cover.html (3 value chips), slides/02-section.html (agenda), "
             "slides/03-problem.html (two-column: 5 bullets + side panel + quote), "
             "slides/04-metrics.html (6 stat cards), slides/05-plan.html (5 timeline items + owners), "
@@ -81,7 +81,7 @@ SCENES: dict[str, dict] = {
             "Audience: finance ops. Do not ask clarifying questions — assume and proceed. "
             "Create a June 2026 sales workbook as a real .xlsx under the project workspace. "
             "Columns: Region, Product, Units, Revenue. Include a header row plus at least 6 "
-            "concrete data rows (APAC/EMEA/AMER). No TBD/lorem. Prefer spreadsheet-delivery "
+            "concrete data rows (APAC/EMEA/AMER). No TBD/lorem. Prefer anycode-xlsx "
             "Skill with lingqi brand-kit: ≥3 sheets (Summary + Detail + Pricing), branded header fill, "
             "frozen top row. Save sales-june.xlsx."
         ),

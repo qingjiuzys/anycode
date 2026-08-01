@@ -1,6 +1,6 @@
 # 内置运行时（Python / Node）
 
-anyCode 的许多 skill（office-pptx、spreadsheet-delivery、pdf、md-to-pdf 等）依赖 `python3` 与 `node`。为保证开箱即用，anyCode 采用与主流 AI 工具一致的做法——**自带受管运行时**，不依赖用户环境：
+anyCode 的许多 skill（anycode-ppt、spreadsheet-delivery、pdf、anycode-pdf 等）依赖 `python3` 与 `node`。为保证开箱即用，anyCode 采用与主流 AI 工具一致的做法——**自带受管运行时**，不依赖用户环境：
 
 - **Claude Code** 原生安装器自带运行时（无需用户安装 Node.js）；Anthropic 官方 skills 依赖 uv 管理的 Python。
 - **云端 Agent**（Devin / E2B 等）在沙箱中预装完整运行时。

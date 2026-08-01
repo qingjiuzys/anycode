@@ -279,18 +279,20 @@ pub fn profile_spec_for_builtin(id: &str) -> Option<AgentProfileSpec> {
             spec.skills_allowlist = Some(vec![
                 "content-repurpose".into(),
                 "doc-summary".into(),
-                "md-to-pdf".into(),
-                "weekly-report".into(),
+                "anycode-pdf".into(),
+                "anycode-docx".into(),
+                "anycode-ppt".into(),
+                "internal-comms".into(),
             ]);
             spec.prompt_overlay = Some(
-                "You are an office writing assistant. Produce clear Markdown drafts; do not publish externally. Use KnowledgeSearch for indexed project materials when paths are configured.".into(),
+                "You are an office writing assistant. Produce clear Markdown drafts; do not publish externally. Use KnowledgeSearch for indexed project materials when paths are configured. Use internal-comms for English status/daily/weekly updates.".into(),
             );
         }
         "data-analyst" => {
             spec.skills_allowlist = Some(vec![
                 "doc-summary".into(),
                 "report-to-csv".into(),
-                "weekly-report".into(),
+                "internal-comms".into(),
             ]);
             spec.prompt_overlay = Some(
                 "Focus on accurate data summaries and tables; cite source files. Use KnowledgeSearch and report-to-csv when exporting tabular results.".into(),
@@ -307,12 +309,13 @@ pub fn profile_spec_for_builtin(id: &str) -> Option<AgentProfileSpec> {
                 "Skill".into(),
             ]);
             spec.skills_allowlist = Some(vec![
-                "daily-brief".into(),
+                "internal-comms".into(),
                 "deep-research".into(),
                 "verify-discover".into(),
+                "verification-before-completion".into(),
             ]);
             spec.prompt_overlay = Some(
-                "Gather sources with WebSearch/WebFetch; synthesize with citations. Use verify-discover when discovering how to validate a stack. Bind daily-brief skill for scheduled summaries.".into(),
+                "Gather sources with WebSearch/WebFetch; synthesize with citations. Use verify-discover when discovering how to validate a stack. Use verification-before-completion before claiming work is done. Use internal-comms for scheduled English status briefs.".into(),
             );
         }
         "file-operator" => {

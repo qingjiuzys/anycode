@@ -9,6 +9,12 @@ read_when:
 
 # 版本与特性开关
 
+## 0.3.4（工作区）
+
+- **内置 Skills 重组**：bake-off 晋升一批前端/文档/设计类 skill；移除重复交付类 starter；Office 构建脚本迁至 `scripts/office/`。
+- **验证并存**：保留 `verify-discover`，并纳入 obra `verification-before-completion`。
+- **英文日报/周报**：降级为 `internal-comms`；中文 `cn-*` 保留。
+
 ## 0.3.3（工作区）
 
 - **大脑 + 能力槽**：纯文本对话模型可贴图（Apple OCR 注入底层）；助手气泡朗读走 TTS 槽；STT 仍走麦克风槽。

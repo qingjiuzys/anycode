@@ -80,7 +80,7 @@
       "expected_artifacts": ["artifacts/report_table.pdf", "artifacts/report_table.html"],
       "delivery_contract": [
         "将 fixtures/report_table.md 导出为 artifacts/report_table.pdf（优先）或 .html",
-        "优先使用 Skill 工具 md-to-pdf",
+        "优先使用 Skill 工具 anycode-pdf",
         "若 Skill 失败，允许 fallback，但须在 artifacts/report_table.audit.json 记录 actual_path、fallback_reason、tool_chain",
         "PDF 无 file:// 页脚、无临时路径泄露",
         "正文含表格区域数据与源 MD 一致"

@@ -1,0 +1,23 @@
+{
+  "defaults": {
+    "timeout_s": 300,
+    "agent": "general-purpose"
+  },
+  "cases": [
+    {
+      "id": "ab-verify-discover",
+      "skill": "verify-discover",
+      "prompt": "Use skill verify-discover. Scenario: you just changed skills-starter/anycode-docx/run. Discover how to verify the anycode-docx pipeline (smallest proof), actually run what you can, and write out/ab-verify-discover/verdict.md with: stack identified, commands tried (+ exit codes), evidence, and whether you may claim success. Stay in that out/ folder."
+    },
+    {
+      "id": "ab-verification-before-completion",
+      "skill": "verification-before-completion",
+      "prompt": "Use skill verification-before-completion. Someone is about to claim: 'anycode-docx run script is executable and syntax-valid on this machine.' Apply the Iron Law / gate function: identify proof command(s), RUN them fresh, then write out/ab-verification-before-completion/evidence.md stating the claim ONLY if evidence supports it (else state actual status). Stay in that out/ folder."
+    },
+    {
+      "id": "ab-both-overlap-premature",
+      "skill": "verify-discover",
+      "prompt": "You feel done after editing a Python file under scripts/office/build_docx_from_md.py. Using verify-discover, decide if you can say 'fixed and verified'. Write out/ab-both-overlap-premature/note.md with your discovery + execution evidence. Prefer honesty over optimism."
+    }
+  ]
+}

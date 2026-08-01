@@ -291,7 +291,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                     "幻灯片".into(),
                 ],
                 task_breakdown: vec![
-                    "presentation-design: dense HTML slides + slide_manifest.json + evidence PNGs".into(),
+                    "anycode-ppt: dense HTML slides + slide_manifest.json + evidence PNGs".into(),
                     "presentation-commercial-delivery: fill_potx → editable native .pptx (not raster)".into(),
                     "cover: 3 chips; content: 5 bullets + sidebar; metrics: 6 cards; closing: 4 actions".into(),
                     "outline problem → metric → plan → risks → ask with numbers or owner/date".into(),
@@ -335,7 +335,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                     "Summary as level-1 heading first".into(),
                     "H2 sections for metrics/incidents/changes/next steps".into(),
                     "end every section with Decision: or Action: plus owner/date".into(),
-                    "export via document-delivery Skill with fde-editorial brand header/footer".into(),
+                    "export via anycode-docx Skill with fde-editorial brand header/footer".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![
@@ -376,7 +376,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 task_breakdown: vec![
                     "confirm sheet name, columns, and units".into(),
                     "write CSV or Markdown table with header + real rows".into(),
-                    "export via spreadsheet-delivery Skill: ≥3 sheets (Summary + Detail + Pricing), branded header fill".into(),
+                    "export via anycode-xlsx Skill: ≥3 sheets (Summary + Detail + Pricing), branded header fill".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![
@@ -412,7 +412,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 ],
                 task_breakdown: vec![
                     "scenario product-launch: problem → solution → traction → roadmap → ask".into(),
-                    "presentation-design + presentation-commercial-delivery with brand_kit from prompt".into(),
+                    "anycode-ppt + presentation-commercial-delivery with brand_kit from prompt".into(),
                     "metrics slide may include data-chart JSON → native or PNG chart".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
@@ -439,7 +439,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 ],
                 task_breakdown: vec![
                     "scenario work-report: Summary + Progress + Metrics + Issues + Next Steps".into(),
-                    "document-delivery with inferred brand_kit (fde-editorial default; gov-formal/edu-clean for their domains)".into(),
+                    "anycode-docx with inferred brand_kit (fde-editorial default; gov-formal/edu-clean for their domains)".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![
@@ -530,7 +530,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 task_breakdown: vec![
                     "brand_kit edu-clean; scenario education-lesson-plan outline".into(),
                     "objectives → activities → assessment → homework slides".into(),
-                    "presentation-design + commercial export".into(),
+                    "anycode-ppt + commercial export".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![
@@ -558,7 +558,7 @@ pub fn builtin_web_and_rust_pack() -> ExperiencePack {
                 task_breakdown: vec![
                     "brand_kit gov-formal; scenario gov-briefing".into(),
                     "include 密级/classification line in header or opening paragraph".into(),
-                    "document-delivery export with Heading styles".into(),
+                    "anycode-docx export with Heading styles".into(),
                 ],
                 tool_order: vec!["SkillSearch".into(), "Skill".into(), "Write".into(), "Bash".into()],
                 key_checks: vec![

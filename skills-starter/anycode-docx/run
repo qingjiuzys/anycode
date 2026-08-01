@@ -38,7 +38,7 @@ def main() -> int:
 
     validator = REPO / "scripts" / "office" / "validate_report_md.py"
     preview_py = REPO / "scripts" / "office" / "build_md_preview.py"
-    delivery = REPO / "skills-starter" / "document-delivery" / "run"
+    delivery = REPO / "scripts" / "office" / "build_docx_from_md.py"
 
     for step, cmd in [
         ("validate", [sys.executable, str(validator), str(src), "anycode-docx"]),

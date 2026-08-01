@@ -223,15 +223,9 @@ mod tests {
     }
 
     #[test]
-    fn office_pptx_prefers_commercial_delivery() {
+    fn commercial_delivery_wins_pptx_export() {
         let temp = tempfile::tempdir().unwrap();
-        write_skill(temp.path(), "office-pptx", "presentation.export.pptx", 50);
-        write_skill(
-            temp.path(),
-            "presentation-design",
-            "presentation.export.pptx",
-            120,
-        );
+        write_skill(temp.path(), "legacy-pptx", "presentation.export.pptx", 50);
         write_skill(
             temp.path(),
             "presentation-commercial-delivery",
@@ -246,32 +240,9 @@ mod tests {
     }
 
     #[test]
-    fn office_pptx_author_prefers_design() {
-        let temp = tempfile::tempdir().unwrap();
-        write_skill(temp.path(), "office-pptx", "presentation.author", 50);
-        write_skill(
-            temp.path(),
-            "presentation-design",
-            "presentation.author",
-            120,
-        );
-        let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
-        let gov = SkillsGovernance::default();
-        let ctx = SkillResolutionContext::default();
-        let res = resolve_capabilities(&["presentation.author".into()], &catalog, &gov, &ctx);
-        assert_eq!(res.selected[0].skill_id, "presentation-design");
-    }
-
-    #[test]
     fn anycode_ppt_author_prefers_anycode_skill() {
         let temp = tempfile::tempdir().unwrap();
-        write_skill(temp.path(), "office-pptx", "presentation.author", 50);
-        write_skill(
-            temp.path(),
-            "presentation-design",
-            "presentation.author",
-            120,
-        );
+        write_skill(temp.path(), "legacy-pptx", "presentation.author", 50);
         write_skill(temp.path(), "anycode-ppt", "presentation.author", 125);
         let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
         let gov = SkillsGovernance::default();
@@ -283,7 +254,7 @@ mod tests {
     #[test]
     fn anycode_docx_author_prefers_anycode_skill() {
         let temp = tempfile::tempdir().unwrap();
-        write_skill(temp.path(), "document-delivery", "document.author", 90);
+        write_skill(temp.path(), "legacy-docx", "document.author", 90);
         write_skill(temp.path(), "anycode-docx", "document.author", 125);
         let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
         let gov = SkillsGovernance::default();
@@ -295,12 +266,7 @@ mod tests {
     #[test]
     fn anycode_xlsx_author_prefers_anycode_skill() {
         let temp = tempfile::tempdir().unwrap();
-        write_skill(
-            temp.path(),
-            "spreadsheet-delivery",
-            "spreadsheet.author",
-            90,
-        );
+        write_skill(temp.path(), "legacy-xlsx", "spreadsheet.author", 90);
         write_skill(temp.path(), "anycode-xlsx", "spreadsheet.author", 125);
         let catalog = SkillCatalog::scan(&[temp.path().to_path_buf()], None, 120_000, false);
         let gov = SkillsGovernance::default();

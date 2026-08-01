@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 0.3.4
+
+### Added
+
+- Skill bake-off promotions into `skills-starter/` (frontend-design, webapp-testing, doc-coauthoring, theme-factory, vercel-*, design-taste-frontend, find-skills, web-design-guidelines, skill-creator, verification-before-completion, internal-comms, and related).
+- Shared Office builders under `scripts/office/` used by `anycode-docx` / `xlsx` / `ppt` run scripts.
+
+### Changed
+
+- Removed overlapping starters: `web-design-delivery`, `brainstorming`, `document-delivery`, `spreadsheet-delivery`, `presentation-design`, `office-pptx`, `md-to-pdf`.
+- EN `daily-brief` / `weekly-report` replaced by `internal-comms`; Chinese `cn-*` kept.
+- Skill scan follows symlink directories; catalog validation includes `skills.extra_dirs`.
+- Installer copies full skills-starter tree (not a curated subset).
+
+### Fixed
+
+- Skill suggestions / market / agent profile bindings updated for the new starter pack.
+
 ## 0.3.3
 
 ### Added

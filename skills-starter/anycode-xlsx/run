@@ -38,7 +38,7 @@ def main() -> int:
 
     validator = REPO / "scripts" / "office" / "validate_workbook.py"
     preview_py = REPO / "scripts" / "office" / "build_workbook_preview.py"
-    delivery = REPO / "skills-starter" / "spreadsheet-delivery" / "run"
+    delivery = REPO / "scripts" / "office" / "build_xlsx_from_source.py"
     recheck = REPO / "scripts" / "office" / "recheck_xlsx.py"
 
     for step, cmd in [

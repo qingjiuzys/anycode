@@ -21,6 +21,39 @@ export type ChangelogRelease = {
 /** Newest first — rendered as a vertical timeline (top → bottom). */
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: "0.3.4",
+    date: "2026-08-01",
+    tag: "v0.3.4",
+    summary: {
+      zh: "内置 Skills 重组：bake-off 晋升、Office 脚本外置、验证技能并存。",
+      en: "Built-in skills refresh: bake-off promotions, shared Office builders, dual verification skills.",
+    },
+    sections: [
+      {
+        kind: "added",
+        items: [
+          {
+            zh: "晋升一批前端/文档/设计类 starter skill，并纳入 verification-before-completion 与 internal-comms。",
+            en: "Promoted frontend/docs/design starter skills, plus verification-before-completion and internal-comms.",
+          },
+          {
+            zh: "Office 构建脚本统一到 scripts/office/，供 anycode-docx / xlsx / ppt 复用。",
+            en: "Shared Office builders under scripts/office/ for anycode-docx / xlsx / ppt.",
+          },
+        ],
+      },
+      {
+        kind: "changed",
+        items: [
+          {
+            zh: "移除重复交付类 starter；英文日报/周报改走 internal-comms；中文 cn-* 保留。",
+            en: "Removed overlapping delivery starters; EN daily/weekly briefs use internal-comms; keep Chinese cn-*.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: "0.3.3",
     date: "2026-07-31",
     tag: "v0.3.3",

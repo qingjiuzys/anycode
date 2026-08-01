@@ -568,8 +568,8 @@ mod tests {
 
     #[test]
     fn parses_anycode_starter_source() {
-        let parsed = parse_skill_source("anycode-starter:daily-brief").unwrap();
-        assert_eq!(parsed, ParsedSource::Starter("daily-brief".into()));
+        let parsed = parse_skill_source("anycode-starter:internal-comms").unwrap();
+        assert_eq!(parsed, ParsedSource::Starter("internal-comms".into()));
     }
 
     #[test]
