@@ -332,10 +332,58 @@ export function toolStepRunning(step: ToolStep): boolean {
   return Boolean(step.call) && !step.result;
 }
 
+const TOOL_FAILED_TITLE_RE = /\bfailed\b/i;
+const TOOL_FINISHED_TITLE_RE = /\bfinished\b/i;
+
+/** 纯文本错误前缀：与输出正文无关的确定性失败信号。 */
+const TEXT_FAILURE_MARKERS = [
+  "Command failed",
+  "Command timed out",
+  "File not found",
+  "Not a file",
+  "Is a directory",
+  "Permission denied",
+  "rg failed",
+  "Serialization error: missing field",
+  "path escapes sandbox",
+  "skill exited with code",
+];
+
+export function toolResultFailed(title: string, body: string): boolean {
+  // 1) 服务端生成的 title（"{name} failed/finished"）是最可靠信号。
+  if (TOOL_FINISHED_TITLE_RE.test(title)) return false;
+  if (TOOL_FAILED_TITLE_RE.test(title)) return true;
+
+  // 2) 结构化 JSON 优先：exit_code / success / error 字段。
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      if (typeof obj.exit_code === "number") return obj.exit_code !== 0;
+      if (typeof obj.success === "boolean") return !obj.success;
+      if (typeof obj.error === "string" && obj.error) return true;
+      // 成功负载字段：FileRead(content) / Glob(filenames) / Grep(matches) / WebSearch(raw)
+      if ("content" in obj || "filenames" in obj || "matches" in obj || "raw" in obj) {
+        return false;
+      }
+    }
+  } catch {
+    // 非 JSON，走纯文本判定。
+  }
+
+  // 3) 明确错误前缀，避免把输出正文里的 error/failed 字样误判为失败。
+  const trimmed = body.trim();
+  if (TEXT_FAILURE_MARKERS.some((m) => trimmed.startsWith(m))) return true;
+  if (/^HTTP [45]\d\d\b/.test(trimmed)) return true;
+  if (/^Other error:/.test(trimmed)) return true;
+
+  return false;
+}
+
 export function toolStepFailed(step: ToolStep): boolean {
   const primary = step.result ?? step.call;
   if (!primary) return false;
-  return /failed|error|denied/i.test(`${primary.title} ${primary.body}`);
+  return toolResultFailed(primary.title, primary.body);
 }
 
 /** Name of the tool currently running in a turn, if any. */

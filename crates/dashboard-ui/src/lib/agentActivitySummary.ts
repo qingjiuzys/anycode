@@ -1,7 +1,6 @@
 import type { TranscriptBlock } from "@/api/types";
 import { formatDurationMs } from "@/lib/toolStepLabel";
 import type { ToolStep } from "@/lib/transcriptGrouping";
-import { toolStepFailed } from "@/lib/transcriptGrouping";
 
 const EXPLORE_TOOLS = new Set([
   "Glob",
@@ -278,17 +277,4 @@ export function isStatusMessage(block: TranscriptBlock): boolean {
 
 export function isFinalAssistantMessage(block: TranscriptBlock): boolean {
   return block.block_type === "assistant_message" && !isStatusMessage(block);
-}
-
-export function formatToolFailureRecovery(
-  step: ToolStep,
-  t: (key: string) => string,
-): string | null {
-  if (!toolStepFailed(step)) return null;
-  const primary = step.result ?? step.call;
-  if (!primary) return null;
-  const toolName =
-    (primary.meta?.name as string | undefined) ??
-    primary.title.replace(/\s+(started|finished|failed)$/i, "").trim();
-  return t("conversations.toolFailureRecovery").replace("{tool}", toolName || "Tool");
 }

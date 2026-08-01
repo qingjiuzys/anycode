@@ -831,7 +831,6 @@ export const zh = {
     progressNextPrefix: "接下来：",
     progressDiscoveryPrefix: "发现：",
     executionRecordFold: "查看执行记录 · {n} 个阶段",
-    toolFailureRecovery: "{tool} 失败 · 正在检查输出并调整方案",
     askSubmit: "提交回答",
     askOtherPlaceholder: "其他（可选）",
     askInboxTitle: "需要你回答",

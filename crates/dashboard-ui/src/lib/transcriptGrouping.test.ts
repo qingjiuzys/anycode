@@ -4,7 +4,10 @@ import {
   countLogicalToolSteps,
   groupTurnReplies,
   mergeFinalAssistantBlocks,
+  toolResultFailed,
+  toolStepFailed,
 } from "@/lib/transcriptGrouping";
+import type { ToolStep } from "@/lib/transcriptGrouping";
 
 function block(
   id: string,
@@ -165,5 +168,85 @@ describe("countLogicalToolSteps", () => {
       block("t4", "tool_result", { meta: { tool_key: "1:2" } }),
     ];
     expect(countLogicalToolSteps(tools)).toBe(2);
+  });
+});
+
+function toolStep(title: string, body: string, withResult = true): ToolStep {
+  const call = { title, body: "", at: "2026-01-01T00:00:00Z", id: "call", block_type: "tool_call" } as TranscriptBlock;
+  const result = {
+    title,
+    body,
+    at: "2026-01-01T00:00:00Z",
+    id: "result",
+    block_type: "tool_result",
+  } as TranscriptBlock;
+  return { key: "1:1", call, ...(withResult ? { result } : {}) };
+}
+
+describe("toolResultFailed", () => {
+  it("trusts server-generated failed title", () => {
+    expect(toolResultFailed("Bash failed", "everything is fine")).toBe(true);
+  });
+
+  it("trusts server-generated finished title even when body mentions error", () => {
+    expect(toolResultFailed("Bash finished", "no error detected")).toBe(false);
+    expect(toolResultFailed("Bash finished", "exit_code: 1")).toBe(false);
+  });
+
+  it("reads exit_code from structured JSON", () => {
+    expect(toolResultFailed("Bash", JSON.stringify({ exit_code: 0 }))).toBe(false);
+    expect(toolResultFailed("Bash", JSON.stringify({ exit_code: 1 }))).toBe(true);
+  });
+
+  it("reads success boolean from structured JSON", () => {
+    expect(toolResultFailed("Bash", JSON.stringify({ success: true }))).toBe(false);
+    expect(toolResultFailed("Bash", JSON.stringify({ success: false }))).toBe(true);
+  });
+
+  it("reads error string from structured JSON", () => {
+    expect(toolResultFailed("Bash", JSON.stringify({ error: "boom" }))).toBe(true);
+    expect(toolResultFailed("Bash", JSON.stringify({ error: "" }))).toBe(false);
+  });
+
+  it("treats known success payloads as success even when words appear", () => {
+    expect(toolResultFailed("FileRead", JSON.stringify({ content: "no error here" }))).toBe(false);
+    expect(toolResultFailed("Glob", JSON.stringify({ filenames: ["failed.txt"] }))).toBe(false);
+    expect(toolResultFailed("Grep", JSON.stringify({ matches: ["error"] }))).toBe(false);
+    expect(toolResultFailed("WebSearch", JSON.stringify({ raw: "denied" }))).toBe(false);
+  });
+
+  it("recognizes deterministic text failure prefixes", () => {
+    expect(toolResultFailed("Bash", "Command failed: cargo build")).toBe(true);
+    expect(toolResultFailed("Bash", "Command timed out after 120s")).toBe(true);
+    expect(toolResultFailed("FileRead", "File not found: src/main.rs")).toBe(true);
+    expect(toolResultFailed("FileRead", "Not a file: /dev/null")).toBe(true);
+    expect(toolResultFailed("Bash", "Permission denied")).toBe(true);
+    expect(toolResultFailed("Grep", "rg failed")).toBe(true);
+    expect(toolResultFailed("FileWrite", "Serialization error: missing field file_path")).toBe(true);
+    expect(toolResultFailed("Glob", "path escapes sandbox")).toBe(true);
+    expect(toolResultFailed("Skill", "skill exited with code 1: pandoc not installed")).toBe(true);
+  });
+
+  it("recognizes HTTP and Other error prefixes", () => {
+    expect(toolResultFailed("WebFetch", "HTTP 404 Not Found")).toBe(true);
+    expect(toolResultFailed("WebFetch", "HTTP 500 Internal Server Error")).toBe(true);
+    expect(toolResultFailed("WebSearch", "Other error: ddg: error sending request")).toBe(true);
+  });
+
+  it("does not treat arbitrary body words as failure", () => {
+    expect(toolResultFailed("Bash", "3 failed, 2 passed, 1 error")).toBe(false);
+    expect(toolResultFailed("Read", "## Error Handling\nDocs about errors.")).toBe(false);
+    expect(toolResultFailed("Bash", "denied: some package name")).toBe(false);
+  });
+});
+
+describe("toolStepFailed", () => {
+  it("uses result body when present", () => {
+    expect(toolStepFailed(toolStep("Bash", "Command failed: cargo build"))).toBe(true);
+    expect(toolStepFailed(toolStep("Bash", "3 failed, 2 passed"))).toBe(false);
+  });
+
+  it("falls back to call body when no result yet", () => {
+    expect(toolStepFailed(toolStep("Bash", "still running", false))).toBe(false);
   });
 });

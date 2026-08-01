@@ -843,7 +843,6 @@ export const en = {
     progressNextPrefix: "Next: ",
     progressDiscoveryPrefix: "Found: ",
     executionRecordFold: "View execution record · {n} phases",
-    toolFailureRecovery: "{tool} failed · checking output and adjusting approach",
     askSubmit: "Submit answer",
     askOtherPlaceholder: "Other (optional)",
     askInboxTitle: "Answer required",

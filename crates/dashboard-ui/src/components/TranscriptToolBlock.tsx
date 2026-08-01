@@ -5,7 +5,7 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { Icon } from "@/components/Icon";
 import { previewLines } from "@/components/ui/CollapsiblePanel";
 import { formatToolPhaseLabel, formatTranscriptBlockTitle } from "@/lib/eventFormat";
-import { countLogicalToolSteps, toolStepKey } from "@/lib/transcriptGrouping";
+import { countLogicalToolSteps, toolResultFailed, toolStepKey } from "@/lib/transcriptGrouping";
 import { useT } from "@/i18n/context";
 
 type Props = {
@@ -27,7 +27,7 @@ export function TranscriptToolBlock({
   const failed = tools.some(
     (tool) =>
       tool.block_type === "tool_result" &&
-      /failed|error|denied/i.test(`${tool.title} ${tool.body}`),
+      toolResultFailed(tool.title ?? "", tool.body ?? ""),
   );
   const running =
     tools.some((tool) => tool.block_type === "tool_call") &&
@@ -210,7 +210,7 @@ function summarizeToolSteps(tools: TranscriptBlock[]): StepRow[] {
   return order.map((key) => {
     const slot = byKey.get(key)!;
     const primary = slot.result ?? slot.call!;
-    const failed = /failed|error|denied/i.test(`${primary.title} ${primary.body}`);
+    const failed = toolResultFailed(primary.title ?? "", primary.body ?? "");
     return {
       id: primary.id,
       label: primary.title,
@@ -249,7 +249,7 @@ function buildGroupSummary(
   const results = tools.filter((x) => x.block_type === "tool_result").length;
   const failed = tools.some(
     (x) =>
-      x.block_type === "tool_result" && /failed|error|denied/i.test(`${x.title} ${x.body}`),
+      x.block_type === "tool_result" && toolResultFailed(x.title ?? "", x.body ?? ""),
   );
   const done = results >= calls && calls > 0;
   const stepCount = countLogicalToolSteps(tools);

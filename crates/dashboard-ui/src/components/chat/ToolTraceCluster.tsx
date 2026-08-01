@@ -11,7 +11,6 @@ import {
 } from "@/lib/transcriptGrouping";
 import {
   formatAgentActivityRecap,
-  formatToolFailureRecovery,
   truncateThinkingPreview,
 } from "@/lib/agentActivitySummary";
 import {
@@ -118,8 +117,6 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
       ? "tool-strip--running"
       : "tool-strip--done";
 
-  const failedStep = steps.find(toolStepFailed);
-  const recoveryLine = failedStep ? formatToolFailureRecovery(failedStep, t) : null;
   // Codex/Cursor: only the live/streaming cluster shows step rows.
   // Settled success clusters stay a single non-interactive summary line.
   const showStepDetails = streaming && forceExpanded !== false;
@@ -138,11 +135,6 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
             segmentActive={isRunning}
           />
         ))}
-        {recoveryLine && (
-          <p className="tool-strip-recovery m-0 px-1 py-2 text-xs text-warn" data-testid="tool-failure-recovery">
-            {recoveryLine}
-          </p>
-        )}
       </div>
     );
   }
@@ -190,11 +182,6 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
                 segmentActive={isRunning}
               />
             ))}
-          {recoveryLine && (
-            <p className="tool-strip-recovery m-0 px-3 py-2 text-xs text-warn" data-testid="tool-failure-recovery">
-              {recoveryLine}
-            </p>
-          )}
         </div>
       </div>
     );
@@ -222,11 +209,6 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
           {summary.lastLabel ? (
             <span className="agent-trace-meta__meta"> · {summary.lastLabel}</span>
           ) : null}
-        </p>
-      )}
-      {recoveryLine && (
-        <p className="agent-trace-meta__warn m-0" data-testid="tool-failure-recovery">
-          {recoveryLine}
         </p>
       )}
     </div>
