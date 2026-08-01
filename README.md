@@ -1,153 +1,101 @@
-<p align="center">
-  <img src="brand/anycode-mark.svg" width="72" alt="anyCode" />
-</p>
 
-<h1 align="center">anyCode</h1>
+
+# anyCode
 
 <p align="center">
-  <strong>Enterprise-grade · Open source (MIT) · Self-hosted</strong>
-</p>
-
-<p align="center">
-  Local-first · BYOK · data stays on your machine<br/>
-  Run agents on your own hardware — not a black-box cloud gateway.
+  <strong>企业级 · 开源 (MIT) · 自托管</strong>
 </p>
 
 <p align="center">
-  <a href="README.zh.md">简体中文</a> ·
-  <a href="https://anycode.work/docs/">Docs</a> ·
-  <a href="https://github.com/qingjiuzys/anycode/releases">Releases</a> ·
-  <a href="LICENSE">MIT</a>
+  本地优先 · BYOK · 数据保留在本地<br/>
+  在您的硬件上运行代理，而非黑盒云网关。
+</p>
+
+<p align="center">
+  <a href="https://gitee.com/nuai/anycode/blob/master/README.zh.md">中文文档</a> ·
+  <a href="https://anycode.work/docs/">官方文档</a> ·
+  <a href="https://github.com/qingjiuzys/anycode/releases">下载页面</a> ·
+  <a href="LICENSE">MIT 许可证</a>
 </p>
 
 <p align="center">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg" />
-  <img alt="rust" src="https://img.shields.io/badge/rust-edition%202021-orange.svg" />
+  <img alt="rust" src="https://img.shields.io/badge/rust-2021-orange.svg" />
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg" />
   <img alt="status" src="https://img.shields.io/badge/status-invite--only%20beta-yellow.svg" />
 </p>
 
 ---
 
-## At a glance
+## 简介
 
-<p align="center">
-  <a href="https://anycode.work">
-    <img src="docs/user/assets/screenshots/home.png" alt="anyCode enterprise Agent workbench — self-hosted on your machine or private network" width="920" />
-  </a>
-</p>
+anyCode 是一款企业级 AI 编程助手，采用本地优先架构，代码和数据默认保存在您的本地环境中。与传统云端 AI 编程工具不同，anyCode 让您完全掌控数据和模型选择。
 
-<p align="center">
-  <sub><strong>Enterprise-grade · Free & open source · Self-hosted</strong> — Digital Workbench on your hardware, BYOK models, configurable approvals</sub>
-</p>
+### 核心特性
 
-<p align="center">
-  <img src="docs/user/assets/screenshots/colleagues.png" alt="Team handoff — LAN discovery and org-scoped streaming relay" width="920" />
-</p>
+| 特性 | 说明 |
+|------|------|
+| **本地执行** | 代码和文件默认保存在本地，不上传云端 |
+| **BYOK 模型** | 支持 30+ 模型提供商，自由选择或自托管模型 |
+| **自托管部署** | 完全本地化部署，满足合规要求 |
+| **团队协作** | 支持 LAN 发现和云端 A2A 流式交接 |
+| **企业功能** | 审批流程、API 令牌、项目策略等 |
+| **定时任务** | 自然语言配置的 cron 调度器 |
+| **Skills 扩展** | 可安装的技能包，支持文档、表格、PPT 等 |
 
-<p align="center">
-  <sub>Team collaboration: mDNS on LAN + cloud A2A streaming relay (no OSS) for compliance-friendly deployments</sub>
-</p>
+### 技术架构
 
----
-
-## Why anyCode
-
-Most AI coding assistants push reasoning and context into a vendor cloud. anyCode flips that:
-
-| | Hosted agents | **anyCode** |
-|---|---|---|
-| Where it runs | Vendor servers | **Your machine / private network** |
-| Models | Tied to a plan | **BYOK** — any provider or private endpoint |
-| Code & files | Uploaded to the cloud | **Stay local by default** |
-| Team work | Shared cloud workspace | **Explicit handoff** after peer approval |
-| Control | Opaque policy | **Approvals, policies, Skills, REST API** |
-
-Built for teams that need **sovereignty, compliance, and extensibility**.
-
----
-
-## What's new in v0.3.0
-
-This release focuses on **alignment before action** and **team collaboration**:
-
-### Grill Me（拷问）
-
-Turn on Grill mode (`/grill-me` or `/拷问`). The agent **aligns first, implements later**:
-
-- One question at a time via `AskUserQuestion`
-- Every question includes a recommended option
-- Repo-answerable questions are answered from the codebase, not the user
-- Implementation starts only when you say so (e.g. “go ahead” / 「可以动手了」)
-
-Stops the “rewrite the repo before we agree on the goal” failure mode.
-
-### Team Handoff（多人协作交接）
-
-Hand a project or session to a colleague — not a zip dump or screenshot:
-
-- **LAN**: mDNS discovery + peer-to-peer transfer ([ADR 015](docs/adr/015-lan-colleague-handoff.md))
-- **Cloud team**: same-org devices via A2A streaming relay ([ADR 016](docs/adr/016-cloud-a2a-team-handoff.md)) — **no OSS**; bundle bytes stay in an in-memory pipe
-- **Explicit consent**: recipient approves in Desktop before a stream token is issued
-- Portal **Team** page lists org members and online Desktop instances
+```
+┌─────────────────────────────────────────────────────────┐
+│  anyCode.app / 浏览器                                    │
+│  Digital Workbench · Grill/Goal · 协作界面              │
+└───────────────────────────┬─────────────────────────────┘
+                            │ loopback :43180
+┌───────────────────────────▼─────────────────────────────┐
+│  AgentRuntime (Rust / Tokio)                            │
+│  LLM 提供商 · 工具 · Skills · 审批 · 内存管理            │
+└───────────────┬─────────────────────────┬───────────────┘
+                │                         │
+        ~/.anycode/                 anycode-daemon
+        config · sessions           调度器 (cron)
+                │
+                ▼ 可选云服务
+        anycode.work — 设备链接 · 组织成员 · 流式交接
+```
 
 ---
 
-## Features
+## v0.3.0 新功能
 
-### Local Digital Workbench
+### 拷问模式（Grill Me）
 
-Projects, sessions, assets, automations, and security approvals — all on a loopback Workbench.  
-Bundled in **anyCode.app** (macOS), or at `http://127.0.0.1:43180` in dev builds.
+启用 Grill 模式（`/grill-me` 或 `/拷问`），代理先对齐思路，再开始实现：
 
-### Single Rust Agent Runtime
+- 通过 `AskUserQuestion` 每次只问一个问题
+- 每个问题包含推荐选项
+- 可在代码库中回答的问题会优先从代码库获取答案
+- 只有在您确认后（如 "go ahead" / 「可以动手了」）才开始实现
 
-One `AgentRuntime` owns the multi-turn LLM + tool loop — Bash, Edit, Grep, MCP, LSP, Skills, Cron, Knowledge, and more. Not a thin shell over a remote gateway.
+避免"在确认目标之前重写整个代码库"这类失败模式。
 
-### BYOK model catalog
+### 多人协作交接（Team Handoff）
 
-30+ providers (z.ai/GLM, DeepSeek, Anthropic, Bedrock, Copilot, OpenRouter, Ollama, custom OpenAI-compatible endpoints…). Keys stay in `~/.anycode/config.json`.
+将项目或会话移交给同事，而非压缩包或截图：
 
-> Maintainer day-to-day validation: **z.ai / GLM** and **DeepSeek**. Other catalog entries are configuration-supported; CI uses a local mock, not live vendor APIs.
-
-### Grill Me & Goal mode
-
-- **Grill Me**: Socratic plan alignment before any edits  
-- **Goal mode**: iterate autonomously until gates / goals are met  
-
-### Team handoff (LAN + Cloud A2A)
-
-Discover peers → request handoff → peer approves → stream a `handoff_v1` bundle. Semantics align with [Google A2A](https://google.github.io/A2A/) concepts while keeping the “data stays local” posture.
-
-### Built-in scheduler
-
-Natural-language cron via `anycode-daemon scheduler`, with run history, guardrails, and Workbench session output.
-
-### Skills & office deliverables
-
-Installable Skills (including doc / spreadsheet / deck / PDF pipelines) — agents that ship artifacts, not only code.
-
-### macOS-native extras
-
-**Apple Speech** (no Whisper download) and **Apple Vision OCR** in the Desktop shell. Browser-only Workbench on loopback does not include these.
-
-### Enterprise-friendly extension surface
-
-Local REST API, API tokens, project policies, documented permission modes, eval/gate harness. SSO/RBAC is on the roadmap.
+- **局域网**：mDNS 发现 + 点对点传输
+- **云端团队**：同组织设备间通过 A2A 流式中继
+- **显式同意**：接收方在 Desktop 中批准后才发放流令牌
+- Portal 团队页面列出组织成员和在线的 Desktop 实例
 
 ---
 
-## Quick start
+## 快速开始
 
-1. Install **anyCode.app** (macOS) or **`anycode-daemon`** (Linux / Windows headless)
-2. Open Workbench **`/setup`** and configure a model
-3. Send a test message — try `/grill-me` or hand off to a colleague
+### macOS（推荐）
 
-### macOS (recommended)
+从 [Releases](https://github.com/qingjiuzys/anycode/releases) 下载 `anyCode_<version>_aarch64.dmg`，将 anyCode 拖入应用程序文件夹。
 
-Download `anyCode_<version>_aarch64.dmg` from [Releases](https://github.com/qingjiuzys/anycode/releases) and drag **anyCode** into Applications.
-
-### Linux / Windows (headless)
+### Linux / Windows（无头模式）
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
@@ -158,82 +106,97 @@ curl -fsSL --proto '=https' --tlsv1.2 \
 irm https://raw.githubusercontent.com/qingjiuzys/anycode/main/scripts/install.ps1 | iex
 ```
 
-Then open `http://127.0.0.1:43180/setup`.
+安装完成后，打开 `http://127.0.0.1:43180/setup` 进行配置。
 
-**Verify:** send “Reply with OK only”.
-
----
-
-## Architecture at a glance
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│  anyCode.app / Browser                                  │
-│  Digital Workbench  ·  Grill / Goal  ·  Colleague UI    │
-└───────────────────────────┬─────────────────────────────┘
-                            │ loopback :43180
-┌───────────────────────────▼─────────────────────────────┐
-│  AgentRuntime (Rust / Tokio)                            │
-│  LLM providers · Tools · Skills · Approvals · Memory    │
-└───────────────┬─────────────────────────┬───────────────┘
-                │                         │
-        ~/.anycode/                 anycode-daemon
-        config · sessions           scheduler (cron)
-                │
-                ▼ optional cloud (account / A2A signaling)
-        anycode.work — device link · org peers · streaming handoff
-                       (bundle never lands in OSS / DB)
-```
+**验证**：发送"回复 OK 即可"测试。
 
 ---
 
-## Documentation
+## 详细功能
 
-| | |
-|---|---|
-| Getting started | [guide](https://anycode.work/docs/guide/getting-started) |
-| Install | [install](https://anycode.work/docs/guide/install) |
-| Desktop (macOS) | [desktop](https://anycode.work/docs/guide/desktop) |
-| Models & endpoints | [models](https://anycode.work/docs/guide/models) |
-| Workbench | [workbench](https://anycode.work/docs/guide/workbench) |
-| Scheduled jobs | [scheduler](https://anycode.work/docs/guide/cli-scheduler) |
-| Troubleshooting | [troubleshooting](https://anycode.work/docs/guide/troubleshooting) |
+### Digital Workbench
 
-Maintainer docs: [`docs/`](docs/) · ADRs · [`docs/roadmap.md`](docs/roadmap.md)
+项目管理、会话、资产、自动化和安全审批 —— 全部在本地 Workbench 中进行。macOS 用户使用 **anyCode.app**，开发构建通过 `http://127.0.0.1:43180` 访问。
+
+### 单一 Rust 代理运行时
+
+`AgentRuntime` 统一管理多轮 LLM + 工具循环，支持 Bash、Edit、Grep、MCP、LSP、Skills、Cron、知识库等工具。
+
+### BYOK 模型目录
+
+支持 30+ 提供商（z.ai/GLM、DeepSeek、Anthropic、Bedrock、Copilot、OpenRouter、Ollama、自定义 OpenAI 兼容端点等）。密钥保存在 `~/.anycode/config.json`。
+
+### 拷问与目标模式
+
+- **拷问模式**：苏格拉底式的计划对齐
+- **目标模式**：自主迭代直至满足门控条件
+
+### 团队交接
+
+发现同伴 → 请求交接 → 同伴批准 → 流式传输 `handoff_v1` 包。语义对齐 [Google A2A](https://google.github.io/A2A/) 概念，同时保持"数据留本地"的姿态。
+
+### 内置调度器
+
+通过 `anycode-daemon scheduler` 配置自然语言 cron 任务，包含运行历史、防护机制和 Workbench 会话输出。
+
+### Skills 与办公交付
+
+可安装的 Skills（包括文档/表格/演示文稿/PDF 流水线）—— 代理不仅可以生成代码，还能产出办公文档。
+
+### macOS 原生能力
+
+**Apple Speech**（无需下载 Whisper）和 **Apple Vision OCR** 集成到 Desktop shell 中。
+
+### 企业扩展接口
+
+本地 REST API、API 令牌、项目策略、权限模式、评估/门控工具。SSO/RBAC 正在规划中。
 
 ---
 
-## Develop
+## 开发指南
 
 ```bash
+# 代码检查
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
 
-# Desktop iteration
-./scripts/sync-desktop-dev.sh          # UI only
+# Desktop 迭代
+./scripts/sync-desktop-dev.sh          # 仅 UI
 ./scripts/sync-desktop-dev.sh --rust   # UI + Rust (release-local)
 ```
 
-Preview user docs locally:
+本地预览用户文档：
 
 ```bash
 cd crates/account-portal && npm install && npm run dev
 # → http://127.0.0.1:43201/docs
 ```
 
-Stack: Rust workspace · Tokio · React (Workbench) · Tauri (Desktop) · Fluent i18n.
+**技术栈**：Rust workspace · Tokio · React · Tauri · Fluent i18n
 
 ---
 
-## Status & license
+## 文档资源
 
-Invite-only beta while algorithm-filing review is in progress. Do not treat this as general availability or regulatory approval.
+| 主题 | 链接 |
+|------|------|
+| 入门指南 | [https://anycode.work/docs/guide/getting-started](https://anycode.work/docs/guide/getting-started) |
+| 安装部署 | [https://anycode.work/docs/guide/install](https://anycode.work/docs/guide/install) |
+| Desktop (macOS) | [https://anycode.work/docs/guide/desktop](https://anycode.work/docs/guide/desktop) |
+| 模型配置 | [https://anycode.work/docs/guide/models](https://anycode.work/docs/guide/models) |
+| Workbench | [https://anycode.work/docs/guide/workbench](https://anycode.work/docs/guide/workbench) |
+| 定时任务 | [https://anycode.work/docs/guide/cli-scheduler](https://anycode.work/docs/guide/cli-scheduler) |
+| 故障排查 | [https://anycode.work/docs/guide/troubleshooting](https://anycode.work/docs/guide/troubleshooting) |
 
-License: [MIT](LICENSE)
+---
+
+## 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
 <p align="center">
-  <sub>Enterprise agents you control — local execution, explicit handoff, grill before you build.</sub>
+  <sub>您掌控的企业级代理 —— 本地执行、显式交接、动手前先对齐。</sub>
 </p>
