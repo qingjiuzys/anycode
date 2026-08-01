@@ -188,6 +188,7 @@ pub fn session_auto_compact_threshold(cfg: &SessionConfig, effective_context_win
         trigger_ratio: cfg.auto_compact_ratio.clamp(0.01, 1.0),
         hard_token_threshold: cfg.auto_compact_min_input_tokens,
         suppress_follow_up_questions: true,
+        ..Default::default()
     };
     if policy.hard_token_threshold > 0 {
         policy.hard_token_threshold

@@ -20,10 +20,18 @@ impl AgentRuntime {
         // reached compaction must run, including for weak local models during
         // their warm-up turns (tool-schema reduction handles those separately).
         let context_tokens = self.effective_context_window_tokens(model);
+        // PreCompact skip（对齐 Claude `SKIP_PRECOMPACT_THRESHOLD`）：消息/指纹过少时跳过压缩，
+        // `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP` 可禁用该跳过。
+        let skip = compact::should_skip_precompact(
+            messages.len(),
+            compact::SKIP_PRECOMPACT_THRESHOLD,
+            self.auto_compact_policy.disable_precompact_skip,
+        );
         if !self.auto_compact
             || !self
                 .auto_compact_policy
                 .should_compact(context_tokens, last_input_tokens)
+            || skip
             || messages.len() < 3
         {
             return Ok(false);
@@ -99,6 +107,7 @@ impl AgentRuntime {
                 session,
                 api_messages: &mut api_msgs,
                 microcompact_cleared: 0,
+                variant: compact::CompactVariant::Precompact,
             };
             self.compaction_hooks.pre_compact(&mut pre_ctx)?;
             pre_ctx.microcompact_cleared
@@ -111,13 +120,43 @@ impl AgentRuntime {
             );
         }
         let summary_model = self.model_for_summary().clone();
-        let (raw, usage) = compact::run_compact_llm(
-            &self.llm_client,
-            &summary_model,
-            api_msgs,
-            custom_instructions,
-        )
-        .await?;
+        // 压缩缓存（对齐 Claude `.precompact.json`）：同尾部消息再次压缩时复用摘要，跳过 LLM。
+        let session_id = compact::cache_session_id(transcript_path, working_directory);
+        let fingerprint = compact::fingerprint_message_ids(session);
+        let cache_hit = if self.auto_compact_policy.disable_precompact_skip {
+            None
+        } else {
+            compact::read_precompact_cache(&session_id, &fingerprint)
+        };
+        let (raw, usage) = match cache_hit {
+            Some(raw) => {
+                tracing::info!(
+                    target: "anycode_agent",
+                    session_id,
+                    "precompact cache hit, skipping summary LLM"
+                );
+                (
+                    raw,
+                    Usage {
+                        input_tokens: 0,
+                        output_tokens: 0,
+                        cache_creation_tokens: None,
+                        cache_read_tokens: Some(fingerprint.len() as u32),
+                    },
+                )
+            }
+            None => {
+                let (raw, usage) = compact::run_compact_llm(
+                    &self.llm_client,
+                    &summary_model,
+                    api_msgs,
+                    custom_instructions,
+                )
+                .await?;
+                compact::write_precompact_cache(&session_id, &fingerprint, &raw);
+                (raw, usage)
+            }
+        };
         let mut out = compact::build_post_compact_messages(
             fresh_system,
             &raw,

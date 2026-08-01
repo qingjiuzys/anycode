@@ -168,7 +168,9 @@ pub async fn initialize_runtime(
                 trigger_ratio: config.session.auto_compact_ratio.clamp(0.01, 1.0),
                 hard_token_threshold: config.session.auto_compact_min_input_tokens,
                 suppress_follow_up_questions: true,
-            },
+                ..Default::default()
+            }
+            .with_env(),
         )
         .with_session_context(
             config.session.context_window_auto,

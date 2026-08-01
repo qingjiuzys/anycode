@@ -72,7 +72,7 @@ pub use llm_types::{
     ToolOutput, ToolSchema, Usage,
 };
 pub use memory_episode::{
-    looks_like_secret, EpisodeEvent, EpisodeRecord, MemoryKind, MemoryMetaV2,
+    looks_like_secret, EpisodeEvent, EpisodeRecord, MemoryKind, MemoryMetaV2, SurveyRating,
 };
 pub use memory_model::{Memory, MemoryScope, MemoryType};
 pub use memory_pipeline::{
@@ -154,11 +154,11 @@ pub mod prelude {
         PlanPatch, PlanStatus, PlanTree, PlanValidationError, PlanValidationIssue,
         PlanValidationResult, PreSemanticFragment, RuntimeMode, RuntimeProfile, SecretRef,
         SecretResolver, SecurityPolicy, SessionNotificationSettings, SlashCommand,
-        SlashCommandScope, StreamEvent, SubAgentExecutor, Task, TaskBudget, TaskContext,
-        TaskFamily, TaskId, TaskResult, TaskSpec, TerminationReason, Tool, ToolCall, ToolInput,
-        ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage, VectorMemoryBackend,
-        VisionImage, WorkflowCheckpoint, WorkflowDefinition, WorkflowHandoff, WorkflowRetry,
-        WorkflowStep, WorkflowStepStatus, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
+        SlashCommandScope, StreamEvent, SubAgentExecutor, SurveyRating, Task, TaskBudget,
+        TaskContext, TaskFamily, TaskId, TaskResult, TaskSpec, TerminationReason, Tool, ToolCall,
+        ToolInput, ToolName, ToolOutput, ToolSchema, TurnOutput, TurnTokenUsage, Usage,
+        VectorMemoryBackend, VisionImage, WorkflowCheckpoint, WorkflowDefinition, WorkflowHandoff,
+        WorkflowRetry, WorkflowStep, WorkflowStepStatus, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
         ANYCODE_CONTEXT_USER_METADATA_KEY, ANYCODE_REASONING_CONTENT_METADATA_KEY,
         ANYCODE_TOOL_CALLS_METADATA_KEY, ANYCODE_VISION_IMAGES_METADATA_KEY,
         BUILTIN_SLASH_COMMANDS, DEFAULT_MAX_AGENT_TURNS, DEFAULT_MAX_TOOL_CALLS,

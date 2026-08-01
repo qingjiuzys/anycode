@@ -26,8 +26,12 @@ pub use agent_profiles::{
 };
 pub use agents::{ExploreAgent, GeneralPurposeAgent, PlanAgent};
 pub use compact::{
-    CompactPolicy, CompactionHooks, CompactionPostContext, CompactionPreContext,
-    DefaultCompactionHooks, FileReadSnippet, SessionCompactionState,
+    apply_ptl_step, apply_tool_use_summaries, build_reactive_summarize_set,
+    clamp_output_tokens_to_credits, classifier_should_compact, gap_guided_preserve_from,
+    group_turns, is_away_summary_enabled, is_cold_compact, plan_reactive_compact,
+    should_skip_precompact, CompactPolicy, CompactVariant, CompactionHooks, CompactionPostContext,
+    CompactionPreContext, DefaultCompactionHooks, FileReadSnippet, ReactiveAbortReason,
+    ReactiveCompactOptions, ReactivePlan, SessionCompactionState, TurnGroup, AWAY_SUMMARY_PROMPT,
 };
 pub use declarative_agent::ProfileAgent;
 pub use goal_engine::GoalEngine;

@@ -233,6 +233,7 @@ pub fn consolidate_episodes(
                     conflicts_with: Vec::new(),
                     pinned: false,
                     forgotten: false,
+                    survey_rating: None,
                 }),
             };
             existing_keys.insert(key, memory.id.clone());

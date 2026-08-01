@@ -8,8 +8,12 @@ pub mod e2ee_sync;
 #[cfg(feature = "embedding-local")]
 pub mod embedding_fastembed;
 pub mod embedding_http;
+pub mod multistore;
+pub mod ops;
 pub mod pipeline;
+pub mod rating;
 pub mod retrieval;
+pub mod semantic;
 pub mod vector_sled;
 
 pub use dream::{
@@ -24,7 +28,26 @@ pub use e2ee_sync::{
 #[cfg(feature = "embedding-local")]
 pub use embedding_fastembed::FastEmbedEmbeddingProvider;
 pub use embedding_http::OpenAiCompatibleEmbeddingProvider;
+pub use multistore::{
+    content_hash, detect_conflicts, initial_version, next_version, MemoryConflict,
+    MemoryStoreDescriptor, MemoryStoreId, MemoryStoreKind, MemoryStoreRegistry,
+    MemoryStoreSelector, MemoryVersion, VersionedMemory,
+};
+pub use ops::{
+    parse_export_line, BulkInflateFailure, BulkInflateOutcome, ExportLine, ExportStreamFailure,
+    MemoryThresholdLevel, ResyncPolicy, StreamListState, ThresholdCrossedEvent,
+    DEFAULT_RESYNC_INTERVAL_MINUTES, ENV_DISABLE_MEMORY_PERIODIC_RESYNC,
+    ENV_RESYNC_INTERVAL_MINUTES, MAX_EXPORT_LINE_BYTES,
+};
 pub use pipeline::{NoopEmbeddingProvider, NoopVectorBackend, RootReturnMemoryPipeline};
+pub use rating::{
+    apply_survey_rating, rating_to_score, read_survey_rating_frontmatter,
+    write_survey_rating_frontmatter,
+};
+pub use semantic::{
+    build_distill_prompt, first_line, parse_distill_response, read_distilled_frontmatter,
+    slugify_name, write_distilled_frontmatter, DistilledMemoryEntry,
+};
 pub use vector_sled::SledVectorBackend;
 
 use crate::retrieval::{KeywordRetrieval, MemoryRetrieval};
@@ -61,6 +84,9 @@ pub enum MemoryError {
 
     #[error("Embedding init: {0}")]
     EmbeddingInit(String),
+
+    #[error("Version conflict: {0}")]
+    VersionConflict(String),
 }
 
 fn core_from_mem(e: MemoryError) -> CoreError {

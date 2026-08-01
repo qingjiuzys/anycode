@@ -5,14 +5,21 @@
 
 #![allow(unused_imports)] // barrel `pub use`，供 `crate::compact::` / `anycode_agent::` 与 `hooks` 子模块使用
 
+mod cache;
 mod checkpoint;
 mod hooks;
 mod microcompact;
 mod policy;
 mod post_compact;
+mod reactive;
 mod snippets;
 mod state;
+mod variant;
 
+pub use cache::{
+    cache_session_id, fingerprint_message_ids, read_precompact_cache, write_precompact_cache,
+    PRECOMPACT_CACHE_MAX_BYTES, PRECOMPACT_CACHE_VERSION, SKIP_PRECOMPACT_THRESHOLD,
+};
 pub use checkpoint::append_compaction_checkpoint;
 pub use hooks::{
     CompactionHooks, CompactionPostContext, CompactionPreContext, DefaultCompactionHooks,
@@ -22,8 +29,18 @@ pub use policy::CompactPolicy;
 pub use post_compact::{
     inject_file_read_snippets, inject_file_snippets_from_state, run_post_compact_cleanup,
 };
+pub use reactive::{
+    apply_ptl_step, assistant_has_content, build_reactive_summarize_set,
+    clamp_output_tokens_to_credits, gap_guided_preserve_from, group_turns, plan_reactive_compact,
+    ReactiveAbortReason, ReactiveCompactOptions, ReactivePlan, TurnGroup,
+    REACTIVE_MAX_OUTPUT_TOKENS, REACTIVE_MAX_PTL_RETRIES, REACTIVE_MIN_GROUPS,
+};
 pub use snippets::{POST_COMPACT_MAX_CHARS_PER_FILE, POST_COMPACT_MAX_FILES};
 pub use state::{FileReadSnippet, SessionCompactionState};
+pub use variant::{
+    apply_tool_use_summaries, classifier_should_compact, is_away_summary_enabled, is_cold_compact,
+    should_skip_precompact, CompactVariant, AWAY_SUMMARY_PROMPT,
+};
 
 use anycode_core::prelude::*;
 use regex::Regex;
@@ -201,11 +218,25 @@ pub async fn run_compact_llm(
 
         if text.trim_start().starts_with(PROMPT_TOO_LONG_PREFIX) {
             ptl_attempts += 1;
-            if ptl_attempts > MAX_COMPACT_PTL_RETRIES || !truncate_head_after_system(&mut messages)
-            {
+            if ptl_attempts > MAX_COMPACT_PTL_RETRIES {
                 return Err(CoreError::LLMError(
                     "compact: prompt too long after retries".into(),
                 ));
+            }
+            // 响应式步进（对齐 Claude gap_guided）：gap 随重试扩大，保留更多尾部组。
+            let opts = ReactiveCompactOptions {
+                max_output_tokens: COMPACT_MAX_OUTPUT_TOKENS,
+                max_ptl_retries: MAX_COMPACT_PTL_RETRIES,
+                initial_gap: ptl_attempts as u32,
+                gap_multiplier: 2,
+            };
+            if !apply_ptl_step(&mut messages, &opts) {
+                // 组数不足等无法按组步进时，回退到逐条截断。
+                if !truncate_head_after_system(&mut messages) {
+                    return Err(CoreError::LLMError(
+                        "compact: prompt too long after retries".into(),
+                    ));
+                }
             }
             continue;
         }

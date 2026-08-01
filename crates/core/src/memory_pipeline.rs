@@ -47,7 +47,8 @@ pub struct MemoryPipelineSettings {
     pub hook_max_bytes: usize,
     /// 工具名前缀命中则跳过钩子（如 `mcp__`）。
     pub hook_tool_deny_prefixes: Vec<String>,
-    /// 是否启用 HTTP embedding + Sled 向量索引（需配置模型与密钥）。
+    /// 语义检索默认启用（对齐 Claude `embeddingDataDeliveryEnabled`）；无 provider/密钥时
+    /// bootstrap 自动降级为关键词/热层检索。
     pub embedding_enabled: bool,
 }
 
@@ -65,7 +66,7 @@ impl Default for MemoryPipelineSettings {
             hook_after_agent_turn: true,
             hook_max_bytes: 4096,
             hook_tool_deny_prefixes: vec!["mcp__".to_string()],
-            embedding_enabled: false,
+            embedding_enabled: true,
         }
     }
 }

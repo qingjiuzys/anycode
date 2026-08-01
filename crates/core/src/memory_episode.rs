@@ -55,6 +55,28 @@ impl MemoryKind {
     }
 }
 
+/// 记忆评分调查统计（对齐 Claude Code `surveyRating` frontmatter：`count` / `mean` / `total`）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SurveyRating {
+    #[serde(default)]
+    pub count: u32,
+    #[serde(default)]
+    pub mean: f32,
+    #[serde(default)]
+    pub total: u32,
+}
+
+impl SurveyRating {
+    /// 追加一次评分（bad/fine/good → 1/2/3），更新均值。
+    pub fn record(&mut self, rating: u8) {
+        let rating = rating.max(1);
+        self.total += rating as u32;
+        self.count += 1;
+        self.mean = self.total as f32 / self.count as f32;
+    }
+}
+
 /// V2 metadata attached to consolidated memories (optional on legacy rows).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MemoryMetaV2 {
@@ -80,6 +102,9 @@ pub struct MemoryMetaV2 {
     pub pinned: bool,
     #[serde(default)]
     pub forgotten: bool,
+    /// 记忆评分回写（`surveyRating`）；`None` 表示尚无评分。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub survey_rating: Option<SurveyRating>,
 }
 
 /// Structured waking-period event (not raw tool dumps).
