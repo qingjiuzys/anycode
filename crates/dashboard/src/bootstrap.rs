@@ -15,7 +15,7 @@ pub async fn bootstrap_summary(
     if !has_data {
         next_steps.push("Start a conversation in the Workbench to register sessions".into());
         next_steps.push("Or click **Scan projects** on Projects to import recent task logs".into());
-        next_steps.push("Launch anyCode (desktop) or open http://127.0.0.1:43180".into());
+        next_steps.push("Launch anyCode (desktop)".into());
     }
     if stats.gates_failed > 0 {
         next_steps.push(format!(

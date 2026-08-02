@@ -127,6 +127,11 @@ pub async fn create_handoff(
     sender: &AuthUser,
     input: CreateHandoffInput,
 ) -> Result<HandoffTaskView> {
+    if !crate::team::collaboration_enabled(db, &sender.organization_id).await? {
+        return Err(anyhow!(
+            "team collaboration requires creating a team and inviting members first"
+        ));
+    }
     if !verify_device_owner(db, &sender.id, &input.sender_device_id).await? {
         return Err(anyhow!("sender device not linked"));
     }

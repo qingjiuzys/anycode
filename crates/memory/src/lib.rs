@@ -2,6 +2,7 @@
 //!
 //! 四类记忆（Project / User / Session 等）与存储后端
 
+pub mod automem;
 mod buffer_wal;
 pub mod dream;
 pub mod e2ee_sync;

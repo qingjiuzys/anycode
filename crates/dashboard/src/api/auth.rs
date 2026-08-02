@@ -13,8 +13,6 @@ use serde_json::json;
 
 /// Browser origins allowed for CORS and mutating-request Origin checks.
 pub const ALLOWED_BROWSER_ORIGINS: &[&str] = &[
-    "http://127.0.0.1:43180",
-    "http://localhost:43180",
     "http://127.0.0.1:43199",
     "http://localhost:43199",
     "tauri://localhost",
@@ -42,12 +40,15 @@ pub fn cookie_from_request(parts: &axum::http::request::Parts) -> Option<String>
     cookie_value(parts, SESSION_COOKIE)
 }
 
-/// Test-only bypass (CI). Product paths use local session / API token.
+/// Loopback-trusted access: CI test bypass, or the in-process embedded Desktop
+/// shell. Packaged Desktop serves its own UI over the `tauri://` origin and
+/// talks to this loopback API; it is a trusted local process, so it does not
+/// need a cross-origin session cookie.
 fn loopback_trusted_access(host: &str, test_bypass: bool) -> bool {
-    is_loopback_host(host) && test_bypass
+    is_loopback_host(host) && (test_bypass || embedded_desktop())
 }
 
-fn embedded_desktop() -> bool {
+pub(crate) fn embedded_desktop() -> bool {
     std::env::var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -64,7 +65,22 @@ pub fn generate_desktop_bootstrap_token() -> String {
 }
 
 pub fn origin_allowed(origin: &str) -> bool {
-    ALLOWED_BROWSER_ORIGINS.contains(&origin)
+    if ALLOWED_BROWSER_ORIGINS.contains(&origin) {
+        return true;
+    }
+    // Desktop embeds the SPA on an ephemeral loopback port (e.g. :53402).
+    if embedded_desktop() && origin_host(origin).is_some_and(is_loopback_host) {
+        return true;
+    }
+    false
+}
+
+fn origin_host(origin: &str) -> Option<&str> {
+    let rest = origin
+        .strip_prefix("http://")
+        .or_else(|| origin.strip_prefix("https://"))?;
+    let authority = rest.split('/').next()?;
+    Some(authority.rsplit_once(':').map_or(authority, |(h, _)| h))
 }
 
 fn host_header_loopback(host_header: &str) -> bool {
@@ -279,9 +295,18 @@ mod tests {
 
     #[test]
     fn origin_allowlist_covers_workbench_and_tauri() {
-        assert!(origin_allowed("http://127.0.0.1:43180"));
         assert!(origin_allowed("tauri://localhost"));
+        assert!(origin_allowed("http://127.0.0.1:43199"));
         assert!(!origin_allowed("https://evil.example"));
+    }
+
+    #[test]
+    fn embedded_desktop_allows_ephemeral_loopback_origin() {
+        std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP", "1");
+        assert!(origin_allowed("http://127.0.0.1:53402"));
+        assert!(origin_allowed("http://localhost:61234"));
+        assert!(!origin_allowed("http://evil.example:53402"));
+        std::env::remove_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP");
     }
 
     #[test]

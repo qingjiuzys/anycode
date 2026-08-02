@@ -1,4 +1,4 @@
-//! 多存储支持（对齐 Claude Code 2.1.218 `managed-agents-memory` 的 memory store 模型）。
+//! 多存储支持（`managed-agents-memory` 的 memory store 模型）。
 //!
 //! 二进制提取语义：
 //! - `memory_store_id`：每条记忆归属一个 store（REST `/v1/memory_stores/{id}/memories`）。
@@ -20,7 +20,7 @@ use crate::MemoryError;
 /// 记忆存储标识（对齐 `memory_store_id`）。
 pub type MemoryStoreId = String;
 
-/// 存储类别（对齐 Claude 的 store 来源：用户/项目/团队/技能/远端托管/本地）。
+/// 存储类别（用户/项目/团队/技能/远端托管/本地）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryStoreKind {
@@ -51,7 +51,7 @@ impl MemoryStoreKind {
     }
 }
 
-/// 选择器：决定请求落在哪个 store（对齐 Claude `memory_store` session resource 的语义）。
+/// 选择器：决定请求落在哪个 store（`memory_store` session resource 语义）。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MemoryStoreSelector {
     /// 显式 `memory_store_id`；优先于其它字段。
@@ -118,7 +118,7 @@ pub struct VersionedMemory {
     pub version: MemoryVersion,
 }
 
-/// 计算内容哈希（与 Claude 的 content hash 校验意图一致；默认 Hasher 输出十六进制摘要）。
+/// 计算内容哈希（content hash 校验；默认 Hasher 输出十六进制摘要）。
 pub fn content_hash(content: &str) -> String {
     let mut h = DefaultHasher::new();
     content.hash(&mut h);
@@ -156,7 +156,7 @@ pub fn next_version(
     })
 }
 
-/// 冲突记录（对齐 Claude 多 store 同步时的 conflict 语义）。
+/// 冲突记录（多 store 同步时的 conflict 语义）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryConflict {
     pub key: String,

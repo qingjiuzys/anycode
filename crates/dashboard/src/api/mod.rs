@@ -6,6 +6,7 @@ pub fn spawn_cloud_a2a_heartbeat(state: AppState) {
     handlers::cloud_a2a::spawn_cloud_a2a_heartbeat(state);
 }
 
+use crate::api::auth::embedded_desktop;
 use crate::api::state::AppState;
 use axum::{
     http::{
@@ -785,8 +786,68 @@ async fn serve_spa_index(index: PathBuf) -> impl IntoResponse {
                 CONTENT_TYPE,
                 HeaderValue::from_static("text/html; charset=utf-8"),
             );
-            (headers, Html(html)).into_response()
+            (
+                headers,
+                Html(inject_desktop_marker(&html, embedded_desktop())),
+            )
+                .into_response()
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// When the dashboard is embedded in the desktop shell (`ANYCODE_DASHBOARD_EMBEDDED_DESKTOP=1`),
+/// the SPA is served over a remote `http://127.0.0.1:<port>` page. Tauri only injects
+/// `__TAURI_INTERNALS__` into its initially-hosted page, not into this remote navigation — so
+/// `isTauriDesktop()` returns `false` and the `html.dw-tauri` drag/titlebar styles never apply.
+/// Inject the marker class server-side so the WebKit drag region works in the packaged app.
+fn inject_desktop_marker(html: &str, embedded: bool) -> String {
+    if !embedded || html.contains("class=\"dw-tauri\"") {
+        return html.to_string();
+    }
+    // Inject as the first child of <head> so the class is present before the bundle mounts.
+    if let Some(pos) = html.find("<head") {
+        if let Some(gt) = html[pos..].find('>') {
+            let end = pos + gt + 1;
+            let marker = "\n<script>document.documentElement.classList.add('dw-tauri')</script>";
+            let mut out = String::with_capacity(html.len() + marker.len());
+            out.push_str(&html[..end]);
+            out.push_str(marker);
+            out.push_str(&html[end..]);
+            return out;
+        }
+    }
+    html.to_string()
+}
+
+#[cfg(test)]
+mod desktop_marker_tests {
+    use super::inject_desktop_marker;
+
+    #[test]
+    fn injects_marker_when_embedded() {
+        let html = "<!doctype html><html><head><meta charset=\"utf-8\"><title>t</title></head><body></body></html>";
+        let out = inject_desktop_marker(html, true);
+        assert!(
+            out.contains("classList.add('dw-tauri')"),
+            "marker script should be injected"
+        );
+        assert!(
+            out.starts_with("<!doctype html><html><head>"),
+            "head preserved"
+        );
+        assert_eq!(out.matches("</head>").count(), 1, "no extra head close");
+    }
+
+    #[test]
+    fn no_inject_outside_embedded() {
+        let html = "<html><head></head><body></body></html>";
+        assert_eq!(inject_desktop_marker(html, false), html);
+    }
+
+    #[test]
+    fn no_duplicate_when_already_marked() {
+        let html = "<html class=\"dw-tauri\"><head></head><body></body></html>";
+        assert_eq!(inject_desktop_marker(html, true), html);
     }
 }

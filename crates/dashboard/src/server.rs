@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::info;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DashboardConfig {
     pub host: String,
     pub port: u16,
@@ -22,6 +22,8 @@ pub struct DashboardConfig {
     pub version: String,
     /// Optional one-shot Desktop bootstrap token (embedded desktop only).
     pub desktop_bootstrap_token: Option<String>,
+    /// Notified with the OS-assigned port when `port` is `0` (desktop ephemeral bind).
+    pub bound_port_tx: Option<tokio::sync::oneshot::Sender<u16>>,
 }
 
 impl Default for DashboardConfig {
@@ -34,6 +36,7 @@ impl Default for DashboardConfig {
             serve_ui: true,
             version: env!("CARGO_PKG_VERSION").into(),
             desktop_bootstrap_token: None,
+            bound_port_tx: None,
         }
     }
 }
@@ -272,13 +275,17 @@ async fn run_inner(
     let listener = TcpListener::bind(addr)
         .await
         .context("bind dashboard port")?;
+    let bound_port = listener.local_addr().context("read bound port")?.port();
+    if let Some(tx) = config.bound_port_tx {
+        let _ = tx.send(bound_port);
+    }
 
     state
         .db
         .upsert_local_service(
             "dashboard",
             &config.host,
-            config.port,
+            bound_port,
             "running",
             "local",
             Some(std::process::id()),
@@ -287,10 +294,10 @@ async fn run_inner(
 
     let db_shutdown = state.db.clone();
     let shutdown_host = config.host.clone();
-    let shutdown_port = config.port;
+    let shutdown_port = bound_port;
 
     info!(
-        url = %format!("http://{}:{}/", config.host, config.port),
+        url = %format!("http://{}:{}/", config.host, bound_port),
         db = %config.db_path.display(),
         "digital workbench listening"
     );

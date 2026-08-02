@@ -42,8 +42,29 @@ pub async fn a2a_team_peers(
     State(state): State<AppState>,
     Extension(ctx): Extension<AuthContext>,
 ) -> impl IntoResponse {
+    let status = match crate::team::team_status(&state.db, &ctx.user.organization_id).await {
+        Ok(s) => s,
+        Err(e) => {
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response();
+        }
+    };
+    if status.gate != crate::team::TeamGate::Ready {
+        return Json(serde_json::json!({
+            "team_ready": false,
+            "gate": status.gate,
+            "team": status,
+            "peers": [],
+        }))
+        .into_response();
+    }
     match store::list_team_peers(&state.db, &ctx.user.organization_id).await {
-        Ok(peers) => Json(serde_json::json!({ "peers": peers })).into_response(),
+        Ok(peers) => Json(serde_json::json!({
+            "team_ready": true,
+            "gate": status.gate,
+            "team": status,
+            "peers": peers,
+        }))
+        .into_response(),
         Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response(),
     }
 }

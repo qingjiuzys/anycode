@@ -21,6 +21,7 @@ pub mod plan;
 pub mod portal;
 pub mod quota;
 pub mod store;
+pub mod team;
 pub mod upstream_pool;
 pub mod usage;
 

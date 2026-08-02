@@ -1,4 +1,4 @@
-//! 运维层（对齐 Claude Code 2.1.218 多存储同步/导出语义）。
+//! 运维层（多存储同步/导出语义）。
 //!
 //! 二进制提取语义：
 //! - `tengu_memory_stream_list` / `team_memory_multistore_stream_list`：流式列表遥测。
@@ -7,7 +7,7 @@
 //! - `tengu_memory_bulk_inflate` / `team_memory_multistore_bulk_inflate`：批量解包遥测，
 //!   失败原因含 `not-attempted` / `not_found` / `http_error` / `bulk inflate unavailable` / `fell-back`。
 //! - `tengu_memory_store_resync_interval_minutes`：store 周期性重同步间隔（分钟），
-//!   由 `CLAUDE_CODE_DISABLE_MEMORY_PERIODIC_RESYNC` 关闭。
+//!   由 `ANYCODE_DISABLE_MEMORY_PERIODIC_RESYNC` 关闭。
 //! - `tengu_memory_threshold_crossed`：RSS/堆内存阈值事件（`rss_mb` / `heap_used_mb`，级别 normal|high|critical）。
 //! - NDJSON 导出行类型：`store` / `memory` / `memory_error` / `complete`（complete 含 `memory_count` / `error_count`），
 //!   memory 行含 `id` / `path` / `content` / `content_sha256` / `updated_at`；
@@ -17,8 +17,8 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// 周期性重同步开关（对齐 Claude `CLAUDE_CODE_DISABLE_MEMORY_PERIODIC_RESYNC`）。
-pub const ENV_DISABLE_MEMORY_PERIODIC_RESYNC: &str = "CLAUDE_CODE_DISABLE_MEMORY_PERIODIC_RESYNC";
+/// 周期性重同步开关（`ANYCODE_DISABLE_MEMORY_PERIODIC_RESYNC`）。
+pub const ENV_DISABLE_MEMORY_PERIODIC_RESYNC: &str = "ANYCODE_DISABLE_MEMORY_PERIODIC_RESYNC";
 /// 重同步间隔环境变量（分钟，对齐 `tengu_memory_store_resync_interval_minutes`）。
 pub const ENV_RESYNC_INTERVAL_MINUTES: &str = "tengu_memory_store_resync_interval_minutes";
 /// 默认重同步间隔（分钟）。
@@ -26,7 +26,7 @@ pub const DEFAULT_RESYNC_INTERVAL_MINUTES: u64 = 60;
 /// 单行导出最大长度（对齐 `oversized_line` 校验）。
 pub const MAX_EXPORT_LINE_BYTES: usize = 4 * 1024 * 1024;
 
-/// NDJSON 导出行（对齐 Claude 多存储导出行格式）。
+/// NDJSON 导出行（多存储导出行格式）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ExportLine {
@@ -61,7 +61,7 @@ pub enum ExportLine {
     },
 }
 
-/// 导出行解析/流校验失败原因（对齐 Claude 字符串 `parse_failed` 等）。
+/// 导出行解析/流校验失败原因（如 `parse_failed` 等）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExportStreamFailure {
@@ -98,7 +98,7 @@ pub fn parse_export_line(line: &str) -> Result<ExportLine, ExportStreamFailure> 
     serde_json::from_str(line).map_err(|_| ExportStreamFailure::ParseFailed)
 }
 
-/// 批量解包失败原因（对齐 Claude `bulk inflate unavailable` 分支）。
+/// 批量解包失败原因（`bulk inflate unavailable` 分支）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BulkInflateFailure {
@@ -216,7 +216,7 @@ impl Default for ResyncPolicy {
 }
 
 impl ResyncPolicy {
-    /// 从环境变量构造：`CLAUDE_CODE_DISABLE_MEMORY_PERIODIC_RESYNC` 关闭；
+    /// 从环境变量构造：`ANYCODE_DISABLE_MEMORY_PERIODIC_RESYNC` 关闭；
     /// `tengu_memory_store_resync_interval_minutes` 覆盖间隔（分钟）。
     pub fn from_env() -> Self {
         let disabled = std::env::var(ENV_DISABLE_MEMORY_PERIODIC_RESYNC)

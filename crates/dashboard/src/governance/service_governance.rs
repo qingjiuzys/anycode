@@ -341,7 +341,7 @@ pub fn doctor_next_steps(
         steps.push("If the dashboard is not already running, free the dashboard port or use `--port` with another value".into());
     }
     if steps.is_empty() && report.status == "ok" {
-        steps.push("Launch anyCode (desktop) or open http://127.0.0.1:43180".into());
+        steps.push("Launch anyCode (desktop)".into());
     }
     if report.status == "ok" {
         steps.push("Digital Workbench status: docs/workbench/digital-workbench-STATUS.md".into());

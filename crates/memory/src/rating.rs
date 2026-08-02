@@ -1,4 +1,4 @@
-//! 记忆评分回写（对齐 Claude Code 2.1.218 `memorySurveyRating` / `tengu_memory_rating_writeback`）。
+//! 记忆评分回写（`memorySurveyRating` / `tengu_memory_rating_writeback`）。
 //!
 //! 二进制提取语义：
 //! - 评分档位：`bad` / `fine` / `good`（对应 `bad_feedback_survey` / `fine_feedback_survey` /

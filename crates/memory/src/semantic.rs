@@ -1,12 +1,12 @@
 //! 语义层：LLM 提炼记忆条目（name/description）+ 语义检索默认启用。
 //!
-//! 二进制提取语义（Claude Code 2.1.218 `# auto memory` 模板）：
+//! 二进制提取语义（`# auto memory` 模板）：
 //! - 记忆 frontmatter：`name: {{short-kebab-case-slug}}`、`description: {{one-line summary …}}`、
 //!   `metadata:\n  type: {{user|feedback|project|reference}}`。
 //! - 指导语：`Keep the name, description, and type fields in memory files up-to-date with the content`；
 //!   `Organize memory semantically by topic, not chronologically`。
 //! - slug 规则：`/^[a-z0-9_-]+$/` 合法则原样，否则小写 + 非字母数字连续段折叠为 `-` 并去首尾 `-`。
-//! - 引用：回复中引用记忆时用 `<cc-memory filenames="{slug}.md">…</cc-memory>`。
+//! - 引用：回复中引用记忆时用 `<memory filenames="{slug}.md">…</memory>`。
 //! - telemetry：`tengu_sdk_memory_summary`；语义检索开关 `embeddingDataDeliveryEnabled`（默认开启）。
 
 use anycode_core::prelude::*;
@@ -35,7 +35,7 @@ impl DistilledMemoryEntry {
     }
 }
 
-/// 把任意标题/文本转为合法 slug（对齐 Claude `Hwg`：合法则原样，否则小写折叠非字母数字）。
+/// 把任意标题/文本转为合法 slug（合法 kebab-case 则原样，否则小写折叠非字母数字）。
 pub fn slugify_name(raw: &str) -> String {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -45,7 +45,7 @@ pub fn slugify_name(raw: &str) -> String {
         .chars()
         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-');
     if legal {
-        // 纯分隔符组成的 slug 无意义（对齐 Claude 语义：slug 至少含一个词）。
+        // 纯分隔符组成的 slug 无意义（slug 至少含一个词）。
         if !trimmed.chars().any(|c| c.is_ascii_alphanumeric()) {
             return "untitled".to_string();
         }
@@ -168,7 +168,7 @@ pub fn write_distilled_frontmatter(content: &str, entry: &DistilledMemoryEntry) 
         })
         .map(|l| l.to_string())
         .collect();
-    // 按 Claude 模板顺序重建：name → description → metadata.type，其它字段（id 等）随后。
+    // 按模板顺序重建：name → description → metadata.type，其它字段（id 等）随后。
     let mut front: Vec<String> = Vec::with_capacity(4);
     front.push(format!("name: {}", entry.name));
     front.push(format!("description: {}", entry.description));
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn slugifies_names_like_claude() {
+    fn slugifies_names_to_kebab_case() {
         assert_eq!(slugify_name("already-valid_1"), "already-valid_1");
         assert_eq!(slugify_name("Hello World!"), "hello-world");
         assert_eq!(slugify_name("  Rust / Tokio  ",), "rust-tokio");

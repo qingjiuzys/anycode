@@ -346,6 +346,81 @@ pub async fn list_members(
     }
 }
 
+pub async fn team_status(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+) -> impl IntoResponse {
+    match crate::team::team_status(&state.db, &ctx.user.organization_id).await {
+        Ok(status) => Json(serde_json::json!({ "team": status })).into_response(),
+        Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TeamSetupBody {
+    pub name: String,
+}
+
+pub async fn team_setup(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+    Json(body): Json<TeamSetupBody>,
+) -> impl IntoResponse {
+    match crate::team::setup_team(&state.db, &ctx.user, &body.name).await {
+        Ok(status) => Json(serde_json::json!({ "team": status })).into_response(),
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
+    }
+}
+
+pub async fn list_org_invites(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+) -> impl IntoResponse {
+    match crate::team::list_invites(&state.db, &ctx.user.organization_id).await {
+        Ok(invites) => Json(serde_json::json!({ "invites": invites })).into_response(),
+        Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct CreateInviteBody {
+    pub email: String,
+}
+
+pub async fn create_org_invite(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+    Json(body): Json<CreateInviteBody>,
+) -> impl IntoResponse {
+    match crate::team::create_invite(&state.db, &ctx.user, &body.email).await {
+        Ok(result) => {
+            let accept_path = format!("/console/team?invite={}", result.accept_token);
+            Json(serde_json::json!({
+                "invite": result.invite,
+                "accept_path": accept_path,
+            }))
+            .into_response()
+        }
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AcceptInviteBody {
+    pub token: String,
+}
+
+pub async fn accept_org_invite(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+    Json(body): Json<AcceptInviteBody>,
+) -> impl IntoResponse {
+    match crate::team::accept_invite(&state.db, &ctx.user, &body.token).await {
+        Ok(status) => Json(serde_json::json!({ "team": status })).into_response(),
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
+    }
+}
+
 pub async fn list_api_keys(
     State(state): State<AppState>,
     Extension(ctx): Extension<AuthContext>,
