@@ -4,7 +4,8 @@ mod apple_media;
 mod dashboard_backend;
 
 use dashboard_backend::{
-    apply_dashboard_env, dashboard_http_ready, DashboardServerState, start_in_process,
+    apply_dashboard_env, dashboard_http_ready, desktop_api_base, DashboardServerState,
+    start_in_process,
 };
 
 use std::time::{Duration, Instant};
@@ -13,8 +14,6 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, RunEvent, Url,
 };
-
-const DASHBOARD_API_BASE: &str = "http://127.0.0.1:43180";
 
 fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
@@ -29,18 +28,23 @@ fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
 }
 
 fn navigate_workbench(app: &tauri::AppHandle, w: &tauri::WebviewWindow) -> bool {
+    let Some(api_base) = desktop_api_base() else {
+        return false;
+    };
+    // Serve bundled UI from the in-process loopback server (same origin as /api/*).
     let bootstrap = app
         .try_state::<DashboardServerState>()
         .and_then(|state| state.take_bootstrap_token());
     let url = match bootstrap.as_deref() {
         Some(token) if !token.is_empty() => {
-            format!("{DASHBOARD_API_BASE}/api/auth/desktop-bootstrap?token={token}")
+            format!("{api_base}/api/auth/desktop-bootstrap?token={token}")
         }
-        _ => format!("{DASHBOARD_API_BASE}/"),
+        _ => format!("{api_base}/"),
     };
-    w.eval(&format!("window.location.replace('{url}');"))
+    w.eval(&format!("window.location.replace({url:?});"))
         .is_ok()
 }
+
 
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
@@ -192,11 +196,13 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
     };
     if ready {
         if !navigate_workbench(app, &w) {
-            let _ = w.eval(&format!("window.location.replace('{DASHBOARD_API_BASE}/');"));
+            let _ = w.eval(
+                r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px;max-width:420px;margin:0 auto"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 12px">本地工作台 API 未就绪。</p><ol style="color:#71717a;font-size:13px;margin:0;padding-left:1.2rem;text-align:left;line-height:1.6"><li>完全退出 anyCode（Cmd+Q），再重新打开</li><li>若仍失败，在终端查看 Console.app 或 <code style="color:#d4d4d8">log show --predicate process == \"anycode-desktop\"</code></li></ol></div></div>';"#,
+            );
         }
     } else {
         let _ = w.eval(
-            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px;max-width:420px;margin:0 auto"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 12px">本地工作台服务未在 43180 端口就绪。</p><ol style="color:#71717a;font-size:13px;margin:0;padding-left:1.2rem;text-align:left;line-height:1.6"><li>完全退出 anyCode（Cmd+Q），再重新打开</li><li>若仍失败，终端执行：<code style="color:#d4d4d8">lsof -iTCP:43180 -sTCP:LISTEN</code> 并结束占用进程</li><li>不要同时运行 <code style="color:#d4d4d8">anycode-dashboard-serve</code> 与桌面应用</li></ol></div></div>';"#,
+            r#"document.body.innerHTML = '<div style="display:grid;place-content:center;height:100vh;font-family:system-ui;background:#09090b;color:#f4f4f5;text-align:center;padding:24px;max-width:420px;margin:0 auto"><div><h2 style="margin:0 0 8px">Workbench 未能启动</h2><p style="color:#a1a1aa;margin:0 0 12px">本地工作台服务启动超时。</p><ol style="color:#71717a;font-size:13px;margin:0;padding-left:1.2rem;text-align:left;line-height:1.6"><li>完全退出 anyCode（Cmd+Q），再重新打开</li><li>若仍失败，在终端查看 Console.app 或 <code style="color:#d4d4d8">log show --predicate process == \"anycode-desktop\"</code></li></ol></div></div>';"#,
         );
     }
     let _ = w.show();

@@ -4,12 +4,24 @@ use anycode_dashboard::generate_desktop_bootstrap_token;
 use anycode_dashboard::load_workspace_paths;
 use anycode_dashboard::server::{default_db_path, run_with_shutdown, DashboardConfig};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 const DASHBOARD_HOST: &str = "127.0.0.1";
-const DASHBOARD_PORT: u16 = 43_180;
+
+/// OS-assigned loopback port for the in-process API (set after bind; `0` until ready).
+static DESKTOP_API_PORT: AtomicU16 = AtomicU16::new(0);
+
+pub fn desktop_api_port() -> u16 {
+    DESKTOP_API_PORT.load(Ordering::SeqCst)
+}
+
+pub fn desktop_api_base() -> Option<String> {
+    let port = desktop_api_port();
+    (port > 0).then(|| format!("http://{DASHBOARD_HOST}:{port}"))
+}
 
 /// True when loopback `/api/health` returns `{"ok":true}`.
 pub fn dashboard_http_ready() -> bool {
@@ -18,27 +30,23 @@ pub fn dashboard_http_ready() -> bool {
 
 /// GET /api/health response when something HTTP answers on the dashboard port.
 fn dashboard_health_body() -> Option<String> {
+    let port = desktop_api_port();
+    if port == 0 {
+        return None;
+    }
     use std::io::{Read, Write};
     use std::net::TcpStream;
-    let mut stream = TcpStream::connect((DASHBOARD_HOST, DASHBOARD_PORT)).ok()?;
+    let mut stream = TcpStream::connect((DASHBOARD_HOST, port)).ok()?;
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
     let req = format!(
-        "GET /api/health HTTP/1.1\r\nHost: {DASHBOARD_HOST}:{DASHBOARD_PORT}\r\nConnection: close\r\n\r\n"
+        "GET /api/health HTTP/1.1\r\nHost: {DASHBOARD_HOST}:{port}\r\nConnection: close\r\n\r\n"
     );
     stream.write_all(req.as_bytes()).ok()?;
     let mut buf = [0u8; 2048];
     let n = stream.read(&mut buf).ok()?;
     let resp = String::from_utf8_lossy(&buf[..n]).to_string();
     resp.contains("200").then_some(resp)
-}
-
-/// True only when the port serves OUR dashboard health payload — the stale-peer
-/// kill must never hit an unrelated service on the same port.
-fn port_serves_anycode_dashboard() -> bool {
-    dashboard_health_body().is_some_and(|body| {
-        body.contains("\"ok\":true") && body.contains("\"db_path\"") && body.contains("anycode")
-    })
 }
 
 pub struct DashboardServerState {
@@ -62,9 +70,10 @@ impl DashboardServerState {
                 let _ = tx.send(());
             }
         }
+        DESKTOP_API_PORT.store(0, Ordering::SeqCst);
     }
 
-    /// Take the navigation bootstrap token (first load only).
+    /// Take the one-shot desktop bootstrap token (first navigation only).
     pub fn take_bootstrap_token(&self) -> Option<String> {
         self.bootstrap_token.lock().ok()?.take()
     }
@@ -129,46 +138,39 @@ pub fn apply_dashboard_env(app: &AppHandle) {
 
 pub fn start_in_process(app: AppHandle) {
     apply_dashboard_env(&app);
-    if dashboard_http_ready() {
-        if !port_serves_anycode_dashboard() {
-            eprintln!(
-                "anycode-desktop: port {DASHBOARD_PORT} is held by a non-anycode service; refusing to kill it. Free the port and restart."
-            );
-            return;
-        }
-        eprintln!(
-            "anycode-desktop: stopping stale Workbench on http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/ before restart"
-        );
-        if let Ok(out) = std::process::Command::new("lsof")
-            .args(["-ti", &format!(":{DASHBOARD_PORT}")])
-            .output()
-        {
-            let pids = String::from_utf8_lossy(&out.stdout);
-            for pid in pids.split_whitespace() {
-                let _ = std::process::Command::new("kill").arg(pid).status();
-            }
-            std::thread::sleep(Duration::from_millis(500));
-        }
-    }
-    let static_dir = std::env::var("ANYCODE_DASHBOARD_STATIC")
-        .ok()
-        .map(PathBuf::from)
-        .filter(|p| p.join("index.html").is_file());
-    let serve_ui = static_dir.is_some();
+    DESKTOP_API_PORT.store(0, Ordering::SeqCst);
+
     let bootstrap_token = generate_desktop_bootstrap_token();
     if let Some(state) = app.try_state::<DashboardServerState>() {
         if let Ok(mut guard) = state.bootstrap_token.lock() {
             *guard = Some(bootstrap_token.clone());
         }
     }
+    let (bound_port_tx, bound_port_rx) = tokio::sync::oneshot::channel();
+    let static_dir = resolve_resource_path(
+        &app,
+        &[
+            "resources/dashboard-ui",
+            "dashboard-ui",
+            "_up_/resources/dashboard-ui",
+        ],
+    )
+    .filter(|p| p.join("index.html").is_file());
+    let serve_ui = static_dir.is_some();
+    if !serve_ui {
+        eprintln!(
+            "anycode-desktop: bundled dashboard-ui not found in app resources — Workbench UI unavailable"
+        );
+    }
     let config = DashboardConfig {
-        host: "127.0.0.1".into(),
-        port: 43_180,
+        host: DASHBOARD_HOST.into(),
+        port: 0,
         db_path: default_db_path(),
         static_dir,
         serve_ui,
         version: env!("CARGO_PKG_VERSION").into(),
         desktop_bootstrap_token: Some(bootstrap_token),
+        bound_port_tx: Some(bound_port_tx),
     };
     let paths = load_workspace_paths();
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -178,9 +180,21 @@ pub fn start_in_process(app: AppHandle) {
         }
     }
     tauri::async_runtime::spawn(async move {
-        if let Err(e) = run_with_shutdown(config, paths, rx).await {
-            eprintln!("anycode-desktop: dashboard server exited: {e:#}");
+        let server_task = tauri::async_runtime::spawn(async move {
+            run_with_shutdown(config, paths, rx).await
+        });
+        if let Ok(port) = bound_port_rx.await {
+            DESKTOP_API_PORT.store(port, Ordering::SeqCst);
+            eprintln!(
+                "anycode-desktop: workbench API listening on http://{DASHBOARD_HOST}:{port}/"
+            );
         }
+        match server_task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => eprintln!("anycode-desktop: dashboard server exited: {e:#}"),
+            Err(e) => eprintln!("anycode-desktop: dashboard server task failed: {e}"),
+        }
+        DESKTOP_API_PORT.store(0, Ordering::SeqCst);
     });
 }
 
