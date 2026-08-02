@@ -3,7 +3,7 @@ name: presentation-commercial-delivery
 description: Export editable native PPTX from slide_manifest/HTML via brand potx fill (commercial deliverable).
 description_zh: 从 slide_manifest/HTML 填充品牌母版，导出可编辑原生 PPTX（商用终稿）。
 name_zh: 幻灯片商用导出
-category: business
+category: office
 version: 1.0.0
 mode: executable
 approval: writes-workspace

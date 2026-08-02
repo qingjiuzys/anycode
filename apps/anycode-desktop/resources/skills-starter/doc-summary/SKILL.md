@@ -3,7 +3,7 @@ name: doc-summary
 description: Summarize Markdown, text, or PDF-like attachments in batch.
 description_zh: 批量摘要 Markdown、文本或 PDF 类附件。
 name_zh: 文档摘要
-category: business
+category: writing
 version: 1.2.0
 mode: instructions
 approval: read-only-unless-writing-output

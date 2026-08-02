@@ -3,7 +3,7 @@ name: vercel-writing-guidelines
 description: Review docs/prose for Writing Guidelines compliance. Use when asked to "review my docs", "check writing style", "audit prose", "review docs voice and tone", or "check this page against the writing handbook".
 description_zh: 按 Vercel Writing Guidelines 审校产品文案与文档语气。
 name_zh: 写作指南
-category: business
+category: writing
 version: 1.0.0
 mode: instructions
 priority: 80

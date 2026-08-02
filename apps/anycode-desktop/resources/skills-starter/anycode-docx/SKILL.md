@@ -6,7 +6,7 @@ description: >-
 description_zh: >-
   anyCode Word 文档：复制 MD 模板 → HTML 预览 → 导出可编辑 docx（FDE Editorial）。
 name_zh: anyCode Word
-category: business
+category: office
 version: 1.1.0
 mode: executable
 approval: writes-workspace

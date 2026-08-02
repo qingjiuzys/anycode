@@ -3,7 +3,7 @@ name: vercel-composition-patterns
 description: Bake-off candidate skill bakeoff-vercel-composition-patterns
 description_zh: 用组合模式替代布尔 prop 膨胀，构建可扩展组件 API。
 name_zh: React 组合模式
-category: quality
+category: engineering
 version: 1.0.0
 mode: instructions
 priority: 80

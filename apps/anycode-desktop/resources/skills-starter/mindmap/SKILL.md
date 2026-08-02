@@ -3,7 +3,7 @@ name: mindmap
 description: Turn a topic or notes into a Markdown heading outline rendered as an interactive mind-map card in anyCode.
 description_zh: 将主题或笔记整理为 Markdown 标题树，在 anyCode 会话中渲染为可交互思维导图卡片。
 name_zh: 思维导图
-category: business
+category: research
 version: 1.0.0
 mode: instructions
 approval: read-only-unless-writing-output

@@ -3,7 +3,7 @@ name: frontend-design
 description: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults.
 description_zh: 有辨识度的前端视觉设计：排版、配色与布局，避免模板化 AI 审美。
 name_zh: 前端设计
-category: quality
+category: design
 version: 1.0.0
 mode: instructions
 priority: 80

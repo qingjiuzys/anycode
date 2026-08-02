@@ -3,7 +3,7 @@ name: internal-comms
 description: A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).
 description_zh: 内部沟通写作：3P 更新、状态汇报、英文日报/周报摘要、简报与事故通报等（替代原 daily-brief / weekly-report）。
 name_zh: 内部沟通
-category: business
+category: writing
 version: 1.0.0
 mode: instructions
 priority: 80

@@ -7,7 +7,7 @@ description: >-
 description_zh: >-
   anyCode HTML 幻灯片：从 templates/ 复制 FDE Editorial 样式，交付分页 HTML + 浏览器预览，不导出 pptx。
 name_zh: anyCode HTML 幻灯片
-category: business
+category: office
 version: 2.0.0
 mode: executable
 approval: writes-workspace

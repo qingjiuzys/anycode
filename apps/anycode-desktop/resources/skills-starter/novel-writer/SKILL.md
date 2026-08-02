@@ -3,7 +3,7 @@ name: novel-writer
 description: Long-form fiction workflow — outline, chapter files, and continuation protocol.
 description_zh: 长篇小说写作流程：大纲、分章落盘与续写协议。
 name_zh: 小说创作
-category: creative
+category: writing
 version: 1.1.0
 mode: instructions
 approval: read-only-unless-writing-output

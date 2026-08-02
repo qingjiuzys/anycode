@@ -3,7 +3,7 @@ name: slack-gif-creator
 description: Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like "make me a GIF of X doing Y for Slack.
 description_zh: 制作符合 Slack 限制的动画 GIF（尺寸/帧率/时长）。
 name_zh: Slack GIF
-category: other
+category: design
 version: 1.0.0
 mode: instructions
 priority: 80

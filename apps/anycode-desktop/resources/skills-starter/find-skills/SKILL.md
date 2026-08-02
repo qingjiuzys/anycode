@@ -3,7 +3,7 @@ name: find-skills
 description: Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.
 description_zh: 从 skills 生态发现并安装合适的 Agent Skill。
 name_zh: 查找 Skills
-category: other
+category: ops
 version: 1.0.0
 mode: instructions
 priority: 80
