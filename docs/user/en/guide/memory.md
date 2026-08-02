@@ -3,7 +3,7 @@ title: Memory notes
 description: anyCode memory stores vs OpenClaw-style memory extensions.
 summary: Wizard presets, backends, scopes, and a short parity backlog.
 read_when:
-  - You compare memory behavior with OpenClaw or Claude Code.
+  - You compare memory behavior with OpenClaw or similar tools.
 ---
 
 # Memory notes
@@ -63,6 +63,32 @@ Optional `memory.pipeline` fields include: `buffer_ttl_secs`, `max_buffer_fragme
 - **Vectors**: Enabled when pipeline embedding fields / `embedding_provider` request it; stored in `*.pipeline.vec.sled`. See project docs for `--features embedding-local`.
 
 **CLI import**: `anycode memory import [--dry-run] [--limit N]` imports legacy Markdown into pipeline hot (`memory.backend: pipeline`).
+
+## Auto-memory (`memory.automem`)
+
+LLM-driven **auto-memory** runs alongside the local pipeline/hybrid engines:
+
+- **Layout**: `{memory.path}/projects/{sanitized-cwd}/memory/` with index entry **`MEMORY.md`** (≤200 lines / ≤25KB).
+- **Extraction**: a forked sandboxed agent reads session transcripts and consolidates in four phases (orient → gather → consolidate → prune/index).
+- **Gating**: autoDream time/session thresholds + mutex + cursor; skips fork when the main agent already wrote memory directly.
+- **Fallback**: when `enabled=false` or no LLM is available, falls back to dedup/promote/forget + vector recall.
+
+Example config (`~/.anycode/config.json`):
+
+```json
+{
+  "memory": {
+    "automem": {
+      "enabled": true,
+      "fork_agent": true,
+      "dream_min_hours": 24,
+      "dream_min_sessions": 5
+    }
+  }
+}
+```
+
+Set **`ANYCODE_DISABLE_MEMORY_PERIODIC_RESYNC`** to disable periodic multi-store resync.
 
 ## OpenClaw parity (research backlog)
 

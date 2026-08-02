@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.35.0
+
+### Added
+
+- **记忆系统 auto-memory（automem）**：fork 受限后台代理提取会话转录，四阶段（orient → gather → consolidate → prune/index）生成记忆，产出带 `#`/`##` 层级、`<system-reminder>` 的 `MEMORY.md` 索引入口（≤200 行 / ≤25KB）。
+- autoDream 时间（`dream_min_hours`）与会话（`dream_min_sessions`）门控 + 互斥锁 + cursor，后台代理写入受互斥保护。
+- LLM 不可用时自动回退到本地引擎（dedup/promote/forget + 向量检索），并通过 `AutomemSettings` 暴露 `enabled` / `fork_agent` / 门控阈值等配置开关。
+
+### Changed
+
+- 记忆配置接入 runtime `MemoryConfig`（`config.json` 的 `memory.automem`），三处构造点同步默认值。
+
 ## 0.3.4
 
 ### Added

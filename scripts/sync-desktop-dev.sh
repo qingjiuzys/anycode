@@ -125,11 +125,6 @@ fi
 
 if [[ "${ANYCODE_DESKTOP_OPEN:-1}" != "0" ]]; then
   killall anycode-desktop 2>/dev/null || true
-  if lsof -ti :43180 >/dev/null 2>&1; then
-    echo "==> stop stale workbench on :43180"
-    lsof -ti :43180 | xargs kill 2>/dev/null || true
-    sleep 0.5
-  fi
   sleep 0.5
   open -a "$INSTALL"
 fi

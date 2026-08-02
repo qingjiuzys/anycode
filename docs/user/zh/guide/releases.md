@@ -9,6 +9,12 @@ read_when:
 
 # 版本与特性开关
 
+## 0.35.0（工作区）
+
+- **记忆系统 auto-memory（automem）**：fork 受限后台代理提取会话转录，四阶段（orient→gather→consolidate→prune/index）生成记忆，产出 `MEMORY.md` 索引入口（≤200 行 / ≤25KB）。
+- **autoDream 门控**：时间/会话阈值 + 互斥锁 + cursor；后台写入受互斥保护。
+- **本地引擎回退**：LLM 不可用时自动回退 dedup/promote/forget + 向量检索；`memory.automem` 提供配置开关。
+
 ## 0.3.4（工作区）
 
 - **内置 Skills 重组**：bake-off 晋升一批前端/文档/设计类 skill；移除重复交付类 starter；Office 构建脚本迁至 `scripts/office/`。

@@ -2,8 +2,6 @@
 
 Product positioning: **local-first, cloud optional** — an extensible local AI platform for running Agents, connecting local or BYOK models, and adding cloud inference only when needed.
 
-Launch status: **算法备案审核中 · 受邀内测**. This status must be visible anywhere the product is promoted publicly. Do not imply general availability, regulatory approval, or unrestricted public access.
-
 ## Brand
 
 - **Mark**: `A` monogram — a single continuous, forward-leaning letterform inside a rounded square. It represents Agent, adaptable local models, and anyCode. It must remain legible at 16px.

@@ -228,8 +228,6 @@ cd crates/account-portal && npm install && npm run dev
 
 ## 状态与许可
 
-当前为**受邀内测**（算法备案审核中）。请勿理解为全面公开可用或监管已批复。
-
 许可：[MIT](LICENSE)
 
 ---

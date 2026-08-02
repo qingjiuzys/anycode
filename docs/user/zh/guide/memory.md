@@ -3,7 +3,7 @@ title: 记忆系统说明
 description: anyCode 记忆与 OpenClaw 式 memory 扩展的对照备忘。
 summary: 向导预设、后端对照与后续可对标的改进清单。
 read_when:
-  - 对比 OpenClaw / Claude Code 的记忆行为。
+  - 对比 OpenClaw 等产品的记忆行为。
 ---
 
 # 记忆系统说明
@@ -63,6 +63,32 @@ Pipeline 且 `merge_legacy_file_recall` 为默认 true 时，根目录既有 `*.
 - **向量**：由 pipeline embedding 字段控制，落地 `*.pipeline.vec.sled`；本地依赖 **`embedding-local`** 构建。
 
 **导入**：`anycode memory import [--dry-run] [--limit N]` 需 `memory.backend: pipeline`。
+
+## Auto-memory（`memory.automem`）
+
+LLM 驱动的 **auto-memory** 与本地 pipeline/hybrid 并行：
+
+- **目录**：`{memory.path}/projects/{sanitized-cwd}/memory/`，入口 **`MEMORY.md`**（≤200 行 / ≤25KB）。
+- **提取**：fork 受限后台代理读取会话转录，四阶段巩固（orient → gather → consolidate → prune/index）。
+- **门控**：autoDream 时间/会话阈值 + 互斥锁 + cursor；主 agent 已直写记忆时跳过 fork。
+- **回退**：`enabled=false` 或 LLM 不可用时，自动回退 dedup/promote/forget + 向量检索。
+
+配置示例（`~/.anycode/config.json`）：
+
+```json
+{
+  "memory": {
+    "automem": {
+      "enabled": true,
+      "fork_agent": true,
+      "dream_min_hours": 24,
+      "dream_min_sessions": 5
+    }
+  }
+}
+```
+
+环境变量 **`ANYCODE_DISABLE_MEMORY_PERIODIC_RESYNC`** 可关闭多存储周期性重同步。
 
 ## 与 OpenClaw 对标（研究 backlog）
 

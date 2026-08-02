@@ -9,6 +9,12 @@ read_when:
 
 # Releases & feature flags
 
+## 0.35.0 (workspace)
+
+- **Memory auto-memory (automem)**: a forked sandboxed agent extracts session transcripts and consolidates them in four phases (orient→gather→consolidate→prune/index), producing a bounded `MEMORY.md` index entry (≤200 lines / ≤25KB).
+- **autoDream gating**: time/session thresholds + mutex + cursor; background writes are mutex-protected.
+- **Local-engine fallback**: automatically falls back to dedup/promote/forget + vector recall when no LLM is available; `memory.automem` exposes configuration switches.
+
 ## 0.3.4 (workspace)
 
 - **Built-in skills refresh**: promote bake-off frontend/docs/design skills; drop overlapping delivery starters; move Office builders to `scripts/office/`.
