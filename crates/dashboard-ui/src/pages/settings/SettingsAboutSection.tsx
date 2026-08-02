@@ -104,12 +104,6 @@ export function SettingsAboutSection() {
           </div>
           <p className="m-0 mt-1 text-sm">{t("settings.about.providerName")}</p>
         </div>
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-secondary">
-            {t("settings.about.filingLabel")}
-          </div>
-          <p className="m-0 mt-1 text-sm">{t("settings.about.filingStatus")}</p>
-        </div>
         <p className="m-0 text-sm text-secondary">{t("settings.about.aiNotice")}</p>
       </div>
 

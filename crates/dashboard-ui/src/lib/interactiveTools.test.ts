@@ -56,6 +56,30 @@ describe("interactiveTools", () => {
     ).toBe(false);
   });
 
+  it("keeps settled interactive cluster visible on last running turn", () => {
+    expect(
+      shouldHideInteractiveCluster({
+        isLast: true,
+        isRunning: true,
+        steps: [step("AskUserQuestion")],
+        pendingQuestionsCount: 0,
+        pendingApprovalsCount: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps interactive cluster visible on settled sessions", () => {
+    expect(
+      shouldHideInteractiveCluster({
+        isLast: true,
+        isRunning: false,
+        steps: [step("AskUserQuestion")],
+        pendingQuestionsCount: 0,
+        pendingApprovalsCount: 0,
+      }),
+    ).toBe(false);
+  });
+
   it("extracts question header from tool call body", () => {
     const label = interactiveStepHistoryLabel(
       step("AskUserQuestion", '{"header":"产品信息","question":"请选择"}'),

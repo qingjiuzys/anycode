@@ -44,7 +44,7 @@ function shouldUseWorkbenchProxy(): boolean {
   if ("__TAURI_INTERNALS__" in window) return true;
   const { hostname, port } = window.location;
   const loopback = hostname === "127.0.0.1" || hostname === "localhost";
-  return loopback && (port === "43180" || port === "43199" || port === "");
+  return loopback && (port === "43199" || port === "");
 }
 
 function resolveFetchTarget(base: string, path: string): { url: string; credentials: RequestCredentials } {

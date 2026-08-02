@@ -172,6 +172,8 @@ export const en = {
     incomingProject: "Project",
     cloudEmpty: "No online teammates. Link anycode.work and ensure their Desktop is running.",
     cloudNotLinked: "Link your cloud account (Settings → Cloud) to use team handoff.",
+    teamGateSetup: "Create your team in Portal → Team and invite colleagues first. Online discovery stays off until then.",
+    teamGateInvite: "Team created. Invite at least one colleague in Portal → Team before online discovery and handoff unlock.",
     cloudHandoff: "Cloud handoff",
     demoHint: "Preview (no online peers)",
     demoBanner: "No teammates online — showing a preview graph. Real handoff appears when their Desktop is online.",
@@ -307,7 +309,7 @@ export const en = {
     apiStarting: "Connecting to Workbench…",
     apiStartingDesktop: "Starting local Workbench service…",
     apiErrorDesktop:
-      "Local Workbench service is not ready. Quit anyCode completely (Cmd+Q) and reopen; if it persists, check whether port 43180 is in use.",
+      "Local Workbench service is not ready. Quit anyCode completely (Cmd+Q) and reopen.",
     dbLabel: "DB",
     quickActions: "Quick actions",
     actionScan: "Scan projects",
@@ -1652,7 +1654,7 @@ export const en = {
     },
     about: {
       title: "About & compliance",
-      subtitle: "Filing status, algorithm notice, and legal documents",
+      subtitle: "Algorithm notice and legal documents",
       versionLabel: "Version",
       checkUpdate: "Check for updates",
       checkingUpdate: "Checking…",
@@ -1664,8 +1666,6 @@ export const en = {
       algorithmName: "Lingxi Multimodal Content Generation Algorithm",
       providerLabel: "Service provider",
       providerName: "Hangzhou Lingxi Intelligent Technology Co., Ltd.",
-      filingLabel: "Filing status",
-      filingStatus: "Algorithm filing under review · filing number will be published after approval",
       aiNotice:
         "This service uses AI-generated content technology. Chat, coding assistance, and multimodal outputs are inferred by third-party large language models. Please verify carefully and do not use outputs for illegal or infringing purposes.",
       disclosureLink: "View algorithm disclosure",
@@ -2001,7 +2001,7 @@ export const en = {
   },
   bootstrapSteps: {
     "Start a conversation in the Workbench to register sessions": "Start a conversation in the Workbench to register sessions",
-    "Launch anyCode (desktop) or open http://127.0.0.1:43180": "Launch anyCode (desktop) or open http://127.0.0.1:43180",
+    "Launch anyCode (desktop)": "Launch anyCode (desktop)",
     gatesFailed: "{n} required gate(s) failed — open Projects to review blocked sessions",
     sessionsRunning: "{n} session(s) running — check Conversations for live updates",
   },
@@ -2010,7 +2010,7 @@ export const en = {
     "Chat in a project from the Workbench composer": "Chat in a project from the Workbench composer",
     "Create an API token in Settings → API tokens": "Create an API token in Settings → API tokens",
     "Free the dashboard port or change it in desktop preferences": "Free the dashboard port or change it in desktop preferences",
-    "Launch anyCode (desktop) or open http://127.0.0.1:43180": "Launch anyCode (desktop) or open http://127.0.0.1:43180",
+    "Launch anyCode (desktop)": "Launch anyCode (desktop)",
   },
   doctorCheckIds: {
     db_exists: "Database file",

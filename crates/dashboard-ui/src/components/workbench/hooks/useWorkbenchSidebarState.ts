@@ -21,9 +21,13 @@ function readState(): WorkbenchSidebarState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT;
     const parsed = JSON.parse(raw) as Partial<WorkbenchSidebarState>;
+    const VALID_TABS: WorkbenchTab[] = ["files", "browser", "terminal", "artifacts"];
+    const tab = VALID_TABS.includes(parsed.activeTab as WorkbenchTab)
+      ? (parsed.activeTab as WorkbenchTab)
+      : DEFAULT.activeTab;
     return {
       expanded: parsed.expanded ?? DEFAULT.expanded,
-      activeTab: parsed.activeTab ?? DEFAULT.activeTab,
+      activeTab: tab,
       panelWidth: parsed.panelWidth ?? DEFAULT.panelWidth,
     };
   } catch {

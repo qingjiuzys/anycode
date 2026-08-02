@@ -32,4 +32,4 @@ export interface BrowserSessionInfo {
   conversation_id?: string | null;
 }
 
-export type WorkbenchTab = "files" | "browser" | "terminal" | "artifacts" | "trace";
+export type WorkbenchTab = "files" | "browser" | "terminal" | "artifacts";

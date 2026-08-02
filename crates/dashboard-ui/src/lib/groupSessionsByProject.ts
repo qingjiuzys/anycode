@@ -25,12 +25,24 @@ function maxTimestamp(...values: Array<string | undefined | null>): string {
   return best;
 }
 
+/**
+ * Last activity timestamp of a session for sidebar ordering.
+ * Uses the end time once the session finished (so a just-closed session
+ * stays at the top instead of falling back to its original start time),
+ * and the start time while it is still running.
+ */
+export function sessionLastActiveAt(session: SessionWithProject): string {
+  return session.ended_at ?? session.started_at;
+}
+
 /** Latest activity for sidebar ordering: newest session + project touch time. */
 export function projectGroupActivityAt(
   group: ProjectSessionGroup,
   projectUpdatedAt?: string,
 ): string {
-  const latestSessionAt = group.sessions[0]?.started_at;
+  const latestSessionAt = group.sessions[0]
+    ? sessionLastActiveAt(group.sessions[0])
+    : undefined;
   const running = group.sessions.some((s) => s.status === "running");
   if (running) {
     return maxTimestamp(projectUpdatedAt, latestSessionAt);
@@ -71,17 +83,18 @@ export function groupSessionsByProject(
   }
 
   // Running (active) sessions float to the top of their project group, then
-  // newest first. This matches the sidebar expectation that the session you
-  // are actively chatting in stays visible at the top.
-  const sortByStarted = (a: SessionWithProject, b: SessionWithProject) => {
+  // last active first (ended_at ?? started_at). This keeps a session you just
+  // finished chatting in near the top instead of falling back to its original
+  // start time the moment it stops running.
+  const sortByActive = (a: SessionWithProject, b: SessionWithProject) => {
     const aRunning = a.status === "running" ? 1 : 0;
     const bRunning = b.status === "running" ? 1 : 0;
     if (aRunning !== bRunning) return bRunning - aRunning;
-    return b.started_at.localeCompare(a.started_at);
+    return sessionLastActiveAt(b).localeCompare(sessionLastActiveAt(a));
   };
 
   for (const group of map.values()) {
-    group.sessions.sort(sortByStarted);
+    group.sessions.sort(sortByActive);
   }
 
   const groups = [...map.values()].sort((a, b) => {

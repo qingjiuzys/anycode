@@ -172,6 +172,8 @@ export const zh = {
     incomingProject: "项目",
     cloudEmpty: "团队内暂无在线同事。请确认已登录 anycode.work 且对方 Desktop 在线。",
     cloudNotLinked: "请先链接云端账号（设置 → 云端）以使用团队交接。",
+    teamGateSetup: "请先在 Portal「团队」页创建团队，再邀请同事加入。未组队前不会展示在线同事。",
+    teamGateInvite: "团队已创建。请在 Portal「团队」页邀请至少 1 位同事加入后，才会开启在线同事与交接。",
     cloudHandoff: "云端交接",
     demoHint: "预览模拟（无在线同事）",
     demoBanner: "当前没有在线同事，以下为界面预览。真实交接需对方 Desktop 在线并出现在图谱中。",
@@ -303,7 +305,7 @@ export const zh = {
     apiError: "无法连接 API。请启动 anyCode 桌面应用，或确认工作台运行于",
     apiStarting: "正在连接工作台服务…",
     apiStartingDesktop: "正在启动本地工作台服务…",
-    apiErrorDesktop: "本地工作台服务未就绪。请完全退出 anyCode（Cmd+Q）后重新打开；若仍失败，检查 43180 端口是否被占用。",
+    apiErrorDesktop: "本地工作台服务未就绪。请完全退出 anyCode（Cmd+Q）后重新打开。",
     dbLabel: "数据库",
     quickActions: "快捷操作",
     actionScan: "扫描项目",
@@ -1639,7 +1641,7 @@ export const zh = {
     },
     about: {
       title: "关于与合规",
-      subtitle: "备案状态、算法说明与法律文档入口",
+      subtitle: "算法说明与法律文档入口",
       versionLabel: "当前版本",
       checkUpdate: "检查更新",
       checkingUpdate: "检查中…",
@@ -1651,8 +1653,6 @@ export const zh = {
       algorithmName: "灵栖智能多模态内容生成算法",
       providerLabel: "服务提供者",
       providerName: "杭州灵栖智能科技有限公司",
-      filingLabel: "备案状态",
-      filingStatus: "算法备案审核中 · 备案编号待主管部门审核通过后公示",
       aiNotice:
         "本服务使用人工智能生成合成技术。对话、代码辅助与多模态输出均由第三方大语言模型推理产生，请审慎甄别，不得用于违法或侵权用途。",
       disclosureLink: "查看算法公示",
@@ -1987,7 +1987,7 @@ export const zh = {
   },
   bootstrapSteps: {
     "Start a conversation in the Workbench to register sessions": "在工作台发起对话以登记会话",
-    "Launch anyCode (desktop) or open http://127.0.0.1:43180": "启动 anyCode 桌面应用或打开 http://127.0.0.1:43180",
+    "Launch anyCode (desktop)": "启动 anyCode 桌面应用",
     gatesFailed: "{n} 个必需门禁失败 — 打开项目页查看阻断会话",
     sessionsRunning: "{n} 个会话运行中 — 在会话页查看实时更新",
   },
@@ -1996,7 +1996,7 @@ export const zh = {
     "Chat in a project from the Workbench composer": "在工作台项目会话中发起对话",
     "Create an API token in Settings → API tokens": "在设置 → API Token 中创建",
     "Free the dashboard port or change it in desktop preferences": "释放 dashboard 端口或在桌面偏好中修改",
-    "Launch anyCode (desktop) or open http://127.0.0.1:43180": "启动 anyCode 桌面应用或打开 http://127.0.0.1:43180",
+    "Launch anyCode (desktop)": "启动 anyCode 桌面应用",
   },
   doctorCheckIds: {
     db_exists: "数据库文件",

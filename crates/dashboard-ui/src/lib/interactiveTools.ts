@@ -79,8 +79,12 @@ export function shouldHideInteractiveCluster(opts: {
   pendingApprovalsCount: number;
 }): boolean {
   if (!opts.isLast || !opts.isRunning) return false;
+  // Only hide an interactive cluster while it is actively waiting on the user
+  // (pending question/approval rendered by the inbox UI). A settled cluster in
+  // the last turn must stay visible — hiding it makes the transcript end at the
+  // user message with no execution record at all.
   if (opts.pendingQuestionsCount > 0 || opts.pendingApprovalsCount > 0) {
     return isInteractiveToolCluster(opts.steps);
   }
-  return isInteractiveToolCluster(opts.steps);
+  return false;
 }

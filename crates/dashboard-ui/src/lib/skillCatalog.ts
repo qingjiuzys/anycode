@@ -67,16 +67,12 @@ export const SKILL_NAMES_ZH: Record<string, string> = {
   "webapp-testing": "Web 测试",
   "internal-comms": "内部沟通",
   xlsx: "Excel 表格",
-  "anycode-contributor": "anyCode 贡献者",
   "anycode-release": "anyCode 发布构建",
-  "dashboard-ui-dev": "工作台 UI 开发",
 };
 
 /** Built-in Chinese descriptions when skill metadata lacks description_zh. */
 export const SKILL_DESCRIPTIONS_ZH: Record<string, string> = {
-  "anycode-contributor": "anyCode Rust 工作区开发约定（CLI、Agent、工作台）。",
   "anycode-release": "在 anyCode 仓库改代码后构建发布二进制。",
-  "dashboard-ui-dev": "开发与调试 anyCode 工作台前端（dashboard-ui）。",
 };
 
 export function normalizeSkillCategory(raw?: string | null): SkillCategory {

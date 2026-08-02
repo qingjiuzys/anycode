@@ -21,8 +21,20 @@ function hasTauriInternals(): boolean {
 
 export function isTauriDesktop(): boolean {
   if (tauriAvailable !== null) return tauriAvailable;
-  tauriAvailable = hasTauriInternals();
-  return tauriAvailable;
+  if (hasTauriInternals()) {
+    tauriAvailable = true;
+    return true;
+  }
+  // Embedded desktop serves the SPA from loopback; server injects `dw-tauri` on index.html.
+  if (
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dw-tauri")
+  ) {
+    tauriAvailable = true;
+    return true;
+  }
+  tauriAvailable = false;
+  return false;
 }
 
 const APPLE_MEDIA_TIMEOUT_MS = 90_000;

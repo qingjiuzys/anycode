@@ -4,7 +4,11 @@ import {
   progressPhase,
   type AgentPhaseKind,
 } from "@/lib/progressMeta";
-import type { TurnReplyItem } from "@/lib/transcriptGrouping";
+import {
+  groupTurnReplies,
+  mergeFinalAssistantBlocks,
+  type TurnReplyItem,
+} from "@/lib/transcriptGrouping";
 import { isFinalAssistantMessage } from "@/lib/agentActivitySummary";
 
 export type AgentPhaseSegment = {
@@ -174,4 +178,32 @@ export function phaseVisibilityPlan(
     visible: [...visibleNonDeliver, ...deliver],
     archived,
   };
+}
+
+export type TranscriptTurnLike = {
+  id: string;
+  replies: TranscriptBlock[];
+};
+
+/**
+ * 在整个 transcript 中定位「最后一个可见工具簇」（跨 turn 查找）。
+ * 已保存（settled）会话里最后一个 turn 可能是纯文本回复或用户消息，
+ * 此时最后一个工具簇位于更早的 turn；用这个引用判断哪个簇默认展开
+ * 完整执行记录，避免用户误以为底部没有执行记录。
+ */
+export function lastToolClusterRef(
+  turns: TranscriptTurnLike[],
+): { turnId: string; itemIndex: number } | null {
+  for (let t = turns.length - 1; t >= 0; t -= 1) {
+    const turn = turns[t]!;
+    const items = dedupeNarrationWithProgress(
+      groupTurnReplies(mergeFinalAssistantBlocks(turn.replies)),
+    );
+    for (let i = items.length - 1; i >= 0; i -= 1) {
+      if (items[i]?.kind === "tool_cluster") {
+        return { turnId: turn.id, itemIndex: i };
+      }
+    }
+  }
+  return null;
 }

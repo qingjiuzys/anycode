@@ -27,8 +27,14 @@ export type CloudHandoffTask = {
   progress_pct: number;
 };
 
+export type CloudTeamPeersResponse = {
+  team_ready: boolean;
+  gate?: "setup_required" | "invite_required" | "ready";
+  peers: CloudTeamPeer[];
+};
+
 export const cloudA2aClient = {
-  listTeamPeers: () => get<{ peers: CloudTeamPeer[] }>("/api/cloud/a2a/team/peers"),
+  listTeamPeers: () => get<CloudTeamPeersResponse>("/api/cloud/a2a/team/peers"),
 
   requestCloudHandoff: (body: {
     recipient_device_id: string;

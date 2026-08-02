@@ -17,7 +17,19 @@ export function resolveApiBase(): string {
       /* private mode / disabled storage */
     }
     if ("__TAURI_INTERNALS__" in window) {
-      return "http://127.0.0.1:43180";
+      // Legacy tauri:// asset load — API base must be injected before modules load.
+      try {
+        const stored = sessionStorage.getItem("anycode_api_base");
+        if (stored) return stored.replace(/\/$/, "");
+      } catch {
+        /* private mode */
+      }
+      return "";
+    }
+    const { hostname } = window.location;
+    if (hostname === "127.0.0.1" || hostname === "localhost") {
+      // Bundled UI served from in-process loopback — same origin as /api/*.
+      return "";
     }
   }
   const fromEnv = import.meta.env.VITE_API_BASE ?? "";

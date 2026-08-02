@@ -42,12 +42,15 @@ export function ColleaguesPage({ initialSearch }: EmbeddedPageProps = {}) {
     enabled: cloud.cloudLinked,
   });
 
+  const teamReady = cloudPeersQuery.data?.team_ready ?? false;
+  const teamGate = cloudPeersQuery.data?.gate;
+
   const realPeers = useMemo(
     () => (cloudPeersQuery.data?.peers ?? []).filter((p: CloudTeamPeer) => p.online),
     [cloudPeersQuery.data?.peers],
   );
 
-  const usingDemo = realPeers.length === 0;
+  const usingDemo = teamReady && realPeers.length === 0;
 
   const graphPeers: GraphPeer[] = useMemo(() => {
     if (usingDemo) return demoColleagues();
@@ -99,6 +102,15 @@ export function ColleaguesPage({ initialSearch }: EmbeddedPageProps = {}) {
           <div className="dw-colleagues-page__empty">
             <Icon name="cloud" size={28} className="text-on-surface-variant" />
             <p className="m-0 text-sm text-on-surface-variant">{t("colleagues.cloudNotLinked")}</p>
+          </div>
+        ) : !teamReady ? (
+          <div className="dw-colleagues-page__empty">
+            <Icon name="users" size={28} className="text-on-surface-variant" />
+            <p className="m-0 text-sm text-on-surface-variant">
+              {teamGate === "invite_required"
+                ? t("colleagues.teamGateInvite")
+                : t("colleagues.teamGateSetup")}
+            </p>
           </div>
         ) : (
           <>

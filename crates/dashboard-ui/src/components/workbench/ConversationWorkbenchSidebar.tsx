@@ -9,7 +9,6 @@ import { FilesPanel } from "./panels/FilesPanel";
 import { BrowserPanel } from "./panels/BrowserPanel";
 import { TerminalPanel } from "./panels/TerminalPanel";
 import { ArtifactsPanel } from "./panels/ArtifactsPanel";
-import { TracePanel } from "./panels/TracePanel";
 
 function isBrowserToolBlock(block: TranscriptBlock): boolean {
   const metaName =
@@ -25,9 +24,6 @@ type Props = {
   live?: boolean;
   isRunning?: boolean;
   liveBlocks?: TranscriptBlock[];
-  liveEvents?: import("@/lib/liveTranscript").ChatStreamEvent[];
-  selectedTool?: TranscriptBlock | null;
-  onSelectTool?: (tool: TranscriptBlock | null) => void;
   /** Parent dock controls visibility; always show expanded panel when mounted. */
   forceExpanded?: boolean;
   /** Collapse/close the pushed workbench dock. */
@@ -41,9 +37,6 @@ export function ConversationWorkbenchSidebar({
   live,
   isRunning,
   liveBlocks,
-  liveEvents = [],
-  selectedTool,
-  onSelectTool,
   forceExpanded,
   onRequestClose,
 }: Props) {
@@ -57,21 +50,15 @@ export function ConversationWorkbenchSidebar({
   const needsProject = activeTab === "files" || activeTab === "browser" || activeTab === "terminal";
   const projectReady = Boolean(projectId);
 
-  useEffect(() => {
-    if (selectedTool && sessionId) {
-      openTab("trace");
-    }
-  }, [selectedTool?.id, sessionId, openTab]);
-
   // Prefer the live browser pane while agent drives Browser* tools (unless user
-  // has drilled into a tool step → Trace, or already chose terminal/files).
+  // has already chosen terminal/files).
   useEffect(() => {
-    if (!sessionId || !showPanel || selectedTool) return;
+    if (!sessionId || !showPanel) return;
     const hasBrowser = (liveBlocks ?? []).some(isBrowserToolBlock);
     if (!hasBrowser) return;
     if (activeTab === "browser" || activeTab === "terminal" || activeTab === "files") return;
     openTab("browser");
-  }, [sessionId, showPanel, selectedTool, liveBlocks, activeTab, openTab]);
+  }, [sessionId, showPanel, liveBlocks, activeTab, openTab]);
 
   const onResizeStart = useCallback(
     (e: React.PointerEvent) => {
@@ -124,17 +111,6 @@ export function ConversationWorkbenchSidebar({
       case "artifacts":
         return (
           <ArtifactsPanel sessionId={sessionId!} live={live} isRunning={isRunning} />
-        );
-      case "trace":
-        return (
-          <TracePanel
-            sessionId={sessionId!}
-            live={live}
-            isRunning={isRunning}
-            liveEvents={liveEvents}
-            selectedTool={selectedTool}
-            onSelectTool={onSelectTool}
-          />
         );
       default:
         return null;

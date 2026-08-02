@@ -8,7 +8,6 @@ const TAB_TITLE: Record<WorkbenchTab, string> = {
   browser: "workbench.tabBrowser",
   terminal: "workbench.tabTerminal",
   artifacts: "workbench.tabArtifacts",
-  trace: "workbench.tabTrace",
 };
 
 type Props = {

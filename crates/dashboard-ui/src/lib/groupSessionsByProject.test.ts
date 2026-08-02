@@ -51,6 +51,26 @@ describe("groupSessionsByProject", () => {
     ]);
   });
 
+  it("keeps a just-finished session above older ones by ended_at", () => {
+    const groups = groupSessionsByProject([{ id: "p1", name: "Alpha" }], [
+      session({
+        id: "s-recently-ended",
+        project_id: "p1",
+        started_at: "2026-01-01T10:00:00Z",
+        ended_at: "2026-01-05T09:00:00Z",
+      }),
+      session({ id: "s-newer-start", project_id: "p1", started_at: "2026-01-04T10:00:00Z" }),
+      session({ id: "s-old", project_id: "p1", started_at: "2025-12-01T10:00:00Z" }),
+    ]);
+    // 刚结束的会话（ended_at 最近）应排在按 started_at 更新的会话前面，
+    // 而不是退出后立刻掉回原来的 start 顺序。
+    expect(groups[0]!.sessions.map((s) => s.id)).toEqual([
+      "s-recently-ended",
+      "s-newer-start",
+      "s-old",
+    ]);
+  });
+
   it("orders project groups by latest session activity", () => {
     const groups = groupSessionsByProject(
       [

@@ -157,9 +157,6 @@ export function ConversationWorkspace() {
                 live={sseLive}
                 isRunning={selected?.status === "running"}
                 liveBlocks={liveBlocks}
-                liveEvents={liveEvents}
-                selectedTool={selectedTool}
-                onSelectTool={setSelectedTool}
                 forceExpanded
                 onRequestClose={() => setWorkbenchDrawerOpen(false)}
                 className="h-full"
@@ -229,9 +226,6 @@ export function ConversationWorkspace() {
               live={sseLive}
               isRunning={selected?.status === "running"}
               liveBlocks={liveBlocks}
-              liveEvents={liveEvents}
-              selectedTool={selectedTool}
-              onSelectTool={setSelectedTool}
               forceExpanded
               onRequestClose={() => setWorkbenchDrawerOpen(false)}
               className="h-full w-full"
