@@ -33,6 +33,24 @@ describe("groupSessionsByProject", () => {
     expect(groups[0]!.sessions.map((s) => s.id)).toEqual(["s-new", "s-old"]);
   });
 
+  it("floats running sessions to the top of a project group", () => {
+    const groups = groupSessionsByProject([{ id: "p1", name: "Alpha" }], [
+      session({ id: "s-older", project_id: "p1", started_at: "2026-01-01T10:00:00Z" }),
+      session({
+        id: "s-running",
+        project_id: "p1",
+        status: "running",
+        started_at: "2026-01-01T09:00:00Z",
+      }),
+      session({ id: "s-newest", project_id: "p1", started_at: "2026-01-03T10:00:00Z" }),
+    ]);
+    expect(groups[0]!.sessions.map((s) => s.id)).toEqual([
+      "s-running",
+      "s-newest",
+      "s-older",
+    ]);
+  });
+
   it("orders project groups by latest session activity", () => {
     const groups = groupSessionsByProject(
       [

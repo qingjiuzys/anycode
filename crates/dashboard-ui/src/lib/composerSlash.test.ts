@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseComposerSlashInput, parseSlashQuery } from "./composerSlash";
+import {
+  composerSlashKeepText,
+  parseComposerSlashInput,
+  parseSlashQuery,
+} from "./composerSlash";
 
 describe("parseSlashQuery", () => {
   it("opens the menu on bare slash", () => {
@@ -56,5 +60,36 @@ describe("parseComposerSlashInput", () => {
       prompt: "/help me",
       bareSlash: false,
     });
+  });
+});
+
+describe("composerSlashKeepText", () => {
+  it("keeps prompt when the target command is already active", () => {
+    expect(composerSlashKeepText("/拷问", "/拷问 帮我分析下当前项目")).toBe(
+      "帮我分析下当前项目",
+    );
+    expect(composerSlashKeepText("/grill-me", "/grill-me review this")).toBe(
+      "review this",
+    );
+  });
+
+  it("keeps existing text when switching to grill from a partial token", () => {
+    expect(composerSlashKeepText("/拷问", "/拷")).toBe("");
+    expect(composerSlashKeepText("/拷问", "/拷 保留这段")).toBe("保留这段");
+  });
+
+  it("keeps prompt when switching from another mode", () => {
+    expect(composerSlashKeepText("/拷问", "/目标 三个月上线")).toBe("三个月上线");
+    expect(composerSlashKeepText("/目标", "/拷问 帮我审阅代码")).toBe("帮我审阅代码");
+  });
+
+  it("keeps the full text for non-slash input", () => {
+    expect(composerSlashKeepText("/拷问", "帮我分析下当前项目")).toBe(
+      "帮我分析下当前项目",
+    );
+  });
+
+  it("keeps goal prompt when target command is already goal", () => {
+    expect(composerSlashKeepText("/目标", "/目标 三个月上线")).toBe("三个月上线");
   });
 });

@@ -70,8 +70,15 @@ export function groupSessionsByProject(
     }
   }
 
-  const sortByStarted = (a: SessionWithProject, b: SessionWithProject) =>
-    b.started_at.localeCompare(a.started_at);
+  // Running (active) sessions float to the top of their project group, then
+  // newest first. This matches the sidebar expectation that the session you
+  // are actively chatting in stays visible at the top.
+  const sortByStarted = (a: SessionWithProject, b: SessionWithProject) => {
+    const aRunning = a.status === "running" ? 1 : 0;
+    const bRunning = b.status === "running" ? 1 : 0;
+    if (aRunning !== bRunning) return bRunning - aRunning;
+    return b.started_at.localeCompare(a.started_at);
+  };
 
   for (const group of map.values()) {
     group.sessions.sort(sortByStarted);

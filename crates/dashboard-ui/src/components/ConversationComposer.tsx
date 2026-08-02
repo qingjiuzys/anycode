@@ -47,7 +47,12 @@ import {
   saveGrillMode,
   shouldExitGrillMode,
 } from "@/lib/grillMode";
-import { parseComposerSlashInput, parseSlashQuery } from "@/lib/composerSlash";
+import {
+  clearComposerDraft,
+  loadComposerDraft,
+  saveComposerDraft,
+} from "@/lib/composerDraft";
+import { parseComposerSlashInput, composerSlashKeepText, parseSlashQuery } from "@/lib/composerSlash";
 import {
   GOAL_AGENT_ID,
   goalSlashCommand,
@@ -150,8 +155,11 @@ export function ConversationComposer(props: Props) {
   const session = props.mode === "follow-up" ? props.session : null;
   const projectId = props.mode === "start" ? props.projectId : session!.project_id;
 
+  // Draft cache scope: per-session for follow-up, per-project for start.
+  const draftScope = isStart ? `project:${projectId}` : session?.id;
+
   const [sessionTitle, setSessionTitle] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => loadComposerDraft(draftScope));
   const [agent, setAgent] = useState(() => {
     if (props.mode === "start") return props.initialAgent ?? "";
     const fromSession = session?.agent_type ?? "";
@@ -318,6 +326,18 @@ export function ConversationComposer(props: Props) {
     saveGoalMode(goalStorageKey, goalMode);
   }, [goalStorageKey, goalMode]);
 
+  // Draft cache: restore the draft for the current session/project scope when
+  // the scope changes, then persist edits for the active scope.
+  const draftScopeRef = useRef(draftScope);
+  useEffect(() => {
+    if (draftScopeRef.current !== draftScope) {
+      draftScopeRef.current = draftScope;
+      setMessage(loadComposerDraft(draftScope));
+      return;
+    }
+    saveComposerDraft(draftScope, message);
+  }, [draftScope, message]);
+
   useEffect(() => {
     if (props.mode === "follow-up" && session?.agent_type) {
       const fromSession = session.agent_type === "general-purpose" ? "" : session.agent_type;
@@ -446,6 +466,7 @@ export function ConversationComposer(props: Props) {
     onSuccess: (data) => {
       const tempId = pendingOptimisticId.current;
       pendingOptimisticId.current = null;
+      clearComposerDraft(draftScope);
       setMessage("");
       revokeVisionAttachments(attachedImages);
       setAttachedImages([]);
@@ -537,6 +558,7 @@ export function ConversationComposer(props: Props) {
         saveGoalMode(data.session.id, true);
         saveGoalMode(`project:${projectId}`, false);
       }
+      clearComposerDraft(draftScope);
       setMessage("");
       revokeVisionAttachments(attachedImages);
       setAttachedImages([]);
@@ -624,25 +646,24 @@ export function ConversationComposer(props: Props) {
   }
 
   function applySlash(cmd: string) {
-    const parsed = parseComposerSlashInput(message);
     if (isGrillSlashToken(cmd)) {
-      if (grillMode && parsed.bareSlash) {
+      if (grillMode && parseComposerSlashInput(message).bareSlash) {
         setGrillMode(false);
       } else {
         enableGrillMode();
       }
-      setMessage(parsed.mode === "grill" ? parsed.prompt : "");
+      setMessage(composerSlashKeepText(cmd, message));
       setSlashOpen(false);
       textareaRef.current?.focus();
       return;
     }
     if (isGoalSlashToken(cmd)) {
-      if (goalMode && parsed.bareSlash) {
+      if (goalMode && parseComposerSlashInput(message).bareSlash) {
         disableGoalMode();
       } else {
         enableGoalMode();
       }
-      setMessage(parsed.mode === "goal" ? parsed.prompt : "");
+      setMessage(composerSlashKeepText(cmd, message));
       setSlashOpen(false);
       textareaRef.current?.focus();
     }

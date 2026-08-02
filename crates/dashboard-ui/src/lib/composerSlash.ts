@@ -62,3 +62,21 @@ export function parseComposerSlashInput(text: string): ComposerSlashParse {
 
   return { mode: null, prompt: trimmed, bareSlash: false };
 }
+
+/**
+ * Text that should remain in the composer after applying a slash command.
+ * Aligns with Codex-style behavior: switching mode keeps existing input —
+ * when the current text is already the target command, keep its prompt;
+ * otherwise (partial token like `/拷`, or a different slash like `/目标 …`)
+ * strip the leading slash token but never discard the rest of the text.
+ */
+export function composerSlashKeepText(cmd: string, text: string): string {
+  const parsed = parseComposerSlashInput(text);
+  const targetIsGrill = isGrillSlashToken(cmd);
+  const targetIsGoal = isGoalSlashToken(cmd);
+  const matchesTarget =
+    (targetIsGrill && parsed.mode === GRILL_COMPOSER_MODE) ||
+    (targetIsGoal && parsed.mode === GOAL_AGENT_ID);
+  if (matchesTarget) return parsed.prompt;
+  return text.replace(/^\s*\/\S*\s*/, "");
+}
