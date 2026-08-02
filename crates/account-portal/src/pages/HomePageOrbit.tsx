@@ -16,8 +16,9 @@ import { SITE_PATHS } from "@anycode/site-urls";
 
 const PAGE_COPY = {
   zh: {
-    title: "开源 · 企业自主可控 Agent",
-    lead: "Harness · Grill Me 拷问 · 会话交接 · BYOK 本地执行",
+    headline: "让每一个想法，进入自己的运行轨道。",
+    lead: "以项目为中心组织模型、工具与产物，形成持续积累的个人工作系统。",
+    features: ["项目上下文", "多模型协作", "持续记忆"],
     wbTitleLead: "与",
     wbTitleAccent: "智能体",
     wbTitleRest: "一起构建",
@@ -44,8 +45,9 @@ const PAGE_COPY = {
     qrAlt: "企业微信用户群二维码",
   },
   en: {
-    title: "Open-source agents you control",
-    lead: "Harness · Grill Me · session handoff · BYOK local runtime",
+    headline: "Every idea finds its own orbit.",
+    lead: "Organize models, tools, and deliverables around projects into a system that keeps compounding.",
+    features: ["Project context", "Multi-model", "Persistent memory"],
     wbTitleLead: "Build with ",
     wbTitleAccent: "agents",
     wbTitleRest: "",
@@ -74,9 +76,9 @@ const PAGE_COPY = {
 } as const;
 
 const ENTRIES = [
-  { to: SITE_PATHS.features, titleKey: "featuresTitle" as const, bodyKey: "featuresBody" as const, code: "01" },
-  { to: SITE_PATHS.product, titleKey: "productTitle" as const, bodyKey: "productBody" as const, code: "02" },
-  { to: SITE_PATHS.plans, titleKey: "plansTitle" as const, bodyKey: "plansBody" as const, code: "03" },
+  { to: SITE_PATHS.features, titleKey: "featuresTitle" as const, bodyKey: "featuresBody" as const },
+  { to: SITE_PATHS.product, titleKey: "productTitle" as const, bodyKey: "productBody" as const },
+  { to: SITE_PATHS.plans, titleKey: "plansTitle" as const, bodyKey: "plansBody" as const },
 ] as const;
 
 const WB_NAV = [
@@ -85,63 +87,41 @@ const WB_NAV = [
   { key: "wbColleagues" as const, icon: "◎" },
 ];
 
-function WorkbenchMini({
+function WorkbenchPreview({
   copy,
 }: {
   copy: (typeof PAGE_COPY)["zh"] | (typeof PAGE_COPY)["en"];
 }) {
   const projects = [copy.wbProject, "anycode", "skills-office"];
   return (
-    <div className="nx-wb-mini" aria-hidden>
-      <aside className="nx-wb-mini__sidebar">
-        <div className="nx-wb-mini__brand">
+    <div className="orbit-wb" aria-hidden>
+      <aside>
+        <div className="orbit-wb__brand">
           <Logo size="sm" />
-          <strong>anyCode</strong>
         </div>
-        <nav className="nx-wb-mini__nav">
-          {WB_NAV.map((item) => (
-            <span key={item.key}>
-              <i>{item.icon}</i>
-              {copy[item.key]}
-            </span>
-          ))}
-        </nav>
-        <div className="nx-wb-mini__section">{copy.wbProjects}</div>
-        <ul className="nx-wb-mini__projects">
-          {projects.map((name, i) => (
-            <li key={name} className={i === 0 ? "is-active" : undefined}>
-              <i aria-hidden>▢</i>
-              {name}
-            </li>
-          ))}
-        </ul>
+        <span className="is-active">{copy.wbProjects === "项目" ? "今天" : "Today"}</span>
+        <span>{copy.wbProjects}</span>
+        <span>Skills</span>
       </aside>
-      <div className="nx-wb-mini__main">
-        <div className="nx-wb-mini__glow" />
-        <h2>
-          {copy.wbTitleLead}
-          <span>{copy.wbTitleAccent}</span>
-          {copy.wbTitleRest}
-        </h2>
-        <p>{copy.wbSubtitle}</p>
-        <div className="nx-wb-mini__composer">
-          <div className="nx-wb-mini__placeholder">{copy.wbPlaceholder}</div>
-          <div className="nx-wb-mini__toolbar">
-            <span>{copy.wbProject}</span>
-            <span>{copy.wbModel}</span>
-            <i>↑</i>
-          </div>
+      <div className="orbit-wb__main">
+        <div className="orbit-wb__top">
+          <span>{copy.wbProject}</span>
+          <span>{copy.wbModel}</span>
         </div>
-        <div className="nx-wb-mini__meta">
-          <i />
-          {copy.wbConnected}
+        <p className="orbit-wb__prompt">{copy.wbPlaceholder}</p>
+        <div className="orbit-wb__activity">
+          <span>{copy.wbConnected}</span>
+          <span>{copy.wbSubtitle}</span>
+        </div>
+        <div className="orbit-wb__composer">
+          {copy.wbPlaceholder} <b>↑</b>
         </div>
       </div>
     </div>
   );
 }
 
-export function HomePageDemo() {
+export function HomePageOrbit() {
   const { authenticated } = useAuth();
   const locale = useLocale();
   const t = useT();
@@ -153,33 +133,39 @@ export function HomePageDemo() {
   const startTo = authenticated ? "/console" : "/register";
 
   return (
-    <div className="nx-home">
-      <section className="nx-hero nx-hero--slim" aria-labelledby="nx-hero-title">
-        <div className="nx-frame nx-hero__slim">
-          <div className="nx-hero__copy">
-            <p className="nx-kicker">{t("hero.eyebrow")}</p>
-            <h1 id="nx-hero-title">anyCode</h1>
-            <p className="nx-hero__headline">{copy.title}</p>
-            <p className="nx-hero__lead">{copy.lead}</p>
-            <div className="nx-hero__actions">
-              <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
+    <div className="orbit-home">
+      <section className="orbit-hero" aria-labelledby="orbit-hero-title">
+        <div className="orbit-frame orbit-hero__inner">
+          <div className="orbit-hero__copy">
+            <h1 id="orbit-hero-title">{copy.headline}</h1>
+            <p className="orbit-hero__lead">{copy.lead}</p>
+            <div className="orbit-hero__actions">
+              <a className="orbit-btn orbit-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
                 {t("hero.ctaDownload")}
                 <span aria-hidden>↓</span>
               </a>
-              <Link className="nx-btn nx-btn--secondary" to={startTo}>
+              <Link className="orbit-btn orbit-btn--ghost" to={startTo}>
                 {authenticated ? t("hero.ctaConsole") : t("hero.ctaGetStarted")}
                 <span aria-hidden>→</span>
               </Link>
             </div>
+            <ul className="orbit-hero__features">
+              {copy.features.map((feature, index) => (
+                <li key={feature}>
+                  <span>0{index + 1}</span>
+                  <strong>{feature}</strong>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="nx-hero__visual">
-            <WorkbenchMini copy={copy} />
-            <aside className="nx-hero__qr">
+          <div className="orbit-hero__visual">
+            <WorkbenchPreview copy={copy} />
+            <aside className="orbit-hero__qr">
               <img
                 src="/images/wecom-community-qr.png"
                 alt={copy.qrAlt}
-                width={48}
-                height={48}
+                width={112}
+                height={112}
               />
               <span>{copy.qrCaption}</span>
             </aside>
@@ -187,17 +173,17 @@ export function HomePageDemo() {
         </div>
       </section>
 
-      <section className="nx-cases" aria-labelledby="nx-cases-title">
-        <div className="nx-frame">
-          <header className="nx-section-head">
+      <section className="orbit-cases" aria-labelledby="orbit-cases-title">
+        <div className="orbit-frame">
+          <header className="orbit-section-head">
             <div>
-              <p className="nx-kicker">{cases.sectionKicker}</p>
-              <h2 id="nx-cases-title">{cases.sectionTitle}</h2>
+              <p className="orbit-kicker">{cases.sectionKicker}</p>
+              <h2 id="orbit-cases-title">{cases.sectionTitle}</h2>
             </div>
             <p>{cases.sectionLead}</p>
           </header>
 
-          <div className="nx-case-feature">
+          <div className="orbit-case-feature">
             <CaseSlidePreview
               title={featuredItem.slideTitle}
               sub={featuredItem.slideSub}
@@ -205,14 +191,14 @@ export function HomePageDemo() {
               strong={featuredItem.slideStrong}
               steps={featuredItem.slideSteps}
             />
-            <div className="nx-case-feature__copy">
-              <span className="nx-case-feature__tag">{featuredItem.tag}</span>
+            <div className="orbit-case-feature__copy">
+              <span className="orbit-case-feature__tag">{featuredItem.tag}</span>
               <h3>{featuredItem.title}</h3>
               <blockquote>
                 <span aria-hidden>&gt;</span>
                 <p>{featuredItem.prompt}</p>
               </blockquote>
-              <ul className="nx-case-feature__meta">
+              <ul className="orbit-case-feature__meta">
                 <li>
                   <span>{cases.modelLabel.toUpperCase()}</span>
                   <strong>{featured.model}</strong>
@@ -226,28 +212,32 @@ export function HomePageDemo() {
                   <strong>{featuredItem.output}</strong>
                 </li>
               </ul>
-              <div className="nx-case-feature__actions">
+              <div className="orbit-case-feature__actions">
                 {featured.demoUrl ? (
-                  <a className="nx-btn nx-btn--primary" href={featured.demoUrl} target="_blank" rel="noreferrer">
+                  <a
+                    className="orbit-btn orbit-btn--primary"
+                    href={featured.demoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     {cases.openDemo} <span aria-hidden>→</span>
                   </a>
                 ) : null}
-                <Link className="nx-btn nx-btn--ghost" to={casePath(featured.id)}>
+                <Link className="orbit-btn orbit-btn--ghost" to={casePath(featured.id)}>
                   {cases.viewCase}
                 </Link>
               </div>
             </div>
           </div>
 
-          <div className="nx-cases__grid nx-cases__grid--loose">
-            {cards.map((card, index) => {
+          <div className="orbit-cases__grid">
+            {cards.map((card) => {
               const item = cases.items[card.id as CaseItemId];
               return (
-                <Link className="nx-case-card" key={card.id} to={casePath(card.id)}>
-                  <div className="nx-case-card__thumb">
+                <Link className="orbit-case-card" key={card.id} to={casePath(card.id)}>
+                  <div className="orbit-case-card__thumb">
                     <CaseThumb kind={card.kind} />
                   </div>
-                  <span className="nx-case-card__code">0{index + 1}</span>
                   <h3>{item.title}</h3>
                   <p>{item.summary}</p>
                   <footer>
@@ -261,22 +251,20 @@ export function HomePageDemo() {
         </div>
       </section>
 
-      <section className="nx-home-entries" aria-labelledby="nx-entries-title">
-        <div className="nx-frame">
-          <header className="nx-section-head">
+      <section className="orbit-entries" aria-labelledby="orbit-entries-title">
+        <div className="orbit-frame">
+          <header className="orbit-section-head">
             <div>
-              <p className="nx-kicker">EXPLORE</p>
-              <h2 id="nx-entries-title">{copy.entriesTitle}</h2>
+              <h2 id="orbit-entries-title">{copy.entriesTitle}</h2>
             </div>
             <p>{copy.entriesLead}</p>
           </header>
-          <div className="nx-home-entries__grid">
+          <div className="orbit-entries__grid">
             {ENTRIES.map((entry) => (
-              <Link className="nx-home-entry" key={entry.to} to={entry.to}>
-                <span className="nx-home-entry__code">{entry.code}</span>
+              <Link className="orbit-entry" key={entry.to} to={entry.to}>
                 <h3>{copy[entry.titleKey]}</h3>
                 <p>{copy[entry.bodyKey]}</p>
-                <span className="nx-home-entry__go">
+                <span className="orbit-entry__go">
                   {t("common.viewDetails")} <span aria-hidden>→</span>
                 </span>
               </Link>
@@ -285,18 +273,17 @@ export function HomePageDemo() {
         </div>
       </section>
 
-      <section className="nx-final">
-        <div className="nx-frame nx-final__inner">
+      <section className="orbit-final">
+        <div className="orbit-frame orbit-final__inner">
           <div>
-            <p className="nx-kicker">START</p>
             <h2>{copy.ctaTitle}</h2>
             <p>{copy.ctaBody}</p>
           </div>
-          <div className="nx-final__actions">
-            <a className="nx-btn nx-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
+          <div className="orbit-final__actions">
+            <a className="orbit-btn orbit-btn--primary" href={DESKTOP_DOWNLOAD_URL}>
               {t("hero.ctaDownload")} <span aria-hidden>↓</span>
             </a>
-            <Link className="nx-btn nx-btn--secondary" to={startTo}>
+            <Link className="orbit-btn orbit-btn--ghost" to={startTo}>
               {authenticated ? t("hero.ctaConsole") : t("hero.ctaGetStarted")}{" "}
               <span aria-hidden>→</span>
             </Link>
@@ -304,9 +291,9 @@ export function HomePageDemo() {
         </div>
       </section>
 
-      <footer className="nx-footer">
-        <div className="nx-frame nx-footer__inner">
-          <div className="nx-footer__brand">
+      <footer className="orbit-footer">
+        <div className="orbit-frame orbit-footer__inner">
+          <div className="orbit-footer__brand">
             <Logo size="sm" />
             <strong>anyCode</strong>
           </div>

@@ -155,11 +155,7 @@ export function LoginPage() {
         <p className="auth-filing-notice" role="status">
           {t("devices.loginHandoffHint")}
         </p>
-      ) : (
-        <p className="auth-filing-notice" role="status">
-          {t("hero.reviewStatus")}
-        </p>
-      )}
+      ) : null}
       <p className="auth-consent-note muted">{t("auth.loginAlgorithmNotice")}</p>
       <form className="auth-form" onSubmit={submit}>
         <div className="field-group">

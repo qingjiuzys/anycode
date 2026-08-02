@@ -118,9 +118,6 @@ export function RegisterPage() {
 
   return (
     <AuthLayout title={t("auth.registerTitle")} subtitle={t("auth.registerSubtitle")}>
-      <p className="auth-filing-notice" role="status">
-        {t("hero.reviewStatus")}
-      </p>
       <form className="auth-form auth-form--register" onSubmit={submit}>
         <div className="field-group">
           <label className="field-label" htmlFor="register-name">

@@ -8,10 +8,12 @@ import { ApiKeysPage } from "./pages/ApiKeysPage";
 import { BillingPage } from "./pages/BillingPage";
 import { CaseDetailPage } from "./pages/CaseDetailPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
+import { DesignLabPage } from "./pages/DesignLabPage";
 import { DownloadsPage } from "./pages/DownloadsPage";
 import { FeaturesPage } from "./pages/FeaturesPage";
 import { HomePage } from "./pages/HomePage";
-import { HomePageDemo } from "./pages/HomePageDemo";
+import { HomePageNxBackup } from "./pages/HomePageNxBackup";
+import { HomePageOrbit } from "./pages/HomePageOrbit";
 import { LoginPage } from "./pages/LoginPage";
 import { MarketingPlansPage } from "./pages/MarketingPlansPage";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -48,19 +50,32 @@ function LegacyDeviceLinkRedirect() {
 
 function AppRoutes() {
   const { pathname } = useLocation();
-  const isHome = pathname === "/" || pathname === "/home-classic";
+  const isHome =
+    pathname === "/" ||
+    pathname === "/home-nx" ||
+    pathname === "/home-classic";
   const isConsole = pathname.startsWith("/console");
   const isDocs = pathname.startsWith("/docs");
+  const isDesignLab = import.meta.env.DEV && pathname === "/__design-prototype";
   const isMarketing = !isConsole;
+  const isLegacyHome = pathname === "/home-nx" || pathname === "/home-classic";
+  const isOrbitSite = !isDesignLab && !isLegacyHome;
+  const hideSiteFooter = pathname === SITE_PATHS.downloads;
 
   return (
-    <div className={`app app--nx${isHome ? " app--home" : ""}${isDocs ? " app--docs" : ""}`}>
-      <TopNav />
+    <div
+      className={`app app--nx${isHome ? " app--home" : ""}${isOrbitSite ? " app--orbit-site" : ""}${isDocs ? " app--docs" : ""}${isDesignLab ? " app--design-lab" : ""}`}
+    >
+      {!isDesignLab ? <TopNav /> : null}
       <main
-        className={`main${isHome ? " main--landing" : ""}${isConsole ? " main--console" : ""}${isDocs ? " main--docs" : ""}${isMarketing && !isHome && !isDocs ? " main--site" : ""}`}
+        className={`main${isHome ? " main--landing" : ""}${isConsole ? " main--console" : ""}${isDocs ? " main--docs" : ""}${isMarketing && !isHome && !isDocs && !isDesignLab ? " main--site" : ""}`}
       >
         <Routes>
-          <Route path="/" element={<HomePageDemo />} />
+          <Route path="/" element={<HomePageOrbit />} />
+          {import.meta.env.DEV ? (
+            <Route path="/__design-prototype" element={<DesignLabPage />} />
+          ) : null}
+          <Route path="/home-nx" element={<HomePageNxBackup />} />
           <Route path={SITE_PATHS.features} element={<FeaturesPage />} />
           <Route path={SITE_PATHS.product} element={<ProductPage />} />
           <Route path={SITE_PATHS.plans} element={<MarketingPlansPage />} />
@@ -98,7 +113,7 @@ function AppRoutes() {
           <Route path="/devices/link" element={<LegacyDeviceLinkRedirect />} />
         </Routes>
       </main>
-      {isMarketing && !isHome ? <SiteFooter /> : null}
+      {isMarketing && !isHome && !isDesignLab && !hideSiteFooter ? <SiteFooter /> : null}
     </div>
   );
 }

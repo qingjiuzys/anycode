@@ -21,6 +21,43 @@ export type ChangelogRelease = {
 /** Newest first — rendered as a vertical timeline (top → bottom). */
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: "0.35.0",
+    date: "2026-08-02",
+    tag: "v0.35.0",
+    summary: {
+      zh: "记忆系统 auto-memory：受限后台提取 + 四阶段 consolidation、MEMORY.md 索引、本地引擎回退。",
+      en: "Memory auto-memory (automem): sandboxed background extraction + four-phase consolidation, MEMORY.md index, local-engine fallback.",
+    },
+    sections: [
+      {
+        kind: "added",
+        items: [
+          {
+            zh: "新增 automem 学习管线：fork 受限后台代理提取会话，四阶段（orient→gather→consolidate→prune）生成记忆。",
+            en: "New automem pipeline: forked sandboxed agent extracts sessions and consolidates memory in four phases.",
+          },
+          {
+            zh: "MEMORY.md 作为记忆索引入口（≤200 行 / ≤25KB），互斥锁 + cursor 保证并发安全。",
+            en: "MEMORY.md as a bounded index entry (≤200 lines / ≤25KB) with mutex + cursor safety.",
+          },
+          {
+            zh: "autoDream 时间/会话门控 + 锁；LLM 不可用时自动回退到本地 dedup/promote/forget + 向量检索。",
+            en: "autoDream time/session gating with locking; automatic fallback to the local dedup/promote/forget engine when no LLM is available.",
+          },
+        ],
+      },
+      {
+        kind: "changed",
+        items: [
+          {
+            zh: "automem 支持配置开关（enabled / fork_agent / 门控阈值 / 转录上限）。",
+            en: "automem is configurable (enabled / fork_agent / gating thresholds / transcript cap).",
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: "0.3.4",
     date: "2026-08-01",
     tag: "v0.3.4",

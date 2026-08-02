@@ -7,6 +7,14 @@ export const PLAN_IDS = ["free", "cloud_5h", "pro", "team"] as const;
 
 export type PlanId = (typeof PLAN_IDS)[number];
 
+/** Seed-aligned list prices (fen) for marketing display. */
+export const STANDARD_PLAN_MONTHLY_FEN: Record<PlanId, number> = {
+  free: 0,
+  cloud_5h: 9_800,
+  pro: 59_900,
+  team: 199_900,
+};
+
 export type PlanTier = {
   id: string;
   name: string;
@@ -23,8 +31,38 @@ function isKnownPlanId(id: string): id is PlanId {
 
 function formatPlanPrice(fen: number, locale: string): string {
   if (fen <= 0) return locale.startsWith("zh") ? "¥0" : "¥0";
+  if (fen % 100 === 0) {
+    const yuan = fen / 100;
+    const money = `¥${yuan}`;
+    return locale.startsWith("zh") ? `${money}/月` : `${money}/mo`;
+  }
   const money = formatMoney(fen, locale.startsWith("zh") ? "zh-CN" : "en-CN");
   return locale.startsWith("zh") ? `${money}/月` : `${money}/mo`;
+}
+
+function marketingPlanTier(id: PlanId, t: (key: string) => string): PlanTier {
+  return {
+    id,
+    name: t(`plans.tiers.${id}.name`),
+    price: t(`plans.tiers.${id}.price`),
+    desc: t(`plans.tiers.${id}.desc`),
+    highlights: [
+      t(`plans.tiers.${id}.h0`),
+      t(`plans.tiers.${id}.h1`),
+      t(`plans.tiers.${id}.h2`),
+    ],
+    featured: id === "cloud_5h",
+    promoLabel: id === "cloud_5h" ? t("common.recommended") : null,
+  };
+}
+
+/** Public marketing page — fixed standard list prices from i18n catalog. */
+export function useMarketingPlanTiers(): { plans: PlanTier[]; loading: false } {
+  const t = useT();
+  return {
+    plans: PLAN_IDS.map((id) => marketingPlanTier(id, t)),
+    loading: false,
+  };
 }
 
 function highlightsFor(plan: CloudPlanCatalogEntry, t: (key: string) => string): string[] {
@@ -73,22 +111,8 @@ export function usePlanTiers(): { plans: PlanTier[]; loading: boolean } {
       })
       .catch(() => {
         if (cancelled) return;
-        // Fallback: i18n-only (prices may drift until catalog is reachable).
-        setPlans(
-          PLAN_IDS.map((id) => ({
-            id,
-            name: t(`plans.tiers.${id}.name`),
-            price: t(`plans.tiers.${id}.price`),
-            desc: t(`plans.tiers.${id}.desc`),
-            highlights: [
-              t(`plans.tiers.${id}.h0`),
-              t(`plans.tiers.${id}.h1`),
-              t(`plans.tiers.${id}.h2`),
-            ],
-            featured: id === "pro",
-            promoLabel: id === "pro" ? t("common.recommended") : null,
-          })),
-        );
+        // Fallback: standard list prices from i18n (seed-aligned).
+        setPlans(PLAN_IDS.map((id) => marketingPlanTier(id, t)));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

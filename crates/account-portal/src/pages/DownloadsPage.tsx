@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { DESKTOP_DOWNLOAD_URL } from "../lib/desktopDownload";
 import { formatMessage, useT } from "../i18n/context";
-import { SITE_ORIGIN, SITE_PATHS, siteUrl } from "@anycode/site-urls";
+import { SITE_PATHS, siteUrl } from "@anycode/site-urls";
 
 type LatestManifest = {
   version?: string;
@@ -12,6 +12,8 @@ type LatestManifest = {
   latest_url?: string;
   sha256?: string;
 };
+
+const GITHUB_RELEASE = "https://github.com/qingjiuzys/anycode/releases";
 
 export function DownloadsPage() {
   const t = useT();
@@ -34,67 +36,44 @@ export function DownloadsPage() {
   const versionedUrl = latest?.url || dmgUrl;
   const version = latest?.version ?? "—";
   const sha = latest?.sha256;
-  const githubRelease = `https://github.com/qingjiuzys/anycode/releases`;
 
   return (
     <div className="nx-site nx-site--downloads">
-      <section className="nx-downloads">
-        <div className="nx-downloads__frame">
-          <div className="nx-downloads__intro">
-            <div className="nx-downloads__copy">
-              <header className="nx-page-hero">
-                <p className="nx-kicker">{t("downloads.eyebrow")}</p>
-                <h1>{t("downloads.title")}</h1>
-                <p className="nx-page-hero__lead">{t("downloads.lede")}</p>
-              </header>
+      <section className="nx-downloads-onepage" aria-labelledby="nx-downloads-title">
+        <div className="nx-frame nx-downloads-onepage__inner">
+          <header className="nx-page-hero nx-downloads-onepage__hero">
+            <p className="nx-kicker">{t("downloads.eyebrow")}</p>
+            <h1 id="nx-downloads-title">{t("downloads.title")}</h1>
+            <p className="nx-page-hero__lead">{t("downloads.lede")}</p>
+          </header>
 
-              <aside className="nx-downloads__channels">
-                <h2>{t("downloads.otherChannels")}</h2>
-                <ul>
-                  <li>
-                    <a href={dmgUrl}>{SITE_ORIGIN}/downloads</a>
-                    <span>{t("downloads.channelPrimary")}</span>
-                  </li>
-                  <li>
-                    <a href={githubRelease} target="_blank" rel="noreferrer">
-                      GitHub Releases
-                    </a>
-                    <span>{t("downloads.channelGithub")}</span>
-                  </li>
-                  <li>
-                    <Link to={SITE_PATHS.changelog}>{t("changelog.title")}</Link>
-                    <span>{t("changelog.lede")}</span>
-                  </li>
-                  <li>
-                    <a href={siteUrl("docs")}>{t("downloads.installDocs")}</a>
-                  </li>
-                </ul>
-              </aside>
+          <div className="nx-downloads-onepage__panel">
+            <div className="nx-downloads-onepage__meta">
+              <span className="nx-downloads-onepage__os">macOS · Apple Silicon</span>
+              <strong>{formatMessage(t("downloads.versionLabel"), { version })}</strong>
             </div>
-
-            <div className="nx-downloads__hero-card">
-              <div className="nx-downloads__hero-meta">
-                <span className="nx-downloads__os">macOS · Apple Silicon</span>
-                <strong>{formatMessage(t("downloads.versionLabel"), { version })}</strong>
-              </div>
-              {error ? <p className="nx-downloads__error">{error}</p> : null}
-              <a className="nx-btn nx-btn--primary nx-downloads__cta" href={dmgUrl}>
-                {t("downloads.downloadLatest")} <span aria-hidden>↓</span>
+            {error ? <p className="nx-downloads-onepage__error">{error}</p> : null}
+            <a className="orbit-btn orbit-btn--primary nx-downloads-onepage__cta" href={dmgUrl}>
+              {t("downloads.downloadLatest")} <span aria-hidden>↓</span>
+            </a>
+            {versionedUrl !== dmgUrl ? (
+              <a className="nx-downloads-onepage__secondary" href={versionedUrl}>
+                {formatMessage(t("downloads.downloadVersioned"), { version })}
               </a>
-              {versionedUrl !== dmgUrl ? (
-                <a className="nx-text-link" href={versionedUrl}>
-                  {formatMessage(t("downloads.downloadVersioned"), { version })}
-                </a>
-              ) : null}
-              {sha ? (
-                <p className="nx-downloads__sha">
-                  SHA-256 <code>{sha}</code>
-                </p>
-              ) : null}
-              <p className="nx-downloads__checksum">
-                <a href="/downloads/SHA256SUMS.txt">{t("downloads.checksums")}</a>
+            ) : null}
+            {sha ? (
+              <p className="nx-downloads-onepage__sha">
+                SHA-256 <code>{sha}</code>
               </p>
-            </div>
+            ) : null}
+            <nav className="nx-downloads-onepage__links" aria-label={t("downloads.otherChannels")}>
+              <a href="/downloads/SHA256SUMS.txt">{t("downloads.checksums")}</a>
+              <a href={GITHUB_RELEASE} target="_blank" rel="noreferrer">
+                GitHub Releases
+              </a>
+              <Link to={SITE_PATHS.changelog}>{t("changelog.title")}</Link>
+              <a href={siteUrl("docs")}>{t("downloads.installDocs")}</a>
+            </nav>
           </div>
         </div>
       </section>

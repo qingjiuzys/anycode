@@ -21,7 +21,6 @@ export function SiteFooter() {
           <Link to={SITE_PATHS.legalUserAgreement}>{t("legal.userAgreementLink")}</Link>
           <Link to={SITE_PATHS.legalPrivacy}>{t("legal.privacyLink")}</Link>
         </nav>
-        <span>{t("hero.reviewStatus")}</span>
       </div>
     </footer>
   );

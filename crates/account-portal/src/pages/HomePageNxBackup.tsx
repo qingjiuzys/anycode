@@ -141,7 +141,8 @@ function WorkbenchMini({
   );
 }
 
-export function HomePageDemo() {
+/** Frozen snapshot of the pre-Orbit homepage (2026-08). Route: /home-nx */
+export function HomePageNxBackup() {
   const { authenticated } = useAuth();
   const locale = useLocale();
   const t = useT();

@@ -11,7 +11,6 @@ export function AlgorithmDisclosurePage() {
         <section>
           <p>{t("legal.algorithmPendingBody")}</p>
         </section>
-        <p className="legal-page__status muted">{t("hero.reviewStatus")}</p>
       </LegalPageLayout>
     );
   }
@@ -54,7 +53,6 @@ export function AlgorithmDisclosurePage() {
         <h2>{t("legal.algorithmNoticeTitle")}</h2>
         <p>{t("legal.algorithmNotice")}</p>
       </section>
-      <p className="legal-page__status muted">{t("hero.reviewStatus")}</p>
     </LegalPageLayout>
   );
 }

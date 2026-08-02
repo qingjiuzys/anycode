@@ -19,28 +19,28 @@ export const CASES: CaseDef[] = [
     skill: "anycode-ppt",
     model: "DeepSeek Flash",
     featured: true,
-    demoUrl: "/demos/launch-ppt/",
+    demoUrl: "/demos/launch-ppt/index.html",
   },
   {
     id: "courseware",
     kind: "ppt",
     skill: "anycode-ppt",
     model: "DeepSeek Flash",
-    demoUrl: "/demos/courseware/",
+    demoUrl: "/demos/courseware/index.html",
   },
   {
     id: "weekly-report",
     kind: "doc",
     skill: "anycode-docx",
     model: "DeepSeek Flash",
-    demoUrl: "/demos/weekly-report/",
+    demoUrl: "/demos/weekly-report/index.html",
   },
   {
     id: "ops-sheet",
     kind: "sheet",
     skill: "anycode-xlsx",
     model: "DeepSeek Flash",
-    demoUrl: "/demos/ops-sheet/",
+    demoUrl: "/demos/ops-sheet/index.html",
   },
 ];
 

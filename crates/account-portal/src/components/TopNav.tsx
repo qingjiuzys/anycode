@@ -12,22 +12,30 @@ export function TopNav() {
   const { authenticated, logout } = useAuth();
   const t = useT();
 
-  const isHome = loc.pathname === "/" || loc.pathname === "/home-classic";
+  const isConsole = loc.pathname.startsWith("/console");
+  const isLegacyHome =
+    loc.pathname === "/home-nx" || loc.pathname === "/home-classic";
+  const isOrbitSite =
+    !(import.meta.env.DEV && loc.pathname === "/__design-prototype") &&
+    !isLegacyHome;
+  const isHome =
+    loc.pathname === "/" ||
+    loc.pathname === "/home-nx" ||
+    loc.pathname === "/home-classic";
   const isFeatures = loc.pathname === SITE_PATHS.features;
   const isProduct = loc.pathname === SITE_PATHS.product;
   const isPlans = loc.pathname === SITE_PATHS.plans;
   const isDownloads = loc.pathname === SITE_PATHS.downloads;
   const isChangelog = loc.pathname === SITE_PATHS.changelog;
   const isDocs = loc.pathname.startsWith(SITE_PATHS.docs);
-  const isConsole = loc.pathname.startsWith("/console");
   const scrolled = useHomeHeaderScroll(true);
 
-  const headerClass = ["lx-header", scrolled || isHome ? "is-scrolled" : ""]
+  const headerClass = ["lx-header", scrolled || isHome || isOrbitSite ? "is-scrolled" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <header className={headerClass} data-theme={isHome ? "light" : "dark"}>
+    <header className={headerClass} data-theme={isOrbitSite ? "dark" : isHome ? "light" : "dark"}>
       <div className="lx-header__inner">
         <Link className="lx-header__brand" to="/">
           <Logo size="sm" />

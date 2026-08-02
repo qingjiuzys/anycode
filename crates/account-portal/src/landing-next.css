@@ -2504,34 +2504,35 @@ body:has(.app--nx) {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  width: min(100% - 48px, 980px);
-  max-width: 980px;
+  width: min(100% - 44px, 1240px);
+  max-width: 1240px;
   margin-inline: auto;
   padding-inline: 0;
 }
 
 .nx-product-onepage__intro {
   display: grid;
-  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
-  gap: 36px 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(40px, 7vw, 112px);
   align-items: center;
-  justify-content: center;
-  width: min(100%, 920px);
-  margin-inline: auto;
-  padding-inline: clamp(12px, 4vw, 40px);
+  justify-content: space-between;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: clamp(4px, 1.5vw, 16px);
 }
 
 .nx-product-onepage__intro .nx-page-hero {
-  max-width: 22rem;
-  justify-self: end;
-  padding-right: 8px;
+  max-width: 24rem;
+  justify-self: start;
+  padding-right: 0;
 }
 
 .nx-product-diagram {
   margin: 0;
   width: 100%;
-  max-width: 480px;
-  justify-self: start;
+  max-width: min(480px, 100%);
+  justify-self: end;
   padding: 6px;
   border-radius: 28px;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 246, 248, 0.96) 100%);
@@ -5021,6 +5022,11 @@ body:has(.app--nx) {
   display: none;
 }
 
+.nx-console-sidebar__mark {
+  flex-shrink: 0;
+  color: var(--nx-cyan);
+}
+
 .nx-console-sidebar__kicker {
   margin: 0 0 3px;
   color: var(--nx-cyan);
@@ -5403,7 +5409,21 @@ body:has(.app--nx) {
 }
 
 .app--nx .nx-plan-card.plan-card-featured {
-  border-color: rgba(255, 255, 255, 0.48);
+  border-color: color-mix(in srgb, var(--nx-cyan) 55%, white);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--nx-cyan) 28%, transparent),
+    0 18px 48px color-mix(in srgb, var(--nx-cyan) 16%, transparent);
+  transform: translateY(-4px);
+}
+
+.app--nx .nx-plan-card.plan-card-featured .plan-badge {
+  animation: nx-plan-badge-pop 1.2s ease-out;
+}
+
+@keyframes nx-plan-badge-pop {
+  0% { transform: scale(0.82); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
 }
 
 .app--nx .nx-plan-card.plan-card-current::after {
@@ -5890,7 +5910,7 @@ body:has(.app--nx) {
   margin: 0 0 8px;
   color: #6f7779;
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  font-size: var(--nx-type-kicker, 10px);
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -5907,8 +5927,8 @@ body:has(.app--nx) {
   padding: 7px 10px;
   border-radius: 8px;
   color: var(--nx-muted);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   text-decoration: none;
   transition: color 140ms ease, background 140ms ease;
 }
@@ -5941,18 +5961,18 @@ body:has(.app--nx) {
 .app--nx .nx-docs .docs-article h1 {
   margin: 0 0 14px;
   color: var(--nx-ink);
-  font-size: var(--nx-type-price, 27px);
+  font-size: clamp(1.85rem, 3.2vw, 2.35rem);
   font-weight: var(--nx-type-price-weight, 620);
-  letter-spacing: 0;
-  line-height: 1.2;
+  letter-spacing: -0.02em;
+  line-height: 1.22;
 }
 
 .app--nx .nx-docs .docs-home__tagline {
   margin: 0 0 22px;
   max-width: 46rem;
-  color: var(--nx-muted);
-  font-size: var(--nx-type-desc, 12px);
-  line-height: 1.65;
+  color: color-mix(in srgb, var(--nx-ink) 78%, var(--nx-muted));
+  font-size: 16px;
+  line-height: 1.7;
 }
 
 .app--nx .nx-docs .docs-home__hero {
@@ -6007,28 +6027,45 @@ body:has(.app--nx) {
 }
 
 .app--nx .nx-docs .docs-home__features span {
-  color: var(--nx-muted);
-  font-size: var(--nx-type-desc, 12px);
+  color: color-mix(in srgb, var(--nx-ink) 72%, var(--nx-muted));
+  font-size: 14px;
+  line-height: 1.65;
 }
 
-.app--nx .nx-docs .docs-article h2,
-.app--nx .nx-docs .docs-article h3 {
-  margin: 1.6em 0 0.55em;
+.app--nx .nx-docs .docs-article h2 {
+  margin: 1.75em 0 0.6em;
   color: var(--nx-ink);
-  font-size: var(--nx-type-title, 18px);
+  font-size: 1.375rem;
   font-weight: var(--nx-type-title-weight, 620);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.app--nx .nx-docs .docs-article h3 {
+  margin: 1.5em 0 0.5em;
+  color: var(--nx-ink);
+  font-size: 1.125rem;
+  font-weight: 600;
   letter-spacing: 0;
+  line-height: 1.35;
 }
 
 .app--nx .nx-docs .docs-article p,
 .app--nx .nx-docs .docs-article li {
-  color: var(--nx-muted);
-  font-size: var(--nx-type-desc, 12px);
-  line-height: 1.65;
+  color: color-mix(in srgb, var(--nx-ink) 84%, var(--nx-muted));
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .app--nx .nx-docs .docs-article li {
-  font-size: var(--nx-type-list, 11px);
+  font-size: 15px;
+}
+
+.app--nx .nx-docs .docs-article td,
+.app--nx .nx-docs .docs-article th {
+  color: color-mix(in srgb, var(--nx-ink) 84%, var(--nx-muted));
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .app--nx .nx-docs .docs-article a {
@@ -6047,9 +6084,10 @@ body:has(.app--nx) {
 .app--nx .nx-docs .docs-article em {
   display: block;
   margin: -4px 0 20px;
-  color: var(--nx-muted);
-  font-size: var(--nx-type-kicker, 10px);
+  color: color-mix(in srgb, var(--nx-ink) 70%, var(--nx-muted));
+  font-size: 14px;
   font-style: normal;
+  line-height: 1.6;
 }
 
 .app--nx .nx-docs .docs-article code {
@@ -6057,7 +6095,7 @@ body:has(.app--nx) {
   border-radius: 6px;
   background: var(--nx-primary-soft);
   color: var(--nx-ink);
-  font-size: 0.9em;
+  font-size: 0.92em;
 }
 
 .app--nx .nx-docs .docs-article pre {
@@ -6066,6 +6104,8 @@ body:has(.app--nx) {
   border: 1px solid var(--nx-line-soft);
   border-radius: 10px;
   background: var(--nx-panel);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .app--nx .nx-docs .docs-article pre code {

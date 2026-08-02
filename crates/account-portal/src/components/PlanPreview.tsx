@@ -44,7 +44,6 @@ export function PlanPreview() {
           </article>
         ))}
       </div>
-      <p className="scene-plans__review-note">{t("hero.reviewStatus")}</p>
     </section>
   );
 }

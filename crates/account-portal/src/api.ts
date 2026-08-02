@@ -42,6 +42,14 @@ export type CloudPlanCatalogEntry = {
   sort_order: number;
 };
 
+export type TeamStatusPayload = {
+  gate: "setup_required" | "invite_required" | "ready";
+  organization_name: string;
+  member_count: number;
+  team_setup: boolean;
+  pending_invites: number;
+};
+
 export type PaymentOrder = {
   id: string;
   provider: string;
@@ -263,8 +271,42 @@ export const api = {
       members: Array<{ id: string; email: string; display_name: string; role: string }>;
     }>("/api/v1/org/members"),
 
+  teamStatus: () => apiFetch<{ team: TeamStatusPayload }>("/api/v1/org/team/status"),
+
+  teamSetup: (name: string) =>
+    apiFetch<{ team: TeamStatusPayload }>("/api/v1/org/team/setup", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  listOrgInvites: () =>
+    apiFetch<{
+      invites: Array<{
+        id: string;
+        email: string;
+        status: string;
+        expires_at: string;
+        created_at: string;
+      }>;
+    }>("/api/v1/org/invites"),
+
+  createOrgInvite: (email: string) =>
+    apiFetch<{
+      invite: { id: string; email: string; status: string; expires_at: string; created_at: string };
+      accept_path: string;
+    }>("/api/v1/org/invites", { method: "POST", body: JSON.stringify({ email }) }),
+
+  acceptOrgInvite: (token: string) =>
+    apiFetch<{ team: TeamStatusPayload }>("/api/v1/org/invites/accept", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+
   teamPeers: () =>
     apiFetch<{
+      team_ready: boolean;
+      gate?: "setup_required" | "invite_required" | "ready";
+      team?: TeamStatusPayload;
       peers: Array<{
         user_id: string;
         display_name: string;

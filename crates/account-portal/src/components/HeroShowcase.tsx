@@ -49,10 +49,6 @@ export function HeroShowcase() {
 
       <div className="scene-product-hero__content">
         <p className="scene-product-hero__tag">{t("hero.eyebrow")}</p>
-        <p className="scene-product-hero__review-status">
-          <span aria-hidden="true" />
-          {t("hero.reviewStatus")}
-        </p>
         <h1 className="scene-product-hero__title">
           {t("hero.titleLine1")}
           <br />

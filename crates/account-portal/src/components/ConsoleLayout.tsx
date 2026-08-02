@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Logo } from "./Logo";
+import { ConsoleSidebarMark } from "./ConsoleSidebarMark";
 import { useT } from "../i18n/context";
 
 const MENU = [
@@ -20,7 +20,7 @@ export function ConsoleLayout() {
       <div className="nx-frame nx-site__console">
         <aside className="nx-console-sidebar">
           <div className="nx-console-sidebar__brand">
-            <Logo size="sm" />
+            <ConsoleSidebarMark size={32} />
             <div>
               <p className="nx-kicker nx-console-sidebar__kicker">CLOUD CONTROL</p>
               <p className="nx-console-sidebar__title">{t("nav.console")}</p>

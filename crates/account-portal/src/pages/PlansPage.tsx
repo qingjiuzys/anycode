@@ -2,21 +2,16 @@ import { useEffect, useState } from "react";
 import { api, type PaymentOrder, type PaymentProvider } from "../api";
 import { ConsolePage } from "../components/ConsolePage";
 import { WeChatPayModal } from "../components/WeChatPayModal";
-import { formatMessage, useLocale, useT } from "../i18n/context";
+import { useT } from "../i18n/context";
 import { usePlanTiers } from "../lib/plans";
-
-const isDev = import.meta.env.DEV;
 
 export function PlansPage() {
   const t = useT();
-  const locale = useLocale();
   const { plans, loading: plansLoading } = usePlanTiers();
   const [plan, setPlan] = useState("free");
   const [status, setStatus] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
-  const [provider, setProvider] = useState<PaymentProvider>(
-    locale === "zh" ? "wechat" : "stripe",
-  );
+  const [provider, setProvider] = useState<PaymentProvider>("wechat");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [wechatOrder, setWechatOrder] = useState<PaymentOrder | null>(null);
 
@@ -30,17 +25,6 @@ export function PlansPage() {
   useEffect(() => {
     refresh();
   }, []);
-
-  const mockUpgrade = async (tier: string) => {
-    setMsg(null);
-    try {
-      await api.upgrade(tier);
-      setPlan(tier);
-      setMsg(formatMessage(t("plans.switchedMock"), { tier }));
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    }
-  };
 
   const checkout = async (tier: string) => {
     setMsg(null);
@@ -130,11 +114,6 @@ export function PlansPage() {
               ))}
             </ul>
             <div className="plan-actions">
-              {isDev && (
-                <button className="btn btn-secondary" type="button" onClick={() => void mockUpgrade(p.id)}>
-                  {t("plans.mockSwitch")}
-                </button>
-              )}
               {p.id !== "free" && (
                 <button
                   className="btn btn-primary"
