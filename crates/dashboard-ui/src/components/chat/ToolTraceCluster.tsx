@@ -38,6 +38,8 @@ type Props = {
   defaultCollapsed?: boolean;
   /** Accordion: force open/closed from parent (overrides local history toggle when set). */
   forceExpanded?: boolean;
+  /** Settled (non-streaming) clusters: render step rows instead of a one-line summary. */
+  showSettledSteps?: boolean;
   variant?: "nested" | "flat";
 };
 
@@ -51,6 +53,7 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
   suppressActivityLine = false,
   defaultCollapsed: _defaultCollapsed = true,
   forceExpanded,
+  showSettledSteps = false,
   variant = "nested",
 }: Props) {
   const t = useT();
@@ -117,9 +120,11 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
       ? "tool-strip--running"
       : "tool-strip--done";
 
-  // Codex/Cursor: only the live/streaming cluster shows step rows.
-  // Settled success clusters stay a single non-interactive summary line.
-  const showStepDetails = streaming && forceExpanded !== false;
+  // Streaming cluster: step rows while live. Settled clusters stay a summary
+  // line unless the parent asks for history detail (showSettledSteps).
+  const showStepDetails = streaming
+    ? forceExpanded !== false
+    : Boolean(showSettledSteps);
 
   if (variant === "flat") {
     if (steps.length === 0) return null;
@@ -211,6 +216,20 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
           ) : null}
         </p>
       )}
+      {showStepDetails && steps.length > 0 && (
+        <div className={`tool-strip tool-strip-settled ${stripClass}`}>
+          {steps.map((step) => (
+            <ToolStepLine
+              key={step.key}
+              step={step}
+              selectedToolId={selectedToolId}
+              onSelectTool={onSelectTool}
+              allowExpand
+              segmentActive={false}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }, (prev, next) =>
@@ -223,6 +242,7 @@ export const ToolTraceCluster = memo(function ToolTraceCluster({
   prev.suppressActivityLine === next.suppressActivityLine &&
   prev.defaultCollapsed === next.defaultCollapsed &&
   prev.forceExpanded === next.forceExpanded &&
+  prev.showSettledSteps === next.showSettledSteps &&
   prev.variant === next.variant);
 
 function ThinkingTraceFold({

@@ -147,6 +147,7 @@ export function ConversationTranscript({
   const userNearBottomRef = useRef(true);
   const scrollRafRef = useRef<number | null>(null);
   const resizeScrollAtRef = useRef(0);
+  const didInitialPinRef = useRef<string | null>(null);
 
   const running = Boolean(isRunning);
   const streamLive =
@@ -259,6 +260,40 @@ export function ConversationTranscript({
       scrollToBottom("auto");
     });
   }, [scrollToBottom]);
+
+  // 打开/切换会话时，默认定位到底部（最新内容）。不做平滑动画，
+  // 双 rAF 等布局稳定后再 pin，虚拟化路径再校准一次。
+  const pinToBottom = useCallback(() => {
+    if (turns.length === 0) return;
+    if (useVirtual) {
+      virtualizer.scrollToIndex(turns.length - 1, { align: "end", behavior: "auto" });
+      return;
+    }
+    const container = getScrollContainer(scrollContainerRef, localScrollRef);
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [localScrollRef, scrollContainerRef, turns.length, useVirtual, virtualizer]);
+
+  useEffect(() => {
+    if (!sessionId || turns.length === 0) return;
+    if (didInitialPinRef.current === sessionId) return;
+    didInitialPinRef.current = sessionId;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        pinToBottom();
+        if (useVirtual) {
+          // 虚拟化测量完成后 totalSize 会变化，延迟再校准一次。
+          window.setTimeout(() => pinToBottom(), 250);
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [pinToBottom, sessionId, turns.length, useVirtual]);
 
   const streamFollowSignature = useMemo(
     () =>
@@ -684,6 +719,10 @@ function ConversationTurnView({
             itemIndex === lastClusterIndex,
             settled,
           );
+          // 已保存会话（settled）：底部最后一个 cluster 默认展开执行记录，
+          // 否则用户只能看到一行工具摘要，误以为数据缺失。
+          const showSettledSteps =
+            !isRunning && isLast && itemIndex === lastClusterIndex;
           return (
             <MessageRow key={item.id} align="left">
               <ToolTraceCluster
@@ -696,6 +735,7 @@ function ConversationTurnView({
                 suppressActivityLine
                 defaultCollapsed={!clusterLive}
                 forceExpanded={segmentExpanded && clusterLive}
+                showSettledSteps={showSettledSteps}
               />
             </MessageRow>
           );
