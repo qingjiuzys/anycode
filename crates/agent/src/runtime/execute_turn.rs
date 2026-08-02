@@ -261,6 +261,7 @@ impl AgentRuntime {
         let model_config = self.model_for_task(agent_type).clone();
         let llm_config = model_config_with_retry_observer(&model_config, logger.clone(), task_id);
         let mut total_tool_calls: usize = 0;
+        let mut used_tools: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut artifacts: Vec<Artifact> = vec![];
         let mut last_assistant_text = String::new();
         let mut turn_usage = TurnTokenUsage::default();
@@ -273,8 +274,12 @@ impl AgentRuntime {
         for turn in 1..=loop_limits.max_agent_turns {
             last_model_turn = turn;
             stream_progress_seq = None;
-            let turn_tool_schemas =
-                tool_surface::schemas_for_model_turn(&tool_schemas, &model_config, turn);
+            let turn_tool_schemas = tool_surface::schemas_for_model_turn(
+                &tool_schemas,
+                &model_config,
+                turn,
+                &used_tools,
+            );
             logger.line(
                 task_id,
                 &format!("[turn_start] turn={}/{}", turn, loop_limits.max_agent_turns),
@@ -827,6 +832,7 @@ impl AgentRuntime {
             let session_label = format!("tui_{}", task_id);
 
             let turn_tool_calls = response.tool_calls.clone();
+            used_tools.extend(turn_tool_calls.iter().map(|tc| tc.name.clone()));
             if turn_tool_calls.is_empty() {
                 let guard_out = self
                     .completion_guard

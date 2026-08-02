@@ -637,6 +637,12 @@ struct ZaiUsage {
     completion_tokens: u32,
     #[allow(dead_code)] // usage 扩展字段，与 OpenAI 对齐
     total_tokens: Option<u32>,
+    /// DeepSeek 自动上下文缓存命中（磁盘缓存读取）token 数。
+    #[serde(default)]
+    prompt_cache_hit_tokens: Option<u32>,
+    /// DeepSeek 自动上下文缓存未命中（写入缓存）token 数。
+    #[serde(default)]
+    prompt_cache_miss_tokens: Option<u32>,
 }
 
 /// 是否为「首轮主对话」：仅 system + user，尚无 assistant/tool 历史（与 AgentRuntime 首包 LLM 请求一致）。
@@ -645,26 +651,32 @@ fn is_zai_first_agent_turn(messages: &[Message]) -> bool {
 }
 
 /// OpenAI 兼容 `tool_choice`。Claude Code 对 Anthropic 主路径传 `tool_choice: undefined`，依赖 Claude 的工具习惯；z.ai/GLM 在 `auto` 下常返回纯文本而不带 `tool_calls`，故支持用环境变量收紧（与 OpenAI `required` 语义一致）。
-fn zai_thinking_body() -> Option<Value> {
+fn zai_thinking_body(config: &ModelConfig) -> Option<Value> {
+    if let Some(v) = config.thinking_enabled {
+        return v.then(|| json!({"type": "enabled"}));
+    }
     match std::env::var("ANYCODE_ZAI_THINKING").ok().as_deref() {
         Some("0") | Some("false") | Some("no") | Some("off") | Some("disabled") => None,
         _ => Some(json!({"type": "enabled"})),
     }
 }
 
-fn openai_compatible_thinking_body(provider_label: &str) -> Option<Value> {
+fn openai_compatible_thinking_body(provider_label: &str, config: &ModelConfig) -> Option<Value> {
     if provider_label == "z.ai" {
-        return zai_thinking_body();
+        return zai_thinking_body(config);
     }
     if provider_label == "deepseek" {
-        return deepseek_thinking_body();
+        return deepseek_thinking_body(config);
     }
     None
 }
 
 /// DeepSeek 思考模式：V4 Pro/Flash 均支持 `thinking: {type: enabled}`；
-/// 关闭设 `ANYCODE_DEEPSEEK_THINKING=0`。
-fn deepseek_thinking_body() -> Option<Value> {
+/// 配置 `models.*.thinkingEnabled=false` 或设 `ANYCODE_DEEPSEEK_THINKING=0` 关闭。
+fn deepseek_thinking_body(config: &ModelConfig) -> Option<Value> {
+    if let Some(v) = config.thinking_enabled {
+        return v.then(|| json!({"type": "enabled"}));
+    }
     match std::env::var("ANYCODE_DEEPSEEK_THINKING").ok().as_deref() {
         Some("0") | Some("false") | Some("no") | Some("off") | Some("disabled") => None,
         _ => Some(json!({"type": "enabled"})),
@@ -672,21 +684,28 @@ fn deepseek_thinking_body() -> Option<Value> {
 }
 
 /// DeepSeek 推理强度：V4 Flash 支持 `low|high|max`（Pro 支持 `high|max`）。
-/// 默认拉满 `max`；可用 `ANYCODE_DEEPSEEK_REASONING_EFFORT=low|high|max` 覆盖。
-fn openai_compatible_reasoning_effort(provider_label: &str) -> Option<String> {
+/// 默认 `low`（避免长会话每轮长时间前置思考）；可用 config `reasoning_effort`
+/// 或 `ANYCODE_DEEPSEEK_REASONING_EFFORT=low|high|max` 覆盖（环境变量优先）。
+fn openai_compatible_reasoning_effort(
+    provider_label: &str,
+    config: &ModelConfig,
+) -> Option<String> {
     if provider_label != "deepseek" {
         return None;
     }
-    match std::env::var("ANYCODE_DEEPSEEK_REASONING_EFFORT").ok() {
-        Some(v) => {
-            let v = v.trim().to_ascii_lowercase();
-            match v.as_str() {
-                "low" | "high" | "max" => Some(v),
-                _ => Some("max".to_string()),
-            }
+    if let Some(v) = std::env::var("ANYCODE_DEEPSEEK_REASONING_EFFORT").ok() {
+        let v = v.trim().to_ascii_lowercase();
+        if v == "low" || v == "high" || v == "max" {
+            return Some(v);
         }
-        None => Some("max".to_string()),
     }
+    if let Some(v) = config.reasoning_effort.as_deref() {
+        let v = v.trim().to_ascii_lowercase();
+        if v == "low" || v == "high" || v == "max" {
+            return Some(v.to_string());
+        }
+    }
+    Some("low".to_string())
 }
 
 fn zai_tool_choice(
@@ -959,8 +978,8 @@ fn convert_response(
         usage: Usage {
             input_tokens: zai_response.usage.prompt_tokens,
             output_tokens: zai_response.usage.completion_tokens,
-            cache_creation_tokens: None,
-            cache_read_tokens: None,
+            cache_creation_tokens: zai_response.usage.prompt_cache_miss_tokens,
+            cache_read_tokens: zai_response.usage.prompt_cache_hit_tokens,
         },
     })
 }
@@ -1022,8 +1041,8 @@ impl LLMClient for ZaiClient {
             stream: Some(false),
             tools: tools_json,
             tool_choice,
-            thinking: openai_compatible_thinking_body(&provider_label),
-            reasoning_effort: openai_compatible_reasoning_effort(&provider_label),
+            thinking: openai_compatible_thinking_body(&provider_label, config),
+            reasoning_effort: openai_compatible_reasoning_effort(&provider_label, config),
         };
 
         let base_url = config
@@ -1199,8 +1218,8 @@ impl LLMClient for ZaiClient {
             "stream": true,
             "tools": tools_json,
             "tool_choice": tool_choice,
-            "thinking": openai_compatible_thinking_body(&provider_label),
-            "reasoning_effort": openai_compatible_reasoning_effort(&provider_label),
+            "thinking": openai_compatible_thinking_body(&provider_label, config),
+            "reasoning_effort": openai_compatible_reasoning_effort(&provider_label, config),
             "stream_options": { "include_usage": true },
         });
 
@@ -1663,12 +1682,20 @@ mod tests {
     /// 环境变量类测试串行执行，避免并行测试相互污染。
     static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    fn cfg_with(provider: &str) -> ModelConfig {
+        ModelConfig {
+            provider: LLMProvider::Custom(provider.to_string()),
+            model: "deepseek-v4-flash".to_string(),
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn deepseek_thinking_enabled_by_default() {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::remove_var("ANYCODE_DEEPSEEK_THINKING");
         assert_eq!(
-            openai_compatible_thinking_body("deepseek"),
+            openai_compatible_thinking_body("deepseek", &cfg_with("deepseek")),
             Some(json!({"type": "enabled"}))
         );
     }
@@ -1677,17 +1704,34 @@ mod tests {
     fn deepseek_thinking_can_be_disabled() {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("ANYCODE_DEEPSEEK_THINKING", "0");
-        assert_eq!(openai_compatible_thinking_body("deepseek"), None);
+        assert_eq!(
+            openai_compatible_thinking_body("deepseek", &cfg_with("deepseek")),
+            None
+        );
         std::env::remove_var("ANYCODE_DEEPSEEK_THINKING");
     }
 
     #[test]
-    fn deepseek_reasoning_effort_defaults_to_max() {
+    fn deepseek_thinking_honors_config_field() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("ANYCODE_DEEPSEEK_THINKING");
+        let mut cfg = cfg_with("deepseek");
+        cfg.thinking_enabled = Some(false);
+        assert_eq!(openai_compatible_thinking_body("deepseek", &cfg), None);
+        cfg.thinking_enabled = Some(true);
+        assert_eq!(
+            openai_compatible_thinking_body("deepseek", &cfg),
+            Some(json!({"type": "enabled"}))
+        );
+    }
+
+    #[test]
+    fn deepseek_reasoning_effort_defaults_to_low() {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::remove_var("ANYCODE_DEEPSEEK_REASONING_EFFORT");
         assert_eq!(
-            openai_compatible_reasoning_effort("deepseek"),
-            Some("max".to_string())
+            openai_compatible_reasoning_effort("deepseek", &cfg_with("deepseek")),
+            Some("low".to_string())
         );
     }
 
@@ -1696,28 +1740,54 @@ mod tests {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("ANYCODE_DEEPSEEK_REASONING_EFFORT", "high");
         assert_eq!(
-            openai_compatible_reasoning_effort("deepseek"),
+            openai_compatible_reasoning_effort("deepseek", &cfg_with("deepseek")),
             Some("high".to_string())
         );
         std::env::set_var("ANYCODE_DEEPSEEK_REASONING_EFFORT", "low");
         assert_eq!(
-            openai_compatible_reasoning_effort("deepseek"),
+            openai_compatible_reasoning_effort("deepseek", &cfg_with("deepseek")),
             Some("low".to_string())
         );
         std::env::set_var("ANYCODE_DEEPSEEK_REASONING_EFFORT", "bogus");
         assert_eq!(
-            openai_compatible_reasoning_effort("deepseek"),
-            Some("max".to_string())
+            openai_compatible_reasoning_effort("deepseek", &cfg_with("deepseek")),
+            Some("low".to_string())
         );
         std::env::remove_var("ANYCODE_DEEPSEEK_REASONING_EFFORT");
+    }
+
+    #[test]
+    fn deepseek_reasoning_effort_honors_config_field() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("ANYCODE_DEEPSEEK_REASONING_EFFORT");
+        let mut cfg = cfg_with("deepseek");
+        cfg.reasoning_effort = Some("high".to_string());
+        assert_eq!(
+            openai_compatible_reasoning_effort("deepseek", &cfg),
+            Some("high".to_string())
+        );
+        cfg.reasoning_effort = Some("bogus".to_string());
+        assert_eq!(
+            openai_compatible_reasoning_effort("deepseek", &cfg),
+            Some("low".to_string())
+        );
     }
 
     #[test]
     fn non_deepseek_providers_get_no_reasoning_effort() {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::remove_var("ANYCODE_DEEPSEEK_REASONING_EFFORT");
-        assert_eq!(openai_compatible_reasoning_effort("z.ai"), None);
-        assert_eq!(openai_compatible_reasoning_effort("openai"), None);
-        assert_eq!(openai_compatible_reasoning_effort("google"), None);
+        assert_eq!(
+            openai_compatible_reasoning_effort("z.ai", &cfg_with("z.ai")),
+            None
+        );
+        assert_eq!(
+            openai_compatible_reasoning_effort("openai", &cfg_with("openai")),
+            None
+        );
+        assert_eq!(
+            openai_compatible_reasoning_effort("google", &cfg_with("google")),
+            None
+        );
     }
 }

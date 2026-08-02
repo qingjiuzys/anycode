@@ -43,7 +43,7 @@ impl SubAgentExecutor for AgentRuntime {
                 environment: HashMap::new(),
                 user_id: None,
                 system_prompt_append: Some(SUBAGENT_SYSTEM_APPEND.to_string()),
-                context_injections: vec![],
+                context_injections: invoke.context_injections.clone(),
                 nested_model_override: invoke.model.clone(),
                 nested_worktree_repo_root: wt_roots.as_ref().map(|(r, _)| r.clone()),
                 nested_worktree_path: wt_roots.as_ref().map(|(_, p)| p.clone()),

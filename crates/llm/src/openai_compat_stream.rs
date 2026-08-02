@@ -9,8 +9,15 @@ pub fn openai_stream_usage_from_value(v: &Value) -> Option<Usage> {
     Some(Usage {
         input_tokens: v.get("prompt_tokens")?.as_u64()? as u32,
         output_tokens: v.get("completion_tokens")?.as_u64()? as u32,
-        cache_creation_tokens: None,
-        cache_read_tokens: None,
+        // DeepSeek 自动上下文缓存：miss=写缓存（≈creation），hit=读缓存（≈read）。
+        cache_creation_tokens: v
+            .get("prompt_cache_miss_tokens")
+            .and_then(|x| x.as_u64())
+            .map(|x| x as u32),
+        cache_read_tokens: v
+            .get("prompt_cache_hit_tokens")
+            .and_then(|x| x.as_u64())
+            .map(|x| x as u32),
     })
 }
 

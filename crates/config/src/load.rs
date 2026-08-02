@@ -316,6 +316,9 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
             max_tokens: cfg.max_tokens,
             provider_credentials: cfg.provider_credentials,
             zai_tool_choice_first_turn: cfg.zai_tool_choice_first_turn,
+            reasoning_effort: cfg.reasoning_effort.clone(),
+            thinking_enabled: cfg.thinking_enabled,
+            prompt_cache: cfg.prompt_cache,
         },
         memory: MemoryConfig {
             path: memory_path,
@@ -350,6 +353,7 @@ pub async fn load_config(config_file: Option<PathBuf>) -> anyhow::Result<Config>
                 .embedding_hf_endpoint
                 .clone()
                 .filter(|s| !s.trim().is_empty()),
+            automem: cfg.memory.automem.clone(),
         },
         security: SecurityConfig {
             permission_mode: cfg.security.permission_mode.clone(),

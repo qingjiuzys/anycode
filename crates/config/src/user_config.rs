@@ -85,6 +85,15 @@ pub struct AnyCodeConfig {
     /// z.ai OpenAI 兼容栈：首轮带 tools 时 `tool_choice: required`（环境变量 `ANYCODE_ZAI_TOOL_CHOICE_*` 仍可覆盖）。
     #[serde(default)]
     pub zai_tool_choice_first_turn: bool,
+    /// DeepSeek / OpenAI 兼容栈推理强度（`low|high|max`）。缺省用默认 `low`；环境变量 `ANYCODE_DEEPSEEK_REASONING_EFFORT` 优先。
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
+    /// 显式开启/关闭 thinking 模式（DeepSeek / z.ai）。缺省用 provider 默认（enabled）；环境变量 `ANYCODE_DEEPSEEK_THINKING` / `ANYCODE_ZAI_THINKING` 优先。
+    #[serde(default)]
+    pub thinking_enabled: Option<bool>,
+    /// Anthropic prompt caching（`cache_control: ephemeral`）。缺省按 base_url 自动推断（官方开启、兼容网关关闭）。
+    #[serde(default)]
+    pub prompt_cache: Option<bool>,
     #[serde(default)]
     pub skills: SkillsConfigFile,
     #[serde(default)]
@@ -314,6 +323,9 @@ pub fn default_anycode_config() -> AnyCodeConfig {
         system_prompt_append: None,
         memory: MemoryConfigFile::default(),
         zai_tool_choice_first_turn: false,
+        reasoning_effort: None,
+        thinking_enabled: None,
+        prompt_cache: None,
         skills: SkillsConfigFile::default(),
         agents: Default::default(),
         session: SessionConfigFile::default(),

@@ -70,11 +70,12 @@ impl LLMClient for GithubCopilotClient {
 
         let request = AnthropicRequest {
             model: config.model.clone(),
-            messages: convert_messages(messages),
+            system: None,
+            messages: convert_messages(messages, false).0,
             tools: if tools.is_empty() {
                 None
             } else {
-                Some(convert_tools(tools))
+                Some(convert_tools(tools, false))
             },
             max_tokens: config.max_tokens.unwrap_or(8192),
             temperature: config.temperature,
@@ -137,11 +138,12 @@ impl LLMClient for GithubCopilotClient {
 
         let request = AnthropicRequest {
             model: config.model.clone(),
-            messages: convert_messages(messages),
+            system: None,
+            messages: convert_messages(messages, false).0,
             tools: if tools.is_empty() {
                 None
             } else {
-                Some(convert_tools(tools))
+                Some(convert_tools(tools, false))
             },
             max_tokens: config.max_tokens.unwrap_or(8192),
             temperature: config.temperature,

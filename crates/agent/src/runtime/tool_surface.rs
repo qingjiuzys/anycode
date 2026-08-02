@@ -19,6 +19,34 @@ const WEAK_LOCAL_CORE_TOOLS: &[&str] = &[
     "Skill",
 ];
 
+/// 长会话工具收敛时每轮始终注入的高频核心工具（覆盖绝大多数 agentic 编码/检索场景）。
+/// 非核心工具按「会话中已使用过」动态保留；模型可通过 `ToolSearch` 发现并解锁其余工具。
+const ALWAYS_INJECT_CORE_TOOLS: &[&str] = &[
+    "FileRead",
+    "FileWrite",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Bash",
+    "ToolSearch",
+    "AskUserQuestion",
+    "SkillSearch",
+    "Skill",
+    "TodoWrite",
+    "PlanWrite",
+    "WebFetch",
+    "WebSearch",
+    "KnowledgeSearch",
+    "NotebookEdit",
+    "PowerShell",
+    "TaskCreate",
+    "TaskUpdate",
+    "TaskList",
+    "TaskGet",
+    "TaskOutput",
+    "Agent",
+];
+
 /// Sort tool names: builtins (sorted), then other non-MCP (sorted), then `mcp__*` (sorted).
 pub(crate) fn order_tool_names_like_assemble_tool_pool(names: Vec<ToolName>) -> Vec<ToolName> {
     let builtin: HashSet<&str> = DEFAULT_TOOL_IDS.iter().copied().collect();
@@ -128,18 +156,31 @@ pub(crate) fn build_tool_schemas(
         .collect()
 }
 
-/// Keep a small, actionable first-turn schema for 4K/weak local models.
-/// ToolSearch provides a controlled escape hatch for tools outside this core.
+/// 每轮注入的工具 schema：
+/// - turn 1：weak 本地模型只给核心工具（[`WEAK_LOCAL_CORE_TOOLS`]），其余全量；
+/// - turn ≥ 2：收敛为「核心工具 ∪ 会话已用工具」，控制长会话每轮请求体积。
+///   `ToolSearch` 是逃生舱：模型可发现并解锁核心集之外的任何工具。
 pub(crate) fn schemas_for_model_turn(
     all: &[ToolSchema],
     model: &ModelConfig,
     turn: usize,
+    used_tools: &HashSet<String>,
 ) -> Vec<ToolSchema> {
-    if turn != 1 || !anycode_llm::capabilities_for_model_config(model).weak_local_model {
+    if turn == 1 {
+        if anycode_llm::capabilities_for_model_config(model).weak_local_model {
+            return all
+                .iter()
+                .filter(|schema| WEAK_LOCAL_CORE_TOOLS.contains(&schema.name.as_str()))
+                .cloned()
+                .collect();
+        }
         return all.to_vec();
     }
     all.iter()
-        .filter(|schema| WEAK_LOCAL_CORE_TOOLS.contains(&schema.name.as_str()))
+        .filter(|schema| {
+            ALWAYS_INJECT_CORE_TOOLS.contains(&schema.name.as_str())
+                || used_tools.contains(&schema.name)
+        })
         .cloned()
         .collect()
 }
@@ -325,7 +366,8 @@ mod tests {
             base_url: Some("http://127.0.0.1:47100/v1/chat/completions".into()),
             ..Default::default()
         };
-        let compact = schemas_for_model_turn(&all, &model, 1);
+        let used = HashSet::new();
+        let compact = schemas_for_model_turn(&all, &model, 1, &used);
         assert!(compact
             .iter()
             .all(|schema| { WEAK_LOCAL_CORE_TOOLS.contains(&schema.name.as_str()) }));
@@ -333,6 +375,18 @@ mod tests {
             compact.len() * 10 <= all.len() * 6,
             "expected >=40% reduction"
         );
-        assert_eq!(schemas_for_model_turn(&all, &model, 2).len(), all.len());
+        // turn 2+ 收敛：核心 ∪ 已用（这里没有任何已用工具，仅核心集注入）
+        let mut used2 = HashSet::new();
+        let conv = schemas_for_model_turn(&all, &model, 2, &used2);
+        assert!(conv
+            .iter()
+            .all(|sc| ALWAYS_INJECT_CORE_TOOLS.contains(&sc.name.as_str())));
+        assert!(conv.len() < all.len());
+        // 已用工具保持可用
+        used2.insert("BrowserNavigate".to_string());
+        used2.insert("BrowserSnapshot".to_string());
+        let conv2 = schemas_for_model_turn(&all, &model, 3, &used2);
+        assert!(conv2.iter().any(|sc| sc.name == "BrowserNavigate"));
+        assert!(conv2.iter().any(|sc| sc.name == "BrowserSnapshot"));
     }
 }

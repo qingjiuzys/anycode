@@ -76,8 +76,8 @@ pub use memory_episode::{
 };
 pub use memory_model::{Memory, MemoryScope, MemoryType};
 pub use memory_pipeline::{
-    EmbeddingProvider, MemoryPipeline, MemoryPipelineSettings, PreSemanticFragment,
-    VectorMemoryBackend,
+    AutomemSettings, EmbeddingProvider, MemoryPipeline, MemoryPipelineSettings,
+    PreSemanticFragment, VectorMemoryBackend,
 };
 pub use message::{Message, MessageContent, MessageRole};
 pub use model_profile::ModelRouteProfile;

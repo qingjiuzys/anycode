@@ -63,6 +63,9 @@ mod tests {
                 max_tokens: 4096,
                 provider_credentials: HashMap::new(),
                 zai_tool_choice_first_turn: false,
+                reasoning_effort: None,
+                thinking_enabled: None,
+                prompt_cache: None,
             },
             memory: MemoryConfig {
                 path: PathBuf::from("/tmp"),
@@ -75,6 +78,7 @@ mod tests {
                 embedding_local_cache_dir: None,
                 embedding_local_model: None,
                 embedding_hf_endpoint: None,
+                automem: anycode_core::AutomemSettings::default(),
             },
             security: SecurityConfig {
                 permission_mode: "default".into(),

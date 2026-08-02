@@ -40,6 +40,9 @@ pub fn resolve_model_profile(
         temperature: resolved_temperature,
         max_tokens: resolved_max_tokens,
         api_key,
+        prompt_cache: config.llm.prompt_cache,
+        thinking_enabled: config.llm.thinking_enabled,
+        reasoning_effort: config.llm.reasoning_effort.clone(),
         ..Default::default()
     })
     .map_err(|e| anyhow::anyhow!(e.to_string()))

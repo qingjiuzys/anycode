@@ -8,6 +8,7 @@ use crate::memory_model::{Memory, MemoryType};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// 前语义印象：尚未向量化、未入热层巩固库的原始片段。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,9 +48,57 @@ pub struct MemoryPipelineSettings {
     pub hook_max_bytes: usize,
     /// 工具名前缀命中则跳过钩子（如 `mcp__`）。
     pub hook_tool_deny_prefixes: Vec<String>,
-    /// 语义检索默认启用（对齐 Claude `embeddingDataDeliveryEnabled`）；无 provider/密钥时
+    /// 语义检索默认启用（`embeddingDataDeliveryEnabled`）；无 provider/密钥时
     /// bootstrap 自动降级为关键词/热层检索。
     pub embedding_enabled: bool,
+}
+
+/// Auto-memory（LLM 驱动的提取/巩固），
+/// 与本地规则管线（`MemoryPipelineSettings`）并行或作为其增强。
+///
+/// 默认约定：
+/// - 入口 `MEMORY.md`（≤200 行 / ≤25KB 截断，见 `automem::truncate_entrypoint_content`）
+/// - 目录名 `memory`
+/// - autoDream 时间门 24h + 会话数门 5
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutomemSettings {
+    /// LLM on/off 开关。关闭时回退到本地规则管线（dedup/promote/forget + 向量检索）。
+    pub enabled: bool,
+    /// 是否用后台 fork agent 执行 autoExtract（fork transcript 读取）。
+    pub fork_agent: bool,
+    /// auto-memory 根路径；`None` 时使用 `MemoryConfig.path`。
+    pub base_path: Option<PathBuf>,
+    /// memory 目录名（默认 `memory`）。
+    pub dir_name: String,
+    /// 索引入口文件名（默认 `MEMORY.md`）。
+    pub entrypoint_name: String,
+    /// 索引入口最大行数（默认 200）。
+    pub entrypoint_max_lines: usize,
+    /// 索引入口最大字节数（默认 25KB）。
+    pub entrypoint_max_bytes: usize,
+    /// autoDream 时间门（小时，默认 24.0）。
+    pub dream_min_hours: f64,
+    /// autoDream 会话数门（默认 5）。
+    pub dream_min_sessions: u32,
+    /// 注入给巩固 agent 的 transcript 最大字符数（默认 48_000）。
+    pub transcript_max_chars: usize,
+}
+
+impl Default for AutomemSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            fork_agent: true,
+            base_path: None,
+            dir_name: "memory".to_string(),
+            entrypoint_name: "MEMORY.md".to_string(),
+            entrypoint_max_lines: 200,
+            entrypoint_max_bytes: 25 * 1024,
+            dream_min_hours: 24.0,
+            dream_min_sessions: 5,
+            transcript_max_chars: 48_000,
+        }
+    }
 }
 
 impl Default for MemoryPipelineSettings {

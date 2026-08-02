@@ -142,7 +142,7 @@ pub struct SessionConfig {
     pub auto_compact: bool,
     /// 绝对阈值（input tokens）；>0 时优先于 `auto_compact_ratio × 有效窗口`。
     pub auto_compact_min_input_tokens: u32,
-    /// 与有效上下文窗口相乘得到阈值（默认 0.88）。
+    /// 与有效上下文窗口相乘得到阈值（默认 0.6）。
     pub auto_compact_ratio: f32,
     /// 为 `true` 时根据当前 `provider` + `model` 自动推断窗口（[`resolve_context_window_tokens`]）。
     pub context_window_auto: bool,
@@ -233,6 +233,13 @@ pub struct LLMConfig {
     pub provider_credentials: HashMap<String, String>,
     /// z.ai / OpenAI 兼容栈：首轮 agent 请求在带 tools 时使用 `tool_choice: required`（与 `ANYCODE_ZAI_TOOL_CHOICE_FIRST_TURN` 等价；环境变量优先）。
     pub zai_tool_choice_first_turn: bool,
+    /// DeepSeek / OpenAI 兼容栈推理强度（`low|high|max`）。`None` 用默认 `low`。
+    pub reasoning_effort: Option<String>,
+    /// 显式开启/关闭 thinking 模式（DeepSeek / z.ai）。`None` 用 provider 默认（enabled）。
+    pub thinking_enabled: Option<bool>,
+    /// Anthropic prompt caching（`cache_control: ephemeral`）。`None` 按 base_url 自动推断
+    /// （官方 `api.anthropic.com` 开启，兼容网关关闭）。
+    pub prompt_cache: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -255,6 +262,8 @@ pub struct MemoryConfig {
     pub embedding_local_model: Option<String>,
     /// 覆盖 Hugging Face 下载根 URL（如 `https://hf-mirror.com`）；未设置时尊重环境变量 `HF_ENDPOINT`。
     pub embedding_hf_endpoint: Option<String>,
+    /// LLM 驱动的 auto-memory；`enabled=false` 时回退本地规则管线。
+    pub automem: anycode_core::AutomemSettings,
 }
 
 /// `config.json` 中归根通道可选字段（仅 `backend: pipeline` 生效）。
@@ -314,6 +323,9 @@ pub struct MemoryConfigFile {
     pub auto_save: bool,
     #[serde(default)]
     pub pipeline: MemoryPipelineConfigFile,
+    /// LLM 驱动的 auto-memory。缺省 `enabled=false` → 回退本地管线。
+    #[serde(default)]
+    pub automem: anycode_core::AutomemSettings,
 }
 
 fn default_memory_backend_kind() -> String {
@@ -331,6 +343,7 @@ impl Default for MemoryConfigFile {
             path: None,
             auto_save: default_memory_auto_save_file(),
             pipeline: MemoryPipelineConfigFile::default(),
+            automem: anycode_core::AutomemSettings::default(),
         }
     }
 }
@@ -363,7 +376,7 @@ fn default_session_auto_compact() -> bool {
 }
 
 fn default_auto_compact_ratio() -> f32 {
-    0.88
+    0.6
 }
 
 fn default_context_window_tokens() -> u32 {

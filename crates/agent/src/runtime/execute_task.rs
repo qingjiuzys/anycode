@@ -211,6 +211,7 @@ impl AgentRuntime {
         // 5. 多轮 tool loop（assistant → tool_calls → 执行 → tool_result）
         let llm_config = model_config_with_retry_observer(&model_config, logger.clone(), task.id);
         let mut total_tool_calls: usize = 0;
+        let mut used_tools: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut artifacts: Vec<Artifact> = vec![];
         let mut budget_state = RuntimeBudgetState::new(task.context.budget);
         let mut repairs_used: u32 = 0;
@@ -222,8 +223,12 @@ impl AgentRuntime {
         let loop_limits = task.context.loop_limits;
 
         for turn in 1..=loop_limits.max_agent_turns {
-            let turn_tool_schemas =
-                tool_surface::schemas_for_model_turn(&tool_schemas, &model_config, turn);
+            let turn_tool_schemas = tool_surface::schemas_for_model_turn(
+                &tool_schemas,
+                &model_config,
+                turn,
+                &used_tools,
+            );
             logger.line(
                 task.id,
                 &format!("[turn_start] turn={}/{}", turn, loop_limits.max_agent_turns),
@@ -431,6 +436,7 @@ impl AgentRuntime {
             }
 
             let turn_tool_calls = response.tool_calls.clone();
+            used_tools.extend(turn_tool_calls.iter().map(|tc| tc.name.clone()));
             if turn_tool_calls.is_empty() {
                 let guard_out = self
                     .completion_guard

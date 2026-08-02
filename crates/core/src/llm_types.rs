@@ -35,6 +35,16 @@ pub struct ModelConfig {
     /// Per-request retry observer (runtime only; not serialized).
     #[serde(default, skip_serializing, skip_deserializing)]
     pub retry_observer: Option<Arc<dyn LlmRetryObserver>>,
+    /// DeepSeek / OpenAI 兼容栈推理强度（`low|high|max`）。`None` 用 provider 默认。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    /// 显式开启/关闭 thinking 模式（DeepSeek / z.ai）。`None` 用 provider 默认（enabled）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_enabled: Option<bool>,
+    /// Anthropic prompt caching（`cache_control: ephemeral`）。`None` 按 base_url 自动推断
+    /// （官方 `api.anthropic.com` 开启，兼容网关关闭）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_cache: Option<bool>,
 }
 
 impl Default for ModelConfig {
@@ -48,6 +58,9 @@ impl Default for ModelConfig {
             api_key: None,
             query_source: QuerySource::default(),
             retry_observer: None,
+            reasoning_effort: None,
+            thinking_enabled: None,
+            prompt_cache: None,
         }
     }
 }

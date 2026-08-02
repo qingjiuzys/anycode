@@ -47,13 +47,16 @@ impl LLMClient for AnthropicClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<LLMResponse, CoreError> {
+        let cache = anthropic_cache_enabled(config);
+        let (messages, system) = convert_messages(messages, cache);
         let request = AnthropicRequest {
             model: config.model.clone(),
-            messages: convert_messages(messages),
+            system,
+            messages,
             tools: if tools.is_empty() {
                 None
             } else {
-                Some(convert_tools(tools))
+                Some(convert_tools(tools, cache))
             },
             max_tokens: config.max_tokens.unwrap_or(4096),
             temperature: config.temperature,
@@ -136,13 +139,16 @@ impl LLMClient for AnthropicClient {
         tools: Vec<ToolSchema>,
         config: &ModelConfig,
     ) -> Result<mpsc::Receiver<StreamEvent>, CoreError> {
+        let cache = anthropic_cache_enabled(config);
+        let (messages, system) = convert_messages(messages, cache);
         let request = AnthropicRequest {
             model: config.model.clone(),
-            messages: convert_messages(messages),
+            system,
+            messages,
             tools: if tools.is_empty() {
                 None
             } else {
-                Some(convert_tools(tools))
+                Some(convert_tools(tools, cache))
             },
             max_tokens: config.max_tokens.unwrap_or(4096),
             temperature: config.temperature,
@@ -255,6 +261,8 @@ impl LLMClient for AnthropicClient {
 #[derive(Debug, Serialize)]
 pub(crate) struct AnthropicRequest {
     pub(crate) model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) system: Option<Vec<AnthropicTextBlock>>,
     pub(crate) messages: Vec<AnthropicMessage>,
     pub(crate) tools: Option<Vec<AnthropicTool>>,
     pub(crate) max_tokens: u32,
@@ -290,6 +298,8 @@ pub(crate) struct AnthropicTextBlock {
     #[serde(rename = "type")]
     block_type: &'static str,
     text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<AnthropicCacheControl>,
 }
 
 #[derive(Debug, Serialize)]
@@ -324,6 +334,7 @@ impl AnthropicContent {
         Self::Text(AnthropicTextBlock {
             block_type: "text",
             text,
+            cache_control: None,
         })
     }
     fn tool_use(id: String, name: String, input: serde_json::Value) -> Self {
@@ -345,10 +356,26 @@ impl AnthropicContent {
 }
 
 #[derive(Debug, Serialize)]
+pub(crate) struct AnthropicCacheControl {
+    #[serde(rename = "type")]
+    control_type: &'static str,
+}
+
+impl AnthropicCacheControl {
+    fn ephemeral() -> Self {
+        Self {
+            control_type: "ephemeral",
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub(crate) struct AnthropicTool {
     name: String,
     description: String,
     input_schema: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<AnthropicCacheControl>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -394,6 +421,10 @@ pub(crate) enum AnthropicResponseContent {
 pub(crate) struct AnthropicUsage {
     input_tokens: u32,
     output_tokens: u32,
+    #[serde(default)]
+    cache_creation_input_tokens: u32,
+    #[serde(default)]
+    cache_read_input_tokens: u32,
 }
 
 // ============================================================================
@@ -425,8 +456,37 @@ fn user_message_content(msg: &Message) -> Vec<AnthropicContent> {
     parts
 }
 
-pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> {
-    messages
+pub(crate) fn convert_messages(
+    messages: Vec<Message>,
+    cache: bool,
+) -> (Vec<AnthropicMessage>, Option<Vec<AnthropicTextBlock>>) {
+    // 启用缓存时：把 system 消息提取到顶层 `system` 字段（Anthropic 合法缓存点之一）。
+    let mut system_blocks: Vec<AnthropicTextBlock> = Vec::new();
+    let messages: Vec<Message> = if cache {
+        messages
+            .into_iter()
+            .filter(|msg| {
+                if msg.role == MessageRole::System {
+                    if let MessageContent::Text(t) = &msg.content {
+                        if !t.is_empty() {
+                            system_blocks.push(AnthropicTextBlock {
+                                block_type: "text",
+                                text: t.clone(),
+                                cache_control: None,
+                            });
+                        }
+                    }
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect()
+    } else {
+        messages
+    };
+
+    let mut converted: Vec<AnthropicMessage> = messages
         .into_iter()
         .map(|msg| {
             if msg.role == MessageRole::Assistant {
@@ -485,16 +545,61 @@ pub(crate) fn convert_messages(messages: Vec<Message>) -> Vec<AnthropicMessage> 
                 },
             }
         })
-        .collect()
+        .collect();
+
+    if cache {
+        // 最后一条 user/assistant 消息的最后一个文本块打缓存点（Anthropic 合法位置）。
+        if let Some(last) = converted
+            .iter_mut()
+            .rev()
+            .find(|m| m.role == "user" || m.role == "assistant")
+        {
+            if let Some(AnthropicContent::Text(t)) = last
+                .content
+                .iter_mut()
+                .rev()
+                .find(|c| matches!(c, AnthropicContent::Text(_)))
+            {
+                t.cache_control = Some(AnthropicCacheControl::ephemeral());
+            }
+        }
+        if !system_blocks.is_empty() {
+            system_blocks.last_mut().unwrap().cache_control =
+                Some(AnthropicCacheControl::ephemeral());
+            return (converted, Some(system_blocks));
+        }
+    }
+    (converted, None)
 }
 
-pub(crate) fn convert_tools(tools: Vec<ToolSchema>) -> Vec<AnthropicTool> {
+/// 是否启用 Anthropic prompt caching：`ModelConfig.prompt_cache` > env 覆盖 > 官方端点自动开启。
+fn anthropic_cache_enabled(config: &ModelConfig) -> bool {
+    if let Some(v) = config.prompt_cache {
+        return v;
+    }
+    match std::env::var("ANYCODE_ANTHROPIC_PROMPT_CACHE")
+        .ok()
+        .as_deref()
+    {
+        Some("0") | Some("false") | Some("no") | Some("off") | Some("disabled") => return false,
+        Some("1") | Some("true") | Some("yes") | Some("on") | Some("enabled") => return true,
+        _ => {}
+    }
+    let base = config
+        .base_url
+        .as_deref()
+        .unwrap_or("https://api.anthropic.com");
+    base.contains("api.anthropic.com")
+}
+
+pub(crate) fn convert_tools(tools: Vec<ToolSchema>, cache: bool) -> Vec<AnthropicTool> {
     tools
         .into_iter()
         .map(|tool| AnthropicTool {
             name: tool.name,
             description: tool.description,
             input_schema: tool.input_schema,
+            cache_control: cache.then(AnthropicCacheControl::ephemeral),
         })
         .collect()
 }
@@ -529,8 +634,10 @@ pub(crate) fn convert_response(response: AnthropicResponse) -> LLMResponse {
         usage: Usage {
             input_tokens: response.usage.input_tokens,
             output_tokens: response.usage.output_tokens,
-            cache_creation_tokens: None,
-            cache_read_tokens: None,
+            cache_creation_tokens: (response.usage.cache_creation_input_tokens > 0)
+                .then_some(response.usage.cache_creation_input_tokens),
+            cache_read_tokens: (response.usage.cache_read_input_tokens > 0)
+                .then_some(response.usage.cache_read_input_tokens),
         },
     }
 }
@@ -578,6 +685,66 @@ mod tests {
     }
 
     #[test]
+    fn cache_mode_extracts_system_and_stamps_breakpoints() {
+        let msgs = vec![
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::System,
+                content: MessageContent::Text("sys".into()),
+                timestamp: chrono::Utc::now(),
+                metadata: Default::default(),
+            },
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text("hi".into()),
+                timestamp: chrono::Utc::now(),
+                metadata: Default::default(),
+            },
+        ];
+        let (msgs, system) = convert_messages(msgs, true);
+        let sys = system.expect("system extracted");
+        assert_eq!(sys.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&sys[0]).unwrap()["cache_control"]["type"],
+            "ephemeral"
+        );
+        // system 不再留在 messages
+        assert!(msgs.iter().all(|m| m.role != "system"));
+        // 最后一条 user 文本块打点
+        let last_text = serde_json::to_value(&msgs[0]).unwrap();
+        assert_eq!(
+            last_text["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+    }
+
+    #[test]
+    fn cache_off_keeps_system_in_messages_without_breakpoints() {
+        let msgs = vec![
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::System,
+                content: MessageContent::Text("sys".into()),
+                timestamp: chrono::Utc::now(),
+                metadata: Default::default(),
+            },
+            Message {
+                id: Uuid::new_v4(),
+                role: MessageRole::User,
+                content: MessageContent::Text("hi".into()),
+                timestamp: chrono::Utc::now(),
+                metadata: Default::default(),
+            },
+        ];
+        let (msgs, system) = convert_messages(msgs, false);
+        assert!(system.is_none());
+        let v = serde_json::to_value(msgs).unwrap();
+        assert_eq!(v[0]["role"], "system");
+        assert!(v[1]["content"][0].get("cache_control").is_none());
+    }
+
+    #[test]
     fn request_content_blocks_carry_type_tags() {
         // Strict Anthropic-compatible gateways (Kimi /coding) 400 without `type`.
         let msgs = vec![
@@ -600,7 +767,9 @@ mod tests {
                 metadata: Default::default(),
             },
         ];
-        let v = serde_json::to_value(convert_messages(msgs)).unwrap();
+        let (msgs, system) = convert_messages(msgs, false);
+        assert!(system.is_none());
+        let v = serde_json::to_value(msgs).unwrap();
         assert_eq!(v[0]["content"][0]["type"], "text");
         assert_eq!(v[1]["content"][0]["type"], "tool_result");
         assert_eq!(v[1]["content"][0]["tool_use_id"], "tu1");

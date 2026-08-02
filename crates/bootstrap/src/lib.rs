@@ -68,6 +68,9 @@ pub fn build_model_routing_parts(
         temperature: Some(config.llm.temperature),
         max_tokens: Some(config.llm.max_tokens),
         api_key: None,
+        prompt_cache: config.llm.prompt_cache,
+        thinking_enabled: config.llm.thinking_enabled,
+        reasoning_effort: config.llm.reasoning_effort.clone(),
         ..Default::default()
     })
     .map_err(|e| anyhow::anyhow!(e.to_string()))?;
@@ -137,6 +140,9 @@ pub fn build_preview_model_router(config: &Config) -> ModelRouter {
                     temperature: Some(config.llm.temperature),
                     max_tokens: Some(config.llm.max_tokens),
                     api_key: None,
+                    prompt_cache: config.llm.prompt_cache,
+                    thinking_enabled: config.llm.thinking_enabled,
+                    reasoning_effort: config.llm.reasoning_effort.clone(),
                     ..Default::default()
                 },
                 HashMap::new(),

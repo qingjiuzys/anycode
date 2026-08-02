@@ -229,6 +229,7 @@ impl AgentTool {
             cancel: None,
             tool_deny_names: parent_deny_names,
             tool_deny_prefixes: parent_deny_prefixes,
+            context_injections: vec![],
         };
 
         if v.run_in_background == Some(true) {

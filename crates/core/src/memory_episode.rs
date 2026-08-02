@@ -55,7 +55,7 @@ impl MemoryKind {
     }
 }
 
-/// 记忆评分调查统计（对齐 Claude Code `surveyRating` frontmatter：`count` / `mean` / `total`）。
+/// 记忆评分调查统计（`surveyRating` frontmatter：`count` / `mean` / `total`）。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SurveyRating {
