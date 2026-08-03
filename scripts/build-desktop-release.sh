@@ -82,6 +82,13 @@ if [[ "${ANYCODE_DESKTOP_LOCAL_RELEASE:-}" == "1" ]]; then
   TAURI_PROFILE="release-local"
 fi
 
+# --bundles is platform-specific (tauri rejects bundle types for other OSes).
+BUNDLES="deb,appimage"
+case "$(uname -s)" in
+  Darwin)  BUNDLES="app,dmg" ;;
+  MINGW*|MSYS*|CYGWIN*) BUNDLES="msi,nsis" ;;
+esac
+
 BUILD_START=$SECONDS
 chmod +x "$ROOT/scripts/sync-workspace-version.sh"
 chmod +x "$ROOT/scripts/build-apple-media-cli.sh"
@@ -203,24 +210,20 @@ else
   echo "    ($((SECONDS - ICON_START))s)"
 fi
 
-step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -ec '
-  cd "$ROOT/apps/anycode-desktop"
+step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -c '
+  cd "$1"
   export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
-  NOTARIZE_LATER=0
   if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
-    NOTARIZE_LATER=1
-  fi
-  if [[ "$NOTARIZE_LATER" -eq 1 ]]; then
     echo "Signing in Tauri; notarization deferred until after bundle"
     unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
   elif [[ -z "${APPLE_ID:-}" || -z "${APPLE_PASSWORD:-}" || -z "${APPLE_TEAM_ID:-}" ]]; then
     unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
   fi
-  if [[ "'"$SKIP_BROWSER"'" -eq 1 ]]; then
-    rm -rf "$ROOT/apps/anycode-desktop/resources/browser/browsers"
+  if [[ "$2" -eq 1 ]]; then
+    rm -rf "$3/apps/anycode-desktop/resources/browser/browsers"
   fi
-  cargo tauri build --bundles app -- --profile "'"$TAURI_PROFILE"'"
-'
+  exec cargo tauri build --bundles "$4" -- --profile "$5"
+' _ "$ROOT/apps/anycode-desktop" "$SKIP_BROWSER" "$ROOT" "$BUNDLES" "$TAURI_PROFILE"
 
 DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_PROFILE}/bundle/macos/anyCode.app"
 if [[ ! -d "$DESKTOP_APP_BUNDLE" ]]; then

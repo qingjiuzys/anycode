@@ -8,6 +8,11 @@ name: Desktop release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Git tag to attach release assets to (e.g. v0.39.1)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -87,6 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           export ANYCODE_BUILD_TARGET=cloud
+          export ANYCODE_DESKTOP_SKIP_BROWSER=1
           if [[ -n "${{ secrets.APPLE_SIGNING_IDENTITY }}" ]]; then
             export APPLE_SIGNING_IDENTITY="${{ secrets.APPLE_SIGNING_IDENTITY }}"
           else
@@ -101,6 +107,7 @@ jobs:
       - name: Upload macOS DMG to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag_name }}
           files: |
             target/release/bundle/dmg/*.dmg
             target/release/bundle/macos/*.tar.gz
@@ -153,6 +160,7 @@ jobs:
         shell: bash
         run: |
           export ANYCODE_BUILD_TARGET=cloud
+          export ANYCODE_DESKTOP_SKIP_BROWSER=1
           ./scripts/build-desktop-release.sh
 
       - name: Upload Windows bundle (CI artifact)
@@ -167,6 +175,7 @@ jobs:
       - name: Upload Windows installers to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag_name }}
           files: |
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
@@ -210,6 +219,8 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgomp1
 
       - name: Build desktop release (Linux)
+        env:
+          ANYCODE_DESKTOP_SKIP_BROWSER: "1"
         run: ./scripts/build-desktop-release.sh
 
       - name: Upload Linux bundle (CI artifact)
@@ -224,6 +235,7 @@ jobs:
       - name: Upload Linux packages to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag_name }}
           files: |
             target/release/bundle/deb/*.deb
             target/release/bundle/appimage/*.AppImage

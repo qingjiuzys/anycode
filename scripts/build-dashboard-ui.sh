@@ -23,6 +23,21 @@ sha256_file() {
     shasum -a 256 "$f" | awk '{print $1}'
   elif command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$f" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$f" | awk '{print $NF}'
+  else
+    echo "sha256 unavailable" >&2
+    exit 1
+  fi
+}
+
+sha256_stream() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 | awk '{print $NF}'
   else
     echo "sha256 unavailable" >&2
     exit 1
@@ -35,7 +50,7 @@ src_tree_signature() {
       'crates/dashboard-ui/tsconfig.json' 'crates/dashboard-ui/tsconfig.app.json' \
       'crates/dashboard-ui/index.html' 2>/dev/null | sort | while read -r f; do
       [[ -f "$ROOT/$f" ]] && sha256_file "$ROOT/$f"
-    done | shasum -a 256 | awk '{print $1}'
+    done | sha256_stream
     return
   fi
   find "$UI/src" "$UI/vite.config.ts" "$UI/tsconfig.json" "$UI/index.html" -type f 2>/dev/null \
@@ -45,7 +60,7 @@ src_tree_signature() {
     else
       stat -c '%Y:%s' "$f"
     fi
-  done | shasum -a 256 | awk '{print $1}'
+  done | sha256_stream
 }
 
 expected_npm_fingerprint() {
@@ -134,6 +149,6 @@ else
 fi
 
 echo "Dashboard UI built: $UI/dist"
-if command -v shasum >/dev/null 2>&1; then
-  echo "dist hash: $(shasum -a 256 dist/index.html | cut -d' ' -f1)"
+if command -v shasum >/dev/null 2>&1 || command -v sha256sum >/dev/null 2>&1 || command -v openssl >/dev/null 2>&1; then
+  echo "dist hash: $(sha256_file dist/index.html)"
 fi
