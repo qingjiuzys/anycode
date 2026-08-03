@@ -2,7 +2,7 @@
 
 [package]
 name = "anycode-desktop"
-version = "0.39.1"
+version = "0.40.0"
 description = "anyCode desktop shell (Tauri + Digital Workbench)"
 edition = "2021"
 
@@ -13,11 +13,18 @@ path = "src/main.rs"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+default = ["local-ml", "knowledge"]
+# Local ONNX embeddings/STT + knowledge vectors. Disabled for Apple cross-compiles
+# (ort-sys has no non-host xcframework prebuilts). Native host builds keep these on.
+local-ml = ["anycode-dashboard/embedding-local", "anycode-dashboard/stt-local"]
+knowledge = ["anycode-dashboard/knowledge-embeddings"]
+
 [dependencies]
 anycode-apple-media = { path = "../../crates/apple-media" }
-# Desktop uses the native macOS speech stack for TTS. Keep local embeddings/STT,
-# but do not pull piper/espeak into the app bundle.
-anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser", "knowledge-embeddings", "embedding-local", "stt-local"] }
+# Desktop uses the native macOS speech stack for TTS. Local ONNX / knowledge are
+# behind features above; do not pull piper/espeak into the bundle.
+anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser"] }
 anycode-setup = { path = "../../crates/setup" }
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }

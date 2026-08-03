@@ -37,7 +37,9 @@ done
 
 DOWNLOAD_DIR="$ROOT/crates/account-portal/public/downloads"
 has_dmg() {
-  compgen -G "$DOWNLOAD_DIR/anyCode_"*"_aarch64.dmg" >/dev/null 2>&1
+  # Prefer Apple Silicon; accept any staged macOS DMG.
+  compgen -G "$DOWNLOAD_DIR/anyCode_"*"_aarch64.dmg" >/dev/null 2>&1 \
+    || compgen -G "$DOWNLOAD_DIR/anyCode_"*"_x86_64.dmg" >/dev/null 2>&1
 }
 
 if [[ "$SKIP_DMG" -eq 0 ]]; then

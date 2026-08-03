@@ -19,22 +19,30 @@ GitHub Actions desktop builds are **optional / manual only** (slow). Ship DMG fr
 
 # 2. Build signed + notarized DMG and stage for portal
 chmod +x scripts/release-desktop-local.sh
-./scripts/release-desktop-local.sh
+./scripts/release-desktop-local.sh                 # Apple Silicon (host)
+./scripts/release-desktop-local.sh --arch x86_64   # Intel (cross from Apple Silicon)
+
+# Windows (on a Windows host after build-desktop-release.sh):
+./scripts/stage-desktop-windows.sh
 ```
 
 Artifacts land in `crates/account-portal/public/downloads/`:
 
 | File | Purpose |
 |------|---------|
-| `anyCode_<version>_aarch64.dmg` | Versioned download |
-| `anyCode_latest_aarch64.dmg` | Stable “latest” link |
-| `latest.json` | Version metadata |
-| `SHA256SUMS.txt` | Checksum |
+| `anyCode_<version>_aarch64.dmg` | macOS Apple Silicon |
+| `anyCode_<version>_x86_64.dmg` | macOS Intel |
+| `anyCode_<version>_x64.msi` / `.exe` | Windows (when staged) |
+| `anyCode_latest_<arch>.dmg` | Stable “latest” link per arch |
+| `latest.json` | Latest metadata (+ `platforms` map) |
+| `releases.json` | Multi-version / multi-platform catalog |
+| `SHA256SUMS.txt` | Checksums for all staged files |
 
 Public URLs (after deploy):
 
 - https://anycode.work/downloads/anyCode_latest_aarch64.dmg
-- https://anycode.work/downloads/anyCode_0.2.4_aarch64.dmg
+- https://anycode.work/downloads/anyCode_latest_x86_64.dmg
+- https://anycode.work/downloads/releases.json
 
 ## Deploy to anycode.work (recommended)
 

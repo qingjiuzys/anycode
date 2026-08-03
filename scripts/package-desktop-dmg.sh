@@ -3,15 +3,25 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/target/release/bundle/macos/anyCode.app"
-OUT_DIR="$ROOT/target/release/bundle/dmg"
-VERSION="$(grep '^version' "$ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)".*/\1/')"
-ARCH="$(uname -m)"
-case "$ARCH" in
-  arm64) ARCH_TAG=aarch64 ;;
-  x86_64) ARCH_TAG=x86_64 ;;
-  *) ARCH_TAG="$ARCH" ;;
-esac
+TAURI_TARGET="${ANYCODE_TAURI_TARGET:-}"
+if [[ -n "$TAURI_TARGET" && -d "$ROOT/target/${TAURI_TARGET}/release/bundle/macos/anyCode.app" ]]; then
+  APP="$ROOT/target/${TAURI_TARGET}/release/bundle/macos/anyCode.app"
+  OUT_DIR="$ROOT/target/${TAURI_TARGET}/release/bundle/dmg"
+else
+  APP="$ROOT/target/release/bundle/macos/anyCode.app"
+  OUT_DIR="$ROOT/target/release/bundle/dmg"
+fi
+VERSION="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f&&/^version/{gsub(/.*version = "/,""); gsub(/".*/,""); print; exit}' Cargo.toml)"
+if [[ -n "${ANYCODE_DMG_ARCH_TAG:-}" ]]; then
+  ARCH_TAG="$ANYCODE_DMG_ARCH_TAG"
+else
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    arm64) ARCH_TAG=aarch64 ;;
+    x86_64) ARCH_TAG=x86_64 ;;
+    *) ARCH_TAG="$ARCH" ;;
+  esac
+fi
 DMG="$OUT_DIR/anyCode_${VERSION}_${ARCH_TAG}.dmg"
 STAGE="$(mktemp -d)"
 

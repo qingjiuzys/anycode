@@ -662,6 +662,92 @@ body:has(.app--orbit-site) {
   color: var(--orbit-accent);
 }
 
+.nx-downloads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin: 8px 0 20px;
+}
+
+.nx-downloads-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--orbit-line);
+  border-radius: 16px;
+  background: var(--orbit-panel);
+}
+
+.nx-downloads-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nx-downloads-card__os {
+  color: var(--orbit-accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nx-downloads-card__meta strong {
+  color: var(--orbit-ink);
+  font-size: 15px;
+}
+
+.nx-downloads-card__cta {
+  width: 100%;
+  justify-content: center;
+}
+
+.nx-downloads-card__cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nx-downloads-card__sha {
+  margin: 0;
+  color: rgba(245, 246, 255, 0.62);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.nx-downloads-card__sha code {
+  color: rgba(245, 246, 255, 0.88);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+}
+
+.nx-downloads-card__history {
+  border-top: 1px solid var(--orbit-line-soft);
+  padding-top: 8px;
+  color: rgba(245, 246, 255, 0.78);
+  font-size: 13px;
+}
+
+.nx-downloads-card__history summary {
+  cursor: pointer;
+  color: rgba(245, 246, 255, 0.88);
+}
+
+.nx-downloads-card__history ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.nx-downloads-card__history a {
+  color: rgba(245, 246, 255, 0.78);
+  text-decoration: none;
+}
+
+.nx-downloads-card__history a:hover {
+  color: var(--orbit-accent);
+}
+
 /* Legacy downloads card — orbit contrast fix (cached builds) */
 .app--orbit-site .nx-downloads__hero-card {
   border-color: var(--orbit-line);

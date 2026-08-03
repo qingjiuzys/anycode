@@ -85,7 +85,9 @@ fi
 # --bundles is platform-specific (tauri rejects bundle types for other OSes).
 BUNDLES="deb,appimage"
 case "$(uname -s)" in
-  Darwin)  BUNDLES="app,dmg" ;;
+  # Prefer app-only on macOS; DMG is produced by package-desktop-dmg.sh after notarization.
+  # Tauri's bundled bundle_dmg.sh is flaky under cross / target-triple layouts.
+  Darwin)  BUNDLES="app" ;;
   MINGW*|MSYS*|CYGWIN*) BUNDLES="msi,nsis" ;;
 esac
 
@@ -124,11 +126,23 @@ step "sync workspace version to dashboard-ui / desktop manifests" \
 step "build dashboard UI (must run before desktop — embedded-ui bakes dist/)" \
   "$ROOT/scripts/build-dashboard-ui.sh"
 
-DASHBOARD_FEATURES="embedded-ui,tools-browser,knowledge-embeddings"
-if [[ "$(uname -s)" == "Darwin" ]]; then
+DASHBOARD_FEATURES="embedded-ui,tools-browser"
+HOST_IS_DARWIN=0
+[[ "$(uname -s)" == "Darwin" ]] && HOST_IS_DARWIN=1
+CROSS_MAC=0
+if [[ "$HOST_IS_DARWIN" -eq 1 && -n "${ANYCODE_TAURI_TARGET:-}" ]]; then
+  case "$(uname -m)-${ANYCODE_TAURI_TARGET}" in
+    arm64-x86_64-apple-darwin|x86_64-aarch64-apple-darwin) CROSS_MAC=1 ;;
+  esac
+fi
+if [[ "$HOST_IS_DARWIN" -eq 1 && "$CROSS_MAC" -eq 0 ]]; then
   # macOS TTS is provided by anycode-apple-media. Avoid bundling Piper's
   # espeak compiler/data while retaining local embeddings and STT.
-  DASHBOARD_FEATURES="${DASHBOARD_FEATURES},embedding-local,stt-local"
+  DASHBOARD_FEATURES="${DASHBOARD_FEATURES},knowledge-embeddings,embedding-local,stt-local"
+elif [[ "$HOST_IS_DARWIN" -eq 1 && "$CROSS_MAC" -eq 1 ]]; then
+  echo "==> cross-mac build: omit knowledge-embeddings/local-ml (ort-sys host-only prebuilts)"
+else
+  DASHBOARD_FEATURES="${DASHBOARD_FEATURES},knowledge-embeddings"
 fi
 
 PARALLEL_START=$SECONDS
@@ -213,6 +227,16 @@ else
   echo "    ($((SECONDS - ICON_START))s)"
 fi
 
+TAURI_TARGET="${ANYCODE_TAURI_TARGET:-}"
+if [[ -n "$TAURI_TARGET" ]]; then
+  echo "==> tauri target override: $TAURI_TARGET"
+fi
+
+CARGO_EXTRA_ARGS=()
+if [[ "${CROSS_MAC:-0}" -eq 1 ]]; then
+  CARGO_EXTRA_ARGS+=(--no-default-features)
+fi
+
 step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -c '
   cd "$1"
   export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
@@ -225,23 +249,41 @@ step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -c 
   if [[ "$2" -eq 1 ]]; then
     rm -rf "$3/apps/anycode-desktop/resources/browser/browsers"
   fi
-  exec cargo tauri build --bundles "$4" -- --profile "$5"
-' _ "$ROOT/apps/anycode-desktop" "$SKIP_BROWSER" "$ROOT" "$BUNDLES" "$TAURI_PROFILE"
+  TARGET_FLAG=()
+  if [[ -n "${6:-}" ]]; then
+    TARGET_FLAG=(--target "$6")
+  fi
+  EXTRA=()
+  if [[ "${7:-}" == "1" ]]; then
+    EXTRA=(--no-default-features)
+  fi
+  exec cargo tauri build --bundles "$4" "${TARGET_FLAG[@]}" -- --profile "$5" "${EXTRA[@]}"
+' _ "$ROOT/apps/anycode-desktop" "$SKIP_BROWSER" "$ROOT" "$BUNDLES" "$TAURI_PROFILE" "$TAURI_TARGET" "$CROSS_MAC"
 
-DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_PROFILE}/bundle/macos/anyCode.app"
-if [[ ! -d "$DESKTOP_APP_BUNDLE" ]]; then
-  DESKTOP_APP_BUNDLE="$ROOT/target/release/bundle/macos/anyCode.app"
-fi
-if [[ -d "$DESKTOP_APP_BUNDLE" && "$DESKTOP_APP_BUNDLE" != "$ROOT/target/release/bundle/macos/anyCode.app" ]]; then
-  step "sync desktop .app into target/release/bundle for signing/DMG" bash -ec "
-    rm -rf '$ROOT/target/release/bundle/macos/anyCode.app'
-    mkdir -p '$ROOT/target/release/bundle/macos'
-    ditto '$DESKTOP_APP_BUNDLE' '$ROOT/target/release/bundle/macos/anyCode.app'
-  "
+if [[ -n "$TAURI_TARGET" ]]; then
+  DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_TARGET}/${TAURI_PROFILE}/bundle/macos/anyCode.app"
+  if [[ ! -d "$DESKTOP_APP_BUNDLE" ]]; then
+    DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_TARGET}/release/bundle/macos/anyCode.app"
+  fi
+  SIGN_APP_BUNDLE="$DESKTOP_APP_BUNDLE"
+  BUNDLE_DIR="$ROOT/target/${TAURI_TARGET}/release/bundle"
+else
+  DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_PROFILE}/bundle/macos/anyCode.app"
+  if [[ ! -d "$DESKTOP_APP_BUNDLE" ]]; then
+    DESKTOP_APP_BUNDLE="$ROOT/target/release/bundle/macos/anyCode.app"
+  fi
+  if [[ -d "$DESKTOP_APP_BUNDLE" && "$DESKTOP_APP_BUNDLE" != "$ROOT/target/release/bundle/macos/anyCode.app" ]]; then
+    step "sync desktop .app into target/release/bundle for signing/DMG" bash -ec "
+      rm -rf '$ROOT/target/release/bundle/macos/anyCode.app'
+      mkdir -p '$ROOT/target/release/bundle/macos'
+      ditto '$DESKTOP_APP_BUNDLE' '$ROOT/target/release/bundle/macos/anyCode.app'
+    "
+  fi
+  SIGN_APP_BUNDLE="$ROOT/target/release/bundle/macos/anyCode.app"
 fi
 
 if [[ "$(uname -s)" == "Darwin" && -n "${APPLE_SIGNING_IDENTITY:-}" && "${APPLE_SIGNING_IDENTITY}" != "-" ]]; then
-  APP_BUNDLE="$ROOT/target/release/bundle/macos/anyCode.app"
+  APP_BUNDLE="$SIGN_APP_BUNDLE"
   REL_ENV="${ANYCODE_RELEASE_ENV:-$HOME/.anycode/release.env}"
   if [[ -f "$REL_ENV" ]]; then
     # shellcheck source=/dev/null
@@ -259,5 +301,5 @@ fi
 
 TOTAL=$((SECONDS - BUILD_START))
 echo "Done in ${TOTAL}s. Bundles under ${BUNDLE_DIR}/"
-echo "  DMG: ${BUNDLE_DIR}/dmg/anyCode_*_aarch64.dmg"
-echo "  App: ${BUNDLE_DIR}/macos/anyCode.app"
+echo "  DMG: ${BUNDLE_DIR}/dmg/anyCode_*.dmg"
+echo "  App: ${SIGN_APP_BUNDLE:-${BUNDLE_DIR}/macos/anyCode.app}"
