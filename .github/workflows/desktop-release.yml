@@ -226,11 +226,15 @@ jobs:
       - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgomp1
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgomp1 libgomp-dev
 
       - name: Build desktop release (Linux)
         env:
           ANYCODE_DESKTOP_SKIP_BROWSER: "1"
+          # whisper-cpp/onnxruntime enable OpenMP; the final executable link
+          # needs an explicit -lgomp or rust-lld fails with undefined symbols
+          # GOMP_barrier / GOMP_parallel / omp_get_num_threads.
+          RUSTFLAGS: "-C link-arg=-lgomp"
         run: ./scripts/build-desktop-release.sh
 
       - name: Upload Linux bundle (CI artifact)
