@@ -33,6 +33,11 @@ pub struct AppState {
     /// `ANYCODE_DASHBOARD_TEST_AUTH_BYPASS` (per-app in tests) so parallel
     /// test apps no longer race on a process-global env var.
     pub test_auth_bypass: bool,
+    /// Whether this dashboard instance is embedded in the Desktop shell.
+    /// Frozen once at construction from `ANYCODE_DASHBOARD_EMBEDDED_DESKTOP`
+    /// (per-app in tests) so auth, origin, bootstrap and SPA marker decisions
+    /// no longer depend on a mutable process-global env var.
+    pub embedded_desktop: bool,
     /// LAN colleague discovery and handoff (optional).
     pub lan_hub: Option<std::sync::Arc<crate::lan::LanHub>>,
 }

@@ -166,14 +166,20 @@ pub(crate) fn schemas_for_model_turn(
     turn: usize,
     used_tools: &HashSet<String>,
 ) -> Vec<ToolSchema> {
+    let weak = anycode_llm::capabilities_for_model_config(model).weak_local_model;
     if turn == 1 {
-        if anycode_llm::capabilities_for_model_config(model).weak_local_model {
+        if weak {
             return all
                 .iter()
                 .filter(|schema| WEAK_LOCAL_CORE_TOOLS.contains(&schema.name.as_str()))
                 .cloned()
                 .collect();
         }
+        return all.to_vec();
+    }
+    if !weak {
+        // 云端模型上下文充裕：turn≥2 保持全量工具，避免 Browser/mcp/生成类工具被隐藏后
+        // 被迫额外 ToolSearch 解锁——那是「改页面」这类任务多出步骤的常见来源。
         return all.to_vec();
     }
     all.iter()
@@ -388,5 +394,46 @@ mod tests {
         let conv2 = schemas_for_model_turn(&all, &model, 3, &used2);
         assert!(conv2.iter().any(|sc| sc.name == "BrowserNavigate"));
         assert!(conv2.iter().any(|sc| sc.name == "BrowserSnapshot"));
+    }
+
+    #[test]
+    fn cloud_model_turn_ge_2_keeps_full_tool_set() {
+        let reg = reg_with(&[
+            "FileRead",
+            "FileWrite",
+            "Edit",
+            "Glob",
+            "Grep",
+            "Bash",
+            "ToolSearch",
+            "AskUserQuestion",
+            "WebFetch",
+            "WebSearch",
+            "Agent",
+            "Skill",
+            "TaskCreate",
+            "TaskList",
+            "BrowserNavigate",
+            "BrowserSnapshot",
+            "GenerateImage",
+            "mcp__foo__bar",
+        ]);
+        let all = build_tool_schemas(&reg.keys().cloned().collect::<Vec<_>>(), &reg);
+        let model = ModelConfig {
+            provider: LLMProvider::Anthropic,
+            model: "claude-sonnet-4-5".into(),
+            base_url: None,
+            ..Default::default()
+        };
+        // 云端模型：turn 1 与 turn≥2 都应保持全量工具（含 Browser/mcp/生成类），
+        // 避免非核心工具被隐藏后被迫额外 ToolSearch 解锁。
+        for turn in [1usize, 2, 3, 5] {
+            let out = schemas_for_model_turn(&all, &model, turn, &HashSet::new());
+            assert_eq!(out.len(), all.len(), "turn={turn} 云端应保持全量工具");
+        }
+        // 核心工具仍可用
+        let out = schemas_for_model_turn(&all, &model, 4, &HashSet::new());
+        assert!(out.iter().any(|sc| sc.name == "BrowserSnapshot"));
+        assert!(out.iter().any(|sc| sc.name == "mcp__foo__bar"));
     }
 }

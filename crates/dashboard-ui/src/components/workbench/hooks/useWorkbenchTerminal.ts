@@ -10,16 +10,18 @@ type TerminalServerMessage =
   | { type: "exit"; code: number }
   | { type: "error"; message: string };
 
-export function useWorkbenchTerminal(
-  projectId: string | null | undefined,
-  active: boolean,
-) {
+/**
+ * Attach an @xterm/xterm instance to a *live* backend terminal session.
+ * Multiple attachments share the same PTY; closing this component does not
+ * destroy the shell (it stays until `deleteTerminalSession` is called).
+ */
+export function useTerminalAttachment(sessionId: string | null, active: boolean) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!active || !projectId || !containerRef.current) return;
+    if (!active || !sessionId || !containerRef.current) return;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -36,7 +38,7 @@ export function useWorkbenchTerminal(
     fit.fit();
     termRef.current = term;
 
-    const ws = new WebSocket(api.terminalWsUrl(projectId));
+    const ws = new WebSocket(api.terminalSessionWsUrl(sessionId));
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -82,7 +84,7 @@ export function useWorkbenchTerminal(
       termRef.current = null;
       wsRef.current = null;
     };
-  }, [active, projectId]);
+  }, [active, sessionId]);
 
   return { containerRef };
 }

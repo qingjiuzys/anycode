@@ -17,11 +17,12 @@ export function useProjectFsList(
 export function useProjectFsRead(
   projectId: string | null | undefined,
   filePath: string | null,
+  opts?: { enabled?: boolean },
 ) {
   return useQuery({
     queryKey: ["workbench-fs-read", projectId, filePath],
     queryFn: () => api.readProjectFs(projectId!, filePath!),
-    enabled: Boolean(projectId && filePath),
+    enabled: Boolean(projectId && filePath) && (opts?.enabled ?? true),
     staleTime: 10_000,
   });
 }

@@ -36,7 +36,8 @@ impl BrowserCtx {
         project_id: Option<&str>,
     ) -> Result<String, CoreError> {
         let browser = self.browser()?;
-        if let Some(id) = BrowserService::resolve_agent_session_id(session_id) {
+        let id = resolve_session_id(session_id, anycode_core::current_dashboard_session_id());
+        if let Some(id) = id {
             let pid = project_id.unwrap_or("default");
             browser
                 .create_session(pid, None, Some(&id))
@@ -60,6 +61,20 @@ fn tool_ok(result: Value, t0: Instant) -> ToolOutput {
 
 fn map_browser_err<T>(r: Result<T, anycode_browser::BrowserError>) -> Result<T, CoreError> {
     r.map_err(|e| CoreError::Other(anyhow::anyhow!("{e}")))
+}
+
+/// 解析浏览器会话 id。解析顺序固定为：
+/// 1. 显式 `session_id` 参数（非空即取，优先级最高）；
+/// 2. task-local dashboard 会话 id（`current_dashboard_session_id`，覆盖
+///    dashboard 内嵌聊天与 UI 触发器路径）；
+/// 3. 环境变量 legacy 兜底（`ANYCODE_BROWSER_SESSION_ID` →
+///    `ANYCODE_DASHBOARD_SESSION_ID`）。
+fn resolve_session_id(explicit: Option<&str>, dashboard: Option<String>) -> Option<String> {
+    explicit
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .or(dashboard)
+        .or_else(|| BrowserService::resolve_agent_session_id(None))
 }
 
 #[derive(Deserialize)]
@@ -678,3 +693,77 @@ pub const BROWSER_TOOL_IDS: &[&str] = &[
     "BrowserScreenshot",
     "BrowserCdp",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// env 测试共享进程级环境变量，串行化隔离避免相互污染。
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    const BROWSER_ENV: &str = "ANYCODE_BROWSER_SESSION_ID";
+    const DASHBOARD_ENV: &str = "ANYCODE_DASHBOARD_SESSION_ID";
+
+    fn clear_env() {
+        unsafe {
+            std::env::remove_var(BROWSER_ENV);
+            std::env::remove_var(DASHBOARD_ENV);
+        }
+    }
+
+    #[test]
+    fn explicit_param_wins_over_dashboard_and_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        clear_env();
+        assert_eq!(
+            resolve_session_id(Some("explicit"), Some("dashboard".to_string())),
+            Some("explicit".to_string())
+        );
+    }
+
+    #[test]
+    fn empty_explicit_falls_through_to_dashboard() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        clear_env();
+        assert_eq!(
+            resolve_session_id(Some(""), Some("dashboard".to_string())),
+            Some("dashboard".to_string())
+        );
+    }
+
+    #[test]
+    fn dashboard_wins_over_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        clear_env();
+        std::env::set_var(BROWSER_ENV, "from_env");
+        assert_eq!(
+            resolve_session_id(None, Some("dashboard".to_string())),
+            Some("dashboard".to_string())
+        );
+    }
+
+    #[test]
+    fn env_is_legacy_fallback_when_no_dashboard() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        clear_env();
+        std::env::set_var(BROWSER_ENV, "from_browser_env");
+        std::env::set_var(DASHBOARD_ENV, "from_dashboard_env");
+        assert_eq!(
+            resolve_session_id(None, None),
+            Some("from_browser_env".to_string())
+        );
+        std::env::remove_var(BROWSER_ENV);
+        assert_eq!(
+            resolve_session_id(None, None),
+            Some("from_dashboard_env".to_string())
+        );
+    }
+
+    #[test]
+    fn nothing_resolved_returns_none() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        clear_env();
+        assert_eq!(resolve_session_id(None, None), None);
+    }
+}

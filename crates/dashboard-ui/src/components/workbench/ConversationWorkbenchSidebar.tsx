@@ -91,7 +91,13 @@ export function ConversationWorkbenchSidebar({
           />
         );
       case "terminal":
-        return <TerminalPanel projectId={projectId!} active={showPanel} />;
+        return (
+          <TerminalPanel
+            projectId={projectId!}
+            conversationSessionId={sessionId}
+            active={showPanel}
+          />
+        );
       case "artifacts":
         return (
           <ArtifactsPanel sessionId={sessionId!} live={live} isRunning={isRunning} />

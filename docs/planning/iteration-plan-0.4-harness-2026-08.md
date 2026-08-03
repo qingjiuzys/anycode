@@ -1,6 +1,8 @@
 # 0.4 生产级 Harness — 下一步迭代计划（2026-08）
 
-**范围：** 承接已验收的 Harness 基础（M1–M4、M6、G10、G11），收掉 `closure-plan-2026-06.md` 剩余未收口项（G6 / G8 / G9 / G12 / G1 + Wave4 发布），使 0.4 生产级防线可对维护者自证闭环。
+**范围：** 承接已验收的 Harness 基础（M1–M4、M6、G10、G11），收掉 `closure-plan-2026-06.md` 剩余未收口项（G6 / G8 / G9 / G12 + 发布），使 0.4 生产级防线可对维护者自证闭环。
+
+> 注：G1（微信 CDN live 联调）**不在本计划**——微信 IM bridge 已在历史版本移除（见 `AGENTS.md`：Third-party IM channel bridges are removed），故依赖它的 G1 一并废弃。
 
 **关联 SSOT：**
 - 里程碑定义 → [`production-harness-hardening.md`](production-harness-hardening.md)（M0–M8）
@@ -42,28 +44,17 @@
 
 ## Wave 3 — 通道与 cron 决策（G12 / G9）≈ 3–4 天
 
-**现状核对：** `AskUserQuestionHost` trait 已就绪（`ask_user_question_host.rs`）；Telegram inline keyboard 已 MVP（`bootstrap/tg_ask.rs`）；Workbench Web host 走 file IPC（`bootstrap/workbench/workbench_ask.rs`）。Discord / 微信文本回落未做（ADR 008 slice 3）。
+**现状核对：** `AskUserQuestionHost` trait 已就绪（`ask_user_question_host.rs`）；Telegram inline keyboard 已 MVP（`bootstrap/tg_ask.rs`）；Workbench Web host 走 file IPC（`bootstrap/workbench/workbench_ask.rs`）。Discord 文本回落未做（ADR 008 slice 3）。微信 IM 已移除，不做通道扩展。
 
 | 任务 | 决策 | 验收 |
 |------|------|------|
-| **G12** AskUserQuestion 通道扩展 | 采纳 **ADR 008 slice 3**：Discord 按钮交互或文本回落；微信数字/字母选项回落；与工具审批互斥 pending | ADR 或 comparison 更新 |
+| **G12** AskUserQuestion 通道扩展 | 采纳 **ADR 008 slice 3**：Discord 按钮交互或文本回落；与工具审批互斥 pending | ADR 或 comparison 更新 |
 | **G9** NL→cron 定级 | 默认 **A（推荐）**：文档定级 v1 heuristic，Dashboard 提示「规则解析，非 LLM」；`ANYCODE_CRON_NL_LLM=1` 可选 B | comparison + UI 文案 |
 
-## Wave 4 — 微信 CDN live 联调（G1）≈ 3 天（限时）
+## Wave 4 — 文档与发布（收尾）≈ 3 天
 
-按 `closure-plan` §4.1 清单执行；**iLink 环境不可用超时则 ADR「CDN v2 待验，v1 文本+路径」**。
-
-| 任务 | 验收 |
-|------|------|
-| **G1a** 小文件（<1MB `.md`）CDN upload + `file_item` 收到 | 清单项绿 |
-| **G1b** 出站视频 CDN 直发（非路径回退，需 `base_info` + `iLink-App-*` 头）；接近 10MB 边界行为明确 | 成功或明确错误码 |
-| **G1c** CDN 失败 fallback 文本含原因 + 本地路径；cron 交付物路径与交互式一致；远程 URL 自动下载后 CDN 发送 | 清单项绿 |
-| **G1d** 结论写入 comparison「G1 结论」段；超时未绿则 ADR 文档化 | ADR / comparison 更新 |
-
-## Wave 5 — 文档与发布（Wave 4）≈ 3 天
-
-- **W5a** 更新 `workbuddy-comparison-2026-06.md`（收口状态、G1/G9 结论）、`../roadmap.md` §2 最近已交付、CHANGELOG（用户可见特性与 breaking）。
-- **W5b** `cargo build --release -p anycode-desktop-channel-bridge`（tag 可选）。
+- **W4a** 更新 `workbuddy-comparison-2026-06.md`（收口状态、G9 结论）、`../roadmap.md` §2 最近已交付、CHANGELOG（用户可见特性与 breaking）。
+- **W4b** `cargo build --release -p anycode-desktop-channel-bridge`（tag 可选）。
 
 ---
 
@@ -71,8 +62,7 @@
 
 1. **Wave 1 → Wave 2** 可并行（不同 crate 面：tools/MCP vs memory），均不依赖对方。
 2. **Wave 3** 独立决策项，可随时穿插；G9 决策 A 不阻塞其它。
-3. **Wave 4** 依赖 iLink 环境，**限时**，不与 Wave 1–3 争资源。
-4. **Wave 5** 收尾，须等前 4 波结论。
+3. **Wave 4** 收尾，须等前 3 波结论。
 
 ## 最小 CI 集（收口 PR 必过）
 
@@ -91,7 +81,6 @@ ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-desktop-channel-br
 |------|------|
 | MCP config 与既有 env 语义冲突 | 配置优先、env 回退；默认不启用 strict |
 | memory provenance 破坏旧记录 | 向后兼容反序列化；provenance 可空 |
-| iLink CDN 环境不可用 | Wave 4 限时 3 天；超时走 ADR 文档化 |
-| 范围膨胀 | 严格按 Wave 1–5 顺序；Wave 2 UI 只做解释性面板，不做新页面风暴 |
+| 范围膨胀 | 严格按 Wave 1–4 顺序；Wave 2 UI 只做解释性面板，不做新页面风暴 |
 
-*最后更新：2026-08-02 · 依据当前仓库未提交迭代状态与 closure-plan 验收进度*
+*最后更新：2026-08-03 · 依据当前仓库未提交迭代状态与 closure-plan 验收进度；Wave4/CDN(G1) 因微信 bridge 已移除而废弃*

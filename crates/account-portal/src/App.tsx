@@ -22,6 +22,7 @@ import { ProductPage } from "./pages/ProductPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TeamPage } from "./pages/TeamPage";
+import { JoinTeamPage } from "./pages/JoinTeamPage";
 import { UsagePage } from "./pages/UsagePage";
 import { AlgorithmDisclosurePage } from "./pages/legal/AlgorithmDisclosurePage";
 import { PrivacyPolicyPage } from "./pages/legal/PrivacyPolicyPage";
@@ -85,6 +86,7 @@ function AppRoutes() {
           <Route path="/home-classic" element={<HomePage />} />
           <Route path={SITE_PATHS.login} element={<LoginPage />} />
           <Route path={SITE_PATHS.register} element={<RegisterPage />} />
+          <Route path="/join" element={<JoinTeamPage />} />
           <Route path={SITE_PATHS.legalAlgorithmDisclosure} element={<AlgorithmDisclosurePage />} />
           <Route path={SITE_PATHS.legalUserAgreement} element={<UserAgreementPage />} />
           <Route path={SITE_PATHS.legalPrivacy} element={<PrivacyPolicyPage />} />

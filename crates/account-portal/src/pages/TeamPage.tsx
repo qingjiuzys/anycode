@@ -23,11 +23,16 @@ type TeamStatus = {
 };
 type Invite = {
   id: string;
-  email: string;
+  kind: string;
+  email: string | null;
   status: string;
   expires_at: string;
   created_at: string;
 };
+
+function buildInviteUrl(acceptPath: string): string {
+  return `${window.location.origin}${acceptPath}`;
+}
 
 export function TeamPage() {
   const t = useT();
@@ -41,6 +46,7 @@ export function TeamPage() {
   const [teamName, setTeamName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -110,19 +116,46 @@ export function TeamPage() {
     }
   };
 
+  const submitInviteLink = async () => {
+    setError(null);
+    setNotice(null);
+    setLinkBusy(true);
+    try {
+      const res = await api.createOrgInviteLink();
+      setInviteLink(buildInviteUrl(res.accept_path));
+      setNotice(t("console.teamInviteLinkReady"));
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
   const submitInvite = async () => {
     setError(null);
     setNotice(null);
-    setInviteLink(null);
     try {
       const res = await api.createOrgInvite(inviteEmail);
-      const url = `${window.location.origin}${res.accept_path}`;
-      setInviteLink(url);
+      setInviteLink(buildInviteUrl(res.accept_path));
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  const copyInviteLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setNotice(t("console.teamInviteLinkCopied"));
+    } catch {
+      setNotice(t("console.teamInviteLinkCopyFailed"));
+    }
+  };
+
+  const inviteLabel = (inv: Invite) =>
+    inv.kind === "link" ? t("console.teamInviteLinkKind") : (inv.email ?? "");
 
   return (
     <ConsolePage title={t("console.team")} description={t("console.teamSubtitle")}>
@@ -157,37 +190,58 @@ export function TeamPage() {
         </section>
       ) : null}
 
-      {team && team.team_setup && team.gate === "invite_required" ? (
+      {team && team.team_setup ? (
         <section className="console-section">
           <h2 className="console-section__title">{t("console.teamInviteTitle")}</h2>
-          <p className="console-meta">{t("console.teamInviteDesc")}</p>
+          <p className="console-meta">{t("console.teamInviteLinkDesc")}</p>
           <div className="console-form-row">
-            <label className="console-form-row__label" htmlFor="invite-email">
-              {t("console.teamInviteEmail")}
-            </label>
-            <input
-              id="invite-email"
-              className="auth-input"
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-            <button className="btn btn-primary" type="button" onClick={() => void submitInvite()}>
-              {t("console.teamInviteSubmit")}
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={linkBusy}
+              onClick={() => void submitInviteLink()}
+            >
+              {linkBusy ? t("common.loading") : t("console.teamInviteLinkCreate")}
             </button>
           </div>
           {inviteLink ? (
-            <p className="console-meta">
-              {t("console.teamInviteLink")}: <code>{inviteLink}</code>
-            </p>
+            <div className="console-form-row" style={{ alignItems: "flex-start", gap: "0.75rem" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p className="console-meta">{t("console.teamInviteLink")}</p>
+                <code style={{ wordBreak: "break-all", display: "block" }}>{inviteLink}</code>
+              </div>
+              <button className="btn btn-secondary" type="button" onClick={() => void copyInviteLink()}>
+                {t("console.teamInviteLinkCopy")}
+              </button>
+            </div>
           ) : null}
+
+          <details className="console-meta" style={{ marginTop: "1rem" }}>
+            <summary>{t("console.teamInviteEmailOptional")}</summary>
+            <div className="console-form-row" style={{ marginTop: "0.75rem" }}>
+              <label className="console-form-row__label" htmlFor="invite-email">
+                {t("console.teamInviteEmail")}
+              </label>
+              <input
+                id="invite-email"
+                className="auth-input"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+              <button className="btn btn-secondary" type="button" onClick={() => void submitInvite()}>
+                {t("console.teamInviteSubmit")}
+              </button>
+            </div>
+          </details>
+
           {invites.length > 0 ? (
             <>
               <p className="console-meta">{t("console.teamInvitePending")}</p>
               <ul className="console-list">
                 {invites.map((inv) => (
                   <li key={inv.id} className="console-list__item">
-                    <strong>{inv.email}</strong>
+                    <strong>{inviteLabel(inv)}</strong>
                     <span className="console-meta">{new Date(inv.expires_at).toLocaleString()}</span>
                   </li>
                 ))}

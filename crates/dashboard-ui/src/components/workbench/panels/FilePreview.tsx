@@ -44,6 +44,7 @@ function langFromMime(mime: string, path: string): string {
   return "plaintext";
 }
 
+// Kinds rendered through the deliverable viewer (report/office cards etc).
 const PREVIEW_KINDS = new Set([
   "mindmap",
   "report",
@@ -52,11 +53,28 @@ const PREVIEW_KINDS = new Set([
   "document",
 ]);
 
+// Binary kinds are previewed through the raw-file viewers (not read_file).
+const RAW_PREVIEW_KINDS = new Set(["image", "video", "pdf", "audio", "media"]);
+
+// Plain markdown/mdx keeps the raw text preview so the whole file is readable.
+function isMarkdown(path: string | null): boolean {
+  return Boolean(path && /\.mdx?$/i.test(path));
+}
+
 export function FilePreview({ projectId, filePath }: Props) {
   const t = useT();
-  const read = useProjectFsRead(projectId, filePath);
   const fileKind = filePath ? kindForPath(filePath) : "file";
   const fileName = filePath ? basename(filePath) : "";
+
+  // Binary / office / deliverable kinds are rendered through the dedicated
+  // viewer (raw file, image/video/pdf viewers, or deliverable card), so the
+  // text read is skipped for them (read_file rejects binary files).
+  // Plain markdown keeps the raw text preview so the whole file is readable.
+  const useViewer =
+    RAW_PREVIEW_KINDS.has(fileKind) ||
+    (PREVIEW_KINDS.has(fileKind) && !isMarkdown(filePath));
+
+  const read = useProjectFsRead(projectId, useViewer ? null : filePath);
 
   const html = useMemo(() => {
     if (!read.data?.file) return "";
@@ -78,17 +96,7 @@ export function FilePreview({ projectId, filePath }: Props) {
     );
   }
 
-  if (read.isPending) {
-    return <p className="text-xs text-secondary px-3 py-2 m-0">{t("common.loading")}</p>;
-  }
-
-  if (read.error) {
-    return (
-      <p className="text-xs text-secondary px-3 py-2 m-0">{(read.error as Error).message}</p>
-    );
-  }
-
-  if (PREVIEW_KINDS.has(fileKind) || (fileKind === "document" && /\.(docx?|xlsx?)$/i.test(filePath))) {
+  if (useViewer) {
     return (
       <div className="flex flex-col min-h-0 h-full border-t border-outline-variant/60 p-3 bg-white">
         {selectDeliverableViewer({
@@ -98,6 +106,16 @@ export function FilePreview({ projectId, filePath }: Props) {
           variant: "full",
         })}
       </div>
+    );
+  }
+
+  if (read.isPending) {
+    return <p className="text-xs text-secondary px-3 py-2 m-0">{t("common.loading")}</p>;
+  }
+
+  if (read.error) {
+    return (
+      <p className="text-xs text-secondary px-3 py-2 m-0">{(read.error as Error).message}</p>
     );
   }
 

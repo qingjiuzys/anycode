@@ -44,8 +44,8 @@ pub fn cookie_from_request(parts: &axum::http::request::Parts) -> Option<String>
 /// shell. Packaged Desktop serves its own UI over the `tauri://` origin and
 /// talks to this loopback API; it is a trusted local process, so it does not
 /// need a cross-origin session cookie.
-fn loopback_trusted_access(host: &str, test_bypass: bool) -> bool {
-    is_loopback_host(host) && (test_bypass || embedded_desktop())
+fn loopback_trusted_access(host: &str, test_bypass: bool, embedded: bool) -> bool {
+    is_loopback_host(host) && (test_bypass || embedded)
 }
 
 pub(crate) fn embedded_desktop() -> bool {
@@ -64,12 +64,12 @@ pub fn generate_desktop_bootstrap_token() -> String {
     )
 }
 
-pub fn origin_allowed(origin: &str) -> bool {
+pub fn origin_allowed(origin: &str, embedded: bool) -> bool {
     if ALLOWED_BROWSER_ORIGINS.contains(&origin) {
         return true;
     }
     // Desktop embeds the SPA on an ephemeral loopback port (e.g. :53402).
-    if embedded_desktop() && origin_host(origin).is_some_and(is_loopback_host) {
+    if embedded && origin_host(origin).is_some_and(is_loopback_host) {
         return true;
     }
     false
@@ -121,7 +121,7 @@ pub async fn mutate_origin_guard(
         .get(header::ORIGIN)
         .and_then(|v| v.to_str().ok())
     {
-        if !origin_allowed(origin) {
+        if !origin_allowed(origin, state.embedded_desktop) {
             return (
                 StatusCode::FORBIDDEN,
                 Json(json!({ "error": "origin not allowed" })),
@@ -153,7 +153,7 @@ pub async fn resolve_request_user(
     state: &AppState,
     parts: &axum::http::request::Parts,
 ) -> Option<crate::auth_session::AuthUser> {
-    if loopback_trusted_access(&state.host, state.test_auth_bypass) {
+    if loopback_trusted_access(&state.host, state.test_auth_bypass, state.embedded_desktop) {
         return auth_session::local_trusted_user(&state.db).await.ok();
     }
     // Local Workbench identity is always org_local / user_local.
@@ -192,7 +192,7 @@ pub async fn auth_middleware(
     if is_public_path(path) && (!setup_path || is_loopback_host(&state.host)) {
         return next.run(req).await;
     }
-    if loopback_trusted_access(&state.host, state.test_auth_bypass) {
+    if loopback_trusted_access(&state.host, state.test_auth_bypass, state.embedded_desktop) {
         return next.run(req).await;
     }
     let auth = req
@@ -233,8 +233,8 @@ pub async fn auth_middleware(
     }
 }
 
-pub fn is_desktop_bootstrap_enabled(host: &str) -> bool {
-    embedded_desktop() && is_loopback_host(host)
+pub fn is_desktop_bootstrap_enabled(host: &str, embedded: bool) -> bool {
+    embedded && is_loopback_host(host)
 }
 
 fn is_public_path(path: &str) -> bool {
@@ -295,18 +295,16 @@ mod tests {
 
     #[test]
     fn origin_allowlist_covers_workbench_and_tauri() {
-        assert!(origin_allowed("tauri://localhost"));
-        assert!(origin_allowed("http://127.0.0.1:43199"));
-        assert!(!origin_allowed("https://evil.example"));
+        assert!(origin_allowed("tauri://localhost", false));
+        assert!(origin_allowed("http://127.0.0.1:43199", false));
+        assert!(!origin_allowed("https://evil.example", false));
     }
 
     #[test]
     fn embedded_desktop_allows_ephemeral_loopback_origin() {
-        std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP", "1");
-        assert!(origin_allowed("http://127.0.0.1:53402"));
-        assert!(origin_allowed("http://localhost:61234"));
-        assert!(!origin_allowed("http://evil.example:53402"));
-        std::env::remove_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP");
+        assert!(origin_allowed("http://127.0.0.1:53402", true));
+        assert!(origin_allowed("http://localhost:61234", true));
+        assert!(!origin_allowed("http://evil.example:53402", true));
     }
 
     #[test]

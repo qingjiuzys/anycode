@@ -1,6 +1,6 @@
 {
-  "target": "cloud",
-  "account_api_url": "https://anycode.work",
-  "account_portal_url": "https://anycode.work",
-  "model_gateway_url": "https://anycode.work"
+  "target": "local",
+  "account_api_url": "http://127.0.0.1:43200",
+  "account_portal_url": "http://127.0.0.1:43201",
+  "model_gateway_url": "http://127.0.0.1:43210"
 }

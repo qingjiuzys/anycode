@@ -2325,6 +2325,86 @@
     @apply block w-full text-left px-3 py-2 text-sm border-0 bg-transparent cursor-pointer hover:bg-surface-container-high disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
+  .conv-git-bar__tree {
+    @apply mt-2 rounded-xl border border-outline-variant/70 bg-surface-container-lowest/70 overflow-hidden;
+  }
+
+  .conv-git-bar__tree-head {
+    @apply flex items-center justify-between px-3 py-2 text-[11px] font-medium text-secondary border-b border-outline-variant/60;
+  }
+
+  .conv-git-bar__file {
+    @apply w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-on-surface cursor-pointer hover:bg-surface-container-high/70 border-0 bg-transparent;
+  }
+
+  .conv-git-bar__file-name {
+    @apply flex-1 min-w-0 truncate;
+  }
+
+  .conv-git-bar__file-badge {
+    @apply text-[9px] uppercase tracking-wide px-1 py-px rounded;
+  }
+
+  .conv-git-bar__file-badge--modified {
+    @apply text-warn bg-warn/10;
+  }
+
+  .conv-git-bar__file-badge--added {
+    @apply text-success bg-success/10;
+  }
+
+  .conv-git-bar__file-badge--deleted {
+    @apply text-error bg-error/10;
+  }
+
+  .conv-git-bar__file-badge--renamed {
+    @apply text-warn bg-warn/10;
+  }
+
+  .conv-git-bar__file-badge--untracked {
+    @apply text-secondary bg-surface-container-high;
+  }
+
+  .conv-git-bar__stat--add {
+    @apply text-success font-medium tabular-nums;
+  }
+
+  .conv-git-bar__stat--del {
+    @apply text-error font-medium tabular-nums;
+  }
+
+  .conv-git-bar__diff {
+    @apply mt-2 rounded-xl border border-outline-variant/70 bg-surface-container-lowest overflow-hidden;
+  }
+
+  .conv-git-bar__diff-head {
+    @apply flex items-center justify-between gap-2 px-3 py-2 text-xs text-on-surface border-b border-outline-variant/60;
+  }
+
+  .conv-git-bar__diff-pre {
+    @apply m-0 p-2 text-[11px] leading-[1.45] font-mono overflow-auto max-h-[22rem] whitespace-pre;
+  }
+
+  .conv-diff-line {
+    @apply block whitespace-pre-wrap;
+  }
+
+  .conv-diff-line--add {
+    @apply bg-success/10 text-success;
+  }
+
+  .conv-diff-line--del {
+    @apply bg-error/10 text-error;
+  }
+
+  .conv-diff-line--hunk {
+    @apply text-primary;
+  }
+
+  .conv-diff-line--meta {
+    @apply text-secondary;
+  }
+
 
   .conv-thread-header {
     @apply relative z-[2] px-2 py-0 border-0;

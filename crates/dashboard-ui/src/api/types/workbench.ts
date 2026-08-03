@@ -32,6 +32,12 @@ export interface BrowserSessionInfo {
   conversation_id?: string | null;
 }
 
+export interface TerminalSessionInfo {
+  session_id: string;
+  project_id: string;
+  conversation_id: string;
+}
+
 export type WorkbenchTab = "files" | "browser" | "terminal" | "artifacts" | "plan";
 
 export interface GitStatusSummary {
@@ -44,6 +50,32 @@ export interface GitStatusSummary {
   behind: number;
   has_upstream: boolean;
   has_changes: boolean;
+}
+
+export type GitChangeKind =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "untracked"
+  | "type_changed";
+
+export interface GitFileChange {
+  path: string;
+  old_path: string;
+  kind: GitChangeKind;
+  staged: boolean;
+  status: string;
+  insertions: number;
+  deletions: number;
+}
+
+export interface GitFileDiff {
+  path: string;
+  kind: GitChangeKind;
+  diff: string;
+  insertions: number;
+  deletions: number;
 }
 
 export type PlanStatus =

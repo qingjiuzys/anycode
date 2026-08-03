@@ -63,3 +63,4 @@ docs/module-structure.html
 crates/dashboard/mindmap-*.md
 crates/dashboard/mindmap-*.json
 .cursor/lingzhi-decisions.md
+.contrib/

@@ -9,10 +9,10 @@
 
 use anycode_core::prelude::Message;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 /// 与 Claude `.precompact.json` 对齐的缓存格式版本。
 pub const PRECOMPACT_CACHE_VERSION: u32 = 1;
@@ -21,13 +21,14 @@ pub const PRECOMPACT_CACHE_MAX_BYTES: u64 = 8 * 1024 * 1024;
 /// `SKIP_PRECOMPACT_THRESHOLD`：尾部消息少于该条数不写缓存。
 pub const SKIP_PRECOMPACT_THRESHOLD: usize = 2;
 
-/// 测试可注入的缓存目录（避免并行测试污染进程级 `HOME`）。
-static CACHE_DIR_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
+// 测试可注入的缓存目录（线程局部，避免并行测试互相覆盖 override 造成竞态）。
+thread_local! {
+    static CACHE_DIR_OVERRIDE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
 
 #[cfg(test)]
 fn set_cache_dir_override(dir: Option<PathBuf>) {
-    let mut guard = CACHE_DIR_OVERRIDE.lock().unwrap();
-    *guard = dir;
+    CACHE_DIR_OVERRIDE.with(|cell| *cell.borrow_mut() = dir);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -77,7 +78,8 @@ fn simple_hash(s: &str) -> String {
 }
 
 fn cache_dir() -> Option<PathBuf> {
-    if let Some(dir) = CACHE_DIR_OVERRIDE.lock().ok().and_then(|g| g.clone()) {
+    let override_dir = CACHE_DIR_OVERRIDE.with(|cell| cell.borrow().clone());
+    if let Some(dir) = override_dir {
         return Some(dir);
     }
     let home = std::env::var_os("HOME")?;

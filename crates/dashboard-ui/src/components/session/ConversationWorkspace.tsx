@@ -212,7 +212,13 @@ export function ConversationWorkspace() {
           />
         );
       case "terminal":
-        return <TerminalPanel projectId={projectId!} active={workbenchExpanded} />;
+        return (
+          <TerminalPanel
+            projectId={projectId!}
+            conversationSessionId={displaySessionId}
+            active={workbenchExpanded}
+          />
+        );
       case "plan":
         return (
           <PlanTreePanel

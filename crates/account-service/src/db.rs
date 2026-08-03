@@ -99,6 +99,21 @@ impl AccountDb {
             include_str!("../migrations/020_a2a_collation_fix.sql"),
         )
         .await?;
+        self.apply_migration(
+            "021_plus_pro_token_plans",
+            include_str!("../migrations/021_plus_pro_token_plans.sql"),
+        )
+        .await?;
+        self.apply_migration(
+            "022_team_setup_invites",
+            include_str!("../migrations/022_team_setup_invites.sql"),
+        )
+        .await?;
+        self.apply_migration(
+            "023_org_invite_links",
+            include_str!("../migrations/023_org_invite_links.sql"),
+        )
+        .await?;
         Ok(())
     }
 

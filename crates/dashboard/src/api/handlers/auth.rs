@@ -75,7 +75,7 @@ pub async fn get_desktop_bootstrap(
     State(state): State<AppState>,
     Query(query): Query<DesktopBootstrapQuery>,
 ) -> impl IntoResponse {
-    if !crate::api::auth::is_desktop_bootstrap_enabled(&state.host) {
+    if !crate::api::auth::is_desktop_bootstrap_enabled(&state.host, state.embedded_desktop) {
         return (
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "desktop bootstrap unavailable" })),

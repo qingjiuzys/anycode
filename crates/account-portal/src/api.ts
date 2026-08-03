@@ -283,7 +283,8 @@ export const api = {
     apiFetch<{
       invites: Array<{
         id: string;
-        email: string;
+        kind: string;
+        email: string | null;
         status: string;
         expires_at: string;
         created_at: string;
@@ -292,9 +293,29 @@ export const api = {
 
   createOrgInvite: (email: string) =>
     apiFetch<{
-      invite: { id: string; email: string; status: string; expires_at: string; created_at: string };
+      invite: {
+        id: string;
+        kind: string;
+        email: string | null;
+        status: string;
+        expires_at: string;
+        created_at: string;
+      };
       accept_path: string;
     }>("/api/v1/org/invites", { method: "POST", body: JSON.stringify({ email }) }),
+
+  createOrgInviteLink: () =>
+    apiFetch<{
+      invite: {
+        id: string;
+        kind: string;
+        email: string | null;
+        status: string;
+        expires_at: string;
+        created_at: string;
+      };
+      accept_path: string;
+    }>("/api/v1/org/invites/link", { method: "POST", body: JSON.stringify({}) }),
 
   acceptOrgInvite: (token: string) =>
     apiFetch<{ team: TeamStatusPayload }>("/api/v1/org/invites/accept", {

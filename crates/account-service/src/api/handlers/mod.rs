@@ -394,7 +394,7 @@ pub async fn create_org_invite(
 ) -> impl IntoResponse {
     match crate::team::create_invite(&state.db, &ctx.user, &body.email).await {
         Ok(result) => {
-            let accept_path = format!("/console/team?invite={}", result.accept_token);
+            let accept_path = invite_accept_path(&result.accept_token);
             Json(serde_json::json!({
                 "invite": result.invite,
                 "accept_path": accept_path,
@@ -403,6 +403,27 @@ pub async fn create_org_invite(
         }
         Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
     }
+}
+
+pub async fn create_org_invite_link(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<AuthContext>,
+) -> impl IntoResponse {
+    match crate::team::create_invite_link(&state.db, &ctx.user).await {
+        Ok(result) => {
+            let accept_path = invite_accept_path(&result.accept_token);
+            Json(serde_json::json!({
+                "invite": result.invite,
+                "accept_path": accept_path,
+            }))
+            .into_response()
+        }
+        Err(e) => json_error(StatusCode::BAD_REQUEST, &e.to_string()).into_response(),
+    }
+}
+
+fn invite_accept_path(token: &str) -> String {
+    format!("/join?invite={token}")
 }
 
 #[derive(Deserialize)]

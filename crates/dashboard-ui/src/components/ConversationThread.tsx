@@ -9,6 +9,7 @@ import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
 import { SessionTitleMenu } from "@/components/session/SessionTitleMenu";
 import { ConversationGitBar } from "@/components/session/ConversationGitBar";
+import { TurnPhaseBanner } from "@/components/TurnPhaseBanner";
 import { SessionStatusBadges, SessionRunningDots } from "@/components/ui/StatusBadge";
 import { formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
@@ -346,6 +347,12 @@ export function ConversationThread({
               />
             </div>
           )}
+          <div className="conv-thread-phase-banner px-1 pb-2">
+            <TurnPhaseBanner
+              phase={sessionLive?.turnPhase ?? null}
+              startedAt={sessionLive?.turnPhaseStartedAt ?? null}
+            />
+          </div>
           {session.project_id ? (
             <ConversationGitBar projectId={session.project_id} />
           ) : null}

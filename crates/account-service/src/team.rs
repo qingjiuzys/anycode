@@ -29,7 +29,8 @@ pub struct TeamStatusView {
 #[derive(Debug, Clone, Serialize)]
 pub struct OrgInviteView {
     pub id: String,
-    pub email: String,
+    pub kind: String,
+    pub email: Option<String>,
     pub status: String,
     pub expires_at: String,
     pub created_at: String,
@@ -157,9 +158,10 @@ pub async fn create_invite(
 
     sqlx::query(
         r#"
-        INSERT INTO org_invites (id, organization_id, email, invited_by_user_id, token_hash, status, expires_at)
-        VALUES (?, ?, ?, ?, ?, 'pending', ?)
+        INSERT INTO org_invites (id, organization_id, kind, email, invited_by_user_id, token_hash, status, expires_at)
+        VALUES (?, ?, 'email', ?, ?, ?, 'pending', ?)
         ON DUPLICATE KEY UPDATE
+          kind = 'email',
           invited_by_user_id = VALUES(invited_by_user_id),
           token_hash = VALUES(token_hash),
           status = 'pending',
@@ -184,10 +186,65 @@ pub async fn create_invite(
     })
 }
 
+pub async fn create_invite_link(db: &AccountDb, user: &AuthUser) -> Result<CreateInviteResult> {
+    if user.role != "owner" {
+        return Err(anyhow!("only organization owner can create invite links"));
+    }
+    let status = team_status(db, &user.organization_id).await?;
+    if !status.team_setup {
+        return Err(anyhow!("create the team before sharing invite links"));
+    }
+
+    let limits = crate::plan::limits_for_plan(db, "free").await;
+    let seat_limit = limits.seat_limit.max(1) as i64;
+    let active_members: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM users WHERE organization_id = ? AND status != 'disabled'",
+    )
+    .bind(&user.organization_id)
+    .fetch_one(db.pool())
+    .await?;
+    let pending: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM org_invites WHERE organization_id = ? AND status = 'pending' AND expires_at > NOW(3)",
+    )
+    .bind(&user.organization_id)
+    .fetch_one(db.pool())
+    .await?;
+    if active_members + pending >= seat_limit {
+        return Err(anyhow!("team seat limit reached"));
+    }
+
+    let token = new_session_token();
+    let token_hash = hash_token(&token);
+    let id = format!("inv_{}", Uuid::new_v4().simple());
+    let expires = Utc::now() + Duration::days(7);
+    let placeholder_email = format!("{id}@link.invite");
+
+    sqlx::query(
+        r#"
+        INSERT INTO org_invites (id, organization_id, kind, email, invited_by_user_id, token_hash, status, expires_at)
+        VALUES (?, ?, 'link', ?, ?, ?, 'pending', ?)
+        "#,
+    )
+    .bind(&id)
+    .bind(&user.organization_id)
+    .bind(&placeholder_email)
+    .bind(&user.id)
+    .bind(&token_hash)
+    .bind(expires)
+    .execute(db.pool())
+    .await?;
+
+    let invite = get_invite_by_id(db, &id).await?;
+    Ok(CreateInviteResult {
+        invite,
+        accept_token: token,
+    })
+}
+
 pub async fn list_invites(db: &AccountDb, org_id: &str) -> Result<Vec<OrgInviteView>> {
     let rows = sqlx::query(
         r#"
-        SELECT id, email, status, expires_at, created_at
+        SELECT id, kind, email, status, expires_at, created_at
         FROM org_invites
         WHERE organization_id = ? AND status = 'pending' AND expires_at > NOW(3)
         ORDER BY created_at DESC
@@ -203,7 +260,7 @@ pub async fn accept_invite(db: &AccountDb, user: &AuthUser, token: &str) -> Resu
     let token_hash = hash_token(token.trim());
     let row = sqlx::query(
         r#"
-        SELECT id, organization_id, email, status, expires_at
+        SELECT id, organization_id, kind, email, status, expires_at
         FROM org_invites
         WHERE token_hash = ? AND status = 'pending'
         LIMIT 1
@@ -220,7 +277,8 @@ pub async fn accept_invite(db: &AccountDb, user: &AuthUser, token: &str) -> Resu
     }
 
     let invite_email: String = row.get("email");
-    if user.email.to_lowercase() != invite_email.to_lowercase() {
+    let invite_kind: String = row.get("kind");
+    if invite_kind != "link" && user.email.to_lowercase() != invite_email.to_lowercase() {
         return Err(anyhow!("invite email does not match signed-in account"));
     }
 
@@ -281,7 +339,7 @@ async fn get_invite_by_email(
 ) -> Result<OrgInviteView> {
     let row = sqlx::query(
         r#"
-        SELECT id, email, status, expires_at, created_at
+        SELECT id, kind, email, status, expires_at, created_at
         FROM org_invites
         WHERE organization_id = ? AND email = ?
         ORDER BY created_at DESC
@@ -295,12 +353,35 @@ async fn get_invite_by_email(
     Ok(row_to_invite(row))
 }
 
+async fn get_invite_by_id(db: &AccountDb, id: &str) -> Result<OrgInviteView> {
+    let row = sqlx::query(
+        r#"
+        SELECT id, kind, email, status, expires_at, created_at
+        FROM org_invites
+        WHERE id = ?
+        LIMIT 1
+        "#,
+    )
+    .bind(id)
+    .fetch_one(db.pool())
+    .await?;
+    Ok(row_to_invite(row))
+}
+
 fn row_to_invite(row: sqlx::mysql::MySqlRow) -> OrgInviteView {
     let expires: chrono::DateTime<Utc> = row.get("expires_at");
     let created: chrono::DateTime<Utc> = row.get("created_at");
+    let kind: String = row.get("kind");
+    let raw_email: String = row.get("email");
+    let email = if kind == "link" {
+        None
+    } else {
+        Some(raw_email)
+    };
     OrgInviteView {
         id: row.get("id"),
-        email: row.get("email"),
+        kind,
+        email,
         status: row.get("status"),
         expires_at: expires.to_rfc3339(),
         created_at: created.to_rfc3339(),

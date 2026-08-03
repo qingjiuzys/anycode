@@ -6,7 +6,6 @@ pub fn spawn_cloud_a2a_heartbeat(state: AppState) {
     handlers::cloud_a2a::spawn_cloud_a2a_heartbeat(state);
 }
 
-use crate::api::auth::embedded_desktop;
 use crate::api::state::AppState;
 use axum::{
     http::{
@@ -309,12 +308,32 @@ pub fn router(state: AppState) -> Router {
             get(handlers::stat_project_fs),
         )
         .route(
-            "/projects/{project_id}/terminal/ws",
-            get(handlers::project_terminal_ws),
+            "/workbench/terminal/sessions",
+            get(handlers::list_terminal_sessions),
+        )
+        .route(
+            "/workbench/terminal/sessions",
+            post(handlers::create_terminal_session),
+        )
+        .route(
+            "/workbench/terminal/sessions/{session_id}/ws",
+            get(handlers::terminal_session_ws),
+        )
+        .route(
+            "/workbench/terminal/sessions/{session_id}",
+            delete(handlers::delete_terminal_session),
         )
         .route(
             "/projects/{project_id}/git/status",
             get(handlers::get_project_git_status),
+        )
+        .route(
+            "/projects/{project_id}/git/changes",
+            get(handlers::get_project_git_changes),
+        )
+        .route(
+            "/projects/{project_id}/git/diff",
+            get(handlers::get_project_git_file_diff),
         )
         .route(
             "/projects/{project_id}/git/commit",
@@ -707,9 +726,10 @@ pub fn router(state: AppState) -> Router {
             if assets.is_dir() {
                 // SPA route `/assets` (artifacts page) must not collide with Vite bundle mount.
                 let index_for_assets_page = index.clone();
+                let embedded_desktop = state.embedded_desktop;
                 app = app.route(
                     "/assets",
-                    get(move || serve_spa_index(index_for_assets_page.clone())),
+                    get(move || serve_spa_index(index_for_assets_page.clone(), embedded_desktop)),
                 );
                 let asset_service = ServiceBuilder::new()
                     .layer(SetResponseHeaderLayer::overriding(
@@ -721,8 +741,15 @@ pub fn router(state: AppState) -> Router {
             }
             let static_root = dir.clone();
             let index_for_fallback = index.clone();
+            let embedded_desktop = state.embedded_desktop;
             app = app.fallback(get(move |uri: Uri| async move {
-                spa_fallback(uri, static_root.clone(), index_for_fallback.clone()).await
+                spa_fallback(
+                    uri,
+                    static_root.clone(),
+                    index_for_fallback.clone(),
+                    embedded_desktop,
+                )
+                .await
             }));
         }
     } else if crate::embedded_ui::available() {
@@ -743,7 +770,12 @@ fn cors_layer() -> CorsLayer {
         .allow_headers(Any)
 }
 
-async fn spa_fallback(uri: Uri, static_root: PathBuf, index: PathBuf) -> axum::response::Response {
+async fn spa_fallback(
+    uri: Uri,
+    static_root: PathBuf,
+    index: PathBuf,
+    embedded: bool,
+) -> axum::response::Response {
     if uri.path().starts_with("/api/") {
         return (
             StatusCode::NOT_FOUND,
@@ -758,7 +790,7 @@ async fn spa_fallback(uri: Uri, static_root: PathBuf, index: PathBuf) -> axum::r
             return serve_static_file(file).await.into_response();
         }
     }
-    serve_spa_index(index).await.into_response()
+    serve_spa_index(index, embedded).await.into_response()
 }
 
 async fn serve_static_file(path: PathBuf) -> impl IntoResponse {
@@ -790,7 +822,7 @@ fn mime_for_path(path: &PathBuf) -> Option<&'static str> {
         })
 }
 
-async fn serve_spa_index(index: PathBuf) -> impl IntoResponse {
+async fn serve_spa_index(index: PathBuf, embedded: bool) -> impl IntoResponse {
     match tokio::fs::read_to_string(index).await {
         Ok(html) => {
             let mut headers = HeaderMap::new();
@@ -802,11 +834,7 @@ async fn serve_spa_index(index: PathBuf) -> impl IntoResponse {
                 CONTENT_TYPE,
                 HeaderValue::from_static("text/html; charset=utf-8"),
             );
-            (
-                headers,
-                Html(inject_desktop_marker(&html, embedded_desktop())),
-            )
-                .into_response()
+            (headers, Html(inject_desktop_marker(&html, embedded))).into_response()
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }

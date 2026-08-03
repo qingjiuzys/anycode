@@ -196,6 +196,7 @@ async fn run_inner(
         test_auth_bypass: std::env::var("ANYCODE_DASHBOARD_TEST_AUTH_BYPASS")
             .ok()
             .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+        embedded_desktop: crate::api::auth::embedded_desktop(),
         lan_hub: lan_hub.clone(),
     };
     crate::control::question_notify::install(events, db_for_state.clone());
@@ -354,6 +355,7 @@ pub struct TestAppOptions {
     pub host: String,
     pub serve_ui: bool,
     pub auth_bypass: bool,
+    pub embedded_desktop: bool,
     pub desktop_bootstrap_token: Option<String>,
 }
 
@@ -363,6 +365,7 @@ impl Default for TestAppOptions {
             host: "127.0.0.1".into(),
             serve_ui: true,
             auth_bypass: true,
+            embedded_desktop: crate::api::auth::embedded_desktop(),
             desktop_bootstrap_token: None,
         }
     }
@@ -409,6 +412,7 @@ pub async fn app_for_test_custom(db_path: &Path, opts: TestAppOptions) -> Result
         managed_local_llm: crate::managed_local_llm::ManagedLocalLlm::new(),
         desktop_bootstrap_token: Arc::new(tokio::sync::Mutex::new(opts.desktop_bootstrap_token)),
         test_auth_bypass: opts.auth_bypass,
+        embedded_desktop: opts.embedded_desktop,
         lan_hub: None,
     };
     crate::control::question_notify::install(events, db_for_state.clone());
@@ -421,10 +425,7 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use http_body_util::BodyExt;
-    use std::sync::Mutex;
     use tower::ServiceExt;
-
-    static AUTH_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[tokio::test]
     async fn api_only_root_is_not_spa() {
@@ -471,14 +472,13 @@ mod tests {
 
     #[tokio::test]
     async fn desktop_bootstrap_mints_one_shot_local_session() {
-        let _guard = AUTH_ENV_LOCK.lock().unwrap();
-        std::env::set_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP", "1");
         let token = crate::api::auth::generate_desktop_bootstrap_token();
         let dir = tempfile::tempdir().unwrap();
         let app = app_for_test_custom(
             &dir.path().join("bootstrap.db"),
             TestAppOptions {
                 auth_bypass: false,
+                embedded_desktop: true,
                 desktop_bootstrap_token: Some(token.clone()),
                 ..TestAppOptions::default()
             },
@@ -486,7 +486,8 @@ mod tests {
         .await
         .unwrap();
 
-        let denied = app
+        // Embedded desktop trusts the loopback API without a cookie.
+        let loopback_trusted = app
             .clone()
             .oneshot(
                 axum::http::Request::builder()
@@ -496,7 +497,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(denied.status(), axum::http::StatusCode::UNAUTHORIZED);
+        assert_eq!(loopback_trusted.status(), axum::http::StatusCode::OK);
 
         let boot = app
             .clone()
@@ -535,6 +536,7 @@ mod tests {
             .unwrap();
         assert_eq!(allowed.status(), axum::http::StatusCode::OK);
 
+        // The token is one-shot: replaying it must not mint another session.
         let replay = app
             .oneshot(
                 axum::http::Request::builder()
@@ -546,19 +548,17 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(replay.status(), axum::http::StatusCode::UNAUTHORIZED);
-        std::env::remove_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP");
     }
 
     #[tokio::test]
     async fn desktop_bootstrap_rejects_without_embedded_flag() {
-        let _guard = AUTH_ENV_LOCK.lock().unwrap();
-        std::env::remove_var("ANYCODE_DASHBOARD_EMBEDDED_DESKTOP");
         let token = crate::api::auth::generate_desktop_bootstrap_token();
         let dir = tempfile::tempdir().unwrap();
         let app = app_for_test_custom(
             &dir.path().join("bootstrap-noembed.db"),
             TestAppOptions {
                 auth_bypass: false,
+                embedded_desktop: false,
                 desktop_bootstrap_token: Some(token.clone()),
                 ..TestAppOptions::default()
             },
@@ -603,7 +603,15 @@ mod tests {
     #[tokio::test]
     async fn mutating_api_rejects_non_loopback_host_on_loopback_bind() {
         let dir = tempfile::tempdir().unwrap();
-        let app = app_for_test(&dir.path().join("host.db")).await.unwrap();
+        let app = app_for_test_custom(
+            &dir.path().join("host.db"),
+            TestAppOptions {
+                embedded_desktop: true,
+                ..TestAppOptions::default()
+            },
+        )
+        .await
+        .unwrap();
         let res = app
             .oneshot(
                 axum::http::Request::builder()

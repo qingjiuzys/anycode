@@ -237,10 +237,17 @@ pub fn compiler_context_sections(parts: &CompiledPromptParts) -> Vec<String> {
     if !parts.skill_segment.trim().is_empty() {
         sections.push(parts.skill_segment.clone());
     }
-    sections.push(format!(
-        "## Delivery Preflight\n{}",
-        delivery_preflight_marker(parts)
-    ));
+    let has_gate = parts.gate_plan.as_ref().is_some_and(|p| !p.is_empty());
+    let has_artifacts = !parts.task_spec.expected_artifacts.is_empty();
+    // Simple/general 任务（无 gate、无 artifacts）不注入 Delivery Preflight 段：
+    // 那是冗余上下文，会让「改一个页面」这类任务被引导成多步交付流程。
+    // 日志观测用的 marker 在 execute_task/execute_turn 已单独保留，此处只裁注入段。
+    if has_gate || has_artifacts {
+        sections.push(format!(
+            "## Delivery Preflight\n{}",
+            delivery_preflight_marker(parts)
+        ));
+    }
     if let Some(plan) = &parts.gate_plan {
         if !plan.is_empty() {
             let gates: Vec<_> = plan
@@ -296,5 +303,51 @@ mod tests {
         );
         assert!(denies.contains(&"Skill".into()));
         assert!(denies.contains(&"SkillSearch".into()));
+    }
+
+    #[test]
+    fn simple_task_skips_delivery_preflight_section() {
+        // Simple/general 任务：无 gate、无 artifacts → 不注入 Delivery Preflight 段。
+        let mut parts = CompiledPromptParts::default();
+        parts.task_spec.family = Some(anycode_core::TaskFamily::General);
+        parts.task_spec.goal = "改一个页面的标题".into();
+        let sections = compiler_context_sections(&parts);
+        assert!(
+            sections
+                .iter()
+                .all(|s| !s.starts_with("## Delivery Preflight")),
+            "simple 任务不应注入 Delivery Preflight 段，实际：{:?}",
+            sections
+        );
+        // 日志 marker 独立保留
+        assert!(delivery_preflight_marker(&parts).contains("family=general"));
+    }
+
+    #[test]
+    fn gated_task_keeps_delivery_preflight_section() {
+        // 有 gate / artifacts 的任务仍注入 Delivery Preflight 段。
+        let expected = vec![anycode_core::ExpectedArtifact {
+            id: "landing_html".into(),
+            kind: "html".into(),
+            required: true,
+            path_globs: vec!["**/*.html".into()],
+        }];
+        let mut parts = CompiledPromptParts::default();
+        parts.task_spec.family = Some(anycode_core::TaskFamily::WebDesign);
+        parts.task_spec.expected_artifacts = expected.clone();
+        parts.gate_plan = Some(anycode_core::GatePolicy::plan(
+            Some(anycode_core::TaskFamily::WebDesign),
+            &expected,
+            "h",
+            None,
+        ));
+        let sections = compiler_context_sections(&parts);
+        assert!(
+            sections
+                .iter()
+                .any(|s| s.starts_with("## Delivery Preflight")),
+            "gated 任务应注入 Delivery Preflight 段，实际：{:?}",
+            sections
+        );
     }
 }

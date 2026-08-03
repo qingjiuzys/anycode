@@ -4,7 +4,11 @@ import type {
   BrowserState,
   FsEntry,
   FsReadResult,
+  GitChangeKind,
+  GitFileChange,
+  GitFileDiff,
   GitStatusSummary,
+  TerminalSessionInfo,
 } from "../types/workbench";
 import { del, get, post, apiWebSocketUrl } from "../http";
 
@@ -66,12 +70,40 @@ export const workbenchClient = {
       doctor_message?: string;
     }>("/api/workbench/browser/status"),
 
-  terminalWsUrl: (projectId: string) =>
-    apiWebSocketUrl(`/api/projects/${encodeURIComponent(projectId)}/terminal/ws`),
+  createTerminalSession: (projectId: string, conversationId: string) =>
+    post<{ session: TerminalSessionInfo }>("/api/workbench/terminal/sessions", {
+      project_id: projectId,
+      conversation_id: conversationId,
+    }),
+
+  listTerminalSessions: (projectId: string, conversationId: string) =>
+    get<{ sessions: TerminalSessionInfo[] }>(
+      `/api/workbench/terminal/sessions?project_id=${encodeURIComponent(projectId)}&conversation_id=${encodeURIComponent(conversationId)}`,
+    ),
+
+  deleteTerminalSession: (sessionId: string) =>
+    del<{ ok: boolean }>(
+      `/api/workbench/terminal/sessions/${encodeURIComponent(sessionId)}`,
+    ),
+
+  terminalSessionWsUrl: (sessionId: string) =>
+    apiWebSocketUrl(
+      `/api/workbench/terminal/sessions/${encodeURIComponent(sessionId)}/ws`,
+    ),
 
   projectGitStatus: (projectId: string) =>
     get<{ git: GitStatusSummary }>(
       `/api/projects/${encodeURIComponent(projectId)}/git/status`,
+    ),
+
+  projectGitChanges: (projectId: string) =>
+    get<{ changes: GitFileChange[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/git/changes`,
+    ),
+
+  projectGitFileDiff: (projectId: string, path: string, kind: GitChangeKind) =>
+    get<{ diff: GitFileDiff }>(
+      `/api/projects/${encodeURIComponent(projectId)}/git/diff?path=${encodeURIComponent(path)}&kind=${encodeURIComponent(kind)}`,
     ),
 
   projectGitCommit: (projectId: string, body?: { message?: string }) =>

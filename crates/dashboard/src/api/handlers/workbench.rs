@@ -1,7 +1,7 @@
 use super::*;
 use crate::workbench::{
-    list_dir, read_file, read_raw_file, shared_manager, stat_path, BrowserSessionManager,
-    CreateBrowserSessionBody, PtySession, TerminalClientMessage, TerminalServerMessage,
+    list_dir, read_file, read_raw_file, shared_manager, stat_path, terminal_shared_manager,
+    BrowserSessionManager, CreateBrowserSessionBody, TerminalClientMessage, TerminalServerMessage,
     DEFAULT_MAX_RAW_BYTES, DEFAULT_MAX_READ_BYTES,
 };
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -154,28 +154,79 @@ pub async fn raw_project_fs(
     }
 }
 
-pub async fn project_terminal_ws(
+/// Create a terminal tab inside a conversation's group.
+#[derive(Deserialize)]
+pub struct CreateTerminalSessionBody {
+    pub project_id: String,
+    pub conversation_id: String,
+}
+
+pub async fn create_terminal_session(
     State(state): State<AppState>,
-    Path(project_id): Path<String>,
-    ws: WebSocketUpgrade,
+    Json(body): Json<CreateTerminalSessionBody>,
 ) -> impl IntoResponse {
-    let root = match project_root_path(&state, &project_id).await {
+    let root = match project_root_path(&state, &body.project_id).await {
         Ok(r) => r,
         Err(resp) => {
             return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
         }
     };
-    ws.on_upgrade(move |socket| handle_terminal_ws(socket, root))
+    let cwd = StdPath::new(&root);
+    let mgr = terminal_shared_manager();
+    match mgr.create(&body.project_id, &body.conversation_id, cwd) {
+        Ok((session, _rx)) => Json(json!({ "session": session.info() })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
 }
 
-async fn handle_terminal_ws(socket: WebSocket, root_path: String) {
-    let cwd = StdPath::new(&root_path);
-    let (pty, mut out_rx) = match PtySession::spawn(cwd) {
-        Ok(v) => v,
-        Err(e) => {
+#[derive(Deserialize)]
+pub struct ListTerminalSessionsQuery {
+    pub project_id: String,
+    pub conversation_id: String,
+}
+
+pub async fn list_terminal_sessions(
+    Query(q): Query<ListTerminalSessionsQuery>,
+) -> impl IntoResponse {
+    let mgr = terminal_shared_manager();
+    let sessions = mgr.list(&q.project_id, &q.conversation_id);
+    Json(json!({ "sessions": sessions })).into_response()
+}
+
+pub async fn delete_terminal_session(Path(session_id): Path<String>) -> impl IntoResponse {
+    let mgr = terminal_shared_manager();
+    if mgr.close(&session_id) {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "terminal session not found" })),
+        )
+            .into_response()
+    }
+}
+
+/// Attach a WebSocket to an existing live terminal session. Multiple sockets
+/// may attach concurrently; disconnecting one does not kill the shell.
+pub async fn terminal_session_ws(
+    Path(session_id): Path<String>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_terminal_ws(socket, session_id))
+}
+
+async fn handle_terminal_ws(socket: WebSocket, session_id: String) {
+    let mgr = terminal_shared_manager();
+    let pty = match mgr.get(&session_id) {
+        Some(p) => p,
+        None => {
             let (mut socket, _) = socket.split();
             let msg = serde_json::to_string(&TerminalServerMessage::Error {
-                message: e.to_string(),
+                message: "terminal session not found".into(),
             })
             .unwrap_or_default();
             let _ = socket.send(Message::Text(msg.into())).await;
@@ -184,13 +235,30 @@ async fn handle_terminal_ws(socket: WebSocket, root_path: String) {
     };
 
     let (mut ws_tx, mut ws_rx) = socket.split();
-
+    let mut out_rx = pty.subscribe();
     let pty_in = pty.clone();
+
+    // Replay recent output (e.g. the shell prompt) to a newly attached
+    // subscriber; a fresh `broadcast` receiver otherwise misses anything
+    // produced before it subscribed.
+    for msg in pty.replay_history() {
+        let text = serde_json::to_string(&msg).unwrap_or_default();
+        if ws_tx.send(Message::Text(text.into())).await.is_err() {
+            return;
+        }
+    }
+
     let read_task = tokio::spawn(async move {
-        while let Some(msg) = out_rx.recv().await {
-            let text = serde_json::to_string(&msg).unwrap_or_default();
-            if ws_tx.send(Message::Text(text.into())).await.is_err() {
-                break;
+        loop {
+            match out_rx.recv().await {
+                Ok(msg) => {
+                    let text = serde_json::to_string(&msg).unwrap_or_default();
+                    if ws_tx.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
             }
         }
     });
@@ -413,6 +481,69 @@ pub async fn get_project_git_status(
 pub struct GitCommitBody {
     #[serde(default)]
     pub message: Option<String>,
+}
+
+pub async fn get_project_git_changes(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+) -> impl IntoResponse {
+    let root = match project_root_path(&state, &project_id).await {
+        Ok(r) => r,
+        Err(resp) => {
+            return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
+        }
+    };
+    match crate::workbench::git_changes(StdPath::new(&root)) {
+        Ok(changes) => Json(json!({ "changes": changes })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_project_git_file_diff(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Query(query): Query<GitFileDiffQuery>,
+) -> impl IntoResponse {
+    let root = match project_root_path(&state, &project_id).await {
+        Ok(r) => r,
+        Err(resp) => {
+            return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
+        }
+    };
+    let path = query.path.as_deref().unwrap_or("");
+    if path.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "missing path" })),
+        )
+            .into_response();
+    }
+    let kind = match query.kind.as_deref() {
+        Some("added") => crate::workbench::GitChangeKind::Added,
+        Some("deleted") => crate::workbench::GitChangeKind::Deleted,
+        Some("renamed") => crate::workbench::GitChangeKind::Renamed,
+        Some("type_changed") => crate::workbench::GitChangeKind::TypeChanged,
+        Some("untracked") => crate::workbench::GitChangeKind::Untracked,
+        _ => crate::workbench::GitChangeKind::Modified,
+    };
+    match crate::workbench::git_file_diff(StdPath::new(&root), path, kind) {
+        Ok(diff) => Json(json!({ "diff": diff })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct GitFileDiffQuery {
+    pub path: Option<String>,
+    pub kind: Option<String>,
 }
 
 pub async fn post_project_git_commit(

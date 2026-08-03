@@ -144,6 +144,7 @@ pub fn router(state: AppState) -> Router {
         .route("/org/team/status", get(handlers::team_status))
         .route("/org/team/setup", post(handlers::team_setup))
         .route("/org/invites", get(handlers::list_org_invites).post(handlers::create_org_invite))
+        .route("/org/invites/link", post(handlers::create_org_invite_link))
         .route("/org/invites/accept", post(handlers::accept_org_invite))
         .route("/devices/link/approve", post(handlers::device_link_approve))
         .route("/devices", get(handlers::list_devices))

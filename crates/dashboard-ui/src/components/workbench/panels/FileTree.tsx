@@ -1,7 +1,33 @@
 import { useState } from "react";
 import type { FsEntry } from "@/api/types/workbench";
 import { Icon } from "@/components/Icon";
+import { kindForPath } from "@/lib/artifactKind";
 import { useProjectFsList } from "../hooks/useProjectFileTree";
+
+function fileIconForPath(path: string): string {
+  switch (kindForPath(path)) {
+    case "image":
+    case "media":
+      return "image";
+    case "video":
+      return "movie";
+    case "audio":
+      return "mic";
+    case "pdf":
+    case "report":
+      return "description";
+    case "spreadsheet":
+      return "table_chart";
+    case "presentation":
+      return "slideshow";
+    case "mindmap":
+      return "psychology";
+    case "document":
+      return "article";
+    default:
+      return "code";
+  }
+}
 
 type Props = {
   projectId: string;
@@ -49,7 +75,7 @@ function TreeNode({ projectId, entry, depth, selectedPath, onSelectPath }: TreeN
           <span className="w-4 shrink-0" />
         )}
         <Icon
-          name={isDir ? "folder" : "insert_drive_file"}
+          name={isDir ? "folder" : fileIconForPath(entry.path)}
           size={16}
           className="shrink-0 text-secondary"
         />
