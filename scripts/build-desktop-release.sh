@@ -113,6 +113,9 @@ if [[ "${ANYCODE_DESKTOP_SKIP_BROWSER:-}" == "1" || "$SIGNING_RELEASE" -eq 1 ]];
 fi
 if [[ "$SKIP_BROWSER" -eq 1 ]]; then
   echo "==> skip bundled Chromium (notarized release; browser installs on first use)"
+  # tauri.conf.json declares resources/browser/ as a bundled resource; tauri
+  # validates the path exists at build time even when we skip the download.
+  mkdir -p "$ROOT/apps/anycode-desktop/resources/browser"
 fi
 
 step "sync workspace version to dashboard-ui / desktop manifests" \
