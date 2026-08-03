@@ -93,7 +93,17 @@ jobs:
           set -euo pipefail
           export ANYCODE_BUILD_TARGET=cloud
           export ANYCODE_DESKTOP_SKIP_BROWSER=1
-          if [[ -n "${{ secrets.APPLE_SIGNING_IDENTITY }}" ]]; then
+          # Resolve a signing identity that actually exists in the keychain
+          # (the imported APPLE_CERTIFICATE_BASE64), falling back to ad-hoc "-".
+          # Using the imported cert's real identity avoids "codesign: no identity found".
+          IMPORTED_IDENTITY=""
+          if command -v security >/dev/null 2>&1; then
+            IMPORTED_IDENTITY="$(security find-identity -v -p codesigning build.keychain 2>/dev/null \
+              | awk '/^[[:space:]]*1\)/{gsub(/"/, ""); sub(/^[[:space:]]*1\)[[:space:]]*/, ""); print $1; exit}')"
+          fi
+          if [[ -n "$IMPORTED_IDENTITY" ]]; then
+            export APPLE_SIGNING_IDENTITY="$IMPORTED_IDENTITY"
+          elif [[ -n "${{ secrets.APPLE_SIGNING_IDENTITY }}" ]]; then
             export APPLE_SIGNING_IDENTITY="${{ secrets.APPLE_SIGNING_IDENTITY }}"
           else
             export APPLE_SIGNING_IDENTITY="-"

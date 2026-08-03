@@ -327,11 +327,8 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while running anycode desktop")
         .run(|app, event| {
-            if let RunEvent::Opened { urls } = &event {
-                for url in urls {
-                    handle_anycode_deep_link(app, url);
-                }
-            }
+            // Deep links are handled via tauri_plugin_deep_link::DeepLinkExt::on_open_url
+            // (see register_deep_link_handlers); RunEvent::Opened does not exist in Tauri 2.
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
                 if let Some(state) = app.try_state::<DashboardServerState>() {
                     state.stop();
