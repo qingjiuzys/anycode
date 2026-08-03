@@ -14,6 +14,14 @@ const icons: Record<string, ReactNode> = {
       <path d="M5 20a7 7 0 0 1 14 0" />
     </>
   ),
+  account_tree: (
+    <>
+      <circle cx="12" cy="5" r="2.25" />
+      <circle cx="6" cy="19" r="2.25" />
+      <circle cx="18" cy="19" r="2.25" />
+      <path d="M12 7.25V12M12 12H6.5v4.75M12 12h5.5v4.75" />
+    </>
+  ),
   add: <path d="M12 5v14M5 12h14" />,
   arrow_upward: <path d="M12 19V5M5 12l7-7 7 7" />,
   analytics: (
@@ -226,6 +234,14 @@ const icons: Record<string, ReactNode> = {
       <path d="M4.5 19a5.5 5.5 0 0 1 9 0" />
       <circle cx="16" cy="9" r="2.75" />
       <path d="M10.5 19a5.5 5.5 0 0 1 9 0" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="8" r="2.75" />
+      <path d="M4.5 18a5.5 5.5 0 0 1 9 0" />
+      <circle cx="16.5" cy="9" r="2.25" />
+      <path d="M14 18h6" />
     </>
   ),
   help_center: (

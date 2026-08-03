@@ -64,6 +64,7 @@ mod notebook_edit;
 mod orchestration;
 mod plan_write;
 mod platform_tools;
+pub mod session_store;
 mod shell_exec;
 mod todo_write;
 mod tool_input_coerce;
@@ -123,7 +124,11 @@ pub use runtime_tool_policy::{
 pub use services::{
     append_cron_job_to_orchestration_file, read_cron_jobs_from_orchestration_file,
     remove_cron_job_from_orchestration_file, update_cron_job_in_orchestration_file, CronJob,
-    CronJobCreateOptions, CronJobPatch, LspConnectionConfig, ToolRegistryDeps, ToolServices,
+    CronJobCreateOptions, CronJobPatch, LspConnectionConfig, TodoItem, ToolRegistryDeps,
+    ToolServices,
+};
+pub use session_store::{
+    resolve_session_key, SessionPlanStore, SessionTodoStore, EPHEMERAL_SESSION_KEY,
 };
 pub use skills::{
     default_skill_roots, ensure_office_starter_skills, install_skill, install_starter_skills,

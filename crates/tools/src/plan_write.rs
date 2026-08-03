@@ -1,6 +1,7 @@
-//! `PlanWrite` — hierarchical session plan tree (in-memory, persisted in orchestration snapshot).
+//! `PlanWrite` — hierarchical session plan tree (in-memory + optional DB persist).
 
 use crate::services::ToolServices;
+use crate::session_store::resolve_session_key;
 use anycode_core::prelude::*;
 use anycode_core::{
     apply_plan_patches, format_plan_tree_summary, plan_tree_all_completed, plan_tree_is_empty,
@@ -152,6 +153,9 @@ impl Tool for PlanWriteTool {
 
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
+        let session_id = input.dashboard_session_id.clone();
+        let session_key = resolve_session_key(session_id.as_deref());
+        self.services.hydrate_plan_tree(session_id.as_deref()).await;
         let pw: PwInput =
             serde_json::from_value(input.input).map_err(CoreError::SerializationError)?;
         if pw.tree.is_none() && pw.updates.is_none() {
@@ -172,10 +176,10 @@ impl Tool for PlanWriteTool {
                 });
             }
             rollup_plan_statuses(&mut tree);
-            self.services.replace_plan_tree(tree)
+            self.services.replace_plan_tree(session_id.as_deref(), tree)
         } else {
             let updates = pw.updates.unwrap_or_default();
-            let mut tree = self.services.plan_tree();
+            let mut tree = self.services.plan_tree(session_id.as_deref());
             if let Err(e) = apply_plan_patches(&mut tree, &updates) {
                 return Ok(ToolOutput {
                     result: serde_json::json!({ "error": validation_err(e) }),
@@ -191,15 +195,19 @@ impl Tool for PlanWriteTool {
                 });
             }
             rollup_plan_statuses(&mut tree);
-            self.services.replace_plan_tree(tree)
+            self.services.replace_plan_tree(session_id.as_deref(), tree)
         };
         let (old, new) = result;
+        self.services
+            .persist_plan_tree(session_id.as_deref(), &new)
+            .await;
         let summary = format_plan_tree_summary(&new);
         Ok(ToolOutput {
             result: serde_json::json!({
                 "oldTree": old,
                 "newTree": new,
                 "summary": summary,
+                "sessionId": session_key,
                 "cleared": plan_tree_is_empty(&new),
                 "allCompleted": plan_tree_all_completed(&new),
             }),
@@ -216,9 +224,9 @@ mod tests {
     use serde_json::json;
 
     #[tokio::test]
-    async fn plan_write_replaces_tree() {
+    async fn plan_write_replaces_tree_for_session() {
         let services = Arc::new(ToolServices::default());
-        let tool = PlanWriteTool::new(services);
+        let tool = PlanWriteTool::new(services.clone());
         let out = tool
             .execute(ToolInput {
                 name: "PlanWrite".into(),
@@ -236,6 +244,7 @@ mod tests {
                 }),
                 working_directory: Some(".".into()),
                 sandbox_mode: false,
+                dashboard_session_id: Some("sess_test".into()),
             })
             .await
             .unwrap();
@@ -244,5 +253,10 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("Implement feature"));
+        assert_eq!(
+            services.plan_tree(Some("sess_test")).roots[0].title,
+            "Implement feature"
+        );
+        assert!(plan_tree_is_empty(&services.plan_tree(Some("other"))));
     }
 }

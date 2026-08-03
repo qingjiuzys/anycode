@@ -84,6 +84,9 @@ pub struct ToolInput {
     pub working_directory: Option<String>,
     #[serde(default)]
     pub sandbox_mode: bool,
+    /// Dashboard `sessions.id` when the tool runs inside embedded Workbench chat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dashboard_session_id: Option<String>,
 }
 
 impl Default for ToolInput {
@@ -93,6 +96,7 @@ impl Default for ToolInput {
             input: serde_json::Value::Null,
             working_directory: None,
             sandbox_mode: false,
+            dashboard_session_id: None,
         }
     }
 }

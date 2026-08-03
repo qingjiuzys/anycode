@@ -41,6 +41,8 @@
   --spacing-session-sidebar-rail: 5rem;
   /* Centered conversation column + tool/bubble width cap (symmetric gutters). */
   --conv-content-max: min(100%, 56rem);
+  /* Narrower cap when right workbench is open — leaves room for the dock. */
+  --conv-content-max-workbench: min(100%, 34rem);
   --radius-sm: 0.125rem;
   --radius-default: 0.25rem;
   --radius-lg: 0.5rem;
@@ -153,6 +155,35 @@
   html.dw-tauri {
     --dw-topbar-height: 2.75rem;
     --dw-panel-top: 2.875rem;
+  }
+
+  /* Frameless window: drag from chrome; interactive nodes opt out below. */
+  html.dw-tauri [data-tauri-drag-region] {
+    -webkit-app-region: drag;
+  }
+
+  html.dw-tauri [data-tauri-drag-region] button,
+  html.dw-tauri [data-tauri-drag-region] a,
+  html.dw-tauri [data-tauri-drag-region] input,
+  html.dw-tauri [data-tauri-drag-region] textarea,
+  html.dw-tauri [data-tauri-drag-region] select,
+  html.dw-tauri [data-tauri-drag-region] [role="button"],
+  html.dw-tauri [data-tauri-drag-region] .dw-session-sidebar__scroll,
+  html.dw-tauri [data-tauri-drag-region] .dw-sidebar-quick,
+  html.dw-tauri [data-tauri-drag-region] .conv-thread-transcript-scroll,
+  html.dw-tauri [data-tauri-drag-region] .conv-thread-composer,
+  html.dw-tauri [data-tauri-drag-region] .conv-git-bar,
+  html.dw-tauri [data-tauri-drag-region] .conv-workbench-panel > div:last-child,
+  html.dw-tauri [data-tauri-drag-region] .conv-browser-viewport,
+  html.dw-tauri [data-tauri-drag-region] .conv-workbench-header-icons,
+  html.dw-tauri [data-tauri-drag-region] .cursor-col-resize,
+  html.dw-tauri [data-tauri-drag-region] .dw-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  html.dw-tauri .dw-sessions-sidebar-collapsed .dw-session-sidebar--collapsed {
+    pointer-events: auto;
+    -webkit-app-region: drag;
   }
 
   html,
@@ -303,6 +334,10 @@
     pointer-events: none;
   }
 
+  html.dw-tauri .dw-sessions-sidebar-collapsed .dw-session-sidebar--collapsed {
+    pointer-events: auto;
+  }
+
   .dw-sessions-sidebar-collapsed .dw-main-wrap--sessions {
     margin-left: var(--spacing-session-sidebar-rail, 5rem);
   }
@@ -342,8 +377,8 @@
   }
 
   html.dw-tauri .dw-session-sidebar {
-    padding-top: 2.5rem;
-    padding-bottom: 1rem;
+    padding-top: 2rem;
+    padding-bottom: 0.75rem;
   }
 
   html.dw-tauri .dw-session-sidebar-footer,
@@ -385,12 +420,20 @@
     @apply pt-1 shrink-0;
   }
 
+  .dw-session-sidebar__header {
+    @apply shrink-0 relative z-[2];
+  }
+
+  .dw-session-sidebar__scroll {
+    @apply relative z-[1];
+  }
+
   .dw-sidebar-quick {
-    @apply flex flex-col gap-0.5 px-2 pb-2 shrink-0;
+    @apply flex flex-col gap-0 px-2 pb-1 shrink-0;
   }
 
   .dw-sidebar-quick__item {
-    @apply w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-0 bg-transparent text-[14px] text-on-surface cursor-pointer text-left hover:bg-surface-container-low transition-colors;
+    @apply w-full flex items-center gap-2 px-2 py-1.5 rounded-md border-0 bg-transparent text-[14px] text-on-surface cursor-pointer text-left hover:bg-surface-container-low transition-colors;
   }
 
   .dw-sidebar-quick__item--active {
@@ -407,7 +450,7 @@
   }
 
   .dw-sidebar-section-label {
-    @apply text-[13px] font-medium text-secondary tracking-wide;
+    @apply text-[14px] font-medium text-secondary tracking-wide;
   }
 
   .dw-standard-footer {
@@ -1626,7 +1669,7 @@
   }
 
   .conv-thread-composer .dw-composer-textarea {
-    @apply w-full min-h-[7.5rem] max-h-64 resize-y border-0 bg-transparent px-2 py-2.5 text-base text-on-surface placeholder:text-outline outline-none shadow-none;
+    @apply w-full min-h-[3.75rem] max-h-32 resize-y border-0 bg-transparent px-2 py-2 text-base text-on-surface placeholder:text-outline outline-none shadow-none;
   }
 
   .conv-thread-composer .dw-composer-textarea:focus {
@@ -1672,6 +1715,16 @@
     @apply inline-flex items-center justify-center w-10 h-10 rounded-full border-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0;
     background: var(--accent);
     color: var(--accent-on);
+  }
+
+  .dw-composer-pause {
+    @apply inline-flex items-center justify-center w-10 h-10 rounded-full border-0 cursor-pointer transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0;
+    background: var(--color-error);
+    color: #fff;
+  }
+
+  .dw-composer-pause:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-error) 88%, #000);
   }
 
   .dw-composer-stop {
@@ -2142,7 +2195,7 @@
   }
 
   .dw-project-session-group__name-btn {
-    @apply min-w-0 flex-1 inline-flex items-center gap-1.5 text-left text-[14px] font-medium text-on-surface border-0 bg-transparent cursor-pointer px-1.5 py-1.5 rounded-lg hover:bg-surface-container-low;
+    @apply min-w-0 flex-1 inline-flex items-center gap-1.5 text-left text-[15px] font-medium text-on-surface border-0 bg-transparent cursor-pointer px-1.5 py-1.5 rounded-lg hover:bg-surface-container-low;
   }
 
   .dw-project-session-group__name-btn--active {
@@ -2176,7 +2229,7 @@
   }
 
   .conv-title-menu__title {
-    @apply text-base font-semibold;
+    @apply text-base font-semibold truncate;
   }
 
   .conv-title-menu__chev {
@@ -2192,21 +2245,84 @@
   }
 
   .conv-workbench-dock {
-    @apply border-l border-outline-variant bg-surface-container-lowest overflow-hidden;
-    /* Room for panel + 3rem activity rail (rail must stay visible). */
-    width: min(34vw, 23rem);
-    max-width: min(34vw, 23rem);
-    min-width: 19rem;
+    @apply border-l border-outline-variant bg-surface-container-lowest overflow-hidden flex min-h-0 h-full;
+    flex: 1 1 0;
+    min-width: 20rem;
+    max-width: min(62vw, 44rem);
   }
 
-  .conv-workbench-dock > .flex {
+  .conv-session-split--workbench > .conv-thread--workbench-open {
+    flex: 0 0 auto;
+    width: min(36%, var(--conv-content-max-workbench));
+    max-width: min(36%, 34rem);
+    min-width: 14rem;
+    overflow: hidden;
+  }
+
+  .conv-session-split--workbench > .conv-workbench-dock {
+    flex: 1 1 0;
+    min-width: 22rem;
+    max-width: none;
+  }
+
+  .conv-workbench-dock > .flex,
+  .conv-workbench-dock > .conv-workbench-panel {
     @apply w-full min-w-0;
   }
 
   .conv-workbench-panel {
     flex: 1 1 auto;
     min-width: 0;
-    max-width: calc(100% - 3rem);
+    max-width: 100%;
+  }
+
+  .conv-workbench-header-icons {
+    @apply inline-flex items-center justify-end gap-0.5 w-full;
+    --conv-workbench-icons-width: 10rem;
+  }
+
+  .conv-workbench-header-icons__btn {
+    @apply p-1.5 rounded-lg border-0 cursor-pointer transition-colors bg-transparent text-secondary hover:bg-surface-container-high hover:text-on-surface;
+  }
+
+  .conv-workbench-header-icons__btn--active {
+    @apply bg-primary/15 text-primary;
+  }
+
+  .conv-workbench-header-icons__btn:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+
+  .conv-git-bar__row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .conv-git-bar__pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-outline-variant/70 px-3 py-1 text-xs font-medium text-on-surface bg-surface-container-low;
+  }
+
+  .conv-git-bar__pill--action {
+    @apply cursor-pointer hover:bg-surface-container-high disabled:opacity-45 disabled:cursor-not-allowed;
+  }
+
+  .conv-git-bar__label {
+    @apply text-secondary;
+  }
+
+  .conv-git-bar__stat--add {
+    @apply text-success font-medium tabular-nums;
+  }
+
+  .conv-git-bar__stat--del {
+    @apply text-error font-medium tabular-nums;
+  }
+
+  .conv-git-bar__menu {
+    @apply absolute bottom-full right-0 mb-1 min-w-[10rem] rounded-xl border border-outline-variant bg-surface-container-lowest py-1 shadow-lg z-20;
+  }
+
+  .conv-git-bar__menu-item {
+    @apply block w-full text-left px-3 py-2 text-sm border-0 bg-transparent cursor-pointer hover:bg-surface-container-high disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
 
@@ -2216,19 +2332,29 @@
 
   .conv-thread-header__row {
     @apply grid w-full min-h-9 min-w-0 flex-1 items-center gap-2;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    /* Left control | title (flexible, truncates) | workbench icons (fixed) */
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .conv-thread-header__center {
-    @apply min-w-0 flex justify-center;
+    @apply min-w-0 flex justify-center overflow-hidden px-1;
+  }
+
+  .conv-thread-header__center .conv-title-menu {
+    @apply max-w-full min-w-0 w-full flex justify-center;
+  }
+
+  .conv-thread-header__center .conv-title-menu__trigger {
+    @apply max-w-full min-w-0;
   }
 
   .conv-thread-header__side {
-    @apply min-w-0 flex items-center justify-start;
+    @apply shrink-0 flex items-center justify-start;
   }
 
   .conv-thread-header__side--end {
-    @apply flex items-center justify-end gap-0.5;
+    @apply shrink-0 flex items-center justify-end;
+    width: var(--conv-workbench-icons-width, 10rem);
   }
 
   html.dw-tauri .conv-thread-header {
@@ -2237,10 +2363,14 @@
     min-height: 2.75rem;
     padding-top: 0;
     padding-bottom: 0;
-    /* Sidebar (full or rail) owns Mac traffic-light inset; keep L/R symmetric. */
     padding-left: 0.5rem;
     padding-right: 0.5rem;
     -webkit-app-region: drag;
+  }
+
+  html.dw-tauri .conv-thread-header__row {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   html.dw-tauri .conv-thread-header button,
@@ -2257,13 +2387,23 @@
     @apply py-4 pb-6;
   }
 
-  /* Workbench open: middle column already shrinks — use full column. */
+  /* Workbench open: keep composer/transcript narrow; dock absorbs extra width. */
   .conv-thread--workbench-open .conv-thread-body,
   .conv-thread--workbench-open .conv-thread-composer {
-    width: 100%;
+    width: var(--conv-content-max-workbench);
     max-width: 100%;
+    margin-inline: auto;
     padding-inline: 0.75rem;
     box-sizing: border-box;
+  }
+
+  /* Hide transcript while right workbench is open — avoids overlap with narrow chat column. */
+  .conv-thread--workbench-open .conv-thread-transcript-scroll {
+    display: none;
+  }
+
+  .conv-thread--workbench-open .conv-thread-composer-dock {
+    @apply flex-1 min-h-0 flex flex-col justify-end;
   }
 
   .conv-thread-body .bubble-user,
@@ -2306,23 +2446,6 @@
 
   .conv-thread-body .turn-recap-header {
     @apply text-sm;
-  }
-
-  .dw-composer-skills-menu {
-    @apply min-w-[18rem] max-w-[24rem] max-h-64 overflow-y-auto rounded-2xl border border-outline-variant bg-surface-container-lowest py-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.12)];
-    scrollbar-width: thin;
-  }
-
-  .dw-composer-skills-menu__item {
-    @apply w-full flex items-start gap-2.5 px-3.5 py-2.5 text-on-surface border-0 bg-transparent cursor-pointer text-left hover:bg-surface-container-low;
-  }
-
-  .dw-composer-skills-menu__item.is-active {
-    @apply bg-primary/8;
-  }
-
-  .dw-composer-skills-menu__icon {
-    @apply w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5;
   }
 
   .dw-hero-composer__project-select {

@@ -42,6 +42,7 @@ pub mod runtime_config;
 pub mod schema;
 pub mod search;
 pub mod server;
+pub mod session_state_store;
 pub mod skill_market;
 pub mod skill_meta;
 pub mod skill_suggestions;

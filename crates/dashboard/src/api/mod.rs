@@ -313,6 +313,18 @@ pub fn router(state: AppState) -> Router {
             get(handlers::project_terminal_ws),
         )
         .route(
+            "/projects/{project_id}/git/status",
+            get(handlers::get_project_git_status),
+        )
+        .route(
+            "/projects/{project_id}/git/commit",
+            post(handlers::post_project_git_commit),
+        )
+        .route(
+            "/projects/{project_id}/git/push",
+            post(handlers::post_project_git_push),
+        )
+        .route(
             "/workbench/browser/status",
             get(handlers::get_workbench_browser_status),
         )
@@ -510,6 +522,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/sessions/{session_id}/background-tasks",
             get(handlers::get_session_background_tasks),
+        )
+        .route(
+            "/sessions/{session_id}/plan-tree",
+            get(handlers::get_session_plan_tree).delete(handlers::delete_session_plan_tree),
         )
         .route("/media/status", get(handlers::get_media_status))
         .route("/media/transcribe", post(handlers::transcribe_audio))

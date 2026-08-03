@@ -1,6 +1,9 @@
 //! 跨工具共享的运行时状态与 HTTP 客户端（装配自 `bootstrap` / `build_registry`）。
 
 use crate::ask_user_question_host::AskUserQuestionHostArc;
+use crate::session_store::{
+    resolve_session_key, SessionPlanStore, SessionTodoStore, EPHEMERAL_SESSION_KEY,
+};
 use crate::skills::{SkillCatalog, SkillsGovernance};
 use anycode_core::{
     plan_tree_all_completed, CoreError, NestedTaskRun, PlanTree, SubAgentExecutor, TaskResult,
@@ -226,9 +229,11 @@ pub struct RuntimeModeState {
 struct OrchestrationSnapshotV1 {
     #[serde(default)]
     version: u32,
-    #[serde(default)]
+    /// Legacy global todos — ignored on load; session todos live in projects.db.
+    #[serde(default, skip_serializing)]
     todos: Vec<TodoItem>,
-    #[serde(default)]
+    /// Legacy global plan tree — ignored on load; session trees live in projects.db.
+    #[serde(default, skip_serializing)]
     plan_tree: PlanTree,
     #[serde(default)]
     tasks: HashMap<String, TaskRecord>,
@@ -240,7 +245,8 @@ struct OrchestrationSnapshotV1 {
     remote_hooks: Vec<String>,
     #[serde(default)]
     inter_messages: Vec<(String, String)>,
-    #[serde(default)]
+    /// Legacy global mode — ignored on load; mode is session-keyed in memory.
+    #[serde(default, skip_serializing)]
     mode: RuntimeModeState,
     #[serde(default)]
     deferred_tool_names: Vec<String>,
@@ -256,14 +262,17 @@ pub struct ToolServices {
     pub web_search_api_key: Option<String>,
     pub web_search_endpoint: Option<String>,
     orchestration_path: Option<PathBuf>,
-    todos: Mutex<Vec<TodoItem>>,
-    plan_tree: Mutex<PlanTree>,
+    /// Session-keyed todo lists (dashboard `sessions.id` or ephemeral).
+    todos_by_session: Mutex<HashMap<String, Vec<TodoItem>>>,
+    /// Session-keyed plan trees.
+    plan_trees: Mutex<HashMap<String, PlanTree>>,
     tasks: Mutex<HashMap<String, TaskRecord>>,
     teams: Mutex<HashMap<String, TeamRecord>>,
     crons: Mutex<Vec<CronJob>>,
     remote_hooks: Mutex<Vec<String>>,
     inter_messages: Mutex<Vec<(String, String)>>,
-    mode: Mutex<RuntimeModeState>,
+    /// Session-keyed plan-mode / worktree state (not persisted to orchestration.json).
+    modes: Mutex<HashMap<String, RuntimeModeState>>,
     /// `ToolSearch` 登记的延后工具名（演示用）。
     deferred_tool_names: Mutex<Vec<String>>,
     /// `Config` 工具内存覆盖（不直接写盘；真实持久化由 CLI 负责）。
@@ -286,8 +295,8 @@ pub struct ToolServices {
     pub skill_catalog: Arc<SkillCatalog>,
     /// Runtime skill governance (global / per-agent / project allowlists).
     pub skills_governance: Mutex<SkillsGovernance>,
-    /// Active agent id for the current tool loop (Skill governance).
-    active_agent_type: Mutex<Option<String>>,
+    /// Active agent id per session (Skill governance); avoids cross-session races.
+    active_agent_type_by_session: Mutex<HashMap<String, String>>,
     /// Parent `execute_task` tool surface for nested Agent/Task inheritance.
     parent_task_tool_deny: Mutex<Option<(Vec<String>, Vec<String>)>>,
     /// Injected at bootstrap; avoids per-execute disk reads in media tools.
@@ -295,6 +304,10 @@ pub struct ToolServices {
     /// Native CDP browser (`tools-browser`).
     #[cfg(feature = "tools-browser")]
     browser_service: Mutex<Option<Arc<anycode_browser::BrowserService>>>,
+    /// Optional durable store for session plan trees (dashboard DB).
+    session_plan_store: Mutex<Option<Arc<dyn SessionPlanStore>>>,
+    /// Optional durable store for session todos (dashboard DB).
+    session_todo_store: Mutex<Option<Arc<dyn SessionTodoStore>>>,
 }
 
 impl Default for ToolServices {
@@ -308,14 +321,14 @@ impl Default for ToolServices {
             web_search_api_key: std::env::var("ANYCODE_WEB_SEARCH_API_KEY").ok(),
             web_search_endpoint: std::env::var("ANYCODE_WEB_SEARCH_URL").ok(),
             orchestration_path: None,
-            todos: Mutex::new(vec![]),
-            plan_tree: Mutex::new(PlanTree::default()),
+            todos_by_session: Mutex::new(HashMap::new()),
+            plan_trees: Mutex::new(HashMap::new()),
             tasks: Mutex::new(HashMap::new()),
             teams: Mutex::new(HashMap::new()),
             crons: Mutex::new(vec![]),
             remote_hooks: Mutex::new(vec![]),
             inter_messages: Mutex::new(vec![]),
-            mode: Mutex::new(RuntimeModeState::default()),
+            modes: Mutex::new(HashMap::new()),
             deferred_tool_names: Mutex::new(vec![]),
             config_overrides: Mutex::new(HashMap::new()),
             sub_agent_executor: Mutex::new(None),
@@ -328,11 +341,13 @@ impl Default for ToolServices {
             mcp_defer_allowlist: None,
             skill_catalog: Arc::new(SkillCatalog::empty()),
             skills_governance: Mutex::new(SkillsGovernance::default()),
-            active_agent_type: Mutex::new(None),
+            active_agent_type_by_session: Mutex::new(HashMap::new()),
             parent_task_tool_deny: Mutex::new(None),
             media_registry: Mutex::new(None),
             #[cfg(feature = "tools-browser")]
             browser_service: Mutex::new(None),
+            session_plan_store: Mutex::new(None),
+            session_todo_store: Mutex::new(None),
         }
     }
 }
@@ -509,14 +524,28 @@ impl ToolServices {
     }
 
     pub fn set_active_agent_type(&self, agent_type: Option<String>) {
-        *self.active_agent_type.lock().expect("active_agent_type") = agent_type;
+        let key = resolve_session_key(None);
+        let mut guard = self
+            .active_agent_type_by_session
+            .lock()
+            .expect("active_agent_type");
+        match agent_type {
+            Some(v) => {
+                guard.insert(key, v);
+            }
+            None => {
+                guard.remove(&key);
+            }
+        }
     }
 
     pub fn active_agent_type(&self) -> Option<String> {
-        self.active_agent_type
+        let key = resolve_session_key(None);
+        self.active_agent_type_by_session
             .lock()
             .expect("active_agent_type")
-            .clone()
+            .get(&key)
+            .cloned()
     }
 
     pub fn is_skill_allowed(&self, skill_id: &str) -> bool {
@@ -750,14 +779,15 @@ impl ToolServices {
     }
 
     fn apply_snapshot(&self, snap: OrchestrationSnapshotV1) {
-        *self.todos.lock().expect("todos mutex") = snap.todos;
-        *self.plan_tree.lock().expect("plan_tree mutex") = snap.plan_tree;
+        // todos / plan_tree / mode are session-scoped now — ignore legacy global fields.
+        let _ = snap.todos;
+        let _ = snap.plan_tree;
+        let _ = snap.mode;
         *self.tasks.lock().expect("tasks mutex") = snap.tasks;
         *self.teams.lock().expect("teams mutex") = snap.teams;
         *self.crons.lock().expect("crons mutex") = snap.crons;
         *self.remote_hooks.lock().expect("remote mutex") = snap.remote_hooks;
         *self.inter_messages.lock().expect("msg mutex") = snap.inter_messages;
-        *self.mode.lock().expect("mode mutex") = snap.mode;
         *self.deferred_tool_names.lock().expect("defer mutex") = snap.deferred_tool_names;
         *self.config_overrides.lock().expect("cfg mutex") = snap.config_overrides;
     }
@@ -765,14 +795,14 @@ impl ToolServices {
     fn collect_snapshot(&self) -> OrchestrationSnapshotV1 {
         OrchestrationSnapshotV1 {
             version: 1,
-            todos: self.todos.lock().expect("todos mutex").clone(),
-            plan_tree: self.plan_tree.lock().expect("plan_tree mutex").clone(),
+            todos: Vec::new(),
+            plan_tree: PlanTree::default(),
             tasks: self.tasks.lock().expect("tasks mutex").clone(),
             teams: self.teams.lock().expect("teams mutex").clone(),
             crons: self.crons.lock().expect("crons mutex").clone(),
             remote_hooks: self.remote_hooks.lock().expect("remote mutex").clone(),
             inter_messages: self.inter_messages.lock().expect("msg mutex").clone(),
-            mode: self.mode.lock().expect("mode mutex").clone(),
+            mode: RuntimeModeState::default(),
             deferred_tool_names: self
                 .deferred_tool_names
                 .lock()
@@ -803,33 +833,182 @@ impl ToolServices {
         Ok(())
     }
 
-    pub fn replace_todos(&self, new: Vec<TodoItem>) -> (Vec<TodoItem>, Vec<TodoItem>) {
-        let mut guard = self.todos.lock().expect("todos mutex");
-        let old = std::mem::take(&mut *guard);
+    pub fn attach_session_plan_store(&self, store: Arc<dyn SessionPlanStore>) {
+        *self.session_plan_store.lock().expect("session_plan_store") = Some(store);
+    }
+
+    pub fn attach_session_todo_store(&self, store: Arc<dyn SessionTodoStore>) {
+        *self.session_todo_store.lock().expect("session_todo_store") = Some(store);
+    }
+
+    pub fn todos(&self, session_id: Option<&str>) -> Vec<TodoItem> {
+        let key = resolve_session_key(session_id);
+        self.todos_by_session
+            .lock()
+            .expect("todos mutex")
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn replace_todos(
+        &self,
+        session_id: Option<&str>,
+        new: Vec<TodoItem>,
+    ) -> (Vec<TodoItem>, Vec<TodoItem>) {
+        let key = resolve_session_key(session_id);
+        let mut guard = self.todos_by_session.lock().expect("todos mutex");
+        let old = guard.remove(&key).unwrap_or_default();
+        // Vacuous true for empty list — matches prior global TodoWrite clear semantics.
         let all_done = new.iter().all(|t| t.status == "completed");
-        *guard = if all_done { vec![] } else { new.clone() };
-        let cur = guard.clone();
+        let cur = if all_done { Vec::new() } else { new };
+        if !cur.is_empty() {
+            guard.insert(key.clone(), cur.clone());
+        }
         drop(guard);
-        self.try_persist();
         (old, cur)
     }
 
-    pub fn plan_tree(&self) -> PlanTree {
-        self.plan_tree.lock().expect("plan_tree mutex").clone()
+    pub async fn persist_todos(&self, session_id: Option<&str>, todos: &[TodoItem]) {
+        let key = resolve_session_key(session_id);
+        let store = self
+            .session_todo_store
+            .lock()
+            .expect("session_todo_store")
+            .clone();
+        let Some(store) = store else {
+            return;
+        };
+        if key == EPHEMERAL_SESSION_KEY {
+            return;
+        }
+        let result = if todos.is_empty() {
+            store.clear(&key).await
+        } else {
+            store.save(&key, todos).await
+        };
+        if let Err(e) = result {
+            tracing::warn!(target: "anycode_tools", error = %e, session_id = %key, "session todo persist failed");
+        }
     }
 
-    pub fn replace_plan_tree(&self, new: PlanTree) -> (PlanTree, PlanTree) {
-        let mut guard = self.plan_tree.lock().expect("plan_tree mutex");
-        let old = std::mem::take(&mut *guard);
-        *guard = if plan_tree_all_completed(&new) {
+    pub async fn hydrate_todos(&self, session_id: Option<&str>) {
+        let key = resolve_session_key(session_id);
+        {
+            let guard = self.todos_by_session.lock().expect("todos mutex");
+            if guard.contains_key(&key) {
+                return;
+            }
+        }
+        let store = self
+            .session_todo_store
+            .lock()
+            .expect("session_todo_store")
+            .clone();
+        let Some(store) = store else {
+            return;
+        };
+        if key == EPHEMERAL_SESSION_KEY {
+            return;
+        }
+        match store.load(&key).await {
+            Ok(Some(todos)) => {
+                self.todos_by_session
+                    .lock()
+                    .expect("todos mutex")
+                    .insert(key, todos);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(target: "anycode_tools", error = %e, session_id = %key, "session todo hydrate failed");
+            }
+        }
+    }
+
+    pub fn plan_tree(&self, session_id: Option<&str>) -> PlanTree {
+        let key = resolve_session_key(session_id);
+        self.plan_trees
+            .lock()
+            .expect("plan_trees mutex")
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn replace_plan_tree(
+        &self,
+        session_id: Option<&str>,
+        new: PlanTree,
+    ) -> (PlanTree, PlanTree) {
+        let key = resolve_session_key(session_id);
+        let mut guard = self.plan_trees.lock().expect("plan_trees mutex");
+        let old = guard.remove(&key).unwrap_or_default();
+        let cur = if plan_tree_all_completed(&new) {
             PlanTree::default()
         } else {
-            new.clone()
+            new
         };
-        let cur = guard.clone();
+        if !cur.roots.is_empty() {
+            guard.insert(key.clone(), cur.clone());
+        }
         drop(guard);
-        self.try_persist();
         (old, cur)
+    }
+
+    pub async fn persist_plan_tree(&self, session_id: Option<&str>, tree: &PlanTree) {
+        let key = resolve_session_key(session_id);
+        let store = self
+            .session_plan_store
+            .lock()
+            .expect("session_plan_store")
+            .clone();
+        let Some(store) = store else {
+            return;
+        };
+        if key == EPHEMERAL_SESSION_KEY {
+            return;
+        }
+        let result = if tree.roots.is_empty() {
+            store.clear(&key).await
+        } else {
+            store.save(&key, tree).await
+        };
+        if let Err(e) = result {
+            tracing::warn!(target: "anycode_tools", error = %e, session_id = %key, "session plan tree persist failed");
+        }
+    }
+
+    pub async fn hydrate_plan_tree(&self, session_id: Option<&str>) {
+        let key = resolve_session_key(session_id);
+        {
+            let guard = self.plan_trees.lock().expect("plan_trees mutex");
+            if guard.contains_key(&key) {
+                return;
+            }
+        }
+        let store = self
+            .session_plan_store
+            .lock()
+            .expect("session_plan_store")
+            .clone();
+        let Some(store) = store else {
+            return;
+        };
+        if key == EPHEMERAL_SESSION_KEY {
+            return;
+        }
+        match store.load(&key).await {
+            Ok(Some(tree)) => {
+                self.plan_trees
+                    .lock()
+                    .expect("plan_trees mutex")
+                    .insert(key, tree);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(target: "anycode_tools", error = %e, session_id = %key, "session plan tree hydrate failed");
+            }
+        }
     }
 
     pub fn insert_task(
@@ -1088,21 +1267,34 @@ impl ToolServices {
     }
 
     pub fn set_plan_mode(&self, v: bool) {
-        self.mode.lock().expect("mode mutex").plan_mode = v;
-        self.try_persist();
+        let key = resolve_session_key(None);
+        let mut modes = self.modes.lock().expect("modes mutex");
+        modes.entry(key).or_default().plan_mode = v;
     }
 
     pub fn plan_mode(&self) -> bool {
-        self.mode.lock().expect("mode mutex").plan_mode
+        let key = resolve_session_key(None);
+        self.modes
+            .lock()
+            .expect("modes mutex")
+            .get(&key)
+            .map(|m| m.plan_mode)
+            .unwrap_or(false)
     }
 
     pub fn set_worktree(&self, path: Option<String>) {
-        self.mode.lock().expect("mode mutex").worktree_path = path;
-        self.try_persist();
+        let key = resolve_session_key(None);
+        let mut modes = self.modes.lock().expect("modes mutex");
+        modes.entry(key).or_default().worktree_path = path;
     }
 
     pub fn worktree_path(&self) -> Option<String> {
-        self.mode.lock().expect("mode mutex").worktree_path.clone()
+        let key = resolve_session_key(None);
+        self.modes
+            .lock()
+            .expect("modes mutex")
+            .get(&key)
+            .and_then(|m| m.worktree_path.clone())
     }
 
     pub fn defer_tool(&self, name: String) {
@@ -1459,34 +1651,91 @@ mod orchestration_persist_tests {
     }
 
     #[test]
-    fn load_or_new_roundtrip_plan_tree() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("orchestration.json");
-        {
-            let s = ToolServices::load_or_new(path.clone()).unwrap();
-            s.replace_plan_tree(PlanTree {
+    fn plan_tree_is_session_scoped_in_memory() {
+        let s = ToolServices::default();
+        s.replace_plan_tree(
+            Some("sess_a"),
+            PlanTree {
                 roots: vec![PlanNode {
                     id: "root".into(),
-                    title: "Plan".into(),
+                    title: "Plan A".into(),
                     status: PlanStatus::Pending,
                     children: vec![],
                     detail: None,
                     kind: None,
                 }],
-            });
-        }
-        let s2 = ToolServices::load_or_new(path).unwrap();
-        let tree = s2.plan_tree();
-        assert_eq!(tree.roots.len(), 1);
-        assert_eq!(tree.roots[0].title, "Plan");
+            },
+        );
+        s.replace_plan_tree(
+            Some("sess_b"),
+            PlanTree {
+                roots: vec![PlanNode {
+                    id: "root".into(),
+                    title: "Plan B".into(),
+                    status: PlanStatus::Pending,
+                    children: vec![],
+                    detail: None,
+                    kind: None,
+                }],
+            },
+        );
+        assert_eq!(s.plan_tree(Some("sess_a")).roots[0].title, "Plan A");
+        assert_eq!(s.plan_tree(Some("sess_b")).roots[0].title, "Plan B");
     }
 
     #[test]
-    fn load_or_new_legacy_snapshot_without_plan_tree_field() {
+    fn load_or_new_ignores_legacy_plan_tree_field() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("orchestration.json");
-        fs::write(&path, r#"{"version":1,"todos":[]}"#).unwrap();
+        fs::write(
+            &path,
+            r#"{"version":1,"todos":[],"plan_tree":{"roots":[{"id":"x","title":"Legacy","status":"pending","children":[]}]}}"#,
+        )
+        .unwrap();
         let s = ToolServices::load_or_new(path).unwrap();
-        assert!(plan_tree_is_empty(&s.plan_tree()));
+        assert!(plan_tree_is_empty(&s.plan_tree(None)));
+    }
+
+    #[tokio::test]
+    async fn plan_mode_is_session_scoped() {
+        let s = Arc::new(ToolServices::default());
+        anycode_core::scope_chat_turn(
+            anycode_core::ChatTurnContext {
+                dashboard_session_id: Some("sess_a".into()),
+                user_turn_id: None,
+                reply_language: None,
+                host_intent_hint: None,
+            },
+            async {
+                s.set_plan_mode(true);
+                assert!(s.plan_mode());
+            },
+        )
+        .await;
+        anycode_core::scope_chat_turn(
+            anycode_core::ChatTurnContext {
+                dashboard_session_id: Some("sess_b".into()),
+                user_turn_id: None,
+                reply_language: None,
+                host_intent_hint: None,
+            },
+            async {
+                assert!(!s.plan_mode());
+                s.set_plan_mode(true);
+            },
+        )
+        .await;
+        anycode_core::scope_chat_turn(
+            anycode_core::ChatTurnContext {
+                dashboard_session_id: Some("sess_a".into()),
+                user_turn_id: None,
+                reply_language: None,
+                host_intent_hint: None,
+            },
+            async {
+                assert!(s.plan_mode());
+            },
+        )
+        .await;
     }
 }

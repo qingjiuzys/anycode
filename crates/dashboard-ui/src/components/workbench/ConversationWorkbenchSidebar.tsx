@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { TranscriptBlock } from "@/api/types";
 import type { WorkbenchTab } from "@/api/types/workbench";
 import { useT } from "@/i18n/context";
@@ -9,13 +9,7 @@ import { FilesPanel } from "./panels/FilesPanel";
 import { BrowserPanel } from "./panels/BrowserPanel";
 import { TerminalPanel } from "./panels/TerminalPanel";
 import { ArtifactsPanel } from "./panels/ArtifactsPanel";
-
-function isBrowserToolBlock(block: TranscriptBlock): boolean {
-  const metaName =
-    typeof block.meta?.name === "string" ? block.meta.name.toLowerCase() : "";
-  const haystack = `${block.title} ${block.body} ${metaName}`.toLowerCase();
-  return haystack.includes("browser");
-}
+import { PlanTreePanel } from "./panels/PlanTreePanel";
 
 type Props = {
   projectId: string | null | undefined;
@@ -36,12 +30,12 @@ export function ConversationWorkbenchSidebar({
   className = "",
   live,
   isRunning,
-  liveBlocks,
+  liveBlocks: _liveBlocks,
   forceExpanded,
   onRequestClose,
 }: Props) {
   const t = useT();
-  const { expanded, activeTab, panelWidth, selectTab, setExpanded, setPanelWidth, openTab } =
+  const { expanded, activeTab, panelWidth, selectTab, setExpanded, setPanelWidth } =
     useWorkbenchSidebarState();
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
 
@@ -49,16 +43,6 @@ export function ConversationWorkbenchSidebar({
   const disabled = !sessionId;
   const needsProject = activeTab === "files" || activeTab === "browser" || activeTab === "terminal";
   const projectReady = Boolean(projectId);
-
-  // Prefer the live browser pane while agent drives Browser* tools (unless user
-  // has already chosen terminal/files).
-  useEffect(() => {
-    if (!sessionId || !showPanel) return;
-    const hasBrowser = (liveBlocks ?? []).some(isBrowserToolBlock);
-    if (!hasBrowser) return;
-    if (activeTab === "browser" || activeTab === "terminal" || activeTab === "files") return;
-    openTab("browser");
-  }, [sessionId, showPanel, liveBlocks, activeTab, openTab]);
 
   const onResizeStart = useCallback(
     (e: React.PointerEvent) => {
@@ -112,6 +96,8 @@ export function ConversationWorkbenchSidebar({
         return (
           <ArtifactsPanel sessionId={sessionId!} live={live} isRunning={isRunning} />
         );
+      case "plan":
+        return <PlanTreePanel sessionId={sessionId!} />;
       default:
         return null;
     }

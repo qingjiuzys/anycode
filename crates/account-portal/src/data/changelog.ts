@@ -21,6 +21,56 @@ export type ChangelogRelease = {
 /** Newest first — rendered as a vertical timeline (top → bottom). */
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: "0.39.0",
+    date: "2026-08-03",
+    tag: "v0.39.0",
+    summary: {
+      zh: "Plan tree 会话持久化 + Build 审阅、Git 栏、Workbench 图标 Dock、桌面全窗口拖拽。",
+      en: "Session plan tree + Build review, Git bar, workbench icon dock, and full-window desktop drag.",
+    },
+    sections: [
+      {
+        kind: "added",
+        items: [
+          {
+            zh: "Plan tree：计划/待办写入 SQLite，Plan 面板展示；Build 审阅条（选模型后再执行）。",
+            en: "Plan tree: plans/todos in SQLite with Plan panel and Build review before execution.",
+          },
+          {
+            zh: "Git 栏：Composer 上方显示 +/- 变更与 Commit & Push。",
+            en: "Git bar above composer with change stats and Commit & Push.",
+          },
+          {
+            zh: "Workbench 图标 Dock + 桌面窗口全区域拖拽。",
+            en: "Workbench header icon dock and draggable frameless desktop window.",
+          },
+        ],
+      },
+      {
+        kind: "changed",
+        items: [
+          {
+            zh: "Workbench 打开时隐藏 transcript、收窄 Composer；Pause/Send 合并。",
+            en: "Hide transcript when workbench opens; narrower composer; merged Pause/Send.",
+          },
+          {
+            zh: "Browser 侧栏仅在新 Browser 工具调用时自动打开。",
+            en: "Browser panel auto-opens only on new live Browser tool calls.",
+          },
+        ],
+      },
+      {
+        kind: "fixed",
+        items: [
+          {
+            zh: "会话标题与 Workbench 图标重叠；Browser 误触发自动打开。",
+            en: "Session title vs icon overlap; spurious browser panel auto-open.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     version: "0.35.0",
     date: "2026-08-02",
     tag: "v0.35.0",

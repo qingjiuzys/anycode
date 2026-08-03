@@ -13,6 +13,7 @@ import type {
   SessionWithProject,
   TokenUsageDetail,
 } from "../types";
+import type { SessionPlanTreeResponse } from "../types/workbench";
 import { get, patch, post } from "../http";
 import { buildArtifactQuery, type ArtifactListOpts, type EventListOpts, type SessionListOpts } from "./shared";
 
@@ -129,6 +130,10 @@ export const sessionsClient = {
         body?: string;
       }>;
     }>(`/api/sessions/${encodeURIComponent(sessionId)}/background-tasks`),
+  sessionPlanTree: (sessionId: string) =>
+    get<SessionPlanTreeResponse>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/plan-tree`,
+    ),
   recentReports: (opts?: {
     projectId?: string;
     sessionId?: string;

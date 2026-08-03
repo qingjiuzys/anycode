@@ -549,7 +549,7 @@ function SessionRows({
                     onCancel={onRenameCancel}
                   />
                 ) : (
-                  <span className="text-[14px] font-medium truncate block leading-snug">
+                  <span className="text-[15px] font-medium truncate block leading-snug">
                     {session.title || session.id}
                   </span>
                 )}

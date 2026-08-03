@@ -1,19 +1,35 @@
+import { useCallback, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { api } from "@/api/client";
+import type { WorkbenchTab } from "@/api/types/workbench";
 import { ConversationThread } from "@/components/ConversationThread";
 import { ProjectGroupedSessionList } from "@/components/session/ProjectGroupedSessionList";
-import { ConversationWorkbenchSidebar } from "@/components/workbench/ConversationWorkbenchSidebar";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
+import { ConversationWorkbenchHeaderIcons } from "@/components/workbench/ConversationWorkbenchHeaderIcons";
+import { WorkbenchPanel } from "@/components/workbench/WorkbenchPanel";
+import { useWorkbenchSidebarState } from "@/components/workbench/hooks/useWorkbenchSidebarState";
+import { FilesPanel } from "@/components/workbench/panels/FilesPanel";
+import { BrowserPanel } from "@/components/workbench/panels/BrowserPanel";
+import { TerminalPanel } from "@/components/workbench/panels/TerminalPanel";
+import { ArtifactsPanel } from "@/components/workbench/panels/ArtifactsPanel";
+import { PlanTreePanel } from "@/components/workbench/panels/PlanTreePanel";
 import { useConversationShell } from "@/context/ConversationShellContext";
 import { useT } from "@/i18n/context";
+import {
+  collectBrowserToolCallKeys,
+  isBrowserToolBlock,
+  shouldAutoOpenBrowserForBlock,
+  browserToolDedupeKey,
+} from "@/lib/browserToolDetect";
 
 export function ConversationWorkspace() {
   const t = useT();
   const {
-    workbenchDrawerOpen,
-    setWorkbenchDrawerOpen,
     sessionsDrawerOpen,
     setSessionsDrawerOpen,
+    setWorkbenchDrawerOpen,
     selectedTool,
     setSelectedTool,
     active,
@@ -46,6 +62,177 @@ export function ConversationWorkspace() {
     onRemoveProject,
     optimisticStreamingSessionId,
   } = useConversationShell();
+
+  const {
+    expanded: workbenchExpanded,
+    activeTab: workbenchTab,
+    panelWidth,
+    selectTab,
+    setExpanded: setWorkbenchExpanded,
+    setPanelWidth,
+    openTab,
+  } = useWorkbenchSidebarState();
+
+  const seenBrowserToolKeysRef = useRef<Set<string>>(new Set());
+  const browserToolsHydratedRef = useRef(false);
+  const lastPlanAutoKeyRef = useRef<string | null>(null);
+  const planStreamHydratedRef = useRef(false);
+  const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    setWorkbenchExpanded(false);
+    seenBrowserToolKeysRef.current = new Set();
+    browserToolsHydratedRef.current = false;
+    lastPlanAutoKeyRef.current = null;
+    planStreamHydratedRef.current = false;
+  }, [displaySessionId, setWorkbenchExpanded]);
+
+  useEffect(() => {
+    setWorkbenchDrawerOpen(workbenchExpanded);
+  }, [workbenchExpanded, setWorkbenchDrawerOpen]);
+
+  useEffect(() => {
+    if (!workbenchExpanded) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      setWorkbenchExpanded(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [workbenchExpanded, setWorkbenchExpanded]);
+
+  const planTreeQuery = useQuery({
+    queryKey: ["session-plan-tree", displaySessionId],
+    queryFn: () => api.sessionPlanTree(displaySessionId!),
+    enabled: Boolean(displaySessionId),
+    staleTime: 5_000,
+  });
+
+  // Auto-open Browser only when a *new live* Browser tool call starts (never on hydrate/history).
+  useEffect(() => {
+    if (!displaySessionId) return;
+    const browserCalls = (liveBlocks ?? []).filter(
+      (b) => b.block_type === "tool_call" && isBrowserToolBlock(b),
+    );
+
+    if (!browserToolsHydratedRef.current) {
+      const blocks = liveBlocks ?? [];
+      if (blocks.length === 0 && (chatStreamLive || sseLive)) {
+        return;
+      }
+      browserToolsHydratedRef.current = true;
+      seenBrowserToolKeysRef.current = collectBrowserToolCallKeys(blocks);
+      return;
+    }
+
+    const streamLive = chatStreamLive || sseLive;
+    if (!streamLive) return;
+
+    for (const call of browserCalls) {
+      const key = browserToolDedupeKey(call);
+      if (seenBrowserToolKeysRef.current.has(key)) continue;
+      seenBrowserToolKeysRef.current.add(key);
+      if (shouldAutoOpenBrowserForBlock(call, { streamLive: true })) {
+        openTab("browser");
+      }
+      break;
+    }
+  }, [displaySessionId, liveBlocks, chatStreamLive, sseLive, openTab]);
+
+  // New plan revision → open Plan panel for human review (not on initial hydrate).
+  useEffect(() => {
+    if (!displaySessionId) return;
+    const updatedAt = planTreeQuery.data?.updated_at;
+    const roots = planTreeQuery.data?.tree?.roots ?? [];
+    if (roots.length === 0 || !updatedAt) {
+      lastPlanAutoKeyRef.current = null;
+      planStreamHydratedRef.current = false;
+      return;
+    }
+    if (!planStreamHydratedRef.current) {
+      planStreamHydratedRef.current = true;
+      lastPlanAutoKeyRef.current = updatedAt;
+      return;
+    }
+    if (lastPlanAutoKeyRef.current === updatedAt) return;
+    lastPlanAutoKeyRef.current = updatedAt;
+    openTab("plan");
+  }, [displaySessionId, planTreeQuery.data, openTab]);
+
+  const onResizeStart = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      resizeRef.current = { startX: e.clientX, startW: panelWidth };
+      const onMove = (ev: PointerEvent) => {
+        if (!resizeRef.current) return;
+        const delta = resizeRef.current.startX - ev.clientX;
+        setPanelWidth(resizeRef.current.startW + delta);
+      };
+      const onUp = () => {
+        resizeRef.current = null;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [panelWidth, setPanelWidth],
+  );
+
+  const projectId = selected?.project_id ?? null;
+  const needsProject =
+    workbenchTab === "files" || workbenchTab === "browser" || workbenchTab === "terminal";
+  const projectReady = Boolean(projectId);
+
+  const renderWorkbenchPanel = () => {
+    if (!displaySessionId) {
+      return (
+        <p className="text-sm text-secondary px-4 py-6 m-0 text-center">
+          {t("conversations.selectSession")}
+        </p>
+      );
+    }
+    if (needsProject && !projectReady) {
+      return (
+        <p className="text-sm text-secondary px-4 py-6 m-0 text-center">
+          {t("workbench.noProject")}
+        </p>
+      );
+    }
+
+    switch (workbenchTab) {
+      case "files":
+        return <FilesPanel projectId={projectId!} />;
+      case "browser":
+        return (
+          <BrowserPanel
+            projectId={projectId!}
+            conversationSessionId={displaySessionId}
+            active={workbenchExpanded}
+          />
+        );
+      case "terminal":
+        return <TerminalPanel projectId={projectId!} active={workbenchExpanded} />;
+      case "plan":
+        return (
+          <PlanTreePanel
+            sessionId={displaySessionId}
+            isRunning={selected?.status === "running"}
+            onBuildStarted={() => setWorkbenchExpanded(false)}
+          />
+        );
+      case "artifacts":
+        return (
+          <ArtifactsPanel
+            sessionId={displaySessionId}
+            live={sseLive}
+            isRunning={selected?.status === "running"}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   if (sessionsError) {
     return (
@@ -101,6 +288,10 @@ export function ConversationWorkspace() {
     return null;
   }
 
+  const onSelectWorkbenchTab = (tab: WorkbenchTab) => {
+    selectTab(tab);
+  };
+
   return (
     <>
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -115,8 +306,16 @@ export function ConversationWorkspace() {
           </button>
         </div>
 
-        <div className="flex flex-1 min-h-0 min-w-0">
-          <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+        <div
+          className={`flex flex-1 min-h-0 min-w-0 overflow-hidden${
+            workbenchExpanded ? " conv-session-split--workbench" : ""
+          }`}
+        >
+          <div
+            className={`flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden${
+              workbenchExpanded ? " conv-thread--workbench-open" : ""
+            }`}
+          >
             <ConversationThread
               session={selected}
               onFollowUpStarted={selectSession}
@@ -138,30 +337,36 @@ export function ConversationWorkspace() {
               selectedToolId={selectedTool?.id ?? null}
               onSelectTool={(tool) => {
                 setSelectedTool(tool);
-                setWorkbenchDrawerOpen(true);
+                if (isBrowserToolBlock(tool)) {
+                  openTab("browser");
+                }
               }}
               onRenameSession={onRenameSession}
-              workbenchOpen={workbenchDrawerOpen}
-              onToggleWorkbench={() => setWorkbenchDrawerOpen(!workbenchDrawerOpen)}
+              headerEnd={
+                <ConversationWorkbenchHeaderIcons
+                  activeTab={workbenchTab}
+                  expanded={workbenchExpanded}
+                  onSelectTab={onSelectWorkbenchTab}
+                  disabled={!displaySessionId}
+                />
+              }
             />
           </div>
 
-          {workbenchDrawerOpen ? (
-            <aside
-              className="conv-workbench-dock hidden lg:flex shrink-0 min-h-0 h-full"
-              aria-label={t("workbench.title")}
+          {workbenchExpanded ? (
+            <div
+              className="conv-workbench-dock"
+              style={{ flex: `1 1 ${panelWidth}px`, minWidth: panelWidth }}
             >
-              <ConversationWorkbenchSidebar
-                projectId={selected?.project_id}
-                sessionId={displaySessionId}
-                live={sseLive}
-                isRunning={selected?.status === "running"}
-                liveBlocks={liveBlocks}
-                forceExpanded
-                onRequestClose={() => setWorkbenchDrawerOpen(false)}
-                className="h-full"
-              />
-            </aside>
+              <WorkbenchPanel
+                activeTab={workbenchTab}
+                width={panelWidth}
+                onResizeStart={onResizeStart}
+                onCollapse={() => setWorkbenchExpanded(false)}
+              >
+                {renderWorkbenchPanel()}
+              </WorkbenchPanel>
+            </div>
           ) : null}
         </div>
       </div>
@@ -209,30 +414,6 @@ export function ConversationWorkspace() {
           </div>
         </>
       )}
-
-      {/* Mobile: workbench as right edge drawer (push not available on narrow screens). */}
-      {workbenchDrawerOpen ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/30 lg:hidden border-0 cursor-default"
-            aria-label={t("controlCenter.close")}
-            onClick={() => setWorkbenchDrawerOpen(false)}
-          />
-          <div className="fixed inset-y-0 right-0 z-50 w-[min(100%,22rem)] lg:hidden shadow-xl flex bg-surface-container-lowest border-l border-outline-variant">
-            <ConversationWorkbenchSidebar
-              projectId={selected?.project_id}
-              sessionId={displaySessionId}
-              live={sseLive}
-              isRunning={selected?.status === "running"}
-              liveBlocks={liveBlocks}
-              forceExpanded
-              onRequestClose={() => setWorkbenchDrawerOpen(false)}
-              className="h-full w-full"
-            />
-          </div>
-        </>
-      ) : null}
     </>
   );
 }

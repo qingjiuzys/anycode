@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>简报 · 办公技能默认安装</title>
+  <style>
+:root{--bg:#f2f5f0;--ink:#231f20;--accent:#1400ff;--ink-60:rgba(35,31,32,.72);--ink-08:rgba(35,31,32,.08);
+  --serif:"Songti SC","Noto Serif SC",serif;--sans:"PingFang SC",sans-serif;--mono:"JetBrains Mono",monospace}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7;font-size:16px}
+.wrap{max-width:920px;margin:0 auto;padding:48px 32px 80px}
+.sec-label{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-60);
+  display:flex;align-items:center;gap:12px;margin:48px 0 20px}
+.sec-label::after{content:"";flex:1;height:4px;background:var(--ink);max-width:320px}
+h1{font-family:var(--serif);font-weight:900;font-size:42px;line-height:1.2;margin:0 0 24px;border-bottom:6px solid var(--ink);padding-bottom:16px}
+h2{font-family:var(--serif);font-weight:900;font-size:26px;margin:32px 0 12px;color:var(--ink)}
+h3{font-family:var(--serif);font-weight:700;font-size:18px;margin:20px 0 8px}
+p{margin:0 0 14px;color:var(--ink)}
+ul{margin:0 0 16px;padding-left:0;list-style:none;border:1px solid var(--ink-08)}
+li{padding:10px 14px;border-bottom:1px solid var(--ink-08)}
+li:last-child{border-bottom:none}
+.da{background:var(--ink);color:var(--bg);padding:14px 18px;margin:16px 0;font-family:var(--mono);font-size:14px;border-left:6px solid var(--accent)}
+.da b{color:var(--accent)}
+table{width:100%;border-collapse:collapse;margin:16px 0;border:1px solid var(--ink)}
+th,td{border:1px solid var(--ink);padding:10px 12px;text-align:left;font-size:14px}
+th{background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:12px;letter-spacing:.08em}
+.meta{font-family:var(--mono);font-size:12px;color:var(--ink-60);margin-bottom:32px}
+footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--ink);font-family:var(--mono);font-size:11px;color:var(--ink-60)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="meta">FDE Editorial · anycode-docx preview</div>
+    <h1>简报 · 办公技能默认安装</h1>
+<div class="sec-label">SECTION</div><h2>Summary</h2>
+<p>anycode 办公四技能将在首次启动时自动安装到 `~/.anycode/skills`，DeepSeek 用户可直接 `@` 或 task 路由使用。</p>
+<div class="sec-label">SECTION</div><h2>Highlights</h2>
+<ul><li>**anycode-ppt** — HTML 幻灯片 + index 预览</li></ul>
+<ul><li>**anycode-docx** — MD → preview → docx</li></ul>
+<ul><li>**anycode-xlsx** — workbook.json → recheck → xlsx</li></ul>
+<ul><li>**anycode-pdf** — MD → preview → pdf</li></ul>
+<div class="sec-label">SECTION</div><h2>Metrics</h2>
+<table><thead><tr>
+<th>项</th>
+<th>值</th>
+</tr></thead><tbody>
+<tr>
+<td>安装体积</td>
+<td>~200KB 文本模板</td>
+</tr>
+<tr>
+<td>离线可用</td>
+<td>是</td>
+</tr>
+<tr>
+<td>需联网</td>
+<td>否</td>
+</tr>
+</tbody></table>
+<div class="da"><b>Decision:</b> 保持 HTML-first PPT，不默认导出 pptx。</div>
+<div class="da"><b>Action:</b> 文档组 2026-07-29 更新 skills 页说明。</div>
+    <footer>Source: Markdown report · edit .md and re-run anycode-docx/run</footer>
+  </div>
+</body>
+</html>

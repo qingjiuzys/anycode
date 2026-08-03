@@ -32,4 +32,44 @@ export interface BrowserSessionInfo {
   conversation_id?: string | null;
 }
 
-export type WorkbenchTab = "files" | "browser" | "terminal" | "artifacts";
+export type WorkbenchTab = "files" | "browser" | "terminal" | "artifacts" | "plan";
+
+export interface GitStatusSummary {
+  is_repo: boolean;
+  branch: string | null;
+  insertions: number;
+  deletions: number;
+  changed_files: number;
+  ahead: number;
+  behind: number;
+  has_upstream: boolean;
+  has_changes: boolean;
+}
+
+export type PlanStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "blocked"
+  | "failed"
+  | "cancelled";
+
+export type PlanNodeKind = "phase" | "task" | "verify" | "checkpoint";
+
+export interface PlanNode {
+  id: string;
+  title: string;
+  status: PlanStatus;
+  children?: PlanNode[];
+  detail?: string | null;
+  kind?: PlanNodeKind | null;
+}
+
+export interface PlanTree {
+  roots: PlanNode[];
+}
+
+export interface SessionPlanTreeResponse {
+  tree: PlanTree;
+  updated_at: string | null;
+}

@@ -143,11 +143,11 @@ export function SessionTitleMenu({ session, onRename }: Props) {
 
   return (
     <>
-      <div className="conv-title-menu relative min-w-0 max-w-[min(100%,28rem)]">
+      <div className="conv-title-menu relative min-w-0 max-w-full w-full">
         <button
           ref={triggerRef}
           type="button"
-          className="conv-title-menu__trigger"
+          className="conv-title-menu__trigger max-w-full"
           aria-haspopup="menu"
           aria-expanded={open}
           aria-controls={listId}

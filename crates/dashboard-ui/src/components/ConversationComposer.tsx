@@ -608,7 +608,8 @@ export function ConversationComposer(props: Props) {
     attachedTextFiles.length > 0;
   const canSend =
     hasContent && !pending && !stopping && (!isStart ? !waitingForQuestion : true);
-  const canStop = !isStart && turnActive && !pending && !stopping;
+  const canPause = !isStart && turnActive && !pending && !stopping;
+  const showPauseAction = canPause || stopping || cancelRun.isPending;
 
   const showMentionMenu = mentionFilter !== null;
   const showSlashMenu =
@@ -1233,45 +1234,52 @@ export function ConversationComposer(props: Props) {
               {t("common.back")}
             </button>
           )}
-          {canStop && (
-            <button
-              type="button"
-              className="dw-composer-stop"
-              disabled={cancelRun.isPending}
-              title={t("conversations.composeStop")}
-              aria-label={t("conversations.composeStop")}
-              onClick={() => cancelRun.mutate()}
-            >
-              {cancelRun.isPending || stopping ? (
-                <Icon name="hourglass_empty" size={18} />
-              ) : (
-                <Icon name="stop" size={18} />
-              )}
-            </button>
-          )}
           <VoiceInputButton
             disabled={running || pending}
             onTranscribed={(text) => setMessage((prev) => mergeVoiceTranscript(prev, text))}
           />
-          <button
-            type="submit"
-            className="dw-composer-send"
-            disabled={!canSend}
-            title={
-              turnActive
-                ? t("conversations.messageQueuedHint")
-                : isStart
-                  ? t("conversations.startTask")
-                  : t("conversations.composeSend")
-            }
-            aria-label={isStart ? t("conversations.startTask") : t("conversations.composeSend")}
-          >
-            {pending ? (
-              <Icon name="hourglass_empty" size={20} />
-            ) : (
-              <Icon name="arrow_upward" size={20} />
-            )}
-          </button>
+          {showPauseAction ? (
+            <button
+              type="button"
+              className="dw-composer-pause"
+              disabled={cancelRun.isPending || stopping}
+              title={
+                cancelRun.isPending || stopping
+                  ? t("conversations.composeStopping")
+                  : t("conversations.composePause")
+              }
+              aria-label={
+                cancelRun.isPending || stopping
+                  ? t("conversations.composeStopping")
+                  : t("conversations.composePause")
+              }
+              onClick={() => cancelRun.mutate()}
+            >
+              {cancelRun.isPending || stopping ? (
+                <Icon name="hourglass_empty" size={20} />
+              ) : (
+                <Icon name="pause" size={20} />
+              )}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="dw-composer-send"
+              disabled={!canSend}
+              title={
+                isStart ? t("conversations.startTask") : t("conversations.composeSend")
+              }
+              aria-label={
+                isStart ? t("conversations.startTask") : t("conversations.composeSend")
+              }
+            >
+              {pending ? (
+                <Icon name="hourglass_empty" size={20} />
+              ) : (
+                <Icon name="arrow_upward" size={20} />
+              )}
+            </button>
+          )}
         </div>
       </div>
 

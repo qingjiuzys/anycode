@@ -321,7 +321,7 @@ impl AgentRuntime {
             }
             {
                 let mut g = messages.lock().await;
-                self.sync_plan_tree_context(&mut g);
+                self.sync_plan_tree_context(&mut g).await;
             }
             logger.line(
                 task_id,

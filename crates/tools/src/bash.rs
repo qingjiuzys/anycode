@@ -463,6 +463,7 @@ mod tests {
                 input: serde_json::json!({"command": "echo hello-bash"}),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .expect("echo");
@@ -483,6 +484,7 @@ mod tests {
                 }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .expect("timeout run");
@@ -502,6 +504,7 @@ mod tests {
                 }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .expect("bg");
@@ -550,6 +553,7 @@ mod tests {
                 }),
                 working_directory: Some("/tmp".into()),
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .expect("bg http");

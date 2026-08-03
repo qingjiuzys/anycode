@@ -388,3 +388,82 @@ async fn browser_stream_socket(mut socket: WebSocket, session_id: String) {
         }
     }
 }
+
+pub async fn get_project_git_status(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+) -> impl IntoResponse {
+    let root = match project_root_path(&state, &project_id).await {
+        Ok(r) => r,
+        Err(resp) => {
+            return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
+        }
+    };
+    match crate::workbench::git_status(StdPath::new(&root)) {
+        Ok(status) => Json(json!({ "git": status })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct GitCommitBody {
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
+pub async fn post_project_git_commit(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Json(body): Json<GitCommitBody>,
+) -> impl IntoResponse {
+    let root = match project_root_path(&state, &project_id).await {
+        Ok(r) => r,
+        Err(resp) => {
+            return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
+        }
+    };
+    let root_path = StdPath::new(&root);
+    if !crate::workbench::is_git_repo(root_path) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "not a git repository" })),
+        )
+            .into_response();
+    }
+    let message = body
+        .message
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| "Update from anyCode".to_string());
+    match crate::workbench::git_commit_all(root_path, &message) {
+        Ok(()) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn post_project_git_push(
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+) -> impl IntoResponse {
+    let root = match project_root_path(&state, &project_id).await {
+        Ok(r) => r,
+        Err(resp) => {
+            return (resp.0, Json(json!({ "error": resp.1 }))).into_response();
+        }
+    };
+    match crate::workbench::git_push(StdPath::new(&root)) {
+        Ok(detail) => Json(json!({ "ok": true, "detail": detail })).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}

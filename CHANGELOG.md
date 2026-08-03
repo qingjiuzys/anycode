@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.39.0
+
+### Added
+
+- **Plan tree（会话级）**：`plan_write` / `todo_write` 写入 SQLite（`session_plan_trees` / `session_todos`），Workbench **Plan** 面板展示树形计划；生成计划后 **Build 审阅条**（模型选择 + Build）再执行。
+- **Git 栏**：会话 Composer 上方显示变更统计（+/- 行数）、Commit & Push 下拉（`GET/POST /api/projects/{id}/git/*`）。
+- **Workbench 图标 Dock**：移除顶栏 Tab；Files / Browser / Terminal / Plan / Artifacts 改为会话标题栏右侧图标，懒加载 + Esc 关闭。
+- **桌面窗口拖拽**：Tauri 无边框窗口全区域可拖（CSS `data-tauri-drag-region` + `startDragging` 兜底）；折叠侧栏空白条亦可拖。
+
+### Changed
+
+- Workbench 打开时隐藏对话 transcript，Composer 收窄；Pause / Send 合并为单按钮（运行中红色 Pause）。
+- Browser 面板仅在 **新的实时 Browser 工具调用** 时自动打开，不再因历史 transcript 误开。
+
+### Fixed
+
+- 会话标题与右侧 Workbench 图标重叠（grid 固定图标列宽 + 标题截断）。
+- Browser 工具检测误匹配（移除宽泛 `isBrowserToolBlock` 文本匹配）。
+
 ## 0.35.0
 
 ### Added

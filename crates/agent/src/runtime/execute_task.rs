@@ -244,7 +244,7 @@ impl AgentRuntime {
                     details: Some(TerminationReason::Budget.as_str().to_string()),
                 });
             }
-            self.sync_plan_tree_context(&mut messages);
+            self.sync_plan_tree_context(&mut messages).await;
             logger.line(
                 task.id,
                 &format!(

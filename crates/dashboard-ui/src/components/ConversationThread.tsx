@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { SecurityApprovalInbox } from "@/components/SecurityApprovalInbox";
 import { AskUserQuestionInbox } from "@/components/AskUserQuestionInbox";
 import { SessionTitleMenu } from "@/components/session/SessionTitleMenu";
+import { ConversationGitBar } from "@/components/session/ConversationGitBar";
 import { SessionStatusBadges, SessionRunningDots } from "@/components/ui/StatusBadge";
 import { formatRelativeTime } from "@/utils/formatTime";
 import { useT } from "@/i18n/context";
@@ -182,11 +183,10 @@ export function ConversationThread({
   markSessionStreaming,
   clearOptimisticStreaming,
   toolbarStart,
+  headerEnd,
   selectedToolId,
   onSelectTool,
   onRenameSession,
-  workbenchOpen = false,
-  onToggleWorkbench,
 }: {
   session: SessionWithProject | null;
   onFollowUpStarted?: (sessionId: string) => void;
@@ -205,11 +205,10 @@ export function ConversationThread({
   markSessionStreaming?: (sessionId: string) => void;
   clearOptimisticStreaming?: () => void;
   toolbarStart?: ReactNode;
+  headerEnd?: ReactNode;
   selectedToolId?: string | null;
   onSelectTool?: (tool: import("@/api/types").TranscriptBlock) => void;
   onRenameSession?: (sessionId: string, title: string) => void | Promise<void>;
-  workbenchOpen?: boolean;
-  onToggleWorkbench?: () => void;
 }) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -255,11 +254,9 @@ export function ConversationThread({
   });
 
   return (
-    <div
-      className={`flex flex-col h-full min-h-0${workbenchOpen ? " conv-thread--workbench-open" : ""}`}
-    >
+    <div className={`flex flex-col h-full min-h-0${headerEnd ? " conv-thread--workbench-host" : ""}`}>
       {showHeader && (
-        <div className="conv-thread-header bg-surface-container-lowest shrink-0">
+        <div className="conv-thread-header bg-surface-container-lowest shrink-0" data-tauri-drag-region>
           <div className="conv-thread-header__row">
             <div className="conv-thread-header__side">
               <button
@@ -285,18 +282,7 @@ export function ConversationThread({
               <SessionTitleMenu session={session} onRename={onRenameSession} />
             </div>
             <div className="conv-thread-header__side conv-thread-header__side--end">
-              {onToggleWorkbench ? (
-                <button
-                  type="button"
-                  className={`dw-btn-ghost p-1.5${workbenchOpen ? " text-primary" : ""}`}
-                  aria-pressed={workbenchOpen}
-                  aria-label={t("workbench.title")}
-                  title={t("workbench.title")}
-                  onClick={onToggleWorkbench}
-                >
-                  <Icon name="view_sidebar" size={18} />
-                </button>
-              ) : null}
+              {headerEnd}
             </div>
           </div>
         </div>
@@ -308,7 +294,10 @@ export function ConversationThread({
         </div>
       ) : null}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 overscroll-y-contain">
+      <div
+        ref={scrollRef}
+        className="conv-thread-transcript-scroll flex-1 overflow-y-auto min-h-0 overscroll-y-contain"
+      >
         <div className="conv-thread-body">
           <ConversationTranscript
             sessionId={session.id}
@@ -357,6 +346,9 @@ export function ConversationThread({
               />
             </div>
           )}
+          {session.project_id ? (
+            <ConversationGitBar projectId={session.project_id} />
+          ) : null}
           <ConversationComposer
             mode="follow-up"
             session={session}

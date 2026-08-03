@@ -412,6 +412,7 @@ steps:
                 }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .unwrap();

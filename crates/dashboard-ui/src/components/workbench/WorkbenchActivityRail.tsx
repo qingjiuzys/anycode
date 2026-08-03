@@ -7,6 +7,7 @@ const TABS: { id: WorkbenchTab; icon: string; titleKey: string }[] = [
   { id: "browser", icon: "language", titleKey: "workbench.tabBrowser" },
   { id: "terminal", icon: "terminal", titleKey: "workbench.tabTerminal" },
   { id: "artifacts", icon: "inventory_2", titleKey: "workbench.tabArtifacts" },
+  { id: "plan", icon: "account_tree", titleKey: "workbench.tabPlan" },
 ];
 
 type Props = {

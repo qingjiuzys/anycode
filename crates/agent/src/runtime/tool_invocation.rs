@@ -113,6 +113,7 @@ impl AgentRuntime {
                 Some(working_directory.to_string())
             },
             sandbox_mode: self.sandbox_mode,
+            dashboard_session_id: anycode_core::current_dashboard_session_id(),
         };
 
         if let Ok(guard) = self.tool_services.lock() {

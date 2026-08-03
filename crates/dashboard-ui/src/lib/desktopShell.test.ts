@@ -3,6 +3,7 @@ import {
   isAppleSpeechProvider,
   isTauriDesktop,
   resetDesktopShellCache,
+  shouldStartWindowDrag,
   shouldUseNativeAppleSpeech,
 } from "./desktopShell";
 
@@ -32,5 +33,14 @@ describe("desktopShell", () => {
     expect(shouldUseNativeAppleSpeech("local_whisper", false)).toBe(false);
     vi.unstubAllGlobals();
     resetDesktopShellCache();
+  });
+
+  it("shouldStartWindowDrag respects closest block match", () => {
+    const blocked = { closest: () => blocked } as unknown as Element;
+    expect(shouldStartWindowDrag(blocked)).toBe(false);
+
+    const allowed = { closest: () => null } as unknown as Element;
+    expect(shouldStartWindowDrag(allowed)).toBe(true);
+    expect(shouldStartWindowDrag(null)).toBe(false);
   });
 });

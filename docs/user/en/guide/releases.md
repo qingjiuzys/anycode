@@ -9,6 +9,15 @@ read_when:
 
 # Releases & feature flags
 
+## 0.39.0 (workspace)
+
+- **Plan tree (session-scoped)**: plans/todos persist in SQLite; Plan panel + Build review bar (pick model, then execute).
+- **Git bar**: change stats and Commit & Push above the composer.
+- **Workbench icon dock**: removed top tab bar; five header icons open the side panel (Esc to close).
+- **Desktop window drag**: frameless window draggable from chrome and empty areas.
+- **Layout**: hide transcript when workbench is open; narrower composer; merged Pause/Send button.
+- **Browser**: auto-open side panel only on new live Browser tool calls.
+
 ## 0.35.0 (workspace)
 
 - **Memory auto-memory (automem)**: a forked sandboxed agent extracts session transcripts and consolidates them in four phases (orient→gather→consolidate→prune/index), producing a bounded `MEMORY.md` index entry (≤200 lines / ≤25KB).

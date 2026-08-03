@@ -4,6 +4,7 @@ import type {
   BrowserState,
   FsEntry,
   FsReadResult,
+  GitStatusSummary,
 } from "../types/workbench";
 import { del, get, post, apiWebSocketUrl } from "../http";
 
@@ -67,4 +68,21 @@ export const workbenchClient = {
 
   terminalWsUrl: (projectId: string) =>
     apiWebSocketUrl(`/api/projects/${encodeURIComponent(projectId)}/terminal/ws`),
+
+  projectGitStatus: (projectId: string) =>
+    get<{ git: GitStatusSummary }>(
+      `/api/projects/${encodeURIComponent(projectId)}/git/status`,
+    ),
+
+  projectGitCommit: (projectId: string, body?: { message?: string }) =>
+    post<{ ok: boolean }>(
+      `/api/projects/${encodeURIComponent(projectId)}/git/commit`,
+      body ?? {},
+    ),
+
+  projectGitPush: (projectId: string) =>
+    post<{ ok: boolean; detail?: string }>(
+      `/api/projects/${encodeURIComponent(projectId)}/git/push`,
+      {},
+    ),
 };

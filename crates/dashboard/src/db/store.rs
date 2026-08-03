@@ -59,6 +59,7 @@ pub(crate) mod message_queue;
 mod open;
 mod projects;
 mod services;
+mod session_plan_trees;
 mod sessions;
 mod skills;
 
@@ -338,6 +339,60 @@ mod tests {
         assert_eq!(a.id, b.id);
         assert!(a.id.starts_with("proj_"));
         assert_eq!(db.list_projects().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn session_plan_tree_roundtrip() {
+        let dir = tempdir().unwrap();
+        let db = DashboardDb::open(dir.path().join("plan.db")).await.unwrap();
+        let project = db
+            .upsert_project(UpsertProjectRequest {
+                root_path: "/tmp/plan-tree".into(),
+                name: Some("Plan".into()),
+                description: None,
+                create_root: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let session = db
+            .create_session(CreateSessionRequest {
+                project_id: project.id.clone(),
+                kind: "run".into(),
+                task_id: None,
+                title: "plan session".into(),
+                prompt_preview: None,
+                agent_type: None,
+                model: None,
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        let tree = anycode_core::PlanTree {
+            roots: vec![anycode_core::PlanNode {
+                id: "root".into(),
+                title: "Ship".into(),
+                status: anycode_core::PlanStatus::Pending,
+                children: vec![],
+                detail: None,
+                kind: None,
+            }],
+        };
+        db.upsert_session_plan_tree(&session.id, &tree)
+            .await
+            .unwrap();
+        let loaded = db
+            .get_session_plan_tree(&session.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.0.roots[0].title, "Ship");
+        db.delete_session_plan_tree(&session.id).await.unwrap();
+        assert!(db
+            .get_session_plan_tree(&session.id)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

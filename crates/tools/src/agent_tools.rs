@@ -1098,6 +1098,7 @@ mod background_agent_tests {
             }),
             working_directory: Some(".".into()),
             sandbox_mode: false,
+            dashboard_session_id: None,
         }
     }
 
@@ -1121,6 +1122,7 @@ mod background_agent_tests {
                 input: json!({ "id": id_str }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .unwrap();
@@ -1138,6 +1140,7 @@ mod background_agent_tests {
                 input: json!({ "id": id_str }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .unwrap();
@@ -1165,6 +1168,7 @@ mod background_agent_tests {
                 input: json!({ "id": id_str }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .unwrap();
@@ -1178,6 +1182,7 @@ mod background_agent_tests {
                 input: json!({ "id": id_str }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .unwrap();
@@ -1241,6 +1246,7 @@ mod propose_skills_tests {
                 input: serde_json::json!({ "proposals": proposals }),
                 working_directory: None,
                 sandbox_mode: false,
+                dashboard_session_id: None,
             })
             .await
             .expect("execute")

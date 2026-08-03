@@ -304,6 +304,10 @@ impl AgentRuntime {
         }
     }
 
+    pub fn tool_services(&self) -> Option<Arc<anycode_tools::ToolServices>> {
+        self.tool_services.lock().ok().and_then(|g| g.clone())
+    }
+
     pub fn attach_tool_services(&self, services: Arc<anycode_tools::ToolServices>) {
         if let Ok(mut g) = self.tool_services.lock() {
             *g = Some(services);

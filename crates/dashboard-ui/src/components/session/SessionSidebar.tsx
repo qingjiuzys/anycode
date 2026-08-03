@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { BrandMark } from "@/components/BrandMark";
 import { Icon } from "@/components/Icon";
 import { ProjectGroupedSessionList } from "@/components/session/ProjectGroupedSessionList";
 import { SessionSearchModal } from "@/components/session/SessionSearchModal";
@@ -85,50 +84,53 @@ export function SessionSidebar() {
     // Narrow inert rail reserves space for macOS traffic lights only (transparent — no glass strip).
     // Expand / collapse lives in the conversation header (not here — was unclickable under lights).
     return (
-      <aside className="dw-session-sidebar dw-session-sidebar--collapsed" aria-hidden />
+      <aside
+        className="dw-session-sidebar dw-session-sidebar--collapsed"
+        data-tauri-drag-region
+        aria-hidden
+      />
     );
   }
 
   return (
-    <aside className="dw-session-sidebar glass-panel">
-      <div className="dw-sidebar-brand">
-        <BrandMark size="md" showTitle linked homeTo="/" />
-      </div>
+    <aside className="dw-session-sidebar glass-panel" data-tauri-drag-region>
+      <div className="dw-session-sidebar__header">
+        <nav className="dw-sidebar-quick" aria-label={t("sidebar.quickNav")}>
+          {quickActions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              className={`dw-sidebar-quick__item${
+                (action.id === "search" && searchOpen) ||
+                (action.id === "discover-colleagues" && colleaguesActive)
+                  ? " dw-sidebar-quick__item--active"
+                  : ""
+              }`}
+              onClick={action.onClick}
+            >
+              <Icon name={action.icon} size={16} />
+              <span>{t(action.labelKey)}</span>
+            </button>
+          ))}
+        </nav>
 
-      <nav className="dw-sidebar-quick" aria-label={t("sidebar.quickNav")}>
-        {quickActions.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            className={`dw-sidebar-quick__item${
-              (action.id === "search" && searchOpen) ||
-              (action.id === "discover-colleagues" && colleaguesActive)
-                ? " dw-sidebar-quick__item--active"
-                : ""
-            }`}
-            onClick={action.onClick}
-          >
-            <Icon name={action.icon} size={18} />
-            <span>{t(action.labelKey)}</span>
-          </button>
-        ))}
-      </nav>
-
-      <IncomingHandoffBanner />
-
-      <div
-        className={`flex-1 min-h-0 overflow-y-auto overscroll-y-contain transition-opacity ${listBusy ? "opacity-60" : ""}`}
-      >
-        <div className="dw-sidebar-section-label px-3 pt-2 pb-1">
+        <div className="dw-sidebar-section-label px-3 pt-1 pb-0.5">
           {t("sidebar.sectionProjects")}
         </div>
         {projectsError ? (
-          <p className="px-3 text-xs text-warn m-0 mb-2">
+          <p className="px-3 text-xs text-warn m-0 mb-1">
             {/\b401\b/.test(projectsError.message)
               ? t("projects.authError")
               : projectsError.message || t("projects.loadError")}
           </p>
         ) : null}
+      </div>
+
+      <IncomingHandoffBanner />
+
+      <div
+        className={`dw-session-sidebar__scroll flex-1 min-h-0 overflow-y-auto overscroll-y-contain transition-opacity ${listBusy ? "opacity-60" : ""}`}
+      >
         <ProjectGroupedSessionList
           projectOptions={projectOptions}
           sessions={sidebarFilteredRows}

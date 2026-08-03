@@ -178,7 +178,8 @@ async fn run_inner(
         sessions: SessionStore::default(),
         web_chat: crate::control::web_chat::WebChatHub,
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
-        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new(),
+        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new()
+            .with_session_stores(db_for_state.clone(), Arc::clone(&events)),
         version: config.version.clone(),
         static_dir,
         serve_ui: config.serve_ui,
@@ -394,7 +395,8 @@ pub async fn app_for_test_custom(db_path: &Path, opts: TestAppOptions) -> Result
         sessions: SessionStore::default(),
         web_chat: crate::control::web_chat::WebChatHub,
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
-        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new(),
+        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new()
+            .with_session_stores(db_for_state.clone(), Arc::clone(&events)),
         version: "test".into(),
         static_dir: None,
         serve_ui: opts.serve_ui,

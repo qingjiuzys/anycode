@@ -11,8 +11,10 @@ use crate::control::web_chat_tail::WebChatTailHub;
 use crate::db::DashboardDb;
 use crate::events::EventBus;
 use crate::recorder::{DashboardRecorder, RunSessionKind};
+use crate::session_state_store::{DbSessionPlanStore, DbSessionTodoStore};
 use anycode_agent::AgentRuntime;
 use anycode_core::prelude::*;
+use anycode_tools::{SessionPlanStore, SessionTodoStore};
 use bootstrap::{build_embedded_runtime, embedded_chat_enabled, web_chat_log_dir};
 use std::collections::HashMap;
 use std::path::Path;
@@ -76,6 +78,8 @@ pub struct ChatRuntimeHost {
     runtimes: Arc<Mutex<HashMap<String, Arc<AgentRuntime>>>>,
     runtime_generation: Arc<AtomicU64>,
     disk: Arc<DiskTaskOutput>,
+    session_plan_store: Option<Arc<dyn SessionPlanStore>>,
+    session_todo_store: Option<Arc<dyn SessionTodoStore>>,
 }
 
 struct EmbeddedSession {
@@ -125,6 +129,31 @@ impl ChatRuntimeHost {
             runtimes: Arc::new(Mutex::new(HashMap::new())),
             runtime_generation: Arc::new(AtomicU64::new(1)),
             disk: Arc::new(DiskTaskOutput::new(web_chat_log_dir())),
+            session_plan_store: None,
+            session_todo_store: None,
+        }
+    }
+
+    /// Wire DB-backed plan/todo stores so PlanWrite/TodoWrite persist per session.
+    #[must_use]
+    pub fn with_session_stores(mut self, db: DashboardDb, events: Arc<EventBus>) -> Self {
+        self.session_plan_store = Some(Arc::new(DbSessionPlanStore::new(
+            db.clone(),
+            events.clone(),
+        )));
+        self.session_todo_store = Some(Arc::new(DbSessionTodoStore::new(db, events)));
+        self
+    }
+
+    fn attach_session_stores(&self, runtime: &AgentRuntime) {
+        let Some(services) = runtime.tool_services() else {
+            return;
+        };
+        if let Some(store) = &self.session_plan_store {
+            services.attach_session_plan_store(Arc::clone(store));
+        }
+        if let Some(store) = &self.session_todo_store {
+            services.attach_session_todo_store(Arc::clone(store));
         }
     }
 
@@ -372,6 +401,7 @@ impl ChatRuntimeHost {
             return Ok(Arc::clone(rt));
         }
         let rt = build_embedded_runtime(Some((*self.disk).clone()), project_root).await?;
+        self.attach_session_stores(&rt);
         guard.insert(key, Arc::clone(&rt));
         Ok(rt)
     }

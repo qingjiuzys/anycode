@@ -12,7 +12,7 @@ export type WorkbenchSidebarState = {
 const DEFAULT: WorkbenchSidebarState = {
   expanded: false,
   activeTab: "files",
-  panelWidth: 280,
+  panelWidth: 420,
 };
 
 function readState(): WorkbenchSidebarState {
@@ -21,7 +21,7 @@ function readState(): WorkbenchSidebarState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT;
     const parsed = JSON.parse(raw) as Partial<WorkbenchSidebarState>;
-    const VALID_TABS: WorkbenchTab[] = ["files", "browser", "terminal", "artifacts"];
+    const VALID_TABS: WorkbenchTab[] = ["files", "browser", "terminal", "artifacts", "plan"];
     const tab = VALID_TABS.includes(parsed.activeTab as WorkbenchTab)
       ? (parsed.activeTab as WorkbenchTab)
       : DEFAULT.activeTab;
@@ -60,8 +60,7 @@ export function useWorkbenchSidebarState() {
   }, []);
 
   const setPanelWidth = useCallback((panelWidth: number) => {
-    // Keep headroom for the 3rem activity rail inside the dock.
-    setState((prev) => ({ ...prev, panelWidth: Math.min(360, Math.max(220, panelWidth)) }));
+    setState((prev) => ({ ...prev, panelWidth: Math.min(720, Math.max(280, panelWidth)) }));
   }, []);
 
   const openTab = useCallback((tab: WorkbenchTab) => {

@@ -1352,3 +1352,61 @@ async fn quick_auth_presets_match_setup_crate() {
     let presets = quick["presets"].as_array().unwrap();
     assert_eq!(presets.len(), anycode_setup::QUICK_AUTH_CHOICES.len());
 }
+
+#[tokio::test]
+async fn session_plan_tree_api_empty_then_upsert() {
+    let _env_lock = ENV_LOCK.lock().await;
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("plan_tree_api.db");
+    let app = app_for_test(&db_path).await.unwrap();
+    let project = post_json(
+        app.clone(),
+        "/api/projects",
+        json!({
+            "root_path": dir.path().join("wd").display().to_string(),
+            "name": "PlanTree",
+            "create_root": true,
+        }),
+    )
+    .await;
+    let project_id = project["project"]["id"].as_str().unwrap();
+    let session = post_json(
+        app.clone(),
+        "/api/sessions",
+        json!({
+            "project_id": project_id,
+            "kind": "run",
+            "title": "plan api",
+        }),
+    )
+    .await;
+    let session_id = session["session"]["id"].as_str().unwrap();
+    let empty = get_json(
+        app.clone(),
+        &format!("/api/sessions/{session_id}/plan-tree"),
+    )
+    .await;
+    assert!(empty["tree"]["roots"].as_array().unwrap().is_empty());
+
+    let db = anycode_dashboard::db::DashboardDb::open(&db_path)
+        .await
+        .unwrap();
+    db.upsert_session_plan_tree(
+        session_id,
+        &anycode_core::PlanTree {
+            roots: vec![anycode_core::PlanNode {
+                id: "r1".into(),
+                title: "Root".into(),
+                status: anycode_core::PlanStatus::InProgress,
+                children: vec![],
+                detail: None,
+                kind: None,
+            }],
+        },
+    )
+    .await
+    .unwrap();
+    let filled = get_json(app, &format!("/api/sessions/{session_id}/plan-tree")).await;
+    assert_eq!(filled["tree"]["roots"][0]["title"], "Root");
+    assert_eq!(filled["tree"]["roots"][0]["status"], "in_progress");
+}

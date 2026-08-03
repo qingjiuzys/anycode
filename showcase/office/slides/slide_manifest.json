@@ -1,0 +1,101 @@
+{
+  "brand_kit": "fde-editorial",
+  "slides": [
+    {
+      "type": "cover",
+      "source_html": "00-cover.html",
+      "title": "节标题：核心命题  副标题 · 受众 · 场景 ",
+      "subtitle": "同学们，这一节讲<strong>一个关键结论",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "01-trio.html",
+      "title": "落地 Agent 的三条硬约束",
+      "subtitle": "产品、工程、运营各拿一条——缺任何一条，驾驶舱都会变成「只会聊天的网页」。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [
+        {
+          "stat": "",
+          "text": "统一 API 网关",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "成本与延迟可见",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "多模型 fallback",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "ToolRegistry 白名单",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "Cooperative cancel",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "Session 持久化",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "HTML slides / docx",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "evidence 预览",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "门禁 validate",
+          "source": ""
+        }
+      ],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "统一 API 网关",
+        "成本与延迟可见",
+        "多模型 fallback",
+        "ToolRegistry 白名单",
+        "Cooperative cancel",
+        "Session 持久化",
+        "HTML slides / docx",
+        "evidence 预览",
+        "门禁 validate"
+      ],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    }
+  ]
+}

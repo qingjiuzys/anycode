@@ -36,6 +36,9 @@ const LIGHT_EVENT_TYPES = new Set([
   "tool_denied",
   "tool_approval_pending",
   "tool_approval_resolved",
+  "plan_tree_updated",
+  "plan_step",
+  "session_todos_updated",
 ]);
 
 export type SessionStreamScope = "conversation" | "detail";
@@ -348,6 +351,7 @@ export function useSessionEventStream(
           ["session-trace-inspector", sessionId],
           ["session-workflow-events", sessionId],
           ["session-plan-events", sessionId],
+          ["session-plan-tree", sessionId],
         ]
       : [
           ["session", sessionId],
@@ -355,6 +359,7 @@ export function useSessionEventStream(
           ["session-execution-log-live", sessionId],
           ["session-artifacts", sessionId],
           ["session-trace-inspector", sessionId],
+          ["session-plan-tree", sessionId],
         ];
   }, [scope, sessionId]);
 
@@ -414,6 +419,15 @@ export function useSessionEventStream(
         void queryClient.invalidateQueries({
           queryKey: ["session-trace-inspector", sessionId],
         });
+        if (
+          eventType === "plan_tree_updated" ||
+          eventType === "plan_step" ||
+          eventType === "session_todos_updated"
+        ) {
+          void queryClient.invalidateQueries({
+            queryKey: ["session-plan-tree", sessionId],
+          });
+        }
         if (!chatLiveRef.current && !trackLiveRef.current) {
           void queryClient.invalidateQueries({
             queryKey: ["session-transcript", sessionId],

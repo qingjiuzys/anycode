@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -141,23 +142,55 @@ function useConversationShellState(): ConversationShellContextValue {
   }, [conversationsSearch, homeSearch, pathname, searchStr]);
 
   const [projectId, setProjectId] = useState(search.project ?? homeSearch?.project ?? "");
-  const [workbenchDrawerOpen, setWorkbenchDrawerOpen] = useState(false);
+  const [workbenchDrawerOpen, setWorkbenchDrawerOpenState] = useState(false);
+  const sessionSidebarBeforeWorkbenchRef = useRef<boolean | null>(null);
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
-  const [sessionSidebarCollapsed, setSessionSidebarCollapsedState] = useState(() => {
+  const initialSessionSidebarCollapsed = (() => {
     try {
       return localStorage.getItem("anycode-session-sidebar-collapsed") === "1";
     } catch {
       return false;
     }
-  });
+  })();
+  const sessionSidebarCollapsedRef = useRef(initialSessionSidebarCollapsed);
+  const [sessionSidebarCollapsed, setSessionSidebarCollapsedState] = useState(
+    initialSessionSidebarCollapsed,
+  );
   const setSessionSidebarCollapsed = useCallback((v: boolean) => {
     setSessionSidebarCollapsedState(v);
+    sessionSidebarCollapsedRef.current = v;
     try {
       localStorage.setItem("anycode-session-sidebar-collapsed", v ? "1" : "0");
     } catch {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    sessionSidebarCollapsedRef.current = sessionSidebarCollapsed;
+  }, [sessionSidebarCollapsed]);
+
+  const setWorkbenchDrawerOpen = useCallback(
+    (v: boolean) => {
+      setWorkbenchDrawerOpenState((prevOpen) => {
+        if (v && !prevOpen) {
+          sessionSidebarBeforeWorkbenchRef.current = sessionSidebarCollapsedRef.current;
+          if (!sessionSidebarCollapsedRef.current) {
+            setSessionSidebarCollapsed(true);
+          }
+        } else if (!v && prevOpen) {
+          const restore = sessionSidebarBeforeWorkbenchRef.current;
+          sessionSidebarBeforeWorkbenchRef.current = null;
+          if (restore !== null) {
+            setSessionSidebarCollapsed(restore);
+          }
+        }
+        return v;
+      });
+    },
+    [setSessionSidebarCollapsed],
+  );
+
   const [selectedTool, setSelectedTool] = useState<TranscriptBlock | null>(null);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [pendingSessionMeta, setPendingSessionMeta] = useState<SessionWithProject | null>(null);

@@ -101,6 +101,7 @@ function SessionFirstShellInner({ isHome }: { isHome: boolean }) {
       className={`dw-shell dw-shell--sessions${
         sessionSidebarCollapsed ? " dw-sessions-sidebar-collapsed" : ""
       }`}
+      data-tauri-drag-region
     >
       <SessionSidebar />
       <div className="dw-main-wrap dw-main-wrap--sessions">

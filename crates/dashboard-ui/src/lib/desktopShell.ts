@@ -167,3 +167,67 @@ export function resetDesktopShellCache(): void {
   tauriAvailable = null;
   cachedCaps = null;
 }
+
+const WINDOW_DRAG_BLOCK_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "a",
+  "label",
+  "summary",
+  "[contenteditable='true']",
+  "[role='button']",
+  "[role='tab']",
+  "[role='menuitem']",
+  "[role='link']",
+  "[role='listbox']",
+  "[role='option']",
+  "[role='combobox']",
+  "[role='textbox']",
+  "[role='slider']",
+  ".conv-thread-transcript-scroll",
+  ".conv-thread-composer",
+  ".conv-workbench-panel > div:last-child",
+  ".dw-session-sidebar__scroll",
+  ".dw-sidebar-quick",
+  ".conv-browser-viewport",
+  ".conv-workbench-header-icons",
+  ".dw-transcript-markdown",
+  "pre",
+  "code",
+  ".conv-git-bar",
+  ".cursor-col-resize",
+  "[data-no-window-drag]",
+  "[data-tauri-drag-region] button",
+  "[data-tauri-drag-region] a",
+  "[data-tauri-drag-region] input",
+  "[data-tauri-drag-region] textarea",
+  "[data-tauri-drag-region] select",
+  "[data-tauri-drag-region] .dw-session-sidebar__scroll",
+  "[data-tauri-drag-region] .dw-sidebar-quick",
+].join(",");
+
+export function shouldStartWindowDrag(target: EventTarget | null): boolean {
+  if (typeof target !== "object" || target === null || !("closest" in target)) {
+    return false;
+  }
+  const el = target as Element;
+  return !el.closest(WINDOW_DRAG_BLOCK_SELECTOR);
+}
+
+/** Allow dragging the frameless desktop window from non-interactive chrome / empty areas. */
+export function initDesktopWindowDrag(): void {
+  if (!isTauriDesktop()) return;
+  document.addEventListener(
+    "mousedown",
+    (event) => {
+      if (event.button !== 0) return;
+      if (!shouldStartWindowDrag(event.target)) return;
+      void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+        void getCurrentWindow().startDragging();
+      });
+    },
+    true,
+  );
+}

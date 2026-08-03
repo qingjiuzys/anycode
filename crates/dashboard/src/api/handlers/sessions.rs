@@ -943,6 +943,77 @@ pub async fn get_session_background_tasks(
     .into_response()
 }
 
+pub async fn get_session_plan_tree(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match state.db.get_session(&session_id).await {
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "session not found" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+        Ok(Some(_)) => {}
+    }
+    match state.db.get_session_plan_tree(&session_id).await {
+        Ok(Some((tree, updated_at))) => Json(json!({
+            "tree": tree,
+            "updated_at": updated_at,
+        }))
+        .into_response(),
+        Ok(None) => Json(json!({
+            "tree": { "roots": [] },
+            "updated_at": null,
+        }))
+        .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn delete_session_plan_tree(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match state.db.get_session(&session_id).await {
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "session not found" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+        Ok(Some(_)) => {}
+    }
+    match state.db.delete_session_plan_tree(&session_id).await {
+        Ok(()) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct SecurityEventsQuery {
     #[serde(default = "default_limit")]

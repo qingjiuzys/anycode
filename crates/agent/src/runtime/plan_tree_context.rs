@@ -15,12 +15,14 @@ pub(crate) fn is_plan_tree_context_message(msg: &Message) -> bool {
 }
 
 impl AgentRuntime {
-    pub(super) fn sync_plan_tree_context(&self, messages: &mut Vec<Message>) {
+    pub(super) async fn sync_plan_tree_context(&self, messages: &mut Vec<Message>) {
         messages.retain(|m| !is_plan_tree_context_message(m));
         let Some(services) = self.tool_services.lock().ok().and_then(|g| g.clone()) else {
             return;
         };
-        let tree = services.plan_tree();
+        let session_id = anycode_core::current_dashboard_session_id();
+        services.hydrate_plan_tree(session_id.as_deref()).await;
+        let tree = services.plan_tree(session_id.as_deref());
         if plan_tree_is_empty(&tree) {
             return;
         }

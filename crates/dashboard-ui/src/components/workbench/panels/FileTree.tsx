@@ -32,7 +32,7 @@ function TreeNode({ projectId, entry, depth, selectedPath, onSelectPath }: TreeN
     <div>
       <button
         type="button"
-        className={`conv-file-tree w-full flex items-center gap-1 py-0.5 pr-2 text-left text-xs border-0 bg-transparent cursor-pointer hover:bg-surface-container-low ${
+        className={`conv-file-tree w-full flex items-center gap-1.5 py-1 pr-2 text-left text-sm border-0 bg-transparent cursor-pointer hover:bg-surface-container-low ${
           isSelected ? "bg-surface-container-high text-primary" : "text-on-surface"
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -44,13 +44,13 @@ function TreeNode({ projectId, entry, depth, selectedPath, onSelectPath }: TreeN
         }}
       >
         {isDir ? (
-          <Icon name={expanded ? "expand_more" : "chevron_right"} size={14} className="shrink-0 text-secondary" />
+          <Icon name={expanded ? "expand_more" : "chevron_right"} size={16} className="shrink-0 text-secondary" />
         ) : (
-          <span className="w-[14px] shrink-0" />
+          <span className="w-4 shrink-0" />
         )}
         <Icon
           name={isDir ? "folder" : "insert_drive_file"}
-          size={14}
+          size={16}
           className="shrink-0 text-secondary"
         />
         <span className="truncate">{entry.name}</span>

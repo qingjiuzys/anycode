@@ -9,6 +9,15 @@ read_when:
 
 # 版本与特性开关
 
+## 0.39.0（工作区）
+
+- **Plan tree（会话级）**：计划/待办持久化到 SQLite；Plan 面板 + Build 审阅条（选模型后再执行）。
+- **Git 栏**：Composer 上方变更统计与 Commit & Push。
+- **Workbench 图标 Dock**：顶栏 Tab 移除；标题栏右侧五图标打开侧栏（Esc 关闭）。
+- **桌面窗口拖拽**：无边框窗口全区域可拖动窗口。
+- **布局**：Workbench 打开时隐藏 transcript、收窄 Composer；Pause/Send 合一。
+- **Browser**：仅在新 Browser 工具调用时自动打开侧栏。
+
 ## 0.35.0（工作区）
 
 - **记忆系统 auto-memory（automem）**：fork 受限后台代理提取会话转录，四阶段（orient→gather→consolidate→prune/index）生成记忆，产出 `MEMORY.md` 索引入口（≤200 行 / ≤25KB）。
