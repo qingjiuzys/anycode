@@ -22,8 +22,12 @@ chmod +x scripts/release-desktop-local.sh
 ./scripts/release-desktop-local.sh                 # Apple Silicon (host)
 ./scripts/release-desktop-local.sh --arch x86_64   # Intel (cross from Apple Silicon)
 
-# Windows (on a Windows host after build-desktop-release.sh):
-./scripts/stage-desktop-windows.sh
+# Windows NSIS cross-compile from this Mac (experimental; MSI still needs Windows):
+./scripts/setup-windows-cross.sh                 # once: nsis + llvm + cargo-xwin
+./scripts/release-desktop-windows-cross.sh       # build NSIS + stage
+
+# Or on a Windows host (MSI + NSIS):
+./scripts/build-desktop-release.sh && ./scripts/stage-desktop-windows.sh
 ```
 
 Artifacts land in `crates/account-portal/public/downloads/`:
@@ -32,7 +36,7 @@ Artifacts land in `crates/account-portal/public/downloads/`:
 |------|---------|
 | `anyCode_<version>_aarch64.dmg` | macOS Apple Silicon |
 | `anyCode_<version>_x86_64.dmg` | macOS Intel |
-| `anyCode_<version>_x64.msi` / `.exe` | Windows (when staged) |
+| `anyCode_<version>_x64.msi` / `.exe` | Windows (MSI = Windows host; `.exe` = NSIS, also via Mac cross) |
 | `anyCode_latest_<arch>.dmg` | Stable “latest” link per arch |
 | `latest.json` | Latest metadata (+ `platforms` map) |
 | `releases.json` | Multi-version / multi-platform catalog |

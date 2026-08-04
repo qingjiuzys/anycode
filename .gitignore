@@ -38,6 +38,8 @@ scripts/.venv-icon/
 crates/account-service/target/
 crates/account-service/.env
 crates/account-portal/public/downloads/*.dmg
+crates/account-portal/public/downloads/*.exe
+crates/account-portal/public/downloads/*.msi
 crates/account-portal/public/downloads/latest.json
 deploy/account-service/.env
 deploy/account-service/secrets/

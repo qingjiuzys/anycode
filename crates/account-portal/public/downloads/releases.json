@@ -1,10 +1,20 @@
 {
-  "generated_at": "2026-08-03T16:57:08Z",
+  "generated_at": "2026-08-04T03:00:19Z",
   "latest_by_platform": {
+    "windows-x64": "0.40.0",
     "macos-x86_64": "0.40.0",
     "macos-aarch64": "0.40.0"
   },
   "platforms": {
+    "windows-x64": {
+      "version": "0.40.0",
+      "arch": "x64",
+      "filename": "anyCode_0.40.0_x64.exe",
+      "url": "https://anycode.work/downloads/anyCode_0.40.0_x64.exe",
+      "latest_url": "https://anycode.work/downloads/anyCode_latest_x64.exe",
+      "sha256": "81a0896dca5587cb8b07dc3a882cd37da02f567c7e481861f69bd19885948f4c",
+      "ext": "exe"
+    },
     "macos-x86_64": {
       "version": "0.40.0",
       "arch": "x86_64",
@@ -25,6 +35,17 @@
     }
   },
   "artifacts": [
+    {
+      "platform": "windows-x64",
+      "version": "0.40.0",
+      "arch": "x64",
+      "filename": "anyCode_0.40.0_x64.exe",
+      "url": "https://anycode.work/downloads/anyCode_0.40.0_x64.exe",
+      "latest_url": "https://anycode.work/downloads/anyCode_latest_x64.exe",
+      "sha256": "81a0896dca5587cb8b07dc3a882cd37da02f567c7e481861f69bd19885948f4c",
+      "ext": "exe",
+      "latest": true
+    },
     {
       "platform": "macos-x86_64",
       "version": "0.40.0",

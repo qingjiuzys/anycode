@@ -83,6 +83,12 @@ if [[ "${ANYCODE_DESKTOP_LOCAL_RELEASE:-}" == "1" ]]; then
 fi
 
 # --bundles is platform-specific (tauri rejects bundle types for other OSes).
+# Windows cross from macOS/Linux: NSIS only (MSI/WiX requires a Windows host).
+CROSS_WIN=0
+if [[ -n "${ANYCODE_TAURI_TARGET:-}" && "${ANYCODE_TAURI_TARGET}" == *windows* ]]; then
+  CROSS_WIN=1
+fi
+
 BUNDLES="deb,appimage"
 case "$(uname -s)" in
   # Prefer app-only on macOS; DMG is produced by package-desktop-dmg.sh after notarization.
@@ -90,6 +96,9 @@ case "$(uname -s)" in
   Darwin)  BUNDLES="app" ;;
   MINGW*|MSYS*|CYGWIN*) BUNDLES="msi,nsis" ;;
 esac
+if [[ "$CROSS_WIN" -eq 1 ]]; then
+  BUNDLES="nsis"
+fi
 
 BUILD_START=$SECONDS
 chmod +x "$ROOT/scripts/sync-workspace-version.sh"
@@ -102,22 +111,49 @@ chmod +x "$ROOT/scripts/notarize-mac-app.sh"
 
 REL_ENV="${ANYCODE_RELEASE_ENV:-$HOME/.anycode/release.env}"
 SIGNING_RELEASE=0
-if [[ -f "$REL_ENV" ]]; then
+if [[ "$CROSS_WIN" -eq 0 && -f "$REL_ENV" ]]; then
   # shellcheck source=/dev/null
   source "$REL_ENV"
 fi
-if [[ "$(uname -s)" == "Darwin" && -n "${APPLE_SIGNING_IDENTITY:-}" && "${APPLE_SIGNING_IDENTITY}" != "-" && -n "${APPLE_ID:-}" ]]; then
+if [[ "$CROSS_WIN" -eq 0 && "$(uname -s)" == "Darwin" && -n "${APPLE_SIGNING_IDENTITY:-}" && "${APPLE_SIGNING_IDENTITY}" != "-" && -n "${APPLE_ID:-}" ]]; then
   SIGNING_RELEASE=1
 fi
 SKIP_BROWSER=0
-if [[ "${ANYCODE_DESKTOP_SKIP_BROWSER:-}" == "1" || "$SIGNING_RELEASE" -eq 1 ]]; then
+if [[ "${ANYCODE_DESKTOP_SKIP_BROWSER:-}" == "1" || "$SIGNING_RELEASE" -eq 1 || "$CROSS_WIN" -eq 1 ]]; then
   SKIP_BROWSER=1
 fi
 if [[ "$SKIP_BROWSER" -eq 1 ]]; then
-  echo "==> skip bundled Chromium (notarized release; browser installs on first use)"
+  echo "==> skip bundled Chromium (notarized release / Windows cross; browser installs on first use)"
   # tauri.conf.json declares resources/browser/ as a bundled resource; tauri
   # validates the path exists at build time even when we skip the download.
   mkdir -p "$ROOT/apps/anycode-desktop/resources/browser"
+fi
+
+if [[ "$CROSS_WIN" -eq 1 ]]; then
+  # Homebrew: llvm (llvm-rc) + lld (lld-link) used by cargo-xwin on macOS.
+  if [[ -d /opt/homebrew/opt/llvm/bin ]]; then
+    export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+  elif [[ -d /usr/local/opt/llvm/bin ]]; then
+    export PATH="/usr/local/opt/llvm/bin:$PATH"
+  fi
+  if ! command -v cargo-xwin >/dev/null 2>&1; then
+    echo "cargo-xwin required for Windows cross-compile (cargo install --locked cargo-xwin)" >&2
+    exit 1
+  fi
+  if ! command -v makensis >/dev/null 2>&1; then
+    echo "makensis (NSIS) required for Windows cross-compile (brew install nsis)" >&2
+    exit 1
+  fi
+  if ! command -v lld-link >/dev/null 2>&1; then
+    echo "lld-link required for Windows cross-compile (brew install lld)" >&2
+    exit 1
+  fi
+  if ! command -v llvm-rc >/dev/null 2>&1; then
+    echo "llvm-rc required for Windows cross-compile (brew install llvm; PATH+=/opt/homebrew/opt/llvm/bin)" >&2
+    exit 1
+  fi
+  rustup target add "${ANYCODE_TAURI_TARGET}" >/dev/null
+  echo "==> Windows cross-compile: target=${ANYCODE_TAURI_TARGET} bundles=nsis runner=cargo-xwin"
 fi
 
 step "sync workspace version to dashboard-ui / desktop manifests" \
@@ -135,12 +171,13 @@ if [[ "$HOST_IS_DARWIN" -eq 1 && -n "${ANYCODE_TAURI_TARGET:-}" ]]; then
     arm64-x86_64-apple-darwin|x86_64-aarch64-apple-darwin) CROSS_MAC=1 ;;
   esac
 fi
-if [[ "$HOST_IS_DARWIN" -eq 1 && "$CROSS_MAC" -eq 0 ]]; then
+# Host-native dashboard bake (UI embed). Cross targets omit ort-sys local-ml.
+if [[ "$CROSS_WIN" -eq 1 || "$CROSS_MAC" -eq 1 ]]; then
+  echo "==> cross build: omit knowledge-embeddings/local-ml (ort-sys host-only prebuilts)"
+elif [[ "$HOST_IS_DARWIN" -eq 1 ]]; then
   # macOS TTS is provided by anycode-apple-media. Avoid bundling Piper's
   # espeak compiler/data while retaining local embeddings and STT.
   DASHBOARD_FEATURES="${DASHBOARD_FEATURES},knowledge-embeddings,embedding-local,stt-local"
-elif [[ "$HOST_IS_DARWIN" -eq 1 && "$CROSS_MAC" -eq 1 ]]; then
-  echo "==> cross-mac build: omit knowledge-embeddings/local-ml (ort-sys host-only prebuilts)"
 else
   DASHBOARD_FEATURES="${DASHBOARD_FEATURES},knowledge-embeddings"
 fi
@@ -150,8 +187,13 @@ echo "==> cargo build dashboard + parallel sidecar prep"
 echo "    features: $DASHBOARD_FEATURES"
 ANYCODE_BUILD_DASHBOARD_UI=1 cargo build --release -p anycode-dashboard --features "$DASHBOARD_FEATURES" &
 CARGO_PID=$!
-"$ROOT/scripts/build-apple-media-cli.sh" &
-APPLE_PID=$!
+APPLE_PID=""
+if [[ "$CROSS_WIN" -eq 0 ]]; then
+  "$ROOT/scripts/build-apple-media-cli.sh" &
+  APPLE_PID=$!
+else
+  echo "    skip anycode-apple-media (Windows target)"
+fi
 BROWSER_PID=""
 if [[ "$SKIP_BROWSER" -eq 0 ]]; then
   "$ROOT/scripts/prepare-chromium.sh" &
@@ -161,7 +203,9 @@ CARGO_STATUS=0
 APPLE_STATUS=0
 BROWSER_STATUS=0
 wait "$CARGO_PID" || CARGO_STATUS=$?
-wait "$APPLE_PID" || APPLE_STATUS=$?
+if [[ -n "$APPLE_PID" ]]; then
+  wait "$APPLE_PID" || APPLE_STATUS=$?
+fi
 if [[ -n "$BROWSER_PID" ]]; then
   wait "$BROWSER_PID" || BROWSER_STATUS=$?
 fi
@@ -232,9 +276,9 @@ if [[ -n "$TAURI_TARGET" ]]; then
   echo "==> tauri target override: $TAURI_TARGET"
 fi
 
-CARGO_EXTRA_ARGS=()
-if [[ "${CROSS_MAC:-0}" -eq 1 ]]; then
-  CARGO_EXTRA_ARGS+=(--no-default-features)
+NO_DEFAULT_FEATURES=0
+if [[ "${CROSS_MAC:-0}" -eq 1 || "${CROSS_WIN:-0}" -eq 1 ]]; then
+  NO_DEFAULT_FEATURES=1
 fi
 
 step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -c '
@@ -253,12 +297,25 @@ step "cargo tauri build (apps/anycode-desktop, profile=$TAURI_PROFILE)" bash -c 
   if [[ -n "${6:-}" ]]; then
     TARGET_FLAG=(--target "$6")
   fi
+  RUNNER_FLAG=()
+  if [[ "${8:-}" == "1" ]]; then
+    RUNNER_FLAG=(--runner cargo-xwin)
+  fi
   EXTRA=()
   if [[ "${7:-}" == "1" ]]; then
     EXTRA=(--no-default-features)
   fi
-  exec cargo tauri build --bundles "$4" "${TARGET_FLAG[@]}" -- --profile "$5" "${EXTRA[@]}"
-' _ "$ROOT/apps/anycode-desktop" "$SKIP_BROWSER" "$ROOT" "$BUNDLES" "$TAURI_PROFILE" "$TAURI_TARGET" "$CROSS_MAC"
+  exec cargo tauri build --bundles "$4" "${RUNNER_FLAG[@]}" "${TARGET_FLAG[@]}" -- --profile "$5" "${EXTRA[@]}"
+' _ "$ROOT/apps/anycode-desktop" "$SKIP_BROWSER" "$ROOT" "$BUNDLES" "$TAURI_PROFILE" "$TAURI_TARGET" "$NO_DEFAULT_FEATURES" "$CROSS_WIN"
+
+if [[ "$CROSS_WIN" -eq 1 ]]; then
+  BUNDLE_DIR="$ROOT/target/${TAURI_TARGET}/release/bundle"
+  TOTAL=$((SECONDS - BUILD_START))
+  echo "Done in ${TOTAL}s. Windows bundles under ${BUNDLE_DIR}/"
+  echo "  NSIS: ${BUNDLE_DIR}/nsis/"
+  ls -lh "${BUNDLE_DIR}/nsis/"*.exe 2>/dev/null || true
+  exit 0
+fi
 
 if [[ -n "$TAURI_TARGET" ]]; then
   DESKTOP_APP_BUNDLE="$ROOT/target/${TAURI_TARGET}/${TAURI_PROFILE}/bundle/macos/anyCode.app"

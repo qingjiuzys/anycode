@@ -21,7 +21,6 @@ local-ml = ["anycode-dashboard/embedding-local", "anycode-dashboard/stt-local"]
 knowledge = ["anycode-dashboard/knowledge-embeddings"]
 
 [dependencies]
-anycode-apple-media = { path = "../../crates/apple-media" }
 # Desktop uses the native macOS speech stack for TTS. Local ONNX / knowledge are
 # behind features above; do not pull piper/espeak into the bundle.
 anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser"] }
@@ -36,6 +35,10 @@ tauri-plugin-shell = "2"
 tauri-plugin-updater = "2"
 tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync"] }
 tracing = "0.1"
+
+# Swift helper bridge — macOS host/target only (omit for Windows cross-compile).
+[target.'cfg(target_os = "macos")'.dependencies]
+anycode-apple-media = { path = "../../crates/apple-media" }
 
 [profile.release]
 panic = "abort"

@@ -1,5 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "macos")]
+mod apple_media;
+#[cfg(not(target_os = "macos"))]
+#[path = "apple_media_stub.rs"]
 mod apple_media;
 mod dashboard_backend;
 
