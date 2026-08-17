@@ -29,9 +29,7 @@ pub fn clear_config_value_override() {
 }
 
 pub fn default_config_path() -> PathBuf {
-    std::env::var("HOME")
-        .map(|h| PathBuf::from(h).join(".anycode").join("config.json"))
-        .unwrap_or_else(|_| PathBuf::from(".anycode/config.json"))
+    crate::copilot_token::anycode_home_dir().join("config.json")
 }
 
 pub fn read_config_value(path: Option<&Path>) -> Result<(PathBuf, Value)> {
@@ -444,8 +442,23 @@ pub fn patch_llm_config_value(cfg: &mut Value, patch: &LlmConfigPatch) -> Result
     }
 
     apply_registry_sync(cfg)?;
+    ensure_llm_scalar_defaults(cfg);
 
     Ok(())
+}
+
+/// GUI / cloud-sync patches write provider+model without temperature/max_tokens.
+/// Fill those so a later typed `AnyCodeConfig` load does not fail.
+fn ensure_llm_scalar_defaults(cfg: &mut Value) {
+    let Some(obj) = cfg.as_object_mut() else {
+        return;
+    };
+    if obj.get("temperature").is_none() {
+        obj.insert("temperature".into(), json!(0.7));
+    }
+    if obj.get("max_tokens").is_none() {
+        obj.insert("max_tokens".into(), json!(8192));
+    }
 }
 
 pub fn patch_llm_config(path: Option<&Path>, patch: &LlmConfigPatch) -> Result<(PathBuf, Value)> {
@@ -541,5 +554,34 @@ mod tests {
             cfg.pointer("/models/image/model").and_then(|v| v.as_str()),
             Some("dall-e-3")
         );
+    }
+
+    #[test]
+    fn patch_fills_missing_temperature_and_max_tokens() {
+        let mut cfg = json!({
+            "provider": "anycode_cloud",
+            "model": "deepseek-v4-flash"
+        });
+        patch_llm_config_value(
+            &mut cfg,
+            &LlmConfigPatch {
+                provider: Some("anycode_cloud".into()),
+                model: Some("deepseek-v4-flash".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(cfg.get("temperature").and_then(|v| v.as_f64()), Some(0.7));
+        assert_eq!(cfg.get("max_tokens").and_then(|v| v.as_u64()), Some(8192));
+    }
+
+    #[test]
+    fn default_config_path_is_under_anycode_home() {
+        let path = default_config_path();
+        assert_eq!(
+            path,
+            crate::copilot_token::anycode_home_dir().join("config.json")
+        );
+        assert!(path.ends_with("config.json"));
     }
 }

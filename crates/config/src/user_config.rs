@@ -8,6 +8,7 @@ use super::schema::{
 
 use anycode_agent::ModelInstructionsConfig;
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -52,21 +53,48 @@ impl From<ModelInstructionsConfigFile> for ModelInstructionsConfig {
     }
 }
 
+fn default_provider() -> String {
+    "z.ai".to_string()
+}
+
+fn default_plan() -> String {
+    "coding".to_string()
+}
+
+fn default_model() -> String {
+    "glm-5".to_string()
+}
+
+pub fn default_temperature() -> f32 {
+    0.7
+}
+
+pub fn default_max_tokens() -> u32 {
+    8192
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnyCodeConfig {
     // V1 固定：z.ai（= BigModel）
+    #[serde(default = "default_provider")]
     pub provider: String,
     // 套餐：coding（编码套餐） / general（通用）
+    #[serde(default = "default_plan")]
     pub plan: String,
     #[serde(default)]
     pub api_key: String,
     /// 按厂商 id 存额外密钥（如 `anthropic`、`openrouter`），用于与全局不同厂商混跑 routing。
     #[serde(default)]
     pub provider_credentials: HashMap<String, String>,
+    #[serde(default)]
     pub base_url: Option<String>,
     // V1 先固定为 glm-4（后续可扩展为编码套餐的多个模型）
+    #[serde(default = "default_model")]
     pub model: String,
+    /// GUI / cloud-sync patches often omit sampling fields.
+    #[serde(default = "default_temperature")]
     pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
     #[serde(default)]
     pub routing: RoutingConfig,
@@ -136,8 +164,10 @@ pub fn default_base_url_for(plan: &str) -> &'static str {
 }
 
 fn anycode_config_path() -> anyhow::Result<PathBuf> {
-    let home = std::env::var("HOME")?;
-    Ok(PathBuf::from(home).join(".anycode").join("config.json"))
+    // `anycode_home_dir` honors ANYCODE_HOME, then HOME / dirs::home_dir()
+    // (Windows USERPROFILE). Do not require Unix `$HOME` — Explorer-launched
+    // Windows desktop does not set it.
+    Ok(anycode_llm::anycode_home_dir().join("config.json"))
 }
 
 pub fn resolve_memory_directory(path_opt: Option<PathBuf>) -> anyhow::Result<PathBuf> {
@@ -270,7 +300,9 @@ fn load_anycode_config_from_path(path: &Path) -> anyhow::Result<Option<AnyCodeCo
     if anycode_llm::migrate_legacy_llm_section(&mut v) {
         anycode_llm::write_config_value(path, &v)?;
     }
-    Ok(Some(serde_json::from_value(v)?))
+    Ok(Some(serde_json::from_value(v).with_context(|| {
+        format!("parse config.json at {}", path.display())
+    })?))
 }
 
 /// 显式 `-c path` 且文件不存在时返回 Err；默认路径不存在则 `Ok(None)`。
@@ -322,14 +354,14 @@ pub fn save_anycode_config(cfg: &AnyCodeConfig) -> anyhow::Result<()> {
 
 pub fn default_anycode_config() -> AnyCodeConfig {
     AnyCodeConfig {
-        provider: "z.ai".to_string(),
-        plan: "coding".to_string(),
+        provider: default_provider(),
+        plan: default_plan(),
         api_key: String::new(),
         provider_credentials: HashMap::new(),
         base_url: None,
-        model: "glm-5".to_string(),
-        temperature: 0.7,
-        max_tokens: 8192,
+        model: default_model(),
+        temperature: default_temperature(),
+        max_tokens: default_max_tokens(),
         routing: RoutingConfig::default(),
         runtime: RuntimeSettingsFile::default(),
         security: SecurityConfigFile::default(),
@@ -357,4 +389,62 @@ pub fn load_or_default_anycode_config(
     config_file: Option<PathBuf>,
 ) -> anyhow::Result<AnyCodeConfig> {
     Ok(load_anycode_config_resolved(config_file.clone())?.unwrap_or_else(default_anycode_config))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gui_patched_config_without_temperature_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        // Settings / cloud-sync write provider+model but never temperature.
+        std::fs::write(
+            &path,
+            r#"{
+              "provider": "anycode_cloud",
+              "plan": "coding",
+              "model": "deepseek-v4-flash",
+              "api_key": ""
+            }"#,
+        )
+        .unwrap();
+        let cfg = load_anycode_config_from_path(&path)
+            .unwrap()
+            .expect("config present");
+        assert_eq!(cfg.provider, "anycode_cloud");
+        assert_eq!(cfg.model, "deepseek-v4-flash");
+        assert_eq!(cfg.temperature, default_temperature());
+        assert_eq!(cfg.max_tokens, default_max_tokens());
+    }
+
+    #[test]
+    fn empty_object_config_uses_provider_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, "{}").unwrap();
+        let cfg = load_anycode_config_from_path(&path)
+            .unwrap()
+            .expect("config present");
+        assert_eq!(cfg.provider, default_provider());
+        assert_eq!(cfg.plan, default_plan());
+        assert_eq!(cfg.model, default_model());
+        assert_eq!(cfg.temperature, default_temperature());
+        assert_eq!(cfg.max_tokens, default_max_tokens());
+    }
+
+    #[test]
+    fn missing_config_file_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nope.json");
+        assert!(load_anycode_config_from_path(&path).unwrap().is_none());
+    }
+
+    #[test]
+    fn config_path_matches_llm_default_and_ends_with_config_json() {
+        let path = anycode_config_path().expect("config path");
+        assert!(path.ends_with("config.json"));
+        assert_eq!(path, anycode_llm::default_config_path());
+    }
 }

@@ -79,7 +79,22 @@ impl DashboardServerState {
     }
 }
 
+/// Windows Explorer / cmd.exe do not set `$HOME`. Many anyCode paths still
+/// read it (config, preferences, dashboard state). Mirror `USERPROFILE` so
+/// in-process Workbench finds `~\.anycode\config.json`.
+pub fn ensure_home_env() {
+    if std::env::var_os("HOME").is_some_and(|v| !v.is_empty()) {
+        return;
+    }
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        if !profile.trim().is_empty() {
+            std::env::set_var("HOME", profile);
+        }
+    }
+}
+
 pub fn apply_dashboard_env(app: &AppHandle) {
+    ensure_home_env();
     apply_account_env_if_unset(app);
     if let Some(tpl) = resolve_resource_path(
         app,
@@ -324,4 +339,16 @@ fn http_get_body(host: &str, port: u16, path: &str) -> Option<String> {
     stream.read_to_string(&mut raw).ok()?;
     let (_head, body) = raw.split_once("\r\n\r\n")?;
     Some(body.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ensure_home_env_is_idempotent_when_home_set() {
+        let before = std::env::var("HOME").ok();
+        super::ensure_home_env();
+        if let Some(h) = before {
+            assert_eq!(std::env::var("HOME").ok().as_deref(), Some(h.as_str()));
+        }
+    }
 }

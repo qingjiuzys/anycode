@@ -387,6 +387,7 @@ fn chrono_lite_timestamp() -> String {
 }
 
 fn main() {
+    dashboard_backend::ensure_home_env();
     install_panic_log_hook();
 
     // If CEF was explicitly disabled, drop a leftover CDP port so screencast
