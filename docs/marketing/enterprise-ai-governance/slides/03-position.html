@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>不是再造 SAP</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 60px 96px 56px; display: grid; grid-template-rows: auto auto 1fr auto; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 16px;
+    }
+    h2 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; max-width: 1500px; }
+    h2 em { font-style: normal; color: var(--accent); }
+    .lede { font-size: 20px; color: var(--ink-60); margin: 14px 0 28px; max-width: 1280px; line-height: 1.55; }
+    .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; min-height: 0; }
+    .col {
+      border: 1px solid rgba(122, 162, 247, 0.2);
+      background: rgba(192, 202, 245, 0.035);
+      padding: 28px 32px 32px;
+      position: relative;
+    }
+    .col.hot { border-color: var(--accent); background: rgba(122, 162, 247, 0.1); }
+    .col .lab { font-family: var(--mono); font-size: 13px; letter-spacing: 0.16em; color: var(--accent); margin-bottom: 12px; }
+    .col h3 { font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+    .col .sub { font-size: 16px; color: var(--ink-40); margin-bottom: 18px; }
+    .col ul { list-style: none; }
+    .col li { font-size: 20px; line-height: 1.7; color: var(--ink-60); padding-left: 22px; position: relative; }
+    .col li::before { content: ""; position: absolute; left: 0; top: 12px; width: 8px; height: 8px; background: var(--accent); }
+    .quote {
+      margin-top: 24px; font-size: 24px; font-weight: 600;
+      border-left: 4px solid var(--accent); padding: 8px 0 8px 22px; color: var(--ink);
+    }
+    .viz { position: absolute; right: 24px; top: 24px; width: 220px; height: 90px; }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">03 · POSITION</div>
+    <h2>不要自称「AI 界的 SAP」。<em>我们站在 SAP 旁边。</em></h2>
+    <p class="lede">SAP / ERP 管的是交易记录。CIO 要的下一层，不是再买一套账本，而是让智能体像员工一样上岗：有知识、有权限、有审计。</p>
+    <div class="duo">
+      <section class="col">
+        <svg class="viz" viewBox="0 0 220 90" aria-hidden="true">
+          <rect x="8" y="18" width="48" height="54" fill="none" stroke="#7aa2f7" stroke-opacity="0.45"/>
+          <rect x="66" y="18" width="48" height="54" fill="none" stroke="#7aa2f7" stroke-opacity="0.45"/>
+          <rect x="124" y="18" width="48" height="54" fill="none" stroke="#7aa2f7" stroke-opacity="0.45"/>
+          <text x="16" y="50" fill="#c0caf5" font-size="11">财务</text>
+          <text x="74" y="50" fill="#c0caf5" font-size="11">库存</text>
+          <text x="132" y="50" fill="#c0caf5" font-size="11">人事</text>
+        </svg>
+        <div class="lab">SYSTEM OF RECORD</div>
+        <h3>交易操作系统</h3>
+        <p class="sub">SAP、金蝶、用友已经在的位置</p>
+        <ul>
+          <li>记录订单、库存、凭证、组织</li>
+          <li>流程确定，规则先于推理</li>
+          <li>价值是「发生过什么」可对账</li>
+        </ul>
+      </section>
+      <section class="col hot">
+        <svg class="viz" viewBox="0 0 220 90" aria-hidden="true">
+          <circle cx="44" cy="46" r="22" fill="none" stroke="#7aa2f7"/>
+          <circle cx="110" cy="46" r="22" fill="none" stroke="#7aa2f7"/>
+          <circle cx="176" cy="46" r="22" fill="#7aa2f7" fill-opacity="0.2" stroke="#7aa2f7"/>
+          <path d="M66 46 H88 M132 46 H154" stroke="#7aa2f7"/>
+          <text x="32" y="51" fill="#c0caf5" font-size="11">知识</text>
+          <text x="98" y="51" fill="#c0caf5" font-size="11">审批</text>
+          <text x="162" y="51" fill="#c0caf5" font-size="11">Agent</text>
+        </svg>
+        <div class="lab">SYSTEM OF AGENCY</div>
+        <h3>工作操作系统</h3>
+        <p class="sub">我们要占领的位置：治理底座</p>
+        <ul>
+          <li>决定智能体能看什么、做什么</li>
+          <li>知识有出处，动作有审批</li>
+          <li>价值是「下一步谁来干、怎么干」</li>
+        </ul>
+      </section>
+    </div>
+    <p class="quote">模型会推理，底座来治理。这才是 AI 原生——不是把聊天框贴在 ERP 上。</p>
+  </div>
+</body>
+</html>

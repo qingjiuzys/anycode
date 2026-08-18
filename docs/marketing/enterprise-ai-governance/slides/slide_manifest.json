@@ -1,0 +1,362 @@
+{
+  "brand_kit": "fde-editorial",
+  "slides": [
+    {
+      "type": "cover",
+      "source_html": "01-cover.html",
+      "title": "走向  AI 原生治理 ",
+      "subtitle": "",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "02-gap.html",
+      "title": "企业不缺大模型，缺的是治理",
+      "subtitle": "买一个 Copilot 并不等于 AI 进了企业。真正卡住的，是数据出域、知识散落、智能体无法被当员工管辖。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "03-position.html",
+      "title": "不要自称「AI 界的 SAP」。 我们站在 SAP 旁边。 ",
+      "subtitle": "SAP / ERP 管的是交易记录。CIO 要的下一层，不是再买一套账本，而是让智能体像员工一样上岗：有知识、有权限、有审计。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [
+        {
+          "stat": "",
+          "text": "记录订单、库存、凭证、组织",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "流程确定，规则先于推理",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "价值是「发生过什么」可对账",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "决定智能体能看什么、做什么",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "知识有出处，动作有审批",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "价值是「下一步谁来干、怎么干」",
+          "source": ""
+        }
+      ],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "记录订单、库存、凭证、组织",
+        "流程确定，规则先于推理",
+        "价值是「发生过什么」可对账",
+        "决定智能体能看什么、做什么",
+        "知识有出处，动作有审批",
+        "价值是「下一步谁来干、怎么干」"
+      ],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "模型会推理，底座来治理。这才是 AI 原生——不是把聊天框贴在 ERP 上。</p>",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "04-quartet.html",
+      "title": "四件套是一张网，不是四套软件",
+      "subtitle": "分开卖是工具。合在一起，才是企业能接管的控制平面。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "05-pillars.html",
+      "title": "四根柱，缺一根就还是试点",
+      "subtitle": "企业要的不是「也能私有化」的口头承诺，而是和现有基础设施同构：内网能装、K8s 能跑、对象存储能接、知识能管。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "06-anycode.html",
+      "title": "智能体在你这边工作",
+      "subtitle": "anyCode 不是把对话托管到别人的云。工具、文件、审批默认留在企业环境，模型可以 BYOK，也可以走内网网关。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "LOCAL 桌面工作台或内网 daemon，同一套 Agent 引擎。",
+        "TOOLS 读改文件、检索代码、浏览器、定时任务——真正动手，而不是只生成建议。",
+        "APPROVAL 写文件、跑命令等敏感步骤停下来确认，权限像手机弹窗一样可见。",
+        "BYOK 自带密钥接国内或国际模型；私有化场景可走 Ollama 与企业网关。"
+      ],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "07-818cloud.html",
+      "title": "和现有容器平台同构交付",
+      "subtitle": "818Cloud 是控制平面，不是又一个聊天站。账户、网关、镜像、对象存储在企业集群里按生产习惯落地。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "08-mail-knowledge.html",
+      "title": "邮件是入口，知识库是记忆",
+      "subtitle": "大多数企业知识并不在 Wiki 里，而在往来邮件和附件中。Mail 负责收口，知识库负责可引用，S3 负责原件还在。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "content",
+      "source_html": "09-architecture.html",
+      "title": "四层叠上去，越往下越是基础设施",
+      "subtitle": "应用可以换皮，底座这四层必须先立住——否则 Agent 永远停在演示。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "content",
+      "source_html": "10-compare.html",
+      "title": "试点能跑通，治理才能铺开",
+      "subtitle": "对照只看企业真正在意的四件事：数据在哪、能不能干活、知识有没有出处、能不能按现有平台运维。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [
+        {
+          "stat": "",
+          "text": "上手快， 数据在厂商",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "会写， 难碰内网文件",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "知识靠会话， 难审计",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "和 K8s / S3 不是一张网",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "能问制度， 不能执行",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "邮件与附件 仍在外面",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "和 Agent 各管各的",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "容易变成 又一个门户",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "内网默认， 数据在企业",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "Agent 能干活、能审批",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "邮件进库， 回答带出处",
+          "source": ""
+        },
+        {
+          "stat": "",
+          "text": "K8s + S3 与信息化同构",
+          "source": ""
+        }
+      ],
+      "chips": [],
+      "stats": [],
+      "agenda": [
+        "上手快， 数据在厂商",
+        "会写， 难碰内网文件",
+        "知识靠会话， 难审计",
+        "和 K8s / S3 不是一张网",
+        "能问制度， 不能执行",
+        "邮件与附件 仍在外面",
+        "和 Agent 各管各的",
+        "容易变成 又一个门户",
+        "内网默认， 数据在企业",
+        "Agent 能干活、能审批",
+        "邮件进库， 回答带出处",
+        "K8s + S3 与信息化同构"
+      ],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": true
+    },
+    {
+      "type": "closing",
+      "source_html": "11-close.html",
+      "title": "先立住底座，再谈自治",
+      "subtitle": "不承诺「换掉 ERP」。承诺的是：智能体可以在你们的内网、按你们的存储和集群，开始被治理地工作。",
+      "meta": "",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    },
+    {
+      "type": "closing",
+      "source_html": "index.html",
+      "title": "Slide Deck",
+      "subtitle": "",
+      "meta": "11 slides · 16:9",
+      "footer_left": "",
+      "footer_right": "",
+      "bullets": [],
+      "chips": [],
+      "stats": [],
+      "agenda": [],
+      "panel_title": "",
+      "panel_body": "",
+      "quote": "",
+      "actions": [],
+      "charts": [],
+      "images": [],
+      "has_visual": false
+    }
+  ]
+}

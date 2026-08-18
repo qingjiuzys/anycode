@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>从现场 POC 开始</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden; position: relative;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .glow {
+      position: absolute; right: -120px; bottom: -160px; width: 820px; height: 820px;
+    }
+    .slide { position: relative; z-index: 1; height: 100%; padding: 64px 96px 56px; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 16px;
+    }
+    h2 { font-size: 56px; font-weight: 800; letter-spacing: -0.03em; max-width: 1200px; margin-bottom: 16px; }
+    .lede { font-size: 24px; color: var(--ink-60); max-width: 1100px; line-height: 1.5; margin-bottom: 40px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-bottom: 48px; }
+    .st {
+      border: 1px solid rgba(122,162,247,0.28);
+      background: rgba(192,202,245,0.04);
+      padding: 28px 28px 32px; min-height: 280px;
+    }
+    .st .n { font-family: var(--mono); font-size: 40px; color: var(--accent); font-weight: 800; margin-bottom: 12px; }
+    .st h3 { font-size: 26px; margin-bottom: 10px; }
+    .st p { font-size: 18px; color: var(--ink-60); line-height: 1.55; }
+    .cta {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      border-top: 1px solid rgba(122,162,247,0.22); padding-top: 28px;
+    }
+    .cta .url { font-family: var(--mono); font-size: 22px; color: var(--ink); line-height: 1.7; }
+    .cta .url span { color: var(--accent); }
+    .cta .who { font-size: 16px; color: var(--ink-40); text-align: right; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <svg class="glow" viewBox="0 0 820 820" aria-hidden="true">
+    <circle cx="410" cy="410" r="280" fill="none" stroke="#7aa2f7" stroke-opacity="0.16"/>
+    <circle cx="410" cy="410" r="360" fill="none" stroke="#7aa2f7" stroke-opacity="0.08"/>
+    <circle cx="410" cy="410" r="120" fill="rgba(122,162,247,0.12)"/>
+  </svg>
+  <div class="slide" data-type="closing">
+    <div class="kicker">11 · NEXT</div>
+    <h2>先立住底座，再谈自治</h2>
+    <p class="lede">不承诺「换掉 ERP」。承诺的是：智能体可以在你们的内网、按你们的存储和集群，开始被治理地工作。</p>
+    <div class="steps">
+      <article class="st">
+        <div class="n">01</div>
+        <h3>现场 POC</h3>
+        <p>选一个真实部门：制度问答 + 一份邮件归档 + 一次带审批的 Agent 任务。</p>
+      </article>
+      <article class="st">
+        <div class="n">02</div>
+        <h3>内网 K8s</h3>
+        <p>镜像进私有仓库，接企业 S3，和工作台、网关一起上集群。</p>
+      </article>
+      <article class="st">
+        <div class="n">03</div>
+        <h3>知识与邮件接入</h3>
+        <p>把日常入口收进记忆层。治理从「能演示」变成「能上班」。</p>
+      </article>
+    </div>
+    <div class="cta">
+      <div class="url">
+        <div><span>www.818cloud.com</span> · 企业方案</div>
+        <div>anycode.work · 工作台与文档</div>
+      </div>
+      <div class="who">
+        杭州灵栖智能科技有限公司<br/>
+        浙江 · 青山湖科技城<br/>
+        走向 AI 原生治理
+      </div>
+    </div>
+  </div>
+</body>
+</html>

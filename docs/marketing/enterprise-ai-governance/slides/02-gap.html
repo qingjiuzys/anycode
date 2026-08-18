@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>企业不缺模型，缺治理</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 64px 96px; display: grid; grid-template-rows: auto auto 1fr; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 18px;
+    }
+    h2 { font-size: 56px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+    .lede { font-size: 22px; color: var(--ink-60); max-width: 1100px; line-height: 1.55; margin-bottom: 36px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; align-items: stretch; }
+    .card {
+      border: 1px solid rgba(122, 162, 247, 0.22);
+      background: rgba(192, 202, 245, 0.04);
+      padding: 28px 28px 32px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .card svg { width: 100%; height: 168px; }
+    .card .no { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.14em; }
+    .card h3 { font-size: 28px; font-weight: 700; }
+    .card p { font-size: 18px; line-height: 1.55; color: var(--ink-60); }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">02 · THE GAP</div>
+    <h2>企业不缺大模型，缺的是治理</h2>
+    <p class="lede">买一个 Copilot 并不等于 AI 进了企业。真正卡住的，是数据出域、知识散落、智能体无法被当员工管辖。</p>
+    <div class="grid">
+      <article class="card">
+        <svg viewBox="0 0 360 168" aria-hidden="true">
+          <rect x="24" y="28" width="200" height="112" rx="8" fill="none" stroke="#7aa2f7" stroke-opacity="0.55"/>
+          <text x="44" y="78" fill="#c0caf5" font-size="16" font-family="ui-sans-serif,sans-serif">内网</text>
+          <text x="44" y="104" fill="#7aa2f7" font-size="13" font-family="ui-monospace,monospace">制度 · 代码 · 客户</text>
+          <path d="M224 84 H292" stroke="#7aa2f7" stroke-width="2" stroke-dasharray="6 6"/>
+          <circle cx="318" cy="84" r="22" fill="none" stroke="#7aa2f7"/>
+          <text x="307" y="90" fill="#7aa2f7" font-size="16">云</text>
+        </svg>
+        <div class="no">01  DATA LEAVES</div>
+        <h3>数据出域</h3>
+        <p>公有云助手把制度、源码和客户材料送出边界。合规部门无法回答「这句话去了哪」。</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 360 168" aria-hidden="true">
+          <rect x="28" y="36" width="88" height="56" fill="none" stroke="#7aa2f7"/>
+          <rect x="136" y="24" width="88" height="56" fill="none" stroke="#c0caf5" stroke-opacity="0.45"/>
+          <rect x="80" y="88" width="88" height="56" fill="none" stroke="#7aa2f7" stroke-opacity="0.5"/>
+          <rect x="230" y="72" width="88" height="56" fill="none" stroke="#c0caf5" stroke-opacity="0.35"/>
+          <text x="44" y="70" fill="#c0caf5" font-size="13">网盘</text>
+          <text x="152" y="58" fill="#c0caf5" font-size="13">邮件</text>
+          <text x="96" y="122" fill="#c0caf5" font-size="13">个人盘</text>
+          <text x="246" y="106" fill="#c0caf5" font-size="13">IM</text>
+        </svg>
+        <div class="no">02  KNOWLEDGE SCATTERS</div>
+        <h3>知识散落</h3>
+        <p>制度在网盘，项目在邮件，经验在个人电脑。模型再强，也只能猜，不能引用。</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 360 168" aria-hidden="true">
+          <circle cx="180" cy="84" r="46" fill="none" stroke="#7aa2f7" stroke-width="2"/>
+          <path d="M180 50 V84 L206 102" fill="none" stroke="#7aa2f7" stroke-width="2"/>
+          <path d="M86 84 H134 M226 84 H274" stroke="#c0caf5" stroke-opacity="0.35"/>
+          <circle cx="80" cy="84" r="7" fill="#7aa2f7" opacity="0.35"/>
+          <circle cx="280" cy="84" r="7" fill="#7aa2f7"/>
+        </svg>
+        <div class="no">03  AGENT UNGOVERNED</div>
+        <h3>智能体失控</h3>
+        <p>会聊天不等于会干活。能干了，又没有审批、没有审计、没有权限边界。</p>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

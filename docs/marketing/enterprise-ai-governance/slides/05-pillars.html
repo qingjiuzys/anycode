@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>企业四根柱</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 56px 88px; display: grid; grid-template-rows: auto auto 1fr; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    }
+    h2 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; }
+    .lede { font-size: 20px; color: var(--ink-60); margin: 12px 0 28px; max-width: 1300px; }
+    .pillars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+    .p {
+      border: 1px solid rgba(122, 162, 247, 0.22);
+      background: linear-gradient(180deg, rgba(122,162,247,0.1), rgba(192,202,245,0.02));
+      padding: 22px 22px 28px;
+      min-height: 680px;
+      display: flex; flex-direction: column;
+    }
+    .p svg { width: 100%; height: 200px; margin-bottom: 18px; }
+    .p .n { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.14em; margin-bottom: 10px; }
+    .p h3 { font-size: 30px; font-weight: 700; margin-bottom: 14px; }
+    .p p { font-size: 18px; line-height: 1.55; color: var(--ink-60); flex: 1; }
+    .p .chip {
+      margin-top: 18px; font-family: var(--mono); font-size: 13px;
+      color: var(--ink); border-top: 1px solid rgba(122,162,247,0.22); padding-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">05 · ENTERPRISE PILLARS</div>
+    <h2>四根柱，缺一根就还是试点</h2>
+    <p class="lede">企业要的不是「也能私有化」的口头承诺，而是和现有基础设施同构：内网能装、K8s 能跑、对象存储能接、知识能管。</p>
+    <div class="pillars">
+      <article class="p">
+        <svg viewBox="0 0 280 200" aria-hidden="true">
+          <rect x="40" y="40" width="200" height="128" rx="10" fill="none" stroke="#7aa2f7" stroke-width="2"/>
+          <rect x="62" y="62" width="156" height="84" fill="rgba(122,162,247,0.12)" stroke="#7aa2f7"/>
+          <circle cx="86" cy="86" r="6" fill="#7aa2f7"/>
+          <text x="100" y="91" fill="#c0caf5" font-size="14">内网</text>
+          <text x="80" y="122" fill="#7aa2f7" font-size="12" font-family="ui-monospace,monospace">DATA STAYS</text>
+        </svg>
+        <div class="n">01  INTRANET</div>
+        <h3>内网部署</h3>
+        <p>本机桌面、内网服务器或无头守护进程。业务文件默认不出域，云端只在你允许时接入。</p>
+        <div class="chip">Desktop · Daemon · 空气隔离可选</div>
+      </article>
+      <article class="p">
+        <svg viewBox="0 0 280 200" aria-hidden="true">
+          <g fill="none" stroke="#7aa2f7" stroke-width="1.6">
+            <polygon points="70,130 110,108 150,130 110,152"/>
+            <polygon points="130,96 170,74 210,96 170,118"/>
+            <polygon points="90,78 130,56 170,78 130,100"/>
+          </g>
+          <polygon points="90,78 130,56 170,78 130,100" fill="rgba(122,162,247,0.16)" stroke="#7aa2f7"/>
+        </svg>
+        <div class="n">02  KUBERNETES</div>
+        <h3>支持 K8s</h3>
+        <p>按企业已有容器平台交付：滚动发布、健康检查、镜像仓库。信息化不用为 AI 另起一套运维宗教。</p>
+        <div class="chip">Deployment · Ingress · 私有仓库</div>
+      </article>
+      <article class="p">
+        <svg viewBox="0 0 280 200" aria-hidden="true">
+          <rect x="48" y="48" width="184" height="40" fill="none" stroke="#7aa2f7"/>
+          <rect x="48" y="96" width="184" height="40" fill="rgba(122,162,247,0.12)" stroke="#7aa2f7"/>
+          <rect x="48" y="144" width="184" height="28" fill="none" stroke="#7aa2f7" stroke-opacity="0.5"/>
+          <text x="64" y="74" fill="#c0caf5" font-size="14">Bucket</text>
+          <text x="64" y="122" fill="#c0caf5" font-size="14">Object / S3</text>
+        </svg>
+        <div class="n">03  OBJECT STORE</div>
+        <h3>S3 企业存储</h3>
+        <p>知识附件、邮件附件、Agent 产物落到企业自己的对象存储：MinIO、OSS 或任何 S3 兼容端点。</p>
+        <div class="chip">S3 API · 企业桶 · 生命周期</div>
+      </article>
+      <article class="p">
+        <svg viewBox="0 0 280 200" aria-hidden="true">
+          <circle cx="140" cy="100" r="54" fill="none" stroke="#7aa2f7"/>
+          <circle cx="140" cy="100" r="22" fill="rgba(122,162,247,0.18)" stroke="#7aa2f7"/>
+          <path d="M140 46 V70 M140 130 V154 M86 100 H110 M170 100 H194" stroke="#7aa2f7"/>
+          <text x="128" y="105" fill="#c0caf5" font-size="12">RAG</text>
+        </svg>
+        <div class="n">04  KNOWLEDGE</div>
+        <h3>企业知识库</h3>
+        <p>采集、切片、向量检索、带出处回答。知识不是展览柜，是 Agent 每次动手前必须经过的记忆层。</p>
+        <div class="chip">出处 · 权限范围 · 重建索引</div>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

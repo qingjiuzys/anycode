@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>邮件进库，问答带出处</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 56px 88px; display: grid; grid-template-rows: auto auto 1fr auto; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    }
+    h2 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; }
+    .lede { font-size: 20px; color: var(--ink-60); margin: 12px 0 20px; max-width: 1400px; line-height: 1.5; }
+    .flow { width: 1744px; height: 520px; }
+    .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .note {
+      border-left: 3px solid var(--accent); padding: 8px 0 8px 18px;
+      font-size: 18px; color: var(--ink-60); line-height: 1.5;
+    }
+    .note b { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">08 · MAIL × KNOWLEDGE</div>
+    <h2>邮件是入口，知识库是记忆</h2>
+    <p class="lede">大多数企业知识并不在 Wiki 里，而在往来邮件和附件中。Mail 负责收口，知识库负责可引用，S3 负责原件还在。</p>
+    <svg class="flow" viewBox="0 0 1744 520" role="img" aria-label="邮件到知识到 Agent 的闭环">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#7aa2f7"/>
+        </marker>
+      </defs>
+      <g font-family="ui-sans-serif,sans-serif">
+        <rect x="20" y="160" width="280" height="200" fill="rgba(122,162,247,0.08)" stroke="#7aa2f7"/>
+        <text x="160" y="230" text-anchor="middle" fill="#7aa2f7" font-size="14" font-family="ui-monospace,monospace">CHANNEL</text>
+        <text x="160" y="268" text-anchor="middle" fill="#c0caf5" font-size="28">Mail</text>
+        <text x="160" y="308" text-anchor="middle" fill="#c0caf5" font-size="16">往来 · 附件 · 工单抄送</text>
+        <path d="M300 260 H400" stroke="#7aa2f7" stroke-width="2" marker-end="url(#arr)"/>
+        <rect x="400" y="160" width="280" height="200" fill="rgba(122,162,247,0.08)" stroke="#7aa2f7"/>
+        <text x="540" y="230" text-anchor="middle" fill="#7aa2f7" font-size="14" font-family="ui-monospace,monospace">INGEST</text>
+        <text x="540" y="268" text-anchor="middle" fill="#c0caf5" font-size="28">采集入库</text>
+        <text x="540" y="308" text-anchor="middle" fill="#c0caf5" font-size="16">切片 · 向量 · 权限标签</text>
+        <path d="M680 260 H780" stroke="#7aa2f7" stroke-width="2" marker-end="url(#arr)"/>
+        <rect x="780" y="80" width="280" height="160" fill="rgba(122,162,247,0.12)" stroke="#7aa2f7"/>
+        <text x="920" y="148" text-anchor="middle" fill="#c0caf5" font-size="24">知识库</text>
+        <text x="920" y="186" text-anchor="middle" fill="#c0caf5" font-size="16">问一句，回到原文</text>
+        <rect x="780" y="280" width="280" height="160" fill="none" stroke="#7aa2f7"/>
+        <text x="920" y="348" text-anchor="middle" fill="#c0caf5" font-size="24">S3 对象</text>
+        <text x="920" y="386" text-anchor="middle" fill="#c0caf5" font-size="16">PDF / 附件原件</text>
+        <path d="M1060 260 H1160" stroke="#7aa2f7" stroke-width="2" marker-end="url(#arr)"/>
+        <rect x="1160" y="160" width="280" height="200" fill="rgba(122,162,247,0.08)" stroke="#7aa2f7"/>
+        <text x="1300" y="230" text-anchor="middle" fill="#7aa2f7" font-size="14" font-family="ui-monospace,monospace">RUNTIME</text>
+        <text x="1300" y="268" text-anchor="middle" fill="#c0caf5" font-size="28">anyCode</text>
+        <text x="1300" y="308" text-anchor="middle" fill="#c0caf5" font-size="16">检索后才动手</text>
+        <path d="M1440 260 H1540" stroke="#7aa2f7" stroke-width="2" marker-end="url(#arr)"/>
+        <rect x="1540" y="160" width="184" height="200" fill="rgba(122,162,247,0.16)" stroke="#7aa2f7"/>
+        <text x="1632" y="248" text-anchor="middle" fill="#c0caf5" font-size="22">出处</text>
+        <text x="1632" y="286" text-anchor="middle" fill="#c0caf5" font-size="16">可审计</text>
+      </g>
+    </svg>
+    <div class="notes">
+      <p class="note"><b>Mail</b> 把日常协作变成可治理对象，而不是另让员工「请把资料再贴一次」。</p>
+      <p class="note"><b>知识库</b> 对制度、项目、客户材料做同一套检索，回答必须带得回原文。</p>
+      <p class="note"><b>S3</b> 保证原件在企业桶里。向量是索引，对象才是证据。</p>
+    </div>
+  </div>
+</body>
+</html>

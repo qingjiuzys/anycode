@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>一层图看清底座</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 52px 88px; display: grid; grid-template-rows: auto auto 1fr; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+    }
+    h2 { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 10px; }
+    .lede { font-size: 20px; color: var(--ink-60); margin-bottom: 22px; }
+    .layer-stack { display: flex; flex-direction: column; border: 1px solid rgba(122,162,247,0.35); }
+    .layer-card {
+      display: grid; grid-template-columns: 140px 1fr 420px; gap: 20px; align-items: center;
+      padding: 28px 32px; border-bottom: 1px solid rgba(122,162,247,0.2);
+      background: rgba(192,202,245,0.03);
+    }
+    .layer-card:last-child { border-bottom: none; }
+    .layer-card.hot { background: rgba(122,162,247,0.12); }
+    .lab { font-family: var(--mono); font-size: 13px; letter-spacing: 0.12em; color: var(--accent); line-height: 1.4; }
+    .layer-card h4 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+    .layer-card p { font-size: 17px; color: var(--ink-60); }
+    .chips { font-family: var(--mono); font-size: 14px; color: var(--ink); text-align: right; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">09 · ARCHITECTURE</div>
+    <h2>四层叠上去，越往下越是基础设施</h2>
+    <p class="lede">应用可以换皮，底座这四层必须先立住——否则 Agent 永远停在演示。</p>
+    <div class="layer-stack">
+      <div class="layer-card">
+        <span class="lab">L4<br/>WORKSPACE</span>
+        <div>
+          <h4>工作入口</h4>
+          <p>人从哪里进来：工作台对话、邮件、知识问答。同一套身份与审计。</p>
+        </div>
+        <div class="chips">Workbench · Mail · 知识问答</div>
+      </div>
+      <div class="layer-card hot">
+        <span class="lab">L3<br/>HARNESS</span>
+        <div>
+          <h4>治理与编排</h4>
+          <p>模型负责推理，套件负责治理：工具循环、审批、取消、日志。</p>
+        </div>
+        <div class="chips">AgentRuntime · Approval · Audit</div>
+      </div>
+      <div class="layer-card">
+        <span class="lab">L2<br/>MEMORY</span>
+        <div>
+          <h4>记忆与对象</h4>
+          <p>可检索的知识，可取回的原件。向量是索引，S3 是证据。</p>
+        </div>
+        <div class="chips">知识库 RAG · S3 / MinIO / OSS</div>
+      </div>
+      <div class="layer-card">
+        <span class="lab">L1<br/>PLATFORM</span>
+        <div>
+          <h4>交付底座</h4>
+          <p>装得进内网，跑得上 K8s，模型既可 BYOK 也可走企业网关。</p>
+        </div>
+        <div class="chips">Intranet · Kubernetes · 818Cloud Gateway</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

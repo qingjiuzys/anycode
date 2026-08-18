@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>四件套是一张网</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 56px 88px 48px; display: grid; grid-template-rows: auto auto 1fr; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    }
+    h2 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; }
+    .lede { font-size: 20px; color: var(--ink-60); margin: 12px 0 28px; }
+    .row { display: grid; grid-template-columns: 420px 1fr; gap: 36px; min-height: 0; }
+    .map { width: 420px; height: 620px; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .card {
+      border: 1px solid rgba(122, 162, 247, 0.22);
+      background: rgba(192, 202, 245, 0.04);
+      padding: 26px 28px;
+    }
+    .card .plane { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--accent); margin-bottom: 8px; }
+    .card h3 { font-size: 28px; font-weight: 700; margin-bottom: 10px; }
+    .card p { font-size: 18px; line-height: 1.55; color: var(--ink-60); }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">04 · SYSTEM</div>
+    <h2>四件套是一张网，不是四套软件</h2>
+    <p class="lede">分开卖是工具。合在一起，才是企业能接管的控制平面。</p>
+    <div class="row">
+      <svg class="map" viewBox="0 0 420 620" role="img" aria-label="四产品环">
+        <circle cx="210" cy="310" r="86" fill="rgba(122,162,247,0.12)" stroke="#7aa2f7"/>
+        <text x="210" y="304" text-anchor="middle" fill="#c0caf5" font-size="18" font-family="ui-sans-serif,sans-serif">治理底座</text>
+        <text x="210" y="328" text-anchor="middle" fill="#7aa2f7" font-size="13" font-family="ui-monospace,monospace">CONTROL PLANE</text>
+        <circle cx="210" cy="310" r="200" fill="none" stroke="#7aa2f7" stroke-opacity="0.25" stroke-dasharray="5 8"/>
+        <g font-family="ui-sans-serif,sans-serif" font-size="16" fill="#c0caf5" text-anchor="middle">
+          <circle cx="210" cy="88" r="10" fill="#7aa2f7"/>
+          <text x="210" y="64">anyCode</text>
+          <circle cx="392" cy="310" r="10" fill="#7aa2f7"/>
+          <text x="338" y="314">818Cloud</text>
+          <circle cx="210" cy="532" r="10" fill="#7aa2f7"/>
+          <text x="210" y="568">Mail</text>
+          <circle cx="28" cy="310" r="10" fill="#7aa2f7"/>
+          <text x="86" y="314">知识库</text>
+        </g>
+      </svg>
+      <div class="cards">
+        <article class="card">
+          <div class="plane">EXECUTE</div>
+          <h3>anyCode</h3>
+          <p>默认在本地工作的企业级智能体。读文件、跑任务、改稿件；敏感操作停下来等人批。</p>
+        </article>
+        <article class="card">
+          <div class="plane">CONTROL</div>
+          <h3>818Cloud</h3>
+          <p>账户、模型网关、用量与交付控制平面。公有云是选项，内网镜像才是企业主路径。</p>
+        </article>
+        <article class="card">
+          <div class="plane">CHANNEL</div>
+          <h3>Mail</h3>
+          <p>邮件仍是企业最大的非结构化入口。收进来、可检索、附件进对象存储，而不是沉在个人收件箱。</p>
+        </article>
+        <article class="card">
+          <div class="plane">MEMORY</div>
+          <h3>知识库</h3>
+          <p>制度、项目、客户材料分段入库。问一句，答案能回到原文——Agent 用同一份记忆，而不是另开聊天窗。</p>
+        </article>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

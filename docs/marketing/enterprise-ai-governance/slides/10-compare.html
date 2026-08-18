@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>三种路径对照</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 52px 80px; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+    }
+    h2 { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 10px; }
+    .lede { font-size: 20px; color: var(--ink-60); margin-bottom: 20px; }
+    .chart { width: 1760px; height: 300px; }
+    .trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+    .card {
+      border: 1px solid rgba(122,162,247,0.2);
+      padding: 22px 24px 26px;
+      background: rgba(192,202,245,0.03);
+      min-height: 360px;
+    }
+    .card.hot { border-color: var(--accent); background: rgba(122,162,247,0.1); }
+    .card .lab { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; color: var(--accent); margin-bottom: 8px; }
+    .card h3 { font-size: 26px; margin-bottom: 14px; }
+    .card ul { list-style: none; }
+    .card li { font-size: 18px; line-height: 1.65; color: var(--ink-60); padding: 6px 0; border-bottom: 1px solid var(--ink-08); }
+    .card li:last-child { border-bottom: none; }
+    .card li b { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div class="kicker">10 · COMPARE</div>
+    <h2>试点能跑通，治理才能铺开</h2>
+    <p class="lede">对照只看企业真正在意的四件事：数据在哪、能不能干活、知识有没有出处、能不能按现有平台运维。</p>
+    <div id="chart" class="chart"></div>
+    <div class="trio">
+      <article class="card">
+        <div class="lab">PATH A</div>
+        <h3>公有云助手</h3>
+        <ul>
+          <li>上手快，<b>数据在厂商</b></li>
+          <li>会写，<b>难碰内网文件</b></li>
+          <li>知识靠会话，<b>难审计</b></li>
+          <li>和 K8s / S3 <b>不是一张网</b></li>
+        </ul>
+      </article>
+      <article class="card">
+        <div class="lab">PATH B</div>
+        <h3>单点知识库</h3>
+        <ul>
+          <li>能问制度，<b>不能执行</b></li>
+          <li>邮件与附件<b>仍在外面</b></li>
+          <li>和 Agent <b>各管各的</b></li>
+          <li>容易变成<b>又一个门户</b></li>
+        </ul>
+      </article>
+      <article class="card hot">
+        <div class="lab">PATH C · OURS</div>
+        <h3>治理底座</h3>
+        <ul>
+          <li>内网默认，<b>数据在企业</b></li>
+          <li>Agent <b>能干活、能审批</b></li>
+          <li>邮件进库，<b>回答带出处</b></li>
+          <li><b>K8s + S3</b> 与信息化同构</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+  <script src="vendor/echarts.min.js"></script>
+  <script>
+    const style = getComputedStyle(document.documentElement);
+    const accent = style.getPropertyValue("--accent").trim() || "#7aa2f7";
+    const ink = style.getPropertyValue("--ink").trim() || "#c0caf5";
+    const chart = echarts.init(document.getElementById("chart"));
+    chart.setOption({
+      color: ["rgba(192,202,245,0.35)", "rgba(122,162,247,0.45)", accent],
+      textStyle: { color: ink, fontFamily: "PingFang SC, sans-serif" },
+      radar: {
+        indicator: [
+          { name: "数据不出域", max: 5 },
+          { name: "能执行", max: 5 },
+          { name: "知识出处", max: 5 },
+          { name: "K8s / S3", max: 5 },
+          { name: "可审计", max: 5 },
+        ],
+        axisName: { color: ink, fontSize: 14 },
+        splitLine: { lineStyle: { color: "rgba(122,162,247,0.2)" } },
+        splitArea: { areaStyle: { color: ["rgba(26,27,38,0.2)", "rgba(122,162,247,0.04)"] } },
+        axisLine: { lineStyle: { color: "rgba(122,162,247,0.25)" } },
+      },
+      legend: { data: ["公有云助手", "单点知识库", "本方案"], textStyle: { color: ink }, top: 4 },
+      series: [{
+        type: "radar",
+        symbol: "circle",
+        symbolSize: 6,
+        data: [
+          { value: [1, 2, 2, 1, 2], name: "公有云助手" },
+          { value: [3, 1, 4, 2, 3], name: "单点知识库" },
+          { value: [5, 5, 5, 5, 5], name: "本方案" },
+        ],
+      }],
+    });
+  </script>
+</body>
+</html>

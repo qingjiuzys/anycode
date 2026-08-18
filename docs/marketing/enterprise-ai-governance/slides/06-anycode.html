@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>anyCode 执行层</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --ink: #c0caf5;
+      --accent: #7aa2f7;
+      --ink-60: rgba(192, 202, 245, 0.72);
+      --ink-40: rgba(192, 202, 245, 0.55);
+      --ink-08: rgba(192, 202, 245, 0.08);
+      --serif: "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1920px; height: 1080px; overflow: hidden;
+      background: var(--bg); color: var(--ink); font-family: var(--sans);
+    }
+    .slide { height: 100%; padding: 56px 88px; display: grid; grid-template-columns: 1fr 760px; gap: 48px; }
+    .kicker {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    }
+    h2 { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+    .lede { font-size: 22px; color: var(--ink-60); line-height: 1.55; margin-bottom: 32px; max-width: 880px; }
+    .list { display: grid; gap: 16px; }
+    .item {
+      display: grid; grid-template-columns: 88px 1fr; gap: 16px; align-items: start;
+      border: 1px solid rgba(122,162,247,0.18); padding: 16px 18px; background: rgba(192,202,245,0.03);
+    }
+    .item b { font-family: var(--mono); color: var(--accent); font-size: 13px; letter-spacing: 0.08em; }
+    .item p { font-size: 20px; line-height: 1.45; }
+    .cycle { width: 760px; height: 860px; }
+  </style>
+</head>
+<body>
+  <div class="slide" data-type="content">
+    <div>
+      <div class="kicker">06 · ANYCODE · EXECUTE</div>
+      <h2>智能体在你这边工作</h2>
+      <p class="lede">anyCode 不是把对话托管到别人的云。工具、文件、审批默认留在企业环境，模型可以 BYOK，也可以走内网网关。</p>
+      <div class="list">
+        <div class="item"><b>LOCAL</b><p>桌面工作台或内网 daemon，同一套 Agent 引擎。</p></div>
+        <div class="item"><b>TOOLS</b><p>读改文件、检索代码、浏览器、定时任务——真正动手，而不是只生成建议。</p></div>
+        <div class="item"><b>APPROVAL</b><p>写文件、跑命令等敏感步骤停下来确认，权限像手机弹窗一样可见。</p></div>
+        <div class="item"><b>BYOK</b><p>自带密钥接国内或国际模型；私有化场景可走 Ollama 与企业网关。</p></div>
+      </div>
+    </div>
+    <svg class="cycle agent-cycle" viewBox="0 0 760 860" role="img" aria-label="Agent 循环">
+      <circle cx="380" cy="430" r="210" fill="none" stroke="#7aa2f7" stroke-opacity="0.25" stroke-width="2"/>
+      <circle cx="380" cy="430" r="92" fill="rgba(122,162,247,0.14)" stroke="#7aa2f7"/>
+      <text x="380" y="424" text-anchor="middle" fill="#c0caf5" font-size="22" font-family="ui-sans-serif,sans-serif">AgentRuntime</text>
+      <text x="380" y="452" text-anchor="middle" fill="#7aa2f7" font-size="14" font-family="ui-monospace,monospace">理解 · 规划 · 执行</text>
+      <g font-family="ui-sans-serif,sans-serif" font-size="20" fill="#c0caf5" text-anchor="middle">
+        <circle cx="380" cy="160" r="54" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2"/>
+        <text x="380" y="166">目标</text>
+        <circle cx="620" cy="360" r="54" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2"/>
+        <text x="620" y="366">工具</text>
+        <circle cx="540" cy="680" r="54" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2"/>
+        <text x="540" y="686">审批</text>
+        <circle cx="220" cy="680" r="54" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2"/>
+        <text x="220" y="686">回执</text>
+        <circle cx="140" cy="360" r="54" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2"/>
+        <text x="140" y="366">知识</text>
+      </g>
+    </svg>
+  </div>
+</body>
+</html>
