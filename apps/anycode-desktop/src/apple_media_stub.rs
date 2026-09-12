@@ -79,3 +79,20 @@ pub async fn apple_media_notify(
 ) -> Result<(), String> {
     Err("apple media is only available on macOS".into())
 }
+
+#[tauri::command]
+pub async fn harness_device_keychain_set(
+    _app: AppHandle,
+    _account: String,
+    _token: String,
+) -> Result<(), String> {
+    Err("Keychain requires macOS".into())
+}
+
+#[tauri::command]
+pub async fn harness_device_keychain_get(
+    _app: AppHandle,
+    _account: String,
+) -> Result<Option<String>, String> {
+    Err("Keychain requires macOS".into())
+}

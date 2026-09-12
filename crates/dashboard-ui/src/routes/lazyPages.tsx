@@ -81,6 +81,9 @@ export const ReportsPage = lazyWithChunkReload(() =>
 export const AuditPage = lazyWithChunkReload(() =>
   import("@/pages/AuditPage").then((m) => ({ default: m.AuditPage })),
 );
+export const HarnessGraphPage = lazyWithChunkReload(() =>
+  import("@/pages/HarnessGraphPage").then((m) => ({ default: m.HarnessGraphPage })),
+);
 export const SettingsPage = lazyWithChunkReload(() =>
   import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );

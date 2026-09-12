@@ -591,6 +591,55 @@ pub fn router(state: AppState) -> Router {
             "/sessions/{session_id}/graph/run",
             post(handlers::run_session_graph),
         )
+        .route("/harness/status", get(handlers::get_harness_status))
+        .route(
+            "/harness/pairing/challenges",
+            post(handlers::create_harness_pairing_challenge),
+        )
+        .route(
+            "/harness/pairing/confirm",
+            post(handlers::confirm_harness_pairing),
+        )
+        .route(
+            "/harness/pairing/revoke",
+            post(handlers::revoke_harness_pairing),
+        )
+        .route(
+            "/harness/pairing/sso/begin",
+            post(handlers::begin_harness_pairing_sso),
+        )
+        .route(
+            "/harness/pairing/sso/complete",
+            post(handlers::complete_harness_pairing_sso),
+        )
+        .route(
+            "/harness/pairing/sso/poll",
+            post(handlers::poll_harness_pairing_sso),
+        )
+        .route(
+            "/harness/pairing/sso/callback",
+            get(handlers::callback_harness_pairing_sso),
+        )
+        .route(
+            "/projects/{project_id}/harness/graphs/start",
+            post(handlers::start_harness_graph),
+        )
+        .route(
+            "/projects/{project_id}/harness/graphs/{run_id}",
+            get(handlers::get_harness_graph),
+        )
+        .route(
+            "/projects/{project_id}/harness/graphs/{run_id}/resume",
+            post(handlers::resume_harness_graph),
+        )
+        .route(
+            "/projects/{project_id}/harness/graphs/{run_id}/resolve",
+            post(handlers::resolve_harness_graph),
+        )
+        .route(
+            "/projects/{project_id}/harness/computer/tickets",
+            post(handlers::issue_harness_computer_ticket),
+        )
         .route("/media/status", get(handlers::get_media_status))
         .route("/media/transcribe", post(handlers::transcribe_audio))
         .route("/media/ocr", post(handlers::ocr_images))

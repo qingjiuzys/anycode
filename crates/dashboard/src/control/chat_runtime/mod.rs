@@ -103,6 +103,8 @@ pub struct ChatRuntimeHost {
     disk: Arc<DiskTaskOutput>,
     session_plan_store: Option<Arc<dyn SessionPlanStore>>,
     session_todo_store: Option<Arc<dyn SessionTodoStore>>,
+    /// Test/host injection. Production chat still goes through `build_embedded_runtime`.
+    seeded_runtime: Option<Arc<AgentRuntime>>,
 }
 
 struct EmbeddedSession {
@@ -154,7 +156,16 @@ impl ChatRuntimeHost {
             disk: Arc::new(DiskTaskOutput::new(web_chat_log_dir())),
             session_plan_store: None,
             session_todo_store: None,
+            seeded_runtime: None,
         }
+    }
+
+    /// Inject a Host-owned runtime (scripted LLM or enrolled computer). Never
+    /// used to fake a graph/tool success without going through Kernel.
+    #[must_use]
+    pub fn with_seeded_runtime(mut self, runtime: Arc<AgentRuntime>) -> Self {
+        self.seeded_runtime = Some(runtime);
+        self
     }
 
     /// Wire DB-backed plan/todo stores so PlanWrite/TodoWrite persist per session.
@@ -570,6 +581,7 @@ impl ChatRuntimeHost {
             context_injections: vec![],
             live_trace_tx: Some(live_tx),
             parent_task_id: Some(session.task_id),
+            budget: None,
         };
 
         let db2 = db.clone();
@@ -657,7 +669,20 @@ impl ChatRuntimeHost {
         self.runtime(project_root).await
     }
 
+    /// Already-built Host runtime only. Ticket issue must not mint a runtime
+    /// just to discover that no computer backend is enrolled.
+    pub async fn existing_runtime(&self, project_root: &Path) -> Option<Arc<AgentRuntime>> {
+        if let Some(rt) = &self.seeded_runtime {
+            return Some(Arc::clone(rt));
+        }
+        let key = project_root.to_string_lossy().to_string();
+        self.runtimes.lock().await.get(&key).cloned()
+    }
+
     async fn runtime(&self, project_root: &Path) -> anyhow::Result<Arc<AgentRuntime>> {
+        if let Some(rt) = &self.seeded_runtime {
+            return Ok(Arc::clone(rt));
+        }
         let key = project_root.to_string_lossy().to_string();
         let mut guard = self.runtimes.lock().await;
         if let Some(rt) = guard.get(&key) {

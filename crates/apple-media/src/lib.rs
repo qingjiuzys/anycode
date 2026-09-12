@@ -539,6 +539,63 @@ pub fn keychain_get(
     Err("Keychain requires macOS".into())
 }
 
+/// Desktop pairing service. Tauri and the helper must not write any other service.
+pub const HARNESS_DEVICE_KEYCHAIN_SERVICE: &str = "anycode.harness.device";
+
+/// Pairing accounts are device UUIDs (same check as the Tauri command).
+pub fn is_harness_device_account(account: &str) -> bool {
+    let bytes = account.as_bytes();
+    bytes.len() == 36
+        && bytes[8] == b'-'
+        && bytes[13] == b'-'
+        && bytes[18] == b'-'
+        && bytes[23] == b'-'
+        && bytes.iter().all(|b| b.is_ascii_hexdigit() || *b == b'-')
+}
+
+/// One-shot pairing token: 43 URL-safe characters.
+pub fn is_harness_device_token(token: &str) -> bool {
+    let t = token.trim();
+    t.len() == 43
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn require_harness_device_account(account: &str) -> Result<(), String> {
+    if is_harness_device_account(account) {
+        Ok(())
+    } else {
+        Err("device account must be a UUID".into())
+    }
+}
+
+/// Desktop-shaped persist: fixed service + UUID account + 43-char token.
+pub fn harness_device_token_set(
+    extra_paths: &[PathBuf],
+    account: &str,
+    token: &str,
+) -> Result<(), String> {
+    require_harness_device_account(account)?;
+    if !is_harness_device_token(token) {
+        return Err("device token bounds".into());
+    }
+    keychain_set(
+        extra_paths,
+        HARNESS_DEVICE_KEYCHAIN_SERVICE,
+        account,
+        token.trim(),
+    )
+}
+
+/// Desktop-shaped read of a pairing token.
+pub fn harness_device_token_get(
+    extra_paths: &[PathBuf],
+    account: &str,
+) -> Result<Option<String>, String> {
+    require_harness_device_account(account)?;
+    keychain_get(extra_paths, HARNESS_DEVICE_KEYCHAIN_SERVICE, account)
+}
+
 /// Store a generic password in Keychain.
 #[cfg(target_os = "macos")]
 pub fn keychain_set(
@@ -644,5 +701,54 @@ mod tests {
     fn mime_to_ext_mapping() {
         assert_eq!(mime_to_ext("image/png"), "png");
         assert_eq!(mime_to_ext("audio/amr"), "amr");
+    }
+
+    #[test]
+    fn harness_device_account_stays_uuid_and_token_is_43_url_safe() {
+        assert!(is_harness_device_account(
+            "11111111-1111-1111-1111-111111111111"
+        ));
+        assert!(!is_harness_device_account("not-a-uuid"));
+        assert!(!is_harness_device_account(&format!(
+            "harness-keychain-{}",
+            std::process::id()
+        )));
+        assert!(is_harness_device_token(&"K".repeat(43)));
+        assert!(!is_harness_device_token("short"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn harness_device_keychain_roundtrip_via_helper() {
+        let helper = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../apps/anycode-desktop/resources/bin/anycode-apple-media");
+        assert!(
+            helper.is_file(),
+            "bundled anycode-apple-media helper is required for keychain"
+        );
+        let extra = [helper];
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            & 0xffffffffffff;
+        let account = format!("00000000-0000-4000-8000-{nanos:012x}");
+        let token = "K".repeat(43);
+        assert!(is_harness_device_account(&account));
+        assert!(is_harness_device_token(&token));
+        assert!(harness_device_token_set(&[], "not-a-uuid", &token).is_err());
+        assert!(harness_device_token_set(&extra, &account, "short").is_err());
+        harness_device_token_set(&extra, &account, &token).expect("desktop keychain_set");
+        let got = harness_device_token_get(&extra, &account).expect("desktop keychain_get");
+        let _ = std::process::Command::new("security")
+            .args([
+                "delete-generic-password",
+                "-s",
+                "anycode.harness.device",
+                "-a",
+                &account,
+            ])
+            .status();
+        assert_eq!(got.as_deref(), Some(token.as_str()));
     }
 }

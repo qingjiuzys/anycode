@@ -1,6 +1,7 @@
 use anycode_core::prelude::*;
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -70,6 +71,8 @@ pub(super) struct MockLLM {
     calls: Arc<Mutex<Vec<Vec<MessageRole>>>>,
     queue: Arc<Mutex<Vec<LLMResponse>>>,
     stream_queue: Arc<Mutex<Vec<Vec<StreamEvent>>>>,
+    chat_calls: Arc<AtomicUsize>,
+    stream_calls: Arc<AtomicUsize>,
 }
 
 impl MockLLM {
@@ -78,6 +81,8 @@ impl MockLLM {
             calls: Arc::new(Mutex::new(vec![])),
             queue: Arc::new(Mutex::new(responses)),
             stream_queue: Arc::new(Mutex::new(vec![])),
+            chat_calls: Arc::new(AtomicUsize::new(0)),
+            stream_calls: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -89,11 +94,21 @@ impl MockLLM {
             calls: Arc::new(Mutex::new(vec![])),
             queue: Arc::new(Mutex::new(responses)),
             stream_queue: Arc::new(Mutex::new(stream_batches)),
+            chat_calls: Arc::new(AtomicUsize::new(0)),
+            stream_calls: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     pub(super) async fn call_roles(&self) -> Vec<Vec<MessageRole>> {
         self.calls.lock().await.clone()
+    }
+
+    pub(super) fn chat_call_count(&self) -> usize {
+        self.chat_calls.load(Ordering::SeqCst)
+    }
+
+    pub(super) fn stream_call_count(&self) -> usize {
+        self.stream_calls.load(Ordering::SeqCst)
     }
 }
 
@@ -105,6 +120,7 @@ impl LLMClient for MockLLM {
         _tools: Vec<ToolSchema>,
         _config: &ModelConfig,
     ) -> Result<LLMResponse, CoreError> {
+        self.chat_calls.fetch_add(1, Ordering::SeqCst);
         self.calls
             .lock()
             .await
@@ -122,6 +138,7 @@ impl LLMClient for MockLLM {
         _tools: Vec<ToolSchema>,
         _config: &ModelConfig,
     ) -> Result<tokio::sync::mpsc::Receiver<StreamEvent>, CoreError> {
+        self.stream_calls.fetch_add(1, Ordering::SeqCst);
         self.calls
             .lock()
             .await

@@ -1,0 +1,12 @@
+{
+  "status": "DESIGN ONLY — NOT IMPLEMENTED IN 818CLOUD SNAPSHOT",
+  "requirements": {
+    "confidential_client_secret": "server only",
+    "desktop_credentials": "device-bound opaque short-lived token in OS keychain",
+    "transport": "outbound authenticated connection from desktop; never public unauthenticated control port",
+    "pairing": "server-issued one-use challenge, local user confirmation, device binding and expiry",
+    "local_authority": "explicit enrollment + action approval; cloud login alone insufficient",
+    "revocation": "live project ACL and device revocation checked before every consequential operation",
+    "billing": "usage facts via future transactional outbox; no second wallet"
+  }
+}

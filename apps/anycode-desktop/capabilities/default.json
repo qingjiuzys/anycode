@@ -15,6 +15,7 @@
     "shell:default",
     "shell-helpers-default",
     "apple-media-default",
+    "harness-pairing-default",
     "cef-embed-default",
     "deep-link:default",
     "updater:default",

@@ -181,6 +181,17 @@ async fn run_inner(
     } else {
         None
     };
+    let features = match anycode_config::load_runtime_config(anycode_config::LoadOpts {
+        config_file: None,
+        ignore_approval: true,
+        workspace_overlay: false,
+        workspace_overlay_dir: None,
+    })
+    .await
+    {
+        Ok(cfg) => cfg.runtime.features,
+        Err(_) => anycode_core::FeatureRegistry::default(),
+    };
     let state = AppState {
         db,
         events: Arc::clone(&events),
@@ -205,6 +216,17 @@ async fn run_inner(
             .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
         embedded_desktop: crate::api::auth::embedded_desktop(),
         lan_hub: lan_hub.clone(),
+        harness_graph: anycode_core::harness_graph_enabled(&features),
+        harness_unified_kernel: anycode_core::harness_unified_kernel_enabled(&features),
+        harness_gray_projects: anycode_core::harness_gray_projects_from_env(),
+        accounts_sso: crate::api::state::accounts_client_if_server_side(
+            crate::api::auth::embedded_desktop(),
+        ),
+        sso_redirect: std::env::var("ANYCODE_HARNESS_SSO_REDIRECT")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        sso_hops: std::sync::Arc::new(crate::api::state::SsoHopStore::default()),
     };
     crate::control::question_notify::install(events, db_for_state.clone());
     crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
@@ -393,12 +415,82 @@ pub async fn app_for_test_api_only(db_path: &Path) -> Result<Router> {
     app_for_test_with_options(db_path, "127.0.0.1", false).await
 }
 
+/// Scripted Host for `app_for_test*`. Fixture chat must not load the developer
+/// `~/.anycode/config.json` (anycode_cloud pairing) or mutate process env.
+pub fn scripted_fixture_runtime() -> Arc<anycode_agent::AgentRuntime> {
+    struct RepeatingScriptedLlm;
+
+    #[async_trait::async_trait]
+    impl anycode_core::LLMClient for RepeatingScriptedLlm {
+        async fn chat(
+            &self,
+            _messages: Vec<anycode_core::Message>,
+            _tools: Vec<anycode_core::ToolSchema>,
+            _config: &anycode_core::ModelConfig,
+        ) -> Result<anycode_core::LLMResponse, anycode_core::CoreError> {
+            Ok(anycode_core::LLMResponse {
+                message: anycode_core::Message {
+                    id: uuid::Uuid::new_v4(),
+                    role: anycode_core::MessageRole::Assistant,
+                    content: anycode_core::MessageContent::Text("fixture-ok".into()),
+                    timestamp: chrono::Utc::now(),
+                    metadata: Default::default(),
+                },
+                tool_calls: vec![],
+                usage: anycode_core::Usage {
+                    input_tokens: 2,
+                    output_tokens: 1,
+                    cache_creation_tokens: None,
+                    cache_read_tokens: None,
+                },
+            })
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<anycode_core::Message>,
+            _tools: Vec<anycode_core::ToolSchema>,
+            _config: &anycode_core::ModelConfig,
+        ) -> Result<tokio::sync::mpsc::Receiver<anycode_core::StreamEvent>, anycode_core::CoreError>
+        {
+            let (tx, rx) = tokio::sync::mpsc::channel(8);
+            tokio::spawn(async move {
+                let _ = tx
+                    .send(anycode_core::StreamEvent::Delta("fixture-ok".into()))
+                    .await;
+                let _ = tx
+                    .send(anycode_core::StreamEvent::Usage(anycode_core::Usage {
+                        input_tokens: 2,
+                        output_tokens: 1,
+                        cache_creation_tokens: None,
+                        cache_read_tokens: None,
+                    }))
+                    .await;
+                let _ = tx.send(anycode_core::StreamEvent::Done).await;
+            });
+            Ok(rx)
+        }
+    }
+
+    anycode_agent::AgentRuntime::sandboxed_scripted(
+        Arc::new(RepeatingScriptedLlm),
+        std::collections::HashMap::new(),
+    )
+}
+
 pub struct TestAppOptions {
     pub host: String,
     pub serve_ui: bool,
     pub auth_bypass: bool,
     pub embedded_desktop: bool,
     pub desktop_bootstrap_token: Option<String>,
+    pub harness_graph: bool,
+    pub harness_unified_kernel: bool,
+    pub harness_gray_projects: Vec<String>,
+    pub tasks_root: Option<PathBuf>,
+    pub accounts_sso: Option<std::sync::Arc<anycode_harness_cloud818::identity::AccountsClient>>,
+    pub seeded_runtime: Option<std::sync::Arc<anycode_agent::AgentRuntime>>,
+    pub sso_redirect: Option<String>,
 }
 
 impl Default for TestAppOptions {
@@ -409,6 +501,13 @@ impl Default for TestAppOptions {
             auth_bypass: true,
             embedded_desktop: crate::api::auth::embedded_desktop(),
             desktop_bootstrap_token: None,
+            harness_graph: false,
+            harness_unified_kernel: false,
+            harness_gray_projects: Vec::new(),
+            tasks_root: None,
+            accounts_sso: None,
+            seeded_runtime: None,
+            sso_redirect: None,
         }
     }
 }
@@ -423,6 +522,7 @@ pub async fn app_for_test_with_options(
         TestAppOptions {
             host: host.into(),
             serve_ui,
+            seeded_runtime: Some(scripted_fixture_runtime()),
             ..TestAppOptions::default()
         },
     )
@@ -434,18 +534,24 @@ pub async fn app_for_test_custom(db_path: &Path, opts: TestAppOptions) -> Result
     let events = Arc::new(EventBus::new());
     crate::notify::register_inprocess_bus(Arc::clone(&events));
     let db_for_state = db.clone();
+    let mut chat_runtime = crate::control::chat_runtime::ChatRuntimeHost::new()
+        .with_session_stores(db_for_state.clone(), Arc::clone(&events));
+    if let Some(runtime) = opts.seeded_runtime {
+        chat_runtime = chat_runtime.with_seeded_runtime(runtime);
+    }
     let state = AppState {
         db,
         events: Arc::clone(&events),
         sessions: SessionStore::default(),
         web_chat_tail: crate::control::web_chat_tail::WebChatTailHub::default(),
-        chat_runtime: crate::control::chat_runtime::ChatRuntimeHost::new()
-            .with_session_stores(db_for_state.clone(), Arc::clone(&events)),
+        chat_runtime,
         version: "test".into(),
         static_dir: None,
         serve_ui: opts.serve_ui,
         workspace_paths: vec![],
-        tasks_root: PathBuf::from(".anycode/tasks"),
+        tasks_root: opts
+            .tasks_root
+            .unwrap_or_else(|| PathBuf::from(".anycode/tasks")),
         host: opts.host,
         port: 43180,
         started_at: chrono::Utc::now().to_rfc3339(),
@@ -454,6 +560,12 @@ pub async fn app_for_test_custom(db_path: &Path, opts: TestAppOptions) -> Result
         test_auth_bypass: opts.auth_bypass,
         embedded_desktop: opts.embedded_desktop,
         lan_hub: None,
+        harness_graph: opts.harness_graph,
+        harness_unified_kernel: opts.harness_unified_kernel,
+        harness_gray_projects: opts.harness_gray_projects,
+        accounts_sso: opts.accounts_sso,
+        sso_redirect: opts.sso_redirect,
+        sso_hops: std::sync::Arc::new(crate::api::state::SsoHopStore::default()),
     };
     crate::control::question_notify::install(events, db_for_state.clone());
     crate::control::approval_notify::install(Arc::clone(&state.events), db_for_state);
@@ -489,7 +601,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn desktop_bootstrap_mints_one_shot_local_session() {
+    async fn desktop_bootstrap_mints_local_session() {
         let token = crate::api::auth::generate_desktop_bootstrap_token();
         let dir = tempfile::tempdir().unwrap();
         let app = app_for_test_custom(
@@ -558,7 +670,7 @@ mod tests {
             .unwrap();
         assert_eq!(allowed.status(), axum::http::StatusCode::OK);
 
-        // The token is one-shot: replaying it must not mint another session.
+        // WKWebView may retry the handshake URL; the process token stays valid.
         let replay = app
             .oneshot(
                 axum::http::Request::builder()
@@ -569,7 +681,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(replay.status(), axum::http::StatusCode::UNAUTHORIZED);
+        assert_eq!(replay.status(), axum::http::StatusCode::SEE_OTHER);
     }
 
     #[tokio::test]
@@ -620,6 +732,187 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["error"], "origin not allowed");
+    }
+
+    #[tokio::test]
+    async fn harness_pairing_with_bearer_is_not_origin_blocked() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test(&dir.path().join("pair-origin.db"))
+            .await
+            .unwrap();
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/harness/pairing/challenges")
+                    .header("origin", "http://127.0.0.1:5175")
+                    .header("host", "127.0.0.1:43180")
+                    .header("content-type", "application/json")
+                    .header("authorization", "Bearer test-sso")
+                    .body(Body::from(r#"{"label":"desktop"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(res.status(), axum::http::StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn desktop_pairing_client_posts_to_bound_loopback_bff() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test(&dir.path().join("pair-tcp.db")).await.unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.ok();
+        });
+        let challenge = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/challenges",
+            Some("test-sso"),
+            serde_json::json!({"label":"desktop"}),
+        )
+        .await
+        .expect("desktop client challenge");
+        let challenge_s = challenge["challenge"].as_str().expect("challenge");
+        assert_eq!(challenge["expires_in"], 300);
+        let confirm = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/confirm",
+            Some("test-sso"),
+            serde_json::json!({ "challenge": challenge_s }),
+        )
+        .await
+        .expect("desktop client confirm");
+        let device_id = confirm["device_id"].as_str().expect("device_id");
+        let token = confirm["token"].as_str().expect("token");
+        assert_eq!(device_id.len(), 36);
+        assert_eq!(token.len(), 43);
+        assert_eq!(confirm["keychain_service"], "anycode.harness.device");
+    }
+
+    #[tokio::test]
+    async fn pairing_sso_begin_requires_server_accounts_client() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = app_for_test(&dir.path().join("sso-begin.db"))
+            .await
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.ok();
+        });
+        let err = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/sso/begin",
+            None,
+            serde_json::json!({}),
+        )
+        .await
+        .expect_err("embedded/local BFF must not mint SSO hops");
+        assert!(err.contains("sso hop is not configured"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn pairing_sso_begin_returns_authorize_url_without_secret() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = anycode_harness_cloud818::identity::AccountsClient::new(
+            "http://127.0.0.1:18780",
+            "a".repeat(32),
+            true,
+        )
+        .unwrap();
+        let app = app_for_test_custom(
+            &dir.path().join("sso-begin-ok.db"),
+            TestAppOptions {
+                accounts_sso: Some(std::sync::Arc::new(client)),
+                sso_redirect: Some("http://127.0.0.1:18781/api/auth/hop/v2/callback".into()),
+                ..TestAppOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.ok();
+        });
+        let begin = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/sso/begin",
+            None,
+            serde_json::json!({}),
+        )
+        .await
+        .expect("begin");
+        let url = begin["authorize_url"].as_str().expect("authorize_url");
+        assert!(url.starts_with("http://127.0.0.1:18780/api/v2/sso/authorize"));
+        assert!(url.contains("code_challenge_method=S256"));
+        assert!(url.contains("redirect_uri=http"));
+        assert_eq!(begin["poll_token"].as_str().unwrap().len(), 43);
+        assert!(!serde_json::to_string(&begin).unwrap().contains("secret"));
+        let poll = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/sso/poll",
+            None,
+            serde_json::json!({ "poll_token": begin["poll_token"] }),
+        )
+        .await
+        .expect("poll pending");
+        assert_eq!(poll["pending"], true);
+    }
+
+    #[tokio::test]
+    async fn pairing_challenges_accept_sso_bearer_without_local_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = anycode_harness_cloud818::identity::AccountsClient::new(
+            "http://127.0.0.1:18780",
+            "a".repeat(32),
+            true,
+        )
+        .unwrap();
+        let app = app_for_test_custom(
+            &dir.path().join("sso-chal.db"),
+            TestAppOptions {
+                auth_bypass: false,
+                accounts_sso: Some(std::sync::Arc::new(client)),
+                sso_redirect: Some(
+                    "http://127.0.0.1:18782/api/harness/pairing/sso/callback".into(),
+                ),
+                ..TestAppOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.ok();
+        });
+        let denied = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/challenges",
+            None,
+            serde_json::json!({"label":"x"}),
+        )
+        .await
+        .expect_err("anonymous challenge must stay closed");
+        assert!(
+            denied.contains("401") || denied.contains("local session"),
+            "{denied}"
+        );
+        let err = anycode_harness_cloud818::desktop_pairing::post_pairing(
+            &origin,
+            "/api/harness/pairing/challenges",
+            Some(&"A".repeat(43)),
+            serde_json::json!({"label":"x"}),
+        )
+        .await
+        .expect_err("opaque bearer reaches introspect, not session middleware");
+        assert!(
+            !err.contains("local session or API token required"),
+            "{err}"
+        );
     }
 
     #[tokio::test]

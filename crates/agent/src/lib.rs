@@ -2,6 +2,13 @@
 //!
 //! anyCode Agent 运行时：多轮工具循环、路由与内存
 
+#[cfg(feature = "harness-v1")]
+pub use runtime::harness_bridge::{
+    capability_for_legacy_tool, harness_skill_allowlist, journal_kinds, verify_trusted_artifact,
+    HarnessBoundary, HarnessHostPolicy, KernelChildExecutor, LifecycleBoundary,
+    ReadOnlyPilotBoundary, RunLifecycle, RuntimeHostFactory, WriteIsolation,
+};
+
 mod agent_profiles;
 mod agents;
 mod compact;
@@ -52,6 +59,8 @@ pub use runtime::{
     failover::{error_triggers_failover, FailoverPolicy},
     AgentClaudeToolGating, AgentRuntime, RuntimeCoreDeps, RuntimeMemoryOptions, RuntimeToolPolicy,
 };
+#[cfg(feature = "harness-v1")]
+pub use runtime::{ComputerTicket, HubEnterGuard};
 pub use system_prompt::RuntimePromptConfig;
 pub use task_compiler::{
     attributed_memories_sections, CompileArmFlags, CompiledPromptParts, MemoryRecallBudgets,

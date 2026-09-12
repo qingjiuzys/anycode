@@ -101,8 +101,18 @@ export function parseApiErrorBody(text: string): string {
   return text;
 }
 
-export async function get<T>(path: string, opts?: { timeoutMs?: number }): Promise<T> {
-  const res = await fetchWithTimeout(path, fetchOpts, opts?.timeoutMs ?? READ_TIMEOUT_MS);
+export async function get<T>(
+  path: string,
+  opts?: { timeoutMs?: number; headers?: Record<string, string> },
+): Promise<T> {
+  const res = await fetchWithTimeout(
+    path,
+    {
+      ...fetchOpts,
+      headers: opts?.headers,
+    },
+    opts?.timeoutMs ?? READ_TIMEOUT_MS,
+  );
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${path}: ${parseApiErrorBody(body)}`);
@@ -113,12 +123,15 @@ export async function get<T>(path: string, opts?: { timeoutMs?: number }): Promi
 export async function post<T>(
   path: string,
   body?: unknown,
-  opts?: { timeoutMs?: number; acceptStatuses?: number[] },
+  opts?: { timeoutMs?: number; acceptStatuses?: number[]; headers?: Record<string, string> },
 ): Promise<T> {
   const res = await fetchWithTimeout(path, {
     ...fetchOpts,
     method: "POST",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...opts?.headers,
+    },
     body: body ? JSON.stringify(body) : undefined,
   }, opts?.timeoutMs ?? WRITE_TIMEOUT_MS);
   const accept = opts?.acceptStatuses ?? [];

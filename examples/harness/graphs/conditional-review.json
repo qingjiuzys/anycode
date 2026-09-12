@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "conditional-review",
+  "max_parallel": 2,
+  "nodes": [
+    {
+      "id": "classify",
+      "kind": {
+        "type": "work",
+        "agent": "explore",
+        "prompt": "只输出 needs-change 或 no-change。"
+      },
+      "depends_on": []
+    },
+    {
+      "id": "branch",
+      "kind": {
+        "type": "branch",
+        "source": "classify",
+        "pointer": "/text",
+        "equals": "needs-change"
+      },
+      "depends_on": [
+        {
+          "node": "classify"
+        }
+      ]
+    },
+    {
+      "id": "repair",
+      "kind": {
+        "type": "work",
+        "agent": "implementer",
+        "prompt": "按证据修复，禁止部署。"
+      },
+      "depends_on": [
+        {
+          "node": "branch",
+          "on": "true"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "kind": {
+        "type": "work",
+        "agent": "reviewer",
+        "prompt": "只读复核，不改文件。"
+      },
+      "depends_on": [
+        {
+          "node": "branch",
+          "on": "false"
+        }
+      ]
+    },
+    {
+      "id": "summary",
+      "kind": {
+        "type": "work",
+        "agent": "reviewer",
+        "prompt": "汇总已执行分支的产物。"
+      },
+      "depends_on": [
+        {
+          "node": "repair"
+        },
+        {
+          "node": "audit"
+        }
+      ],
+      "join": "any"
+    }
+  ]
+}

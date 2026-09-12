@@ -399,6 +399,12 @@
           "markdownDescription": "Embedded Chromium (CEF) host for the Workbench Browser panel"
         },
         {
+          "description": "Outbound pairing BFF posts. Origin comes from host env only; the WebView cannot choose it.",
+          "type": "string",
+          "const": "harness-pairing-default",
+          "markdownDescription": "Outbound pairing BFF posts. Origin comes from host env only; the WebView cannot choose it."
+        },
+        {
           "description": "Open URLs, reveal paths, and pick directories from the Workbench UI",
           "type": "string",
           "const": "shell-helpers-default",

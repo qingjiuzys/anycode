@@ -22,7 +22,7 @@ use super::provider_errors::{
 };
 use super::session_activity::{ActivityReason, SessionActivityGuard};
 use super::tool_surface;
-use super::AgentRuntime;
+use super::{AgentRuntime, ParentToolSurfaceGuard};
 use anycode_core::prelude::*;
 use anycode_core::strip_llm_reasoning_for_display;
 use anycode_core::Artifact;
@@ -65,6 +65,13 @@ impl AgentRuntime {
         // live trace 通道，嵌套子代理的时间线才能按 task id 经 ToolServices 接线到父通道。
         let _live_trace_guard =
             super::LiveTraceRegistrationGuard::register(self, task_id, live_trace_tx.clone());
+        let _parent_tool_surface = ParentToolSurfaceGuard::attach(
+            self,
+            task_id,
+            tool_deny_names.to_vec(),
+            tool_deny_prefixes.to_vec(),
+            budget,
+        );
 
         // 1) 工具名与 schema（与 `execute_task` 共用 tool_surface，避免漂移）
         let agent_tools = {
@@ -82,7 +89,7 @@ impl AgentRuntime {
         let mut merged_denies =
             anycode_tools::merge_agent_type_tool_denies(agent_type.as_str(), tool_deny_names);
         // Placeholder; skill arm denies applied after compile below.
-        let names = tool_surface::prepare_tool_names_for_llm(
+        let mut names = tool_surface::prepare_tool_names_for_llm(
             raw.clone(),
             &self.tool_name_deny,
             &self.claude_gating,
@@ -146,7 +153,7 @@ impl AgentRuntime {
                     );
                     merged_denies.extend(compiled.skill_denies.iter().cloned());
                     let tools = self.tools.read().await;
-                    let names = tool_surface::prepare_tool_names_for_llm(
+                    names = tool_surface::prepare_tool_names_for_llm(
                         raw,
                         &self.tool_name_deny,
                         &self.claude_gating,
@@ -249,6 +256,28 @@ impl AgentRuntime {
         let verification_shared = Arc::new(std::sync::Mutex::new(
             super::discoverable_verification::SessionVerificationState::default(),
         ));
+
+        #[cfg(feature = "harness-v1")]
+        if self.harness_unified_kernel_enabled() {
+            return self
+                .execute_turn_via_unified_kernel(
+                    task_id,
+                    agent_type,
+                    messages,
+                    working_directory,
+                    coop_cancel,
+                    budget,
+                    loop_limits,
+                    &names,
+                    live_trace_tx.clone(),
+                    super::harness_unified::UnifiedLifecycleSpec {
+                        family: task_family,
+                        gate_plan,
+                        expected: expected_artifacts,
+                    },
+                )
+                .await;
+        }
 
         // 2) agentic loop：保持与 execute_task 的语义一致
         let model_config = self.model_for_task(agent_type).clone();

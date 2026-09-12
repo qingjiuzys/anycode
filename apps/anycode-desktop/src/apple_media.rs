@@ -160,3 +160,73 @@ pub async fn apple_media_notify(app: AppHandle, title: String, body: String) -> 
     .await
     .map_err(|e| format!("notify task failed: {e}"))?
 }
+
+/// Desktop-only write of the one-shot pairing token. Service is fixed so the
+/// WebView cannot overwrite unrelated keychain items.
+#[tauri::command]
+pub async fn harness_device_keychain_set(
+    app: AppHandle,
+    account: String,
+    token: String,
+) -> Result<(), String> {
+    let extra = resolve_extra_paths(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        anycode_apple_media::harness_device_token_set(&extra, &account, &token)
+    })
+    .await
+    .map_err(|e| format!("keychain write task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn harness_device_keychain_get(
+    app: AppHandle,
+    account: String,
+) -> Result<Option<String>, String> {
+    let extra = resolve_extra_paths(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        anycode_apple_media::harness_device_token_get(&extra, &account)
+    })
+    .await
+    .map_err(|e| format!("keychain read task failed: {e}"))?
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod pairing_tests {
+    #[test]
+    fn desktop_command_helpers_persist_uuid_pairing_token() {
+        let helper = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources/bin/anycode-apple-media");
+        assert!(
+            helper.is_file(),
+            "bundled anycode-apple-media helper is required for Desktop pairing"
+        );
+        let extra = [helper];
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            & 0xffffffffffff;
+        let account = format!("00000000-0000-4000-8000-{nanos:012x}");
+        let token = "D".repeat(43);
+        anycode_apple_media::harness_device_token_set(&extra, &account, &token)
+            .expect("Desktop command helper writes the pairing token");
+        let got = anycode_apple_media::harness_device_token_get(&extra, &account)
+            .expect("Desktop command helper reads the pairing token");
+        let _ = std::process::Command::new("security")
+            .args([
+                "delete-generic-password",
+                "-s",
+                anycode_apple_media::HARNESS_DEVICE_KEYCHAIN_SERVICE,
+                "-a",
+                &account,
+            ])
+            .status();
+        assert_eq!(got.as_deref(), Some(token.as_str()));
+        assert!(anycode_apple_media::harness_device_token_set(
+            &extra,
+            "harness-keychain-not-a-uuid",
+            &token
+        )
+        .is_err());
+    }
+}

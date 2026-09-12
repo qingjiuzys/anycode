@@ -74,7 +74,7 @@ mod tool_input_coerce;
 mod web_fetch;
 mod web_search;
 
-pub use agent_tools::STRUCTURED_OUTPUT_INSTRUCTION;
+pub use agent_tools::{AgentTool, STRUCTURED_OUTPUT_INSTRUCTION};
 pub use ask_user_question_host::{
     AskUserQuestionHost, AskUserQuestionHostArc, AskUserQuestionHostError, AskUserQuestionOption,
     AskUserQuestionRequest, AskUserQuestionResponse,
@@ -96,6 +96,8 @@ pub use cron_schedule::{
     wall_clock_recurring_cron_to_utc_storage, wall_clock_recurring_cron_to_utc_storage_in_iana,
     NaturalCronResult, PreparedCronSchedule, ScheduleTimezone,
 };
+pub use file_read::FileReadTool;
+pub use file_write::FileWriteTool;
 pub use knowledge_scoring::score_knowledge_chunk;
 pub use knowledge_vectors::{
     merge_hybrid_knowledge_hits, rebuild_project_vectors, search_project_vectors,

@@ -61,18 +61,18 @@ export async function openExternal(url: string): Promise<void> {
 
   if (isTauriDesktop()) {
     try {
-      const { open } = await import("@tauri-apps/plugin-shell");
-      await open(target);
-      return;
-    } catch (err) {
-      console.warn("openExternal (shell plugin):", err);
-    }
-    try {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("open_external_url", { url: target });
       return;
     } catch (err) {
-      console.error("openExternal (invoke):", err);
+      console.warn("openExternal (invoke):", err);
+    }
+    try {
+      const { open } = await import("@tauri-apps/plugin-shell");
+      await open(target);
+      return;
+    } catch (err) {
+      console.error("openExternal (shell plugin):", err);
       throw err;
     }
   }

@@ -19,6 +19,10 @@ pub(crate) const SUBAGENT_SYSTEM_APPEND: &str = "\
 #[async_trait]
 impl SubAgentExecutor for AgentRuntime {
     async fn run_nested_task(&self, invoke: NestedTaskInvoke) -> Result<NestedTaskRun, CoreError> {
+        #[cfg(feature = "harness-v1")]
+        if self.harness_unified_kernel_enabled() {
+            return self.run_nested_task_via_supervisor(invoke).await;
+        }
         let mut wd = invoke.working_directory;
         let wt_roots = {
             let iso = invoke
@@ -69,7 +73,7 @@ impl SubAgentExecutor for AgentRuntime {
                 tool_deny_names: invoke.tool_deny_names.clone(),
                 tool_deny_prefixes: invoke.tool_deny_prefixes.clone(),
                 user_vision_images: vec![],
-                budget: nested_budget_from_env(),
+                budget: invoke.budget.unwrap_or_default(),
                 loop_limits: anycode_core::resolve_agent_loop_limits(None, None),
                 chat_turn: anycode_core::current_chat_turn(),
             },
@@ -97,6 +101,118 @@ impl SubAgentExecutor for AgentRuntime {
             return Vec::new();
         };
         super::summaries_from_agents(&agents)
+    }
+}
+
+#[cfg(feature = "harness-v1")]
+impl AgentRuntime {
+    async fn run_nested_task_via_supervisor(
+        &self,
+        invoke: NestedTaskInvoke,
+    ) -> Result<NestedTaskRun, CoreError> {
+        use super::harness_bridge::KernelChildExecutor;
+        use super::harness_tools::child_kernel_limits;
+        use anycode_harness_core::{journal::MemoryJournal, Capabilities};
+        use anycode_harness_extensions::subagents::{Assignment, Supervisor};
+        use std::path::PathBuf;
+        use std::sync::atomic::Ordering;
+        use std::time::Duration;
+
+        fn host_err(err: impl std::fmt::Display) -> CoreError {
+            CoreError::Other(anyhow::anyhow!(err.to_string()))
+        }
+
+        let this = self.upgraded_self()?;
+        let (parent, hub_wd) = this
+            .harness_hub
+            .current()
+            .map_err(|e| host_err(format!("unified Agent requires a Host RunContext: {e}")))?;
+        parent
+            .capabilities()
+            .require("agent.spawn")
+            .map_err(|e| host_err(e))?;
+        let wd = if invoke.working_directory.trim().is_empty() {
+            hub_wd
+        } else {
+            PathBuf::from(&invoke.working_directory)
+        };
+        let agent = invoke.agent_type.as_str();
+        let readonly = matches!(agent, "explore" | "plan" | "planner" | "reviewer");
+        let (profile, caps) = if readonly {
+            (
+                if agent == "planner" { "plan" } else { agent },
+                vec!["fs.read".into()],
+            )
+        } else {
+            (
+                "implementer",
+                vec![
+                    "fs.read".into(),
+                    "fs.write".into(),
+                    "worktree.create".into(),
+                ],
+            )
+        };
+        let assignment = Assignment {
+            agent: profile.into(),
+            prompt: invoke.prompt,
+            capabilities: Capabilities::new(caps).map_err(|e| host_err(e))?,
+        };
+        let journal = std::sync::Arc::new(MemoryJournal::default());
+        let mut executor =
+            KernelChildExecutor::new(this.clone(), wd, journal, child_kernel_limits(&parent));
+        if !readonly {
+            let Some(isolation) = this.harness_hub.write_isolation() else {
+                return Err(host_err("write child requires an isolated worktree host"));
+            };
+            executor = executor.with_write_isolation(isolation);
+        }
+        let supervisor = Supervisor::new(&parent, 1, 4).map_err(|e| host_err(e))?;
+        let run = supervisor.run(&parent, assignment, &executor);
+        let outcome = if let Some(flag) = invoke.cancel.clone() {
+            tokio::select! {
+                _ = async {
+                    while !flag.load(Ordering::Acquire) {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                    }
+                } => {
+                    parent.cancel();
+                    return Err(CoreError::CooperativeCancel);
+                }
+                result = run => result,
+            }
+        } else {
+            run.await
+        }
+        .map_err(|e| host_err(e))?;
+        let text = outcome
+            .output
+            .get("text")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| outcome.output.to_string());
+        let result = if outcome.partial {
+            TaskResult::Partial {
+                success: text,
+                remaining: "harness child returned partial".into(),
+            }
+        } else {
+            TaskResult::Success {
+                output: text,
+                artifacts: vec![],
+            }
+        };
+        log_nested_task_end_to_parent(
+            &self.disk_output,
+            invoke.parent_task_id,
+            outcome.run_id,
+            agent,
+            nested_status_str(&result),
+        );
+        Ok(NestedTaskRun {
+            task_id: invoke.task_id.unwrap_or(outcome.run_id),
+            result,
+        })
     }
 }
 
@@ -152,27 +268,6 @@ fn log_nested_task_end_to_parent(
         return;
     };
     let _ = disk.append_line(parent, &nested_task_end_marker(task_id, agent_type, status));
-}
-
-fn nested_budget_from_env() -> TaskBudget {
-    fn env_or<T: std::str::FromStr>(primary: &str, fallback: &str) -> Option<T> {
-        std::env::var(primary)
-            .or_else(|_| std::env::var(fallback))
-            .ok()
-            .and_then(|v| v.parse::<T>().ok())
-    }
-    TaskBudget {
-        token_budget_total: env_or("ANYCODE_NESTED_TOKEN_BUDGET", "ANYCODE_TASK_TOKEN_BUDGET"),
-        cost_budget_cny: env_or(
-            "ANYCODE_NESTED_COST_BUDGET_CNY",
-            "ANYCODE_TASK_COST_BUDGET_CNY",
-        ),
-        max_duration_secs: env_or(
-            "ANYCODE_NESTED_MAX_DURATION_SECS",
-            "ANYCODE_TASK_MAX_DURATION_SECS",
-        ),
-        ..TaskBudget::default()
-    }
 }
 
 #[cfg(test)]

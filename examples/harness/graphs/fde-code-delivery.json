@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "name": "fde-code-delivery",
+  "max_parallel": 2,
+  "nodes": [
+    {
+      "id": "scout",
+      "kind": {
+        "type": "work",
+        "agent": "explore",
+        "prompt": "只读分析代码，列出具体文件与风险。"
+      },
+      "depends_on": []
+    },
+    {
+      "id": "plan",
+      "kind": {
+        "type": "work",
+        "agent": "planner",
+        "prompt": "根据 scout 编写迁移计划，不修改代码。"
+      },
+      "depends_on": [
+        {
+          "node": "scout"
+        }
+      ]
+    },
+    {
+      "id": "implement",
+      "kind": {
+        "type": "work",
+        "agent": "implementer",
+        "prompt": "在宿主分配的独立 worktree 实现计划，不推送、不部署。"
+      },
+      "depends_on": [
+        {
+          "node": "plan"
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "kind": {
+        "type": "gate",
+        "verifier": "workspace-tests-and-artifacts"
+      },
+      "depends_on": [
+        {
+          "node": "implement"
+        }
+      ]
+    },
+    {
+      "id": "approval",
+      "kind": {
+        "type": "human",
+        "question": "查看测试报告与 diff，是否接受本次交付？"
+      },
+      "depends_on": [
+        {
+          "node": "verify"
+        }
+      ]
+    },
+    {
+      "id": "handoff",
+      "kind": {
+        "type": "work",
+        "agent": "reviewer",
+        "prompt": "整理补丁、回滚方案和未完成项，不自动执行合并。"
+      },
+      "depends_on": [
+        {
+          "node": "approval"
+        }
+      ]
+    }
+  ]
+}

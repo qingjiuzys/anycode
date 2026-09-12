@@ -157,10 +157,135 @@ export async function readApplePasteboard(): Promise<ApplePasteboardItem[]> {
   }
 }
 
+let harnessSsoBearer: string | null = null;
+
 /** Reset cached desktop detection (tests). */
 export function resetDesktopShellCache(): void {
   tauriAvailable = null;
   cachedCaps = null;
+  lastHarnessDeviceId = null;
+  harnessSsoBearer = null;
+}
+
+export const HARNESS_DEVICE_KEYCHAIN_SERVICE = "anycode.harness.device";
+const HARNESS_DEVICE_ID_SESSION_KEY = "anycode_harness_device_id";
+
+let lastHarnessDeviceId: string | null = null;
+
+export function isHarnessDeviceKeychainService(service: string | null | undefined): boolean {
+  return service === HARNESS_DEVICE_KEYCHAIN_SERVICE;
+}
+
+export function isHarnessDeviceAccount(account: string | null | undefined): boolean {
+  return (
+    typeof account === "string" &&
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(account)
+  );
+}
+
+export function isHarnessDeviceToken(token: string | null | undefined): boolean {
+  if (typeof token !== "string") return false;
+  const pairingToken = token.trim();
+  return pairingToken.length === 43 && /^[A-Za-z0-9_-]+$/.test(pairingToken);
+}
+
+function rememberHarnessDeviceId(deviceId: string): void {
+  lastHarnessDeviceId = deviceId;
+  try {
+    sessionStorage.setItem(HARNESS_DEVICE_ID_SESSION_KEY, deviceId);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function rememberedHarnessDeviceId(): string | null {
+  if (lastHarnessDeviceId) return lastHarnessDeviceId;
+  try {
+    const stored = sessionStorage.getItem(HARNESS_DEVICE_ID_SESSION_KEY);
+    if (stored && isHarnessDeviceAccount(stored)) {
+      lastHarnessDeviceId = stored;
+      return stored;
+    }
+  } catch {
+    /* private mode */
+  }
+  return null;
+}
+
+/** Persist the one-shot pairing token in the OS keychain. Never writes the token to storage. */
+export async function persistHarnessDeviceToken(
+  service: string,
+  account: string,
+  token: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isHarnessDeviceKeychainService(service)) {
+    return { ok: false, error: "keychain_service_denied" };
+  }
+  if (!isHarnessDeviceAccount(account)) {
+    return { ok: false, error: "device_account_invalid" };
+  }
+  const pairingToken = token.trim();
+  if (!isHarnessDeviceToken(pairingToken)) {
+    return { ok: false, error: "device_token_invalid" };
+  }
+  if (!isTauriDesktop()) {
+    return { ok: false, error: "not_desktop" };
+  }
+  try {
+    await invokeTauri<void>("harness_device_keychain_set", { account, token: pairingToken });
+    rememberHarnessDeviceId(account);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Memory-only SSO bearer for outbound Desktop pairing. Never written to storage. */
+export function setHarnessSsoBearer(token: string | null): void {
+  const trimmed = token?.trim() ?? "";
+  harnessSsoBearer = trimmed ? trimmed : null;
+}
+
+export function hasHarnessSsoBearer(): boolean {
+  return Boolean(harnessSsoBearer);
+}
+
+export async function desktopPairingOriginConfigured(): Promise<boolean> {
+  if (!isTauriDesktop()) return false;
+  try {
+    const status = await invokeTauri<{ configured?: boolean }>(
+      "harness_pairing_origin_configured",
+    );
+    return status.configured === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function desktopPairingPost<T>(
+  path: string,
+  body: unknown,
+): Promise<T> {
+  if (!isTauriDesktop()) {
+    throw new Error("not_desktop");
+  }
+  return invokeTauri<T>("harness_pairing_post", {
+    path,
+    bearer: harnessSsoBearer,
+    body,
+  });
+}
+
+export async function currentHarnessDeviceToken(): Promise<string | null> {
+  if (!isTauriDesktop()) return null;
+  const account = rememberedHarnessDeviceId();
+  if (!account) return null;
+  try {
+    const token = await invokeTauri<string | null>("harness_device_keychain_get", { account });
+    return token && token.trim() ? token : null;
+  } catch {
+    return null;
+  }
 }
 
 const WINDOW_DRAG_BLOCK_SELECTOR = [

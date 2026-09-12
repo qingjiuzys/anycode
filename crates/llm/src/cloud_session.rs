@@ -252,21 +252,41 @@ pub fn resolve_anycode_cloud_endpoint(
     base_url: Option<&str>,
     api_key: Option<&str>,
 ) -> Result<ResolvedCloudEndpoint, String> {
-    let url = base_url
+    let configured = base_url
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(default_gateway_chat_url);
-
-    let mut key = api_key.unwrap_or("").trim().to_string();
-    if key.is_empty() {
-        key = read_cloud_access_token().ok_or_else(|| CLOUD_DEVICE_UNLINKED_HINT.to_string())?;
-    }
+        .map(str::to_string);
+    let mut url = configured.clone().unwrap_or_else(default_gateway_chat_url);
+    let mut used_loopback_fallback = false;
 
     if !gateway_chat_url_reachable(&url) {
-        return Err(format!(
-            "anyCode Cloud 网关不可达（{url}）。请检查网络，或在工作台重新连接云账号。"
-        ));
+        let loopback = configured
+            .as_deref()
+            .map(gateway_host_base)
+            .is_some_and(|host| is_loopback_gateway_host(&host));
+        let fallback = default_gateway_chat_url();
+        if loopback && fallback != url && gateway_chat_url_reachable(&fallback) {
+            tracing::warn!(
+                configured = %url,
+                fallback = %fallback,
+                "anycode_cloud loopback gateway is down; using reachable host"
+            );
+            url = fallback;
+            used_loopback_fallback = true;
+        } else {
+            return Err(format!(
+                "anyCode Cloud 网关不可达（{url}）。请检查网络，或在工作台重新连接云账号。"
+            ));
+        }
+    }
+
+    let mut key = api_key.unwrap_or("").trim().to_string();
+    if key.is_empty() || used_loopback_fallback {
+        if let Some(session) = read_cloud_access_token() {
+            key = session;
+        } else if key.is_empty() {
+            return Err(CLOUD_DEVICE_UNLINKED_HINT.to_string());
+        }
     }
 
     Ok(ResolvedCloudEndpoint {
@@ -415,6 +435,23 @@ mod tests {
         assert_eq!(got.api_key, "acct_test");
         assert_eq!(got.model, "deepseek-v4-pro");
         assert!(got.base_url.contains("anycode.work"));
+    }
+
+    #[test]
+    fn dead_loopback_gateway_falls_back_to_reachable_host() {
+        let got = resolve_anycode_cloud_endpoint(
+            "auto",
+            Some("http://127.0.0.1:1/v1/chat/completions"),
+            Some("acct_test"),
+        )
+        .expect("dead loopback should fall back to a reachable host");
+        assert!(
+            !got.base_url.contains("127.0.0.1:1"),
+            "stale loopback must not stay in the resolved endpoint"
+        );
+        assert!(got.base_url.contains("/v1/chat/completions"));
+        assert_eq!(got.model, "auto");
+        assert!(!got.api_key.is_empty());
     }
 
     #[test]

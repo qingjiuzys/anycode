@@ -4,7 +4,7 @@ use super::AgentRuntime;
 use anycode_core::prelude::*;
 
 impl AgentRuntime {
-    pub(super) async fn execute_tool_call(
+    pub(crate) async fn execute_tool_call(
         &self,
         task_id: TaskId,
         agent_type: &AgentType,

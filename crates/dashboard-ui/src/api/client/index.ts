@@ -11,6 +11,7 @@ import { workbenchClient } from "./workbench";
 import { lanClient } from "./lan";
 import { cloudA2aClient } from "./cloudA2a";
 import { skillAppsClient } from "./skillApps";
+import { harnessClient } from "./harness";
 
 export type {
   ArtifactListOpts,
@@ -35,4 +36,5 @@ export const api = {
   ...lanClient,
   ...cloudA2aClient,
   ...skillAppsClient,
+  ...harnessClient,
 };

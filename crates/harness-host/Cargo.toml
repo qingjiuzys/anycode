@@ -1,0 +1,20 @@
+[package]
+name = "anycode-harness-host"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+[dependencies]
+anycode-core = { path = "../core" }
+anycode-harness-extensions = { path = "../harness-extensions" }
+anycode-harness-core = { path = "../harness-core" }
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = "0.4"
+tokio = { version = "1.35", features = ["macros", "sync", "time"] }
+[dev-dependencies]
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

@@ -85,7 +85,7 @@ pub(crate) fn resolve_agent_tool_names(
         ks
     } else if agent_type == "general-purpose" {
         for k in registry.keys() {
-            if k.starts_with("mcp__") && !agent_tools.contains(k) {
+            if (k.starts_with("mcp__") || k.starts_with("Harness")) && !agent_tools.contains(k) {
                 agent_tools.push(k.clone());
             }
         }

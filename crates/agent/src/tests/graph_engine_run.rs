@@ -326,7 +326,7 @@ async fn diamond_join_runs_both_branch_agents_then_handoff() {
 }
 
 #[tokio::test]
-async fn checkpoint_skips_completed_agents_on_rerun() {
+async fn checkpoint_rerun_is_refused_without_explicit_harness_resume() {
     let workspace = TempDir::new().unwrap();
     let output = TempDir::new().unwrap();
     let disk = DiskTaskOutput::new(output.path().to_path_buf());
@@ -343,18 +343,19 @@ async fn checkpoint_skips_completed_agents_on_rerun() {
     let first = GraphEngine::run(&runtime, &wf, opts.clone()).await.unwrap();
     assert_eq!(first.status, "completed");
     assert_eq!(llm.call_count(), 3);
+    assert!(ckpt.exists(), "first run still writes a checkpoint file");
 
-    let second = GraphEngine::run(&runtime, &wf, opts).await.unwrap();
-    assert_eq!(second.status, "completed");
-    assert_eq!(second.steps.len(), 3);
-    assert!(second
-        .steps
-        .iter()
-        .all(|s| s.status == "skipped_checkpoint"));
+    let second = GraphEngine::run(&runtime, &wf, opts).await;
+    let err = second.expect_err("legacy auto-resume must fail closed");
+    assert!(
+        err.to_string()
+            .contains("legacy checkpoint resume is disabled"),
+        "unexpected error: {err}"
+    );
     assert_eq!(
         llm.call_count(),
         3,
-        "rerun must not call execute_task again"
+        "refused resume must not call execute_task again"
     );
 }
 
@@ -426,7 +427,7 @@ async fn when_clause_skips_agent_but_dependents_still_run() {
 }
 
 #[tokio::test]
-async fn retries_failed_execute_task_then_continues() {
+async fn implicit_side_effect_retry_is_disabled() {
     let workspace = TempDir::new().unwrap();
     let output = TempDir::new().unwrap();
     let disk = DiskTaskOutput::new(output.path().to_path_buf());
@@ -447,8 +448,42 @@ async fn retries_failed_execute_task_then_continues() {
         .await
         .unwrap();
 
-    assert_eq!(result.status, "completed");
-    assert_eq!(step_status(&result, "only"), "passed");
-    assert_eq!(result.steps[0].summary, "RECOVERED");
-    assert_eq!(llm.recorded().len(), 2);
+    assert_eq!(result.status, "failed");
+    assert_eq!(step_status(&result, "only"), "failed");
+    assert_eq!(
+        llm.recorded().len(),
+        1,
+        "legacy graph must not retry mutating steps without a trusted verifier"
+    );
+}
+
+#[tokio::test]
+async fn required_gates_refuse_before_any_side_effect() {
+    let workspace = TempDir::new().unwrap();
+    let output = TempDir::new().unwrap();
+    let disk = DiskTaskOutput::new(output.path().to_path_buf());
+    let llm = SequenceLlm::new(vec![ok_text("SHOULD_NOT_RUN")]);
+    let runtime = make_runtime(llm.clone(), disk);
+    let mut step = wf_step("only", "explore", "gated", &[], None);
+    step.required_gates = vec!["screenshot".into()];
+    let wf = WorkflowDefinition {
+        name: "gated".into(),
+        mode: Some("code".into()),
+        steps: vec![step],
+        ..Default::default()
+    };
+
+    let err = GraphEngine::run(&runtime, &wf, run_opts(&workspace, None))
+        .await
+        .expect_err("gated legacy workflows must fail closed");
+    assert!(
+        err.to_string()
+            .contains("legacy graph gates have no trusted verifier"),
+        "unexpected error: {err}"
+    );
+    assert_eq!(
+        llm.call_count(),
+        0,
+        "gated workflows must not execute tools or model calls"
+    );
 }

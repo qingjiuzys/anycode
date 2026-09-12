@@ -16,6 +16,9 @@ mod skills_registry;
 mod tools_setup;
 mod workbench;
 
+pub use anycode_core::{
+    harness_graph_enabled, harness_readonly_pilot_enabled, harness_unified_kernel_enabled,
+};
 pub use memory_setup::{
     build_memory_layer, effective_memory_backend, memory_sled_path_for_diagnostics,
     MemoryAttachMode,

@@ -43,21 +43,13 @@ impl AgentRuntime {
     }
 
     async fn execute_task_inner(&self, task: Task) -> Result<TaskResult, CoreError> {
-        let _parent_tool_surface = {
-            let guard = self.tool_services.lock().ok();
-            if let Some(svc) = guard.as_ref().and_then(|g| g.as_ref()) {
-                let previous = svc.set_parent_task_tool_deny(
-                    task.context.tool_deny_names.clone(),
-                    task.context.tool_deny_prefixes.clone(),
-                );
-                Some(ParentToolSurfaceGuard {
-                    services: Arc::clone(svc),
-                    previous,
-                })
-            } else {
-                None
-            }
-        };
+        let _parent_tool_surface = ParentToolSurfaceGuard::attach(
+            self,
+            task.id,
+            task.context.tool_deny_names.clone(),
+            task.context.tool_deny_prefixes.clone(),
+            task.context.budget,
+        );
 
         // Step 3b：任务级 live trace 通道注册到 ToolServices 键控 map，嵌套 Agent
         // 工具按父 task id 查找接线；drop-guard 在任务结束（含提前返回）注销。
@@ -279,6 +271,23 @@ impl AgentRuntime {
         } else {
             task.context.loop_limits
         };
+        #[cfg(feature = "harness-v1")]
+        if self.harness_unified_kernel_enabled() {
+            return self
+                .execute_task_via_unified_kernel(
+                    &task,
+                    messages,
+                    &names,
+                    model_config,
+                    loop_limits,
+                    super::harness_unified::UnifiedLifecycleSpec {
+                        family: task_family,
+                        gate_plan,
+                        expected: expected_artifacts,
+                    },
+                )
+                .await;
+        }
         // 预算 hard-stop 的统一失败形态（loop 头 tick、no-tool 恢复、用量记录三处共用）。
         let budget_failure = || TaskResult::Failure {
             error: "运行时预算已用尽".to_string(),

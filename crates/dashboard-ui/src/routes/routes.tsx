@@ -26,6 +26,7 @@ import {
   ArtifactDetailPage,
   AssetsPage,
   AuditPage,
+  HarnessGraphPage,
   AutomationsPage,
   ColleaguesPage,
   ConversationsPage,
@@ -398,6 +399,16 @@ export const reportsRoute = createRoute({
   ),
 });
 
+export const harnessGraphRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/harness/graph",
+  component: () => (
+    <Page>
+      <HarnessGraphPage />
+    </Page>
+  ),
+});
+
 export const auditRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/audit",
@@ -491,6 +502,7 @@ export const routeTree = rootRoute.addChildren([
     agentsRoute,
     skillDetailRoute,
     reportsRoute,
+    harnessGraphRoute,
     auditRoute,
     accountRoute,
     settingsRoute,

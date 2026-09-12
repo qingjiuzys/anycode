@@ -57,6 +57,7 @@ mod cron;
 pub mod diagrams;
 mod events;
 mod gates;
+mod harness;
 pub mod kv;
 pub(crate) mod message_queue;
 mod open;

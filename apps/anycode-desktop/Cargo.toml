@@ -24,6 +24,7 @@ knowledge = ["anycode-dashboard/knowledge-embeddings"]
 # Desktop uses the native macOS speech stack for TTS. Local ONNX / knowledge are
 # behind features above; do not pull piper/espeak into the bundle.
 anycode-dashboard = { path = "../../crates/dashboard", features = ["embedded-ui", "tools-browser"] }
+anycode-harness-cloud818 = { path = "../../crates/harness-cloud818" }
 anycode-setup = { path = "../../crates/setup" }
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }

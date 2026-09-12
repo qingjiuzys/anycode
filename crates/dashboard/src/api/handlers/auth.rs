@@ -13,6 +13,8 @@ pub struct LoginBody {
 #[derive(Deserialize)]
 pub struct DesktopBootstrapQuery {
     pub token: String,
+    #[serde(default)]
+    pub next: Option<String>,
 }
 
 pub async fn get_auth_me(
@@ -130,7 +132,11 @@ pub async fn get_desktop_bootstrap(
         crate::auth_session::SESSION_COOKIE,
         session
     );
-    let mut resp = Redirect::to("/").into_response();
+    let next = match query.next.as_deref() {
+        Some("/harness/graph") => "/harness/graph",
+        _ => "/",
+    };
+    let mut resp = Redirect::to(next).into_response();
     if let Ok(v) = cookie.parse() {
         resp.headers_mut().append(axum::http::header::SET_COOKIE, v);
     }

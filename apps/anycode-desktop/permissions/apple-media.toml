@@ -8,4 +8,6 @@ commands.allow = [
   "apple_media_synthesize",
   "apple_media_read_pasteboard",
   "apple_media_notify",
+  "harness_device_keychain_set",
+  "harness_device_keychain_get",
 ]

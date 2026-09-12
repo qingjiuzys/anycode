@@ -200,7 +200,10 @@ pub async fn initialize_runtime(
         .with_session_context(
             config.session.context_window_auto,
             config.session.context_window_tokens,
-        ),
+        )
+        .with_harness_unified_kernel(anycode_core::harness_unified_kernel_enabled(
+            &config.runtime.features,
+        )),
     );
 
     tools_setup
@@ -208,6 +211,20 @@ pub async fn initialize_runtime(
         .attach_sub_agent_executor(runtime.clone());
     runtime.attach_tool_services(tools_setup.tool_services.clone());
     runtime.attach_self();
+    runtime.attach_harness_tools().await;
+
+    if anycode_core::harness_readonly_pilot_enabled(&config.runtime.features) {
+        info!(
+            target: "anycode_bootstrap",
+            "harness-v1 read-only FileRead pilot is armed; execute_task and scheduler stay on the legacy loop unless unified kernel is also armed"
+        );
+    }
+    if anycode_core::harness_unified_kernel_enabled(&config.runtime.features) {
+        info!(
+            target: "anycode_bootstrap",
+            "harness-v1 unified Kernel adapters are armed; execute_task and execute_turn use Kernel.run and do not nest the legacy loop"
+        );
+    }
 
     let ask_host: Option<Arc<dyn AskUserQuestionHost>> =
         hosts.ask_user_question_host.or_else(|| {

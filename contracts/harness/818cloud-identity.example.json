@@ -1,0 +1,18 @@
+{
+  "active": true,
+  "iss": "https://accounts.818cloud.com",
+  "sub": "11111111-1111-4111-8111-111111111111",
+  "aud": "anycode",
+  "context": "enterprise",
+  "tenant": {
+    "organization_id": "22222222-2222-4222-8222-222222222222",
+    "tenant_id": "33333333-3333-4333-8333-333333333333",
+    "external_tenant_id": "existing-anycode-tenant",
+    "role": "editor",
+    "organization_version": 1,
+    "member_version": 1,
+    "tenant_version": 1,
+    "grant_version": 1
+  },
+  "scope": "identity tenant"
+}

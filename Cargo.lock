@@ -163,6 +163,9 @@ name = "anycode-agent"
 version = "0.43.2"
 dependencies = [
  "anycode-core",
+ "anycode-harness-core",
+ "anycode-harness-extensions",
+ "anycode-harness-host",
  "anycode-llm",
  "anycode-memory",
  "anycode-security",
@@ -335,11 +338,16 @@ name = "anycode-dashboard"
 version = "0.43.2"
 dependencies = [
  "anycode-agent",
+ "anycode-apple-media",
  "anycode-bootstrap",
  "anycode-browser",
  "anycode-config",
  "anycode-core",
  "anycode-dashboard-ipc",
+ "anycode-harness-cloud818",
+ "anycode-harness-core",
+ "anycode-harness-extensions",
+ "anycode-harness-host",
  "anycode-llm",
  "anycode-memory",
  "anycode-relay-gateway",
@@ -397,6 +405,67 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "anycode-harness-cloud818"
+version = "0.1.0"
+dependencies = [
+ "anycode-harness-core",
+ "async-trait",
+ "base64 0.22.1",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "anycode-harness-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "fs2",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "anycode-harness-extensions"
+version = "0.1.0"
+dependencies = [
+ "anycode-harness-core",
+ "async-trait",
+ "fs2",
+ "futures",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "anycode-harness-host"
+version = "0.1.0"
+dependencies = [
+ "anycode-core",
+ "anycode-harness-core",
+ "anycode-harness-extensions",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "tokio",
  "uuid",
 ]
 
@@ -3054,6 +3123,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.4",
  "tower-service",
+ "webpki-roots 1.0.6",
 ]
 
 [[package]]
@@ -5110,6 +5180,8 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
+ "quinn",
+ "rustls 0.23.37",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -5117,6 +5189,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls 0.26.4",
  "tokio-util",
  "tower",
  "tower-http",
@@ -5126,6 +5199,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams 0.4.2",
  "web-sys",
+ "webpki-roots 1.0.6",
 ]
 
 [[package]]

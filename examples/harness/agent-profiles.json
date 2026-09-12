@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "status": "host-policy example, not auto-loaded",
+  "profiles": [
+    {
+      "id": "explore",
+      "capabilities": [
+        "fs.read",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "planner",
+      "capabilities": [
+        "fs.read",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "implementer",
+      "capabilities": [
+        "fs.read",
+        "fs.write",
+        "process.run",
+        "worktree.create",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "reviewer",
+      "capabilities": [
+        "fs.read",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "verifier",
+      "capabilities": [
+        "fs.read",
+        "process.run"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "browser-researcher",
+      "capabilities": [
+        "browser.observe",
+        "browser.navigate",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "computer-operator",
+      "capabilities": [
+        "computer.observe",
+        "computer.input",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    },
+    {
+      "id": "coordinator",
+      "capabilities": [
+        "fs.read",
+        "agent.spawn",
+        "skill.read"
+      ],
+      "no_privilege_escalation": true
+    }
+  ]
+}

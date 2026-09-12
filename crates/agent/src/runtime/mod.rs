@@ -1,5 +1,14 @@
 //! Agent 运行时（LLM + 工具循环、落盘、回执）。
 
+#[cfg(feature = "harness-v1")]
+pub mod harness_bridge;
+#[cfg(feature = "harness-v1")]
+mod harness_tools;
+#[cfg(feature = "harness-v1")]
+pub use harness_tools::{ComputerTicket, HubEnterGuard};
+#[cfg(feature = "harness-v1")]
+pub(crate) mod harness_unified;
+
 mod agentic_loop;
 mod agentic_turn;
 mod artifacts;
@@ -111,6 +120,10 @@ pub struct AgentRuntime {
     automem_gates: Arc<StdMutex<HashMap<TaskId, std::path::PathBuf>>>,
     /// 后台 fork 需要的自引用（bootstrap 构造后 `attach_self`）。
     self_weak: StdMutex<Option<std::sync::Weak<AgentRuntime>>>,
+    /// When true, execute_task / execute_turn are thin Kernel adapters (harness-v1).
+    harness_unified_kernel: bool,
+    #[cfg(feature = "harness-v1")]
+    pub(crate) harness_hub: Arc<harness_tools::HarnessHub>,
 }
 
 fn canonical_agent_type(agent_type: &AgentType) -> AgentType {
@@ -121,15 +134,44 @@ fn canonical_agent_type(agent_type: &AgentType) -> AgentType {
 
 pub(super) struct ParentToolSurfaceGuard {
     services: Arc<anycode_tools::ToolServices>,
+    task_id: uuid::Uuid,
     previous: Option<(Vec<String>, Vec<String>)>,
+    previous_budget: Option<anycode_core::TaskBudget>,
+}
+
+impl ParentToolSurfaceGuard {
+    /// Record this task's deny list and budget so nested Agent inherits them.
+    pub(super) fn attach(
+        runtime: &AgentRuntime,
+        task_id: uuid::Uuid,
+        deny_names: Vec<String>,
+        deny_prefixes: Vec<String>,
+        budget: anycode_core::TaskBudget,
+    ) -> Option<Self> {
+        let services = runtime
+            .tool_services
+            .lock()
+            .ok()
+            .and_then(|g| g.as_ref().cloned())?;
+        services.ensure_sub_agent_lineage(task_id);
+        let previous = services.set_parent_task_tool_deny(task_id, deny_names, deny_prefixes);
+        let previous_budget = services.set_task_budget(task_id, budget);
+        Some(Self {
+            services,
+            task_id,
+            previous,
+            previous_budget,
+        })
+    }
 }
 
 impl Drop for ParentToolSurfaceGuard {
     fn drop(&mut self) {
-        // Restore the caller's surface instead of clearing: nested/concurrent
-        // tasks must not wipe the parent's deny propagation.
+        // Restore this task's surface only. Concurrent parents keep their own keys.
         self.services
-            .restore_parent_task_tool_deny(self.previous.take());
+            .restore_parent_task_tool_deny(self.task_id, self.previous.take());
+        self.services
+            .restore_task_budget(self.task_id, self.previous_budget.take());
     }
 }
 
@@ -349,6 +391,9 @@ impl AgentRuntime {
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".anycode")),
             automem_gates: Arc::new(StdMutex::new(HashMap::new())),
             self_weak: StdMutex::new(None),
+            harness_unified_kernel: false,
+            #[cfg(feature = "harness-v1")]
+            harness_hub: Arc::new(harness_tools::HarnessHub::default()),
         }
     }
 
@@ -359,11 +404,233 @@ impl AgentRuntime {
         }
     }
 
+    /// Sandboxed Host/graph helper. The caller supplies the LLM; this does not
+    /// mint provider usage or skip `execute_tool_call`.
+    pub fn sandboxed_scripted(
+        llm: Arc<dyn LLMClient>,
+        extra: HashMap<ToolName, Box<dyn Tool>>,
+    ) -> Arc<Self> {
+        struct NoopMemory;
+        #[async_trait::async_trait]
+        impl MemoryStore for NoopMemory {
+            async fn save(&self, _memory: Memory) -> Result<(), CoreError> {
+                Ok(())
+            }
+            async fn recall(
+                &self,
+                _query: &str,
+                _mem_type: MemoryType,
+            ) -> Result<Vec<Memory>, CoreError> {
+                Ok(vec![])
+            }
+            async fn update(&self, _id: &str, _memory: Memory) -> Result<(), CoreError> {
+                Ok(())
+            }
+            async fn delete(&self, _id: &str) -> Result<(), CoreError> {
+                Ok(())
+            }
+        }
+
+        let mut tools = extra;
+        tools
+            .entry("FileRead".into())
+            .or_insert_with(|| Box::new(anycode_tools::FileReadTool::new(true)));
+        let runtime = Arc::new(Self::new(
+            RuntimeCoreDeps {
+                llm_client: llm,
+                tools,
+                memory_store: Arc::new(NoopMemory),
+                default_model_config: ModelConfig {
+                    provider: LLMProvider::Custom("scripted".into()),
+                    model: "scripted-native".into(),
+                    ..Default::default()
+                },
+                model_overrides: HashMap::new(),
+                failover_chain: vec![],
+                disk_output: None,
+                security: Arc::new(SecurityLayer::new(PermissionMode::BypassPermissions)),
+                sandbox_mode: true,
+                prompt_config: RuntimePromptConfig::default(),
+            },
+            RuntimeMemoryOptions {
+                memory_pipeline: None,
+                memory_pipeline_settings: None,
+                memory_project_autosave_enabled: false,
+                session_notifications: None,
+                automem: None,
+                automem_base_path: None,
+            },
+            RuntimeToolPolicy {
+                tool_name_deny: vec![],
+                claude_gating: AgentClaudeToolGating::default(),
+                expose_skill_on_explore_plan: false,
+            },
+        ));
+        runtime.attach_self();
+        runtime
+    }
+
+    pub async fn attach_harness_tools(self: &Arc<Self>) {
+        #[cfg(feature = "harness-v1")]
+        harness_tools::register_harness_tools(self).await;
+    }
+
+    /// Host-only dispatch through the same security pipeline Kernel uses.
+    /// Outside this crate, `execute_tool_call` stays crate-private.
+    #[cfg(feature = "harness-v1")]
+    pub async fn host_execute_tool_call(
+        &self,
+        task_id: anycode_core::TaskId,
+        agent_type: &anycode_core::AgentType,
+        working_directory: &str,
+        tool_call: &anycode_core::ToolCall,
+    ) -> Result<anycode_core::ToolOutput, anycode_core::CoreError> {
+        self.execute_tool_call(task_id, agent_type, working_directory, tool_call)
+            .await
+    }
+
+    /// Host-only computer lease. The caller must already hold a live
+    /// `RunContext` whose scope includes `device`. Observe/Act still fail
+    /// closed until a backend is enrolled.
+    #[cfg(feature = "harness-v1")]
+    pub fn set_harness_write_isolation(&self, isolation: harness_bridge::WriteIsolation) {
+        self.harness_hub.set_write_isolation(isolation);
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub fn enroll_macos_screencapture(
+        &self,
+        device: uuid::Uuid,
+        private_cwd: &std::path::Path,
+    ) -> Result<(), anycode_harness_core::Error> {
+        let backend = anycode_harness_extensions::computer::MacScreenCaptureBackend::host_default(
+            private_cwd.to_path_buf(),
+        )?;
+        self.harness_hub.enroll_computer(
+            device,
+            "macos-screencapture",
+            std::sync::Arc::new(backend),
+        )
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub fn computer_backend_kind(&self) -> Option<String> {
+        self.harness_hub.computer_backend_kind()
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub fn bind_harness_product_run(
+        &self,
+        run: uuid::Uuid,
+    ) -> Result<(), anycode_harness_core::Error> {
+        self.harness_hub.bind_product_run(run)
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub fn unbind_harness_product_run(&self, run: uuid::Uuid) {
+        self.harness_hub.unbind_product_run(run);
+    }
+
+    /// Bind harness tools to this Host run. Drop the guard to leave.
+    #[cfg(feature = "harness-v1")]
+    pub fn enter_harness_run(
+        &self,
+        ctx: anycode_harness_core::RunContext,
+        working_directory: &std::path::Path,
+    ) -> harness_tools::HubEnterGuard {
+        self.harness_hub.enter(ctx, working_directory.to_path_buf())
+    }
+
+    #[cfg(feature = "harness-v1")]
+    fn with_harness_run<T>(
+        &self,
+        ctx: &anycode_harness_core::RunContext,
+        working_directory: &std::path::Path,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let _guard = self.enter_harness_run(ctx.clone(), working_directory);
+        f()
+    }
+
+    /// HOST ONLY. The model cannot mint this approval or pass an ApprovalTicket.
+    #[cfg(feature = "harness-v1")]
+    pub fn approve_harness_computer_action(
+        &self,
+        ctx: &anycode_harness_core::RunContext,
+        working_directory: &std::path::Path,
+        frame_id: uuid::Uuid,
+        action: anycode_harness_extensions::computer::Action,
+    ) -> Result<(), anycode_harness_core::Error> {
+        self.with_harness_run(ctx, working_directory, || {
+            self.harness_hub.approve_computer_action(frame_id, action)
+        })
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub fn issue_harness_computer_ticket(
+        &self,
+        ctx: &anycode_harness_core::RunContext,
+        working_directory: &std::path::Path,
+        device: uuid::Uuid,
+        ttl_secs: u64,
+    ) -> Result<uuid::Uuid, anycode_harness_core::Error> {
+        self.with_harness_run(ctx, working_directory, || {
+            Ok(self
+                .harness_hub
+                .issue_computer_ticket(device, ttl_secs)?
+                .ticket)
+        })
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub fn issue_harness_computer_ticket_for_run(
+        &self,
+        ctx: &anycode_harness_core::RunContext,
+        working_directory: &std::path::Path,
+        device: uuid::Uuid,
+        ttl_secs: u64,
+        run: uuid::Uuid,
+    ) -> Result<harness_tools::ComputerTicket, anycode_harness_core::Error> {
+        self.with_harness_run(ctx, working_directory, || {
+            self.harness_hub
+                .issue_computer_ticket_for_run(device, ttl_secs, run)
+        })
+    }
+
     #[must_use]
     pub fn with_auto_compact(mut self, enabled: bool, policy: CompactPolicy) -> Self {
         self.auto_compact = enabled;
         self.auto_compact_policy = policy;
         self
+    }
+
+    #[must_use]
+    pub fn with_harness_unified_kernel(mut self, enabled: bool) -> Self {
+        self.harness_unified_kernel = enabled;
+        self
+    }
+
+    #[must_use]
+    pub fn harness_unified_kernel_enabled(&self) -> bool {
+        self.harness_unified_kernel
+    }
+
+    #[must_use]
+    pub fn sandbox_mode(&self) -> bool {
+        self.sandbox_mode
+    }
+
+    #[cfg(feature = "harness-v1")]
+    pub(super) fn upgraded_self(&self) -> Result<Arc<Self>, CoreError> {
+        self.self_weak
+            .lock()
+            .ok()
+            .and_then(|g| g.as_ref()?.upgrade())
+            .ok_or_else(|| {
+                CoreError::Other(anyhow::anyhow!(
+                    "harness unified kernel requires AgentRuntime::attach_self"
+                ))
+            })
     }
 
     #[must_use]
@@ -390,6 +657,9 @@ impl AgentRuntime {
     }
 
     pub fn attach_tool_services(&self, services: Arc<anycode_tools::ToolServices>) {
+        if self.harness_unified_kernel {
+            services.set_forbid_detached_nested(true);
+        }
         if let Ok(mut g) = self.tool_services.lock() {
             *g = Some(services);
         }
@@ -510,11 +780,11 @@ impl AgentRuntime {
         }
     }
 
-    fn logger(&self) -> RunLogger {
+    pub(super) fn logger(&self) -> RunLogger {
         RunLogger::new(self.disk_output.clone())
     }
 
-    fn model_for_task(&self, agent_type: &AgentType) -> &ModelConfig {
+    pub(super) fn model_for_task(&self, agent_type: &AgentType) -> &ModelConfig {
         let canonical = canonical_agent_type(agent_type);
         self.model_overrides
             .get(agent_type)

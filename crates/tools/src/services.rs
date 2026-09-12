@@ -11,14 +11,14 @@ use crate::skill_app_host::SkillAppHostArc;
 use crate::skills::{SkillCatalog, SkillsGovernance};
 use anycode_core::{
     plan_tree_all_completed, CoreError, LiveTraceEvent, NestedTaskRun, PlanTree, SubAgentExecutor,
-    TaskResult, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
+    TaskBudget, TaskResult, NESTED_TASK_COOPERATIVE_CANCEL_ERROR,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uuid::Uuid;
@@ -289,7 +289,8 @@ pub struct ToolServices {
     skill_app_host: Mutex<Option<SkillAppHostArc>>,
     /// `LSP` 工具：`tools-lsp` 下读此配置（CLI bootstrap 写入）。
     lsp: Mutex<LspConnectionConfig>,
-    sub_agent_depth: AtomicU32,
+    /// Per-task nesting depth. Concurrent parents do not share one counter.
+    sub_agent_depth_by_task: Mutex<HashMap<Uuid, u32>>,
     /// `run_in_background` nested agents: keyed by `nested_task_id` / execution UUID.
     background_agents: Mutex<HashMap<Uuid, Arc<BackgroundAgentJob>>>,
     /// 长驻 MCP 会话：stdio 与 Streamable HTTP（`ANYCODE_MCP_*`）。
@@ -303,8 +304,12 @@ pub struct ToolServices {
     pub skills_governance: Mutex<SkillsGovernance>,
     /// Active agent id per session (Skill governance); avoids cross-session races.
     active_agent_type_by_session: Mutex<HashMap<String, String>>,
-    /// Parent `execute_task` tool surface for nested Agent/Task inheritance.
-    parent_task_tool_deny: Mutex<Option<(Vec<String>, Vec<String>)>>,
+    /// Per-parent tool deny lists. Concurrent siblings must not clobber each other.
+    parent_task_tool_deny: Mutex<HashMap<Uuid, (Vec<String>, Vec<String>)>>,
+    /// Per-parent TaskBudget so nested Agent inherits the parent, not process env.
+    task_budgets: Mutex<HashMap<Uuid, TaskBudget>>,
+    /// Unified Kernel: refuse `run_in_background` detached `tokio::spawn`.
+    forbid_detached_nested: AtomicBool,
     /// Structured-output contract per nested task: declared schema（父 `Agent` 工具注入）。
     structured_output_schemas: Mutex<HashMap<Uuid, serde_json::Value>>,
     /// Structured-output capture per nested task: 子代理 `StructuredOutput` 记录，父侧 take。
@@ -348,7 +353,7 @@ impl Default for ToolServices {
             ask_user_question_host: Mutex::new(None),
             skill_app_host: Mutex::new(None),
             lsp: Mutex::new(LspConnectionConfig::default()),
-            sub_agent_depth: AtomicU32::new(0),
+            sub_agent_depth_by_task: Mutex::new(HashMap::new()),
             background_agents: Mutex::new(HashMap::new()),
             #[cfg(feature = "tools-mcp")]
             mcp_sessions: Mutex::new(vec![]),
@@ -356,7 +361,9 @@ impl Default for ToolServices {
             skill_catalog: Arc::new(SkillCatalog::empty()),
             skills_governance: Mutex::new(SkillsGovernance::default()),
             active_agent_type_by_session: Mutex::new(HashMap::new()),
-            parent_task_tool_deny: Mutex::new(None),
+            parent_task_tool_deny: Mutex::new(HashMap::new()),
+            task_budgets: Mutex::new(HashMap::new()),
+            forbid_detached_nested: AtomicBool::new(false),
             structured_output_schemas: Mutex::new(HashMap::new()),
             structured_output_captures: Mutex::new(HashMap::new()),
             live_trace_by_task: Mutex::new(HashMap::new()),
@@ -366,6 +373,15 @@ impl Default for ToolServices {
             session_plan_store: Mutex::new(None),
             session_todo_store: Mutex::new(None),
         }
+    }
+}
+
+fn restore_task_slot<T>(map: &Mutex<HashMap<Uuid, T>>, task_id: Uuid, previous: Option<T>) {
+    let mut map = map.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(value) = previous {
+        map.insert(task_id, value);
+    } else {
+        map.remove(&task_id);
     }
 }
 
@@ -474,40 +490,72 @@ impl ToolServices {
             .unwrap_or_else(|e| e.into_inner()) = Some(ex);
     }
 
-    /// Set while a parent [`anycode_core::Task`] is executing so nested agents inherit tool denies.
-    /// Returns the previous value so the caller can restore it (see
-    /// [`Self::restore_parent_task_tool_deny`]) instead of clearing.
+    /// Record this parent's deny list. Concurrent parents keep independent entries.
     pub fn set_parent_task_tool_deny(
         &self,
+        task_id: Uuid,
         names: Vec<String>,
         prefixes: Vec<String>,
     ) -> Option<(Vec<String>, Vec<String>)> {
         self.parent_task_tool_deny
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .replace((names, prefixes))
+            .insert(task_id, (names, prefixes))
     }
 
-    pub fn restore_parent_task_tool_deny(&self, previous: Option<(Vec<String>, Vec<String>)>) {
-        *self
-            .parent_task_tool_deny
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = previous;
+    pub fn restore_parent_task_tool_deny(
+        &self,
+        task_id: Uuid,
+        previous: Option<(Vec<String>, Vec<String>)>,
+    ) {
+        restore_task_slot(&self.parent_task_tool_deny, task_id, previous);
     }
 
-    pub fn clear_parent_task_tool_deny(&self) {
-        *self
-            .parent_task_tool_deny
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = None;
-    }
-
-    pub fn parent_task_tool_deny(&self) -> (Vec<String>, Vec<String>) {
+    pub fn clear_parent_task_tool_deny(&self, task_id: Uuid) {
         self.parent_task_tool_deny
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .clone()
+            .remove(&task_id);
+    }
+
+    pub fn parent_task_tool_deny(&self, task_id: Option<Uuid>) -> (Vec<String>, Vec<String>) {
+        let Some(task_id) = task_id else {
+            return (Vec::new(), Vec::new());
+        };
+        self.parent_task_tool_deny
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&task_id)
+            .cloned()
             .unwrap_or_default()
+    }
+
+    pub fn set_task_budget(&self, task_id: Uuid, budget: TaskBudget) -> Option<TaskBudget> {
+        self.task_budgets
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(task_id, budget)
+    }
+
+    pub fn restore_task_budget(&self, task_id: Uuid, previous: Option<TaskBudget>) {
+        restore_task_slot(&self.task_budgets, task_id, previous);
+    }
+
+    pub fn task_budget(&self, task_id: Option<Uuid>) -> Option<TaskBudget> {
+        let task_id = task_id?;
+        self.task_budgets
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&task_id)
+            .cloned()
+    }
+
+    pub fn set_forbid_detached_nested(&self, forbid: bool) {
+        self.forbid_detached_nested.store(forbid, Ordering::Release);
+    }
+
+    pub fn forbid_detached_nested(&self) -> bool {
+        self.forbid_detached_nested.load(Ordering::Acquire)
     }
 
     pub fn set_skills_governance(&self, gov: SkillsGovernance) {
@@ -711,26 +759,37 @@ impl ToolServices {
             .cloned()
     }
 
-    /// 进入子 Agent 嵌套；超过深度返回 `false`（建议 ≤6 层）。
-    pub fn try_enter_sub_agent_depth(&self) -> bool {
-        const MAX: u32 = 6;
-        loop {
-            let cur = self.sub_agent_depth.load(Ordering::Acquire);
-            if cur >= MAX {
-                return false;
-            }
-            if self
-                .sub_agent_depth
-                .compare_exchange_weak(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
-                .is_ok()
-            {
-                return true;
-            }
-        }
+    /// Mark a root/parent task at depth 0 if it has no lineage yet.
+    pub fn ensure_sub_agent_lineage(&self, task_id: Uuid) {
+        self.sub_agent_depth_by_task
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(task_id)
+            .or_insert(0);
     }
 
-    pub fn leave_sub_agent_depth(&self) {
-        self.sub_agent_depth.fetch_sub(1, Ordering::AcqRel);
+    /// Spawn a child under `parent_task_id`. Depth is per lineage, not process-global.
+    pub fn try_spawn_sub_agent(&self, parent_task_id: Option<Uuid>, child_id: Uuid) -> bool {
+        const MAX: u32 = 6;
+        let mut map = self
+            .sub_agent_depth_by_task
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let parent_depth = parent_task_id
+            .and_then(|id| map.get(&id).copied())
+            .unwrap_or(0);
+        if parent_depth >= MAX {
+            return false;
+        }
+        map.insert(child_id, parent_depth.saturating_add(1));
+        true
+    }
+
+    pub fn leave_sub_agent_depth(&self, child_id: Uuid) {
+        self.sub_agent_depth_by_task
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&child_id);
     }
 
     pub fn insert_background_agent_job(&self, id: Uuid) -> Arc<BackgroundAgentJob> {
@@ -2068,5 +2127,82 @@ mod structured_output_slot_tests {
         s.clear_structured_output_schema(a);
         assert!(s.structured_output_schema(a).is_none());
         assert!(s.structured_output_schema(b).is_some());
+    }
+}
+
+#[cfg(test)]
+mod harness_lineage_slot_tests {
+    use super::*;
+
+    #[test]
+    fn sibling_parents_keep_independent_deny_and_depth() {
+        let s = ToolServices::default();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        s.set_parent_task_tool_deny(a, vec!["Bash".into()], vec!["mcp__".into()]);
+        s.set_parent_task_tool_deny(b, vec!["FileWrite".into()], vec![]);
+        assert_eq!(
+            s.parent_task_tool_deny(Some(a)),
+            (vec!["Bash".into()], vec!["mcp__".into()])
+        );
+        assert_eq!(
+            s.parent_task_tool_deny(Some(b)),
+            (vec!["FileWrite".into()], vec![])
+        );
+        s.restore_parent_task_tool_deny(a, None);
+        assert_eq!(s.parent_task_tool_deny(Some(a)), (vec![], vec![]));
+        assert_eq!(
+            s.parent_task_tool_deny(Some(b)),
+            (vec!["FileWrite".into()], vec![])
+        );
+
+        s.ensure_sub_agent_lineage(a);
+        s.ensure_sub_agent_lineage(b);
+        let child_a = Uuid::new_v4();
+        let child_b = Uuid::new_v4();
+        assert!(s.try_spawn_sub_agent(Some(a), child_a));
+        assert!(
+            s.try_spawn_sub_agent(Some(b), child_b),
+            "a sibling of another parent must not consume this lineage"
+        );
+        let mut current = a;
+        for _ in 0..6 {
+            let next = Uuid::new_v4();
+            assert!(s.try_spawn_sub_agent(Some(current), next));
+            current = next;
+        }
+        assert!(
+            !s.try_spawn_sub_agent(Some(current), Uuid::new_v4()),
+            "depth 6 child cannot spawn"
+        );
+        assert!(
+            s.try_spawn_sub_agent(Some(b), Uuid::new_v4()),
+            "exhausted lineage A must not block parent B"
+        );
+
+        let budget_a = TaskBudget {
+            token_budget_total: Some(100),
+            ..TaskBudget::default()
+        };
+        let budget_b = TaskBudget {
+            token_budget_total: Some(50),
+            ..TaskBudget::default()
+        };
+        s.set_task_budget(a, budget_a);
+        s.set_task_budget(b, budget_b);
+        assert_eq!(
+            s.task_budget(Some(a)).and_then(|b| b.token_budget_total),
+            Some(100)
+        );
+        assert_eq!(
+            s.task_budget(Some(b)).and_then(|b| b.token_budget_total),
+            Some(50)
+        );
+        s.restore_task_budget(a, None);
+        assert!(s.task_budget(Some(a)).is_none());
+        assert_eq!(
+            s.task_budget(Some(b)).and_then(|b| b.token_budget_total),
+            Some(50)
+        );
     }
 }

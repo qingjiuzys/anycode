@@ -187,6 +187,17 @@ impl GraphEngine {
             )));
         }
 
+        // Legacy required_gates were previously marked true without verification.
+        // Refuse before side effects; migrate gated workflows to Harness GraphRunner.
+        if workflow
+            .steps
+            .iter()
+            .any(|step| !step.required_gates.is_empty())
+        {
+            return Err(CoreError::Other(anyhow::anyhow!(
+                "legacy graph gates have no trusted verifier; use harness GraphRunner"
+            )));
+        }
         let layers = workflow_topo_layers(workflow).map_err(|v| {
             let msg = v
                 .issues
@@ -199,11 +210,9 @@ impl GraphEngine {
 
         let working_dir = std::fs::canonicalize(&opts.working_directory)
             .unwrap_or_else(|_| opts.working_directory.clone());
-        let retry_max = workflow
-            .retry
-            .as_ref()
-            .map(|r| r.max_attempts.max(1))
-            .unwrap_or(1);
+        // No implicit retry of arbitrary side-effecting legacy steps.
+        // Harness retries require a trusted executor.safe_to_retry decision.
+        let retry_max = 1u32;
         let retry_backoff_ms = workflow.retry.as_ref().map(|r| r.backoff_ms).unwrap_or(0);
         let default_mode = workflow
             .mode
@@ -215,17 +224,19 @@ impl GraphEngine {
             working_dir
                 .join(".anycode")
                 .join("workflow-checkpoints")
-                .join(format!("{}.json", workflow.name.replace('/', "_")))
+                .join(format!(
+                    "{}-{}.json",
+                    workflow.name.replace('/', "_"),
+                    Uuid::new_v4()
+                ))
         });
         let run_id = Uuid::new_v4().to_string();
-        let mut checkpoint = if checkpoint_path.exists() {
-            std::fs::read_to_string(&checkpoint_path)
-                .ok()
-                .and_then(|raw| serde_json::from_str::<WorkflowCheckpoint>(&raw).ok())
-                .unwrap_or_else(|| WorkflowCheckpoint::new(workflow, run_id.clone()))
-        } else {
-            WorkflowCheckpoint::new(workflow, run_id.clone())
-        };
+        if checkpoint_path.exists() {
+            return Err(CoreError::Other(anyhow::anyhow!(
+                "legacy checkpoint resume is disabled: use explicit scope-bound harness resume"
+            )));
+        }
+        let mut checkpoint = WorkflowCheckpoint::new(workflow, run_id.clone());
         let run_id = checkpoint.run_id.clone();
         let _ = std::fs::create_dir_all(
             checkpoint_path
@@ -388,19 +399,11 @@ impl GraphEngine {
                                     details.clone().unwrap_or_else(|| error.clone())
                                 }
                             };
-                            let ok = matches!(
-                                result,
-                                TaskResult::Success { .. } | TaskResult::Partial { .. }
-                            );
+                            let ok = matches!(result, TaskResult::Success { .. });
                             if ok {
                                 last_result = result;
                                 context_text = format!("step {} completed", step.id);
                                 checkpoint.context_text = context_text.clone();
-                                for gate in &step.required_gates {
-                                    if let Some(st) = checkpoint.steps.get_mut(&step.id) {
-                                        st.gate_results.insert(gate.clone(), true);
-                                    }
-                                }
                                 let artifact = truncate_summary(&summary, 2_000);
                                 checkpoint.mark_passed(&step.id, artifact.clone());
                                 persist_checkpoint(&checkpoint_path, &checkpoint);

@@ -1,0 +1,11 @@
+export type NodeState='pending'|'running'|'completed'|'skipped'|'partial'|'failed'|'waiting'|'uncertain'|'cancelled';
+export type Kind={type:'work';agent:string;prompt:string}|{type:'gate';verifier:string}|{type:'human';question:string}|{type:'branch';source:string;pointer:string;equals:unknown};
+export interface GraphNode{id:string;kind:Kind;depends_on?:{node:string;on?:'completed'|'true'|'false'}[];join?:'all'|'any';max_attempts?:number}
+export interface Graph{version:1;name:string;nodes:GraphNode[];max_parallel?:number}
+export interface Checkpoint{run_id:string;revision:number;definition_digest:string;scope_digest:string;nodes:Record<string,{status:NodeState;output:unknown;error?:string|null;attempts:number}>}
+export const statuses:Set<NodeState>;
+export function validateGraph(graph:unknown):{graph:Graph;layers:string[][]};
+export function toFlow(graph:Graph,checkpoint?:Checkpoint|null):{nodes:{id:string;type:string;position:{x:number;y:number};data:{label:string;status:NodeState;kind:string}}[];edges:{id:string;source:string;target:string;label:string;animated:boolean}[]};
+export function aggregate(checkpoint:Checkpoint|null):string;
+export function parseGraph(text:string):Graph;
+export function canResolve(checkpoint:Checkpoint|null,nodeId:string,revision:number):boolean;

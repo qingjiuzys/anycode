@@ -59,7 +59,10 @@ pub use execution_trace::{ExecutionTraceEvent, EXECUTION_TRACE_SCHEMA_VERSION};
 pub use experience_pack::{
     builtin_web_and_rust_pack, ExperienceCard, ExperiencePack, ExperiencePackMeta,
 };
-pub use feature_flags::{FeatureFlag, FeatureRegistry};
+pub use feature_flags::{
+    harness_graph_enabled, harness_gray_project_enabled, harness_gray_projects_from_env,
+    harness_readonly_pilot_enabled, harness_unified_kernel_enabled, FeatureFlag, FeatureRegistry,
+};
 pub use goal::{GoalProgress, GoalSpec};
 pub use ids::{
     AgentId, SessionId, TaskId, ToolName, ANYCODE_COMPACT_SUMMARY_METADATA_KEY,
@@ -152,8 +155,10 @@ pub mod prelude {
     pub use super::CoreError;
     pub use super::{
         attach_vision_images, current_chat_turn, current_dashboard_session_id,
-        current_reply_language, current_user_turn_id, scope_chat_turn, vision_images_from_metadata,
-        Agent, AgentLoopLimits, AgentType, ChatTurnContext, DiskTaskOutput, EmbeddingProvider,
+        current_reply_language, current_user_turn_id, harness_graph_enabled,
+        harness_gray_project_enabled, harness_readonly_pilot_enabled,
+        harness_unified_kernel_enabled, scope_chat_turn, vision_images_from_metadata, Agent,
+        AgentLoopLimits, AgentType, ChatTurnContext, DiskTaskOutput, EmbeddingProvider,
         ExecutionTraceEvent, ExperienceCard, ExperiencePack, FeatureFlag, FeatureRegistry,
         GoalProgress, GoalSpec, LLMClient, LLMProvider, LLMResponse, LiveTraceEvent, Memory,
         MemoryKind, MemoryMetaV2, MemoryPipeline, MemoryPipelineSettings, MemoryScope, MemoryStore,

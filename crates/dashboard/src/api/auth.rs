@@ -113,6 +113,21 @@ pub fn generate_desktop_bootstrap_token() -> String {
     )
 }
 
+fn harness_pairing_bearer_request(path: &str, headers: &axum::http::HeaderMap) -> bool {
+    let pairing = path.contains("/harness/pairing/");
+    let graphs = path.contains("/harness/graphs/");
+    if !pairing && !graphs {
+        return false;
+    }
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| {
+            let v = v.trim();
+            v.len() > 7 && v[..7].eq_ignore_ascii_case("bearer ") && !v[7..].trim().is_empty()
+        })
+}
+
 pub fn origin_allowed(origin: &str, embedded: bool) -> bool {
     if ALLOWED_BROWSER_ORIGINS.contains(&origin) {
         return true;
@@ -196,7 +211,8 @@ pub async fn mutate_origin_guard(
             .get(header::HOST)
             .and_then(|v| v.to_str().ok())
             .is_some_and(|host| origin_matches_host_header(origin, host));
-        if !origin_allowed(origin, state.embedded_desktop) && !same_origin {
+        let harness_bearer = harness_pairing_bearer_request(req.uri().path(), req.headers());
+        if !origin_allowed(origin, state.embedded_desktop) && !same_origin && !harness_bearer {
             return (
                 StatusCode::FORBIDDEN,
                 Json(json!({ "error": "origin not allowed" })),
@@ -222,6 +238,43 @@ pub async fn mutate_origin_guard(
     }
 
     next.run(req).await
+}
+
+pub async fn resolve_request_user_from_headers(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Option<crate::auth_session::AuthUser> {
+    if loopback_trusted_access(&state.host, state.test_auth_bypass, state.embedded_desktop) {
+        return auth_session::local_trusted_user(&state.db).await.ok();
+    }
+    if let Some(token) = headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies.split(';').find_map(|part| {
+                let (k, v) = part.trim().split_once('=')?;
+                (k == SESSION_COOKIE).then_some(v.to_string())
+            })
+        })
+    {
+        if let Some(uid) = state.sessions.resolve(&token) {
+            return auth_session::get_user_by_id(&state.db, &uid)
+                .await
+                .ok()
+                .flatten();
+        }
+    }
+    let auth = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if crate::tokens::validate_token(&state.db, auth)
+        .await
+        .unwrap_or(false)
+    {
+        return auth_session::local_trusted_user(&state.db).await.ok();
+    }
+    None
 }
 
 pub async fn resolve_request_user(
@@ -268,6 +321,11 @@ pub async fn auth_middleware(
         return next.run(req).await;
     }
     if loopback_trusted_access(&state.host, state.test_auth_bypass, state.embedded_desktop) {
+        return next.run(req).await;
+    }
+    // Desktop pairing talks to a server-side BFF that has no dw_session cookie.
+    // The handler still introspects the opaque 818cloud bearer.
+    if state.accounts_sso.is_some() && harness_pairing_bearer_request(path, req.headers()) {
         return next.run(req).await;
     }
     let auth = req
@@ -333,6 +391,14 @@ fn is_public_path(path: &str) -> bool {
             | "/api/cloud/link/poll"
             | "/cloud/unlink"
             | "/api/cloud/unlink" // `/api/cloud/upstream/*` requires a local session / API token (not public).
+            | "/api/harness/pairing/sso/begin"
+            | "/api/harness/pairing/sso/complete"
+            | "/api/harness/pairing/sso/poll"
+            | "/api/harness/pairing/sso/callback"
+            | "/harness/pairing/sso/begin"
+            | "/harness/pairing/sso/complete"
+            | "/harness/pairing/sso/poll"
+            | "/harness/pairing/sso/callback"
     ) || path.starts_with("/setup/")
         || path.starts_with("/api/setup/")
         || path == "/bootstrap"

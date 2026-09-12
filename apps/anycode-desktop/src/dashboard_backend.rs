@@ -169,7 +169,13 @@ pub fn start_in_process(app: AppHandle) {
             "_up_/resources/dashboard-ui",
         ],
     )
-    .filter(|p| p.join("index.html").is_file());
+    .filter(|p| p.join("index.html").is_file())
+    .or_else(|| {
+        std::env::var("ANYCODE_DASHBOARD_STATIC")
+            .ok()
+            .map(PathBuf::from)
+            .filter(|p| p.join("index.html").is_file())
+    });
     let serve_ui = static_dir.is_some();
     if !serve_ui {
         eprintln!(

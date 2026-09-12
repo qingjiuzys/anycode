@@ -1,0 +1,7 @@
+[[permission]]
+identifier = "harness-pairing-default"
+description = "Outbound pairing BFF posts. Origin comes from host env only; the WebView cannot choose it."
+commands.allow = [
+  "harness_pairing_origin_configured",
+  "harness_pairing_post",
+]

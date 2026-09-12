@@ -11,6 +11,7 @@ mod cef_embed;
 #[path = "cef_embed_stub.rs"]
 mod cef_embed;
 mod dashboard_backend;
+mod harness_net;
 mod open_with;
 
 use dashboard_backend::{
@@ -24,6 +25,21 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, RunEvent, Url,
 };
+
+/// Host-only start path. The WebView must not pick the pairing destination.
+fn harness_open_path() -> &'static str {
+    match std::env::var("ANYCODE_HARNESS_OPEN_PATH").as_deref() {
+        Ok("/harness/graph") => "/harness/graph",
+        _ => "/",
+    }
+}
+
+fn harness_open_query() -> &'static str {
+    match std::env::var("ANYCODE_HARNESS_OPEN_PATH").as_deref() {
+        Ok("/harness/graph") => "&next=/harness/graph",
+        _ => "",
+    }
+}
 
 fn wait_for_dashboard_ready(timeout_secs: u64) -> bool {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
@@ -48,9 +64,12 @@ fn navigate_workbench(app: &tauri::AppHandle, w: &tauri::WebviewWindow) -> bool 
         .and_then(|state| state.take_bootstrap_token());
     let url = match bootstrap.as_deref() {
         Some(token) if !token.is_empty() => {
-            format!("{api_base}/api/auth/desktop-bootstrap?token={token}")
+            format!(
+                "{api_base}/api/auth/desktop-bootstrap?token={token}{}",
+                harness_open_query()
+            )
         }
-        _ => format!("{api_base}/"),
+        _ => format!("{api_base}{}", harness_open_path()),
     };
     // Native loadRequest navigation: on this machine (macOS 26, after sleep/
     // wake cycles) `window.location.replace` via eval starts the load but the
@@ -76,6 +95,12 @@ fn open_external_url(url: String) -> Result<(), String> {
     }
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err("unsupported url scheme".into());
+    }
+    if let Ok(path) = std::env::var("ANYCODE_HARNESS_EXTERNAL_URL_FILE") {
+        if !path.is_empty() {
+            std::fs::write(&path, url).map_err(|e| e.to_string())?;
+            return Ok(());
+        }
     }
     #[cfg(target_os = "macos")]
     {
@@ -239,6 +264,24 @@ fn show_workbench(app: &tauri::AppHandle, ready: bool) {
     }
     let _ = w.show();
     let _ = w.set_focus();
+    if std::env::var("ANYCODE_HARNESS_AUTO_PAIR").ok().as_deref() == Some("1") {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(4));
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Some(w) = handle.get_webview_window("main") {
+                    let _ = w.eval(
+                        r#"(function(){
+                          const b=[...document.querySelectorAll('button')]
+                            .find((el)=> (el.textContent||'').includes('Pair this desktop'));
+                          if (b) { b.click(); }
+                        })()"#,
+                    );
+                }
+            });
+        });
+    }
 
     // Opt-in CEF smoke: ANYCODE_CEF_SMOKE=1 embeds example.com after the UI settles.
     #[cfg(target_os = "macos")]
@@ -421,6 +464,10 @@ fn main() {
             apple_media::apple_media_synthesize,
             apple_media::apple_media_read_pasteboard,
             apple_media::apple_media_notify,
+            apple_media::harness_device_keychain_set,
+            apple_media::harness_device_keychain_get,
+            harness_net::harness_pairing_origin_configured,
+            harness_net::harness_pairing_post,
         ])
         .manage(DashboardServerState::new())
         .setup(|app| {
@@ -472,7 +519,10 @@ fn main() {
             // (see register_deep_link_handlers); RunEvent::Opened does not exist in Tauri 2.
             #[cfg(target_os = "macos")]
             if matches!(event, RunEvent::Reopen { .. }) {
-                show_workbench(app, dashboard_http_ready());
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
             }
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
                 if let Some(state) = app.try_state::<DashboardServerState>() {

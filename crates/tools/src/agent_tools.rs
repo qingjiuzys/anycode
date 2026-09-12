@@ -160,6 +160,7 @@ fn agent_tool_schema_with_catalog(
 
 struct SubAgentDepthGuard<'a> {
     services: &'a ToolServices,
+    child_id: Uuid,
     disarmed: bool,
 }
 
@@ -174,9 +175,10 @@ impl Drop for ForegroundCancelGuard {
 }
 
 impl<'a> SubAgentDepthGuard<'a> {
-    fn new(services: &'a ToolServices) -> Self {
+    fn new(services: &'a ToolServices, child_id: Uuid) -> Self {
         Self {
             services,
+            child_id,
             disarmed: false,
         }
     }
@@ -189,7 +191,7 @@ impl<'a> SubAgentDepthGuard<'a> {
 impl Drop for SubAgentDepthGuard<'_> {
     fn drop(&mut self) {
         if !self.disarmed {
-            self.services.leave_sub_agent_depth();
+            self.services.leave_sub_agent_depth(self.child_id);
         }
     }
 }
@@ -250,15 +252,6 @@ impl AgentTool {
         default_agent_type: &str,
     ) -> Result<ToolOutput, CoreError> {
         let start = Instant::now();
-        if !self.services.try_enter_sub_agent_depth() {
-            return Ok(ToolOutput {
-                result: serde_json::json!({ "error": "sub-agent nesting depth exceeded" }),
-                error: Some("max sub-agent depth".into()),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
-        }
-        let mut depth_guard = SubAgentDepthGuard::new(self.services.as_ref());
-
         let exe = match self.services.sub_agent_executor() {
             Some(e) => e,
             None => {
@@ -283,6 +276,15 @@ impl AgentTool {
                     "non-empty `prompt` or `task` is required (Claude Code: `prompt`)".into(),
                 )
             })?;
+        if v.run_in_background == Some(true) && self.services.forbid_detached_nested() {
+            return Ok(ToolOutput {
+                result: serde_json::json!({
+                    "error": "unified kernel refuses detached background Agent; use HarnessAgentSpawn/Join/Cancel"
+                }),
+                error: Some("detached background Agent is not allowed".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
 
         let agent_type_owned = v
             .agent_type
@@ -322,7 +324,17 @@ impl AgentTool {
         let model_echo = model.clone();
         let isolation_echo = isolation.clone();
 
-        let (parent_deny_names, parent_deny_prefixes) = self.services.parent_task_tool_deny();
+        let child_id = Uuid::new_v4();
+        if !self.services.try_spawn_sub_agent(input.task_id, child_id) {
+            return Ok(ToolOutput {
+                result: serde_json::json!({ "error": "sub-agent nesting depth exceeded" }),
+                error: Some("max sub-agent depth".into()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
+        let mut depth_guard = SubAgentDepthGuard::new(self.services.as_ref(), child_id);
+        let (parent_deny_names, parent_deny_prefixes) =
+            self.services.parent_task_tool_deny(input.task_id);
         let mut invoke = NestedTaskInvoke {
             agent_type: AgentType::new(agent_type_owned.clone()),
             prompt: prompt.clone(),
@@ -331,7 +343,7 @@ impl AgentTool {
             isolation,
             // 前后台共用同一个预分配 task_id：结构化输出 schema 槽 / 捕获按 task 键控，
             // 后台 job 直接复用此 id（不再覆盖），schema 槽键始终一致。
-            task_id: Some(Uuid::new_v4()),
+            task_id: Some(child_id),
             cancel: None,
             tool_deny_names: parent_deny_names,
             tool_deny_prefixes: parent_deny_prefixes,
@@ -342,6 +354,7 @@ impl AgentTool {
                 .task_id
                 .and_then(|id| self.services.live_trace_tx_for(id)),
             parent_task_id: input.task_id,
+            budget: self.services.task_budget(input.task_id),
         };
 
         // 结构化输出契约：schema 槽 + 指令注入（子代理以 StructuredOutput 收尾）。
@@ -387,7 +400,7 @@ impl AgentTool {
                 }
                 impl Drop for BgDepthGuard {
                     fn drop(&mut self) {
-                        self.services.leave_sub_agent_depth();
+                        self.services.leave_sub_agent_depth(self.task_id);
                         self.services
                             .finalize_background_if_still_running(self.task_id);
                     }
@@ -1359,6 +1372,7 @@ mod background_agent_tests {
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
+    use uuid::Uuid;
 
     struct DelayedOkEx {
         delay_ms: u64,
@@ -1499,18 +1513,25 @@ mod background_agent_tests {
             delay_ms: 1,
             calls: AtomicU32::new(0),
         }));
+        let parent = Uuid::new_v4();
+        services.ensure_sub_agent_lineage(parent);
+        let mut current = parent;
         for _ in 0..6 {
+            let child = Uuid::new_v4();
             assert!(
-                services.try_enter_sub_agent_depth(),
+                services.try_spawn_sub_agent(Some(current), child),
                 "expected enter up to max depth (6)"
             );
+            current = child;
         }
         assert!(
-            !services.try_enter_sub_agent_depth(),
+            !services.try_spawn_sub_agent(Some(current), Uuid::new_v4()),
             "seventh enter should fail"
         );
         let agent = AgentTool::new(services.clone());
-        let out = agent.execute(bg_input("depth")).await.expect("execute");
+        let mut input = bg_input("depth");
+        input.task_id = Some(current);
+        let out = agent.execute(input).await.expect("execute");
         assert_eq!(out.result["error"], "sub-agent nesting depth exceeded");
         assert!(
             out.result.get("nested_task_id").is_none(),
@@ -1530,6 +1551,7 @@ mod structured_output_tests {
     use std::sync::Arc;
     use std::sync::Mutex as StdMutex;
     use std::time::Duration;
+    use uuid::Uuid;
 
     /// 模拟子代理：捕获 invoke（断言注入/task_id），并按 task_id 记录结构化输出。
     struct SchemaEchoEx {
@@ -1630,6 +1652,57 @@ mod structured_output_tests {
         let tid = seen.task_id.unwrap();
         assert!(services.structured_output_schema(tid).is_none());
         assert!(services.take_structured_output(tid).is_none());
+    }
+
+    #[tokio::test]
+    async fn nested_invoke_inherits_parent_task_budget() {
+        let services = Arc::new(ToolServices::default());
+        let parent = Uuid::new_v4();
+        services.set_task_budget(
+            parent,
+            TaskBudget {
+                token_budget_total: Some(42),
+                ..TaskBudget::default()
+            },
+        );
+        let ex = Arc::new(SchemaEchoEx {
+            services: services.clone(),
+            seen: StdMutex::new(None),
+            record_value: json!({}),
+        });
+        services.attach_sub_agent_executor(ex.clone());
+        let agent = AgentTool::new(services);
+        let mut input = fg_input(json!({}));
+        input.task_id = Some(parent);
+        agent.execute(input).await.expect("execute");
+        let seen = ex.seen.lock().expect("seen").clone().expect("invoke");
+        assert_eq!(
+            seen.budget.and_then(|b| b.token_budget_total),
+            Some(42),
+            "child must inherit the parent TaskBudget, not process env"
+        );
+    }
+
+    #[tokio::test]
+    async fn unified_kernel_refuses_detached_background_agent() {
+        let services = Arc::new(ToolServices::default());
+        services.set_forbid_detached_nested(true);
+        let ex = Arc::new(SchemaEchoEx {
+            services: services.clone(),
+            seen: StdMutex::new(None),
+            record_value: json!({}),
+        });
+        services.attach_sub_agent_executor(ex.clone());
+        let agent = AgentTool::new(services);
+        let out = agent
+            .execute(fg_input(json!({ "run_in_background": true })))
+            .await
+            .expect("execute");
+        assert!(out.error.is_some(), "{out:?}");
+        assert!(
+            ex.seen.lock().expect("seen").is_none(),
+            "detached spawn must not start a nested task"
+        );
     }
 
     #[tokio::test]
